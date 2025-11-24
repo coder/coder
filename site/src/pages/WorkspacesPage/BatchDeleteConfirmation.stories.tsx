@@ -1,7 +1,7 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { MockUserMember, MockWorkspace } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 
 const meta: Meta<typeof BatchDeleteConfirmation> = {

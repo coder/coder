@@ -7,7 +7,6 @@
  * hooks do, especially for dependency arrays.
  */
 import { useCallback, useLayoutEffect, useRef } from "react";
-
 /**
  * A DIY version of useEffectEvent.
  *

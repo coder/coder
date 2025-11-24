@@ -1,5 +1,5 @@
 import { Slot, Slottable } from "@radix-ui/react-slot";
-import { type VariantProps, cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { forwardRef } from "react";
 import { cn } from "utils/cn";
@@ -27,10 +27,14 @@ interface LinkProps
 	extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
 		VariantProps<typeof linkVariants> {
 	asChild?: boolean;
+	showExternalIcon?: boolean;
 }
 
 export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
-	({ className, children, size, asChild, ...props }, ref) => {
+	(
+		{ className, children, size, asChild, showExternalIcon = true, ...props },
+		ref,
+	) => {
 		const Comp = asChild ? Slot : "a";
 		return (
 			<Comp
@@ -39,7 +43,7 @@ export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
 				{...props}
 			>
 				<Slottable>{children}</Slottable>
-				<SquareArrowOutUpRightIcon aria-hidden="true" />
+				{showExternalIcon && <SquareArrowOutUpRightIcon aria-hidden="true" />}
 			</Comp>
 		);
 	},

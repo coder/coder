@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC, HTMLProps } from "react";
-
 export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return <div css={styles.root} {...props} />;
 };

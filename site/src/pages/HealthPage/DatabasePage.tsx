@@ -1,7 +1,6 @@
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { Helmet } from "react-helmet-async";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
 import {
 	GridData,
@@ -21,9 +20,7 @@ const DatabasePage = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Database - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Database - Health")}</title>
 
 			<Header>
 				<HeaderTitle>
@@ -37,7 +34,7 @@ const DatabasePage = () => {
 				{database.warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>

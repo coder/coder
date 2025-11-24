@@ -23,13 +23,11 @@ func (r *RootCmd) templatePull() *serpent.Command {
 		orgContext  = NewOrganizationContext()
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "pull <name> [destination]",
 		Short: "Download the active, latest, or specified version of a template to a path.",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, 2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			var (
@@ -37,6 +35,10 @@ func (r *RootCmd) templatePull() *serpent.Command {
 				templateName = inv.Args[0]
 				dest         string
 			)
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			if len(inv.Args) > 1 {
 				dest = inv.Args[1]

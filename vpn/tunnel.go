@@ -192,12 +192,6 @@ func UseAsLogger() TunnelOption {
 	}
 }
 
-func UseCustomLogSinks(sinks ...slog.Sink) TunnelOption {
-	return func(t *Tunnel) {
-		t.clientLogger = t.clientLogger.AppendSinks(sinks...)
-	}
-}
-
 func WithClock(clock quartz.Clock) TunnelOption {
 	return func(t *Tunnel) {
 		t.clock = clock

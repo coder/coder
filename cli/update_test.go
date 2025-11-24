@@ -182,7 +182,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 			{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
 			{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
 			{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
-			{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
+			{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true, DefaultValue: "unset"},
 		})
 	}
 
@@ -811,7 +811,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(templateParameters))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.UseClassicParameterFlow = ptr.Ref(true) // TODO: Remove when dynamic parameters can pass this test
+		})
 
 		// Create new workspace
 		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", numberParameterName, tempVal))

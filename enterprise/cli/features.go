@@ -36,15 +36,16 @@ func (r *RootCmd) featuresList() *serpent.Command {
 		columns        []string
 		outputFormat   string
 	)
-	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
+		Use:        "list",
+		Aliases:    []string{"ls"},
+		Middleware: serpent.Chain(),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {

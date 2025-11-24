@@ -26,6 +26,10 @@ OPTIONS:
           systemd. This directory is NOT safe to be configured as a shared
           directory across coderd/provisionerd replicas.
 
+      --default-oauth-refresh-lifetime duration, $CODER_DEFAULT_OAUTH_REFRESH_LIFETIME (default: 720h0m0s)
+          The default lifetime duration for OAuth2 refresh tokens. This controls
+          how long refresh tokens remain valid after issuance or rotation.
+
       --default-token-lifetime duration, $CODER_DEFAULT_TOKEN_LIFETIME (default: 168h0m0s)
           The default lifetime duration for API tokens. This value is used when
           creating a token without specifying a duration, such as when
@@ -76,6 +80,50 @@ OPTIONS:
       --update-check bool, $CODER_UPDATE_CHECK (default: false)
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
+
+AIBRIDGE OPTIONS: 
+      --aibridge-anthropic-base-url string, $CODER_AIBRIDGE_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
+          The base URL of the Anthropic API.
+
+      --aibridge-anthropic-key string, $CODER_AIBRIDGE_ANTHROPIC_KEY
+          The key to authenticate against the Anthropic API.
+
+      --aibridge-bedrock-access-key string, $CODER_AIBRIDGE_BEDROCK_ACCESS_KEY
+          The access key to authenticate against the AWS Bedrock API.
+
+      --aibridge-bedrock-access-key-secret string, $CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET
+          The access key secret to use with the access key to authenticate
+          against the AWS Bedrock API.
+
+      --aibridge-bedrock-model string, $CODER_AIBRIDGE_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
+          The model to use when making requests to the AWS Bedrock API.
+
+      --aibridge-bedrock-region string, $CODER_AIBRIDGE_BEDROCK_REGION
+          The AWS Bedrock API region.
+
+      --aibridge-bedrock-small-fastmodel string, $CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
+          The small fast model to use when making requests to the AWS Bedrock
+          API. Claude Code uses Haiku-class models to perform background tasks.
+          See
+          https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+
+      --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 1440h)
+          Length of time to retain data such as interceptions and all related
+          records (token, prompt, tool use).
+
+      --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
+          Whether to start an in-memory aibridged instance.
+
+      --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS (default: false)
+          Whether to inject Coder's MCP tools into intercepted AIBridge requests
+          (requires the "oauth2" and "mcp-server-http" experiments to be
+          enabled).
+
+      --aibridge-openai-base-url string, $CODER_AIBRIDGE_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
+          The base URL of the OpenAI API.
+
+      --aibridge-openai-key string, $CODER_AIBRIDGE_OPENAI_KEY
+          The key to authenticate against the OpenAI API.
 
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
@@ -681,7 +729,7 @@ workspaces stopping during the day due to template scheduling.
 WORKSPACE PREBUILDS OPTIONS: 
 Configure how workspace prebuilds behave.
 
-      --workspace-prebuilds-reconciliation-interval duration, $CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL (default: 15s)
+      --workspace-prebuilds-reconciliation-interval duration, $CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL (default: 1m0s)
           How often to reconcile workspace prebuilds state.
 
 ⚠️ DANGEROUS OPTIONS: 

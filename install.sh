@@ -273,7 +273,7 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	TERRAFORM_VERSION="1.12.2"
+	TERRAFORM_VERSION="1.13.4"
 
 	if [ "${TRACE-}" ]; then
 		set -x
@@ -657,7 +657,6 @@ install_standalone() {
 	darwin) STANDALONE_ARCHIVE_FORMAT=zip ;;
 	*) STANDALONE_ARCHIVE_FORMAT=tar.gz ;;
 	esac
-
 	fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_${OS}_${ARCH}.$STANDALONE_ARCHIVE_FORMAT" \
 		"$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.$STANDALONE_ARCHIVE_FORMAT"
 

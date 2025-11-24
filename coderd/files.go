@@ -118,11 +118,23 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		Data:      data,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error saving file.",
-			Detail:  err.Error(),
-		})
-		return
+		if database.IsUniqueViolation(err, database.UniqueFilesHashCreatedByKey) {
+			// The file was uploaded by some concurrent process since the last time we checked for it, fetch it again.
+			file, err = api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
+				Hash:      hash,
+				CreatedBy: apiKey.UserID,
+			})
+			api.Logger.Info(ctx, "postFile handler hit UniqueViolation trying to upload file after already checking for the file existence", slog.F("hash", hash), slog.F("created_by_id", apiKey.UserID))
+		}
+		// At this point the first error was either not the UniqueViolation OR there's still an error even after we
+		// attempt to fetch the file again, so we should return here.
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error saving file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UploadResponse{

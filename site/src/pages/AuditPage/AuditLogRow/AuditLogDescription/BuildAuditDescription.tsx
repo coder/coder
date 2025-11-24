@@ -1,7 +1,8 @@
 import Link from "@mui/material/Link";
 import type { AuditLog } from "api/typesGenerated";
 import { type FC, useMemo } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
+import { systemBuildReasons } from "utils/workspace";
 
 interface BuildAuditDescriptionProps {
 	auditLog: AuditLog;
@@ -14,7 +15,7 @@ export const BuildAuditDescription: FC<BuildAuditDescriptionProps> = ({
 	// workspaces can be started/stopped/deleted by a user, or kicked off automatically by Coder
 	const user =
 		auditLog.additional_fields?.build_reason &&
-		auditLog.additional_fields?.build_reason !== "initiator"
+		systemBuildReasons.includes(auditLog.additional_fields?.build_reason)
 			? "Coder automatically"
 			: auditLog.user
 				? auditLog.user.username.trim()

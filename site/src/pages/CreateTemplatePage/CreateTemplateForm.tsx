@@ -29,7 +29,7 @@ import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import {
 	displayNameValidator,
@@ -38,9 +38,9 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import {
+	sortedDays,
 	type TemplateAutostartRequirementDaysValue,
 	type TemplateAutostopRequirementDaysValue,
-	sortedDays,
 } from "utils/schedule";
 import * as Yup from "yup";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
@@ -186,7 +186,7 @@ type CreateTemplateFormProps = (
 	jobError?: string;
 	logs?: ProvisionerJobLog[];
 	allowAdvancedScheduling: boolean;
-	variablesSectionRef: React.RefObject<HTMLDivElement>;
+	variablesSectionRef: React.RefObject<HTMLDivElement | null>;
 	showOrganizationPicker?: boolean;
 };
 

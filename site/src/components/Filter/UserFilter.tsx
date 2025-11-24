@@ -9,6 +9,8 @@ import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
+export const DEFAULT_USER_FILTER_WIDTH = 175;
+
 export const useUserFilterMenu = ({
 	value,
 	onChange,
@@ -82,14 +84,15 @@ export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
 interface UserMenuProps {
 	menu: UserFilterMenu;
+	placeholder?: string;
 	width?: number;
 }
 
-export const UserMenu: FC<UserMenuProps> = ({ menu, width }) => {
+export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 	return (
 		<SelectFilter
 			label="Select user"
-			placeholder="All users"
+			placeholder={placeholder ?? "All users"}
 			emptyText="No users found"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}

@@ -1,4 +1,3 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type {
 	ProvisionerJobLog,
 	WorkspaceAgent,
@@ -7,7 +6,6 @@ import type {
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import type { Line } from "components/Logs/LogLine";
 import { Margins } from "components/Margins/Margins";
 import {
 	FullWidthPageHeader,
@@ -28,23 +26,31 @@ import {
 } from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
-	type CSSProperties,
 	type FC,
 	type HTMLProps,
+	type ReactNode,
 	useLayoutEffect,
 	useRef,
-	useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
+import { cn } from "utils/cn";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
 
-const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
-	return [...logs].sort(
-		(a, b) =>
-			new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+type BuildStatsItemProps = Readonly<{
+	children?: ReactNode;
+	label: string;
+}>;
+
+const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
+	return (
+		<StatsItem
+			className="flex-col gap-0 p-0 [&>span:first-of-type]:text-xs [&>span:first-of-type]:font-medium md:p-0"
+			label={label}
+			value={children}
+		/>
 	);
 };
 
@@ -63,7 +69,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	builds,
 	activeBuildNumber,
 }) => {
-	const theme = useTheme();
 	const tabState = useSearchParamsKey({
 		key: LOGS_TAB_KEY,
 		defaultValue: "build",
@@ -72,10 +77,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	if (buildError) {
 		return (
 			<Margins>
-				<ErrorAlert
-					error={buildError}
-					css={{ marginTop: 16, marginBottom: 16 }}
-				/>
+				<ErrorAlert error={buildError} className="my-4" />
 			</Margins>
 		);
 	}
@@ -98,54 +100,33 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					</div>
 				</Stack>
 
-				<Stats aria-label="Build details" css={styles.stats}>
-					<StatsItem
-						css={styles.statsItem}
-						label="Workspace"
-						value={
-							<Link
-								to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
-							>
-								{build.workspace_name}
-							</Link>
-						}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Template version"
-						value={build.template_version_name}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Duration"
-						value={displayWorkspaceBuildDuration(build)}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Started at"
-						value={new Date(build.created_at).toLocaleString()}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Action"
-						value={
-							<span css={{ textTransform: "capitalize" }}>
-								{build.transition}
-							</span>
-						}
-					/>
+				<Stats
+					aria-label="Build details"
+					className="flex flex-col items-start gap-2 px-0 border-none grow basis-0 md:flex-row md:gap-x-12 md:gap-y-6"
+				>
+					<BuildStatsItem label="Workspace">
+						<Link
+							to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
+						>
+							{build.workspace_name}
+						</Link>
+					</BuildStatsItem>
+					<BuildStatsItem label="Template version">
+						{build.template_version_name}
+					</BuildStatsItem>
+					<BuildStatsItem label="Duration">
+						{displayWorkspaceBuildDuration(build)}
+					</BuildStatsItem>
+					<BuildStatsItem label="Started at">
+						{new Date(build.created_at).toLocaleString()}
+					</BuildStatsItem>
+					<BuildStatsItem label="Action">
+						<span className="capitalize">{build.transition}</span>
+					</BuildStatsItem>
 				</Stats>
 			</FullWidthPageHeader>
 
-			<div
-				css={{
-					display: "flex",
-					alignItems: "start",
-					overflow: "hidden",
-					flex: 1,
-					flexBasis: 0,
-				}}
-			>
+			<div className="flex items-start overflow-hidden grow basis-0">
 				<Sidebar>
 					<SidebarCaption>Builds</SidebarCaption>
 					{!builds &&
@@ -169,13 +150,18 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 
 				<ScrollArea>
 					<Tabs active={tabState.value}>
-						<TabsList>
-							<TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
+						<TabsList className="gap-0">
+							<TabLink
+								to={`?${LOGS_TAB_KEY}=build`}
+								value="build"
+								className="px-6 pb-2"
+							>
 								Build
 							</TabLink>
 
 							{agents.map((a) => (
 								<TabLink
+									className="px-6 pb-2"
 									to={`?${LOGS_TAB_KEY}=${a.id}`}
 									value={a.id}
 									key={a.id}
@@ -188,23 +174,12 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					{build.transition === "delete" && build.job.status === "failed" && (
 						<Alert
 							severity="error"
-							css={{
-								borderRadius: 0,
-								border: 0,
-								background: theme.roles.error.background,
-								borderBottom: `1px solid ${theme.palette.divider}`,
-							}}
+							className="rounded-none border-0 border-b border-solid border-border"
 						>
 							<div>
 								The workspace may have failed to delete due to a Terraform state
 								mismatch. A template admin may run{" "}
-								<code
-									css={{
-										display: "inline-block",
-										width: "fit-content",
-										fontWeight: 600,
-									}}
-								>
+								<code className="font-semibold w-fit inline-block">
 									{`coder rm ${`${build.workspace_owner_name}/${build.workspace_name}`} --orphan`}
 								</code>{" "}
 								to delete the workspace skipping resource destruction.
@@ -212,7 +187,19 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 						</Alert>
 					)}
 
-					{tabState.value === "build" && <BuildLogsContent logs={logs} />}
+					{build?.job?.logs_overflowed && (
+						<Alert
+							severity="warning"
+							className="rounded-none border-0 border-b border-solid border-border"
+						>
+							Provisioner logs exceeded the max size of 1MB. Will not continue
+							to write provisioner logs for workspace build.
+						</Alert>
+					)}
+
+					{tabState.value === "build" && (
+						<BuildLogsContent logs={logs} build={build} />
+					)}
 					{tabState.value !== "build" && selectedAgent && (
 						<AgentLogsContent agent={selectedAgent} />
 					)}
@@ -222,31 +209,41 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	);
 };
 
-const ScrollArea: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	// TODO: Use only CSS to set the height of the content.
-	// Note: On Safari, when content is rendered inside a flex container and needs
-	// to scroll, the parent container must have a height set. Achieving this may
-	// require significant refactoring of the layout components where we currently
-	// use height and min-height set to 100%.
-	// Issue: https://github.com/coder/coder/issues/9687
-	// Reference: https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari
+const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({ className, ...props }) => {
+	/**
+	 * @todo 2024-10-03 - Use only CSS to set the height of the content.
+	 *
+	 * On Safari, when content is rendered inside a flex container and needs to
+	 * scroll, the parent container must have a height set. Achieving this may
+	 * require significant refactoring of the layout components where we
+	 * currently use height and min-height set to 100%.
+	 *
+	 * @see {@link https://github.com/coder/coder/issues/9687}
+	 * @see {@link https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari}
+	 */
 	const contentRef = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState<CSSProperties["height"]>("100%");
 	useLayoutEffect(() => {
 		const contentEl = contentRef.current;
 		if (!contentEl) {
 			return;
 		}
 
-		const resizeObserver = new ResizeObserver(() => {
+		/**
+		 * 2025-09-17 - We're updating the height directly to minimize the
+		 * overhead in React itself. There is a risk down the line that the
+		 * height value will be wiped on re-renders, but that seemed like a
+		 * small enough risk that it wasn't worth accounting for just yet
+		 */
+		const syncParentSize = () => {
 			const parentEl = contentEl.parentElement;
-			if (!parentEl) {
-				return;
+			if (parentEl && contentEl) {
+				contentEl.style.height = `${contentEl.parentElement.clientHeight}px`;
 			}
-			setHeight(parentEl.clientHeight);
-		});
-		resizeObserver.observe(document.body);
+		};
 
+		syncParentSize();
+		const resizeObserver = new ResizeObserver(syncParentSize);
+		resizeObserver.observe(document.body);
 		return () => {
 			resizeObserver.disconnect();
 		};
@@ -255,29 +252,37 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return (
 		<div
 			ref={contentRef}
-			css={{ height, overflowY: "auto", width: "100%" }}
+			className={cn("overflow-y-auto w-full", className)}
 			{...props}
 		/>
 	);
 };
 
-const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
+function sortLogsByCreatedAt(
+	logs: readonly ProvisionerJobLog[],
+): ProvisionerJobLog[] {
+	return [...logs].sort((a, b) => {
+		return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+	});
+}
+
+const BuildLogsContent: FC<{
+	logs?: ProvisionerJobLog[];
+	build?: WorkspaceBuild;
+}> = ({ logs = [], build }) => {
 	if (!logs) {
 		return <Loader />;
 	}
 
 	return (
 		<WorkspaceBuildLogs
-			css={{
-				border: 0,
-				"--log-line-side-padding": `${TAB_PADDING_X}px`,
-				// Add extra spacing to the first log header to prevent it from being
-				// too close to the tabs
-				"& .logs-header:first-of-type": {
-					paddingTop: 16,
-				},
-			}}
+			// logs header class adds extra spacing to the first log header to
+			// prevent it from being too close to the tabs
+			className="border-none [&_.logs-header:first-of-type]:pt-4"
+			style={{ "--log-line-side-padding": `${TAB_PADDING_X}px` }}
+			build={build}
 			logs={sortLogsByCreatedAt(logs)}
+			disableAutoscroll
 		/>
 	);
 };
@@ -287,52 +292,20 @@ type AgentLogsContentProps = {
 };
 
 const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
-	const logs = useAgentLogs(agent, true);
-
-	if (!logs) {
-		return <Loader />;
-	}
-
+	const logs = useAgentLogs({ agentId: agent.id });
 	return (
 		<AgentLogs
+			overflowed={agent.logs_overflowed}
 			sources={agent.log_sources}
-			logs={logs.map<Line>((l) => ({
+			height={560}
+			width="100%"
+			logs={logs.map((l) => ({
 				id: l.id,
 				output: l.output,
 				time: l.created_at,
 				level: l.level,
 				sourceId: l.source_id,
 			}))}
-			height={560}
-			width="100%"
 		/>
 	);
 };
-
-const styles = {
-	stats: (theme) => ({
-		padding: 0,
-		border: 0,
-		gap: 48,
-		rowGap: 24,
-		flex: 1,
-
-		[theme.breakpoints.down("md")]: {
-			display: "flex",
-			flexDirection: "column",
-			alignItems: "flex-start",
-			gap: 8,
-		},
-	}),
-
-	statsItem: {
-		flexDirection: "column",
-		gap: 0,
-		padding: 0,
-
-		"& > span:first-of-type": {
-			fontSize: 12,
-			fontWeight: 500,
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;

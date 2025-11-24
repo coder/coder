@@ -1,0 +1,6 @@
+# Redirect old offline deployments URL to new airgap URL
+/install/offline /install/airgap 301
+
+# Redirect old offline anchor fragments to new airgap anchors
+/install/offline#offline-docs /install/airgap#airgap-docs 301
+/install/offline#offline-container-images /install/airgap#airgap-container-images 301

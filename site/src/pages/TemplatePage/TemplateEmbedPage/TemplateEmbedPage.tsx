@@ -1,21 +1,25 @@
-import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { FormSection, VerticalForm } from "components/Form/Form";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useDebouncedFunction } from "hooks/debounce";
 import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
+import { type FC, useEffect, useId, useState } from "react";
 import { useQuery } from "react-query";
+import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { ValidationError } from "yup";
 
 type ButtonValues = Record<string, string>;
 
@@ -29,9 +33,8 @@ const TemplateEmbedPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			<TemplateEmbedPageView
 				template={template}
 				templateParameters={templateParameters?.filter(
@@ -47,31 +50,31 @@ interface TemplateEmbedPageViewProps {
 	templateParameters?: TemplateVersionParameter[];
 }
 
+const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+
 function getClipboardCopyContent(
 	templateName: string,
 	organization: string,
 	buttonValues: ButtonValues | undefined,
 ): string {
-	const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
 	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
 	const createWorkspaceParams = new URLSearchParams(buttonValues);
+	if (createWorkspaceParams.get("name") === "") {
+		createWorkspaceParams.delete("name"); // no default workspace name if empty
+	}
 	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 
 	return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
 }
+
+const workspaceNameValidator = nameValidator("Workspace name");
 
 export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	template,
 	templateParameters,
 }) => {
 	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
-	const clipboard = useClipboard({
-		textToCopy: getClipboardCopyContent(
-			template.name,
-			template.organization_name,
-			buttonValues,
-		),
-	});
+	const clipboard = useClipboard();
 
 	// template parameters is async so we need to initialize the values after it
 	// is loaded
@@ -79,6 +82,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 		if (templateParameters && !buttonValues) {
 			const buttonValues: ButtonValues = {
 				mode: "manual",
+				name: "",
 			};
 			for (const parameter of getInitialRichParameterValues(
 				templateParameters,
@@ -89,11 +93,31 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 		}
 	}, [buttonValues, templateParameters]);
 
+	const [workspaceNameError, setWorkspaceNameError] = useState("");
+	const validateWorkspaceName = (workspaceName: string) => {
+		try {
+			if (workspaceName) {
+				workspaceNameValidator.validateSync(workspaceName);
+			}
+			setWorkspaceNameError("");
+		} catch (e) {
+			if (e instanceof ValidationError) {
+				setWorkspaceNameError(e.message);
+			}
+		}
+	};
+	const { debounced: debouncedValidateWorkspaceName } = useDebouncedFunction(
+		validateWorkspaceName,
+		500,
+	);
+
+	const hookId = useId();
+	const defaultWorkspaceNameID = `${hookId}-default-workspace-name`;
+
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			{!buttonValues || !templateParameters ? (
 				<Loader />
 			) : (
@@ -125,6 +149,29 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 									/>
 								</RadioGroup>
 							</FormSection>
+
+							<div className="flex flex-col gap-1">
+								<Label className="text-md" htmlFor={defaultWorkspaceNameID}>
+									Workspace name
+								</Label>
+								<div className="text-sm text-content-secondary pb-3">
+									Default name for the new workspace
+								</div>
+								<Input
+									id={defaultWorkspaceNameID}
+									value={buttonValues.name}
+									onChange={(event) => {
+										debouncedValidateWorkspaceName(event.target.value);
+										setButtonValues((buttonValues) => ({
+											...buttonValues,
+											name: event.target.value,
+										}));
+									}}
+								/>
+								<div className="text-sm text-highlight-red mt-1" role="alert">
+									{workspaceNameError}
+								</div>
+							</div>
 
 							{templateParameters.length > 0 && (
 								<div
@@ -183,18 +230,18 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 							}}
 						>
 							<Button
-								css={{ borderRadius: 999 }}
-								startIcon={
-									clipboard.showCopiedSuccess ? (
-										<CheckIcon className="size-icon-sm" />
-									) : (
-										<CopyIcon className="size-icon-sm" />
-									)
-								}
-								variant="contained"
-								onClick={clipboard.copyToClipboard}
+								className="rounded-full"
 								disabled={clipboard.showCopiedSuccess}
+								onClick={() => {
+									const textToCopy = getClipboardCopyContent(
+										template.name,
+										template.organization_name,
+										buttonValues,
+									);
+									clipboard.copyToClipboard(textToCopy);
+								}}
 							>
+								{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
 								Copy button code
 							</Button>
 						</div>

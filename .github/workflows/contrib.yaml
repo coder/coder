@@ -3,6 +3,7 @@ name: contrib
 on:
   issue_comment:
     types: [created, edited]
+  # zizmor: ignore[dangerous-triggers] We explicitly want to run on pull_request_target.
   pull_request_target:
     types:
       - opened
@@ -52,7 +53,7 @@ jobs:
     if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
     steps:
       - name: release-labels
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           # This script ensures PR title and labels are in sync:
           #

@@ -13,7 +13,7 @@ import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
@@ -92,7 +92,6 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						<Latency
 							latency={latencies?.[selectedProxy.id]?.latencyMS}
 							isLoading={proxyLatencyLoading(selectedProxy)}
-							size={24}
 						/>
 					</>
 				) : (
@@ -167,7 +166,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 							<MenuItem
 								key={proxy.id}
 								selected={proxy.id === selectedProxy?.id}
-								css={{ fontSize: 14 }}
+								className="text-sm"
 								onClick={() => {
 									if (!proxy.healthy) {
 										displayError("Please select a healthy workspace proxy.");
@@ -179,29 +178,19 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									closeMenu();
 								}}
 							>
-								<div
-									css={{
-										display: "flex",
-										gap: 24,
-										alignItems: "center",
-										width: "100%",
-									}}
-								>
-									<div css={{ width: 14, height: 14, lineHeight: 0 }}>
+								<div className="flex gap-6 items-center w-full">
+									<div className="leading-[0] size-[14px]">
 										<img
 											src={proxy.icon_url}
 											alt=""
-											css={{
-												objectFit: "contain",
-												width: "100%",
-												height: "100%",
-											}}
+											className="object-fit size-full"
 										/>
 									</div>
 
 									{proxy.display_name}
 
 									<Latency
+										className="ml-auto"
 										latency={latencies?.[proxy.id]?.latencyMS}
 										isLoading={proxyLatencyLoading(proxy)}
 									/>

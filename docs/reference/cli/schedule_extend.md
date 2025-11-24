@@ -16,7 +16,7 @@ coder schedule extend <workspace-name> <duration from now>
 ## Description
 
 ```console
-
+Extends the workspace deadline.
   * The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.

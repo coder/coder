@@ -131,7 +131,7 @@ func TestWebhook(t *testing.T) {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					tc.serverFn(msgID, w, r)
 				}))
-				defer server.Close()
+				t.Cleanup(server.Close)
 
 				endpoint, err = url.Parse(server.URL)
 				require.NoError(t, err)

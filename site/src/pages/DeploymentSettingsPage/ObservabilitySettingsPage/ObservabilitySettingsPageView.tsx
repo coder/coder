@@ -13,10 +13,11 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
@@ -32,68 +33,70 @@ export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
 > = ({ options, featureAuditLogEnabled, isPremium }) => {
 	return (
-		<>
-			<Stack direction="column" spacing={6}>
-				<div>
-					<SettingsHeader>
-						<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
-					</SettingsHeader>
+		<Stack direction="column" spacing={6}>
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
+				</SettingsHeader>
 
-					<SettingsHeader
-						actions={
-							<SettingsHeaderDocsLink
-								href={docs("/admin/security/audit-logs")}
-							/>
-						}
-					>
-						<SettingsHeaderTitle hierarchy="secondary" level="h2">
-							Audit Logging
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Allow auditors to monitor user operations in your deployment.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+					}
+				>
+					<SettingsHeaderTitle hierarchy="secondary" level="h2">
+						Audit Logging
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Allow auditors to monitor user operations in your deployment.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
-					<Badges>
-						<Popover mode="hover">
+				<Badges>
+					<TooltipProvider>
+						<Tooltip delayDuration={0}>
 							{featureAuditLogEnabled && !isPremium ? (
 								<EnterpriseBadge />
 							) : (
-								<PopoverTrigger>
+								<TooltipTrigger asChild>
 									<span>
 										<PremiumBadge />
 									</span>
-								</PopoverTrigger>
+								</TooltipTrigger>
 							)}
 
-							<PopoverContent css={{ transform: "translateY(-28px)" }}>
+							<TooltipContent
+								sideOffset={-28}
+								collisionPadding={16}
+								className="p-0"
+							>
 								<PopoverPaywall
 									message="Observability"
 									description="With a Premium license, you can monitor your application with logs and metrics."
 									documentationLink="https://coder.com/docs/admin/appearance"
 								/>
-							</PopoverContent>
-						</Popover>
-					</Badges>
-				</div>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</Badges>
+			</div>
 
-				<div>
-					<SettingsHeader>
-						<SettingsHeaderTitle hierarchy="secondary" level="h2">
-							Monitoring
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Monitoring your Coder application with logs and metrics.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle hierarchy="secondary" level="h2">
+						Monitoring
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Monitoring your Coder application with logs and metrics.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
-					<OptionsTable
-						options={options.filter((o) =>
-							deploymentGroupHasParent(o.group, "Introspection"),
-						)}
-					/>
-				</div>
-			</Stack>
-		</>
+				<OptionsTable
+					options={options.filter((o) =>
+						deploymentGroupHasParent(o.group, "Introspection"),
+					)}
+				/>
+			</div>
+		</Stack>
 	);
 };

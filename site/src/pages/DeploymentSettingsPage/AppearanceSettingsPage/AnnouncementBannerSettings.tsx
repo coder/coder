@@ -1,16 +1,18 @@
 import { type CSSObject, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { BannerConfig } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
@@ -71,7 +73,7 @@ export const AnnouncementBannerSettings: FC<
 					overflow: "hidden",
 				}}
 			>
-				<div css={{ padding: "24px 24px 0" }}>
+				<div className="p-6">
 					<Stack
 						direction="row"
 						justifyContent="space-between"
@@ -105,49 +107,42 @@ export const AnnouncementBannerSettings: FC<
 						Display message banners to all users.
 					</div>
 
-					<div
-						css={[
-							theme.typography.body2 as CSSObject,
-							{ paddingTop: 16, margin: "0 -32px" },
-						]}
-					>
-						<TableContainer css={{ borderRadius: 0, borderBottom: "none" }}>
-							<Table>
-								<TableHead>
-									<TableRow>
-										<TableCell width="1%">Enabled</TableCell>
-										<TableCell>Message</TableCell>
-										<TableCell width="2%">Color</TableCell>
-										<TableCell width="1%" />
-									</TableRow>
-								</TableHead>
-								<TableBody>
-									{!isEntitled || banners.length < 1 ? (
-										<TableCell colSpan={999}>
-											<EmptyState
-												css={{ minHeight: 160 }}
-												message="No announcement banners"
-											/>
-										</TableCell>
-									) : (
-										banners.map((banner, i) => (
-											<AnnouncementBannerItem
-												key={banner.message}
-												enabled={banner.enabled && Boolean(banner.message)}
-												backgroundColor={banner.background_color}
-												message={banner.message}
-												onEdit={() => setEditingBannerId(i)}
-												onUpdate={async (banner) => {
-													const newBanners = updateBanner(i, banner);
-													await onSubmit(newBanners);
-												}}
-												onDelete={() => setDeletingBannerId(i)}
-											/>
-										))
-									)}
-								</TableBody>
-							</Table>
-						</TableContainer>
+					<div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-[1%]">Enabled</TableHead>
+									<TableHead>Message</TableHead>
+									<TableHead className="w-[2%]">Color</TableHead>
+									<TableHead className="w-[1%]" />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{!isEntitled || banners.length < 1 ? (
+									<TableCell colSpan={999}>
+										<EmptyState
+											className="min-h-[160px]"
+											message="No announcement banners"
+										/>
+									</TableCell>
+								) : (
+									banners.map((banner, i) => (
+										<AnnouncementBannerItem
+											key={banner.message}
+											enabled={banner.enabled && Boolean(banner.message)}
+											backgroundColor={banner.background_color}
+											message={banner.message}
+											onEdit={() => setEditingBannerId(i)}
+											onUpdate={async (banner) => {
+												const newBanners = updateBanner(i, banner);
+												await onSubmit(newBanners);
+											}}
+											onDelete={() => setDeletingBannerId(i)}
+										/>
+									))
+								)}
+							</TableBody>
+						</Table>
 					</div>
 				</div>
 
@@ -161,7 +156,7 @@ export const AnnouncementBannerSettings: FC<
 							},
 						]}
 					>
-						<div css={{ color: theme.palette.text.secondary }}>
+						<div className="text-content-secondary">
 							<p>
 								Your license does not include Service Banners.{" "}
 								<Link href="mailto:sales@coder.com">Contact sales</Link> to

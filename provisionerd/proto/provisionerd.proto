@@ -26,6 +26,7 @@ message AcquiredJob {
     // workspace build. Omit these values if the workspace is being created
     // for the first time.
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
+    optional bool exp_reuse_terraform_workspace = 11;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;
@@ -95,6 +96,7 @@ message CompletedJob {
     bytes module_files = 10;
     bytes module_files_hash = 11;
     bool has_ai_tasks = 12;
+    bool has_external_agents = 13;
   }
   message TemplateDryRun {
     repeated provisioner.Resource resources = 1;

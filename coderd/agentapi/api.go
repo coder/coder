@@ -19,7 +19,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -50,7 +50,7 @@ type API struct {
 	*ResourcesMonitoringAPI
 	*LogsAPI
 	*ScriptsAPI
-	*AuditAPI
+	*ConnLogAPI
 	*SubAgentAPI
 	*tailnet.DRPCService
 
@@ -71,7 +71,7 @@ type Options struct {
 	Database                          database.Store
 	NotificationsEnqueuer             notifications.Enqueuer
 	Pubsub                            pubsub.Pubsub
-	Auditor                           *atomic.Pointer[audit.Auditor]
+	ConnectionLogger                  *atomic.Pointer[connectionlog.ConnectionLogger]
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
@@ -180,11 +180,11 @@ func New(opts Options) *API {
 		Database: opts.Database,
 	}
 
-	api.AuditAPI = &AuditAPI{
-		AgentFn:  api.agent,
-		Auditor:  opts.Auditor,
-		Database: opts.Database,
-		Log:      opts.Log,
+	api.ConnLogAPI = &ConnLogAPI{
+		AgentFn:          api.agent,
+		ConnectionLogger: opts.ConnectionLogger,
+		Database:         opts.Database,
+		Log:              opts.Log,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{
@@ -237,6 +237,10 @@ func (a *API) Serve(ctx context.Context, l net.Listener) error {
 	server, err := a.Server(ctx)
 	if err != nil {
 		return xerrors.Errorf("create agent API server: %w", err)
+	}
+
+	if err := a.ResourcesMonitoringAPI.InitMonitors(ctx); err != nil {
+		return xerrors.Errorf("initialize resource monitoring: %w", err)
 	}
 
 	return server.Serve(ctx, l)

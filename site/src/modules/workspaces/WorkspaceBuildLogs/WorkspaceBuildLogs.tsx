@@ -1,10 +1,16 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { ProvisionerJobLog } from "api/typesGenerated";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
 import dayjs from "dayjs";
-import { type FC, Fragment, type HTMLAttributes } from "react";
-import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
+import {
+	type FC,
+	Fragment,
+	type HTMLAttributes,
+	useLayoutEffect,
+	useRef,
+} from "react";
+import { BODY_FONT_FAMILY } from "theme/constants";
 
 const Language = {
 	seconds: "seconds",
@@ -42,24 +48,33 @@ interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
 	hideTimestamps?: boolean;
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
+	build?: WorkspaceBuild;
+	disableAutoscroll?: boolean;
 }
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	hideTimestamps,
 	sticky,
 	logs,
+	build,
+	disableAutoscroll,
+	className,
 	...attrs
 }) => {
-	const theme = useTheme();
 	const groupedLogsByStage = groupLogsByStage(logs);
+
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		if (disableAutoscroll || logs.length === 0) {
+			return;
+		}
+		ref.current?.scrollIntoView({ block: "end" });
+	}, [logs, disableAutoscroll]);
 
 	return (
 		<div
-			css={{
-				border: `1px solid ${theme.palette.divider}`,
-				borderRadius: 8,
-				fontFamily: MONOSPACE_FONT_FAMILY,
-			}}
+			ref={ref}
+			className="font-mono border border-border rounded-lg"
 			{...attrs}
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {

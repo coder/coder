@@ -1,41 +1,25 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
-import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
-import type { AuditLog } from "api/typesGenerated";
+import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { StatusPill } from "components/StatusPill/StatusPill";
+import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { InfoIcon } from "lucide-react";
-import { NetworkIcon } from "lucide-react";
+import { InfoIcon, NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
-import type { ThemeRole } from "theme/roles";
+import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
+import { buildReasonLabels } from "utils/workspace";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import {
 	determineGroupDiff,
 	determineIdPSyncMappingDiff,
 } from "./AuditLogDiff/auditUtils";
-
-const httpStatusColor = (httpStatus: number): ThemeRole => {
-	// Treat server errors (500) as errors
-	if (httpStatus >= 500) {
-		return "error";
-	}
-
-	// Treat client errors (400) as warnings
-	if (httpStatus >= 400) {
-		return "warning";
-	}
-
-	// OK (200) and redirects (300) are successful
-	return "success";
-};
 
 interface AuditLogRowProps {
 	auditLog: AuditLog;
@@ -139,7 +123,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 								</Stack>
 
 								<Stack direction="row" alignItems="center">
-									<StatusPill code={auditLog.status_code} />
+									<StatusPill isHttpCode={true} code={auditLog.status_code} />
 
 									{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
@@ -182,12 +166,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</Link>
 														</div>
 													)}
-													{auditLog.additional_fields?.reason && (
-														<div>
-															<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
-															<div>{auditLog.additional_fields?.reason}</div>
-														</div>
-													)}
+													{auditLog.additional_fields?.build_reason &&
+														auditLog.action === "start" && (
+															<div>
+																<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
+																<div>
+																	{
+																		buildReasonLabels[
+																			auditLog.additional_fields
+																				.build_reason as BuildReason
+																		]
+																	}
+																</div>
+															</div>
+														)}
 												</div>
 											}
 										>
@@ -219,6 +211,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 													</strong>
 												</span>
 											)}
+											{auditLog.additional_fields?.build_reason &&
+												auditLog.action === "start" && (
+													<span css={styles.auditLogInfo}>
+														<span>Reason: </span>
+														<strong>
+															{
+																buildReasonLabels[
+																	auditLog.additional_fields
+																		.build_reason as BuildReason
+																]
+															}
+														</strong>
+													</span>
+												)}
 										</Stack>
 									)}
 								</Stack>
@@ -242,19 +248,6 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		</TimelineEntry>
 	);
 };
-
-function StatusPill({ code }: { code: number }) {
-	const isHttp = code >= 100;
-
-	return (
-		<Pill
-			css={styles.statusCodePill}
-			type={isHttp ? httpStatusColor(code) : code === 0 ? "success" : "error"}
-		>
-			{code.toString()}
-		</Pill>
-	);
-}
 
 const styles = {
 	auditLogCell: {
@@ -309,14 +302,6 @@ const styles = {
 
 	fullWidth: {
 		width: "100%",
-	},
-
-	statusCodePill: {
-		fontSize: 10,
-		height: 20,
-		paddingLeft: 10,
-		paddingRight: 10,
-		fontWeight: 600,
 	},
 
 	deletedLabel: (theme) => ({

@@ -21,6 +21,12 @@ import (
 	"github.com/coder/websocket"
 )
 
+const (
+	// CoderWorkspaceProxyAuthTokenHeader is the header that contains the
+	// resolved real IP address of the client that made the request to the proxy.
+	CoderWorkspaceProxyRealIPHeader = "Coder-Workspace-Proxy-Real-IP"
+)
+
 // Client is a HTTP client for a subset of Coder API routes that external
 // proxies need.
 type Client struct {
@@ -33,28 +39,25 @@ type Client struct {
 
 // New creates a external proxy client for the provided primary coder server
 // URL.
-func New(serverURL *url.URL) *Client {
+func New(serverURL *url.URL, sessionToken string) *Client {
 	sdkClient := codersdk.New(serverURL)
-	sdkClient.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
-
+	sdkClient.SessionTokenProvider = codersdk.FixedSessionTokenProvider{
+		SessionToken:       sessionToken,
+		SessionTokenHeader: httpmw.WorkspaceProxyAuthTokenHeader,
+	}
 	sdkClientIgnoreRedirects := codersdk.New(serverURL)
 	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	sdkClientIgnoreRedirects.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
+	sdkClientIgnoreRedirects.SessionTokenProvider = codersdk.FixedSessionTokenProvider{
+		SessionToken:       sessionToken,
+		SessionTokenHeader: httpmw.WorkspaceProxyAuthTokenHeader,
+	}
 
 	return &Client{
 		SDKClient:                sdkClient,
 		sdkClientIgnoreRedirects: sdkClientIgnoreRedirects,
 	}
-}
-
-// SetSessionToken sets the session token for the client. An error is returned
-// if the session token is not in the correct format for external proxies.
-func (c *Client) SetSessionToken(token string) error {
-	c.SDKClient.SetSessionToken(token)
-	c.sdkClientIgnoreRedirects.SetSessionToken(token)
-	return nil
 }
 
 // SessionToken returns the currently set token for the client.
@@ -75,7 +78,7 @@ func (c *Client) RequestIgnoreRedirects(ctx context.Context, method, path string
 
 // DialWorkspaceAgent calls the underlying codersdk.Client's DialWorkspaceAgent
 // method.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (agentConn *workspacesdk.AgentConn, err error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (agentConn workspacesdk.AgentConn, err error) {
 	return workspacesdk.New(c.SDKClient).DialAgent(ctx, agentID, options)
 }
 
@@ -87,10 +90,11 @@ type IssueSignedAppTokenResponse struct {
 // IssueSignedAppToken issues a new signed app token for the provided app
 // request. The error page will be returned as JSON. For use in external
 // proxies, use IssueSignedAppTokenHTML instead.
-func (c *Client) IssueSignedAppToken(ctx context.Context, req workspaceapps.IssueTokenRequest) (IssueSignedAppTokenResponse, error) {
+func (c *Client) IssueSignedAppToken(ctx context.Context, req workspaceapps.IssueTokenRequest, clientIP string) (IssueSignedAppTokenResponse, error) {
 	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/issue-signed-app-token", req, func(r *http.Request) {
 		// This forces any HTML error pages to be returned as JSON instead.
 		r.Header.Set("Accept", "application/json")
+		r.Header.Set(CoderWorkspaceProxyRealIPHeader, clientIP)
 	})
 	if err != nil {
 		return IssueSignedAppTokenResponse{}, xerrors.Errorf("make request: %w", err)
@@ -108,7 +112,7 @@ func (c *Client) IssueSignedAppToken(ctx context.Context, req workspaceapps.Issu
 // IssueSignedAppTokenHTML issues a new signed app token for the provided app
 // request. The error page will be returned as HTML in most cases, and will be
 // written directly to the provided http.ResponseWriter.
-func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWriter, req workspaceapps.IssueTokenRequest) (IssueSignedAppTokenResponse, bool) {
+func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWriter, req workspaceapps.IssueTokenRequest, clientIP string) (IssueSignedAppTokenResponse, bool) {
 	writeError := func(rw http.ResponseWriter, err error) {
 		res := codersdk.Response{
 			Message: "Internal server error",
@@ -120,6 +124,7 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 
 	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/issue-signed-app-token", req, func(r *http.Request) {
 		r.Header.Set("Accept", "text/html")
+		r.Header.Set(CoderWorkspaceProxyRealIPHeader, clientIP)
 	})
 	if err != nil {
 		writeError(rw, xerrors.Errorf("perform issue signed app token request: %w", err))
@@ -399,15 +404,19 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 
 // RegisterNow asks the registration loop to register immediately. A timeout of
 // 2x the attempt timeout is used to wait for the response.
-func (l *RegisterWorkspaceProxyLoop) RegisterNow() (RegisterWorkspaceProxyResponse, error) {
+func (l *RegisterWorkspaceProxyLoop) RegisterNow(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
 	// The channel is closed by the loop after sending the response.
 	respCh := make(chan RegisterWorkspaceProxyResponse, 1)
 	select {
+	case <-ctx.Done():
+		return RegisterWorkspaceProxyResponse{}, ctx.Err()
 	case <-l.done:
 		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
 	case l.runLoopNow <- respCh:
 	}
 	select {
+	case <-ctx.Done():
+		return RegisterWorkspaceProxyResponse{}, ctx.Err()
 	case <-l.done:
 		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
 	case resp := <-respCh:
@@ -506,17 +515,12 @@ func (c *Client) TailnetDialer() (*workspacesdk.WebsocketDialer, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	coordinateHeaders := make(http.Header)
-	tokenHeader := codersdk.SessionTokenHeader
-	if c.SDKClient.SessionTokenHeader != "" {
-		tokenHeader = c.SDKClient.SessionTokenHeader
-	}
-	coordinateHeaders.Set(tokenHeader, c.SessionToken())
-
-	return workspacesdk.NewWebsocketDialer(logger, coordinateURL, &websocket.DialOptions{
+	wsOptions := &websocket.DialOptions{
 		HTTPClient: c.SDKClient.HTTPClient,
-		HTTPHeader: coordinateHeaders,
-	}), nil
+	}
+	c.SDKClient.SessionTokenProvider.SetDialOption(wsOptions)
+
+	return workspacesdk.NewWebsocketDialer(logger, coordinateURL, wsOptions), nil
 }
 
 type CryptoKeysResponse struct {

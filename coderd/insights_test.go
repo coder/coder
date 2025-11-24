@@ -585,8 +585,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL)
-					agentClient.SetSessionToken(authToken.String())
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App
@@ -665,10 +664,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			// where we can control the template ID.
 			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			createdTemplate := dbgen.Template(t, db, database.Template{
-				ID:              template.id,
-				ActiveVersionID: version.ID,
-				OrganizationID:  firstUser.OrganizationID,
-				CreatedBy:       firstUser.UserID,
+				ID:                      template.id,
+				ActiveVersionID:         version.ID,
+				OrganizationID:          firstUser.OrganizationID,
+				CreatedBy:               firstUser.UserID,
+				UseClassicParameterFlow: true, // Required for testing classic parameter flow behavior
 				GroupACL: database.TemplateACL{
 					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
@@ -753,7 +753,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			Database:         db,
 			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 		})
-		//nolint:gocritic // This is a test.
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
@@ -1468,8 +1467,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				TokenName: "no-password-user-token",
 			})
 			require.NoError(t, err)
-			userClient := codersdk.New(client.URL)
-			userClient.SetSessionToken(token.Key)
+			userClient := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
 
 			coderUser, err := userClient.User(context.Background(), user.id.String())
 			require.NoError(t, err)
@@ -1494,8 +1492,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL)
-					agentClient.SetSessionToken(authToken.String())
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App
@@ -1556,10 +1553,11 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			// where we can control the template ID.
 			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			createdTemplate := dbgen.Template(t, db, database.Template{
-				ID:              template.id,
-				ActiveVersionID: version.ID,
-				OrganizationID:  firstUser.OrganizationID,
-				CreatedBy:       firstUser.UserID,
+				ID:                      template.id,
+				ActiveVersionID:         version.ID,
+				OrganizationID:          firstUser.OrganizationID,
+				CreatedBy:               firstUser.UserID,
+				UseClassicParameterFlow: true, // Required for parameter usage tracking in this test
 				GroupACL: database.TemplateACL{
 					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
@@ -1644,7 +1642,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			Database:         db,
 			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 		})
-		//nolint:gocritic // This is a test.
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 

@@ -43,14 +43,19 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 		hostnames           []string
 	}{
 		{
-			name:                "empty",
-			agentConnectionInfo: workspacesdk.AgentConnectionInfo{},
-			hostnames:           []string{"wrk.coder.", "agnt.wrk.me.coder.", "agnt.wrk.rootbeer.coder."},
+			name: "empty",
+			agentConnectionInfo: workspacesdk.AgentConnectionInfo{
+				DERPMap: &tailcfg.DERPMap{},
+			},
+			hostnames: []string{"wrk.coder.", "agnt.wrk.me.coder.", "agnt.wrk.rootbeer.coder."},
 		},
 		{
-			name:                "suffix",
-			agentConnectionInfo: workspacesdk.AgentConnectionInfo{HostnameSuffix: "float"},
-			hostnames:           []string{"wrk.float.", "agnt.wrk.me.float.", "agnt.wrk.rootbeer.float."},
+			name: "suffix",
+			agentConnectionInfo: workspacesdk.AgentConnectionInfo{
+				HostnameSuffix: "float",
+				DERPMap:        &tailcfg.DERPMap{},
+			},
+			hostnames: []string{"wrk.float.", "agnt.wrk.me.float.", "agnt.wrk.rootbeer.float."},
 		},
 	}
 	for _, tc := range testCases {
@@ -97,6 +102,7 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 							MinimalUser: codersdk.MinimalUser{
 								ID:       userID,
 								Username: "rootbeer",
+								Name:     "Root Beer",
 							},
 						},
 					})

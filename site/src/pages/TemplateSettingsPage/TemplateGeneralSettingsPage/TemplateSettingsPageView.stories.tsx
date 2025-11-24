@@ -1,6 +1,7 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockTemplate, mockApiError } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 const meta: Meta<typeof TemplateSettingsPageView> = {
@@ -12,6 +13,7 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
 		advancedSchedulingEnabled: true,
 		onCancel: action("onCancel"),
 	},
+	decorators: [withDashboardProvider],
 };
 
 export default meta;

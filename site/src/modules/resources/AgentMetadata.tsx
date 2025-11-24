@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import { watchAgentMetadata } from "api/api";
@@ -18,7 +17,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { cn } from "utils/cn";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
@@ -32,7 +31,7 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 		return null;
 	}
 	return (
-		<section css={styles.root}>
+		<section className="flex items-baseline flex-wrap gap-8 gap-y-4">
 			{metadata.map((m) => (
 				<MetadataItem key={m.description.key} item={m} />
 			))}
@@ -63,7 +62,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			return;
 		}
 
-		let timeoutId: number | undefined = undefined;
+		let timeoutId: number | undefined;
 		let activeSocket: OneWayWebSocket<ServerSentEvent> | null = null;
 		let retries = 0;
 
@@ -122,7 +121,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 	if (activeMetadata === undefined) {
 		return (
-			<section css={styles.root}>
+			<section className="flex items-baseline flex-wrap gap-8 gap-y-4">
 				<AgentMetadataSkeleton />
 			</section>
 		);
@@ -134,17 +133,17 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 const AgentMetadataSkeleton: FC = () => {
 	return (
 		<Stack alignItems="baseline" direction="row" spacing={6}>
-			<div css={styles.metadata}>
+			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
 			</div>
 
-			<div css={styles.metadata}>
+			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
 			</div>
 
-			<div css={styles.metadata}>
+			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
 			</div>
@@ -182,29 +181,29 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	// could be buggy. But, how common is that anyways?
 	const value =
 		status === "loading" ? (
-			<Skeleton width={65} height={12} variant="text" css={styles.skeleton} />
+			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
 		) : status === "stale" ? (
 			<Tooltip title="This data is stale and no longer up to date">
-				<StaticWidth css={[styles.metadataValue, styles.metadataStale]}>
+				<StaticWidth className="text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-disabled cursor-pointer">
 					{item.result.value}
 				</StaticWidth>
 			</Tooltip>
 		) : (
 			<StaticWidth
-				css={[
-					styles.metadataValue,
-					item.result.error.length === 0
-						? styles.metadataValueSuccess
-						: styles.metadataValueError,
-				]}
+				className={cn(
+					"text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-success",
+					item.result.error.length > 0 && "text-content-destructive",
+				)}
 			>
 				{item.result.value}
 			</StaticWidth>
 		);
 
 	return (
-		<div css={styles.metadata}>
-			<div css={styles.metadataLabel}>{item.description.display_name}</div>
+		<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
+			<div className="text-content-secondary text-ellipsis overflow-hidden whitespace-nowrap text-[13px]">
+				{item.description.display_name}
+			</div>
 			<div>{value}</div>
 		</div>
 	);
@@ -236,65 +235,3 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 		</div>
 	);
 };
-
-// These are more or less copied from
-// site/src/modules/resources/ResourceCard.tsx
-const styles = {
-	root: {
-		display: "flex",
-		alignItems: "baseline",
-		flexWrap: "wrap",
-		gap: 32,
-		rowGap: 16,
-	},
-
-	metadata: {
-		lineHeight: "1.6",
-		display: "flex",
-		flexDirection: "column",
-		overflow: "visible",
-		flexShrink: 0,
-	},
-
-	metadataLabel: (theme) => ({
-		color: theme.palette.text.secondary,
-		textOverflow: "ellipsis",
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-		fontSize: 13,
-	}),
-
-	metadataValue: {
-		textOverflow: "ellipsis",
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-		maxWidth: "16em",
-		fontSize: 14,
-	},
-
-	metadataValueSuccess: (theme) => ({
-		color: theme.roles.success.fill.outline,
-	}),
-
-	metadataValueError: (theme) => ({
-		color: theme.palette.error.main,
-	}),
-
-	metadataStale: (theme) => ({
-		color: theme.palette.text.disabled,
-		cursor: "pointer",
-	}),
-
-	skeleton: {
-		marginTop: 4,
-	},
-
-	inlineCommand: (theme) => ({
-		fontFamily: MONOSPACE_FONT_FAMILY,
-		display: "inline-block",
-		fontWeight: 600,
-		margin: 0,
-		borderRadius: 4,
-		color: theme.palette.text.primary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

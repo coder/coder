@@ -65,7 +65,7 @@ const scales = [
 	100,
 ];
 
-const zeroTime: Date = dayjs("0001-01-01T00:00:00Z").toDate();
+const _zeroTime: Date = dayjs("0001-01-01T00:00:00Z").toDate();
 
 const pickScale = (totalTime: number): number => {
 	for (const s of scales) {

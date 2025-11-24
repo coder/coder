@@ -16,7 +16,7 @@ func (r *RootCmd) notifications() *serpent.Command {
 		Short: "Manage Coder notifications",
 		Long: "Administrators can use these commands to change notification settings.\n" + FormatExamples(
 			Example{
-				Description: "Pause Coder notifications. Administrators can temporarily stop notifiers from dispatching messages in case of the target outage (for example: unavailable SMTP server or Webhook not responding).",
+				Description: "Pause Coder notifications. Administrators can temporarily stop notifiers from dispatching messages in case of the target outage (for example: unavailable SMTP server or Webhook not responding)",
 				Command:     "coder notifications pause",
 			},
 			Example{
@@ -24,8 +24,12 @@ func (r *RootCmd) notifications() *serpent.Command {
 				Command:     "coder notifications resume",
 			},
 			Example{
-				Description: "Send a test notification. Administrators can use this to verify the notification target settings.",
+				Description: "Send a test notification. Administrators can use this to verify the notification target settings",
 				Command:     "coder notifications test",
+			},
+			Example{
+				Description: "Send a custom notification to the requesting user. Sending notifications targeting other users or groups is currently not supported",
+				Command:     "coder notifications custom \"Custom Title\" \"Custom Message\"",
 			},
 		),
 		Aliases: []string{"notification"},
@@ -36,22 +40,26 @@ func (r *RootCmd) notifications() *serpent.Command {
 			r.pauseNotifications(),
 			r.resumeNotifications(),
 			r.testNotifications(),
+			r.customNotifications(),
 		},
 	}
 	return cmd
 }
 
 func (r *RootCmd) pauseNotifications() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "pause",
 		Short: "Pause notifications",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			err = client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
 				NotifierPaused: true,
 			})
 			if err != nil {
@@ -66,16 +74,19 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 }
 
 func (r *RootCmd) resumeNotifications() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "resume",
 		Short: "Resume notifications",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			err = client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
 				NotifierPaused: false,
 			})
 			if err != nil {
@@ -90,20 +101,52 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 }
 
 func (r *RootCmd) testNotifications() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "test",
 		Short: "Send a test notification",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			if err := client.PostTestNotification(inv.Context()); err != nil {
 				return xerrors.Errorf("unable to post test notification: %w", err)
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, "A test notification has been sent. If you don't receive the notification, check Coder's logs for any errors.")
+			return nil
+		},
+	}
+	return cmd
+}
+
+func (r *RootCmd) customNotifications() *serpent.Command {
+	cmd := &serpent.Command{
+		Use:   "custom <title> <message>",
+		Short: "Send a custom notification",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(2),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			err = client.PostCustomNotification(inv.Context(), codersdk.CustomNotificationRequest{
+				Content: &codersdk.CustomNotificationContent{
+					Title:   inv.Args[0],
+					Message: inv.Args[1],
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to post custom notification: %w", err)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "A custom notification has been sent.")
 			return nil
 		},
 	}

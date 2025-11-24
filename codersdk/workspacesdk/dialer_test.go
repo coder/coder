@@ -270,6 +270,46 @@ func TestWebsocketDialer_ResumeTokenFailure(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestWebsocketDialer_UnauthenticatedFailFast(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{})
+	}))
+	defer svr.Close()
+	svrURL, err := url.Parse(svr.URL)
+	require.NoError(t, err)
+
+	uut := workspacesdk.NewWebsocketDialer(logger, svrURL, &websocket.DialOptions{})
+
+	_, err = uut.Dial(ctx, nil)
+	require.Error(t, err)
+}
+
+func TestWebsocketDialer_UnauthorizedFailFast(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{})
+	}))
+	defer svr.Close()
+	svrURL, err := url.Parse(svr.URL)
+	require.NoError(t, err)
+
+	uut := workspacesdk.NewWebsocketDialer(logger, svrURL, &websocket.DialOptions{})
+
+	_, err = uut.Dial(ctx, nil)
+	require.Error(t, err)
+}
+
 func TestWebsocketDialer_UplevelVersion(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

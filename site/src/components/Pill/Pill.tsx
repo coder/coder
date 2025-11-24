@@ -4,9 +4,9 @@ import CircularProgress, {
 } from "@mui/material/CircularProgress";
 import {
 	type FC,
+	forwardRef,
 	type HTMLAttributes,
 	type ReactNode,
-	forwardRef,
 	useMemo,
 } from "react";
 import type { ThemeRole } from "theme/roles";
@@ -45,9 +45,9 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
 				ref={ref}
 				css={[
 					styles.pill,
-					icon && size === "md" && styles.pillWithIcon,
+					Boolean(icon) && size === "md" && styles.pillWithIcon,
 					size === "lg" && styles.pillLg,
-					icon && size === "lg" && styles.pillLgWithIcon,
+					Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
 					typeStyles,
 				]}
 				{...divProps}

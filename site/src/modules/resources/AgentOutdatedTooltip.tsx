@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import {
 	HelpTooltip,
@@ -7,11 +6,11 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
+	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { agentVersionStatus } from "../../utils/workspace";
 
 type AgentOutdatedTooltipProps = {
@@ -27,11 +26,8 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	status,
 	onUpdate,
 }) => {
-	const theme = useTheme();
-	const versionLabelStyles = {
-		fontWeight: 600,
-		color: theme.palette.text.primary,
-	};
+	const [isOpen, setIsOpen] = useState(false);
+
 	const title =
 		status === agentVersionStatus.Outdated
 			? "Agent Outdated"
@@ -43,12 +39,12 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	const text = `${opener} This can happen after you update Coder with running workspaces. To fix this, you can stop and start the workspace.`;
 
 	return (
-		<HelpTooltip>
-			<PopoverTrigger>
-				<span role="status" css={{ cursor: "pointer" }}>
+		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
+			<HelpTooltipTrigger asChild>
+				<span role="status" className="cursor-pointer">
 					{status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
 				</span>
-			</PopoverTrigger>
+			</HelpTooltipTrigger>
 			<HelpTooltipContent>
 				<Stack spacing={1}>
 					<div>
@@ -57,19 +53,26 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 					</div>
 
 					<Stack spacing={0.5}>
-						<span css={versionLabelStyles}>Agent version</span>
+						<span className="font-semibold text-content-primary">
+							Agent version
+						</span>
 						<span>{agent.version}</span>
 					</Stack>
 
 					<Stack spacing={0.5}>
-						<span css={versionLabelStyles}>Server version</span>
+						<span className="font-semibold text-content-primary">
+							Server version
+						</span>
 						<span>{serverVersion}</span>
 					</Stack>
 
 					<HelpTooltipLinksGroup>
 						<HelpTooltipAction
 							icon={RotateCcwIcon}
-							onClick={onUpdate}
+							onClick={() => {
+								onUpdate();
+								setIsOpen(false);
+							}}
 							ariaLabel="Update workspace"
 						>
 							Update workspace

@@ -1,5 +1,3 @@
-import EditIcon from "@mui/icons-material/EditOutlined";
-import Button from "@mui/material/Button";
 import { API } from "api/api";
 import { workspaces } from "api/queries/workspaces";
 import type {
@@ -8,7 +6,7 @@ import type {
 	TemplateVersion,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { Button as ShadcnButton } from "components/Button/Button";
+import { Button, Button as ShadcnButton } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
@@ -27,8 +25,10 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { CopyIcon, DownloadIcon } from "lucide-react";
 import {
+	CopyIcon,
+	DownloadIcon,
+	EditIcon,
 	EllipsisVertical,
 	PlusIcon,
 	SettingsIcon,
@@ -38,7 +38,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
@@ -221,13 +221,11 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					<>
 						{!template.deprecated &&
 							workspacePermissions.createWorkspaceForUserID && (
-								<Button
-									variant="contained"
-									startIcon={<PlusIcon className="size-icon-sm" />}
-									component={RouterLink}
-									to={`${templateLink}/workspace`}
-								>
-									Create Workspace
+								<Button asChild>
+									<RouterLink to={`${templateLink}/workspace`}>
+										<PlusIcon />
+										Create Workspace
+									</RouterLink>
 								</Button>
 							)}
 

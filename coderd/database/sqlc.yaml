@@ -28,6 +28,12 @@ sql:
         emit_enum_valid_method: true
         emit_all_enum_values: true
         overrides:
+          - column: "api_keys.scopes"
+            go_type:
+              type: "APIKeyScopes"
+          - column: "api_keys.allow_list"
+            go_type:
+              type: "AllowList"
           - db_type: "agent_id_name_pair"
             go_type:
               type: "AgentIDNamePair"
@@ -73,6 +79,18 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
+          - column: "workspaces.user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "workspaces.group_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "workspaces_expanded.user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "workspaces_expanded.group_acl"
+            go_type:
+              type: "WorkspaceACL"
           - column: "notification_templates.actions"
             go_type:
               type: "[]byte"
@@ -85,6 +103,18 @@ sql:
           - column: "user_links.claims"
             go_type:
               type: "UserLinkClaims"
+          # Workaround for sqlc not interpreting the left join correctly.
+          - column: "tasks_with_status.workspace_build_number"
+            go_type: "database/sql.NullInt32"
+          - column: "tasks_with_status.status"
+            go_type:
+              type: "TaskStatus"
+          - column: "tasks_with_status.workspace_agent_lifecycle_state"
+            go_type:
+              type: "NullWorkspaceAgentLifecycleState"
+          - column: "tasks_with_status.workspace_app_health"
+            go_type:
+              type: "NullWorkspaceAppHealth"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember
@@ -94,6 +124,8 @@ sql:
           workspace_build_with_user: WorkspaceBuild
           workspace: WorkspaceTable
           workspaces_expanded: Workspace
+          task: TaskTable
+          tasks_with_status: Task
           template_version: TemplateVersionTable
           template_version_with_user: TemplateVersion
           api_key: APIKey
@@ -150,6 +182,11 @@ sql:
           has_ai_task: HasAITask
           ai_task_sidebar_app_id: AITaskSidebarAppID
           latest_build_has_ai_task: LatestBuildHasAITask
+          cors_behavior: CorsBehavior
+          aibridge_interception: AIBridgeInterception
+          aibridge_tool_usage: AIBridgeToolUsage
+          aibridge_token_usage: AIBridgeTokenUsage
+          aibridge_user_prompt: AIBridgeUserPrompt
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

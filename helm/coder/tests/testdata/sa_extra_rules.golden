@@ -56,7 +56,6 @@ rules:
     - patch
     - update
     - watch
-
   - apiGroups:
     - ""
     resources:
@@ -167,6 +166,8 @@ spec:
           value: 0.0.0.0:8080
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
+        - name: CODER_PPROF_ADDRESS
+          value: 0.0.0.0:6060
         - name: CODER_ACCESS_URL
           value: http://coder.default.svc.cluster.local
         - name: KUBE_POD_IP
@@ -183,6 +184,7 @@ spec:
             path: /healthz
             port: http
             scheme: HTTP
+          initialDelaySeconds: 0
         name: coder
         ports:
         - containerPort: 8080
@@ -193,6 +195,7 @@ spec:
             path: /healthz
             port: http
             scheme: HTTP
+          initialDelaySeconds: 0
         resources:
           limits:
             cpu: 2000m

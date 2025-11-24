@@ -4,6 +4,7 @@ import {
 	unlinkExternalAuths,
 	validateExternalAuth,
 } from "api/queries/externalAuth";
+import type { ExternalAuthLinkProvider } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { type FC, useState } from "react";
@@ -18,7 +19,7 @@ const ExternalAuthPage: FC = () => {
 	const [unlinked, setUnlinked] = useState(0);
 
 	const externalAuthsQuery = useQuery(externalAuths());
-	const [appToUnlink, setAppToUnlink] = useState<string>();
+	const [appToUnlink, setAppToUnlink] = useState<ExternalAuthLinkProvider>();
 	const unlinkAppMutation = useMutation(unlinkExternalAuths(queryClient));
 	const validateAppMutation = useMutation(validateExternalAuth(queryClient));
 
@@ -29,8 +30,8 @@ const ExternalAuthPage: FC = () => {
 				getAuthsError={externalAuthsQuery.error}
 				auths={externalAuthsQuery.data}
 				unlinked={unlinked}
-				onUnlinkExternalAuth={(providerID: string) => {
-					setAppToUnlink(providerID);
+				onUnlinkExternalAuth={(provider) => {
+					setAppToUnlink(provider);
 				}}
 				onValidateExternalAuth={async (providerID: string) => {
 					try {
@@ -50,21 +51,25 @@ const ExternalAuthPage: FC = () => {
 				}}
 			/>
 			<DeleteDialog
-				key={appToUnlink}
+				key={appToUnlink?.id}
 				title="Unlink Application"
 				verb="Unlinking"
-				info="This does not revoke the access token from the oauth2 provider.
-        It only removes the link on this side. To fully revoke access, you must
-        do so on the oauth2 provider's side."
+				info={
+					appToUnlink?.supports_revocation
+						? "This action will remove external authentication link and will try to revoke the access token from OAuth2 provider. Auth link will be removed regardless if token revocation is successful."
+						: "This action will not revoke the access token from the OAuth2 provider. It only removes the link on this side. To fully revoke access, you must do so on the OAuth2 provider's side."
+				}
 				label="Name of the application to unlink"
 				isOpen={appToUnlink !== undefined}
 				confirmLoading={unlinkAppMutation.isPending}
-				name={appToUnlink ?? ""}
+				name={appToUnlink?.id ?? ""}
 				entity="application"
 				onCancel={() => setAppToUnlink(undefined)}
 				onConfirm={async () => {
 					try {
-						await unlinkAppMutation.mutateAsync(appToUnlink!);
+						const unlinkResp = await unlinkAppMutation.mutateAsync(
+							appToUnlink?.id!,
+						);
 						// setAppToUnlink closes the modal
 						setAppToUnlink(undefined);
 						// refetch repopulates the external auth data
@@ -72,8 +77,11 @@ const ExternalAuthPage: FC = () => {
 						// this tells our child components to refetch their data
 						// as at least 1 provider was unlinked.
 						setUnlinked(unlinked + 1);
-
-						displaySuccess("Successfully unlinked the oauth2 application.");
+						displaySuccess(
+							unlinkResp.token_revoked
+								? "Successfully deleted external auth link and revoked token from the OAuth2 provider."
+								: "Successfully deleted external auth link. Token has NOT been revoked from the OAuth2 provider.",
+						);
 					} catch (e) {
 						displayError(getErrorMessage(e, "Error unlinking application."));
 					}

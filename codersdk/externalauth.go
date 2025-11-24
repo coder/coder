@@ -49,9 +49,10 @@ const (
 )
 
 type ExternalAuth struct {
-	Authenticated bool   `json:"authenticated"`
-	Device        bool   `json:"device"`
-	DisplayName   string `json:"display_name"`
+	Authenticated      bool   `json:"authenticated"`
+	Device             bool   `json:"device"`
+	DisplayName        string `json:"display_name"`
+	SupportsRevocation bool   `json:"supports_revocation"`
 
 	// User is the user that authenticated with the provider.
 	User *ExternalAuthUser `json:"user"`
@@ -72,6 +73,12 @@ type ListUserExternalAuthResponse struct {
 	Links []ExternalAuthLink `json:"links"`
 }
 
+type DeleteExternalAuthByIDResponse struct {
+	// TokenRevoked set to true if token revocation was attempted and was successful
+	TokenRevoked         bool   `json:"token_revoked"`
+	TokenRevocationError string `json:"token_revocation_error,omitempty"`
+}
+
 // ExternalAuthLink is a link between a user and an external auth provider.
 // It excludes information that requires a token to access, so can be statically
 // built from the database and configs.
@@ -87,13 +94,14 @@ type ExternalAuthLink struct {
 
 // ExternalAuthLinkProvider are the static details of a provider.
 type ExternalAuthLinkProvider struct {
-	ID            string `json:"id"`
-	Type          string `json:"type"`
-	Device        bool   `json:"device"`
-	DisplayName   string `json:"display_name"`
-	DisplayIcon   string `json:"display_icon"`
-	AllowRefresh  bool   `json:"allow_refresh"`
-	AllowValidate bool   `json:"allow_validate"`
+	ID                 string `json:"id"`
+	Type               string `json:"type"`
+	Device             bool   `json:"device"`
+	DisplayName        string `json:"display_name"`
+	DisplayIcon        string `json:"display_icon"`
+	AllowRefresh       bool   `json:"allow_refresh"`
+	AllowValidate      bool   `json:"allow_validate"`
+	SupportsRevocation bool   `json:"supports_revocation"`
 }
 
 type ExternalAuthAppInstallation struct {
@@ -166,16 +174,22 @@ func (c *Client) ExternalAuthByID(ctx context.Context, provider string) (Externa
 
 // UnlinkExternalAuthByID deletes the external auth for the given provider by ID
 // for the user. This does not revoke the token from the IDP.
-func (c *Client) UnlinkExternalAuthByID(ctx context.Context, provider string) error {
+func (c *Client) UnlinkExternalAuthByID(ctx context.Context, provider string) (DeleteExternalAuthByIDResponse, error) {
+	noRevoke := DeleteExternalAuthByIDResponse{TokenRevoked: false}
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/external-auth/%s", provider), nil)
 	if err != nil {
-		return err
+		return noRevoke, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ReadBodyAsError(res)
+		return noRevoke, ReadBodyAsError(res)
 	}
-	return nil
+	var resp DeleteExternalAuthByIDResponse
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return noRevoke, err
+	}
+	return resp, nil
 }
 
 // ListExternalAuths returns the available external auth providers and the user's

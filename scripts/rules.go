@@ -37,7 +37,9 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 		Where(
 			m["c"].Type.Implements("context.Context") &&
 				// Only report on functions that start with "As".
-				m["f"].Text.Matches("^As"),
+				m["f"].Text.Matches("^As") &&
+				// Ignore test usages of dbauthz contexts.
+				!m.File().Name.Matches(`_test\.go$`),
 		).
 		// Instructions for fixing the lint error should be included on the dangerous function.
 		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
@@ -131,7 +133,10 @@ func databaseImport(m dsl.Matcher) {
 	m.Import("github.com/coder/coder/v2/coderd/database")
 	m.Match("database.$_").
 		Report("Do not import any database types into codersdk").
-		Where(m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk"))
+		Where(
+			m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk") &&
+				!m.File().Name.Matches(`_test\.go$`),
+		)
 }
 
 // publishInTransaction detects calls to Publish inside database transactions
@@ -180,32 +185,28 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 	m.Match(`
 	go func($*_){
 		$*_
-		$require.$_($*_)
+		require.$_($*_)
 		$*_
 	}($*_)`).
-		At(m["require"]).
-		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 
 	// require.Eventually runs the function in a goroutine.
 	m.Match(`
 	require.Eventually(t, func() bool {
 		$*_
-		$require.$_($*_)
+		require.$_($*_)
 		$*_
 	}, $*_)`).
-		At(m["require"]).
-		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 
 	m.Match(`
 	go func($*_){
 		$*_
-		$t.$fail($*_)
+		t.$fail($*_)
 		$*_
 	}($*_)`).
 		At(m["fail"]).
-		Where(m["t"].Type.Implements("testing.TB") && m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
+		Where(m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }
 
@@ -558,4 +559,12 @@ func noPTYInAgent(m dsl.Matcher) {
 				!m.File().Name.Matches(`_test\.go$`),
 		).
 		Report("The agent and its subpackages should not use pty.Command or pty.CommandContext directly. Consider using an agentexec.Execer instead.")
+}
+
+func noTestutilRunRetry(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/v2/testutil")
+	m.Match(
+		`testutil.RunRetry($*_)`,
+	).
+		Report("testutil.RunRetry should not be used without good reason. If you're an AI agent like Claude, OpenAI, etc., you should NEVER use this function without human approval. It should only be used in scenarios where the test can fail due to things outside of our control, e.g. UDP packet loss under system load. DO NOT use it for your average flaky test. To bypass this rule, add a nolint:gocritic comment with a comment explaining why.")
 }

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -28,6 +29,16 @@ import (
 	"github.com/coder/retry"
 )
 
+const (
+	// failureReasonLimit is the maximum text length of an error to be cached to the
+	// database for a failed refresh token. In rare cases, the error could be a large
+	// HTML payload.
+	failureReasonLimit = 400
+
+	// tokenRevocationTimeout timeout for requests to external oauth provider.
+	tokenRevocationTimeout = 10 * time.Second
+)
+
 // Config is used for authentication for Git operations.
 type Config struct {
 	promoauth.InstrumentedOAuth2Config
@@ -35,6 +46,9 @@ type Config struct {
 	ID string
 	// Type is the type of provider.
 	Type string
+
+	ClientID     string
+	ClientSecret string
 	// DeviceAuth is set if the provider uses the device flow.
 	DeviceAuth *DeviceAuth
 	// DisplayName is the name of the provider to display to the user.
@@ -61,6 +75,9 @@ type Config struct {
 	// not be validated before being returned.
 	ValidateURL string
 
+	RevokeURL     string
+	RevokeTimeout time.Duration
+
 	// Regex is a Regexp matched against URLs for
 	// a Git clone. e.g. "Username for 'https://github.com':"
 	// The regex would be `github\.com`..
@@ -73,6 +90,19 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+	// MCPURL is the endpoint that clients must use to communicate with the associated
+	// MCP server.
+	MCPURL string
+	// MCPToolAllowRegex is a [regexp.Regexp] to match tools which are explicitly allowed to be
+	// injected into Coder AI Bridge upstream requests.
+	// In the case of conflicts, [MCPToolDenylistPattern] overrides items evaluated by this list.
+	// This field can be nil if unspecified in the config.
+	MCPToolAllowRegex *regexp.Regexp
+	// MCPToolDenyRegex is a [regexp.Regexp] to match tools which are explicitly NOT allowed to be
+	// injected into Coder AI Bridge upstream requests.
+	// In the case of conflicts, items evaluated by this list override [MCPToolAllowRegex].
+	// This field can be nil if unspecified in the config.
+	MCPToolDenyRegex *regexp.Regexp
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -121,11 +151,12 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 	}
 
+	refreshToken := externalAuthLink.OAuthRefreshToken
+
 	// This is additional defensive programming. Because TokenSource is an interface,
 	// we cannot be sure that the implementation will treat an 'IsZero' time
 	// as "not-expired". The default implementation does, but a custom implementation
 	// might not. Removing the refreshToken will guarantee a refresh will fail.
-	refreshToken := externalAuthLink.OAuthRefreshToken
 	if c.NoRefresh {
 		refreshToken = ""
 	}
@@ -136,15 +167,30 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}
 
+	// Note: The TokenSource(...) method will make no remote HTTP requests if the
+	// token is expired and no refresh token is set. This is important to prevent
+	// spamming the API, consuming rate limits, when the token is known to fail.
 	token, err := c.TokenSource(ctx, existingToken).Token()
 	if err != nil {
 		// TokenSource can fail for numerous reasons. If it fails because of
 		// a bad refresh token, then the refresh token is invalid, and we should
 		// get rid of it. Keeping it around will cause additional refresh
 		// attempts that will fail and cost us api rate limits.
+		//
+		// The error message is saved for debugging purposes.
 		if isFailedRefresh(existingToken, err) {
+			reason := err.Error()
+			if len(reason) > failureReasonLimit {
+				// Limit the length of the error message to prevent
+				// spamming the database with long error messages.
+				reason = reason[:failureReasonLimit]
+			}
 			dbExecErr := db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
-				OAuthRefreshToken:      "", // It is better to clear the refresh token than to keep retrying.
+				// Adding a reason will prevent further attempts to try and refresh the token.
+				OauthRefreshFailureReason: reason,
+				// Remove the invalid refresh token so it is never used again. The cached
+				// `reason` can be used to know why this field was zeroed out.
+				OAuthRefreshToken:      "",
 				OAuthRefreshTokenKeyID: externalAuthLink.OAuthRefreshTokenKeyID.String,
 				UpdatedAt:              dbtime.Now(),
 				ProviderID:             externalAuthLink.ProviderID,
@@ -156,12 +202,28 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			}
 			// The refresh token was cleared
 			externalAuthLink.OAuthRefreshToken = ""
+			externalAuthLink.UpdatedAt = dbtime.Now()
 		}
 
 		// Unfortunately have to match exactly on the error message string.
 		// Improve the error message to account refresh tokens are deleted if
 		// invalid on our end.
+		//
+		// This error messages comes from the oauth2 package on our client side.
+		// So this check is not against a server generated error message.
+		// Error source: https://github.com/golang/oauth2/blob/master/oauth2.go#L277
 		if err.Error() == "oauth2: token expired and refresh token is not set" {
+			if externalAuthLink.OauthRefreshFailureReason != "" {
+				// A cached refresh failure error exists. So the refresh token was set, but was invalid, and zeroed out.
+				// Return this cached error for the original refresh attempt.
+				return externalAuthLink, InvalidTokenError(fmt.Sprintf("token expired and refreshing failed %s with: %s",
+					// Do not return the exact time, because then we have to know what timezone the
+					// user is in. This approximate time is good enough.
+					humanize.Time(externalAuthLink.UpdatedAt),
+					externalAuthLink.OauthRefreshFailureReason,
+				))
+			}
+
 			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 		}
 
@@ -343,6 +405,83 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		}
 	}
 	return installs, true, nil
+}
+
+func (c *Config) RevokeToken(ctx context.Context, link database.ExternalAuthLink) (bool, error) {
+	if c.RevokeURL == "" {
+		return false, nil
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, c.RevokeTimeout)
+	defer cancel()
+	req, err := c.TokenRevocationRequest(reqCtx, link)
+	if err != nil {
+		return false, err
+	}
+
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceRevoke, req)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return false, err
+	}
+
+	if c.TokenRevocationResponseOk(res) {
+		return true, nil
+	}
+	return false, xerrors.Errorf("failed to revoke token: %d %s", res.StatusCode, string(body))
+}
+
+func (c *Config) TokenRevocationRequest(ctx context.Context, link database.ExternalAuthLink) (*http.Request, error) {
+	if c.Type == codersdk.EnhancedExternalAuthProviderGitHub.String() {
+		return c.TokenRevocationRequestGitHub(ctx, link)
+	}
+	return c.TokenRevocationRequestRFC7009(ctx, link)
+}
+
+func (c *Config) TokenRevocationRequestRFC7009(ctx context.Context, link database.ExternalAuthLink) (*http.Request, error) {
+	p := url.Values{}
+	p.Add("client_id", c.ClientID)
+	p.Add("client_secret", c.ClientSecret)
+	if link.OAuthRefreshToken != "" {
+		p.Add("token_type_hint", "refresh_token")
+		p.Add("token", link.OAuthRefreshToken)
+	} else {
+		p.Add("token_type_hint", "access_token")
+		p.Add("token", link.OAuthAccessToken)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.RevokeURL, strings.NewReader(p.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", link.OAuthAccessToken))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req, nil
+}
+
+func (c *Config) TokenRevocationRequestGitHub(ctx context.Context, link database.ExternalAuthLink) (*http.Request, error) {
+	// GitHub doesn't follow RFC spec
+	// https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2022-11-28#delete-an-app-authorization
+	body := fmt.Sprintf("{\"access_token\":%q}", link.OAuthAccessToken)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.RevokeURL, strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Accept", "application/vnd.github+json")
+	req.Header.Add("X-GitHub-Api-Version", "2022-11-28")
+	req.SetBasicAuth(c.ClientID, c.ClientSecret)
+	return req, nil
+}
+
+func (c *Config) TokenRevocationResponseOk(res *http.Response) bool {
+	// RFC spec on successful revocation returns 200, GitHub 204
+	if c.Type == codersdk.EnhancedExternalAuthProviderGitHub.String() {
+		return res.StatusCode == http.StatusNoContent
+	}
+	return res.StatusCode == http.StatusOK
 }
 
 type DeviceAuth struct {
@@ -568,18 +707,40 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			instrumented = instrument.NewGithub(entry.ID, oauthConfig)
 		}
 
+		var mcpToolAllow *regexp.Regexp
+		var mcpToolDeny *regexp.Regexp
+		if entry.MCPToolAllowRegex != "" {
+			mcpToolAllow, err = regexp.Compile(entry.MCPToolAllowRegex)
+			if err != nil {
+				return nil, xerrors.Errorf("compile MCP tool allow regex for external auth provider %q: %w", entry.ID, entry.MCPToolAllowRegex)
+			}
+		}
+		if entry.MCPToolDenyRegex != "" {
+			mcpToolDeny, err = regexp.Compile(entry.MCPToolDenyRegex)
+			if err != nil {
+				return nil, xerrors.Errorf("compile MCP tool deny regex for external auth provider %q: %w", entry.ID, entry.MCPToolDenyRegex)
+			}
+		}
+
 		cfg := &Config{
 			InstrumentedOAuth2Config: instrumented,
 			ID:                       entry.ID,
+			ClientID:                 entry.ClientID,
+			ClientSecret:             entry.ClientSecret,
 			Regex:                    regex,
 			Type:                     entry.Type,
 			NoRefresh:                entry.NoRefresh,
 			ValidateURL:              entry.ValidateURL,
+			RevokeURL:                entry.RevokeURL,
+			RevokeTimeout:            tokenRevocationTimeout,
 			AppInstallationsURL:      entry.AppInstallationsURL,
 			AppInstallURL:            entry.AppInstallURL,
 			DisplayName:              entry.DisplayName,
 			DisplayIcon:              entry.DisplayIcon,
 			ExtraTokenKeys:           entry.ExtraTokenKeys,
+			MCPURL:                   entry.MCPURL,
+			MCPToolAllowRegex:        mcpToolAllow,
+			MCPToolDenyRegex:         mcpToolDeny,
 		}
 
 		if entry.DeviceFlow {
@@ -620,6 +781,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 
 	// Dynamic defaults
 	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	case codersdk.EnhancedExternalAuthProviderGitHub:
+		copyDefaultSettings(config, gitHubDefaults(config))
+		return
 	case codersdk.EnhancedExternalAuthProviderGitLab:
 		copyDefaultSettings(config, gitlabDefaults(config))
 		return
@@ -652,6 +816,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.ValidateURL == "" {
 		config.ValidateURL = defaults.ValidateURL
+	}
+	if config.RevokeURL == "" {
+		config.RevokeURL = defaults.RevokeURL
 	}
 	if config.AppInstallURL == "" {
 		config.AppInstallURL = defaults.AppInstallURL
@@ -689,6 +856,29 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 		// This is a key emoji.
 		config.DisplayIcon = "/emojis/1f511.png"
 	}
+}
+
+// gitHubDefaults returns default config values for GitHub.
+// The only dynamic value is the revocation URL which depends on client ID.
+func gitHubDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		AuthURL:     xgithub.Endpoint.AuthURL,
+		TokenURL:    xgithub.Endpoint.TokenURL,
+		ValidateURL: "https://api.github.com/user",
+		DisplayName: "GitHub",
+		DisplayIcon: "/icon/github.svg",
+		Regex:       `^(https?://)?github\.com(/.*)?$`,
+		// "workflow" is required for managing GitHub Actions in a repository.
+		Scopes:              []string{"repo", "workflow"},
+		DeviceCodeURL:       "https://github.com/login/device/code",
+		AppInstallationsURL: "https://api.github.com/user/installations",
+	}
+
+	if config.RevokeURL == "" && config.ClientID != "" {
+		defaults.RevokeURL = fmt.Sprintf("https://api.github.com/applications/%s/grant", config.ClientID)
+	}
+
+	return defaults
 }
 
 func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
@@ -736,6 +926,7 @@ func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 		AuthURL:     "https://gitlab.com/oauth/authorize",
 		TokenURL:    "https://gitlab.com/oauth/token",
 		ValidateURL: "https://gitlab.com/oauth/token/info",
+		RevokeURL:   "https://gitlab.com/oauth/revoke",
 		DisplayName: "GitLab",
 		DisplayIcon: "/icon/gitlab.svg",
 		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
@@ -761,6 +952,7 @@ func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 		AuthURL:     au.ResolveReference(&url.URL{Path: "/oauth/authorize"}).String(),
 		TokenURL:    au.ResolveReference(&url.URL{Path: "/oauth/token"}).String(),
 		ValidateURL: au.ResolveReference(&url.URL{Path: "/oauth/token/info"}).String(),
+		RevokeURL:   au.ResolveReference(&url.URL{Path: "/oauth/revoke"}).String(),
 		Regex:       fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(au.Host, ".", `\.`)),
 	}
 }
@@ -887,21 +1079,10 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
 		Scopes:      []string{"account", "repository:write"},
 	},
-	codersdk.EnhancedExternalAuthProviderGitHub: {
-		AuthURL:     xgithub.Endpoint.AuthURL,
-		TokenURL:    xgithub.Endpoint.TokenURL,
-		ValidateURL: "https://api.github.com/user",
-		DisplayName: "GitHub",
-		DisplayIcon: "/icon/github.svg",
-		Regex:       `^(https?://)?github\.com(/.*)?$`,
-		// "workflow" is required for managing GitHub Actions in a repository.
-		Scopes:              []string{"repo", "workflow"},
-		DeviceCodeURL:       "https://github.com/login/device/code",
-		AppInstallationsURL: "https://api.github.com/user/installations",
-	},
 	codersdk.EnhancedExternalAuthProviderSlack: {
 		AuthURL:     "https://slack.com/oauth/v2/authorize",
 		TokenURL:    "https://slack.com/api/oauth.v2.access",
+		RevokeURL:   "https://slack.com/api/auth.revoke",
 		DisplayName: "Slack",
 		DisplayIcon: "/icon/slack.svg",
 		// See: https://api.slack.com/authentication/oauth-v2#exchanging

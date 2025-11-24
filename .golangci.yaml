@@ -169,6 +169,16 @@ linters-settings:
       - name: var-declaration
       - name: var-naming
       - name: waitgroup-by-value
+  usetesting:
+    # Only os-setenv is enabled because we migrated to usetesting from another linter that
+    # only covered os-setenv.
+    os-setenv: true
+    os-create-temp: false
+    os-mkdir-temp: false
+    os-temp-dir: false
+    os-chdir: false
+    context-background: false
+    context-todo: false
 
   # irrelevant as of Go v1.22: https://go.dev/blog/loopvar-preview
   govet:
@@ -181,7 +191,6 @@ linters-settings:
 
 issues:
   exclude-dirs:
-    - coderd/database/dbmem
     - node_modules
     - .git
 
@@ -253,7 +262,6 @@ linters:
     # - wastedassign
 
     - staticcheck
-    - tenv
     # In Go, it's possible for a package to test it's internal functionality
     # without testing any exported functions. This is enabled to promote
     # decomposing a package before testing it's internals. A function caller
@@ -266,4 +274,5 @@ linters:
     - typecheck
     - unconvert
     - unused
+    - usetesting
     - dupl

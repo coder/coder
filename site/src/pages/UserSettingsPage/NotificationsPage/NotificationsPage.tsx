@@ -8,6 +8,7 @@ import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
 import {
+	customNotificationTemplates,
 	disableNotification,
 	notificationDispatchMethods,
 	selectTemplatesByGroup,
@@ -28,17 +29,21 @@ import {
 	methodIcons,
 	methodLabels,
 } from "modules/notifications/utils";
-import { type FC, Fragment } from "react";
-import { useEffect } from "react";
-import { Helmet } from "react-helmet-async";
+import type { Permissions } from "modules/permissions";
+import { type FC, Fragment, useEffect } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
 const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
-	const [disabledPreferences, templatesByGroup, dispatchMethods] = useQueries({
+	const [
+		disabledPreferences,
+		systemTemplatesByGroup,
+		customTemplatesByGroup,
+		dispatchMethods,
+	] = useQueries({
 		queries: [
 			{
 				...userNotificationPreferences(user.id),
@@ -46,15 +51,11 @@ const NotificationsPage: FC = () => {
 			},
 			{
 				...systemNotificationTemplates(),
-				select: (data: NotificationTemplate[]) => {
-					const groups = selectTemplatesByGroup(data);
-					return permissions.viewDeploymentConfig
-						? groups
-						: {
-								// Members only have access to the "Workspace Notifications" group
-								"Workspace Events": groups["Workspace Events"],
-							};
-				},
+				select: (data: NotificationTemplate[]) => selectTemplatesByGroup(data),
+			},
+			{
+				...customNotificationTemplates(),
+				select: (data: NotificationTemplate[]) => selectTemplatesByGroup(data),
 			},
 			notificationDispatchMethods(),
 		],
@@ -88,13 +89,20 @@ const NotificationsPage: FC = () => {
 	}, [searchParams.delete, disabledId, disableMutation]);
 
 	const ready =
-		disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
+		disabledPreferences.data &&
+		systemTemplatesByGroup.data &&
+		customTemplatesByGroup.data &&
+		dispatchMethods.data;
+	// Combine system and custom notification templates
+	const allTemplatesByGroup = {
+		...systemTemplatesByGroup.data,
+		...customTemplatesByGroup.data,
+	};
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Notifications Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("Notifications Settings")}</title>
+
 			<Section
 				title="Notifications"
 				description="Control which notifications you receive."
@@ -102,7 +110,11 @@ const NotificationsPage: FC = () => {
 			>
 				{ready ? (
 					<Stack spacing={4}>
-						{Object.entries(templatesByGroup.data).map(([group, templates]) => {
+						{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
+							if (!canSeeNotificationGroup(group, permissions)) {
+								return null;
+							}
+
 							const allDisabled = templates.some((tpl) => {
 								return notificationIsDisabled(disabledPreferences.data, tpl);
 							});
@@ -210,6 +222,24 @@ const NotificationsPage: FC = () => {
 };
 
 export default NotificationsPage;
+
+function canSeeNotificationGroup(
+	group: string,
+	permissions: Permissions,
+): boolean {
+	switch (group) {
+		case "Template Events":
+			return permissions.createTemplates;
+		case "User Events":
+			return permissions.createUser;
+		case "Workspace Events":
+		case "Task Events":
+		case "Custom Events":
+			return true;
+		default:
+			return false;
+	}
+}
 
 function notificationIsDisabled(
 	disabledPreferences: Record<string, boolean>,

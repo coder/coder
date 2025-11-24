@@ -3,10 +3,9 @@ import { authMethods, createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
+import { type FC, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "react-query";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
@@ -24,7 +23,7 @@ export const SetupPage: FC = () => {
 	const setupIsComplete = !isConfiguringTheFirstUser;
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const navigate = useNavigate();
+	const setupRequired = useRef(false);
 
 	useEffect(() => {
 		if (!buildInfoQuery.data) {
@@ -41,7 +40,11 @@ export const SetupPage: FC = () => {
 
 	// If the user is logged in, navigate to the app
 	if (isSignedIn) {
-		return <Navigate to="/" state={{ isRedirect: true }} replace />;
+		return setupRequired.current ? (
+			<Navigate to="/templates" replace />
+		) : (
+			<Navigate to="/" state={{ isRedirect: true }} replace />
+		);
 	}
 
 	// If we've already completed setup, navigate to the login page
@@ -49,11 +52,11 @@ export const SetupPage: FC = () => {
 		return <Navigate to="/login" state={{ isRedirect: true }} replace />;
 	}
 
+	setupRequired.current = true;
+
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Set up your account")}</title>
-			</Helmet>
+			<title>{pageTitle("Set up your account")}</title>
 			<SetupPageView
 				authMethods={authMethodsQuery.data}
 				isLoading={isSigningIn || createFirstUserMutation.isPending}
@@ -61,7 +64,6 @@ export const SetupPage: FC = () => {
 				onSubmit={async (firstUser) => {
 					await createFirstUserMutation.mutateAsync(firstUser);
 					await signIn(firstUser.email, firstUser.password);
-					navigate("/templates");
 				}}
 			/>
 		</>

@@ -1,64 +1,91 @@
-{{- define "libcoder.rbac.tpl" -}}
-{{- if .Values.coder.serviceAccount.workspacePerms }}
+{{- define "libcoder.rbac.forNamespace" -}}
+  {{- $nsPerms := ternary .workspacePerms .Top.Values.coder.serviceAccount.workspacePerms (hasKey . "workspacePerms") -}}
+  {{- $nsDeployRaw := ternary .enableDeployments .Top.Values.coder.serviceAccount.enableDeployments (hasKey . "enableDeployments") -}}
+  {{- $nsExtraRaw := ternary .extraRules .Top.Values.coder.serviceAccount.extraRules (hasKey . "extraRules") -}}
+  {{- $nsDeploy := and $nsPerms $nsDeployRaw -}}
+  {{- $nsExtra := ternary $nsExtraRaw (list) $nsPerms -}}
+
+  {{- if or $nsPerms (or $nsDeploy $nsExtra) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
-  namespace: {{ .Release.Namespace }}
+  name: {{ .Top.Values.coder.serviceAccount.name }}-workspace-perms
+  namespace: {{ .NS }}
 rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
-  - apiGroups: [""]
-    resources: ["persistentvolumeclaims"]
-    verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
-{{- if .Values.coder.serviceAccount.enableDeployments }}
-  - apiGroups:
-    - apps
-    resources:
-    - deployments
-    verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
+{{- if $nsPerms }}
+{{ include "libcoder.rbac.rules.basic" .Top | trimPrefix "\n" | indent 2 }}
 {{- end }}
-{{- with .Values.coder.serviceAccount.extraRules }}
-{{ toYaml . | nindent 2 }}
+{{- if $nsDeploy }}
+{{ include "libcoder.rbac.rules.deployments" .Top | trimPrefix "\n" | indent 2 }}
+{{- end }}
+{{- if $nsExtra }}
+  {{- if kindIs "slice" $nsExtra }}
+{{ toYaml $nsExtra | trimPrefix "\n" | indent 2 }}
+  {{- else }}
+{{ toYaml (list $nsExtra) | trimPrefix "\n" | indent 2 }}
+  {{- end }}
 {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Values.coder.serviceAccount.name | quote }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ .Top.Values.coder.serviceAccount.name | quote }}
+  namespace: {{ .NS }}
 subjects:
   - kind: ServiceAccount
-    name: {{ .Values.coder.serviceAccount.name | quote }}
+    name: {{ .Top.Values.coder.serviceAccount.name | quote }}
+    {{- if ne .NS .Top.Release.Namespace }}
+    namespace: {{ .Top.Release.Namespace }}
+    {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
-{{- end }}
+  name: {{ .Top.Values.coder.serviceAccount.name }}-workspace-perms
+  {{- end }}
+{{- end -}}
+
+{{- define "libcoder.rbac.core" -}}
+  {{- $top := . -}}
+  {{- $rootPerms := $top.Values.coder.serviceAccount.workspacePerms | default false -}}
+  {{- $rootDeploy := $top.Values.coder.serviceAccount.enableDeployments | default false -}}
+  {{- $rootExtra  := $top.Values.coder.serviceAccount.extraRules | default (list) -}}
+
+  {{- $rootParams := dict
+        "Top" $top
+        "NS"  $top.Release.Namespace
+        "workspacePerms" $rootPerms
+        "enableDeployments" $rootDeploy
+        "extraRules" $rootExtra -}}
+  {{ include "libcoder.rbac.forNamespace" $rootParams }}
+
+  {{- $wsnsRaw := get $top.Values.coder.serviceAccount "workspaceNamespaces" -}}
+  {{- $extra := default (list) $wsnsRaw -}}
+
+  {{- range $_, $ns := $extra }}
+    {{- $nsName := ternary $ns.name $ns (kindIs "map" $ns) -}}
+    {{- if $nsName }}
+      {{- $params := dict "Top" $top "NS" $nsName -}}
+      {{- if kindIs "map" $ns }}
+        {{- if hasKey $ns "workspacePerms" }}{{- $_ := set $params "workspacePerms" $ns.workspacePerms }}{{- else }}{{- $_ := set $params "workspacePerms" $rootPerms }}{{- end }}
+        {{- if hasKey $ns "enableDeployments" }}{{- $_ := set $params "enableDeployments" $ns.enableDeployments }}{{- else }}{{- $_ := set $params "enableDeployments" $rootDeploy }}{{- end }}
+        {{- if hasKey $ns "extraRules" }}{{- $_ := set $params "extraRules" $ns.extraRules }}{{- else }}{{- $_ := set $params "extraRules" $rootExtra }}{{- end }}
+      {{- else }}
+        {{- $_ := set $params "workspacePerms" $rootPerms -}}
+        {{- $_ := set $params "enableDeployments" $rootDeploy -}}
+        {{- $_ := set $params "extraRules" $rootExtra -}}
+      {{- end }}
+      {{ include "libcoder.rbac.forNamespace" $params }}
+    {{- end }}
+  {{- end }}
+{{- end -}}
+
+{{- define "libcoder.rbac.tpl" -}}
+  {{- if not .Values.coder.serviceAccount.disableCreate -}}
+  {{ include "libcoder.rbac.core" . }}
+  {{- end }}
+{{- end -}}
+
+{{- define "libcoder.namespace.rbac.tpl" -}}
+  {{ include "libcoder.rbac.core" . }}
 {{- end -}}

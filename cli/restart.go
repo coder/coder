@@ -19,17 +19,20 @@ func (r *RootCmd) restart() *serpent.Command {
 		bflags         buildFlags
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{cliui.SkipPromptOption()},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 			out := inv.Stdout
 
@@ -51,8 +54,17 @@ func (r *RootCmd) restart() *serpent.Command {
 				return err
 			}
 
+			stopParamValues, err := asWorkspaceBuildParameters(parameterFlags.ephemeralParameters)
+			if err != nil {
+				return xerrors.Errorf("parse ephemeral parameters: %w", err)
+			}
 			wbr := codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
+				// Ephemeral parameters should be passed to both stop and start builds.
+				// TODO: maybe these values should be sourced from the previous build?
+				//  It has to be manually sourced, as ephemeral parameters do not carry across
+				//  builds.
+				RichParameterValues: stopParamValues,
 			}
 			if bflags.provisionerLogDebug {
 				wbr.LogLevel = codersdk.ProvisionerLogLevelDebug

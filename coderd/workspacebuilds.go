@@ -119,7 +119,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 
-	paginationParams, ok := parsePagination(rw, r)
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
@@ -335,13 +335,59 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
+	// We want to allow a delete build for a deleted workspace, but not a start or stop build.
+	if workspace.Deleted && createBuild.Transition != codersdk.WorkspaceTransitionDelete {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Cannot %s a deleted workspace!", createBuild.Transition),
+			Detail:  "This workspace has been deleted and cannot be modified.",
+		})
+		return
+	}
+
+	apiBuild, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		createBuild,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
+}
+
+// postWorkspaceBuildsInternal handles the internal logic for creating
+// workspace builds, can be called by other handlers and must not
+// reference httpmw.
+func (api *API) postWorkspaceBuildsInternal(
+	ctx context.Context,
+	apiKey database.APIKey,
+	workspace database.Workspace,
+	createBuild codersdk.CreateWorkspaceBuildRequest,
+	authorize func(action policy.Action, object rbac.Objecter) bool,
+	workspaceBuildBaggage audit.WorkspaceBuildBaggage,
+) (
+	codersdk.WorkspaceBuild,
+	error,
+) {
+	transition := database.WorkspaceTransition(createBuild.Transition)
+	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
 		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
+
+	if transition == database.WorkspaceTransitionStart && createBuild.Reason != "" {
+		builder = builder.Reason(database.BuildReason(createBuild.Reason))
+	}
 
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild
@@ -356,11 +402,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching previous workspace build",
 				Detail:  err.Error(),
 			})
-			return nil
 		}
 
 		if createBuild.TemplateVersionID != uuid.Nil {
@@ -369,16 +414,14 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 		if createBuild.Orphan {
 			if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 					Message: "Orphan is only permitted when deleting a workspace.",
 				})
-				return nil
 			}
 			if len(createBuild.ProvisionerState) > 0 {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 					Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
 				})
-				return nil
 			}
 			builder = builder.Orphan()
 		}
@@ -391,24 +434,23 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			tx,
 			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
-				if auth := api.Authorize(r, action, object); auth {
+				if auth := authorize(action, object); auth {
 					return true
 				}
 				// Special handling for prebuilt workspace deletion
 				if action == policy.ActionDelete {
 					if workspaceObj, ok := object.(database.PrebuiltWorkspaceResource); ok && workspaceObj.IsPrebuild() {
-						return api.Authorize(r, action, workspaceObj.AsPrebuild())
+						return authorize(action, workspaceObj.AsPrebuild())
 					}
 				}
 				return false
 			},
-			audit.WorkspaceBuildBaggageFromRequest(r),
+			workspaceBuildBaggage,
 		)
 		return err
 	}, nil)
 	if err != nil {
-		httperror.WriteWorkspaceBuildError(ctx, rw, err)
-		return
+		return codersdk.WorkspaceBuild{}, err
 	}
 
 	var queuePos database.GetProvisionerJobsByIDsWithQueuePositionRow
@@ -472,11 +514,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		provisionerDaemons,
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace build.",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.WorkspaceBuild{}, httperror.NewResponseError(
+			http.StatusInternalServerError,
+			codersdk.Response{
+				Message: "Internal error converting workspace build.",
+				Detail:  err.Error(),
+			},
+		)
 	}
 
 	// If this workspace build has a different template version ID to the previous build
@@ -503,7 +547,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID: workspace.ID,
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
+	return apiBuild, nil
 }
 
 func (api *API) notifyWorkspaceUpdated(
@@ -581,10 +625,24 @@ func (api *API) notifyWorkspaceUpdated(
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
+// @Param expect_status query string false "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation." Enums(running, pending)
 // @Success 200 {object} codersdk.Response
 // @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	var expectStatus database.ProvisionerJobStatus
+	expectStatusParam := r.URL.Query().Get("expect_status")
+	if expectStatusParam != "" {
+		if expectStatusParam != "running" && expectStatusParam != "pending" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid expect_status %q. Only 'running' or 'pending' are allowed.", expectStatusParam),
+			})
+			return
+		}
+		expectStatus = database.ProvisionerJobStatus(expectStatusParam)
+	}
+
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -594,58 +652,78 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error verifying permission to cancel workspace build.",
-			Detail:  err.Error(),
-		})
-		return
+	code := http.StatusInternalServerError
+	resp := codersdk.Response{
+		Message: "Internal error canceling workspace build.",
 	}
-	if !valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "User is not allowed to cancel workspace builds. Owner role is required.",
-		})
-		return
-	}
+	err = api.Database.InTx(func(db database.Store) error {
+		valid, err := verifyUserCanCancelWorkspaceBuilds(ctx, db, httpmw.APIKey(r).UserID, workspace.TemplateID, expectStatus)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error verifying permission to cancel workspace build."
+			resp.Detail = err.Error()
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+			return xerrors.Errorf("verify user can cancel workspace builds: %w", err)
+		}
+		if !valid {
+			code = http.StatusForbidden
+			resp.Message = "User is not allowed to cancel workspace builds. Owner role is required."
+
+			return xerrors.New("user is not allowed to cancel workspace builds")
+		}
+
+		job, err := db.GetProvisionerJobByIDWithLock(ctx, workspaceBuild.JobID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error fetching provisioner job."
+			resp.Detail = err.Error()
+
+			return xerrors.Errorf("get provisioner job: %w", err)
+		}
+		if job.CompletedAt.Valid {
+			code = http.StatusBadRequest
+			resp.Message = "Job has already completed!"
+
+			return xerrors.New("job has already completed")
+		}
+		if job.CanceledAt.Valid {
+			code = http.StatusBadRequest
+			resp.Message = "Job has already been marked as canceled!"
+
+			return xerrors.New("job has already been marked as canceled")
+		}
+
+		if expectStatus != "" && job.JobStatus != expectStatus {
+			code = http.StatusPreconditionFailed
+			resp.Message = "Job is not in the expected state."
+
+			return xerrors.Errorf("job is not in the expected state: expected: %q, got %q", expectStatus, job.JobStatus)
+		}
+
+		err = db.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID: job.ID,
+			CanceledAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			CompletedAt: sql.NullTime{
+				Time: dbtime.Now(),
+				// If the job is running, don't mark it completed!
+				Valid: !job.WorkerID.Valid,
+			},
+		})
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error updating provisioner job."
+			resp.Detail = err.Error()
+
+			return xerrors.Errorf("update provisioner job: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already completed!",
-		})
-		return
-	}
-	if job.CanceledAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already been marked as canceled!",
-		})
-		return
-	}
-	err = api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
-		ID: job.ID,
-		CanceledAt: sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		},
-		CompletedAt: sql.NullTime{
-			Time: dbtime.Now(),
-			// If the job is running, don't mark it completed!
-			Valid: !job.WorkerID.Valid,
-		},
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating provisioner job.",
-			Detail:  err.Error(),
-		})
+		httpapi.Write(ctx, rw, code, resp)
 		return
 	}
 
@@ -659,8 +737,14 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
-	template, err := api.Database.GetTemplateByID(ctx, templateID)
+func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Store, userID uuid.UUID, templateID uuid.UUID, jobStatus database.ProvisionerJobStatus) (bool, error) {
+	// If the jobStatus is pending, we always allow cancellation regardless of
+	// the template setting as it's non-destructive to Terraform resources.
+	if jobStatus == database.ProvisionerJobStatusPending {
+		return true, nil
+	}
+
+	template, err := store.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return false, xerrors.New("no template exists for this workspace")
 	}
@@ -669,7 +753,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 		return true, nil // all users can cancel workspace builds
 	}
 
-	user, err := api.Database.GetUserByID(ctx, userID)
+	user, err := store.GetUserByID(ctx, userID)
 	if err != nil {
 		return false, xerrors.New("user does not exist")
 	}
@@ -1106,9 +1190,9 @@ func (api *API) convertWorkspaceBuild(
 	if build.HasAITask.Valid {
 		hasAITask = &build.HasAITask.Bool
 	}
-	var aiTasksSidebarAppID *uuid.UUID
-	if build.AITaskSidebarAppID.Valid {
-		aiTasksSidebarAppID = &build.AITaskSidebarAppID.UUID
+	var hasExternalAgent *bool
+	if build.HasExternalAgent.Valid {
+		hasExternalAgent = &build.HasExternalAgent.Bool
 	}
 
 	apiJob := convertProvisionerJob(job)
@@ -1138,7 +1222,7 @@ func (api *API) convertWorkspaceBuild(
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
 		HasAITask:               hasAITask,
-		AITaskSidebarAppID:      aiTasksSidebarAppID,
+		HasExternalAgent:        hasExternalAgent,
 	}, nil
 }
 

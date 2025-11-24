@@ -19,6 +19,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -32,10 +33,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func randomAPIKeyParts() (id string, secret string) {
+func randomAPIKeyParts() (id string, secret string, hashedSecret []byte) {
 	id, _ = cryptorand.String(10)
-	secret, _ = cryptorand.String(22)
-	return id, secret
+	secret, hashedSecret, _ = apikey.GenerateSecret(22)
+	return id, secret, hashedSecret
 }
 
 func TestAPIKey(t *testing.T) {
@@ -171,10 +172,10 @@ func TestAPIKey(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db, _      = dbtestutil.NewDB(t)
-			id, secret = randomAPIKeyParts()
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
+			db, _         = dbtestutil.NewDB(t)
+			id, secret, _ = randomAPIKeyParts()
+			r             = httptest.NewRequest("GET", "/", nil)
+			rw            = httptest.NewRecorder()
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
@@ -313,7 +314,7 @@ func TestAPIKey(t *testing.T) {
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
-				Scope:     database.APIKeyScopeApplicationConnect,
+				Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -330,7 +331,7 @@ func TestAPIKey(t *testing.T) {
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
-			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scope)
+			assert.Equal(t, database.ApiKeyScopeCoderApplicationConnect, apiKey.Scopes[0])
 			assertActorOk(t, r)
 
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{

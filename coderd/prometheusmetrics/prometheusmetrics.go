@@ -150,7 +150,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_latest_build",
-		Help:      "The current number of workspace builds by status.",
+		Help:      "The current number of workspace builds by status for all non-deleted workspaces.",
 	}, []string{"status"})
 	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
 		return nil, err
@@ -159,68 +159,77 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	workspaceLatestBuildStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "workspace_latest_build_status",
-		Help:      "The current workspace statuses by template, transition, and owner.",
+		Help:      "The current workspace statuses by template, transition, and owner for all non-deleted workspaces.",
 	}, []string{"status", "template_name", "template_version", "workspace_owner", "workspace_transition"})
 	if err := registerer.Register(workspaceLatestBuildStatuses); err != nil {
+		return nil, err
+	}
+
+	workspaceCreationTotal := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "coderd",
+			Name:      "workspace_creation_total",
+			Help:      "Total regular (non-prebuilt) workspace creations by organization, template, and preset.",
+		},
+		[]string{"organization_name", "template_name", "preset_name"},
+	)
+	if err := registerer.Register(workspaceCreationTotal); err != nil {
 		return nil, err
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	updateWorkspaceTotals := func() {
-		builds, err := db.GetLatestWorkspaceBuilds(ctx)
+	updateWorkspaceMetrics := func() {
+		// Don't count deleted workspaces as part of these metrics.
+		ws, err := db.GetWorkspacesForWorkspaceMetrics(ctx)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				// clear all series if there are no database entries
 				workspaceLatestBuildTotals.Reset()
+				workspaceLatestBuildStatuses.Reset()
 			} else {
-				logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
+				logger.Warn(ctx, "failed to load active workspaces for metrics", slog.Error(err))
 			}
-			return
-		}
-		jobIDs := make([]uuid.UUID, 0, len(builds))
-		for _, build := range builds {
-			jobIDs = append(jobIDs, build.JobID)
-		}
-		jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
-		if err != nil {
-			ids := make([]string, 0, len(jobIDs))
-			for _, id := range jobIDs {
-				ids = append(ids, id.String())
-			}
-
-			logger.Warn(ctx, "failed to load provisioner jobs", slog.F("ids", ids), slog.Error(err))
 			return
 		}
 
 		workspaceLatestBuildTotals.Reset()
-		for _, job := range jobs {
-			status := codersdk.ProvisionerJobStatus(job.JobStatus)
-			workspaceLatestBuildTotals.WithLabelValues(string(status)).Add(1)
-			// TODO: deprecated: remove in the future
-			workspaceLatestBuildTotalsDeprecated.WithLabelValues(string(status)).Add(1)
-		}
-	}
+		workspaceLatestBuildStatuses.Reset()
 
-	updateWorkspaceStatuses := func() {
-		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
-			Deleted:     false,
-			WithSummary: false,
-		})
+		for _, w := range ws {
+			status := string(w.LatestBuildStatus)
+			workspaceLatestBuildTotals.WithLabelValues(status).Add(1)
+			// TODO: deprecated: remove in the future
+			workspaceLatestBuildTotalsDeprecated.WithLabelValues(status).Add(1)
+
+			workspaceLatestBuildStatuses.WithLabelValues(
+				status,
+				w.TemplateName,
+				w.TemplateVersionName.String,
+				w.OwnerUsername,
+				string(w.LatestBuildTransition),
+			).Add(1)
+		}
+
+		// Update regular workspaces (without a prebuild transition) creation counter
+		regularWorkspaces, err := db.GetRegularWorkspaceCreateMetrics(ctx)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				// clear all series if there are no database entries
-				workspaceLatestBuildStatuses.Reset()
+				workspaceCreationTotal.Reset()
+			} else {
+				logger.Warn(ctx, "failed to load regular workspaces for metrics", slog.Error(err))
 			}
-
-			logger.Warn(ctx, "failed to load active workspaces", slog.Error(err))
 			return
 		}
 
-		workspaceLatestBuildStatuses.Reset()
-		for _, w := range ws {
-			workspaceLatestBuildStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.OwnerUsername, string(w.LatestBuildTransition)).Add(1)
+		workspaceCreationTotal.Reset()
+
+		for _, regularWorkspace := range regularWorkspaces {
+			workspaceCreationTotal.WithLabelValues(
+				regularWorkspace.OrganizationName,
+				regularWorkspace.TemplateName,
+				regularWorkspace.PresetName,
+			).Add(float64(regularWorkspace.CreatedCount))
 		}
 	}
 
@@ -230,8 +239,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	doTick := func() {
 		defer ticker.Reset(duration)
 
-		updateWorkspaceTotals()
-		updateWorkspaceStatuses()
+		updateWorkspaceMetrics()
 	}
 
 	go func() {
@@ -336,92 +344,66 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
-			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
-				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
-			})
+			workspaceAgents, err := db.GetWorkspaceAgentsForMetrics(ctx)
 			if err != nil {
-				logger.Error(ctx, "can't get workspace rows", slog.Error(err))
+				logger.Error(ctx, "can't get workspace agents", slog.Error(err))
 				goto done
 			}
 
-			for _, workspace := range workspaceRows {
-				templateName := workspace.TemplateName
-				templateVersionName := workspace.TemplateVersionName.String
-				if !workspace.TemplateVersionName.Valid {
+			for _, agent := range workspaceAgents {
+				// Collect information about agents
+				templateVersionName := agent.TemplateVersionName.String
+				if !agent.TemplateVersionName.Valid {
 					templateVersionName = "unknown"
 				}
+				agentsGauge.WithLabelValues(VectorOperationAdd, 1, agent.OwnerUsername, agent.WorkspaceName, agent.TemplateName, templateVersionName)
 
-				user, err := db.GetUserByID(ctx, workspace.OwnerID)
-				if err != nil {
-					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
+				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
+				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)
+
+				tailnetNode := "unknown"
+				if node != nil {
+					tailnetNode = node.ID.String()
 				}
 
-				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-				if err != nil {
-					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
-				}
+				agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, string(connectionStatus.Status), string(agent.WorkspaceAgent.LifecycleState), tailnetNode)
 
-				if len(agents) == 0 {
-					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
-				}
-
-				for _, agent := range agents {
-					// Collect information about agents
-					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
-
-					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
-					node := (*coordinator.Load()).Node(agent.ID)
-
-					tailnetNode := "unknown"
-					if node != nil {
-						tailnetNode = node.ID.String()
-					}
-
-					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
-
-					if node == nil {
-						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
-					} else {
-						// Collect information about connection latencies
-						for rawRegion, latency := range node.DERPLatency {
-							regionParts := strings.SplitN(rawRegion, "-", 2)
-							regionID, err := strconv.Atoi(regionParts[0])
-							if err != nil {
-								logger.Error(ctx, "can't convert DERP region", slog.F("agent_id", agent.ID), slog.F("raw_region", rawRegion), slog.Error(err))
-								continue
-							}
-
-							region, found := derpMap.Regions[regionID]
-							if !found {
-								// It's possible that a workspace agent is using an old DERPMap
-								// and reports regions that do not exist. If that's the case,
-								// report the region as unknown!
-								region = &tailcfg.DERPRegion{
-									RegionID:   regionID,
-									RegionName: fmt.Sprintf("Unnamed %d", regionID),
-								}
-							}
-
-							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
+				if node == nil {
+					logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.WorkspaceAgent.ID))
+				} else {
+					// Collect information about connection latencies
+					for rawRegion, latency := range node.DERPLatency {
+						regionParts := strings.SplitN(rawRegion, "-", 2)
+						regionID, err := strconv.Atoi(regionParts[0])
+						if err != nil {
+							logger.Error(ctx, "can't convert DERP region", slog.F("agent_id", agent.WorkspaceAgent.ID), slog.F("raw_region", rawRegion), slog.Error(err))
+							continue
 						}
-					}
 
-					// Collect information about registered applications
-					apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.ID)
-					if err != nil && !errors.Is(err, sql.ErrNoRows) {
-						logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.ID), slog.Error(err))
-						continue
-					}
+						region, found := derpMap.Regions[regionID]
+						if !found {
+							// It's possible that a workspace agent is using an old DERPMap
+							// and reports regions that do not exist. If that's the case,
+							// report the region as unknown!
+							region = &tailcfg.DERPRegion{
+								RegionID:   regionID,
+								RegionName: fmt.Sprintf("Unnamed %d", regionID),
+							}
+						}
 
-					for _, app := range apps {
-						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health))
+						agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 					}
+				}
+
+				// Collect information about registered applications
+				apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.WorkspaceAgent.ID)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.WorkspaceAgent.ID), slog.Error(err))
+					continue
+				}
+
+				for _, app := range apps {
+					agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, app.DisplayName, string(app.Health))
 				}
 			}
 

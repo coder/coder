@@ -2,12 +2,12 @@ import { css } from "@emotion/css";
 import { type Theme, useTheme } from "@emotion/react";
 import { type DependencyList, useMemo } from "react";
 
-export type ClassName = (cssFn: typeof css, theme: Theme) => string;
+type ClassName = (cssFn: typeof css, theme: Theme) => string;
 
 /**
- * An escape hatch for when you really need to manually pass around a
- * `className`. Prefer using the `css` prop whenever possible. If you
- * can't use that, then this might be helpful for you.
+ * @deprecated This hook was used as an escape hatch to generate class names
+ * using emotion when no other styling method would work. There is no valid new
+ * usage of this hook. Use Tailwind classes instead.
  */
 export function useClassName(styles: ClassName, deps: DependencyList): string {
 	const theme = useTheme();

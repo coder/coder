@@ -1,17 +1,17 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon, XIcon } from "lucide-react";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, useLayoutEffect, useRef } from "react";
+import type { FC } from "react";
 import { navHeight } from "theme/constants";
 
 type BuildLogsDrawerProps = {
@@ -19,7 +19,7 @@ type BuildLogsDrawerProps = {
 	open: boolean;
 	onClose: () => void;
 	templateVersion: TemplateVersion | undefined;
-	variablesSectionRef: React.RefObject<HTMLDivElement>;
+	variablesSectionRef: React.RefObject<HTMLDivElement | null>;
 };
 
 export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
@@ -29,27 +29,6 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	...drawerProps
 }) => {
 	const logs = useWatchVersionLogs(templateVersion);
-	const logsContainer = useRef<HTMLDivElement>(null);
-
-	const scrollToBottom = () => {
-		setTimeout(() => {
-			if (logsContainer.current) {
-				logsContainer.current.scrollTop = logsContainer.current.scrollHeight;
-			}
-		}, 0);
-	};
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useLayoutEffect(() => {
-		scrollToBottom();
-	}, [logs]);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useLayoutEffect(() => {
-		if (drawerProps.open) {
-			scrollToBottom();
-		}
-	}, [drawerProps.open]);
 
 	const isMissingVariables =
 		error instanceof JobError &&
@@ -58,6 +37,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	const matchingProvisioners = templateVersion?.matched_provisioners?.count;
 	const availableProvisioners =
 		templateVersion?.matched_provisioners?.available;
+	const hasLogs = logs && logs.length > 0;
 
 	return (
 		<Drawer anchor="right" {...drawerProps}>
@@ -70,8 +50,6 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
-				{}
-
 				{isMissingVariables ? (
 					<MissingVariablesBanner
 						onFillVariables={() => {
@@ -80,23 +58,28 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							});
 							const firstVariableInput =
 								variablesSectionRef.current?.querySelector("input");
-							setTimeout(() => firstVariableInput?.focus(), 0);
+							firstVariableInput?.focus();
 							drawerProps.onClose();
 						}}
 					/>
-				) : availableProvisioners && availableProvisioners > 0 && logs ? (
-					<section ref={logsContainer} css={styles.logs}>
-						<WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
-					</section>
 				) : (
 					<>
-						<ProvisionerStatusAlert
-							matchingProvisioners={matchingProvisioners}
-							availableProvisioners={availableProvisioners}
-							tags={templateVersion?.job.tags ?? {}}
-							variant={AlertVariant.Inline}
-						/>
-						<Loader />
+						{(matchingProvisioners === 0 || !hasLogs) && (
+							<ProvisionerStatusAlert
+								matchingProvisioners={matchingProvisioners}
+								availableProvisioners={availableProvisioners}
+								tags={templateVersion?.job.tags ?? {}}
+								variant={AlertVariant.Inline}
+							/>
+						)}
+
+						{hasLogs ? (
+							<section css={styles.logs}>
+								<WorkspaceBuildLogs logs={logs} className="border-0" />
+							</section>
+						) : (
+							<Loader />
+						)}
 					</>
 				)}
 			</div>
@@ -120,8 +103,8 @@ const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
 				</p>
 				<Button
 					css={bannerStyles.button}
-					size="small"
-					variant="outlined"
+					size="sm"
+					variant="outline"
 					onClick={onFillVariables}
 				>
 					Fill variables

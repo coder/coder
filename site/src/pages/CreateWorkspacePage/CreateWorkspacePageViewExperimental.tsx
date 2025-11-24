@@ -5,17 +5,10 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { Combobox } from "components/Combobox/Combobox";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import {
@@ -27,7 +20,7 @@ import {
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { ArrowLeft, CircleHelp } from "lucide-react";
+import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	Diagnostics,
@@ -44,6 +37,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Link as RouterLink } from "react-router";
 import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
@@ -54,6 +48,7 @@ import type { CreateWorkspacePermissions } from "./permissions";
 
 interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
+	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
@@ -85,6 +80,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	CreateWorkspacePageViewExperimentalProps
 > = ({
 	autofillParameters,
+	canUpdateTemplate,
 	creatingWorkspace,
 	defaultName,
 	defaultOwner,
@@ -108,9 +104,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const [suggestedName, setSuggestedName] = useState(() =>
-		generateWorkspaceName(),
-	);
+	const [suggestedName, setSuggestedName] = useState(generateWorkspaceName);
 	const [showPresetParameters, setShowPresetParameters] = useState(false);
 	const id = useId();
 	const workspaceNameInputRef = useRef<HTMLInputElement>(null);
@@ -124,14 +118,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	// Only touched fields are sent to the websocket
 	// Autofilled parameters are marked as touched since they have been modified
-	const initialTouched = parameters.reduce(
-		(touched, parameter) => {
-			if (autofillByName[parameter.name] !== undefined) {
-				touched[parameter.name] = true;
-			}
-			return touched;
-		},
-		{} as Record<string, boolean>,
+	const initialTouched = Object.fromEntries(
+		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
 	);
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
@@ -184,33 +172,64 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "None" },
+		{ displayName: "None", value: "undefined", icon: "", description: "" },
 	]);
-	useEffect(() => {
-		setPresetOptions([
-			{ label: "None", value: "None" },
-			...presets.map((preset) => ({
-				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
-				value: preset.ID,
-			})),
-		]);
-	}, [presets]);
-
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
-
-	// Set default preset when presets are loaded
+	// Build options and keep default label/value in sync
 	useEffect(() => {
-		const defaultPreset = presets.find((preset) => preset.Default);
+		const options = [
+			{ displayName: "None", value: "undefined", icon: "", description: "" },
+			...presets.map((preset) => ({
+				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				value: preset.ID,
+				icon: preset.Icon,
+				description: preset.Description,
+			})),
+		];
+		setPresetOptions(options);
+		const defaultPreset = presets.find((p) => p.Default);
 		if (defaultPreset) {
-			// +1 because "None" is at index 0
-			const defaultIndex =
-				presets.findIndex((preset) => preset.ID === defaultPreset.ID) + 1;
-			setSelectedPresetIndex(defaultIndex);
+			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
+			setSelectedPresetIndex(idx);
+			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
+		} else {
+			setSelectedPresetIndex(0); // Explicitly set to "None"
+			form.setFieldValue("template_version_preset_id", undefined);
 		}
-	}, [presets]);
+	}, [presets, form.setFieldValue]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
+	);
+
+	// include any modified parameters and all touched parameters to the websocket request
+	const sendDynamicParamsRequest = useCallback(
+		(
+			parameters: Array<{ parameter: PreviewParameter; value: string }>,
+			ownerId?: string,
+		) => {
+			const formInputs: Record<string, string> = {};
+			const formParameters = form.values.rich_parameter_values ?? [];
+
+			for (const { parameter, value } of parameters) {
+				formInputs[parameter.name] = value;
+			}
+
+			for (const [fieldName, isTouched] of Object.entries(form.touched)) {
+				if (
+					isTouched &&
+					!parameters.some((p) => p.parameter.name === fieldName)
+				) {
+					const param = formParameters.find((p) => p.name === fieldName);
+					if (param?.value) {
+						formInputs[fieldName] = param.value;
+					}
+				}
+			}
+
+			sendMessage(formInputs, ownerId);
+		},
+		[form.touched, form.values.rich_parameter_values, sendMessage],
 	);
 
 	useEffect(() => {
@@ -285,34 +304,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.setFieldTouched,
 		parameters,
 		form.values.rich_parameter_values,
+		sendDynamicParamsRequest,
 	]);
-
-	// include any modified parameters and all touched parameters to the websocket request
-	const sendDynamicParamsRequest = (
-		parameters: Array<{ parameter: PreviewParameter; value: string }>,
-		ownerId?: string,
-	) => {
-		const formInputs: Record<string, string> = {};
-		const formParameters = form.values.rich_parameter_values ?? [];
-
-		for (const { parameter, value } of parameters) {
-			formInputs[parameter.name] = value;
-		}
-
-		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-			if (
-				isTouched &&
-				!parameters.some((p) => p.parameter.name === fieldName)
-			) {
-				const param = formParameters.find((p) => p.name === fieldName);
-				if (param?.value) {
-					formInputs[fieldName] = param.value;
-				}
-			}
-		}
-
-		sendMessage(formInputs, ownerId);
-	};
 
 	const handleOwnerChange = (user: TypesGen.User) => {
 		setOwner(user);
@@ -379,6 +372,16 @@ export const CreateWorkspacePageViewExperimental: FC<
 								</Badge>
 							)}
 						</span>
+						{canUpdateTemplate && (
+							<Button asChild size="sm" variant="outline">
+								<RouterLink
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+								>
+									<ExternalLinkIcon />
+									View source
+								</RouterLink>
+							</Button>
+						)}
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
@@ -395,7 +398,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<br />
 									<Link
 										href={docs(
-											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+											"/admin/templates/extending-templates/dynamic-parameters",
 										)}
 									>
 										View docs
@@ -404,11 +407,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-					<FeatureStageBadge
-						contentType={"beta"}
-						size="sm"
-						labelText="Dynamic parameters"
-					/>
 				</header>
 
 				<form
@@ -548,7 +546,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									parameters cannot be modified once the workspace is created.
 									<Link
 										href={docs(
-											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+											"/admin/templates/extending-templates/dynamic-parameters",
 										)}
 									>
 										View docs
@@ -565,11 +563,15 @@ export const CreateWorkspacePageViewExperimental: FC<
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
-											<Select
-												value={presetOptions[selectedPresetIndex]?.value}
-												onValueChange={(option) => {
+											<Combobox
+												value={
+													presetOptions[selectedPresetIndex]?.displayName || ""
+												}
+												options={presetOptions}
+												placeholder="Select a preset"
+												onSelect={(value) => {
 													const index = presetOptions.findIndex(
-														(preset) => preset.value === option,
+														(preset) => preset.value === value,
 													);
 													if (index === -1) {
 														return;
@@ -577,21 +579,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														index === 0 ? undefined : option,
+														// "undefined" string is equivalent to using None option
+														// Combobox requires a value in order to correctly highlight the None option
+														presetOptions[index].value === "undefined"
+															? undefined
+															: presetOptions[index].value,
 													);
 												}}
-											>
-												<SelectTrigger>
-													<SelectValue placeholder={"Select a preset"} />
-												</SelectTrigger>
-												<SelectContent>
-													{presetOptions.map((option) => (
-														<SelectItem key={option.value} value={option.value}>
-															{option.label}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+											/>
 										</div>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
 										{presetParameterNames.length > 0 && (

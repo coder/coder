@@ -3,13 +3,13 @@
  * @see {@link https://ui.shadcn.com/docs/components/dialog}
  */
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { type VariantProps, cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import {
 	type ComponentPropsWithoutRef,
 	type ElementRef,
 	type FC,
-	type HTMLAttributes,
 	forwardRef,
+	type HTMLAttributes,
 } from "react";
 import { cn } from "utils/cn";
 
@@ -19,7 +19,7 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 
 const DialogPortal = DialogPrimitive.Portal;
 
-const DialogClose = DialogPrimitive.Close;
+export const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay = forwardRef<
 	ElementRef<typeof DialogPrimitive.Overlay>,

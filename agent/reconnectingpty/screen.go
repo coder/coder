@@ -25,6 +25,7 @@ import (
 
 // screenReconnectingPTY provides a reconnectable PTY via `screen`.
 type screenReconnectingPTY struct {
+	logger  slog.Logger
 	execer  agentexec.Execer
 	command *pty.Cmd
 
@@ -62,6 +63,7 @@ type screenReconnectingPTY struct {
 // own which causes it to spawn with the specified size.
 func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) *screenReconnectingPTY {
 	rpty := &screenReconnectingPTY{
+		logger:  logger,
 		execer:  execer,
 		command: cmd,
 		metrics: options.Metrics,
@@ -173,6 +175,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 
 	ptty, process, err := rpty.doAttach(ctx, conn, height, width, logger)
 	if err != nil {
+		logger.Debug(ctx, "unable to attach to screen reconnecting pty", slog.Error(err))
 		if errors.Is(err, context.Canceled) {
 			// Likely the process was too short-lived and canceled the version command.
 			// TODO: Is it worth distinguishing between that and a cancel from the
@@ -182,6 +185,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 		}
 		return err
 	}
+	logger.Debug(ctx, "attached to screen reconnecting pty")
 
 	defer func() {
 		// Log only for debugging since the process might have already exited on its
@@ -403,6 +407,7 @@ func (rpty *screenReconnectingPTY) Wait() {
 }
 
 func (rpty *screenReconnectingPTY) Close(err error) {
+	rpty.logger.Debug(context.Background(), "closing screen reconnecting pty", slog.Error(err))
 	// The closing state change will be handled by the lifecycle.
 	rpty.state.setState(StateClosing, err)
 }

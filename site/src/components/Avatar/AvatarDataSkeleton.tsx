@@ -1,6 +1,5 @@
 import Skeleton from "@mui/material/Skeleton";
 import type { FC } from "react";
-
 export const AvatarDataSkeleton: FC = () => {
 	return (
 		<div className="flex items-center gap-3 w-full">

@@ -200,6 +200,15 @@ type CreateTemplateRequest struct {
 	// MaxPortShareLevel allows optionally specifying the maximum port share level
 	// for workspaces created from the template.
 	MaxPortShareLevel *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+
+	// UseClassicParameterFlow allows optionally specifying whether
+	// the template should use the classic parameter flow. The default if unset is
+	// true, and is why `*bool` is used here. When dynamic parameters becomes
+	// the default, this will default to false.
+	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow,omitempty"`
+
+	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
+	CORSBehavior *CORSBehavior `json:"cors_behavior"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -335,9 +344,12 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 }
 
 type OrganizationProvisionerDaemonsOptions struct {
-	Limit int
-	IDs   []uuid.UUID
-	Tags  map[string]string
+	Limit   int
+	Offline bool
+	Status  []ProvisionerDaemonStatus
+	MaxAge  time.Duration
+	IDs     []uuid.UUID
+	Tags    map[string]string
 }
 
 func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerDaemonsOptions) ([]ProvisionerDaemon, error) {
@@ -345,6 +357,15 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 	if opts != nil {
 		if opts.Limit > 0 {
 			qp.Add("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offline {
+			qp.Add("offline", "true")
+		}
+		if len(opts.Status) > 0 {
+			qp.Add("status", joinSlice(opts.Status))
+		}
+		if opts.MaxAge > 0 {
+			qp.Add("max_age", opts.MaxAge.String())
 		}
 		if len(opts.IDs) > 0 {
 			qp.Add("ids", joinSliceStringer(opts.IDs))
@@ -376,10 +397,11 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 }
 
 type OrganizationProvisionerJobsOptions struct {
-	Limit  int
-	IDs    []uuid.UUID
-	Status []ProvisionerJobStatus
-	Tags   map[string]string
+	Limit     int
+	IDs       []uuid.UUID
+	Status    []ProvisionerJobStatus
+	Tags      map[string]string
+	Initiator string
 }
 
 func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerJobsOptions) ([]ProvisionerJob, error) {
@@ -400,6 +422,9 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 				return nil, xerrors.Errorf("marshal tags: %w", err)
 			}
 			qp.Add("tags", string(tagsRaw))
+		}
+		if opts.Initiator != "" {
+			qp.Add("initiator", opts.Initiator)
 		}
 	}
 
@@ -532,6 +557,7 @@ type TemplateFilter struct {
 	OrganizationID uuid.UUID `typescript:"-"`
 	ExactName      string    `typescript:"-"`
 	FuzzyName      string    `typescript:"-"`
+	AuthorUsername string    `typescript:"-"`
 	SearchQuery    string    `json:"q,omitempty"`
 }
 
@@ -553,6 +579,11 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 		if f.FuzzyName != "" {
 			params = append(params, fmt.Sprintf("name:%q", f.FuzzyName))
 		}
+
+		if f.AuthorUsername != "" {
+			params = append(params, fmt.Sprintf("author:%q", f.AuthorUsername))
+		}
+
 		if f.SearchQuery != "" {
 			params = append(params, f.SearchQuery)
 		}

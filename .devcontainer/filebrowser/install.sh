@@ -8,41 +8,40 @@ printf "%sInstalling filebrowser\n\n" "${BOLD}"
 
 # Check if filebrowser is installed.
 if ! command -v filebrowser &>/dev/null; then
-	curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+	VERSION="v2.42.1"
+	EXPECTED_HASH="7d83c0f077df10a8ec9bfd9bf6e745da5d172c3c768a322b0e50583a6bc1d3cc"
+
+	curl -fsSL "https://github.com/filebrowser/filebrowser/releases/download/${VERSION}/linux-amd64-filebrowser.tar.gz" -o /tmp/filebrowser.tar.gz
+	echo "${EXPECTED_HASH} /tmp/filebrowser.tar.gz" | sha256sum -c
+	tar -xzf /tmp/filebrowser.tar.gz -C /tmp
+	sudo mv /tmp/filebrowser /usr/local/bin/
+	sudo chmod +x /usr/local/bin/filebrowser
+	rm /tmp/filebrowser.tar.gz
 fi
 
-printf "🥳 Installation complete!\n\n"
-
-# Create run script.
+# Create entrypoint.
 cat >/usr/local/bin/filebrowser-entrypoint <<EOF
-#!/bin/bash
+#!/usr/bin/env bash
+
+PORT="${PORT}"
+FOLDER="${FOLDER:-}"
+FOLDER="\${FOLDER:-\$(pwd)}"
+BASEURL="${BASEURL:-}"
+LOG_PATH=/tmp/filebrowser.log
+export FB_DATABASE="\${HOME}/.filebrowser.db"
 
 printf "🛠️ Configuring filebrowser\n\n"
 
-AUTH="${AUTH}"
-PORT="${PORT}"
-FOLDER="$(pwd)"
-LOG_PATH=/tmp/filebrowser.log
-export FB_DATABASE="/tmp/filebrowser.db"
-
 # Check if filebrowser db exists.
 if [[ ! -f "\${FB_DATABASE}" ]]; then
-	filebrowser config init
-	if [[ "\$AUTH" == "password" ]]; then
-		filebrowser users add admin admin --perm.admin=true --viewMode=mosaic
-	fi
+	filebrowser config init >>\${LOG_PATH} 2>&1
+	filebrowser users add admin "" --perm.admin=true --viewMode=mosaic >>\${LOG_PATH} 2>&1
 fi
 
-# Configure filebrowser.
-if [[ "\$AUTH" == "none" ]]; then
-	filebrowser config set --port="\${PORT}" --auth.method=noauth --root="\${FOLDER}"
-else
-	filebrowser config set --port="\${PORT}" --auth.method=json --root="\${FOLDER}"
-fi
-
-set -euo pipefail
+filebrowser config set --baseurl=\${BASEURL} --port=\${PORT} --auth.method=noauth --root=\${FOLDER} >>\${LOG_PATH} 2>&1
 
 printf "👷 Starting filebrowser...\n\n"
+
 printf "📂 Serving \${FOLDER} at http://localhost:\${PORT}\n\n"
 
 filebrowser >>\${LOG_PATH} 2>&1 &
@@ -52,5 +51,4 @@ EOF
 
 chmod +x /usr/local/bin/filebrowser-entrypoint
 
-printf "✅ File Browser installed!\n\n"
-printf "🚀 Run 'filebrowser-entrypoint' to start the service\n\n"
+printf "🥳 Installation complete!\n\n"

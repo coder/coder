@@ -2,6 +2,8 @@ package prebuilds
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -15,7 +17,11 @@ func (NoopReconciler) Run(context.Context)         {}
 func (NoopReconciler) Stop(context.Context, error) {}
 func (NoopReconciler) TrackResourceReplacement(context.Context, uuid.UUID, uuid.UUID, []*sdkproto.ResourceReplacement) {
 }
-func (NoopReconciler) ReconcileAll(context.Context) error { return nil }
+
+func (NoopReconciler) ReconcileAll(context.Context) (ReconcileStats, error) {
+	return ReconcileStats{}, nil
+}
+
 func (NoopReconciler) SnapshotState(context.Context, database.Store) (*GlobalSnapshot, error) {
 	return &GlobalSnapshot{}, nil
 }
@@ -28,13 +34,9 @@ var DefaultReconciler ReconciliationOrchestrator = NoopReconciler{}
 
 type NoopClaimer struct{}
 
-func (NoopClaimer) Claim(context.Context, uuid.UUID, string, uuid.UUID) (*uuid.UUID, error) {
+func (NoopClaimer) Claim(context.Context, time.Time, uuid.UUID, string, uuid.UUID, sql.NullString, sql.NullTime, sql.NullInt64) (*uuid.UUID, error) {
 	// Not entitled to claim prebuilds in AGPL version.
 	return nil, ErrAGPLDoesNotSupportPrebuiltWorkspaces
-}
-
-func (NoopClaimer) Initiator() uuid.UUID {
-	return uuid.Nil
 }
 
 var DefaultClaimer Claimer = NoopClaimer{}

@@ -19,7 +19,7 @@ jobs:
       packages: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -27,10 +27,12 @@ jobs:
         id: pr_number
         run: |
           if [ -n "${{ github.event.pull_request.number }}" ]; then
-            echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
-            echo "PR_NUMBER=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+            echo "PR_NUMBER=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
 
       - name: Delete image
         continue-on-error: true
@@ -51,17 +53,21 @@ jobs:
       - name: Delete helm release
         run: |
           set -euo pipefail
-          helm delete --namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "helm release not found"
+          helm delete --namespace "pr${PR_NUMBER}" "pr${PR_NUMBER}" || echo "helm release not found"
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
 
       - name: "Remove PR namespace"
         run: |
-          kubectl delete namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "namespace not found"
+          kubectl delete namespace "pr${PR_NUMBER}" || echo "namespace not found"
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
 
       - name: "Remove DNS records"
         run: |
           set -euo pipefail
           # Get identifier for the record
-          record_id=$(curl -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records?name=%2A.pr${{ steps.pr_number.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          record_id=$(curl -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records?name=%2A.pr${PR_NUMBER}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
           -H "Content-Type:application/json" | jq -r '.result[0].id') || echo "DNS record not found"
 
@@ -73,9 +79,13 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type:application/json" | jq -r '.success'
           ) || echo "DNS record not found"
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
 
       - name: "Delete certificate"
         if: ${{ github.event.pull_request.merged == true }}
         run: |
           set -euxo pipefail
-          kubectl delete certificate "pr${{ steps.pr_number.outputs.PR_NUMBER }}-tls" -n pr-deployment-certs || echo "certificate not found"
+          kubectl delete certificate "pr${PR_NUMBER}-tls" -n pr-deployment-certs || echo "certificate not found"
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}

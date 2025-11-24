@@ -1,12 +1,20 @@
 import { css } from "@emotion/react";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import FormatAlignLeftOutlined from "@mui/icons-material/FormatAlignLeftOutlined";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { ChevronRightIcon } from "lucide-react";
-import { type CSSProperties, type ElementType, type FC, useState } from "react";
+import {
+	ChevronDownIcon,
+	ChevronRightIcon,
+	TextAlignStartIcon,
+} from "lucide-react";
+import {
+	type CSSProperties,
+	type ElementType,
+	type FC,
+	type JSX,
+	useState,
+} from "react";
 import type { FileTree } from "utils/filetree";
 
 const isFolder = (content?: FileTree | string): content is FileTree =>
@@ -84,7 +92,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
 		let icon: ElementType | undefined;
 		if (isFolder(content)) {
-			icon = FormatAlignLeftOutlined;
+			icon = TextAlignStartIcon;
 		} else if (filename.endsWith(".tf")) {
 			icon = FileTypeTerraform;
 		} else if (filename.endsWith(".md")) {
@@ -195,7 +203,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
 	return (
 		<SimpleTreeView
-			slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
+			slots={{ collapseIcon: ChevronDownIcon, expandIcon: ChevronRightIcon }}
 			aria-label="Files"
 			defaultExpandedItems={activePath ? expandablePaths(activePath) : []}
 			defaultSelectedItems={activePath}

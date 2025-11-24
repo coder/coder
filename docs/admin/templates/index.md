@@ -61,5 +61,6 @@ needs of different teams.
   changes are reviewed and tested.
 - [Permissions and Policies](./template-permissions.md): Control who may access
   and modify your template.
+- [External Workspaces](./managing-templates/external-workspaces.md): Learn how to connect your existing infrastructure to Coder workspaces.
 
 <children></children>

@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 
 	"cdr.dev/slog"
 	agpl "github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -28,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
@@ -490,6 +489,7 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 		return
 	}
 	userReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
+	userReq.RemoteAddr = r.Header.Get(wsproxysdk.CoderWorkspaceProxyRealIPHeader)
 
 	// Exchange the token.
 	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.Issue(ctx, rw, userReq, req)
@@ -933,13 +933,13 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 }
 
 func generateWorkspaceProxyToken(id uuid.UUID) (token string, hashed []byte, err error) {
-	secret, err := cryptorand.HexString(64)
+	secret, hashedSecret, err := apikey.GenerateSecret(64)
 	if err != nil {
 		return "", nil, xerrors.Errorf("generate token: %w", err)
 	}
-	hashedSecret := sha256.Sum256([]byte(secret))
+
 	fullToken := fmt.Sprintf("%s:%s", id, secret)
-	return fullToken, hashedSecret[:], nil
+	return fullToken, hashedSecret, nil
 }
 
 func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhealth.ProxyStatus) []codersdk.WorkspaceProxy {

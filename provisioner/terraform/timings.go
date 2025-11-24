@@ -19,6 +19,13 @@ type timingKind string
 // Copied from https://github.com/hashicorp/terraform/blob/01c0480e77263933b2b086dc8d600a69f80fad2d/internal/command/jsonformat/renderer.go
 // We cannot reference these because they're in an internal package.
 const (
+	// Stage markers are used to denote the beginning and end of stages. Without
+	// these, only discrete events (i.e. resource changes) within stages can be
+	// measured, which may omit setup/teardown time or other unmeasured overhead.
+	timingStageStart timingKind = "stage_start"
+	timingStageEnd   timingKind = "stage_end"
+	timingStageError timingKind = "stage_error"
+
 	timingApplyStart        timingKind = "apply_start"
 	timingApplyProgress     timingKind = "apply_progress"
 	timingApplyComplete     timingKind = "apply_complete"
@@ -37,15 +44,34 @@ const (
 	timingResourceDrift timingKind = "resource_drift"
 	timingVersion       timingKind = "version"
 	// These are not part of message_types, but we want to track init/graph timings as well.
-	timingInitStart     timingKind = "init_start"
-	timingInitComplete  timingKind = "init_complete"
-	timingInitErrored   timingKind = "init_errored"
 	timingGraphStart    timingKind = "graph_start"
 	timingGraphComplete timingKind = "graph_complete"
 	timingGraphErrored  timingKind = "graph_errored"
 	// Other terraform log types which we ignore.
 	timingLog        timingKind = "log"
 	timingInitOutput timingKind = "init_output"
+)
+
+// Source: https://github.com/hashicorp/terraform/blob/6b73f710f8152ef4808e4de5bdfb35314442f4a5/internal/command/views/init.go#L267-L321
+type initMessageCode string
+
+const (
+	initCopyingConfigurationMessage       initMessageCode = "copying_configuration_message"
+	initEmptyMessage                      initMessageCode = "empty_message"
+	initOutputInitEmptyMessage            initMessageCode = "output_init_empty_message"
+	initOutputInitSuccessMessage          initMessageCode = "output_init_success_message"
+	initOutputInitSuccessCloudMessage     initMessageCode = "output_init_success_cloud_message"
+	initOutputInitSuccessCLIMessage       initMessageCode = "output_init_success_cli_message"
+	initOutputInitSuccessCLICloudMessage  initMessageCode = "output_init_success_cli_cloud_message"
+	initUpgradingModulesMessage           initMessageCode = "upgrading_modules_message"
+	initInitializingTerraformCloudMessage initMessageCode = "initializing_terraform_cloud_message"
+	initInitializingModulesMessage        initMessageCode = "initializing_modules_message"
+	initInitializingBackendMessage        initMessageCode = "initializing_backend_message"
+	initInitializingStateStoreMessage     initMessageCode = "initializing_state_store_message"
+	initDefaultWorkspaceCreatedMessage    initMessageCode = "default_workspace_created_message"
+	initInitializingProviderPluginMessage initMessageCode = "initializing_provider_plugin_message"
+	initLockInfo                          initMessageCode = "lock_info"
+	initDependenciesLockChangesInfo       initMessageCode = "dependencies_lock_changes_info"
 )
 
 type timingAggregator struct {
@@ -57,7 +83,9 @@ type timingAggregator struct {
 }
 
 type timingSpan struct {
-	kind                       timingKind
+	kind timingKind
+	// messageCode is only present in `terraform init` timings.
+	messageCode                initMessageCode
 	start, end                 time.Time
 	stage                      database.ProvisionerJobTimingStage
 	action, provider, resource string
@@ -85,15 +113,19 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	ts = dbtime.Time(ts.UTC())
 
 	switch s.kind {
-	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingInitStart, timingGraphStart:
+	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingGraphStart, timingStageStart:
 		s.start = ts
 		s.state = proto.TimingState_STARTED
-	case timingApplyComplete, timingProvisionComplete, timingRefreshComplete, timingInitComplete, timingGraphComplete:
+	case timingApplyComplete, timingProvisionComplete, timingRefreshComplete, timingGraphComplete, timingStageEnd:
 		s.end = ts
 		s.state = proto.TimingState_COMPLETED
-	case timingApplyErrored, timingProvisionErrored, timingInitErrored, timingGraphErrored:
+	case timingApplyErrored, timingProvisionErrored, timingGraphErrored, timingStageError:
 		s.end = ts
 		s.state = proto.TimingState_FAILED
+	case timingInitOutput:
+		// init timings are based on the init message code.
+		t.ingestInitTiming(ts, s)
+		return
 	default:
 		// We just want start/end timings, ignore all other events.
 		return
@@ -148,8 +180,35 @@ func (t *timingAggregator) aggregate() []*proto.Timing {
 	return out
 }
 
+// startStage denotes the beginning of a stage and returns a function which
+// should be called to mark the end of the stage. This is used to measure a
+// stage's total duration across all it's discrete events and unmeasured
+// overhead/events.
+func (t *timingAggregator) startStage(stage database.ProvisionerJobTimingStage) (end func(err error)) {
+	ts := timingSpan{
+		kind:     timingStageStart,
+		stage:    stage,
+		resource: "coder_stage_" + string(stage),
+		action:   "terraform",
+		provider: "coder",
+	}
+	endTs := ts
+	t.ingest(dbtime.Now(), &ts)
+
+	return func(err error) {
+		endTs.kind = timingStageEnd
+		if err != nil {
+			endTs.kind = timingStageError
+		}
+		t.ingest(dbtime.Now(), &endTs)
+	}
+}
+
 func (l timingKind) Valid() bool {
 	return slices.Contains([]timingKind{
+		timingStageStart,
+		timingStageEnd,
+		timingStageError,
 		timingApplyStart,
 		timingApplyProgress,
 		timingApplyComplete,
@@ -166,9 +225,6 @@ func (l timingKind) Valid() bool {
 		timingOutputs,
 		timingResourceDrift,
 		timingVersion,
-		timingInitStart,
-		timingInitComplete,
-		timingInitErrored,
 		timingGraphStart,
 		timingGraphComplete,
 		timingGraphErrored,
@@ -182,7 +238,9 @@ func (l timingKind) Valid() bool {
 // if all other attributes are identical.
 func (l timingKind) Category() string {
 	switch l {
-	case timingInitStart, timingInitComplete, timingInitErrored:
+	case timingStageStart, timingStageEnd, timingStageError:
+		return "stage"
+	case timingInitOutput:
 		return "init"
 	case timingGraphStart, timingGraphComplete, timingGraphErrored:
 		return "graph"
@@ -201,6 +259,9 @@ func (l timingKind) Category() string {
 // The combination of resource and provider names MUST be unique across entries.
 func (e *timingSpan) hashByState(state proto.TimingState) uint64 {
 	id := fmt.Sprintf("%s:%s:%s:%s:%s", e.kind.Category(), state.String(), e.action, e.resource, e.provider)
+	if e.messageCode != "" {
+		id += ":" + string(e.messageCode)
+	}
 	return xxhash.Sum64String(id)
 }
 
@@ -218,15 +279,6 @@ func (e *timingSpan) toProto() *proto.Timing {
 		Source:   e.provider,
 		Resource: e.resource,
 		State:    e.state,
-	}
-}
-
-func createInitTimingsEvent(event timingKind) (time.Time, *timingSpan) {
-	return dbtime.Now(), &timingSpan{
-		kind:     event,
-		action:   "initializing terraform",
-		provider: "terraform",
-		resource: "state file",
 	}
 }
 

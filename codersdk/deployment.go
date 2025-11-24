@@ -16,6 +16,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -65,6 +67,7 @@ type FeatureName string
 const (
 	FeatureUserLimit                  FeatureName = "user_limit"
 	FeatureAuditLog                   FeatureName = "audit_log"
+	FeatureConnectionLog              FeatureName = "connection_log"
 	FeatureBrowserOnly                FeatureName = "browser_only"
 	FeatureSCIM                       FeatureName = "scim"
 	FeatureTemplateRBAC               FeatureName = "template_rbac"
@@ -82,30 +85,51 @@ const (
 	FeatureCustomRoles                FeatureName = "custom_roles"
 	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
 	FeatureWorkspacePrebuilds         FeatureName = "workspace_prebuilds"
+	// ManagedAgentLimit is a usage period feature, so the value in the license
+	// contains both a soft and hard limit. Refer to
+	// enterprise/coderd/license/license.go for the license format.
+	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
+	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
+	FeatureAIBridge               FeatureName = "aibridge"
 )
 
-// FeatureNames must be kept in-sync with the Feature enum above.
-var FeatureNames = []FeatureName{
-	FeatureUserLimit,
-	FeatureAuditLog,
-	FeatureBrowserOnly,
-	FeatureSCIM,
-	FeatureTemplateRBAC,
-	FeatureHighAvailability,
-	FeatureMultipleExternalAuth,
-	FeatureExternalProvisionerDaemons,
-	FeatureAppearance,
-	FeatureAdvancedTemplateScheduling,
-	FeatureWorkspaceProxy,
-	FeatureUserRoleManagement,
-	FeatureExternalTokenEncryption,
-	FeatureWorkspaceBatchActions,
-	FeatureAccessControl,
-	FeatureControlSharedPorts,
-	FeatureCustomRoles,
-	FeatureMultipleOrganizations,
-	FeatureWorkspacePrebuilds,
-}
+var (
+	// FeatureNames must be kept in-sync with the Feature enum above.
+	FeatureNames = []FeatureName{
+		FeatureUserLimit,
+		FeatureAuditLog,
+		FeatureConnectionLog,
+		FeatureBrowserOnly,
+		FeatureSCIM,
+		FeatureTemplateRBAC,
+		FeatureHighAvailability,
+		FeatureMultipleExternalAuth,
+		FeatureExternalProvisionerDaemons,
+		FeatureAppearance,
+		FeatureAdvancedTemplateScheduling,
+		FeatureWorkspaceProxy,
+		FeatureUserRoleManagement,
+		FeatureExternalTokenEncryption,
+		FeatureWorkspaceBatchActions,
+		FeatureAccessControl,
+		FeatureControlSharedPorts,
+		FeatureCustomRoles,
+		FeatureMultipleOrganizations,
+		FeatureWorkspacePrebuilds,
+		FeatureManagedAgentLimit,
+		FeatureWorkspaceExternalAgent,
+		FeatureAIBridge,
+	}
+
+	// FeatureNamesMap is a map of all feature names for quick lookups.
+	FeatureNamesMap = func() map[FeatureName]struct{} {
+		featureNamesMap := make(map[FeatureName]struct{}, len(FeatureNames))
+		for _, featureName := range FeatureNames {
+			featureNamesMap[featureName] = struct{}{}
+		}
+		return featureNamesMap
+	}()
+)
 
 // Humanize returns the feature name in a human-readable format.
 func (n FeatureName) Humanize() string {
@@ -114,6 +138,8 @@ func (n FeatureName) Humanize() string {
 		return "Template RBAC"
 	case FeatureSCIM:
 		return "SCIM"
+	case FeatureAIBridge:
+		return "AI Bridge"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -135,6 +161,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
+		FeatureWorkspaceExternalAgent:     true,
 	}[n]
 }
 
@@ -147,6 +174,22 @@ func (n FeatureName) Enterprise() bool {
 	default:
 		return true
 	}
+}
+
+// UsesLimit returns true if the feature uses a limit, and therefore should not
+// be included in any feature sets (as they are not boolean features).
+func (n FeatureName) UsesLimit() bool {
+	return map[FeatureName]bool{
+		FeatureUserLimit:         true,
+		FeatureManagedAgentLimit: true,
+	}[n]
+}
+
+// UsesUsagePeriod returns true if the feature uses period-based usage limits.
+func (n FeatureName) UsesUsagePeriod() bool {
+	return map[FeatureName]bool{
+		FeatureManagedAgentLimit: true,
+	}[n]
 }
 
 // FeatureSet represents a grouping of features. Rather than manually
@@ -173,13 +216,17 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			return !f.Enterprise()
+			return !f.Enterprise() || f.UsesLimit()
 		})
 
 		return enterpriseFeatures
 	case FeatureSetPremium:
 		premiumFeatures := make([]FeatureName, len(FeatureNames))
 		copy(premiumFeatures, FeatureNames)
+		// Remove the selection
+		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
+			return f.UsesLimit()
+		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures
 	}
@@ -192,6 +239,29 @@ type Feature struct {
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
 	Actual      *int64      `json:"actual,omitempty"`
+
+	// Below is only for features that use usage periods.
+
+	// SoftLimit is the soft limit of the feature, and is only used for showing
+	// included limits in the dashboard. No license validation or warnings are
+	// generated from this value.
+	SoftLimit *int64 `json:"soft_limit,omitempty"`
+	// UsagePeriod denotes that the usage is a counter that accumulates over
+	// this period (and most likely resets with the issuance of the next
+	// license).
+	//
+	// These dates are determined from the license that this entitlement comes
+	// from, see enterprise/coderd/license/license.go.
+	//
+	// Only certain features set these fields:
+	// - FeatureManagedAgentLimit
+	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
+}
+
+type UsagePeriod struct {
+	IssuedAt time.Time `json:"issued_at" format:"date-time"`
+	Start    time.Time `json:"start" format:"date-time"`
+	End      time.Time `json:"end" format:"date-time"`
 }
 
 // Compare compares two features and returns an integer representing
@@ -200,13 +270,30 @@ type Feature struct {
 // than the second feature. It is assumed the features are for the same FeatureName.
 //
 // A feature is considered greater than another feature if:
-// 1. Graceful & capable > Entitled & not capable
-// 2. The entitlement is greater
-// 3. The limit is greater
-// 4. Enabled is greater than disabled
-// 5. The actual is greater
+// 1. The usage period has a greater issued at date (note: only certain features use usage periods)
+// 2. The usage period has a greater end date (note: only certain features use usage periods)
+// 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
+// 4. The entitlement is greater
+// 5. The limit is greater
+// 6. Enabled is greater than disabled
+// 7. The actual is greater
 func (f Feature) Compare(b Feature) int {
-	if !f.Capable() || !b.Capable() {
+	// For features with usage period constraints only, check the issued at and
+	// end dates.
+	bothHaveUsagePeriod := f.UsagePeriod != nil && b.UsagePeriod != nil
+	if bothHaveUsagePeriod {
+		issuedAtCmp := f.UsagePeriod.IssuedAt.Compare(b.UsagePeriod.IssuedAt)
+		if issuedAtCmp != 0 {
+			return issuedAtCmp
+		}
+		endCmp := f.UsagePeriod.End.Compare(b.UsagePeriod.End)
+		if endCmp != 0 {
+			return endCmp
+		}
+	}
+
+	// Only perform capability comparisons if both features have actual values.
+	if f.Actual != nil && b.Actual != nil && (!f.Capable() || !b.Capable()) {
 		// If either is incapable, then it is possible a grace period
 		// feature can be "greater" than an entitled.
 		// If either is "NotEntitled" then we can defer to a strict entitlement
@@ -221,7 +308,9 @@ func (f Feature) Compare(b Feature) int {
 		}
 	}
 
-	// Strict entitlement check. Higher is better
+	// Strict entitlement check. Higher is better. We don't apply this check for
+	// usage period features as we always want the issued at date to be the main
+	// decision maker.
 	entitlementDifference := f.Entitlement.Weight() - b.Entitlement.Weight()
 	if entitlementDifference != 0 {
 		return entitlementDifference
@@ -291,6 +380,13 @@ type Entitlements struct {
 // the set of features granted by the entitlements. If it does not, it will
 // be ignored and the existing feature with the same name will remain.
 //
+// Features that abide by usage period constraints should have the following
+// fields set or they will be ignored. Other features will have these fields
+// cleared.
+// - UsagePeriodIssuedAt
+// - UsagePeriodStart
+// - UsagePeriodEnd
+//
 // All features should be added as atomic items, and not merged in any way.
 // Merging entitlements could lead to unexpected behavior, like a larger user
 // limit in grace period merging with a smaller one in an "entitled" state. This
@@ -300,6 +396,16 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 	if !ok {
 		e.Features[name] = add
 		return
+	}
+
+	// If we're trying to add a feature that uses a usage period and it's not
+	// set, then we should not add it.
+	if name.UsesUsagePeriod() {
+		if add.UsagePeriod == nil || add.UsagePeriod.IssuedAt.IsZero() || add.UsagePeriod.Start.IsZero() || add.UsagePeriod.End.IsZero() {
+			return
+		}
+	} else {
+		add.UsagePeriod = nil
 	}
 
 	// Compare the features, keep the one that is "better"
@@ -352,7 +458,6 @@ type DeploymentValues struct {
 	ProxyTrustedHeaders             serpent.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
 	ProxyTrustedOrigins             serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
@@ -382,6 +487,7 @@ type DeploymentValues struct {
 	Sessions                        SessionLifetime                      `json:"session_lifetime,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
+	EnableAuthzRecording            serpent.Bool                         `json:"enable_authz_recording,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
@@ -399,6 +505,7 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	AI                              AIConfig                             `json:"ai,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -464,6 +571,11 @@ type SessionLifetime struct {
 
 	// DefaultDuration is only for browser, workspace app and oauth sessions.
 	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
+
+	// RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.
+	// This should generally be longer than access token lifetimes to allow
+	// refreshing after access token expiry.
+	RefreshDefaultDuration serpent.Duration `json:"refresh_default_duration,omitempty" typescript:",notnull"`
 
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
@@ -628,6 +740,7 @@ type ExternalAuthConfig struct {
 	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
 	TokenURL            string   `json:"token_url" yaml:"token_url"`
 	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
 	NoRefresh           bool     `json:"no_refresh" yaml:"no_refresh"`
@@ -635,6 +748,9 @@ type ExternalAuthConfig struct {
 	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
+	MCPURL              string   `json:"mcp_url" yaml:"mcp_url"`
+	MCPToolAllowRegex   string   `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
+	MCPToolDenyRegex    string   `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//
@@ -869,7 +985,7 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 		{
 			Name:   "Join the Coder Discord",
-			Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+			Target: "https://discord.gg/coder",
 			Icon:   "chat",
 		},
 		{
@@ -1056,6 +1172,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Inbox",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
+		}
+		deploymentGroupAIBridge = serpent.Group{
+			Name: "AIBridge",
+			YAML: "aibridge",
 		}
 	)
 
@@ -2364,6 +2484,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Default OAuth Refresh Lifetime",
+			Description: "The default lifetime duration for OAuth2 refresh tokens. This controls how long refresh tokens remain valid after issuance or rotation.",
+			Flag:        "default-oauth-refresh-lifetime",
+			Env:         "CODER_DEFAULT_OAUTH_REFRESH_LIFETIME",
+			Default:     (30 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.RefreshDefaultDuration,
+			YAML:        "defaultOAuthRefreshLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Enable swagger endpoint",
 			Description: "Expose the swagger endpoint via /swagger.",
 			Flag:        "swagger-enable",
@@ -2401,15 +2531,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default: DefaultCacheDir(),
 			Value:   &c.CacheDir,
 			YAML:    "cacheDir",
-		},
-		{
-			Name:        "In Memory Database",
-			Description: "Controls whether data will be stored in an in-memory database.",
-			Flag:        "in-memory",
-			Env:         "CODER_IN_MEMORY",
-			Hidden:      true,
-			Value:       &c.InMemoryDatabase,
-			YAML:        "inMemoryDatabase",
 		},
 		{
 			Name:        "Ephemeral Deployment",
@@ -3066,7 +3187,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "workspace-prebuilds-reconciliation-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationInterval,
-			Default:     (time.Second * 15).String(),
+			Default:     time.Minute.String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -3077,7 +3198,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
-			Default:     (time.Second * 15).String(),
+			Default:     time.Minute.String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_backoff_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -3116,9 +3237,176 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
+
+		// AIBridge Options
+		{
+			Name:        "AIBridge Enabled",
+			Description: "Whether to start an in-memory aibridged instance.",
+			Flag:        "aibridge-enabled",
+			Env:         "CODER_AIBRIDGE_ENABLED",
+			Value:       &c.AI.BridgeConfig.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "enabled",
+		},
+		{
+			Name:        "AIBridge OpenAI Base URL",
+			Description: "The base URL of the OpenAI API.",
+			Flag:        "aibridge-openai-base-url",
+			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
+			Value:       &c.AI.BridgeConfig.OpenAI.BaseURL,
+			Default:     "https://api.openai.com/v1/",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "openai_base_url",
+		},
+		{
+			Name:        "AIBridge OpenAI Key",
+			Description: "The key to authenticate against the OpenAI API.",
+			Flag:        "aibridge-openai-key",
+			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
+			Value:       &c.AI.BridgeConfig.OpenAI.Key,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "openai_key",
+		},
+		{
+			Name:        "AIBridge Anthropic Base URL",
+			Description: "The base URL of the Anthropic API.",
+			Flag:        "aibridge-anthropic-base-url",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
+			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
+			Default:     "https://api.anthropic.com/",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "anthropic_base_url",
+		},
+		{
+			Name:        "AIBridge Anthropic Key",
+			Description: "The key to authenticate against the Anthropic API.",
+			Flag:        "aibridge-anthropic-key",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
+			Value:       &c.AI.BridgeConfig.Anthropic.Key,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "anthropic_key",
+		},
+		{
+			Name:        "AIBridge Bedrock Region",
+			Description: "The AWS Bedrock API region.",
+			Flag:        "aibridge-bedrock-region",
+			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:       &c.AI.BridgeConfig.Bedrock.Region,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_region",
+		},
+		{
+			Name:        "AIBridge Bedrock Access Key",
+			Description: "The access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key",
+		},
+		{
+			Name:        "AIBridge Bedrock Access Key Secret",
+			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key-secret",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key_secret",
+		},
+		{
+			Name:        "AIBridge Bedrock Model",
+			Description: "The model to use when making requests to the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-model",
+			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.Model,
+			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_model",
+		},
+		{
+			Name:        "AIBridge Bedrock Small Fast Model",
+			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
+			Flag:        "aibridge-bedrock-small-fastmodel",
+			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.SmallFastModel,
+			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_small_fast_model",
+		},
+		{
+			Name:        "AIBridge Inject Coder MCP tools",
+			Description: "Whether to inject Coder's MCP tools into intercepted AIBridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Flag:        "aibridge-inject-coder-mcp-tools",
+			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
+			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "inject_coder_mcp_tools",
+		},
+		{
+			Name:        "AIBridge Data Retention Duration",
+			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Flag:        "aibridge-retention",
+			Env:         "CODER_AIBRIDGE_RETENTION",
+			Value:       &c.AI.BridgeConfig.Retention,
+			Default:     "1440h", // 60 days.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "retention",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name: "Enable Authorization Recordings",
+			Description: "All api requests will have a header including all authorization calls made during the request. " +
+				"This is used for debugging purposes and only available for dev builds.",
+			Required: false,
+			Flag:     "enable-authz-recordings",
+			Env:      "CODER_ENABLE_AUTHZ_RECORDINGS",
+			Default:  "false",
+			Value:    &c.EnableAuthzRecording,
+			// Do not show this option ever. It is a developer tool only, and not to be
+			// used externally.
+			Hidden: true,
+		},
 	}
 
 	return opts
+}
+
+type AIBridgeConfig struct {
+	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
+}
+
+type AIBridgeOpenAIConfig struct {
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIBridgeAnthropicConfig struct {
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIBridgeBedrockConfig struct {
+	Region          serpent.String `json:"region" typescript:",notnull"`
+	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
+	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
+	Model           serpent.String `json:"model" typescript:",notnull"`
+	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
+}
+
+type AIConfig struct {
+	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
 }
 
 type SupportConfig struct {
@@ -3128,7 +3416,33 @@ type SupportConfig struct {
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
+	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs,star"`
+
+	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
+}
+
+// Validate checks cross-field constraints for deployment values.
+// It must be called after all values are loaded from flags/env/YAML.
+func (c *DeploymentValues) Validate() error {
+	// For OAuth2, access tokens (API keys) issued via the authorization code/refresh flows
+	// use Sessions.DefaultDuration as their lifetime, while refresh tokens use
+	// Sessions.RefreshDefaultDuration (falling back to DefaultDuration when set to 0).
+	// Enforce that refresh token lifetime is strictly greater than the access token lifetime.
+	access := c.Sessions.DefaultDuration.Value()
+	refresh := c.Sessions.RefreshDefaultDuration.Value()
+
+	// Check if values appear uninitialized
+	if access == 0 {
+		return xerrors.New("developer error: sessions configuration appears uninitialized - ensure all values are loaded before validation")
+	}
+
+	if refresh <= access {
+		return xerrors.Errorf(
+			"default OAuth refresh lifetime (%s) must be strictly greater than session duration (%s); set --default-oauth-refresh-lifetime to a value greater than --session-duration",
+			refresh, access,
+		)
+	}
+	return nil
 }
 
 // DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
@@ -3341,7 +3655,40 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
+	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
+	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
+	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
+	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
+
+func (e Experiment) DisplayName() string {
+	switch e {
+	case ExperimentExample:
+		return "Example Experiment"
+	case ExperimentAutoFillParameters:
+		return "Auto-fill Template Parameters"
+	case ExperimentNotifications:
+		return "SMTP and Webhook Notifications"
+	case ExperimentWorkspaceUsage:
+		return "Workspace Usage Tracking"
+	case ExperimentWebPush:
+		return "Browser Push Notifications"
+	case ExperimentOAuth2:
+		return "OAuth2 Provider Functionality"
+	case ExperimentMCPServerHTTP:
+		return "MCP HTTP Server Functionality"
+	case ExperimentWorkspaceSharing:
+		return "Workspace Sharing"
+	case ExperimentTerraformWorkspace:
+		return "Terraform Directory Reuse"
+	default:
+		// Split on hyphen and convert to title case
+		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
+		caser := cases.Title(language.English)
+		return caser.String(strings.ReplaceAll(string(e), "-", " "))
+	}
+}
 
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
@@ -3350,6 +3697,9 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentWebPush,
+	ExperimentOAuth2,
+	ExperimentMCPServerHTTP,
+	ExperimentWorkspaceSharing,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -3367,14 +3717,9 @@ var ExperimentsSafe = Experiments{}
 // @typescript-ignore Experiments
 type Experiments []Experiment
 
-// Returns a list of experiments that are enabled for the deployment.
+// Enabled returns a list of experiments that are enabled for the deployment.
 func (e Experiments) Enabled(ex Experiment) bool {
-	for _, v := range e {
-		if v == ex {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e, ex)
 }
 
 func (c *Client) Experiments(ctx context.Context) (Experiments, error) {

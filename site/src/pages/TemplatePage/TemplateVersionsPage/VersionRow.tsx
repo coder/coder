@@ -1,15 +1,15 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
-import TableCell from "@mui/material/TableCell";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 interface VersionRowProps {
 	version: TemplateVersion;
@@ -107,7 +107,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 
 						{jobStatus === "failed" && onArchiveClick && (
 							<Button
-								css={styles.promoteButton}
+								variant="outline"
 								disabled={isActive || version.archived}
 								onClick={(e) => {
 									e.preventDefault();
@@ -121,7 +121,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 
 						{jobStatus === "succeeded" && onPromoteClick && (
 							<Button
-								css={styles.promoteButton}
+								variant="outline"
 								disabled={isActive || jobStatus !== "succeeded"}
 								onClick={(e) => {
 									e.preventDefault();
@@ -140,11 +140,6 @@ export const VersionRow: FC<VersionRowProps> = ({
 };
 
 const styles = {
-	promoteButton: (theme) => ({
-		color: theme.palette.text.secondary,
-		transition: "none",
-	}),
-
 	versionWrapper: {
 		padding: "16px 32px",
 	},

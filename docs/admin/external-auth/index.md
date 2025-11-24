@@ -207,6 +207,7 @@ CODER_EXTERNAL_AUTH_0_ID="primary-github"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_REVOKE_URL=https://api.github.com/applications/<CLIENT ID>/grant
 ```
 
 When configuring your GitHub OAuth application, set the
@@ -246,6 +247,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://gitlab.example.com/oauth/token/info"
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitlab.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.example.com/oauth/token"
+CODER_EXTERNAL_AUTH_0_REVOKE_URL="https://gitlab.example.com/oauth/revoke"
 CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 ```
 
@@ -265,6 +267,7 @@ provider deployments.
 ```env
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
+CODER_EXTERNAL_AUTH_0_REVOKE_URL="https://github.example.com/oauth/revoke"
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://example.com/oauth/token/info"
 CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.com
 ```
@@ -341,5 +344,6 @@ CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_1_REGEX=github\.example\.com
 CODER_EXTERNAL_AUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_EXTERNAL_AUTH_1_REVOKE_URL="https://github.example.com/login/oauth/revoke"
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```

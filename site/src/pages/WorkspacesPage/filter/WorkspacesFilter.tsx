@@ -1,5 +1,13 @@
-import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import {
+	Filter,
+	MenuSkeleton,
+	type UseFilterResult,
+} from "components/Filter/Filter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "components/Filter/UserFilter";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type OrganizationsFilterMenu,
@@ -67,8 +75,8 @@ const PRESETS_WITH_DORMANT: FilterPreset[] = [
 	},
 ];
 
-export type WorkspaceFilterProps = {
-	filter: ReturnType<typeof useFilter>;
+export type WorkspaceFilterState = {
+	filter: UseFilterResult;
 	error?: unknown;
 	menus: {
 		user?: UserFilterMenu;
@@ -78,21 +86,36 @@ export type WorkspaceFilterProps = {
 	};
 };
 
+type WorkspaceFilterProps = Readonly<{
+	filter: UseFilterResult;
+	error: unknown;
+	templateMenu: TemplateFilterMenu;
+	statusMenu: StatusFilterMenu;
+
+	userMenu?: UserFilterMenu;
+	organizationsMenu?: OrganizationsFilterMenu;
+}>;
+
 export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	filter,
 	error,
-	menus,
+	templateMenu,
+	statusMenu,
+	userMenu,
+	organizationsMenu,
 }) => {
 	const { entitlements, showOrganizations } = useDashboard();
-	const width = showOrganizations ? 175 : undefined;
+	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	const presets = entitlements.features.advanced_template_scheduling.enabled
 		? PRESETS_WITH_DORMANT
 		: PRESET_FILTERS;
+	const organizationsActive =
+		showOrganizations && organizationsMenu !== undefined;
 
 	return (
 		<Filter
 			presets={presets}
-			isLoading={menus.status.isInitializing}
+			isLoading={statusMenu.isInitializing}
 			filter={filter}
 			error={error}
 			learnMoreLink={docs(
@@ -100,20 +123,20 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			)}
 			options={
 				<>
-					{menus.user && <UserMenu width={width} menu={menus.user} />}
-					<TemplateMenu width={width} menu={menus.template} />
-					<StatusMenu width={width} menu={menus.status} />
-					{showOrganizations && menus.organizations !== undefined && (
-						<OrganizationsMenu width={width} menu={menus.organizations} />
+					{userMenu && <UserMenu width={width} menu={userMenu} />}
+					<TemplateMenu width={width} menu={templateMenu} />
+					<StatusMenu width={width} menu={statusMenu} />
+					{organizationsActive && (
+						<OrganizationsMenu width={width} menu={organizationsMenu} />
 					)}
 				</>
 			}
 			optionsSkeleton={
 				<>
-					{menus.user && <MenuSkeleton />}
+					{userMenu && <MenuSkeleton />}
 					<MenuSkeleton />
 					<MenuSkeleton />
-					{showOrganizations && <MenuSkeleton />}
+					{organizationsActive && <MenuSkeleton />}
 				</>
 			}
 		/>

@@ -4,8 +4,12 @@ Pin: origin download.docker.com
 Pin-Priority: 1
 
 # Docker Community Edition
+# We need to pin docker-ce to a specific version because containerd is pinned
+# to an older version. Newer major versions of docker-ce require a version of
+# containerd.io greater than our pinned version.
 Package: docker-ce
 Pin: origin download.docker.com
+Pin: version 5:27.*
 Pin-Priority: 500
 
 # Docker command-line tool

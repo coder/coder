@@ -160,8 +160,9 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 		t.Run(method+" "+route, func(t *testing.T) {
 			t.Parallel()
 
-			// This route is for compatibility purposes and is not documented.
-			if route == "/workspaceagents/me/metadata" {
+			// Wildcard routes break the swaggo parser, so we do not document
+			// them.
+			if strings.HasSuffix(route, "/*") {
 				return
 			}
 
@@ -308,9 +309,11 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	if comment.router == "/updatecheck" ||
 		comment.router == "/buildinfo" ||
 		comment.router == "/" ||
+		comment.router == "/auth/scopes" ||
 		comment.router == "/users/login" ||
 		comment.router == "/users/otp/request" ||
-		comment.router == "/users/otp/change-password" {
+		comment.router == "/users/otp/change-password" ||
+		comment.router == "/init-script/{os}/{arch}" {
 		return // endpoints do not require authorization
 	}
 	assert.Containsf(t, authorizedSecurityTags, comment.security, "@Security must be either of these options: %v", authorizedSecurityTags)
@@ -360,7 +363,9 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 			(comment.router == "/workspaceagents/me/startup/logs" && comment.method == "patch") ||
 			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
 			(comment.router == "/debug/coordinator" && comment.method == "get") ||
-			(comment.router == "/debug/tailnet" && comment.method == "get") {
+			(comment.router == "/debug/tailnet" && comment.method == "get") ||
+			(comment.router == "/workspaces/{workspace}/acl" && comment.method == "patch") ||
+			(comment.router == "/init-script/{os}/{arch}" && comment.method == "get") {
 			return // Exception: HTTP 200 is returned without response entity
 		}
 

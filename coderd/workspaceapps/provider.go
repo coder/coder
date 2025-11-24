@@ -22,6 +22,7 @@ const (
 type ResolveRequestOptions struct {
 	Logger              slog.Logger
 	SignedTokenProvider SignedTokenProvider
+	Cookies             AppCookies
 	CookieCfg           codersdk.HTTPCookieConfig
 
 	DashboardURL   *url.URL
@@ -58,7 +59,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		AppRequest:     appReq,
 		PathAppBaseURL: opts.PathAppBaseURL.String(),
 		AppHostname:    opts.AppHostname,
-		SessionToken:   AppConnectSessionTokenFromRequest(r, appReq.AccessMethod),
+		SessionToken:   opts.Cookies.TokenFromRequest(r, appReq.AccessMethod),
 		AppPath:        opts.AppPath,
 		AppQuery:       opts.AppQuery,
 	}
@@ -77,10 +78,11 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 	// For subdomain apps, this applies to the entire subdomain, e.g.
 	//   app--agent--workspace--user.apps.example.com
 	http.SetCookie(rw, opts.CookieCfg.Apply(&http.Cookie{
-		Name:    codersdk.SignedAppTokenCookie,
-		Value:   tokenStr,
-		Path:    appReq.BasePath,
-		Expires: token.Expiry.Time(),
+		Name:     codersdk.SignedAppTokenCookie,
+		Value:    tokenStr,
+		Path:     appReq.BasePath,
+		HttpOnly: true,
+		Expires:  token.Expiry.Time(),
 	}))
 
 	return token, true

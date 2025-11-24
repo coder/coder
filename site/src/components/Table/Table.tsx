@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/table}
  */
 
-import { type VariantProps, cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "utils/cn";
 
@@ -47,7 +47,7 @@ export const TableBody = React.forwardRef<
 	/>
 ));
 
-const TableFooter = React.forwardRef<
+export const TableFooter = React.forwardRef<
 	HTMLTableSectionElement,
 	React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
@@ -82,22 +82,23 @@ const tableRowVariants = cva(
 	},
 );
 
-export const TableRow = React.forwardRef<
-	HTMLTableRowElement,
-	React.HTMLAttributes<HTMLTableRowElement> &
-		VariantProps<typeof tableRowVariants>
->(({ className, hover, ...props }, ref) => (
-	<tr
-		ref={ref}
-		className={cn(
-			"border-0 border-b border-solid border-border transition-colors",
-			"data-[state=selected]:bg-muted",
-			tableRowVariants({ hover }),
-			className,
-		)}
-		{...props}
-	/>
-));
+export type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> &
+	VariantProps<typeof tableRowVariants>;
+
+export const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
+	({ className, hover, ...props }, ref) => (
+		<tr
+			ref={ref}
+			className={cn(
+				"border-0 border-b border-solid border-border transition-colors",
+				"data-[state=selected]:bg-muted",
+				tableRowVariants({ hover }),
+				className,
+			)}
+			{...props}
+		/>
+	),
+);
 
 export const TableHead = React.forwardRef<
 	HTMLTableCellElement,
@@ -129,7 +130,7 @@ export const TableCell = React.forwardRef<
 	/>
 ));
 
-const TableCaption = React.forwardRef<
+const _TableCaption = React.forwardRef<
 	HTMLTableCaptionElement,
 	React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (

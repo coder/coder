@@ -14,6 +14,13 @@ user(s) of the event.
 
 Coder supports the following list of events:
 
+### Task Events
+
+These notifications are sent to the owner of the workspace where the task is running:
+
+- Task Idle
+- Task Working
+
 ### Template Events
 
 These notifications are sent to users with **template admin** roles:
@@ -143,8 +150,10 @@ After setting the required fields above:
    ```text
    CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
-   CODER_EMAIL_AUTH_PASSWORD="<app password created above>"
+   CODER_EMAIL_AUTH_PASSWORD="<app password created above (no spaces)>"
    ```
+
+   **Note:** The `CODER_EMAIL_AUTH_PASSWORD` must be entered without spaces.
 
 See
 [this help article from Google](https://support.google.com/a/answer/176600?hl=en)
@@ -261,6 +270,43 @@ Administrators can configure which delivery methods are used for each different
 You can find this page under
 `https://$CODER_ACCESS_URL/deployment/notifications?tab=events`.
 
+## Custom notifications
+
+Custom notifications let you send an ad‑hoc notification to yourself using the Coder CLI.
+These are useful for surfacing the result of long-running tasks or important state changes.
+At this time, custom notifications can only be sent to the user making the request.
+
+To send a custom notification, execute [`coder notifications custom <title> <message>`](../../../reference/cli/notifications_custom.md).
+
+<!-- TODO(ssncferreira): Update when sending custom notifications to multiple users/roles is supported.
+	 Explain deduplication behaviour for multiple users/roles.
+	 See: https://github.com/coder/coder/issues/19768
+-->
+**Note:** The recipient is always the requesting user as targeting other users or groups isn’t supported yet.
+
+### Examples
+
+- Send yourself a quick update:
+
+```shell
+coder templates push -y && coder notifications custom "Template push complete" "Template version uploaded."
+```
+
+- Use in a script after a long-running task:
+
+```shell
+#!/usr/bin/env bash
+set -o pipefail
+
+if make test 2>&1 | tee test_output.log; then
+  coder notifications custom "Tests Succeeded" $'Test results:\n  • ✅ success'
+else
+  failures=$(grep -Po '\d+(?=\s+failures)' test_output.log | tail -n1 || echo 0)
+  coder notifications custom "Tests Failed" $'Test results:\n  • ❌ failed ('"$failures"' tests failed)'
+  exit 1
+fi
+```
+
 ## Stop sending notifications
 
 Administrators may wish to stop _all_ notifications across the deployment. We
@@ -282,7 +328,7 @@ troubleshoot:
 1. Review the logs. Search for the term `notifications` for diagnostic information.
 
    - If you do not see any relevant logs, set
-    `CODER_VERBOSE=true` or `--verbose` to output debug logs.
+    `CODER_LOG_FILTER=".*notifications.*"` to filter for notification-related logs.
 1. If you are on version 2.15.x, notifications must be enabled using the
     `notifications`
     [experiment](../../../install/releases/feature-stages.md#early-access-features).

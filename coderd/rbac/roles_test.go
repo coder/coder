@@ -236,6 +236,39 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:    "ShareMyWorkspace",
+			Actions: []policy.Action{policy.ActionShare},
+			Resource: rbac.ResourceWorkspace.
+				WithID(workspaceID).
+				InOrg(orgID).
+				WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgMemberMe, orgAdmin, orgMemberMeBanWorkspace},
+				false: {
+					memberMe, setOtherOrg,
+					templateAdmin, userAdmin,
+					orgTemplateAdmin, orgUserAdmin, orgAuditor,
+				},
+			},
+		},
+		{
+			Name:    "ShareWorkspaceDormant",
+			Actions: []policy.Action{policy.ActionShare},
+			Resource: rbac.ResourceWorkspaceDormant.
+				WithID(uuid.New()).
+				InOrg(orgID).
+				WithOwner(memberMe.Actor.ID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {},
+				false: {
+					orgMemberMe, orgAdmin, owner, setOtherOrg,
+					userAdmin, memberMe,
+					templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor,
+					orgMemberMeBanWorkspace,
+				},
+			},
+		},
+		{
 			Name:     "Templates",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceTemplate.WithID(templateID).InOrg(orgID),
@@ -503,6 +536,15 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
 				false: {setOtherOrg, userAdmin, memberMe, orgUserAdmin, orgAuditor, orgMemberMe},
+			},
+		},
+		{
+			Name:     "Task",
+			Actions:  crud,
+			Resource: rbac.ResourceTask.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		// Some admin style resources
@@ -842,6 +884,60 @@ func TestRolePermissions(t *testing.T) {
 				true: {owner},
 				false: {
 					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			Name:     "ConnectionLogs",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceConnectionLog,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
+			},
+		},
+		// Only the user themselves can access their own secrets — no one else.
+		{
+			Name:     "UserSecrets",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceUserSecret.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, orgMemberMe},
+				false: {
+					owner, orgAdmin,
+					otherOrgAdmin, otherOrgMember, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "UsageEvents",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceUsageEvent,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {},
+				false: {
+					owner,
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			Name:     "AIBridgeInterceptions",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, memberMe, orgMemberMe},
+				false: {
+					otherOrgMember,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,

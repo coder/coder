@@ -36,7 +36,7 @@ type Group struct {
 	// even if the user is not authorized to read group member details.
 	// May be greater than `len(Group.Members)`.
 	TotalMemberCount        int         `json:"total_member_count"`
-	AvatarURL               string      `json:"avatar_url"`
+	AvatarURL               string      `json:"avatar_url" format:"uri"`
 	QuotaAllowance          int         `json:"quota_allowance"`
 	Source                  GroupSource `json:"source"`
 	OrganizationName        string      `json:"organization_name"`

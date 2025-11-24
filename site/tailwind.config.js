@@ -58,6 +58,8 @@ module.exports = {
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
 					warning: "hsl(var(--border-warning))",
+					green: "hsl(var(--border-green))",
+					sky: "hsl(var(--border-sky))",
 					destructive: "hsl(var(--border-destructive))",
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",
@@ -81,6 +83,14 @@ module.exports = {
 					"75%": { opacity: 0.3 },
 					"100%": { opacity: 0.2 },
 				},
+				"caret-scan": {
+					"0%": { left: "0%" },
+					"100%": { left: "100%" },
+				},
+			},
+			animation: {
+				loading: "loading 2s ease-in-out infinite alternate",
+				"caret-scan": "caret-scan 3s ease-in-out infinite",
 			},
 		},
 	},

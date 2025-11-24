@@ -292,6 +292,57 @@ func must[T any](value T, err error) T {
 	return value
 }
 
+func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
+	t.Parallel()
+
+	mk := func(access, refresh time.Duration) *codersdk.DeploymentValues {
+		dv := &codersdk.DeploymentValues{}
+		dv.Sessions.DefaultDuration = serpent.Duration(access)
+		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
+		return dv
+	}
+
+	t.Run("EqualDurations_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 1*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("RefreshShorter_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(2*time.Hour, 1*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("RefreshZero_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 0)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("AccessUninitialized_Error", func(t *testing.T) {
+		t.Parallel()
+		// Access duration is zero (uninitialized); refresh is valid.
+		dv := mk(0, 48*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "developer error: sessions configuration appears uninitialized")
+	})
+
+	t.Run("RefreshLonger_OK", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 48*time.Hour)
+		err := dv.Validate()
+		require.NoError(t, err)
+	})
+}
+
 func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 	t.Parallel()
 
@@ -338,6 +389,7 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		AuthURL:             "https://example.com/auth",
 		TokenURL:            "https://example.com/token",
 		ValidateURL:         "https://example.com/validate",
+		RevokeURL:           "https://example.com/revoke",
 		AppInstallURL:       "https://example.com/install",
 		AppInstallationsURL: "https://example.com/installations",
 		NoRefresh:           true,
@@ -348,6 +400,9 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		Regex:               "^https://example.com/.*$",
 		DisplayName:         "GitHub",
 		DisplayIcon:         "/static/icons/github.svg",
+		MCPURL:              "https://api.githubcopilot.com/mcp/",
+		MCPToolAllowRegex:   ".*",
+		MCPToolDenyRegex:    "create_gist",
 	}
 
 	// Input the github section twice for testing a slice of configs.
@@ -554,10 +609,16 @@ func TestPremiumSuperSet(t *testing.T) {
 	// Premium ⊃ Enterprise
 	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
 
-	// Premium = All Features
-	// This is currently true. If this assertion changes, update this test
-	// to reflect the change in feature sets.
-	require.ElementsMatch(t, premium.Features(), codersdk.FeatureNames, "premium should contain all features")
+	// Premium = All Features EXCEPT usage limit features
+	expectedPremiumFeatures := []codersdk.FeatureName{}
+	for _, feature := range codersdk.FeatureNames {
+		if feature.UsesLimit() {
+			continue
+		}
+		expectedPremiumFeatures = append(expectedPremiumFeatures, feature)
+	}
+	require.NotEmpty(t, expectedPremiumFeatures, "expectedPremiumFeatures should not be empty")
+	require.ElementsMatch(t, premium.Features(), expectedPremiumFeatures, "premium should contain all features except usage limit features")
 
 	// This check exists because if you misuse the slices.Delete, you can end up
 	// with zero'd values.

@@ -1,11 +1,12 @@
-import { css } from "@emotion/react";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { SerpentOption } from "api/typesGenerated";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import type { FC } from "react";
 import {
 	OptionConfig,
@@ -27,79 +28,58 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
 	}
 
 	return (
-		<TableContainer className="options-table">
-			<Table
-				css={css`
-          & td {
-            padding-top: 24px;
-            padding-bottom: 24px;
-          }
+		<Table className="options-table">
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-1/2">Option</TableHead>
+					<TableHead className="w-1/2">Value</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{Object.values(options).map((option) => {
+					return (
+						<TableRow key={option.flag} className={`option-${option.flag}`}>
+							<TableCell>
+								<OptionName>{option.name}</OptionName>
+								<OptionDescription>{option.description}</OptionDescription>
+								<div className="pt-2 flex flex-wrap gap-2">
+									{option.flag && (
+										<OptionConfig isSource={option.value_source === "flag"}>
+											<OptionConfigFlag>CLI</OptionConfigFlag>
+											--{option.flag}
+										</OptionConfig>
+									)}
+									{option.flag_shorthand && (
+										<OptionConfig isSource={option.value_source === "flag"}>
+											<OptionConfigFlag>CLI</OptionConfigFlag>-
+											{option.flag_shorthand}
+										</OptionConfig>
+									)}
+									{option.env && (
+										<OptionConfig isSource={option.value_source === "env"}>
+											<OptionConfigFlag>ENV</OptionConfigFlag>
+											{option.env}
+										</OptionConfig>
+									)}
+									{option.yaml && (
+										<OptionConfig isSource={option.value_source === "yaml"}>
+											<OptionConfigFlag>YAML</OptionConfigFlag>
+											{option.yaml}
+										</OptionConfig>
+									)}
+								</div>
+							</TableCell>
 
-          & td:last-child,
-          & th:last-child {
-            padding-left: 32px;
-          }
-        `}
-			>
-				<TableHead>
-					<TableRow>
-						<TableCell width="50%">Option</TableCell>
-						<TableCell width="50%">Value</TableCell>
-					</TableRow>
-				</TableHead>
-				<TableBody>
-					{Object.values(options).map((option) => {
-						return (
-							<TableRow key={option.flag} className={`option-${option.flag}`}>
-								<TableCell>
-									<OptionName>{option.name}</OptionName>
-									<OptionDescription>{option.description}</OptionDescription>
-									<div
-										css={{
-											marginTop: 24,
-											display: "flex",
-											flexWrap: "wrap",
-											gap: 8,
-										}}
-									>
-										{option.flag && (
-											<OptionConfig isSource={option.value_source === "flag"}>
-												<OptionConfigFlag>CLI</OptionConfigFlag>
-												--{option.flag}
-											</OptionConfig>
-										)}
-										{option.flag_shorthand && (
-											<OptionConfig isSource={option.value_source === "flag"}>
-												<OptionConfigFlag>CLI</OptionConfigFlag>-
-												{option.flag_shorthand}
-											</OptionConfig>
-										)}
-										{option.env && (
-											<OptionConfig isSource={option.value_source === "env"}>
-												<OptionConfigFlag>ENV</OptionConfigFlag>
-												{option.env}
-											</OptionConfig>
-										)}
-										{option.yaml && (
-											<OptionConfig isSource={option.value_source === "yaml"}>
-												<OptionConfigFlag>YAML</OptionConfigFlag>
-												{option.yaml}
-											</OptionConfig>
-										)}
-									</div>
-								</TableCell>
-
-								<TableCell>
-									<OptionValue>
-										{optionValue(option, additionalValues)}
-									</OptionValue>
-								</TableCell>
-							</TableRow>
-						);
-					})}
-				</TableBody>
-			</Table>
-		</TableContainer>
+							<TableCell>
+								<OptionValue>
+									{optionValue(option, additionalValues)}
+								</OptionValue>
+							</TableCell>
+						</TableRow>
+					);
+				})}
+			</TableBody>
+		</Table>
 	);
 };
 

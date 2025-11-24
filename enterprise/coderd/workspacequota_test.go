@@ -395,15 +395,270 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		verifyQuotaUser(ctx, t, client, second.Org.ID.String(), user.ID.String(), consumed, 35)
 	})
+
+	// ZeroQuota tests that a user with a zero quota allowance can't create a workspace.
+	// Although relevant for all users, this test ensures that the prebuilds system user
+	// cannot create workspaces in an organization for which it has exhausted its quota.
+	t.Run("ZeroQuota", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create a client with no quota allowance
+		client, _, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			UserWorkspaceQuota: 0, // Set user workspace quota to 0
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+
+		// Verify initial quota is 0
+		verifyQuota(ctx, t, client, user.OrganizationID.String(), 0, 0)
+
+		// Create a template with a workspace that costs 1 credit
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name:      "example",
+							Type:      "aws_instance",
+							DailyCost: 1,
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "example",
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Attempt to create a workspace with zero quota - should fail
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Verify the build failed due to quota
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Contains(t, build.Job.Error, "quota")
+
+		// Verify quota consumption remains at 0
+		verifyQuota(ctx, t, client, user.OrganizationID.String(), 0, 0)
+
+		// Test with a template that has zero cost - should pass
+		versionZeroCost := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name:      "example",
+							Type:      "aws_instance",
+							DailyCost: 0, // Zero cost workspace
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "example",
+								Auth: &proto.Agent_Token{
+									Token: uuid.NewString(),
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionZeroCost.ID)
+		templateZeroCost := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionZeroCost.ID)
+
+		// Workspace with zero cost should pass
+		workspaceZeroCost := coderdtest.CreateWorkspace(t, client, templateZeroCost.ID)
+		buildZeroCost := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceZeroCost.LatestBuild.ID)
+
+		require.Equal(t, codersdk.WorkspaceStatusRunning, buildZeroCost.Status)
+		require.Empty(t, buildZeroCost.Job.Error)
+
+		// Verify quota consumption remains at 0
+		verifyQuota(ctx, t, client, user.OrganizationID.String(), 0, 0)
+	})
+
+	// MultiOrg tests that a user can create workspaces in multiple organizations
+	// as long as they have enough quota in each organization. Specifically,
+	// in exhausted quota in one organization does not affect the ability to
+	// create workspaces in other organizations. This test is relevant to all users
+	// but is particularly relevant for the prebuilds system user.
+	t.Run("MultiOrg", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create a setup with multiple organizations
+		owner, _, api, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:               1,
+					codersdk.FeatureMultipleOrganizations:      1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+
+		// Create a second organization
+		second := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{
+			IncludeProvisionerDaemon: true,
+		})
+
+		// Create a user that will be a member of both organizations
+		user, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgMember(second.ID))
+
+		// Set up quota allowances for both organizations
+		// First org: 2 credits total
+		_, err := owner.PatchGroup(ctx, first.OrganizationID, codersdk.PatchGroupRequest{
+			QuotaAllowance: ptr.Ref(2),
+		})
+		require.NoError(t, err)
+
+		// Second org: 3 credits total
+		_, err = owner.PatchGroup(ctx, second.ID, codersdk.PatchGroupRequest{
+			QuotaAllowance: ptr.Ref(3),
+		})
+		require.NoError(t, err)
+
+		// Verify initial quotas
+		verifyQuota(ctx, t, user, first.OrganizationID.String(), 0, 2)
+		verifyQuota(ctx, t, user, second.ID.String(), 0, 3)
+
+		// Create templates for both organizations
+		authToken := uuid.NewString()
+		version1 := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name:      "example",
+							Type:      "aws_instance",
+							DailyCost: 1,
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "example",
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version1.ID)
+		template1 := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version1.ID)
+
+		version2 := coderdtest.CreateTemplateVersion(t, owner, second.ID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name:      "example",
+							Type:      "aws_instance",
+							DailyCost: 1,
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "example",
+								Auth: &proto.Agent_Token{
+									Token: uuid.NewString(),
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version2.ID)
+		template2 := coderdtest.CreateTemplate(t, owner, second.ID, version2.ID)
+
+		// Exhaust quota in the first organization by creating 2 workspaces
+		var workspaces1 []codersdk.Workspace
+		for i := 0; i < 2; i++ {
+			workspace := coderdtest.CreateWorkspace(t, user, template1.ID)
+			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, workspace.LatestBuild.ID)
+			require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+			workspaces1 = append(workspaces1, workspace)
+		}
+
+		// Verify first org quota is exhausted
+		verifyQuota(ctx, t, user, first.OrganizationID.String(), 2, 2)
+
+		// Try to create another workspace in the first org - should fail
+		workspace := coderdtest.CreateWorkspace(t, user, template1.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Contains(t, build.Job.Error, "quota")
+
+		// Verify first org quota consumption didn't increase
+		verifyQuota(ctx, t, user, first.OrganizationID.String(), 2, 2)
+
+		// Verify second org quota is still available
+		verifyQuota(ctx, t, user, second.ID.String(), 0, 3)
+
+		// Create workspaces in the second organization - should succeed
+		for i := 0; i < 3; i++ {
+			workspace := coderdtest.CreateWorkspace(t, user, template2.ID)
+			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, workspace.LatestBuild.ID)
+			require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+		}
+
+		// Verify second org quota is now exhausted
+		verifyQuota(ctx, t, user, second.ID.String(), 3, 3)
+
+		// Try to create another workspace in the second org - should fail
+		workspace = coderdtest.CreateWorkspace(t, user, template2.ID)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Contains(t, build.Job.Error, "quota")
+
+		// Verify second org quota consumption didn't increase
+		verifyQuota(ctx, t, user, second.ID.String(), 3, 3)
+
+		// Verify first org quota is still exhausted
+		verifyQuota(ctx, t, user, first.OrganizationID.String(), 2, 2)
+
+		// Delete one workspace from the first org to free up quota
+		build = coderdtest.CreateWorkspaceBuild(t, user, workspaces1[0], database.WorkspaceTransitionDelete)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, build.ID)
+		require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
+
+		// Verify first org quota is now available again
+		verifyQuota(ctx, t, user, first.OrganizationID.String(), 1, 2)
+
+		// Create a workspace in the first org - should succeed
+		workspace = coderdtest.CreateWorkspace(t, user, template1.ID)
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		// Verify first org quota is exhausted again
+		verifyQuota(ctx, t, user, first.OrganizationID.String(), 2, 2)
+
+		// Verify second org quota remains exhausted
+		verifyQuota(ctx, t, user, second.ID.String(), 3, 3)
+	})
 }
 
 // nolint:paralleltest,tparallel // Tests must run serially
 func TestWorkspaceSerialization(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("Serialization errors only occur in postgres")
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 
@@ -462,7 +717,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -520,7 +774,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -589,7 +842,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitShort)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -642,7 +894,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  | CommitTx()          |                                  |
 		//  +---------------------+----------------------------------+
 		ctx := testutil.Context(t, testutil.WaitShort)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -686,7 +937,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitShort)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 		var err error
 
@@ -741,7 +991,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -799,7 +1048,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -860,7 +1108,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+---------------------+
 		// pq: could not serialize access due to read/write dependencies among transactions
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{

@@ -2,32 +2,45 @@ import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
+	Popover,
+	PopoverContent,
+	type PopoverContentProps,
+	PopoverTrigger,
+	type PopoverTriggerProps,
+} from "components/Popover/Popover";
+import {
 	SearchField,
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
-	type HTMLProps,
-	type ReactElement,
 	forwardRef,
+	type HTMLProps,
 	isValidElement,
+	type ReactElement,
 	useMemo,
 } from "react";
-
-const SIDE_PADDING = 16;
+import { cn } from "utils/cn";
 
 export const SelectMenu = Popover;
 
-export const SelectMenuTrigger = PopoverTrigger;
+export const SelectMenuTrigger: FC<PopoverTriggerProps> = (props) => {
+	return <PopoverTrigger asChild {...props} />;
+};
 
-export const SelectMenuContent = PopoverContent;
+export const SelectMenuContent: FC<PopoverContentProps> = (props) => {
+	return (
+		<PopoverContent
+			{...props}
+			className={cn(
+				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
+				props.className,
+			)}
+		/>
+	);
+};
 
 type SelectMenuButtonProps = ButtonProps & {
 	startIcon?: React.ReactNode;
@@ -36,13 +49,20 @@ type SelectMenuButtonProps = ButtonProps & {
 export const SelectMenuButton = forwardRef<
 	HTMLButtonElement,
 	SelectMenuButtonProps
->((props, ref) => {
-	const { startIcon, ...restProps } = props;
+>(({ className, startIcon, children, ...props }, ref) => {
 	return (
-		<Button variant="outline" size="lg" ref={ref} {...restProps}>
+		<Button
+			variant="outline"
+			size="lg"
+			ref={ref}
+			// Shrink padding right slightly to account for visual weight of
+			// the chevron
+			className={cn("flex flex-row gap-2 pr-1.5", className)}
+			{...props}
+		>
 			{startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
-				{props.children}
+				{children}
 			</span>
 			<ChevronDownIcon />
 		</Button>
@@ -54,41 +74,29 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 		<SearchField
 			fullWidth
 			size="medium"
-			css={(theme) => ({
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				"& input": {
-					fontSize: 14,
-				},
-				"& fieldset": {
-					border: 0,
-					borderRadius: 0,
-				},
-				"& .MuiInputBase-root": {
-					padding: `12px ${SIDE_PADDING}px`,
-				},
-				"& .MuiInputAdornment-positionStart": {
-					marginRight: SIDE_PADDING,
-				},
-			})}
+			className="border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3"
 			{...props}
 			inputProps={{ autoFocus: true, ...props.inputProps }}
 		/>
 	);
 };
 
-export const SelectMenuList: FC<MenuListProps> = (props) => {
+export const SelectMenuList: FC<MenuListProps> = ({
+	children,
+	className,
+	...attrs
+}) => {
 	const items = useMemo(() => {
-		let children = Children.toArray(props.children);
-		if (!children.every(isValidElement)) {
+		let items = Children.toArray(children);
+		if (!items.every(isValidElement)) {
 			throw new Error("SelectMenuList only accepts MenuItem children");
 		}
-		children = moveSelectedElementToFirst(
-			children as ReactElement<MenuItemProps>[],
-		);
-		return children;
-	}, [props.children]);
+		items = moveSelectedElementToFirst(items as ReactElement<MenuItemProps>[]);
+		return items;
+	}, [children]);
+
 	return (
-		<MenuList css={{ maxHeight: 480 }} {...props}>
+		<MenuList className={cn("max-h-[480px]", className)} {...attrs}>
 			{items}
 		</MenuList>
 	);
@@ -106,25 +114,31 @@ function moveSelectedElementToFirst(items: ReactElement<MenuItemProps>[]) {
 	return newItems;
 }
 
-export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div css={{ marginRight: 16 }} {...props} />;
+export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = ({
+	children,
+	className,
+	...attrs
+}) => {
+	return (
+		<div className={cn("mr-4", className)} {...attrs}>
+			{children}
+		</div>
+	);
 };
 
-export const SelectMenuItem: FC<MenuItemProps> = (props) => {
+export const SelectMenuItem: FC<MenuItemProps> = ({
+	children,
+	className,
+	selected,
+	...attrs
+}) => {
 	return (
 		<MenuItem
-			css={{
-				fontSize: 14,
-				gap: 0,
-				lineHeight: 1,
-				padding: `12px ${SIDE_PADDING}px`,
-			}}
-			{...props}
+			className={cn("text-sm gap-0 leading-none py-3 px-4", className)}
+			{...attrs}
 		>
-			{props.children}
-			{props.selected && (
-				<CheckIcon className="size-icon-xs" css={{ marginLeft: "auto" }} />
-			)}
+			{children}
+			{selected && <CheckIcon className="size-icon-xs ml-auto" />}
 		</MenuItem>
 	);
 };

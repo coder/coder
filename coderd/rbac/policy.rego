@@ -2,364 +2,426 @@ package authz
 
 import rego.v1
 
-# A great playground: https://play.openpolicyagent.org/
-# Helpful cli commands to debug.
-# opa eval --format=pretty 'data.authz.allow' -d policy.rego  -i input.json
-# opa eval --partial --format=pretty 'data.authz.allow' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
-
+# Check the POLICY.md file before editing this!
 #
-# This policy is specifically constructed to compress to a set of queries if the
-# object's 'owner' and 'org_owner' fields are unknown. There is no specific set
-# of rules that will guarantee that this policy has this property. However, there
-# are some tricks. A unit test will enforce this property, so any edits that pass
-# the unit test will be ok.
+# https://play.openpolicyagent.org/
 #
-# Tricks: (It's hard to really explain this, fiddling is required)
-# 1. Do not use unknown fields in any comprehension or iteration.
-# 2. Use the unknown fields as minimally as possible.
-# 3. Avoid making code branches based on the value of the unknown field.
-#    Unknown values are like a "set" of possible values.
-#    (This is why rule 1 usually breaks things)
-#    For example:
-#    In the org section, we calculate the 'allow' number for all orgs, rather
-#    than just the input.object.org_owner. This is because if the org_owner
-#    changes, then we don't need to recompute any 'allow' sets. We already have
-#    the 'allow' for the changed value. So the answer is in a lookup table.
-#    The final statement 'num := allow[input.object.org_owner]' does not have
-#    different code branches based on the org_owner. 'num's value does, but
-#    that is the whole point of partial evaluation.
 
-# bool_flip(b) returns the logical negation of a boolean value 'b'.
-# You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
-bool_flip(b) := false if {
-	b
-}
+#==============================================================================#
+# Site level rules                                                             #
+#==============================================================================#
 
-bool_flip(b) := true if {
-	not b
-}
-
-# number(set) maps a set of boolean values to one of the following numbers:
-#  -1: deny (if 'false' value is in the set)		=> set is {true, false} or {false}
-#   0: no decision (if the set is empty)			=> set is {}
-#   1: allow (if only 'true' values are in the set)	=> set is {true}
-
-# Return -1 if the set contains any 'false' value (i.e., an explicit deny)
-number(set) := -1 if {
-	false in set
-}
-
-# Return 0 if the set is empty (no matching permissions)
-number(set) := 0 if {
-	count(set) == 0
-}
-
-# Return 1 if the set is non-empty and contains no 'false' values (i.e., only allows)
-number(set) := 1 if {
-	not false in set
-	set[_]
-}
-
-# Permission evaluation is structured into three levels: site, org, and user.
-# For each level, two variables are computed:
-#   - <level>: the decision based on the subject's full set of roles for that level
-#   - scope_<level>: the decision based on the subject's scoped roles for that level
-#
-# Each of these variables is assigned one of three values:
-#   -1 => negative (deny)
-#    0 => abstain (no matching permission)
-#    1 => positive (allow)
-#
-# These values are computed by calling the corresponding <level>_allow functions.
-# The final decision is derived from combining these values (see 'allow' rule).
-
-# -------------------
-# Site Level Rules
-# -------------------
+# Site level permissions allow the subject to use that permission on any object.
+# For example, a site-level workspace.read permission means that the subject can
+# see every workspace in the deployment, regardless of organization or owner.
 
 default site := 0
-site := site_allow(input.subject.roles)
+
+site := check_site_permissions(input.subject.roles)
 
 default scope_site := 0
-scope_site := site_allow([input.subject.scope])
 
-# site_allow receives a list of roles and returns a single number:
-#  -1 if any matching permission denies access
-#   1 if there's at least one allow and no denies
-#   0 if there are no matching permissions
-site_allow(roles) := num if {
-	# allow is a set of boolean values (sets don't contain duplicates)
+scope_site := check_site_permissions([input.subject.scope])
+
+check_site_permissions(roles) := vote if {
 	allow := {is_allowed |
-		# Iterate over all site permissions in all roles
+		# Iterate over all site permissions in all roles, and check which ones match
+		# the action and object type.
 		perm := roles[_].site[_]
 		perm.action in [input.action, "*"]
 		perm.resource_type in [input.object.type, "*"]
 
-		# is_allowed is either 'true' or 'false' if a matching permission exists.
+		# If a negative matching permission was found, then we vote to disallow it.
+		# If the permission is not negative, then we vote to allow it.
 		is_allowed := bool_flip(perm.negate)
 	}
-	num := number(allow)
+	vote := to_vote(allow)
 }
 
-# -------------------
-# Org Level Rules
-# -------------------
+#==============================================================================#
+# User level rules                                                             #
+#==============================================================================#
 
-# org_members is the list of organizations the actor is apart of.
-org_members := {orgID |
-	input.subject.roles[_].org[orgID]
-}
+# User level rules apply to all objects owned by the subject which are not also
+# owned by an org. Permissions for objects which are "jointly" owned by an org
+# instead defer to the org member level rules.
 
-# 'org' is the same as 'site' except we need to iterate over each organization
-# that the actor is a member of.
-default org := 0
-org := org_allow(input.subject.roles)
-
-default scope_org := 0
-scope_org := org_allow([input.scope])
-
-# org_allow_set is a helper function that iterates over all orgs that the actor
-# is a member of. For each organization it sets the numerical allow value
-# for the given object + action if the object is in the organization.
-# The resulting value is a map that looks something like:
-# {"10d03e62-7703-4df5-a358-4f76577d4e2f": 1, "5750d635-82e0-4681-bd44-815b18669d65": 1}
-# The caller can use this output[<object.org_owner>] to get the final allow value.
-#
-# The reason we calculate this for all orgs, and not just the input.object.org_owner
-# is that sometimes the input.object.org_owner is unknown. In those cases
-# we have a list of org_ids that can we use in a SQL 'WHERE' clause.
-org_allow_set(roles) := allow_set if {
-	allow_set := {id: num |
-		id := org_members[_]
-		set := {is_allowed |
-			# Iterate over all org permissions in all roles
-			perm := roles[_].org[id][_]
-			perm.action in [input.action, "*"]
-			perm.resource_type in [input.object.type, "*"]
-
-			# is_allowed is either 'true' or 'false' if a matching permission exists.
-			is_allowed := bool_flip(perm.negate)
-		}
-		num := number(set)
-	}
-}
-
-org_allow(roles) := num if {
-	# If the object has "any_org" set to true, then use the other
-	# org_allow block.
-	not input.object.any_org
-	allow := org_allow_set(roles)
-
-	# Return only the org value of the input's org.
-	# The reason why we do not do this up front, is that we need to make sure
-	# this policy compresses down to simple queries. One way to ensure this is
-	# to keep unknown values out of comprehensions.
-	# (https://www.openpolicyagent.org/docs/latest/policy-language/#comprehensions)
-	num := allow[input.object.org_owner]
-}
-
-# This block states if "object.any_org" is set to true, then disregard the
-# organization id the object is associated with. Instead, we check if the user
-# can do the action on any organization.
-# This is useful for UI elements when we want to conclude, "Can the user create
-# a new template in any organization?"
-# It is easier than iterating over every organization the user is apart of.
-org_allow(roles) := num if {
-	input.object.any_org # if this is false, this code block is not used
-	allow := org_allow_set(roles)
-
-	# allow is a map of {"<org_id>": <number>}. We only care about values
-	# that are 1, and ignore the rest.
-	num := number([
-	keep |
-		# for every value in the mapping
-		value := allow[_]
-
-		# only keep values > 0.
-		# 1 = allow, 0 = abstain, -1 = deny
-		# We only need 1 explicit allow to allow the action.
-		# deny's and abstains are intentionally ignored.
-		value > 0
-
-		# result set is a set of [true,false,...]
-		# which "number()" will convert to a number.
-		keep := true
-	])
-}
-
-# 'org_mem' is set to true if the user is an org member
-# If 'any_org' is set to true, use the other block to determine org membership.
-org_mem if {
-	not input.object.any_org
-	input.object.org_owner != ""
-	input.object.org_owner in org_members
-}
-
-org_mem if {
-	input.object.any_org
-	count(org_members) > 0
-}
-
-org_ok if {
-	org_mem
-}
-
-# If the object has no organization, then the user is also considered part of
-# the non-existent org.
-org_ok if {
-	input.object.org_owner == ""
-	not input.object.any_org
-}
-
-# -------------------
-# User Level Rules
-# -------------------
-
-# 'user' is the same as 'site', except it only applies if the user owns the object and
-# the user is apart of the org (if the object has an org).
 default user := 0
-user := user_allow(input.subject.roles)
+
+user := check_user_permissions(input.subject.roles)
 
 default scope_user := 0
-scope_user := user_allow([input.scope])
 
-user_allow(roles) := num if {
-	input.object.owner != ""
+scope_user := check_user_permissions([input.subject.scope])
+
+check_user_permissions(roles) := vote if {
+	# The object must be owned by the subject.
 	input.subject.id = input.object.owner
 
+	# If there is an org, use org_member permissions instead
+	input.object.org_owner == ""
+	not input.object.any_org
+
 	allow := {is_allowed |
-		# Iterate over all user permissions in all roles
+		# Iterate over all user permissions in all roles, and check which ones match
+		# the action and object type.
 		perm := roles[_].user[_]
 		perm.action in [input.action, "*"]
 		perm.resource_type in [input.object.type, "*"]
 
-		# is_allowed is either 'true' or 'false' if a matching permission exists.
+		# If a negative matching permission was found, then we vote to disallow it.
+		# If the permission is not negative, then we vote to allow it.
 		is_allowed := bool_flip(perm.negate)
 	}
-	num := number(allow)
+	vote := to_vote(allow)
 }
 
-# Scope allow_list is a list of resource IDs explicitly allowed by the scope.
-# If the list is '*', then all resources are allowed.
-scope_allow_list if {
-	"*" in input.subject.scope.allow_list
+#==============================================================================#
+# Org level rules                                                              #
+#==============================================================================#
+
+# Org level permissions are similar to `site`, except we need to iterate over
+# each organization that the subject is a member of, and check against the
+# organization that the object belongs to.
+# For example, an organization-level workspace.read permission means that the
+# subject can see every workspace in the organization, regardless of owner.
+
+# org_memberships is the set of organizations the subject is apart of.
+org_memberships := {org_id |
+	input.subject.roles[_].by_org_id[org_id]
 }
 
-scope_allow_list if {
-	# If the wildcard is listed in the allow_list, we do not care about the
-	# object.id. This line is included to prevent partial compilations from
-	# ever needing to include the object.id.
-	not "*" in input.subject.scope.allow_list
-	input.object.id in input.subject.scope.allow_list
+# TODO: Should there be a scope_org_memberships too? Without it, the membership
+# is determined by the user's roles, not their scope permissions.
+#
+# If an owner (who is not an org member) has an org scope, that org scope will
+# fail to return '1', since we assume all non-members return '-1' for org level
+# permissions. Adding a second set of org memberships might affect the partial
+# evaluation. This is being left until org scopes are used.
+
+default org := 0
+
+org := check_org_permissions(input.subject.roles, "org")
+
+default scope_org := 0
+
+scope_org := check_org_permissions([input.subject.scope], "org")
+
+# check_all_org_permissions creates a map from org ids to votes at each org
+# level, for each org that the subject is a member of. It doesn't actually check
+# if the object is in the same org. Instead we look up the correct vote from
+# this map based on the object's org id in `check_org_permissions`.
+# For example, the `org_map` will look something like this:
+#
+#   {"<org_id_a>": 1, "<org_id_b>": 0, "<org_id_c>": -1}
+#
+# The caller then uses `output[input.object.org_owner]` to get the correct vote.
+#
+# We have to create this map, rather than just getting the vote of the object's
+# org id because the org id _might_ be unknown. In order to make sure that this
+# policy compresses down to simple queries we need to keep unknown values out of
+# comprehensions.
+check_all_org_permissions(roles, key) := {org_id: vote |
+	org_id := org_memberships[_]
+	allow := {is_allowed |
+		# Iterate over all site permissions in all roles, and check which ones match
+		# the action and object type.
+		perm := roles[_].by_org_id[org_id][key][_]
+		perm.action in [input.action, "*"]
+		perm.resource_type in [input.object.type, "*"]
+
+		# If a negative matching permission was found, then we vote to disallow it.
+		# If the permission is not negative, then we vote to allow it.
+		is_allowed := bool_flip(perm.negate)
+	}
+	vote := to_vote(allow)
 }
 
-# -------------------
-# Role-Specific Rules
-# -------------------
+# This check handles the case where the org id is known.
+check_org_permissions(roles, key) := vote if {
+	# Disallow setting any_org at the same time as an org id.
+	not input.object.any_org
 
+	allow_map := check_all_org_permissions(roles, key)
+
+	# Return only the vote of the object's org.
+	vote := allow_map[input.object.org_owner]
+}
+
+# This check handles the case where we want to know if the user has the
+# appropriate permission for any organization, without needing to know which.
+# This is used in several places in the UI to determine if certain parts of the
+# app should be accessible.
+# For example, can the user create a new template in any organization? If yes,
+# then we should show the "New template" button.
+check_org_permissions(roles, key) := vote if {
+	# Require `any_org` to be set
+	input.object.any_org
+
+	allow_map := check_all_org_permissions(roles, key)
+
+	# Since we're checking if the subject has the permission in _any_ org, we're
+	# essentially trying to find the highest vote from any org.
+	vote := max({vote |
+		some vote in allow_map
+	})
+}
+
+# is_org_member checks if the subject belong to the same organization as the
+# object.
+is_org_member if {
+	not input.object.any_org
+	input.object.org_owner != ""
+	input.object.org_owner in org_memberships
+}
+
+# ...if 'any_org' is set to true, we check if the subject is a member of any
+# org.
+is_org_member if {
+	input.object.any_org
+	count(org_memberships) > 0
+}
+
+#==============================================================================#
+# Org member level rules                                                       #
+#==============================================================================#
+
+# Org member level permissions apply to all objects owned by the subject _and_
+# the corresponding org. Permissions for objects which are not owned by an
+# organization instead defer to the user level rules.
+#
+# The rules for this level are very similar to the rules for the organization
+# level, and so we reuse the `check_org_permissions` function from those rules.
+
+default org_member := 0
+
+org_member := vote if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	vote := check_org_permissions(input.subject.roles, "member")
+}
+
+default scope_org_member := 0
+
+scope_org_member := vote if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	vote := check_org_permissions([input.subject.scope], "member")
+}
+
+#==============================================================================#
+# Role rules                                                                   #
+#==============================================================================#
+
+# role_allow specifies all of the conditions under which a role can grant
+# permission. These rules intentionally use the "unification" operator rather
+# than the equality and inequality operators, because those operators do not
+# work on partial values.
+# https://www.openpolicyagent.org/docs/policy-language#unification-
+
+# Site level authorization
 role_allow if {
 	site = 1
 }
 
+# User level authorization
 role_allow if {
 	not site = -1
+
+	user = 1
+}
+
+# Org level authorization
+role_allow if {
+	not site = -1
+
 	org = 1
 }
 
+# Org member authorization
 role_allow if {
 	not site = -1
 	not org = -1
 
-	# If we are not a member of an org, and the object has an org, then we are
-	# not authorized. This is an "implied -1" for not being in the org.
-	org_ok
-	user = 1
+	org_member = 1
 }
 
-# -------------------
-# Scope-Specific Rules
-# -------------------
+#==============================================================================#
+# Scope rules                                                                  #
+#==============================================================================#
 
+# scope_allow specifies all of the conditions under which a scope can grant
+# permission. These rules intentionally use the "unification" (=) operator
+# rather than the equality (==) and inequality (!=) operators, because those
+# operators do not work on partial values.
+# https://www.openpolicyagent.org/docs/policy-language#unification-
+
+# Site level scope enforcement
 scope_allow if {
-	scope_allow_list
+	object_is_included_in_scope_allow_list
 	scope_site = 1
 }
 
+# User level scope enforcement
 scope_allow if {
-	scope_allow_list
+	# User scope permissions must be allowed by the scope, and not denied
+	# by the site. The object *must not* be owned by an organization.
+	object_is_included_in_scope_allow_list
 	not scope_site = -1
-	scope_org = 1
-}
 
-scope_allow if {
-	scope_allow_list
-	not scope_site = -1
-	not scope_org = -1
-
-	# If we are not a member of an org, and the object has an org, then we are
-	# not authorized. This is an "implied -1" for not being in the org.
-	org_ok
 	scope_user = 1
 }
 
-# -------------------
-# ACL-Specific Rules
-# Access Control List
-# -------------------
+# Org level scope enforcement
+scope_allow if {
+	# Org member scope permissions must be allowed by the scope, and not denied
+	# by the site. The object *must* be owned by an organization.
+	object_is_included_in_scope_allow_list
+	not scope_site = -1
+
+	scope_org = 1
+}
+
+# Org member level scope enforcement
+scope_allow if {
+	# Org member scope permissions must be allowed by the scope, and not denied
+	# by the site or org. The object *must* be owned by an organization.
+	object_is_included_in_scope_allow_list
+	not scope_site = -1
+	not scope_org = -1
+
+	scope_org_member = 1
+}
+
+# If *.* is allowed, then all objects are in scope.
+object_is_included_in_scope_allow_list if {
+	{"type": "*", "id": "*"} in input.subject.scope.allow_list
+}
+
+# If <type>.* is allowed, then all objects of that type are in scope.
+object_is_included_in_scope_allow_list if {
+	{"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
+}
+
+# Check if the object type and ID match one of the allow list entries.
+object_is_included_in_scope_allow_list if {
+	# Check that the wildcard rules do not apply. This prevents partial inputs
+	# from needing to include `input.object.id`.
+	not {"type": "*", "id": "*"} in input.subject.scope.allow_list
+	not {"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
+
+	# Check which IDs from the allow list match the object type
+	allowed_ids_for_object_type := {it.id |
+		some it in input.subject.scope.allow_list
+		it.type in [input.object.type, "*"]
+	}
+
+	# Check if the input object ID is in the set of allowed IDs for the same
+	# object type. We do this at the end to keep `input.object.id` out of the
+	# comprehension because it might be unknown.
+	input.object.id in allowed_ids_for_object_type
+}
+
+#==============================================================================#
+# ACL rules                                                                    #
+#==============================================================================#
 
 # ACL for users
 acl_allow if {
-	# Should you have to be a member of the org too?
+	# TODO: Should you have to be a member of the org too?
 	perms := input.object.acl_user_list[input.subject.id]
 
-	# Either the input action or wildcard
-	[input.action, "*"][_] in perms
+	# Check if either the action or * is allowed
+	some action in [input.action, "*"]
+	action in perms
 }
 
 # ACL for groups
 acl_allow if {
 	# If there is no organization owner, the object cannot be owned by an
-	# org_scoped team.
-	org_mem
-	group := input.subject.groups[_]
+	# org-scoped group.
+	is_org_member
+	some group in input.subject.groups
 	perms := input.object.acl_group_list[group]
 
-	# Either the input action or wildcard
-	[input.action, "*"][_] in perms
+	# Check if either the action or * is allowed
+	some action in [input.action, "*"]
+	action in perms
 }
 
-# ACL for 'all_users' special group
+# ACL for the special "Everyone" groups
 acl_allow if {
-	org_mem
+	# If there is no organization owner, the object cannot be owned by an
+	# org-scoped group.
+	is_org_member
 	perms := input.object.acl_group_list[input.object.org_owner]
-	[input.action, "*"][_] in perms
+
+	# Check if either the action or * is allowed
+	some action in [input.action, "*"]
+	action in perms
 }
 
-# -------------------
-# Final Allow
-#
-# The 'allow' block is quite simple. Any set with `-1` cascades down in levels.
-# Authorization looks for any `allow` statement that is true. Multiple can be true!
-# Note that the absence of `allow` means "unauthorized".
-# An explicit `"allow": true` is required.
-#
-# Scope is also applied. The default scope is "wildcard:wildcard" allowing
-# all actions. If the scope is not "1", then the action is not authorized.
-#
-# Allow query:
-#	data.authz.role_allow = true
-#	data.authz.scope_allow = true
-# -------------------
+#==============================================================================#
+# Allow                                                                        #
+#==============================================================================#
 
-# The role or the ACL must allow the action. Scopes can be used to limit,
-# so scope_allow must always be true.
+# The `allow` block is quite simple. Any check that voted no will cascade down.
+# Authorization looks for any `allow` statement that is true. Multiple can be
+# true! Note that the absence of `allow` means "unauthorized". An explicit
+# `"allow": true` is required.
+#
+# We check both the subject's permissions (given by their roles or by ACL) and
+# the subject's scope. (The default scope is "*:*", allowing all actions.) Both
+# a permission check (either from roles or ACL) and the scope check must vote to
+# allow or the action is not authorized.
+
+# A subject can be given permission by a role
+permission_allow if role_allow
+
+# A subject can be given permission by ACL
+permission_allow if acl_allow
+
 allow if {
-	role_allow
+	# Must be allowed by the subject's permissions
+	permission_allow
+
+	# ...and allowed by the scope
 	scope_allow
 }
 
-# ACL list must also have the scope_allow to pass
-allow if {
-	acl_allow
-	scope_allow
+#==============================================================================#
+# Utilities                                                                    #
+#==============================================================================#
+
+# bool_flip returns the logical negation of a boolean value. You can't do
+# 'x := not false', but you can do 'x := bool_flip(false)'
+bool_flip(b) := false if {
+	b
+}
+
+bool_flip(b) if {
+	not b
+}
+
+# to_vote gives you a voting value from a set or list of booleans.
+#   {false,..} => deny (-1)
+#   {}         => abstain (0)
+#   {true}     => allow (1)
+
+# Any set which contains a `false` should be considered a vote to deny.
+to_vote(set) := -1 if {
+	false in set
+}
+
+# A set which is empty should be considered abstaining.
+to_vote(set) := 0 if {
+	count(set) == 0
+}
+
+# A set which only contains true should be considered a vote to allow.
+to_vote(set) := 1 if {
+	not false in set
+	true in set
 }

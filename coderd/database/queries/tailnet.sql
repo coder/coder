@@ -150,7 +150,7 @@ DO UPDATE SET
 RETURNING *;
 
 -- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE 
+UPDATE
 	tailnet_peers
 SET
 	status = $2
@@ -205,15 +205,17 @@ FROM tailnet_tunnels
 WHERE tailnet_tunnels.dst_id = $1;
 
 -- name: GetTailnetTunnelPeerBindings :many
-SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
-FROM tailnet_tunnels
-INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
-WHERE tailnet_tunnels.src_id = $1
-UNION
-SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
-FROM tailnet_tunnels
-INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
-WHERE tailnet_tunnels.dst_id = $1;
+SELECT id AS peer_id, coordinator_id, updated_at, node, status
+FROM tailnet_peers
+WHERE id IN (
+  SELECT dst_id as peer_id
+  FROM tailnet_tunnels
+  WHERE tailnet_tunnels.src_id = $1
+  UNION
+  SELECT src_id as peer_id
+  FROM tailnet_tunnels
+  WHERE tailnet_tunnels.dst_id = $1
+);
 
 -- For PG Coordinator HTMLDebug
 

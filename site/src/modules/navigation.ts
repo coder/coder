@@ -22,7 +22,7 @@ function withFilter(path: string, filter: string) {
 
 export const linkToAuditing = "/audit";
 
-const linkToUsers = withFilter("/deployment/users", "status:active");
+const _linkToUsers = withFilter("/deployment/users", "status:active");
 
 export const linkToTemplate =
 	(organizationName: string, templateName: string): LinkThunk =>

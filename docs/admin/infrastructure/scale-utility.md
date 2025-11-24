@@ -44,7 +44,7 @@ environments.
 > for your users.
 > To avoid potential outages and orphaned resources, we recommend that you run
 > scale tests on a secondary "staging" environment or a dedicated
-> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
+> Kubernetes playground cluster.
 >
 > Run it against a production environment at your own risk.
 

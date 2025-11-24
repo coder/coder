@@ -6,11 +6,11 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import dayjs from "dayjs";
 import { MoveRightIcon } from "lucide-react";
 import { type ComponentProps, type FC, useRef, useState } from "react";
-import { DateRangePicker, createStaticRanges } from "react-date-range";
+import { createStaticRanges, DateRangePicker } from "react-date-range";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {
@@ -45,7 +45,7 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Button variant="outline">
 					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
 					<MoveRightIcon />
@@ -139,7 +139,7 @@ const styles = {
 			fontSize: 14,
 			color: theme.palette.text.secondary,
 
-			"&:hover .rdrStaticRangeLabel": {
+			"&:is(:hover, :focus) .rdrStaticRangeLabel": {
 				background: theme.palette.background.paper,
 				color: theme.palette.text.primary,
 			},

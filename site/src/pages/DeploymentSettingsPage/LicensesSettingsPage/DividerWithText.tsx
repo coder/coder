@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC, PropsWithChildren } from "react";
-
 export const DividerWithText: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<div css={styles.container}>

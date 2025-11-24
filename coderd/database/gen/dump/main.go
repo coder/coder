@@ -19,6 +19,10 @@ type mockTB struct {
 	cleanup []func()
 }
 
+func (*mockTB) Name() string {
+	return "mockTB"
+}
+
 func (t *mockTB) Cleanup(f func()) {
 	t.cleanup = append(t.cleanup, f)
 }
@@ -29,6 +33,10 @@ func (*mockTB) Helper() {
 
 func (*mockTB) Logf(format string, args ...any) {
 	_, _ = fmt.Printf(format, args...)
+}
+
+func (*mockTB) TempDir() string {
+	panic("not implemented")
 }
 
 func main() {

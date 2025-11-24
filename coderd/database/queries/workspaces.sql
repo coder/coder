@@ -117,7 +117,7 @@ SELECT
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
 	latest_build.job_status as latest_build_status,
-	latest_build.has_ai_task as latest_build_has_ai_task
+	latest_build.has_external_agent as latest_build_has_external_agent
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -130,6 +130,7 @@ LEFT JOIN LATERAL (
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		workspace_builds.has_ai_task,
+		workspace_builds.has_external_agent,
 		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
@@ -349,25 +350,43 @@ WHERE
 			  (latest_build.template_version_id = template.active_version_id) = sqlc.narg('using_active') :: boolean
 		  ELSE true
 	END
-	-- Filter by has_ai_task in latest build
+	-- Filter by has_ai_task, checks if this is a task workspace.
 	AND CASE
-		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
-			(COALESCE(latest_build.has_ai_task, false) OR (
-				-- If the build has no AI task, it means that the provisioner job is in progress
-				-- and we don't know if it has an AI task yet. In this case, we optimistically
-				-- assume that it has an AI task if the AI Prompt parameter is not empty. This
-				-- lets the AI Task frontend spawn a task and see it immediately after instead of
-				-- having to wait for the build to complete.
-				latest_build.has_ai_task IS NULL AND
-				latest_build.completed_at IS NULL AND
-				EXISTS (
-					SELECT 1
-					FROM workspace_build_parameters
-					WHERE workspace_build_parameters.workspace_build_id = latest_build.id
-					AND workspace_build_parameters.name = 'AI Prompt'
-					AND workspace_build_parameters.value != ''
-				)
-			)) = (sqlc.narg('has_ai_task') :: boolean)
+		WHEN sqlc.narg('has_ai_task')::boolean IS NOT NULL
+		THEN sqlc.narg('has_ai_task')::boolean = EXISTS (
+			SELECT
+				1
+			FROM
+				tasks
+			WHERE
+				-- Consider all tasks, deleting a task does not turn the
+				-- workspace into a non-task workspace.
+				tasks.workspace_id = workspaces.id
+		)
+		ELSE true
+	END
+	-- Filter by has_external_agent in latest build
+	AND CASE
+		WHEN sqlc.narg('has_external_agent') :: boolean IS NOT NULL THEN
+			latest_build.has_external_agent = sqlc.narg('has_external_agent') :: boolean
+		ELSE true
+	END
+	-- Filter by shared status
+	AND CASE
+		WHEN sqlc.narg('shared') :: boolean IS NOT NULL THEN
+			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = sqlc.narg('shared') :: boolean
+		ELSE true
+	END
+	-- Filter by shared_with_user_id
+	AND CASE
+		WHEN @shared_with_user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.user_acl ? (@shared_with_user_id :: uuid) :: text
+		ELSE true
+	END
+	-- Filter by shared_with_group_id
+	AND CASE
+		WHEN @shared_with_group_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
@@ -418,6 +437,8 @@ WHERE
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
+		'{}'::jsonb, -- group_acl
+		'{}'::jsonb, -- user_acl
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- owner_name
@@ -429,6 +450,7 @@ WHERE
 		'', -- template_display_name
 		'', -- template_icon
 		'', -- template_description
+		'00000000-0000-0000-0000-000000000000'::uuid, -- task_id
 		-- Extra columns added to `filtered_workspaces`
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
 		'', -- template_version_name
@@ -437,7 +459,7 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
 		'unknown'::provisioner_job_status, -- latest_build_status
-		false -- latest_build_has_ai_task
+		false -- latest_build_has_external_agent
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
@@ -516,7 +538,11 @@ SET
 	autostart_schedule = $2,
 	next_start_at = $3
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+  	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+  	-- autostart_schedule and next_start_at
+  	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceNextStartAt :exec
 UPDATE
@@ -524,7 +550,11 @@ UPDATE
 SET
 	next_start_at = $2
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- next_start_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: BatchUpdateWorkspaceNextStartAt :exec
 UPDATE
@@ -548,15 +578,23 @@ UPDATE
 SET
 	ttl = $2
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- ttl
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspacesTTLByTemplateID :exec
 UPDATE
-		workspaces
+	workspaces
 SET
-		ttl = $2
+	ttl = $2
 WHERE
-		template_id = $1;
+	template_id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their TTL updated, as they are handled by the prebuilds
+	-- reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceLastUsedAt :exec
 UPDATE
@@ -758,7 +796,12 @@ WHERE
 			provisioner_jobs.completed_at IS NOT NULL AND
 			(@now :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
 		)
-	) AND workspaces.deleted = 'false';
+	)
+  	AND workspaces.deleted = 'false'
+  	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not be considered by the lifecycle executor, as they are handled by the
+	-- prebuilds reconciliation loop.
+  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
@@ -784,6 +827,10 @@ FROM
 WHERE
     workspaces.id = $1
     AND templates.id = workspaces.template_id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- dormant_at and deleting_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING
     workspaces.*;
 
@@ -792,14 +839,17 @@ UPDATE workspaces
 SET
     deleting_at = CASE
         WHEN @time_til_dormant_autodelete_ms::bigint = 0 THEN NULL
-        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
+        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
         ELSE dormant_at + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
     END,
     dormant_at = CASE WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @dormant_at::timestamptz ELSE dormant_at END
 WHERE
     template_id = @template_id
-AND
-    dormant_at IS NOT NULL
+	AND dormant_at IS NOT NULL
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their dormant or deleting at set, as these are handled by the
+    -- prebuilds reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING *;
 
 -- name: UpdateTemplateWorkspacesLastUsedAt :exec
@@ -866,3 +916,83 @@ GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.j
 
 -- name: GetWorkspacesByTemplateID :many
 SELECT * FROM workspaces WHERE template_id = $1 AND deleted = false;
+
+-- name: GetWorkspaceACLByID :one
+SELECT
+	group_acl as groups,
+	user_acl as users
+FROM
+	workspaces
+WHERE
+	id = @id;
+
+-- name: UpdateWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = @group_acl,
+	user_acl = @user_acl
+WHERE
+	id = @id;
+
+-- name: DeleteWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::json,
+	user_acl = '{}'::json
+WHERE
+	id = @id;
+
+-- name: GetRegularWorkspaceCreateMetrics :many
+-- Count regular workspaces: only those whose first successful 'start' build
+-- was not initiated by the prebuild system user.
+WITH first_success_build AS (
+	-- Earliest successful 'start' build per workspace
+	SELECT DISTINCT ON (wb.workspace_id)
+		wb.workspace_id,
+		wb.template_version_preset_id,
+		wb.initiator_id
+	FROM workspace_builds wb
+	JOIN provisioner_jobs pj ON pj.id = wb.job_id
+	WHERE
+		wb.transition = 'start'::workspace_transition
+  		AND pj.job_status = 'succeeded'::provisioner_job_status
+	ORDER BY wb.workspace_id, wb.build_number, wb.id
+)
+SELECT
+	t.name AS template_name,
+	COALESCE(tvp.name, '') AS preset_name,
+	o.name AS organization_name,
+	COUNT(*) AS created_count
+FROM first_success_build fsb
+	JOIN workspaces w ON w.id = fsb.workspace_id
+	JOIN templates t ON t.id = w.template_id
+	LEFT JOIN template_version_presets tvp ON tvp.id = fsb.template_version_preset_id
+	JOIN organizations o ON o.id = w.organization_id
+WHERE
+	NOT t.deleted
+	-- Exclude workspaces whose first successful start was the prebuilds system user
+	AND fsb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+GROUP BY t.name, COALESCE(tvp.name, ''), o.name
+ORDER BY t.name, preset_name, o.name;
+
+-- name: GetWorkspacesForWorkspaceMetrics :many
+SELECT
+    u.username as owner_username,
+    t.name as template_name,
+    tv.name as template_version_name,
+    pj.job_status as latest_build_status,
+    wb.transition as latest_build_transition
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN workspace_builds wb ON w.id = wb.workspace_id
+JOIN provisioner_jobs pj ON wb.job_id = pj.id
+LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
+WHERE w.deleted = false
+AND wb.build_number = (
+    SELECT MAX(wb2.build_number)
+    FROM workspace_builds wb2
+    WHERE wb2.workspace_id = w.id
+);

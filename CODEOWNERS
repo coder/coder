@@ -1,8 +1,29 @@
-# These APIs are versioned, so any changes need to be carefully reviewed for whether
-# to bump API major or minor versions.
+# These APIs are versioned, so any changes need to be carefully reviewed for
+# whether to bump API major or minor versions.
 agent/proto/ @spikecurtis @johnstcn
+provisionerd/proto/ @spikecurtis @johnstcn
+provisionersdk/proto/ @spikecurtis @johnstcn
 tailnet/proto/ @spikecurtis @johnstcn
 vpn/vpn.proto @spikecurtis @johnstcn
 vpn/version.go @spikecurtis @johnstcn
-provisionerd/proto/ @spikecurtis @johnstcn
-provisionersdk/proto/ @spikecurtis @johnstcn
+
+# This caching code is particularly tricky, and one must be very careful when
+# altering it.
+coderd/files/ @aslilac
+
+coderd/dynamicparameters/ @Emyrk
+coderd/rbac/ @Emyrk
+
+# Mainly dependent on coder/guts, which is maintained by @Emyrk
+scripts/apitypings/ @Emyrk
+scripts/gensite/ @aslilac
+
+# The blood and guts of the autostop algorithm, which is quite complex and
+# requires elite ball knowledge of most of the scheduling code to make changes
+# without inadvertently affecting other parts of the codebase.
+coderd/schedule/autostop.go @deansheather @DanielleMaywood
+
+# Usage tracking code requires intimate knowledge of Tallyman and Metronome, as
+# well as guidance from revenue.
+coderd/usage/ @deansheather @spikecurtis
+enterprise/coderd/usage/ @deansheather @spikecurtis

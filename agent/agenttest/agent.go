@@ -1,7 +1,6 @@
 package agenttest
 
 import (
-	"context"
 	"net/url"
 	"testing"
 
@@ -31,16 +30,9 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	}
 
 	if o.Client == nil {
-		agentClient := agentsdk.New(coderURL)
-		agentClient.SetSessionToken(agentToken)
+		agentClient := agentsdk.New(coderURL, agentsdk.WithFixedToken(agentToken))
 		agentClient.SDK.SetLogger(log)
 		o.Client = agentClient
-	}
-
-	if o.ExchangeToken == nil {
-		o.ExchangeToken = func(_ context.Context) (string, error) {
-			return agentToken, nil
-		}
 	}
 
 	if o.LogDir == "" {

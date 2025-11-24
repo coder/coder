@@ -1,7 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
-import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import {
 	MockOutdatedWorkspace,
 	MockTemplate,
@@ -10,9 +6,13 @@ import {
 	MockWorkspace,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
-const defaultPermissions: WorkspacePermissions = {
+export const defaultPermissions: WorkspacePermissions = {
 	readWorkspace: true,
 	updateWorkspaceVersion: true,
 	updateWorkspace: true,
@@ -51,15 +51,13 @@ export const Outdated: Story = {
 		workspace: MockOutdatedWorkspace,
 	},
 
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByTestId("info-notifications"));
 			await waitFor(() =>
-				expect(
-					screen.getByText(MockTemplateVersion.message),
-				).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					MockTemplateVersion.message,
+				),
 			);
 		});
 	},
@@ -71,13 +69,13 @@ export const OutdatedWithMarkdownMessage: Story = {
 		latestVersion: MockTemplateVersionWithMarkdownMessage,
 	},
 
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByTestId("info-notifications"));
 			await waitFor(() =>
-				expect(screen.getByText(/an update is available/i)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					/an update is available/i,
+				),
 			);
 		});
 	},
@@ -102,15 +100,13 @@ export const RequiresManualUpdate: Story = {
 		],
 	},
 
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(
-					screen.getByText(/unable to automatically update/i),
-				).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					/unable to automatically update/i,
+				),
 			);
 		});
 	},
@@ -131,13 +127,13 @@ export const Unhealthy: Story = {
 		},
 	},
 
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByText(/workspace is unhealthy/i)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					/workspace is unhealthy/i,
+				),
 			);
 		});
 	},
@@ -165,13 +161,13 @@ export const Dormant: Story = {
 		workspace: DormantWorkspace,
 	},
 
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByText(/workspace is dormant/i)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					/workspace is dormant/i,
+				),
 			);
 		});
 	},
@@ -205,13 +201,13 @@ export const PendingInQueue: Story = {
 		},
 	},
 
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(await screen.findByTestId("info-notifications"));
 			await waitFor(() =>
-				expect(screen.getByText(/build is pending/i)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					/build is pending/i,
+				),
 			);
 		});
 	},
@@ -227,13 +223,13 @@ export const TemplateDeprecated: Story = {
 		},
 	},
 
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByText(/deprecated template/i)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					/deprecated template/i,
+				),
 			);
 		});
 	},

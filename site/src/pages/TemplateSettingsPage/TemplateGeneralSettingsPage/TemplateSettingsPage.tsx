@@ -6,9 +6,8 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
@@ -58,9 +57,8 @@ const TemplateSettingsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name, "General Settings")}</title>
-			</Helmet>
+			<title>{pageTitle(template.name, "General Settings")}</title>
+
 			<TemplateSettingsPageView
 				isSubmitting={isSubmitting}
 				template={template}

@@ -5,10 +5,9 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
-import { type FC, Suspense, createContext, useContext } from "react";
-import { Helmet } from "react-helmet-async";
+import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
@@ -52,9 +51,7 @@ export const TemplateSettingsLayout: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(templateName, "Settings")}</title>
-			</Helmet>
+			<title>{pageTitle(templateName, "Settings")}</title>
 
 			<Margins>
 				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>

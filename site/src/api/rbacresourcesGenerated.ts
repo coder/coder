@@ -8,6 +8,11 @@ import type { RBACAction, RBACResource } from "./typesGenerated";
 export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
+	aibridge_interception: {
+		create: "create aibridge interceptions & related records",
+		read: "read aibridge interceptions & related records",
+		update: "update aibridge interceptions & related records",
+	},
 	api_key: {
 		create: "create an api key",
 		delete: "delete an api key",
@@ -30,6 +35,10 @@ export const RBACResourceActions: Partial<
 	audit_log: {
 		create: "create new audit log entries",
 		read: "read audit logs",
+	},
+	connection_log: {
+		read: "read connection logs",
+		update: "upsert connection log entries",
 	},
 	crypto_key: {
 		create: "create crypto keys",
@@ -147,6 +156,12 @@ export const RBACResourceActions: Partial<
 		read: "view info about a Tailnet coordinator",
 		update: "update a Tailnet coordinator",
 	},
+	task: {
+		create: "create a new task",
+		delete: "delete task",
+		read: "read task data or output to view on the UI or CLI",
+		update: "edit task settings or send input to an existing task",
+	},
 	template: {
 		create: "create a template",
 		delete: "delete a template",
@@ -155,6 +170,11 @@ export const RBACResourceActions: Partial<
 		use: "use the template to initially create a workspace, then workspace lifecycle permissions take over",
 		view_insights: "view insights",
 	},
+	usage_event: {
+		create: "create a usage event",
+		read: "read usage events",
+		update: "update usage events",
+	},
 	user: {
 		create: "create a new user",
 		delete: "delete an existing user",
@@ -162,6 +182,12 @@ export const RBACResourceActions: Partial<
 		read_personal: "read personal user data like user settings and auth links",
 		update: "update an existing user",
 		update_personal: "update personal data",
+	},
+	user_secret: {
+		create: "create a user secret",
+		delete: "delete a user secret",
+		read: "read user secret metadata and value",
+		update: "update user secret metadata and value",
 	},
 	webpush_subscription: {
 		create: "create webpush subscriptions",
@@ -175,6 +201,7 @@ export const RBACResourceActions: Partial<
 		delete: "delete workspace",
 		delete_agent: "delete an existing workspace agent",
 		read: "read workspace data to view on the UI",
+		share: "share a workspace with other users or groups",
 		ssh: "ssh into a given workspace",
 		start: "allows starting a workspace",
 		stop: "allows stopping a workspace",
@@ -195,6 +222,7 @@ export const RBACResourceActions: Partial<
 		delete: "delete workspace",
 		delete_agent: "delete an existing workspace agent",
 		read: "read workspace data to view on the UI",
+		share: "share a workspace with other users or groups",
 		ssh: "ssh into a given workspace",
 		start: "allows starting a workspace",
 		stop: "allows stopping a workspace",

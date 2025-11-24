@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockFailedWorkspaceBuild,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
 const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({

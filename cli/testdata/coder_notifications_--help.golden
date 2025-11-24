@@ -12,7 +12,7 @@ USAGE:
   from
   dispatching messages in case of the target outage (for example: unavailable
   SMTP
-  server or Webhook not responding).:
+  server or Webhook not responding):
   
        $ coder notifications pause
   
@@ -22,11 +22,17 @@ USAGE:
   
     - Send a test notification. Administrators can use this to verify the
   notification
-  target settings.:
+  target settings:
   
        $ coder notifications test
+  
+    - Send a custom notification to the requesting user. Sending notifications
+  targeting other users or groups is currently not supported:
+  
+       $ coder notifications custom "Custom Title" "Custom Message"
 
 SUBCOMMANDS:
+    custom    Send a custom notification
     pause     Pause notifications
     resume    Resume notifications
     test      Send a test notification

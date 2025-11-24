@@ -19,7 +19,7 @@ coder notifications
 Administrators can use these commands to change notification settings.
   - Pause Coder notifications. Administrators can temporarily stop notifiers from
 dispatching messages in case of the target outage (for example: unavailable SMTP
-server or Webhook not responding).:
+server or Webhook not responding):
 
      $ coder notifications pause
 
@@ -28,15 +28,21 @@ server or Webhook not responding).:
      $ coder notifications resume
 
   - Send a test notification. Administrators can use this to verify the notification
-target settings.:
+target settings:
 
      $ coder notifications test
+
+  - Send a custom notification to the requesting user. Sending notifications
+targeting other users or groups is currently not supported:
+
+     $ coder notifications custom "Custom Title" "Custom Message"
 ```
 
 ## Subcommands
 
-| Name                                             | Purpose                  |
-|--------------------------------------------------|--------------------------|
-| [<code>pause</code>](./notifications_pause.md)   | Pause notifications      |
-| [<code>resume</code>](./notifications_resume.md) | Resume notifications     |
-| [<code>test</code>](./notifications_test.md)     | Send a test notification |
+| Name                                             | Purpose                    |
+|--------------------------------------------------|----------------------------|
+| [<code>pause</code>](./notifications_pause.md)   | Pause notifications        |
+| [<code>resume</code>](./notifications_resume.md) | Resume notifications       |
+| [<code>test</code>](./notifications_test.md)     | Send a test notification   |
+| [<code>custom</code>](./notifications_custom.md) | Send a custom notification |

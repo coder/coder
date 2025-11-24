@@ -23,7 +23,7 @@ export const Command = forwardRef<
 	/>
 ));
 
-const CommandDialog: FC<DialogProps> = ({ children, ...props }) => {
+const _CommandDialog: FC<DialogProps> = ({ children, ...props }) => {
 	return (
 		<Dialog {...props}>
 			<DialogContent className="overflow-hidden p-0">
@@ -54,7 +54,7 @@ export const CommandInput = forwardRef<
 			ref={ref}
 			className={cn(
 				`flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none border-none
-				placeholder:text-content-secondary
+				placeholder:text-content-secondary text-content-primary
 				disabled:cursor-not-allowed disabled:opacity-50`,
 				className,
 			)}
@@ -132,7 +132,7 @@ export const CommandItem = forwardRef<
 	/>
 ));
 
-const CommandShortcut = ({
+const _CommandShortcut = ({
 	className,
 	...props
 }: React.HTMLAttributes<HTMLSpanElement>) => {

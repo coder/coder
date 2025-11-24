@@ -102,6 +102,12 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 				return true
 			}
 
+			// RFC 6750 Bearer Token authentication is exempt from CSRF
+			// as it uses custom headers that cannot be set by malicious sites
+			if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+				return true
+			}
+
 			// If the X-CSRF-TOKEN header is set, we can exempt the func if it's valid.
 			// This is the CSRF check.
 			sent := r.Header.Get("X-CSRF-TOKEN")

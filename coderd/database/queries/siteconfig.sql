@@ -96,6 +96,15 @@ SELECT
 INSERT INTO site_configs (key, value) VALUES ('notifications_settings', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notifications_settings';
 
+-- name: GetPrebuildsSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'prebuilds_settings'), '{}') :: text AS prebuilds_settings
+;
+
+-- name: UpsertPrebuildsSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('prebuilds_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'prebuilds_settings';
+
 -- name: GetRuntimeConfig :one
 SELECT value FROM site_configs WHERE site_configs.key = $1;
 

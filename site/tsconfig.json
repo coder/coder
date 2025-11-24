@@ -7,8 +7,8 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "@emotion/react",
 		"lib": ["dom", "dom.iterable", "esnext"],
-		"module": "esnext",
-		"moduleResolution": "node",
+		"module": "preserve",
+		"moduleResolution": "bundler",
 		"noEmit": true,
 		"outDir": "build/",
 		"preserveWatchOutput": true,
@@ -16,9 +16,9 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "es2020",
+		"types": ["node", "react", "react-dom", "vite/client", "vitest/globals"],
 		"baseUrl": "src/"
 	},
 	"include": ["**/*.ts", "**/*.tsx"],
-	"exclude": ["node_modules/", "_jest"],
-	"types": ["@emotion/react", "@testing-library/jest-dom", "jest", "node"]
+	"exclude": ["node_modules/"]
 }

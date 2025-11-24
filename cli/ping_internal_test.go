@@ -21,11 +21,11 @@ func TestBuildSummary(t *testing.T) {
 			},
 			{
 				Err:            "",
-				LatencySeconds: 0.2,
+				LatencySeconds: 0.3,
 			},
 			{
 				Err:            "",
-				LatencySeconds: 0.3,
+				LatencySeconds: 0.2,
 			},
 			{
 				Err:            "ping error",

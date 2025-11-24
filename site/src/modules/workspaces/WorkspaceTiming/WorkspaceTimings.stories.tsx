@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { chromatic } from "testHelpers/chromatic";
-import { WorkspaceTimings } from "./WorkspaceTimings";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { WorkspaceTimingsResponse } from "./storybookData";
+import { WorkspaceTimings } from "./WorkspaceTimings";
 
 const meta: Meta<typeof WorkspaceTimings> = {
 	title: "modules/workspaces/WorkspaceTimings",
@@ -274,6 +274,50 @@ export const InvalidTimeRange: Story = {
 				started_at: "0001-01-01T00:00:00Z",
 				ended_at: "2025-01-01T00:10:00Z",
 			},
+		],
+	},
+};
+
+// A template with no agent scripts.
+export const NoAgentScripts: Story = {
+	args: {
+		provisionerTimings: [
+			{
+				...WorkspaceTimingsResponse.provisioner_timings[0],
+				stage: "init",
+				started_at: "2025-01-01T00:00:00Z",
+				ended_at: "2025-01-01T00:01:00Z",
+			},
+			{
+				...WorkspaceTimingsResponse.provisioner_timings[0],
+				stage: "plan",
+				started_at: "2025-01-01T00:01:00Z",
+				ended_at: "0001-01-01T00:00:00Z",
+			},
+			{
+				...WorkspaceTimingsResponse.provisioner_timings[0],
+				stage: "graph",
+				started_at: "0001-01-01T00:00:00Z",
+				ended_at: "2025-01-01T00:03:00Z",
+			},
+			{
+				...WorkspaceTimingsResponse.provisioner_timings[0],
+				stage: "apply",
+				started_at: "2025-01-01T00:03:00Z",
+				ended_at: "2025-01-01T00:04:00Z",
+			},
+		],
+		agentConnectionTimings: [
+			{
+				started_at: "2025-01-01T00:05:00Z",
+				ended_at: "2025-01-01T00:06:00Z",
+				stage: "connect",
+				workspace_agent_id: "67e37a9d-ccac-497e-8f48-4093bcc4f3e7",
+				workspace_agent_name: "main",
+			},
+		],
+		agentScriptTimings: [
+			// No agent scripts in the template
 		],
 	},
 };

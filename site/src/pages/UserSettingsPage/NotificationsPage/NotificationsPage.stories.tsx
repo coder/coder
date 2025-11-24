@@ -1,16 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, spyOn, userEvent, within } from "@storybook/test";
-import { API } from "api/api";
 import {
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-	userNotificationPreferencesKey,
-} from "api/queries/notifications";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import {
+	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
-	MockNotificationTemplates,
+	MockSystemNotificationTemplates,
 	MockUserOwner,
 } from "testHelpers/entities";
 import {
@@ -18,6 +10,16 @@ import {
 	withDashboardProvider,
 	withGlobalSnackbar,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import {
+	customNotificationTemplatesKey,
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+	userNotificationPreferencesKey,
+} from "api/queries/notifications";
+import { expect, spyOn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {
@@ -32,7 +34,11 @@ const meta = {
 			},
 			{
 				key: systemNotificationTemplatesKey,
-				data: MockNotificationTemplates,
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				key: customNotificationTemplatesKey,
+				data: MockCustomNotificationTemplates,
 			},
 			{
 				key: notificationDispatchMethodsKey,
@@ -40,7 +46,7 @@ const meta = {
 			},
 		],
 		user: MockUserOwner,
-		permissions: { viewDeploymentConfig: true },
+		permissions: { createTemplates: true, createUser: true },
 	},
 	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
@@ -48,7 +54,22 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof NotificationsPage>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await Promise.all([
+			// System notification templates
+			canvas.findByRole("checkbox", { name: "Task Events" }),
+			canvas.findByRole("checkbox", { name: "Template Events" }),
+			canvas.findByRole("checkbox", { name: "User Events" }),
+			canvas.findByRole("checkbox", { name: "Workspace Events" }),
+
+			// Custom notification template
+			canvas.findByRole("checkbox", { name: "Custom Events" }),
+		]);
+	},
+};
 
 export const ToggleGroup: Story = {
 	play: async ({ canvasElement }) => {
@@ -74,7 +95,19 @@ export const ToggleNotification: Story = {
 
 export const NonAdmin: Story = {
 	parameters: {
-		permissions: { viewDeploymentConfig: false },
+		permissions: { createTemplates: false, createUser: false },
+	},
+};
+
+export const TemplateAdmin: Story = {
+	parameters: {
+		permissions: { createTemplates: true, createUser: false },
+	},
+};
+
+export const UserAdmin: Story = {
+	parameters: {
+		permissions: { createTemplates: false, createUser: true },
 	},
 };
 
@@ -88,7 +121,7 @@ if (!enabledPreference) {
 		"No enabled notification preference available to test the disabling action.",
 	);
 }
-const templateToDisable = MockNotificationTemplates.find(
+const templateToDisable = MockSystemNotificationTemplates.find(
 	(tpl) => tpl.id === enabledPreference.id,
 );
 if (!templateToDisable) {

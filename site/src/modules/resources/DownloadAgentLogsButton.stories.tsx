@@ -1,15 +1,14 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
+import { MockWorkspaceAgent } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { agentLogsKey } from "api/queries/workspaces";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 
 const meta: Meta<typeof DownloadAgentLogsButton> = {
 	title: "modules/resources/DownloadAgentLogsButton",
 	component: DownloadAgentLogsButton,
 	args: {
-		workspaceId: MockWorkspace.id,
 		agent: MockWorkspaceAgent,
 	},
 	parameters: {

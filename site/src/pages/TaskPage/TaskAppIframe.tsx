@@ -1,4 +1,4 @@
-import type { WorkspaceApp } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -6,55 +6,43 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { Spinner } from "components/Spinner/Spinner";
+import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
-import type { Task } from "modules/tasks/tasks";
-import { type FC, useRef } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import type { WorkspaceAppWithAgent } from "modules/tasks/apps";
+import { type FC, type HTMLProps, useRef } from "react";
+import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
+import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskAppIFrameProps = {
-	task: Task;
-	app: WorkspaceApp;
+	workspace: Workspace;
+	app: WorkspaceAppWithAgent;
 	active: boolean;
-	pathname?: string;
 };
 
 export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
-	task,
+	workspace,
 	app,
 	active,
-	pathname,
 }) => {
-	const agent = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter((a) => !!a)
-		.find((a) => a.apps.some((a) => a.id === app.id));
-
-	if (!agent) {
-		throw new Error(`Agent for app ${app.id} not found in task workspace`);
-	}
-
 	const link = useAppLink(app, {
-		agent,
-		workspace: task.workspace,
+		agent: app.agent,
+		workspace,
 	});
-
-	const appHref = (): string => {
-		try {
-			const url = new URL(link.href, location.href);
-			if (pathname) {
-				url.pathname = pathname;
-			}
-			return url.toString();
-		} catch (err) {
-			console.warn(`Failed to parse URL ${link.href} for app ${app.id}`, err);
-			return link.href;
-		}
-	};
-
+	const proxy = useProxy();
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const frameSrc = appHref();
+	const shouldDisplayWildcardWarning =
+		app.subdomain && !proxy.proxy?.preferredWildcardHostname;
+
+	if (shouldDisplayWildcardWarning) {
+		return (
+			<div className="h-full flex items-center justify-center pb-4">
+				<TaskWildcardWarning />
+			</div>
+		);
+	}
 
 	return (
 		<div className={cn([active ? "flex" : "hidden", "w-full h-full flex-col"])}>
@@ -66,7 +54,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						onClick={(e) => {
 							e.preventDefault();
 							if (frameRef.current?.contentWindow) {
-								frameRef.current.contentWindow.location.href = appHref();
+								frameRef.current.contentWindow.location.href = link.href;
 							}
 						}}
 					>
@@ -87,7 +75,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink to={frameSrc} target="_blank">
+								<RouterLink to={link.href} target="_blank">
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>
@@ -97,14 +85,69 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 				</div>
 			)}
 
-			<iframe
-				ref={frameRef}
-				src={frameSrc}
-				title={link.label}
-				loading="eager"
-				className={"w-full h-full border-0"}
-				allow="clipboard-read; clipboard-write"
-			/>
+			{app.health === "healthy" || app.health === "disabled" ? (
+				<TaskIframe ref={frameRef} src={link.href} title={link.label} />
+			) : app.health === "unhealthy" ? (
+				<div className="w-full h-full flex flex-col items-center justify-center p-4">
+					<h3 className="m-0 font-medium text-content-primary text-base text-center">
+						App "{app.display_name}" is unhealthy
+					</h3>
+					<div className="text-content-secondary text-sm">
+						<span className="block text-center">
+							Here are some troubleshooting steps you can take:
+						</span>
+						<ul className="m-0 pt-4 flex flex-col gap-4">
+							{app.healthcheck && (
+								<li>
+									<span className="block font-medium text-content-primary mb-1">
+										Verify healthcheck
+									</span>
+									Try running the following inside your workspace:{" "}
+									<code className="font-mono text-content-primary select-all">
+										curl -v "{app.healthcheck.url}"
+									</code>
+								</li>
+							)}
+							<li>
+								<span className="block font-medium text-content-primary mb-1">
+									Check logs
+								</span>
+								See{" "}
+								<code className="font-mono text-content-primary select-all">
+									/tmp/coder-agent.log
+								</code>{" "}
+								inside your workspace "{workspace.name}" for more information.
+							</li>
+						</ul>
+					</div>
+				</div>
+			) : app.health === "initializing" ? (
+				<div className="w-full h-full flex items-center justify-center">
+					<Spinner loading />
+				</div>
+			) : (
+				<div className="w-full h-full flex flex-col items-center justify-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Error
+					</h3>
+					<span className="text-content-secondary text-sm">
+						The app is in an unknown health state.
+					</span>
+				</div>
+			)}
 		</div>
+	);
+};
+
+type TaskIframeProps = HTMLProps<HTMLIFrameElement>;
+
+export const TaskIframe: FC<TaskIframeProps> = ({ className, ...props }) => {
+	return (
+		<iframe
+			loading="eager"
+			className={cn("w-full h-full border-0", className)}
+			allow="clipboard-read; clipboard-write"
+			{...props}
+		/>
 	);
 };

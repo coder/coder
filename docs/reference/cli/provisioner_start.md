@@ -144,6 +144,16 @@ Serve prometheus metrics on the address defined by prometheus address.
 
 The bind address to serve prometheus metrics.
 
+### --experiments
+
+|             |                                 |
+|-------------|---------------------------------|
+| Type        | <code>string-array</code>       |
+| Environment | <code>$CODER_EXPERIMENTS</code> |
+| YAML        | <code>experiments</code>        |
+
+Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+
 ### -O, --org
 
 |             |                                  |

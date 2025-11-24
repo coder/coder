@@ -1,5 +1,6 @@
 import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
 
+import type { JSX } from "react";
 export const DockerIcon = (props: SvgIconProps): JSX.Element => (
 	<SvgIcon {...props} viewBox="0 0 32 32">
 		<path

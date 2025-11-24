@@ -37,7 +37,6 @@ func (r *RootCmd) organizations() *serpent.Command {
 func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Command {
 	var (
 		stringFormat func(orgs []codersdk.Organization) (string, error)
-		client       = new(codersdk.Client)
 		formatter    = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 				typed, ok := data.([]codersdk.Organization)
@@ -77,7 +76,6 @@ func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Com
 			},
 		),
 		Middleware: serpent.Chain(
-			r.InitClient(client),
 			serpent.RequireRangeArgs(0, 1),
 		),
 		Options: serpent.OptionSet{
@@ -90,13 +88,17 @@ func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Com
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			orgArg := "selected"
 			if len(inv.Args) >= 1 {
 				orgArg = inv.Args[0]
 			}
 
 			var orgs []codersdk.Organization
-			var err error
 			switch strings.ToLower(orgArg) {
 			case "selected":
 				stringFormat = func(orgs []codersdk.Organization) (string, error) {

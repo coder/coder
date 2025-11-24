@@ -48,6 +48,18 @@
 							"icon_path": "./images/icons/document.svg"
 						},
 						{
+							"title": "Modules",
+							"description": "Learn how to contribute modules to Coder",
+							"path": "./about/contributing/modules.md",
+							"icon_path": "./images/icons/gear.svg"
+						},
+						{
+							"title": "Templates",
+							"description": "Learn how to contribute templates to Coder",
+							"path": "./about/contributing/templates.md",
+							"icon_path": "./images/icons/picture.svg"
+						},
+						{
 							"title": "Backend",
 							"description": "Our guide for backend development",
 							"path": "./about/contributing/backend.md",
@@ -64,6 +76,12 @@
 							"description": "Security vulnerability disclosure policy",
 							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
+						},
+						{
+							"title": "AI Contribution Guidelines",
+							"description": "Guidelines for AI-generated contributions.",
+							"path": "./about/contributing/AI_CONTRIBUTING.md",
+							"icon_path": "./images/icons/ai_intelligence.svg"
 						}
 					]
 				}
@@ -136,9 +154,9 @@
 					]
 				},
 				{
-					"title": "Offline Deployments",
-					"description": "Run Coder in offline / air-gapped environments",
-					"path": "./install/offline.md",
+					"title": "Air-gapped Deployments",
+					"description": "Run Coder in air-gapped / disconnected / offline environments",
+					"path": "./install/airgap.md",
 					"icon_path": "./images/icons/lan.svg"
 				},
 				{
@@ -192,6 +210,11 @@
 							"path": "./user-guides/workspace-access/vscode.md"
 						},
 						{
+							"title": "Web Terminal",
+							"description": "Use the browser-based terminal to access your workspace",
+							"path": "./user-guides/workspace-access/web-terminal.md"
+						},
+						{
 							"title": "JetBrains IDEs",
 							"description": "Use JetBrains IDEs with Coder",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
@@ -240,6 +263,11 @@
 							"path": "./user-guides/workspace-access/web-ides.md"
 						},
 						{
+							"title": "code-server",
+							"description": "Access your workspace with code-server",
+							"path": "./user-guides/workspace-access/code-server.md"
+						},
+						{
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
@@ -258,16 +286,14 @@
 				},
 				{
 					"title": "Coder Desktop",
-					"description": "Use Coder Desktop to access your workspace like it's a local machine",
+					"description": "Transform remote workspaces into seamless local development environments with no port forwarding required",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["beta"],
 					"children": [
 						{
-							"title": "Coder Desktop connect and sync",
+							"title": "Coder Desktop Connect and Sync",
 							"description": "Use Coder Desktop to manage your workspace code and files locally",
-							"path": "./user-guides/desktop/desktop-connect-sync.md",
-							"state": ["beta"]
+							"path": "./user-guides/desktop/desktop-connect-sync.md"
 						}
 					]
 				},
@@ -294,19 +320,16 @@
 					"description": "Run containerized development environments in your Coder workspace using the dev containers specification.",
 					"path": "./user-guides/devcontainers/index.md",
 					"icon_path": "./images/icons/container.svg",
-					"state": ["early access"],
 					"children": [
 						{
 							"title": "Working with dev containers",
 							"description": "Access dev containers via SSH, your IDE, or web terminal.",
-							"path": "./user-guides/devcontainers/working-with-dev-containers.md",
-							"state": ["early access"]
+							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
 						},
 						{
 							"title": "Troubleshooting dev containers",
 							"description": "Diagnose and resolve common issues with dev containers in your Coder workspace.",
-							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md",
-							"state": ["early access"]
+							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md"
 						}
 					]
 				},
@@ -404,6 +427,16 @@
 							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory",
 							"path": "./admin/users/oidc-auth/index.md",
 							"children": [
+								{
+									"title": "Google",
+									"description": "Configure Google as an OIDC provider",
+									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
+									"title": "Microsoft",
+									"description": "Configure Microsoft Entra ID as an OIDC provider",
+									"path": "./admin/users/oidc-auth/microsoft.md"
+								},
 								{
 									"title": "Configure OIDC refresh tokens",
 									"description": "How to configure OIDC refresh tokens",
@@ -514,6 +547,12 @@
 									"title": "Workspace Scheduling",
 									"description": "Learn how to control how workspaces are started and stopped",
 									"path": "./admin/templates/managing-templates/schedule.md"
+								},
+								{
+									"title": "External Workspaces",
+									"description": "Learn how to manage external workspaces",
+									"path": "./admin/templates/managing-templates/external-workspaces.md",
+									"state": ["premium", "early access"]
 								}
 							]
 						},
@@ -533,10 +572,15 @@
 									"path": "./admin/templates/extending-templates/parameters.md"
 								},
 								{
+									"title": "Dynamic Parameters",
+									"description": "Conditional, identity-aware parameter syntax for advanced users.",
+									"path": "./admin/templates/extending-templates/dynamic-parameters.md"
+								},
+								{
 									"title": "Prebuilt workspaces",
 									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters",
 									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
-									"state": ["premium", "beta"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Icons",
@@ -606,8 +650,7 @@
 								{
 									"title": "Configure a template for dev containers",
 									"description": "How to use configure your template for dev containers",
-									"path": "./admin/templates/extending-templates/devcontainers.md",
-									"state": ["early access"]
+									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
 									"title": "Process Logging",
@@ -683,11 +726,6 @@
 							"path": "./admin/integrations/jfrog-artifactory.md"
 						},
 						{
-							"title": "JFrog Xray",
-							"description": "Integrate Coder with JFrog Xray",
-							"path": "./admin/integrations/jfrog-xray.md"
-						},
-						{
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
@@ -706,6 +744,11 @@
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
+						},
+						{
+							"title": "OAuth2 Provider",
+							"description": "Use Coder as an OAuth2 provider",
+							"path": "./admin/integrations/oauth2-provider.md"
 						}
 					]
 				},
@@ -738,6 +781,11 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Wildcard Access URL",
+							"description": "Learn about wildcard access URL in Coder deployments",
+							"path": "./admin/networking/wildcard-access-url.md"
+						},
+						{
 							"title": "Troubleshooting",
 							"description": "Troubleshoot networking issues in Coder",
 							"path": "./admin/networking/troubleshooting.md"
@@ -764,6 +812,12 @@
 							"title": "Health Check",
 							"description": "Learn about Coder's automated health checks",
 							"path": "./admin/monitoring/health-check.md"
+						},
+						{
+							"title": "Connection Logs",
+							"description": "Monitor connections to workspaces",
+							"path": "./admin/monitoring/connection-logs.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Notifications",
@@ -822,59 +876,100 @@
 			"description": "Learn how to run and integrate agentic AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
 			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
-			"state": ["beta"],
 			"children": [
 				{
-					"title": "Learn about coding agents",
-					"description": "Learn about the different agentic AI agents and their tradeoffs",
-					"path": "./ai-coder/agents.md"
+					"title": "Best Practices",
+					"description": "Best Practices running Coding Agents",
+					"path": "./ai-coder/best-practices.md"
 				},
 				{
-					"title": "Create a Coder template for agents",
-					"description": "Create a purpose-built template for your agentic AI agents",
-					"path": "./ai-coder/create-template.md",
+					"title": "In the IDE",
+					"description": "Run IDE agents with Coder",
+					"path": "./ai-coder/ide-agents.md"
+				},
+				{
+					"title": "Coder Tasks",
+					"description": "Run Coding Agents on your Own Infrastructure",
+					"path": "./ai-coder/tasks.md",
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "Understanding Coder Tasks",
+							"description": "Core principles and concepts behind Coder Tasks",
+							"path": "./ai-coder/tasks-core-principles.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Custom Agents",
+							"description": "Run custom agents with Coder Tasks",
+							"path": "./ai-coder/custom-agents.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Tasks Migration Guide",
+							"description": "Changes to Coder Tasks made in v2.28",
+							"path": "./ai-coder/tasks-migration.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Security \u0026 Boundaries",
+							"description": "Learn about security and boundaries when running AI coding agents in Coder",
+							"path": "./ai-coder/security.md"
+						}
+					]
+				},
+				{
+					"title": "MCP Server",
+					"description": "Connect to agents Coder with a MCP server",
+					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
 				},
 				{
-					"title": "Integrate with your issue tracker",
-					"description": "Assign tickets to agentic AI agents and interact via code reviews",
-					"path": "./ai-coder/issue-tracker.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Model Context Protocols (MCP) and adding AI tools",
-					"description": "Improve results by adding tools to your agentic AI agents",
-					"path": "./ai-coder/best-practices.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Supervise agents via Coder UI",
-					"description": "Interact with agentic agents via the Coder UI",
-					"path": "./ai-coder/coder-dashboard.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Supervise agents via the IDE",
-					"description": "Interact with agentic agents via VS Code or Cursor",
-					"path": "./ai-coder/ide-integration.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Programmatically manage agents",
-					"description": "Manage agentic agents via MCP, the Coder CLI, and/or REST API",
-					"path": "./ai-coder/headless.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Securing agents in Coder",
-					"description": "Learn how to secure agentic agents with boundaries",
-					"path": "./ai-coder/securing.md",
+					"title": "Agent Boundaries",
+					"description": "Understanding Agent Boundaries in Coder Tasks",
+					"path": "./ai-coder/agent-boundary.md",
 					"state": ["early access"]
 				},
 				{
-					"title": "Custom agents",
-					"description": "Learn how to use custom agentic agents with Coder",
-					"path": "./ai-coder/custom-agents.md",
+					"title": "AI Bridge",
+					"description": "Centralized LLM and MCP proxy for platform teams",
+					"path": "./ai-coder/ai-bridge/index.md",
+					"icon_path": "./images/icons/api.svg",
+					"state": ["premium", "early access"],
+					"children": [
+						{
+							"title": "Setup",
+							"description": "How to set up and configure AI Bridge",
+							"path": "./ai-coder/ai-bridge/setup.md"
+						},
+						{
+							"title": "Client Configuration",
+							"description": "How to configure your AI coding tools to use AI Bridge",
+							"path": "./ai-coder/ai-bridge/client-config.md"
+						},
+						{
+							"title": "MCP Tools Injection",
+							"description": "How to configure MCP servers for tools injection through AI Bridge",
+							"path": "./ai-coder/ai-bridge/mcp.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Monitoring",
+							"description": "How to monitor AI Bridge",
+							"path": "./ai-coder/ai-bridge/monitoring.md"
+						},
+						{
+							"title": "Reference",
+							"description": "Technical reference for AI Bridge",
+							"path": "./ai-coder/ai-bridge/reference.md"
+						}
+					]
+				},
+				{
+					"title": "Tasks CLI",
+					"description": "Coder CLI for managing tasks programmatically",
+					"path": "./ai-coder/cli.md",
+					"icon_path": "./images/icons/api.svg",
 					"state": ["beta"]
 				}
 			]
@@ -949,11 +1044,6 @@
 					"title": "Deploy Coder on Azure with an Application Gateway",
 					"description": "Deploy Coder on Azure with an Application Gateway",
 					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
-				},
-				{
-					"title": "Scanning Workspaces with JFrog Xray",
-					"description": "Integrate Coder with JFrog Xray",
-					"path": "./admin/integrations/jfrog-xray.md"
 				},
 				{
 					"title": "Cloning Git Repositories",
@@ -1125,6 +1215,21 @@
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
 						{
+							"title": "aibridge",
+							"description": "Manage AIBridge.",
+							"path": "reference/cli/aibridge.md"
+						},
+						{
+							"title": "aibridge interceptions",
+							"description": "Manage AIBridge interceptions.",
+							"path": "reference/cli/aibridge_interceptions.md"
+						},
+						{
+							"title": "aibridge interceptions list",
+							"description": "List AIBridge interceptions as JSON.",
+							"path": "reference/cli/aibridge_interceptions_list.md"
+						},
+						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"
@@ -1167,6 +1272,26 @@
 							"title": "external-auth access-token",
 							"description": "Print auth for an external provider",
 							"path": "reference/cli/external-auth_access-token.md"
+						},
+						{
+							"title": "external-workspaces",
+							"description": "Create or manage external workspaces",
+							"path": "reference/cli/external-workspaces.md"
+						},
+						{
+							"title": "external-workspaces agent-instructions",
+							"description": "Get the instructions for an external agent",
+							"path": "reference/cli/external-workspaces_agent-instructions.md"
+						},
+						{
+							"title": "external-workspaces create",
+							"description": "Create a new external workspace",
+							"path": "reference/cli/external-workspaces_create.md"
+						},
+						{
+							"title": "external-workspaces list",
+							"description": "List external workspaces",
+							"path": "reference/cli/external-workspaces_list.md"
 						},
 						{
 							"title": "favorite",
@@ -1251,6 +1376,11 @@
 							"title": "notifications",
 							"description": "Manage Coder notifications",
 							"path": "reference/cli/notifications.md"
+						},
+						{
+							"title": "notifications custom",
+							"description": "Send a custom notification",
+							"path": "reference/cli/notifications_custom.md"
 						},
 						{
 							"title": "notifications pause",
@@ -1396,6 +1526,21 @@
 							"title": "port-forward",
 							"description": "Forward ports from a workspace to the local machine. For reverse port forwarding, use \"coder ssh -R\".",
 							"path": "reference/cli/port-forward.md"
+						},
+						{
+							"title": "prebuilds",
+							"description": "Manage Coder prebuilds",
+							"path": "reference/cli/prebuilds.md"
+						},
+						{
+							"title": "prebuilds pause",
+							"description": "Pause prebuilds",
+							"path": "reference/cli/prebuilds_pause.md"
+						},
+						{
+							"title": "prebuilds resume",
+							"description": "Resume prebuilds",
+							"path": "reference/cli/prebuilds_resume.md"
 						},
 						{
 							"title": "provisioner",
@@ -1638,6 +1783,16 @@
 							"path": "reference/cli/templates_list.md"
 						},
 						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
+						},
+						{
 							"title": "templates pull",
 							"description": "Download the active, latest, or specified version of a template to a path.",
 							"path": "reference/cli/templates_pull.md"
@@ -1691,6 +1846,11 @@
 							"title": "tokens remove",
 							"description": "Delete a token",
 							"path": "reference/cli/tokens_remove.md"
+						},
+						{
+							"title": "tokens view",
+							"description": "Display detailed information about a token",
+							"path": "reference/cli/tokens_view.md"
 						},
 						{
 							"title": "unfavorite",

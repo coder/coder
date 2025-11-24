@@ -66,6 +66,14 @@ type Workspace struct {
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
 	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
+	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
+	// such as being managed differently from regular workspaces.
+	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
+	// and IsPrebuild returns false.
+	IsPrebuild bool `json:"is_prebuild"`
+	// TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
+	TaskID uuid.NullUUID `json:"task_id,omitempty"`
 }
 
 func (w Workspace) FullName() string {
@@ -93,6 +101,16 @@ const (
 	ProvisionerLogLevelDebug ProvisionerLogLevel = "debug"
 )
 
+type CreateWorkspaceBuildReason string
+
+const (
+	CreateWorkspaceBuildReasonDashboard           CreateWorkspaceBuildReason = "dashboard"
+	CreateWorkspaceBuildReasonCLI                 CreateWorkspaceBuildReason = "cli"
+	CreateWorkspaceBuildReasonSSHConnection       CreateWorkspaceBuildReason = "ssh_connection"
+	CreateWorkspaceBuildReasonVSCodeConnection    CreateWorkspaceBuildReason = "vscode_connection"
+	CreateWorkspaceBuildReasonJetbrainsConnection CreateWorkspaceBuildReason = "jetbrains_connection"
+)
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
@@ -110,6 +128,8 @@ type CreateWorkspaceBuildRequest struct {
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
+	// Reason sets the reason for the workspace build.
+	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
 }
 
 type WorkspaceOptions struct {
@@ -498,6 +518,12 @@ type WorkspaceFilter struct {
 	Offset int `json:"offset,omitempty" typescript:"-"`
 	// Limit is a limit on the number of workspaces returned.
 	Limit int `json:"limit,omitempty" typescript:"-"`
+	// Shared is a whether the workspace is shared with any users or groups
+	Shared *bool `json:"shared,omitempty" typescript:"-"`
+	// SharedWithUser is the username or ID of the user that the workspace is shared with
+	SharedWithUser string `json:"shared_with_user,omitempty" typescript:"-"`
+	// SharedWithGroup is the group name, group ID, or <org name>/<group name> of the group that the workspace is shared with
+	SharedWithGroup string `json:"shared_with_group,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -520,6 +546,15 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		}
 		if f.Status != "" {
 			params = append(params, fmt.Sprintf("status:%q", f.Status))
+		}
+		if f.Shared != nil {
+			params = append(params, fmt.Sprintf("shared:%v", *f.Shared))
+		}
+		if f.SharedWithUser != "" {
+			params = append(params, fmt.Sprintf("shared_with_user:%q", f.SharedWithUser))
+		}
+		if f.SharedWithGroup != "" {
+			params = append(params, fmt.Sprintf("shared_with_group:%q", f.SharedWithGroup))
 		}
 		if f.FilterQuery != "" {
 			// If custom stuff is added, just add it on here.
@@ -643,4 +678,95 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceB
 	}
 	var timings WorkspaceBuildTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
+}
+
+type WorkspaceACL struct {
+	Users  []WorkspaceUser  `json:"users"`
+	Groups []WorkspaceGroup `json:"group"`
+}
+
+type WorkspaceGroup struct {
+	Group
+	Role WorkspaceRole `json:"role" enums:"admin,use"`
+}
+
+type WorkspaceUser struct {
+	MinimalUser
+	Role WorkspaceRole `json:"role" enums:"admin,use"`
+}
+
+type WorkspaceRole string
+
+const (
+	WorkspaceRoleAdmin   WorkspaceRole = "admin"
+	WorkspaceRoleUse     WorkspaceRole = "use"
+	WorkspaceRoleDeleted WorkspaceRole = ""
+)
+
+func (c *Client) WorkspaceACL(ctx context.Context, workspaceID uuid.UUID) (WorkspaceACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), nil)
+	if err != nil {
+		return WorkspaceACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceACL{}, ReadBodyAsError(res)
+	}
+	var acl WorkspaceACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+type UpdateWorkspaceACL struct {
+	// UserRoles is a mapping from valid user UUIDs to the workspace role they
+	// should be granted. To remove a user from the workspace, use "" as the role
+	// (available as a constant named codersdk.WorkspaceRoleDeleted)
+	UserRoles map[string]WorkspaceRole `json:"user_roles,omitempty"`
+	// GroupRoles is a mapping from valid group UUIDs to the workspace role they
+	// should be granted. To remove a group from the workspace, use "" as the role
+	// (available as a constant named codersdk.WorkspaceRoleDeleted)
+	GroupRoles map[string]WorkspaceRole `json:"group_roles,omitempty"`
+}
+
+func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) DeleteWorkspaceACL(ctx context.Context, workspaceID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ExternalAgentCredentials contains the credentials needed for an external agent to connect to Coder.
+type ExternalAgentCredentials struct {
+	Command    string `json:"command"`
+	AgentToken string `json:"agent_token"`
+}
+
+func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredentials, error) {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/external-agent/%s/credentials", workspaceID.String(), agentName)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return ExternalAgentCredentials{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ExternalAgentCredentials{}, ReadBodyAsError(res)
+	}
+	var credentials ExternalAgentCredentials
+	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
 }

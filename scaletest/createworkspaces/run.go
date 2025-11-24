@@ -14,8 +14,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/scaletest/agentconn"
+	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
@@ -26,7 +26,7 @@ type Runner struct {
 	client *codersdk.Client
 	cfg    Config
 
-	userID               uuid.UUID
+	createUserRunner     *createusers.Runner
 	workspacebuildRunner *workspacebuild.Runner
 }
 
@@ -64,64 +64,40 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 			return xerrors.Errorf("generate random password for user: %w", err)
 		}
 	} else {
-		_, _ = fmt.Fprintln(logs, "Generating user password...")
-		password, err := cryptorand.String(16)
-		if err != nil {
-			return xerrors.Errorf("generate random password for user: %w", err)
+		createUserConfig := createusers.Config{
+			OrganizationID: r.cfg.User.OrganizationID,
+			Username:       r.cfg.User.Username,
+			Email:          r.cfg.User.Email,
 		}
-
-		_, _ = fmt.Fprintln(logs, "Creating user:")
-
-		user, err = r.client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{r.cfg.User.OrganizationID},
-			Username:        r.cfg.User.Username,
-			Email:           r.cfg.User.Email,
-			Password:        password,
-		})
+		if err := createUserConfig.Validate(); err != nil {
+			return xerrors.Errorf("validate create user config: %w", err)
+		}
+		r.createUserRunner = createusers.NewRunner(r.client, createUserConfig)
+		newUser, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
-		r.userID = user.ID
-
-		_, _ = fmt.Fprintln(logs, "\nLogging in as new user...")
+		user = newUser.User
 		client = codersdk.New(r.client.URL)
-		loginRes, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    r.cfg.User.Email,
-			Password: password,
-		})
-		if err != nil {
-			return xerrors.Errorf("login as new user: %w", err)
-		}
-		client.SetSessionToken(loginRes.SessionToken)
+		client.SetSessionToken(newUser.SessionToken)
 	}
-
-	_, _ = fmt.Fprintf(logs, "\tOrg ID:   %s\n", r.cfg.User.OrganizationID.String())
-	_, _ = fmt.Fprintf(logs, "\tUsername: %s\n", user.Username)
-	_, _ = fmt.Fprintf(logs, "\tEmail:    %s\n", user.Email)
-	_, _ = fmt.Fprintf(logs, "\tPassword: ****************\n")
 
 	_, _ = fmt.Fprintln(logs, "\nCreating workspace...")
 	workspaceBuildConfig := r.cfg.Workspace
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
 	workspaceBuildConfig.UserID = user.ID.String()
 	r.workspacebuildRunner = workspacebuild.NewRunner(client, workspaceBuildConfig)
-	err = r.workspacebuildRunner.Run(ctx, id, logs)
+	slimWorkspace, err := r.workspacebuildRunner.RunReturningWorkspace(ctx, id, logs)
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
+	}
+	workspace, err := client.Workspace(ctx, slimWorkspace.ID)
+	if err != nil {
+		return xerrors.Errorf("get full workspace info: %w", err)
 	}
 
 	if r.cfg.Workspace.NoWaitForAgents {
 		return nil
-	}
-
-	// Get the workspace.
-	workspaceID, err := r.workspacebuildRunner.WorkspaceID()
-	if err != nil {
-		return xerrors.Errorf("get workspace ID: %w", err)
-	}
-	workspace, err := client.Workspace(ctx, workspaceID)
-	if err != nil {
-		return xerrors.Errorf("get workspace %q: %w", workspaceID.String(), err)
 	}
 
 	// Find the first agent.
@@ -134,7 +110,7 @@ resourceLoop:
 		}
 	}
 	if agent.ID == uuid.Nil {
-		return xerrors.Errorf("no agents found for workspace %q", workspaceID.String())
+		return xerrors.Errorf("no agents found for workspace %q", workspace.ID.String())
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -189,11 +165,10 @@ func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 		}
 	}
 
-	if r.userID != uuid.Nil {
-		err := r.client.DeleteUser(ctx, r.userID)
+	if r.createUserRunner != nil {
+		err := r.createUserRunner.Cleanup(ctx, id, logs)
 		if err != nil {
-			_, _ = fmt.Fprintf(logs, "failed to delete user %q: %v\n", r.userID.String(), err)
-			return xerrors.Errorf("delete user: %w", err)
+			return xerrors.Errorf("cleanup user: %w", err)
 		}
 	}
 

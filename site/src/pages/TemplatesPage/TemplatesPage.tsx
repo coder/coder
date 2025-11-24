@@ -1,12 +1,12 @@
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templateExamples, templates } from "api/queries/templates";
-import { useFilter } from "components/Filter/Filter";
+import { type UseFilterResult, useFilter } from "components/Filter/Filter";
+import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
@@ -14,14 +14,13 @@ const TemplatesPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { showOrganizations } = useDashboard();
 
-	const searchParamsResult = useSearchParams();
-	const filter = useFilter({
-		fallbackFilter: "deprecated:false",
-		searchParamsResult,
-		onUpdate: () => {}, // reset pagination
+	const [searchParams, setSearchParams] = useSearchParams();
+	const filterState = useTemplatesFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 	});
 
-	const templatesQuery = useQuery(templates({ q: filter.query }));
+	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
 	const examplesQuery = useQuery({
 		...templateExamples(),
 		enabled: permissions.createTemplates,
@@ -41,12 +40,10 @@ const TemplatesPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Templates")}</title>
-			</Helmet>
+			<title>{pageTitle("Templates")}</title>
 			<TemplatesPageView
 				error={error}
-				filter={filter}
+				filterState={filterState}
 				showOrganizations={showOrganizations}
 				canCreateTemplates={permissions.createTemplates}
 				examples={examplesQuery.data}
@@ -58,3 +55,41 @@ const TemplatesPage: FC = () => {
 };
 
 export default TemplatesPage;
+
+export type TemplateFilterState = {
+	filter: UseFilterResult;
+	menus: {
+		user?: ReturnType<typeof useUserFilterMenu>;
+	};
+};
+
+type UseTemplatesFilterOptions = {
+	searchParams: URLSearchParams;
+	onSearchParamsChange: (params: URLSearchParams) => void;
+};
+
+const useTemplatesFilter = ({
+	searchParams,
+	onSearchParamsChange,
+}: UseTemplatesFilterOptions): TemplateFilterState => {
+	const filter = useFilter({
+		searchParams,
+		onSearchParamsChange,
+	});
+
+	const { permissions } = useAuthenticated();
+	const canFilterByUser = permissions.viewAllUsers;
+	const userMenu = useUserFilterMenu({
+		value: filter.values.author,
+		onChange: (option) =>
+			filter.update({ ...filter.values, author: option?.value }),
+		enabled: canFilterByUser,
+	});
+
+	return {
+		filter,
+		menus: {
+			user: canFilterByUser ? userMenu : undefined,
+		},
+	};
+};

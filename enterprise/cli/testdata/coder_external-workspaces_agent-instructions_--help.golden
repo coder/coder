@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder external-workspaces agent-instructions [flags] [user/]workspace[.agent]
+
+  Get the instructions for an external agent
+
+OPTIONS:
+  -o, --output text|json (default: text)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

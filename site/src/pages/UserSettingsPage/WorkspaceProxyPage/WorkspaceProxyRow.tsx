@@ -1,6 +1,4 @@
 import { useTheme } from "@emotion/react";
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -10,6 +8,7 @@ import {
 	NotReachableBadge,
 	NotRegisteredBadge,
 } from "components/Badges/Badges";
+import { TableCell, TableRow } from "components/Table/Table";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC, ReactNode } from "react";
 import { getLatencyColor } from "utils/latency";
@@ -33,7 +32,6 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			case "http/1.0":
 			case "http/1.1":
 				extraWarnings.push(
-					// biome-ignore lint/style/useTemplate: easier to read short lines
 					`Requests to the proxy from current browser are using "${latency.nextHopProtocol}". ` +
 						"The proxy server might not support HTTP/2. " +
 						"For usability reasons, HTTP/2 or above is recommended. " +
@@ -141,7 +139,7 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 	const theme = useTheme();
 
 	if (!messages) {
-		return <></>;
+		return null;
 	}
 
 	return (

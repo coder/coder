@@ -8,15 +8,21 @@ import { cn } from "utils/cn";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 
+export type TooltipProps = TooltipPrimitive.TooltipProps;
+
 export const Tooltip = TooltipPrimitive.Root;
 
 export const TooltipTrigger = TooltipPrimitive.Trigger;
 
+export type TooltipContentProps = React.ComponentPropsWithoutRef<
+	typeof TooltipPrimitive.Content
+> & {
+	disablePortal?: boolean;
+};
+
 export const TooltipContent = React.forwardRef<
 	React.ElementRef<typeof TooltipPrimitive.Content>,
-	React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
-		disablePortal?: boolean;
-	}
+	TooltipContentProps
 >(({ className, sideOffset = 4, disablePortal, ...props }, ref) => {
 	const content = (
 		<TooltipPrimitive.Content

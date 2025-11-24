@@ -1,5 +1,6 @@
 import Skeleton from "@mui/material/Skeleton";
 import { users } from "api/queries/users";
+import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
@@ -15,44 +16,41 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
+import { useAuthenticated } from "hooks";
 import { useDebouncedValue } from "hooks/debounce";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { cn } from "utils/cn";
 
-export type UserOption = {
+type UserOption = {
 	label: string;
-	value: string; // Username
+	/**
+	 * The username of the user.
+	 */
+	value: string;
 	avatarUrl?: string;
 };
 
 type UsersComboboxProps = {
-	selectedOption: UserOption | undefined;
-	onSelect: (option: UserOption | undefined) => void;
+	value: string;
+	onValueChange: (value: string) => void;
 };
 
 export const UsersCombobox: FC<UsersComboboxProps> = ({
-	selectedOption,
-	onSelect,
+	value,
+	onValueChange,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search, 250);
-	const usersQuery = useQuery({
+	const { user } = useAuthenticated();
+	const { data: options } = useQuery({
 		...users({ q: debouncedSearch }),
-		select: (data) =>
-			data.users.toSorted((a, b) => {
-				return selectedOption && a.username === selectedOption.value ? -1 : 0;
-			}),
+		select: (res) => mapUsersToOptions(res.users, user, value),
 		placeholderData: keepPreviousData,
 	});
-
-	const options = usersQuery.data?.map((user) => ({
-		label: user.name || user.username,
-		value: user.username,
-		avatarUrl: user.avatar_url,
-	}));
+	const selectedOption = options?.find((o) => o.value === value);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -91,11 +89,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 									key={option.value}
 									value={option.value}
 									onSelect={() => {
-										onSelect(
-											option.value === selectedOption?.value
-												? undefined
-												: option,
-										);
+										onValueChange(option.value);
 										setOpen(false);
 									}}
 								>
@@ -131,3 +125,37 @@ const UserItem: FC<UserItemProps> = ({ option, className }) => {
 		</div>
 	);
 };
+
+function mapUsersToOptions(
+	users: readonly User[],
+	/**
+	 * Includes the authenticated user in the list if they are not already
+	 * present. So the current user can always select themselves easily.
+	 */
+	authUser: User,
+	/**
+	 * Username of the currently selected user.
+	 */
+	selectedValue: string,
+): UserOption[] {
+	const includeAuthenticatedUser = (users: readonly User[]) => {
+		const hasAuthenticatedUser = users.some(
+			(u) => u.username === authUser.username,
+		);
+		if (hasAuthenticatedUser) {
+			return users;
+		}
+		return [authUser, ...users];
+	};
+
+	const sortSelectedFirst = (a: User) =>
+		selectedValue && a.username === selectedValue ? -1 : 0;
+
+	return includeAuthenticatedUser(users)
+		.toSorted(sortSelectedFirst)
+		.map((user) => ({
+			label: user.name || user.username,
+			value: user.username,
+			avatarUrl: user.avatar_url,
+		}));
+}

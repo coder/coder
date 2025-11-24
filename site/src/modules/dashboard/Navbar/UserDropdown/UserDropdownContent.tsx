@@ -1,26 +1,25 @@
 import {
 	type CSSObject,
+	css,
 	type Interpolation,
 	type Theme,
-	css,
 } from "@emotion/react";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
-import type { SvgIconProps } from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
+import { PopoverClose } from "@radix-ui/react-popover";
 import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
-import { usePopover } from "components/deprecated/Popover/Popover";
-import { BookOpenTextIcon } from "lucide-react";
-import { BugIcon } from "lucide-react";
-import { CircleUserIcon } from "lucide-react";
-import { LogOutIcon } from "lucide-react";
-import { MessageSquareIcon } from "lucide-react";
-import { MonitorDownIcon, SquareArrowOutUpRightIcon } from "lucide-react";
+import {
+	CircleUserIcon,
+	LogOutIcon,
+	MonitorDownIcon,
+	SquareArrowOutUpRightIcon,
+} from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
+import { SupportIcon } from "../SupportIcon";
 
 export const Language = {
 	accountLabel: "Account",
@@ -31,7 +30,7 @@ export const Language = {
 interface UserDropdownContentProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
-	supportLinks?: readonly TypesGen.LinkConfig[];
+	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
 }
 
@@ -41,32 +40,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
-	const popover = usePopover();
-
-	const onPopoverClose = () => {
-		popover.setOpen(false);
-	};
-
-	const renderMenuIcon = (icon: string): JSX.Element => {
-		switch (icon) {
-			case "bug":
-				return <BugIcon css={styles.menuItemIcon} />;
-			case "chat":
-				return <MessageSquareIcon css={styles.menuItemIcon} />;
-			case "docs":
-				return <BookOpenTextIcon css={styles.menuItemIcon} />;
-			case "star":
-				return <GithubStar css={styles.menuItemIcon} />;
-			default:
-				return (
-					<ExternalImage
-						src={icon}
-						css={{ maxWidth: "20px", maxHeight: "20px" }}
-					/>
-				);
-		}
-	};
-
 	return (
 		<div>
 			<Stack css={styles.info} spacing={0}>
@@ -77,21 +50,25 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Divider css={{ marginBottom: 8 }} />
 
 			<Link to="/install" css={styles.link}>
-				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-					<MonitorDownIcon css={styles.menuItemIcon} />
-					<span css={styles.menuItemText}>Install CLI</span>
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem css={styles.menuItem}>
+						<MonitorDownIcon className="size-5 text-content-secondary" />
+						<span css={styles.menuItemText}>Install CLI</span>
+					</MenuItem>
+				</PopoverClose>
 			</Link>
 
 			<Link to="/settings/account" css={styles.link}>
-				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-					<CircleUserIcon css={styles.menuItemIcon} />
-					<span css={styles.menuItemText}>{Language.accountLabel}</span>
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem css={styles.menuItem}>
+						<CircleUserIcon className="size-5 text-content-secondary" />
+						<span css={styles.menuItemText}>{Language.accountLabel}</span>
+					</MenuItem>
+				</PopoverClose>
 			</Link>
 
 			<MenuItem css={styles.menuItem} onClick={onSignOut}>
-				<LogOutIcon css={styles.menuItemIcon} />
+				<LogOutIcon className="size-5 text-content-secondary" />
 				<span css={styles.menuItemText}>{Language.signOutLabel}</span>
 			</MenuItem>
 
@@ -106,10 +83,17 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							rel="noreferrer"
 							css={styles.link}
 						>
-							<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-								{renderMenuIcon(link.icon)}
-								<span css={styles.menuItemText}>{link.name}</span>
-							</MenuItem>
+							<PopoverClose asChild>
+								<MenuItem css={styles.menuItem}>
+									{link.icon && (
+										<SupportIcon
+											icon={link.icon}
+											className="size-5 text-content-secondary"
+										/>
+									)}
+									<span css={styles.menuItemText}>{link.name}</span>
+								</MenuItem>
+							</PopoverClose>
 						</a>
 					))}
 				</>
@@ -130,23 +114,11 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				</Tooltip>
 
 				{buildInfo?.deployment_id && (
-					<div
-						css={css`
-              font-size: 12px;
-              display: flex;
-              align-items: center;
-            `}
-					>
+					<div className="flex items-center text-xs">
 						<Tooltip title="Deployment Identifier">
-							<div
-								css={css`
-                  white-space: nowrap;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                `}
-							>
+							<span className="whitespace-nowrap overflow-hidden text-ellipsis">
 								{buildInfo.deployment_id}
-							</div>
+							</span>
 						</Tooltip>
 						<CopyButton
 							text={buildInfo.deployment_id}
@@ -160,21 +132,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 		</div>
 	);
 };
-
-const GithubStar: FC<SvgIconProps> = (props) => (
-	<svg
-		aria-hidden="true"
-		height="16"
-		viewBox="0 0 16 16"
-		version="1.1"
-		width="16"
-		data-view-component="true"
-		fill="currentColor"
-		{...props}
-	>
-		<path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z" />
-	</svg>
-);
 
 const styles = {
 	info: (theme) => [
@@ -197,35 +154,30 @@ const styles = {
 		color: "inherit",
 	},
 	menuItem: (theme) => css`
-    gap: 20px;
-    padding: 8px 20px;
+		gap: 20px;
+		padding: 8px 20px;
 
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-      transition: background-color 0.3s ease;
-    }
-  `,
-	menuItemIcon: (theme) => ({
-		color: theme.palette.text.secondary,
-		width: 20,
-		height: 20,
-	}),
+		&:hover {
+			background-color: ${theme.palette.action.hover};
+			transition: background-color 0.3s ease;
+		}
+	`,
 	menuItemText: {
 		fontSize: 14,
 	},
 	footerText: (theme) => css`
-    font-size: 12px;
-    text-decoration: none;
-    color: ${theme.palette.text.secondary};
-    display: flex;
-    align-items: center;
-    gap: 4px;
+		font-size: 12px;
+		text-decoration: none;
+		color: ${theme.palette.text.secondary};
+		display: flex;
+		align-items: center;
+		gap: 4px;
 
-    & svg {
-      width: 12px;
-      height: 12px;
-    }
-  `,
+		& svg {
+			width: 12px;
+			height: 12px;
+		}
+	`,
 	buildInfo: (theme) => ({
 		color: theme.palette.text.primary,
 	}),

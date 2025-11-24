@@ -18,7 +18,7 @@ import (
 // workspaceListRow is the type provided to the OutputFormatter. This is a bit
 // dodgy but it's the only way to do complex display code for one format vs. the
 // other.
-type workspaceListRow struct {
+type WorkspaceListRow struct {
 	// For JSON format:
 	codersdk.Workspace `table:"-"`
 
@@ -40,7 +40,7 @@ type workspaceListRow struct {
 	DailyCost        string    `json:"-" table:"daily cost"`
 }
 
-func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) workspaceListRow {
+func WorkspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) WorkspaceListRow {
 	status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
 
 	lastBuilt := now.UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
@@ -55,7 +55,7 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 		favIco = "★"
 	}
 	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
-	return workspaceListRow{
+	return WorkspaceListRow{
 		Favorite:         workspace.Favorite,
 		Workspace:        workspace,
 		WorkspaceName:    workspaceName,
@@ -80,7 +80,7 @@ func (r *RootCmd) list() *serpent.Command {
 		filter    cliui.WorkspaceFilter
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
-				[]workspaceListRow{},
+				[]WorkspaceListRow{},
 				[]string{
 					"workspace",
 					"template",
@@ -95,8 +95,8 @@ func (r *RootCmd) list() *serpent.Command {
 			),
 			cliui.JSONFormat(),
 		)
+		sharedWithMe bool
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
@@ -104,10 +104,37 @@ func (r *RootCmd) list() *serpent.Command {
 		Aliases:     []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
+		Options: serpent.OptionSet{
+			{
+				Name:        "shared-with-me",
+				Description: "Show workspaces shared with you.",
+				Flag:        "shared-with-me",
+				Value:       serpent.BoolOf(&sharedWithMe),
+				Hidden:      true,
+			},
+		},
 		Handler: func(inv *serpent.Invocation) error {
-			res, err := queryConvertWorkspaces(inv.Context(), client, filter.Filter(), workspaceListRowFromWorkspace)
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			workspaceFilter := filter.Filter()
+			if sharedWithMe {
+				user, err := client.User(inv.Context(), codersdk.Me)
+				if err != nil {
+					return xerrors.Errorf("fetch current user: %w", err)
+				}
+				workspaceFilter.SharedWithUser = user.ID.String()
+
+				// Unset the default query that conflicts with the --shared-with-me flag
+				if workspaceFilter.FilterQuery == "owner:me" {
+					workspaceFilter.FilterQuery = ""
+				}
+			}
+
+			res, err := QueryConvertWorkspaces(inv.Context(), client, workspaceFilter, WorkspaceListRowFromWorkspace)
 			if err != nil {
 				return err
 			}
@@ -137,9 +164,9 @@ func (r *RootCmd) list() *serpent.Command {
 // queryConvertWorkspaces is a helper function for converting
 // codersdk.Workspaces to a different type.
 // It's used by the list command to convert workspaces to
-// workspaceListRow, and by the schedule command to
+// WorkspaceListRow, and by the schedule command to
 // convert workspaces to scheduleListRow.
-func queryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter, convertF func(time.Time, codersdk.Workspace) T) ([]T, error) {
+func QueryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter, convertF func(time.Time, codersdk.Workspace) T) ([]T, error) {
 	var empty []T
 	workspaces, err := client.Workspaces(ctx, filter)
 	if err != nil {

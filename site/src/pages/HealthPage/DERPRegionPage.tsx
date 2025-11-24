@@ -3,15 +3,13 @@ import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
 	DERPRegionReport,
-	HealthMessage,
-	HealthSeverity,
 	HealthcheckReport,
+	HealthSeverity,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { Link, useOutletContext, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import { pageTitle } from "utils/page";
 import {
@@ -39,9 +37,7 @@ const DERPRegionPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(region!.RegionName, "Health")}</title>
-			</Helmet>
+			<title>{pageTitle(region!.RegionName, "Health")}</title>
 
 			<Header>
 				<hgroup>
@@ -75,10 +71,10 @@ const DERPRegionPage: FC = () => {
 			</Header>
 
 			<Main>
-				{warnings.map((warning: HealthMessage) => {
+				{warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>

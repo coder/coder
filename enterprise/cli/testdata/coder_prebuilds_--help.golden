@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder prebuilds
+
+  Manage Coder prebuilds
+
+  Aliases: prebuild
+
+  Administrators can use these commands to manage prebuilt workspace settings.
+    - Pause Coder prebuilt workspace reconciliation.:
+  
+       $ coder prebuilds pause
+  
+    - Resume Coder prebuilt workspace reconciliation if it has been paused.:
+  
+       $ coder prebuilds resume
+
+SUBCOMMANDS:
+    pause     Pause prebuilds
+    resume    Resume prebuilds
+
+———
+Run `coder --help` for a list of global options.

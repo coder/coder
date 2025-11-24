@@ -1,10 +1,3 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import { screen, userEvent } from "@storybook/test";
-import {
-	getProvisionerDaemonsKey,
-	organizationsKey,
-} from "api/queries/organizations";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -16,6 +9,13 @@ import {
 	MockTemplateVersionVariable4,
 	MockTemplateVersionVariable5,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	getProvisionerDaemonsKey,
+	organizationsKey,
+} from "api/queries/organizations";
+import { action } from "storybook/actions";
+import { screen, userEvent } from "storybook/test";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 
 const meta: Meta<typeof CreateTemplateForm> = {

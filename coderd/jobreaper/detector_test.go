@@ -533,6 +533,108 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	detector.Wait()
 }
 
+// TestDetectorWorkspaceBuildForDormantWorkspace ensures that the jobreaper has
+// enough permissions to fix dormant workspaces.
+//
+// Dormant workspaces are treated as rbac.ResourceWorkspaceDormant rather than
+// rbac.ResourceWorkspace, which resulted in a bug where the jobreaper would
+// be able to see but not fix dormant workspaces.
+func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = testutil.Logger(t)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan jobreaper.Stats)
+	)
+
+	var (
+		now       = time.Now()
+		tenMinAgo = now.Add(-time.Minute * 10)
+		sixMinAgo = now.Add(-time.Minute * 6)
+		org       = dbgen.Organization(t, db, database.Organization{})
+		user      = dbgen.User(t, db, database.User{})
+		file      = dbgen.File(t, db, database.File{})
+		template  = dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			CreatedBy: user.ID,
+		})
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			DormantAt: sql.NullTime{
+				Time:  now.Add(-time.Hour),
+				Valid: true,
+			},
+		})
+
+		// First build.
+		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
+		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			CreatedAt: tenMinAgo,
+			UpdatedAt: sixMinAgo,
+			StartedAt: sql.NullTime{
+				Time:  tenMinAgo,
+				Valid: true,
+			},
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input:          []byte("{}"),
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       1,
+			JobID:             currentWorkspaceBuildJob.ID,
+			// Should not be overridden.
+			ProvisionerState: expectedWorkspaceBuildState,
+		})
+	)
+
+	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
+
+	// Ensure the RBAC is the dormant type to ensure we're testing the right
+	// thing.
+	require.Equal(t, rbac.ResourceWorkspaceDormant.Type, workspace.RBACObject().Type)
+
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector.Start()
+	tickCh <- now
+
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.TerminatedJobIDs, 1)
+	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
+
+	// Check that the current provisioner job was updated.
+	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
+	require.NoError(t, err)
+	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
+	require.True(t, job.CompletedAt.Valid)
+	require.WithinDuration(t, now, job.CompletedAt.Time, 30*time.Second)
+	require.True(t, job.Error.Valid)
+	require.Contains(t, job.Error.String, "Build has been detected as hung")
+	require.False(t, job.ErrorCode.Valid)
+
+	detector.Close()
+	detector.Wait()
+}
+
 func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Parallel()
 

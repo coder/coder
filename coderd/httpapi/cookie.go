@@ -24,7 +24,11 @@ func StripCoderCookies(header string) string {
 			name == codersdk.OAuth2StateCookie ||
 			name == codersdk.OAuth2RedirectCookie ||
 			name == codersdk.PathAppSessionTokenCookie ||
-			name == codersdk.SubdomainAppSessionTokenCookie ||
+			// This uses a prefix check because the subdomain cookie is unique
+			// per workspace proxy and is based on a hash of the workspace proxy
+			// subdomain hostname. See the workspaceapps package for more
+			// details.
+			strings.HasPrefix(name, codersdk.SubdomainAppSessionTokenCookie) ||
 			name == codersdk.SignedAppTokenCookie {
 			continue
 		}

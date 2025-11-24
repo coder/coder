@@ -6,6 +6,18 @@ USAGE:
   Starts the Coder workspace agent.
 
 OPTIONS:
+      --auth string, $CODER_AGENT_AUTH (default: token)
+          Specify the authentication type to use for the agent.
+
+      --agent-token string, $CODER_AGENT_TOKEN
+          An agent authentication token.
+
+      --agent-token-file string, $CODER_AGENT_TOKEN_FILE
+          A file containing an agent authentication token.
+
+      --agent-url url, $CODER_AGENT_URL
+          URL for an agent to access your deployment.
+
       --log-human string, $CODER_AGENT_LOGGING_HUMAN (default: /dev/stderr)
           Output human-readable logs to a given file.
 
@@ -24,17 +36,21 @@ OPTIONS:
           requests. The command must output each header as `key=value` on its
           own line.
 
-      --auth string, $CODER_AGENT_AUTH (default: token)
-          Specify the authentication type to use for the agent.
-
       --block-file-transfer bool, $CODER_AGENT_BLOCK_FILE_TRANSFER (default: false)
           Block file transfer using known applications: nc,rsync,scp,sftp.
 
       --debug-address string, $CODER_AGENT_DEBUG_ADDRESS (default: 127.0.0.1:2113)
           The bind address to serve a debug HTTP server.
 
+      --devcontainers-discovery-autostart-enable bool, $CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE (default: false)
+          Allow the agent to autostart devcontainer projects it discovers based
+          on their configuration.
+
       --devcontainers-enable bool, $CODER_AGENT_DEVCONTAINERS_ENABLE (default: true)
           Allow the agent to automatically detect running devcontainers.
+
+      --devcontainers-project-discovery-enable bool, $CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE (default: true)
+          Allow the agent to search the filesystem for devcontainer projects.
 
       --log-dir string, $CODER_AGENT_LOG_DIR (default: /tmp)
           Specify the location for the agent log files.

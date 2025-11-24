@@ -18,7 +18,6 @@ func (r *RootCmd) userList() *serpent.Command {
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created at", "status"}),
 		cliui.JSONFormat(),
 	)
-	client := new(codersdk.Client)
 	var githubUserID int64
 
 	cmd := &serpent.Command{
@@ -27,7 +26,6 @@ func (r *RootCmd) userList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
 			{
@@ -40,6 +38,11 @@ func (r *RootCmd) userList() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			req := codersdk.UsersRequest{}
 			if githubUserID != 0 {
 				req.Search = fmt.Sprintf("github_com_user_id:%d", githubUserID)
@@ -69,7 +72,6 @@ func (r *RootCmd) userSingle() *serpent.Command {
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
-	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
 		Use:   "show <username|user_id|'me'>",
@@ -81,9 +83,13 @@ func (r *RootCmd) userSingle() *serpent.Command {
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err

@@ -158,7 +158,7 @@ export const validationSchema = Yup.object({
 			try {
 				dayjs.tz(dayjs(), value);
 				return true;
-			} catch (e) {
+			} catch {
 				return false;
 			}
 		}),

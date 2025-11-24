@@ -15,7 +15,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action == 'opened' &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
-      github.actor_id == 49699333 &&
+      github.event.pull_request.user.id == 49699333 &&
       github.repository == 'coder/coder'
     permissions:
       pull-requests: write
@@ -44,10 +44,6 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Send Slack notification
-        env:
-          PR_URL: ${{github.event.pull_request.html_url}}
-          PR_TITLE: ${{github.event.pull_request.title}}
-          PR_NUMBER: ${{github.event.pull_request.number}}
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data '{
@@ -58,7 +54,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #${{ env.PR_NUMBER }}",
+                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #'"${PR_NUMBER}"'",
                   "emoji": true
                 }
               },
@@ -67,7 +63,7 @@ jobs:
                 "fields": [
                   {
                     "type": "mrkdwn",
-                    "text": "${{ env.PR_TITLE }}"
+                    "text": "'"${PR_TITLE}"'"
                   }
                 ]
               },
@@ -80,9 +76,14 @@ jobs:
                       "type": "plain_text",
                       "text": "View PR"
                     },
-                    "url": "${{ env.PR_URL }}"
+                    "url": "'"${PR_URL}"'"
                   }
                 ]
               }
             ]
-          }' ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
+          }' "${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}

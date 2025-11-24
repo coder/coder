@@ -98,7 +98,7 @@ func NewServerTailnet(
 	controller := tailnet.NewController(logger, dialer)
 	// it's important to set the DERPRegionDialer above _before_ we set the DERP map so that if
 	// there is an embedded relay, we use the local in-memory dialer.
-	controller.DERPCtrl = tailnet.NewBasicDERPController(logger, conn)
+	controller.DERPCtrl = tailnet.NewBasicDERPController(logger, nil, conn)
 	coordCtrl := NewMultiAgentController(serverCtx, logger, tracer, conn)
 	controller.CoordCtrl = coordCtrl
 	// TODO: support controller.TelemetryCtrl
@@ -277,9 +277,9 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	}, nil
 }
 
-func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*workspacesdk.AgentConn, func(), error) {
+func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	var (
-		conn *workspacesdk.AgentConn
+		conn workspacesdk.AgentConn
 		ret  func()
 	)
 

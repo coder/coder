@@ -8,21 +8,34 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) show() *serpent.Command {
-	client := new(codersdk.Client)
+	var details bool
 	return &serpent.Command{
 		Use:   "show <workspace>",
 		Short: "Display details of a workspace's resources and agents",
+		Options: serpent.OptionSet{
+			{
+				Flag:        "details",
+				Description: "Show full error messages and additional details.",
+				Default:     "false",
+				Value:       serpent.BoolOf(&details),
+			},
+		},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			buildInfo, err := client.BuildInfo(inv.Context())
 			if err != nil {
 				return xerrors.Errorf("get server version: %w", err)
@@ -35,6 +48,7 @@ func (r *RootCmd) show() *serpent.Command {
 			options := cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
+				ShowDetails:   details,
 			}
 			if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
 				// Get listening ports for each agent.
@@ -42,6 +56,7 @@ func (r *RootCmd) show() *serpent.Command {
 				options.ListeningPorts = ports
 				options.Devcontainers = devcontainers
 			}
+
 			return cliui.WorkspaceResources(inv.Stdout, workspace.LatestBuild.Resources, options)
 		},
 	}
@@ -68,13 +83,17 @@ func fetchRuntimeResources(inv *serpent.Invocation, client *codersdk.Client, res
 				ports[agent.ID] = lp
 				mu.Unlock()
 			}()
+
+			if agent.ParentID.Valid {
+				continue
+			}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				dc, err := client.WorkspaceAgentListContainers(inv.Context(), agent.ID, map[string]string{
 					// Labels set by VSCode Remote Containers and @devcontainers/cli.
-					"devcontainer.config_file":  "",
-					"devcontainer.local_folder": "",
+					agentcontainers.DevcontainerConfigFileLabel:  "",
+					agentcontainers.DevcontainerLocalFolderLabel: "",
 				})
 				if err != nil {
 					cliui.Warnf(inv.Stderr, "Failed to get devcontainers for agent %s: %v", agent.Name, err)

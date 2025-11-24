@@ -12,13 +12,13 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
-	type OrganizationPermissions,
 	canViewOrganization,
+	type OrganizationPermissions,
 } from "modules/permissions/organizations";
 import NotFoundPage from "pages/404Page/404Page";
-import { type FC, Suspense, createContext, useContext } from "react";
+import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -91,7 +91,7 @@ const OrganizationSettingsLayout: FC = () => {
 				organizationPermissions,
 			}}
 		>
-			<div>
+			<div className="flex flex-col flex-1 min-h-0">
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
@@ -121,8 +121,8 @@ const OrganizationSettingsLayout: FC = () => {
 						)}
 					</BreadcrumbList>
 				</Breadcrumb>
-				<hr className="h-px border-none bg-border" />
-				<div className="px-10 max-w-screen-2xl">
+				<div className="h-px border-none bg-border" />
+				<div className="flex flex-col flex-1 min-h-0 pl-10">
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>

@@ -6,16 +6,16 @@ import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSum
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
@@ -75,13 +75,33 @@ interface EditRolesButtonProps {
 	userLoginType?: string;
 }
 
-export const EditRolesButton: FC<EditRolesButtonProps> = ({
+export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
+	const { userLoginType, oidcRoleSync } = props;
+	const canSetRoles =
+		userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
+
+	if (!canSetRoles) {
+		return (
+			<HelpTooltip>
+				<HelpTooltipIconTrigger size="small" />
+				<HelpTooltipContent>
+					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+					<HelpTooltipText>
+						Roles for this user are controlled by the OIDC identity provider.
+					</HelpTooltipText>
+				</HelpTooltipContent>
+			</HelpTooltip>
+		);
+	}
+
+	return <EnabledEditRolesButton {...props} />;
+};
+
+const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 	roles,
 	selectedRoleNames,
 	onChange,
 	isLoading,
-	userLoginType,
-	oidcRoleSync,
 }) => {
 	const handleChange = (roleName: string) => {
 		if (selectedRoleNames.has(roleName)) {
@@ -93,23 +113,6 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 		onChange([...selectedRoleNames, roleName]);
 	};
 	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-
-	const canSetRoles =
-		userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
-
-	if (!canSetRoles) {
-		return (
-			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-					<HelpTooltipText>
-						Roles for this user are controlled by the OIDC identity provider.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		);
-	}
 
 	const filteredRoles = roles.filter(
 		(role) => role.name !== "organization-workspace-creation-ban",
@@ -127,7 +130,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Tooltip title="Edit user roles">
 					<Button
 						variant="subtle"
@@ -140,7 +143,10 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent className="w-96" disablePortal={false}>
+			<PopoverContent
+				align="start"
+				className="w-96 bg-surface-secondary border-surface-quaternary"
+			>
 				<fieldset
 					className="border-0 m-0 p-0 disabled:opacity-50"
 					disabled={isLoading}

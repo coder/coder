@@ -1,6 +1,4 @@
 import { useTheme } from "@emotion/react";
-import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -29,14 +27,18 @@ import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { CircleCheck as CircleCheckIcon } from "lucide-react";
+import {
+	CircleCheck as CircleCheckIcon,
+	CircleXIcon,
+	LinkIcon,
+} from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -45,9 +47,8 @@ import {
 	type ReactNode,
 	useId,
 } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import {
 	addTime,
@@ -59,8 +60,8 @@ import {
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
-import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import { lastWeeks } from "./utils";
+import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -100,29 +101,17 @@ export default function TemplateInsightsPage() {
 
 	return (
 		<>
-			<Helmet>
-				<title>{getTemplatePageTitle("Insights", template)}</title>
-			</Helmet>
+			<title>{getTemplatePageTitle("Insights", template)}</title>
+
 			<TemplateInsightsPageView
 				controls={
-					<>
-						<IntervalMenu
-							value={interval}
-							onChange={(interval) => {
-								// When going from daily to week we need to set a safe week range
-								if (interval === "week") {
-									setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
-								}
-								searchParams.set("interval", interval);
-								setSearchParams(searchParams);
-							}}
-						/>
-						{interval === "day" ? (
-							<DailyPicker value={dateRange} onChange={setDateRange} />
-						) : (
-							<WeekPicker value={dateRange} onChange={setDateRange} />
-						)}
-					</>
+					<TemplateInsightsControls
+						interval={interval}
+						dateRange={dateRange}
+						setDateRange={setDateRange}
+						searchParams={searchParams}
+						setSearchParams={setSearchParams}
+					/>
 				}
 				templateInsights={templateInsights}
 				userLatency={userLatency}
@@ -133,6 +122,43 @@ export default function TemplateInsightsPage() {
 		</>
 	);
 }
+
+interface TemplateInsightsControlsProps {
+	interval: "day" | "week";
+	dateRange: DateRangeValue;
+	setDateRange: (value: DateRangeValue) => void;
+	searchParams: URLSearchParams;
+	setSearchParams: SetURLSearchParams;
+}
+
+export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
+	interval,
+	dateRange,
+	setDateRange,
+	searchParams,
+	setSearchParams,
+}) => {
+	return (
+		<>
+			<IntervalMenu
+				value={interval}
+				onChange={(interval) => {
+					// When going from daily to week we need to set a safe week range
+					if (interval === "week") {
+						setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
+					}
+					searchParams.set("interval", interval);
+					setSearchParams(searchParams);
+				}}
+			/>
+			{interval === "day" ? (
+				<DailyPicker value={dateRange} onChange={setDateRange} />
+			) : (
+				<WeekPicker value={dateRange} onChange={setDateRange} />
+			)}
+		</>
+	);
+};
 
 const getDefaultInterval = (template: Template) => {
 	const now = new Date();
@@ -284,7 +310,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Latency by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
 							<HelpTooltipText>
@@ -352,7 +378,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Activity by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
 							<HelpTooltipText>
@@ -703,13 +729,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 				}}
 			>
 				<TextValue>{usage.value}</TextValue>
-				<LinkOutlined
-					css={{
-						width: 14,
-						height: 14,
-						color: theme.palette.primary.light,
-					}}
-				/>
+				<LinkIcon className="size-icon-xs text-content-link" />
 			</Link>
 		);
 	}
@@ -746,13 +766,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 			>
 				{usage.value === "false" ? (
 					<>
-						<CancelOutlined
-							css={{
-								width: 16,
-								height: 16,
-								color: theme.palette.error.light,
-							}}
-						/>
+						<CircleXIcon className="size-icon-xs text-content-destructive" />
 						False
 					</>
 				) : (

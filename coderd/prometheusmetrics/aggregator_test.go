@@ -194,15 +194,19 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 
 		var d dto.Metric
 		err := actual[i].Write(&d)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		switch e.Type {
 		case agentproto.Stats_Metric_COUNTER:
-			require.Equal(t, e.Value, d.Counter.GetValue())
+			if e.Value != d.Counter.GetValue() {
+				return false
+			}
 		case agentproto.Stats_Metric_GAUGE:
-			require.Equal(t, e.Value, d.Gauge.GetValue())
+			if e.Value != d.Gauge.GetValue() {
+				return false
+			}
 		default:
-			require.Failf(t, "unsupported type: %s", string(e.Type))
+			assert.Failf(t, "unsupported type: %s", string(e.Type))
 		}
 
 		expectedLabels := make([]*agentproto.Stats_Metric_Label, len(e.Labels))
@@ -215,7 +219,7 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 		}
 		sort.Slice(expectedLabels, sortFn)
 		sort.Slice(dtoLabels, sortFn)
-		require.Equal(t, expectedLabels, dtoLabels, d.String())
+		assert.Equal(t, expectedLabels, dtoLabels, d.String())
 	}
 	return true
 }
@@ -229,7 +233,7 @@ func prometheusMetricToString(t *testing.T, m prometheus.Metric) string {
 
 	var d dto.Metric
 	err := m.Write(&d)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	dtoLabels := asMetricAgentLabels(d.GetLabel())
 	sort.Slice(dtoLabels, func(i, j int) bool {
 		return dtoLabels[i].Name < dtoLabels[j].Name

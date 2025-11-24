@@ -6,6 +6,7 @@ import type {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -13,9 +14,6 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import capitalize from "lodash/capitalize";
-import { timeFrom } from "utils/time";
-
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
@@ -27,7 +25,8 @@ import {
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
+import { timeFrom } from "utils/time";
 import { truncateURI } from "utils/uri";
 
 interface AppStatusesProps {
@@ -122,12 +121,16 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							</Button>
 						))}
 
-					<Button asChild size="sm" variant="outline">
-						<RouterLink to={`/tasks/${workspace.owner_name}/${workspace.name}`}>
-							<SquareCheckBigIcon />
-							View task
-						</RouterLink>
-					</Button>
+					{workspace.task_id && (
+						<Button asChild size="sm" variant="outline">
+							<RouterLink
+								to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+							>
+								<SquareCheckBigIcon />
+								View task
+							</RouterLink>
+						</Button>
+					)}
 
 					<TooltipProvider>
 						<Tooltip>

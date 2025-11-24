@@ -31,7 +31,6 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// setup
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -108,7 +107,6 @@ func TestBuildPayload(t *testing.T) {
 
 	// SETUP
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -166,7 +164,6 @@ func TestStopBeforeRun(t *testing.T) {
 
 	// SETUP
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -187,7 +184,6 @@ func TestRunStopRace(t *testing.T) {
 
 	// SETUP
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitMedium))
 	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)

@@ -9,7 +9,7 @@ import {
 	DialogTitle,
 } from "components/Dialog/Dialog";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 interface WorkspaceErrorDialogProps {
 	open: boolean;
@@ -19,6 +19,7 @@ interface WorkspaceErrorDialogProps {
 	workspaceOwner: string;
 	workspaceName: string;
 	templateVersionId: string;
+	isDeleting: boolean;
 }
 
 export const WorkspaceErrorDialog: FC<WorkspaceErrorDialogProps> = ({
@@ -29,6 +30,7 @@ export const WorkspaceErrorDialog: FC<WorkspaceErrorDialogProps> = ({
 	workspaceOwner,
 	workspaceName,
 	templateVersionId,
+	isDeleting,
 }) => {
 	const navigate = useNavigate();
 
@@ -52,7 +54,9 @@ export const WorkspaceErrorDialog: FC<WorkspaceErrorDialogProps> = ({
 		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
 			<DialogContent variant="destructive">
 				<DialogHeader>
-					<DialogTitle>Error building workspace</DialogTitle>
+					<DialogTitle>
+						Error {isDeleting ? "deleting" : "building"} workspace
+					</DialogTitle>
 					<DialogDescription className="flex flex-row gap-4">
 						<strong className="text-content-primary">Message</strong>{" "}
 						<span>{getErrorMessage(error, "Failed to build workspace.")}</span>

@@ -1,8 +1,3 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableRow from "@mui/material/TableRow";
 import type { AuditLog } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -18,6 +13,7 @@ import {
 } from "components/PaginationWidget/PaginationContainer";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Timeline } from "components/Timeline/Timeline";
 import type { ComponentProps, FC } from "react";
@@ -57,7 +53,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	const isEmpty = !isLoading && auditLogs?.length === 0;
 
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
@@ -76,69 +72,67 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 						query={paginationResult}
 						paginationUnitLabel="logs"
 					>
-						<TableContainer>
-							<Table>
-								<TableBody>
-									<ChooseOne>
-										{/* Error condition should just show an empty table. */}
-										<Cond condition={Boolean(error)}>
-											<TableRow>
-												<TableCell colSpan={999}>
-													<EmptyState message="An error occurred while loading audit logs" />
-												</TableCell>
-											</TableRow>
-										</Cond>
+						<Table>
+							<TableBody>
+								<ChooseOne>
+									{/* Error condition should just show an empty table. */}
+									<Cond condition={Boolean(error)}>
+										<TableRow>
+											<TableCell colSpan={999}>
+												<EmptyState message="An error occurred while loading audit logs" />
+											</TableCell>
+										</TableRow>
+									</Cond>
 
-										<Cond condition={isLoading}>
-											<TableLoader />
-										</Cond>
+									<Cond condition={isLoading}>
+										<TableLoader />
+									</Cond>
 
-										<Cond condition={isEmpty}>
-											<ChooseOne>
-												<Cond condition={isNonInitialPage}>
-													<TableRow>
-														<TableCell colSpan={999}>
-															<EmptyState message="No audit logs available on this page" />
-														</TableCell>
-													</TableRow>
-												</Cond>
+									<Cond condition={isEmpty}>
+										<ChooseOne>
+											<Cond condition={isNonInitialPage}>
+												<TableRow>
+													<TableCell colSpan={999}>
+														<EmptyState message="No audit logs available on this page" />
+													</TableCell>
+												</TableRow>
+											</Cond>
 
-												<Cond>
-													<TableRow>
-														<TableCell colSpan={999}>
-															<EmptyState message="No audit logs available" />
-														</TableCell>
-													</TableRow>
-												</Cond>
-											</ChooseOne>
-										</Cond>
+											<Cond>
+												<TableRow>
+													<TableCell colSpan={999}>
+														<EmptyState message="No audit logs available" />
+													</TableCell>
+												</TableRow>
+											</Cond>
+										</ChooseOne>
+									</Cond>
 
-										<Cond>
-											{auditLogs && (
-												<Timeline
-													items={auditLogs}
-													getDate={(log) => new Date(log.time)}
-													row={(log) => (
-														<AuditLogRow
-															key={log.id}
-															auditLog={log}
-															showOrgDetails={showOrgDetails}
-														/>
-													)}
-												/>
-											)}
-										</Cond>
-									</ChooseOne>
-								</TableBody>
-							</Table>
-						</TableContainer>
+									<Cond>
+										{auditLogs && (
+											<Timeline
+												items={auditLogs}
+												getDate={(log) => new Date(log.time)}
+												row={(log) => (
+													<AuditLogRow
+														key={log.id}
+														auditLog={log}
+														showOrgDetails={showOrgDetails}
+													/>
+												)}
+											/>
+										)}
+									</Cond>
+								</ChooseOne>
+							</TableBody>
+						</Table>
 					</PaginationContainer>
 				</Cond>
 
 				<Cond>
 					<Paywall
 						message="Audit logs"
-						description="Audit logs allow you to monitor user operations on your deployment. You need an Premium license to use this feature."
+						description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
 						documentationLink={docs("/admin/security/audit-logs")}
 					/>
 				</Cond>

@@ -14,7 +14,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -49,7 +49,7 @@ func TestChecker_Notify(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
 	notify := make(chan updatecheck.Result, len(wantVersion))
 	c := updatecheck.New(db, logger, updatecheck.Options{
@@ -130,7 +130,7 @@ func TestChecker_Latest(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
 			c := updatecheck.New(db, logger, updatecheck.Options{
 				URL: srv.URL,

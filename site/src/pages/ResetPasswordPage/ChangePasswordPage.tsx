@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import MUIButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import { changePasswordWithOTP } from "api/queries/users";
@@ -11,15 +10,11 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
-import {
-	Link as RouterLink,
-	useNavigate,
-	useSearchParams,
-} from "react-router-dom";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { getFormHelpers } from "utils/formUtils";
+import { pageTitle } from "utils/page";
 import * as yup from "yup";
 
 const validationSchema = yup.object({
@@ -70,9 +65,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Reset Password - {applicationName}</title>
-			</Helmet>
+			<title>{pageTitle("Reset Password", applicationName)}</title>
 
 			<div css={styles.root}>
 				<main css={styles.container}>
@@ -125,15 +118,9 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 										<Spinner loading={form.isSubmitting} />
 										Reset password
 									</Button>
-									<MUIButton
-										component={RouterLink}
-										size="large"
-										fullWidth
-										variant="text"
-										to="/login"
-									>
-										Back to login
-									</MUIButton>
+									<Button size="lg" className="w-full" variant="subtle" asChild>
+										<RouterLink to="/login">Back to login</RouterLink>
+									</Button>
 								</Stack>
 							</Stack>
 						</fieldset>

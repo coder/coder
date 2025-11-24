@@ -1,11 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import {
-	MockMenu,
-	getDefaultFilterProps,
-} from "components/Filter/storyHelpers";
-import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
-import type { ComponentProps } from "react";
 import {
 	MockAssignableSiteRoles,
 	MockAuthMethodsPasswordOnly,
@@ -13,6 +5,14 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "components/Filter/storyHelpers";
+import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { ComponentProps } from "react";
 import { UsersPageView } from "./UsersPageView";
 
 type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];

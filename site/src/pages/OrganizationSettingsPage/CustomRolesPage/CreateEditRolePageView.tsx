@@ -1,13 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableFooter from "@mui/material/TableFooter";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import { RBACResourceActions } from "api/rbacresourcesGenerated";
@@ -29,10 +22,19 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableFooter,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { useFormik } from "formik";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import * as Yup from "yup";
 
@@ -64,9 +66,11 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 		initialValues: {
 			name: role?.name || "",
 			display_name: role?.display_name || "",
-			site_permissions: role?.site_permissions || [],
-			organization_permissions: role?.organization_permissions || [],
-			user_permissions: role?.user_permissions || [],
+			site_permissions: role?.site_permissions ?? [],
+			user_permissions: role?.user_permissions ?? [],
+			organization_permissions: role?.organization_permissions ?? [],
+			organization_member_permissions:
+				role?.organization_member_permissions ?? [],
 		},
 		validationSchema,
 		onSubmit,
@@ -255,55 +259,46 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	};
 
 	return (
-		<TableContainer>
-			<Table>
-				<TableHead>
-					<TableRow>
-						<TableCell>Permission</TableCell>
-						<TableCell
-							align="right"
-							sx={{ paddingTop: 0.4, paddingBottom: 0.4 }}
-						>
-							<ShowAllResourcesCheckbox
-								showAllResources={showAllResources}
-								setShowAllResources={setShowAllResources}
-							/>
-						</TableCell>
-					</TableRow>
-				</TableHead>
-				<TableBody>
-					{Object.entries(resourceActions).map(([resourceKey, value]) => {
-						return (
-							<PermissionCheckboxGroup
-								key={resourceKey}
-								checkedActions={checkedActions?.filter(
-									(a) => a.resource_type === resourceKey,
-								)}
-								resourceKey={resourceKey}
-								value={value}
-								form={form}
-								handleActionCheckChange={handleActionCheckChange}
-								handleResourceCheckChange={handleResourceCheckChange}
-							/>
-						);
-					})}
-				</TableBody>
-				<TableFooter>
-					<TableRow>
-						<TableCell
-							align="right"
-							colSpan={2}
-							sx={{ paddingTop: 0.4, paddingBottom: 0.4, paddingRight: 4 }}
-						>
-							<ShowAllResourcesCheckbox
-								showAllResources={showAllResources}
-								setShowAllResources={setShowAllResources}
-							/>
-						</TableCell>
-					</TableRow>
-				</TableFooter>
-			</Table>
-		</TableContainer>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead>Permission</TableHead>
+					<TableHead className="py-1 text-right">
+						<ShowAllResourcesCheckbox
+							showAllResources={showAllResources}
+							setShowAllResources={setShowAllResources}
+						/>
+					</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{Object.entries(resourceActions).map(([resourceKey, value]) => {
+					return (
+						<PermissionCheckboxGroup
+							key={resourceKey}
+							checkedActions={checkedActions?.filter(
+								(a) => a.resource_type === resourceKey,
+							)}
+							resourceKey={resourceKey}
+							value={value}
+							form={form}
+							handleActionCheckChange={handleActionCheckChange}
+							handleResourceCheckChange={handleResourceCheckChange}
+						/>
+					);
+				})}
+			</TableBody>
+			<TableFooter>
+				<TableRow>
+					<TableCell align="right" colSpan={2} className="py-1 pr-1">
+						<ShowAllResourcesCheckbox
+							showAllResources={showAllResources}
+							setShowAllResources={setShowAllResources}
+						/>
+					</TableCell>
+				</TableRow>
+			</TableFooter>
+		</Table>
 	);
 };
 
@@ -333,7 +328,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 }) => {
 	return (
 		<TableRow key={resourceKey}>
-			<TableCell sx={{ paddingLeft: 2 }} colSpan={2}>
+			<TableCell className="pl-0.5" colSpan={2}>
 				<li key={resourceKey} css={styles.checkBoxes}>
 					<Checkbox
 						size="small"

@@ -28,7 +28,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
@@ -36,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -48,6 +48,7 @@ type Options struct {
 	Disabled bool
 	Database database.Store
 	Logger   slog.Logger
+	Clock    quartz.Clock
 	// URL is an endpoint to direct telemetry towards!
 	URL         *url.URL
 	Experiments codersdk.Experiments
@@ -65,6 +66,9 @@ type Options struct {
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
 func New(options Options) (Reporter, error) {
+	if options.Clock == nil {
+		options.Clock = quartz.NewReal()
+	}
 	if options.SnapshotFrequency == 0 {
 		// Report once every 30mins by default!
 		options.SnapshotFrequency = 30 * time.Minute
@@ -86,7 +90,8 @@ func New(options Options) (Reporter, error) {
 		options:       options,
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
-		startedAt:     dbtime.Now(),
+		startedAt:     dbtime.Time(options.Clock.Now()).UTC(),
+		client:        &http.Client{},
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil
@@ -119,6 +124,7 @@ type remoteReporter struct {
 	snapshotURL *url.URL
 	startedAt  time.Time
 	shutdownAt *time.Time
+	client     *http.Client
 }
 
 func (r *remoteReporter) Enabled() bool {
@@ -142,7 +148,7 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 		return
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		// If the request fails it's not necessarily an error.
 		// In an airgapped environment, it's fine if this fails!
@@ -164,7 +170,7 @@ func (r *remoteReporter) Close() {
 		return
 	}
 	close(r.closed)
-	now := dbtime.Now()
+	now := dbtime.Time(r.options.Clock.Now()).UTC()
 	r.shutdownAt = &now
 	if r.Enabled() {
 		// Report a final collection of telemetry prior to close!
@@ -353,7 +359,7 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("create deployment request: %w", err)
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		return xerrors.Errorf("perform request: %w", err)
 	}
@@ -410,7 +416,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		ctx = r.ctx
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
-		createdAfter = dbtime.Now().Add(-1 * time.Hour)
+		createdAfter = dbtime.Time(r.options.Clock.Now().Add(-1 * time.Hour)).UTC()
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
@@ -728,12 +734,104 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
+			OwnerID:        uuid.Nil,
+			OrganizationID: uuid.Nil,
+			Status:         "",
+		})
+		if err != nil {
+			return err
+		}
+		for _, dbTask := range dbTasks {
+			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		summaries, err := r.generateAIBridgeInterceptionsSummaries(ctx)
+		if err != nil {
+			return xerrors.Errorf("generate AIBridge interceptions telemetry summaries: %w", err)
+		}
+		snapshot.AIBridgeInterceptionsSummaries = summaries
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
 		return nil, err
 	}
 	return snapshot, nil
+}
+
+func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Context) ([]AIBridgeInterceptionsSummary, error) {
+	// Get the current timeframe, which is the previous hour.
+	now := dbtime.Time(r.options.Clock.Now()).UTC()
+	endedAtBefore := now.Truncate(time.Hour)
+	endedAtAfter := endedAtBefore.Add(-1 * time.Hour)
+
+	// Note: we don't use a transaction for this function since we do tolerate
+	// some errors, like duplicate lock rows, and we also calculate
+	// summaries in parallel.
+
+	// Claim the heartbeat lock row for this hour.
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: endedAtBefore,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		// Another replica has already claimed the lock row for this hour.
+		r.options.Logger.Debug(ctx, "aibridge interceptions telemetry lock already claimed for this hour by another replica, skipping", slog.F("period_ending_at", endedAtBefore))
+		return nil, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert AIBridge interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
+	}
+
+	// List the summary categories that need to be calculated.
+	summaryCategories, err := r.options.Database.ListAIBridgeInterceptionsTelemetrySummaries(ctx, database.ListAIBridgeInterceptionsTelemetrySummariesParams{
+		EndedAtAfter:  endedAtAfter,  // inclusive
+		EndedAtBefore: endedAtBefore, // exclusive
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("list AIBridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
+	}
+
+	// Calculate and convert the summaries for all categories.
+	var (
+		eg, egCtx = errgroup.WithContext(ctx)
+		mu        sync.Mutex
+		summaries = make([]AIBridgeInterceptionsSummary, 0, len(summaryCategories))
+	)
+	for _, category := range summaryCategories {
+		eg.Go(func() error {
+			summary, err := r.options.Database.CalculateAIBridgeInterceptionsTelemetrySummary(egCtx, database.CalculateAIBridgeInterceptionsTelemetrySummaryParams{
+				Provider:      category.Provider,
+				Model:         category.Model,
+				Client:        category.Client,
+				EndedAtAfter:  endedAtAfter,
+				EndedAtBefore: endedAtBefore,
+			})
+			if err != nil {
+				return xerrors.Errorf("calculate AIBridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
+			}
+
+			// Double check that at least one interception was found in the
+			// timeframe.
+			if summary.InterceptionCount == 0 {
+				return nil
+			}
+
+			converted := ConvertAIBridgeInterceptionsSummary(endedAtBefore, category.Provider, category.Model, category.Client, summary)
+
+			mu.Lock()
+			defer mu.Unlock()
+			summaries = append(summaries, converted)
+			return nil
+		})
+	}
+
+	return summaries, eg.Wait()
 }
 
 // ConvertAPIKey anonymizes an API key.
@@ -768,7 +866,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 
 // ConvertWorkspaceBuild anonymizes a workspace build.
 func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
-	return WorkspaceBuild{
+	wb := WorkspaceBuild{
 		ID:                build.ID,
 		CreatedAt:         build.CreatedAt,
 		WorkspaceID:       build.WorkspaceID,
@@ -777,6 +875,10 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
 	}
+	if build.HasAITask.Valid {
+		wb.HasAITask = ptr.Ref(build.HasAITask.Bool)
+	}
+	return wb
 }
 
 // ConvertProvisionerJob anonymizes a provisioner job.
@@ -1105,6 +1207,9 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	if version.SourceExampleID.Valid {
 		snapVersion.SourceExampleID = &version.SourceExampleID.String
 	}
+	if version.HasAITask.Valid {
+		snapVersion.HasAITask = ptr.Ref(version.HasAITask.Bool)
+	}
 	return snapVersion
 }
 
@@ -1196,9 +1301,11 @@ type Snapshot struct {
 	Workspaces                           []Workspace                           `json:"workspaces"`
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
+	Tasks                                []Task                                `json:"tasks"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
+	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1357,6 +1464,7 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
+	HasAITask         *bool     `json:"has_ai_task"`
 }
 
 type Workspace struct {
@@ -1404,6 +1512,7 @@ type TemplateVersion struct {
 	OrganizationID  uuid.UUID  `json:"organization_id"`
 	JobID           uuid.UUID  `json:"job_id"`
 	SourceExampleID *string    `json:"source_example_id,omitempty"`
+	HasAITask       *bool      `json:"has_ai_task"`
 }
 
 type ProvisionerJob struct {
@@ -1742,6 +1851,52 @@ type Organization struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type Task struct {
+	ID                   string    `json:"id"`
+	OrganizationID       string    `json:"organization_id"`
+	OwnerID              string    `json:"owner_id"`
+	Name                 string    `json:"name"`
+	WorkspaceID          *string   `json:"workspace_id"`
+	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
+	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
+	WorkspaceAppID       *string   `json:"workspace_app_id"`
+	TemplateVersionID    string    `json:"template_version_id"`
+	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
+	CreatedAt            time.Time `json:"created_at"`
+	Status               string    `json:"status"`
+}
+
+// ConvertTask anonymizes a Task.
+func ConvertTask(task database.Task) Task {
+	t := &Task{
+		ID:                   task.ID.String(),
+		OrganizationID:       task.OrganizationID.String(),
+		OwnerID:              task.OwnerID.String(),
+		Name:                 task.Name,
+		WorkspaceID:          nil,
+		WorkspaceBuildNumber: nil,
+		WorkspaceAgentID:     nil,
+		WorkspaceAppID:       nil,
+		TemplateVersionID:    task.TemplateVersionID.String(),
+		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
+		CreatedAt:            task.CreatedAt,
+		Status:               string(task.Status),
+	}
+	if task.WorkspaceID.Valid {
+		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
+	}
+	if task.WorkspaceBuildNumber.Valid {
+		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
+	}
+	if task.WorkspaceAgentID.Valid {
+		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
+	}
+	if task.WorkspaceAppID.Valid {
+		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
+	}
+	return *t
+}
+
 type telemetryItemKey string
 
 // The comment below gets rid of the warning that the name "TelemetryItemKey" has
@@ -1785,6 +1940,89 @@ type PrebuiltWorkspace struct {
 	CreatedAt time.Time                  `json:"created_at"`
 	EventType PrebuiltWorkspaceEventType `json:"event_type"`
 	Count     int                        `json:"count"`
+}
+
+type AIBridgeInterceptionsSummaryDurationMillis struct {
+	P50 int64 `json:"p50"`
+	P90 int64 `json:"p90"`
+	P95 int64 `json:"p95"`
+	P99 int64 `json:"p99"`
+}
+
+type AIBridgeInterceptionsSummaryTokenCount struct {
+	Input         int64 `json:"input"`
+	Output        int64 `json:"output"`
+	CachedRead    int64 `json:"cached_read"`
+	CachedWritten int64 `json:"cached_written"`
+}
+
+type AIBridgeInterceptionsSummaryToolCallsCount struct {
+	Injected    int64 `json:"injected"`
+	NonInjected int64 `json:"non_injected"`
+}
+
+// AIBridgeInterceptionsSummary is a summary of aggregated AI Bridge
+// interception data over a period of 1 hour. We send a summary each hour for
+// each unique provider + model + client combination.
+type AIBridgeInterceptionsSummary struct {
+	ID uuid.UUID `json:"id"`
+
+	// The end of the hour for which the summary is taken. This will always be a
+	// UTC timestamp truncated to the hour.
+	Timestamp time.Time `json:"timestamp"`
+	Provider  string    `json:"provider"`
+	Model     string    `json:"model"`
+	Client    string    `json:"client"`
+
+	InterceptionCount          int64                                      `json:"interception_count"`
+	InterceptionDurationMillis AIBridgeInterceptionsSummaryDurationMillis `json:"interception_duration_millis"`
+
+	// Map of route to number of interceptions.
+	// e.g. "/v1/chat/completions:blocking", "/v1/chat/completions:streaming"
+	InterceptionsByRoute map[string]int64 `json:"interceptions_by_route"`
+
+	UniqueInitiatorCount int64 `json:"unique_initiator_count"`
+
+	UserPromptsCount int64 `json:"user_prompts_count"`
+
+	TokenUsagesCount int64                                  `json:"token_usages_count"`
+	TokenCount       AIBridgeInterceptionsSummaryTokenCount `json:"token_count"`
+
+	ToolCallsCount             AIBridgeInterceptionsSummaryToolCallsCount `json:"tool_calls_count"`
+	InjectedToolCallErrorCount int64                                      `json:"injected_tool_call_error_count"`
+}
+
+func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {
+	return AIBridgeInterceptionsSummary{
+		ID:                uuid.New(),
+		Timestamp:         endTime,
+		Provider:          provider,
+		Model:             model,
+		Client:            client,
+		InterceptionCount: summary.InterceptionCount,
+		InterceptionDurationMillis: AIBridgeInterceptionsSummaryDurationMillis{
+			P50: summary.InterceptionDurationP50Millis,
+			P90: summary.InterceptionDurationP90Millis,
+			P95: summary.InterceptionDurationP95Millis,
+			P99: summary.InterceptionDurationP99Millis,
+		},
+		// TODO: currently we don't track by route
+		InterceptionsByRoute: make(map[string]int64),
+		UniqueInitiatorCount: summary.UniqueInitiatorCount,
+		UserPromptsCount:     summary.UserPromptsCount,
+		TokenUsagesCount:     summary.TokenUsagesCount,
+		TokenCount: AIBridgeInterceptionsSummaryTokenCount{
+			Input:         summary.TokenCountInput,
+			Output:        summary.TokenCountOutput,
+			CachedRead:    summary.TokenCountCachedRead,
+			CachedWritten: summary.TokenCountCachedWritten,
+		},
+		ToolCallsCount: AIBridgeInterceptionsSummaryToolCallsCount{
+			Injected:    summary.ToolCallsCountInjected,
+			NonInjected: summary.ToolCallsCountNonInjected,
+		},
+		InjectedToolCallErrorCount: summary.InjectedToolCallErrorCount,
+	}
 }
 
 type noopReporter struct{}

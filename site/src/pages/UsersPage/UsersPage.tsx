@@ -21,9 +21,8 @@ import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -39,9 +38,8 @@ type UserPageProps = {
 const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const searchParamsResult = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
-	const [searchParams] = searchParamsResult;
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());
@@ -58,9 +56,10 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 		enabled: viewDeploymentConfig,
 	});
 
-	const usersQuery = usePaginatedQuery(paginatedUsers(searchParamsResult[0]));
+	const usersQuery = usePaginatedQuery(paginatedUsers(searchParams));
 	const useFilterResult = useFilter({
-		searchParamsResult,
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 		onUpdate: usersQuery.goToFirstPage,
 	});
 
@@ -104,9 +103,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Users")}</title>
-			</Helmet>
+			<title>{pageTitle("Users")}</title>
 
 			<UsersPageView
 				oidcRoleSyncEnabled={oidcRoleSyncEnabled}

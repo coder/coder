@@ -11,11 +11,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -38,25 +38,27 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-func (r *RootCmd) workspaceAgent() *serpent.Command {
+func workspaceAgent() *serpent.Command {
 	var (
-		auth                string
-		logDir              string
-		scriptDataDir       string
-		pprofAddress        string
-		noReap              bool
-		sshMaxTimeout       time.Duration
-		tailnetListenPort   int64
-		prometheusAddress   string
-		debugAddress        string
-		slogHumanPath       string
-		slogJSONPath        string
-		slogStackdriverPath string
-		blockFileTransfer   bool
-		agentHeaderCommand  string
-		agentHeader         []string
-		devcontainers       bool
+		logDir                         string
+		scriptDataDir                  string
+		pprofAddress                   string
+		noReap                         bool
+		sshMaxTimeout                  time.Duration
+		tailnetListenPort              int64
+		prometheusAddress              string
+		debugAddress                   string
+		slogHumanPath                  string
+		slogJSONPath                   string
+		slogStackdriverPath            string
+		blockFileTransfer              bool
+		agentHeaderCommand             string
+		agentHeader                    []string
+		devcontainers                  bool
+		devcontainerProjectDiscovery   bool
+		devcontainerDiscoveryAutostart bool
 	)
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "agent",
 		Short: `Starts the Coder workspace agent.`,
@@ -174,12 +176,14 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
-				slog.F("url", r.agentURL),
-				slog.F("auth", auth),
+				slog.F("url", agentAuth.agentURL),
+				slog.F("auth", agentAuth.agentAuth),
 				slog.F("version", version),
 			)
-
-			client := agentsdk.New(r.agentURL)
+			client, err := agentAuth.CreateClient()
+			if err != nil {
+				return xerrors.Errorf("create agent client: %w", err)
+			}
 			client.SDK.SetLogger(logger)
 			// Set a reasonable timeout so requests can't hang forever!
 			// The timeout needs to be reasonably long, because requests
@@ -188,7 +192,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			client.SDK.HTTPClient.Timeout = 30 * time.Second
 			// Attach header transport so we process --agent-header and
 			// --agent-header-command flags
-			headerTransport, err := headerTransport(ctx, r.agentURL, agentHeader, agentHeaderCommand)
+			headerTransport, err := headerTransport(ctx, &agentAuth.agentURL, agentHeader, agentHeaderCommand)
 			if err != nil {
 				return xerrors.Errorf("configure header transport: %w", err)
 			}
@@ -198,80 +202,15 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
-			defer pprofSrvClose()
-			if port, err := extractPort(pprofAddress); err == nil {
-				ignorePorts[port] = "pprof"
-			}
+			if pprofAddress != "" {
+				pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
+				defer pprofSrvClose()
 
-			if port, err := extractPort(prometheusAddress); err == nil {
-				ignorePorts[port] = "prometheus"
-			}
-
-			if port, err := extractPort(debugAddress); err == nil {
-				ignorePorts[port] = "debug"
-			}
-
-			// exchangeToken returns a session token.
-			// This is abstracted to allow for the same looping condition
-			// regardless of instance identity auth type.
-			var exchangeToken func(context.Context) (agentsdk.AuthenticateResponse, error)
-			switch auth {
-			case "token":
-				token, _ := inv.ParsedFlags().GetString(varAgentToken)
-				if token == "" {
-					tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
-					if tokenFile != "" {
-						tokenBytes, err := os.ReadFile(tokenFile)
-						if err != nil {
-							return xerrors.Errorf("read token file %q: %w", tokenFile, err)
-						}
-						token = strings.TrimSpace(string(tokenBytes))
-					}
+				if port, err := extractPort(pprofAddress); err == nil {
+					ignorePorts[port] = "pprof"
 				}
-				if token == "" {
-					return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
-				}
-				client.SetSessionToken(token)
-			case "google-instance-identity":
-				// This is *only* done for testing to mock client authentication.
-				// This will never be set in a production scenario.
-				var gcpClient *metadata.Client
-				gcpClientRaw := ctx.Value("gcp-client")
-				if gcpClientRaw != nil {
-					gcpClient, _ = gcpClientRaw.(*metadata.Client)
-				}
-				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
-					return client.AuthGoogleInstanceIdentity(ctx, "", gcpClient)
-				}
-			case "aws-instance-identity":
-				// This is *only* done for testing to mock client authentication.
-				// This will never be set in a production scenario.
-				var awsClient *http.Client
-				awsClientRaw := ctx.Value("aws-client")
-				if awsClientRaw != nil {
-					awsClient, _ = awsClientRaw.(*http.Client)
-					if awsClient != nil {
-						client.SDK.HTTPClient = awsClient
-					}
-				}
-				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
-					return client.AuthAWSInstanceIdentity(ctx)
-				}
-			case "azure-instance-identity":
-				// This is *only* done for testing to mock client authentication.
-				// This will never be set in a production scenario.
-				var azureClient *http.Client
-				azureClientRaw := ctx.Value("azure-client")
-				if azureClientRaw != nil {
-					azureClient, _ = azureClientRaw.(*http.Client)
-					if azureClient != nil {
-						client.SDK.HTTPClient = azureClient
-					}
-				}
-				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
-					return client.AuthAzureInstanceIdentity(ctx)
-				}
+			} else {
+				logger.Debug(ctx, "pprof address is empty, disabling pprof server")
 			}
 
 			executablePath, err := os.Executable()
@@ -335,24 +274,35 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			for {
 				prometheusRegistry := prometheus.NewRegistry()
 
+				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
+				var serverClose []func()
+				if prometheusAddress != "" {
+					prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
+					serverClose = append(serverClose, prometheusSrvClose)
+
+					if port, err := extractPort(prometheusAddress); err == nil {
+						ignorePorts[port] = "prometheus"
+					}
+				} else {
+					logger.Debug(ctx, "prometheus address is empty, disabling prometheus server")
+				}
+
+				if debugAddress != "" {
+					// ServerHandle depends on `agnt.HTTPDebug()`, but `agnt`
+					// depends on `ignorePorts`. Keep this if statement in sync
+					// with below.
+					if port, err := extractPort(debugAddress); err == nil {
+						ignorePorts[port] = "debug"
+					}
+				}
+
 				agnt := agent.New(agent.Options{
 					Client:        client,
 					Logger:        logger,
 					LogDir:        logDir,
 					ScriptDataDir: scriptDataDir,
 					// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
-					TailnetListenPort: uint16(tailnetListenPort),
-					ExchangeToken: func(ctx context.Context) (string, error) {
-						if exchangeToken == nil {
-							return client.SDK.SessionToken(), nil
-						}
-						resp, err := exchangeToken(ctx)
-						if err != nil {
-							return "", err
-						}
-						client.SetSessionToken(resp.SessionToken)
-						return resp.SessionToken, nil
-					},
+					TailnetListenPort:    uint16(tailnetListenPort),
 					EnvironmentVariables: environmentVariables,
 					IgnorePorts:          ignorePorts,
 					SSHMaxTimeout:        sshMaxTimeout,
@@ -363,14 +313,21 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					Execer:             execer,
 					Devcontainers:      devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
-						agentcontainers.WithSubAgentURL(r.agentURL.String()),
+						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
+						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
+						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
 					},
 				})
 
-				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
-				prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
-
-				debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+				if debugAddress != "" {
+					// ServerHandle depends on `agnt.HTTPDebug()`, but `agnt`
+					// depends on `ignorePorts`. Keep this if statement in sync
+					// with above.
+					debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+					serverClose = append(serverClose, debugSrvClose)
+				} else {
+					logger.Debug(ctx, "debug address is empty, disabling debug server")
+				}
 
 				select {
 				case <-ctx.Done():
@@ -382,8 +339,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				}
 
 				lastErr = agnt.Close()
-				debugSrvClose()
-				prometheusSrvClose()
+
+				slices.Reverse(serverClose)
+				for _, closeFunc := range serverClose {
+					closeFunc()
+				}
 
 				if mustExit {
 					break
@@ -396,13 +356,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 	}
 
 	cmd.Options = serpent.OptionSet{
-		{
-			Flag:        "auth",
-			Default:     "token",
-			Description: "Specify the authentication type to use for the agent.",
-			Env:         "CODER_AGENT_AUTH",
-			Value:       serpent.StringOf(&auth),
-		},
 		{
 			Flag:        "log-dir",
 			Default:     os.TempDir(),
@@ -510,8 +463,22 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Description: "Allow the agent to automatically detect running devcontainers.",
 			Value:       serpent.BoolOf(&devcontainers),
 		},
+		{
+			Flag:        "devcontainers-project-discovery-enable",
+			Default:     "true",
+			Env:         "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE",
+			Description: "Allow the agent to search the filesystem for devcontainer projects.",
+			Value:       serpent.BoolOf(&devcontainerProjectDiscovery),
+		},
+		{
+			Flag:        "devcontainers-discovery-autostart-enable",
+			Default:     "false",
+			Env:         "CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE",
+			Description: "Allow the agent to autostart devcontainer projects it discovers based on their configuration.",
+			Value:       serpent.BoolOf(&devcontainerDiscoveryAutostart),
+		},
 	}
-
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 

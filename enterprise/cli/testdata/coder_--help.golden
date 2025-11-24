@@ -14,11 +14,14 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
-    features           List Enterprise features
-    groups             Manage groups
-    licenses           Add, delete, and list licenses
-    provisioner        View and manage provisioner daemons and jobs
-    server             Start a Coder server
+    aibridge               Manage AIBridge.
+    external-workspaces    Create or manage external workspaces
+    features               List Enterprise features
+    groups                 Manage groups
+    licenses               Add, delete, and list licenses
+    prebuilds              Manage Coder prebuilds
+    provisioner            View and manage provisioner daemons and jobs
+    server                 Start a Coder server
 
 GLOBAL OPTIONS: 
 Global options are applied to all commands. They can be set using environment
@@ -64,6 +67,11 @@ variables or flags.
 
       --url url, $CODER_URL
           URL to a deployment.
+
+      --use-keyring bool, $CODER_USE_KEYRING
+          Store and retrieve session tokens using the operating system keyring.
+          Currently only supported on Windows. By default, tokens are stored in
+          plain text files.
 
   -v, --verbose bool, $CODER_VERBOSE
           Enable verbose output.

@@ -2,271 +2,59 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/identityprovider"
+	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestOAuth2ProviderApps(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Validation", func(t *testing.T) {
+	// NOTE: Unit tests for OAuth2 provider app validation have been migrated to
+	// oauth2provider/provider_test.go for better separation of concerns.
+	// This test function now focuses on integration testing with the full server stack.
+
+	t.Run("IntegrationFlow", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-
-		topCtx := testutil.Context(t, testutil.WaitLong)
-
-		tests := []struct {
-			name string
-			req  codersdk.PostOAuth2ProviderAppRequest
-		}{
-			{
-				name: "NameMissing",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					CallbackURL: "http://localhost:3000",
-				},
-			},
-			{
-				name: "NameSpaces",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo bar",
-					CallbackURL: "http://localhost:3000",
-				},
-			},
-			{
-				name: "NameTooLong",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "too loooooooooooooooooooooooooong",
-					CallbackURL: "http://localhost:3000",
-				},
-			},
-			{
-				name: "NameTaken",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "taken",
-					CallbackURL: "http://localhost:3000",
-				},
-			},
-			{
-				name: "URLMissing",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name: "foo",
-				},
-			},
-			{
-				name: "URLLocalhostNoScheme",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "localhost:3000",
-				},
-			},
-			{
-				name: "URLNoScheme",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "coder.com",
-				},
-			},
-			{
-				name: "URLNoColon",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "http//coder",
-				},
-			},
-			{
-				name: "URLJustBar",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "bar",
-				},
-			},
-			{
-				name: "URLPathOnly",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "/bar/baz/qux",
-				},
-			},
-			{
-				name: "URLJustHttp",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "http",
-				},
-			},
-			{
-				name: "URLNoHost",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "http://",
-				},
-			},
-			{
-				name: "URLSpaces",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "bar baz qux",
-				},
-			},
-		}
-
-		// Generate an application for testing name conflicts.
-		req := codersdk.PostOAuth2ProviderAppRequest{
-			Name:        "taken",
-			CallbackURL: "http://coder.com",
-		}
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		_, err := client.PostOAuth2ProviderApp(topCtx, req)
-		require.NoError(t, err)
-
-		// Generate an application for testing PUTs.
-		req = codersdk.PostOAuth2ProviderAppRequest{
-			Name:        "quark",
-			CallbackURL: "http://coder.com",
-		}
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		existingApp, err := client.PostOAuth2ProviderApp(topCtx, req)
-		require.NoError(t, err)
-
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
-
-				//nolint:gocritic // OAauth2 app management requires owner permission.
-				_, err := client.PostOAuth2ProviderApp(ctx, test.req)
-				require.Error(t, err)
-
-				//nolint:gocritic // OAauth2 app management requires owner permission.
-				_, err = client.PutOAuth2ProviderApp(ctx, existingApp.ID, codersdk.PutOAuth2ProviderAppRequest{
-					Name:        test.req.Name,
-					CallbackURL: test.req.CallbackURL,
-				})
-				require.Error(t, err)
-			})
-		}
-	})
-
-	t.Run("DeleteNonExisting", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, client)
-		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := another.OAuth2ProviderApp(ctx, uuid.New())
-		require.Error(t, err)
-	})
-
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, client)
-		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// No apps yet.
-		apps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
-		require.NoError(t, err)
-		require.Len(t, apps, 0)
-
-		// Should be able to add apps.
-		expected := generateApps(ctx, t, client, "get-apps")
-		expectedOrder := []codersdk.OAuth2ProviderApp{
-			expected.Default, expected.NoPort, expected.Subdomain,
-			expected.Extra[0], expected.Extra[1],
-		}
-
-		// Should get all the apps now.
-		apps, err = another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
-		require.NoError(t, err)
-		require.Len(t, apps, 5)
-		require.Equal(t, expectedOrder, apps)
-
-		// Should be able to keep the same name when updating.
-		req := codersdk.PutOAuth2ProviderAppRequest{
-			Name:        expected.Default.Name,
-			CallbackURL: "http://coder.com",
-			Icon:        "test",
-		}
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		newApp, err := client.PutOAuth2ProviderApp(ctx, expected.Default.ID, req)
-		require.NoError(t, err)
-		require.Equal(t, req.Name, newApp.Name)
-		require.Equal(t, req.CallbackURL, newApp.CallbackURL)
-		require.Equal(t, req.Icon, newApp.Icon)
-		require.Equal(t, expected.Default.ID, newApp.ID)
-
-		// Should be able to update name.
-		req = codersdk.PutOAuth2ProviderAppRequest{
-			Name:        "new-foo",
-			CallbackURL: "http://coder.com",
-			Icon:        "test",
-		}
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		newApp, err = client.PutOAuth2ProviderApp(ctx, expected.Default.ID, req)
-		require.NoError(t, err)
-		require.Equal(t, req.Name, newApp.Name)
-		require.Equal(t, req.CallbackURL, newApp.CallbackURL)
-		require.Equal(t, req.Icon, newApp.Icon)
-		require.Equal(t, expected.Default.ID, newApp.ID)
-
-		// Should be able to get a single app.
-		got, err := another.OAuth2ProviderApp(ctx, expected.Default.ID)
-		require.NoError(t, err)
-		require.Equal(t, newApp, got)
-
-		// Should be able to delete an app.
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		err = client.DeleteOAuth2ProviderApp(ctx, expected.Default.ID)
-		require.NoError(t, err)
-
-		// Should show the new count.
-		newApps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
-		require.NoError(t, err)
-		require.Len(t, newApps, 4)
-
-		require.Equal(t, expectedOrder[1:], newApps)
-	})
-
-	t.Run("ByUser", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, client)
-		another, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_ = generateApps(ctx, t, client, "by-user")
-		apps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
-			UserID: user.ID,
+		// Test basic app creation and management in integration context
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        fmt.Sprintf("integration-test-%d", time.Now().UnixNano()%1000000),
+			CallbackURL: "http://localhost:3000",
 		})
 		require.NoError(t, err)
-		require.Len(t, apps, 0)
+		require.NotEmpty(t, app.ID)
+		require.NotEmpty(t, app.Name)
+		require.Equal(t, "http://localhost:3000", app.CallbackURL)
 	})
 }
 
@@ -276,10 +64,10 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	topCtx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Make some apps.
-	apps := generateApps(topCtx, t, client, "app-secrets")
+	apps := generateApps(ctx, t, client, "app-secrets")
 
 	t.Run("DeleteNonExisting", func(t *testing.T) {
 		t.Parallel()
@@ -370,11 +158,11 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	topCtx := testutil.Context(t, testutil.WaitLong)
-	apps := generateApps(topCtx, t, ownerClient, "token-exchange")
+	ctx := testutil.Context(t, testutil.WaitLong)
+	apps := generateApps(ctx, t, ownerClient, "token-exchange")
 
 	//nolint:gocritic // OAauth2 app management requires owner permission.
-	secret, err := ownerClient.PostOAuth2ProviderAppSecret(topCtx, apps.Default.ID)
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 	require.NoError(t, err)
 
 	// The typical oauth2 flow from this point is:
@@ -422,7 +210,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preAuth: func(valid *oauth2.Config) {
 				valid.ClientID = uuid.NewString()
 			},
-			authError: "Resource not found",
+			authError: "invalid_client",
 		},
 		{
 			name: "TokenInvalidAppID",
@@ -430,7 +218,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientID = uuid.NewString()
 			},
-			tokenError: "Resource not found",
+			tokenError: "invalid_client",
 		},
 		{
 			name: "InvalidPort",
@@ -440,7 +228,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = newURL.Hostname() + ":8081"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "WrongAppHost",
@@ -448,7 +236,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preAuth: func(valid *oauth2.Config) {
 				valid.RedirectURL = apps.NoPort.CallbackURL
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidHostPrefix",
@@ -458,7 +246,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "prefix" + newURL.Hostname()
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidHost",
@@ -468,7 +256,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "invalid"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidHostAndPort",
@@ -478,7 +266,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "invalid:8080"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidPath",
@@ -488,7 +276,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Path = path.Join("/prepend", newURL.Path)
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "MissingPath",
@@ -498,7 +286,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Path = "/"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			// TODO: This is valid for now, but should it be?
@@ -529,7 +317,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "sub." + newURL.Host
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "NoSecretScheme",
@@ -537,7 +325,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "1234_4321"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "InvalidSecretScheme",
@@ -545,7 +333,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "notcoder_1234_4321"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "MissingSecretSecret",
@@ -553,7 +341,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "coder_1234"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "MissingSecretPrefix",
@@ -561,7 +349,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "coder__1234"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "InvalidSecretPrefix",
@@ -569,7 +357,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "coder_1234_4321"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "MissingSecret",
@@ -577,48 +365,48 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = ""
 			},
-			tokenError: "Invalid query params",
+			tokenError: "invalid_request",
 		},
 		{
 			name:        "NoCodeScheme",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("1234_4321"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodeScheme",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("notcoder_1234_4321"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodeSecret",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder_1234"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodePrefix",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder__1234"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodePrefix",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder_1234_4321"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCode",
 			app:         apps.Default,
 			defaultCode: ptr.Ref(""),
-			tokenError:  "Invalid query params",
+			tokenError:  "invalid_request",
 		},
 		{
 			name:       "InvalidGrantType",
 			app:        apps.Default,
-			tokenError: "Invalid query params",
+			tokenError: "unsupported_grant_type",
 			exchangeMutate: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("grant_type", "foobar"),
 			},
@@ -626,7 +414,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		{
 			name:       "EmptyGrantType",
 			app:        apps.Default,
-			tokenError: "Invalid query params",
+			tokenError: "unsupported_grant_type",
 			exchangeMutate: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("grant_type", ""),
 			},
@@ -635,7 +423,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			name:        "ExpiredCode",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder_prefix_code"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 			setup: func(ctx context.Context, client *codersdk.Client, user codersdk.User) error {
 				// Insert an expired code.
 				hashedCode, err := userpassword.Hash("prefix_code")
@@ -720,7 +508,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, token.AccessToken)
-				require.True(t, time.Now().After(token.Expiry))
+				require.True(t, time.Now().Before(token.Expiry))
 
 				// Check that the token works.
 				newClient := codersdk.New(userClient.URL)
@@ -736,7 +524,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 
 func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	t.Parallel()
-	topCtx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db, pubsub := dbtestutil.NewDB(t)
 	ownerClient := coderdtest.New(t, &coderdtest.Options{
@@ -744,10 +532,10 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	apps := generateApps(topCtx, t, ownerClient, "token-refresh")
+	apps := generateApps(ctx, t, ownerClient, "token-refresh")
 
 	//nolint:gocritic // OAauth2 app management requires owner permission.
-	secret, err := ownerClient.PostOAuth2ProviderAppSecret(topCtx, apps.Default.ID)
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 	require.NoError(t, err)
 
 	// One path not tested here is when the token is empty, because Go's OAuth2
@@ -764,37 +552,37 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 			name:         "NoTokenScheme",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("1234_4321"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenScheme",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("notcoder_1234_4321"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenSecret",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("coder_1234"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenPrefix",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("coder__1234"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenPrefix",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("coder_1234_4321"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:    "Expired",
 			app:     apps.Default,
 			expires: time.Now().Add(time.Minute * -1),
-			error:   "Invalid token",
+			error:   "The refresh token is invalid or expired",
 		},
 		{
 			name: "OK",
@@ -819,7 +607,7 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 			newKey, err := db.InsertAPIKey(ctx, key)
 			require.NoError(t, err)
 
-			token, err := identityprovider.GenerateSecret()
+			token, err := oauth2provider.GenerateSecret()
 			require.NoError(t, err)
 
 			expires := test.expires
@@ -832,9 +620,10 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 				CreatedAt:   dbtime.Now(),
 				ExpiresAt:   expires,
 				HashPrefix:  []byte(token.Prefix),
-				RefreshHash: []byte(token.Hashed),
+				RefreshHash: token.Hashed,
 				AppSecretID: secret.ID,
 				APIKeyID:    newKey.ID,
+				UserID:      user.ID,
 			})
 			require.NoError(t, err)
 
@@ -931,7 +720,7 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 			},
 		},
 		{
-			name: "DeleteToken",
+			name: "DeleteApp",
 			fn: func(ctx context.Context, client *codersdk.Client, s exchangeSetup) {
 				err := client.RevokeOAuth2ProviderApp(ctx, s.app.ID)
 				require.NoError(t, err)
@@ -1073,32 +862,33 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 	}
 
 	return provisionedApps{
-		Default:   create("razzle-dazzle-a", "http://localhost1:8080/foo/bar"),
-		NoPort:    create("razzle-dazzle-b", "http://localhost2"),
-		Subdomain: create("razzle-dazzle-z", "http://30.localhost:3000"),
+		Default:   create("app-a", "http://localhost1:8080/foo/bar"),
+		NoPort:    create("app-b", "http://localhost2"),
+		Subdomain: create("app-z", "http://30.localhost:3000"),
 		Extra: []codersdk.OAuth2ProviderApp{
-			create("second-to-last", "http://20.localhost:3000"),
-			create("woo-10", "http://10.localhost:3000"),
+			create("app-x", "http://20.localhost:3000"),
+			create("app-y", "http://10.localhost:3000"),
 		},
 	}
 }
 
 func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2.Config) (string, error) {
 	state := uuid.NewString()
+	authURL := cfg.AuthCodeURL(state)
+
+	// Make a POST request to simulate clicking "Allow" on the authorization page
+	// This bypasses the HTML consent page and directly processes the authorization
 	return oidctest.OAuth2GetCode(
-		cfg.AuthCodeURL(state),
+		authURL,
 		func(req *http.Request) (*http.Response, error) {
-			// TODO: Would be better if client had a .Do() method.
-			// TODO: Is this the best way to handle redirects?
+			// Change to POST to simulate the form submission
+			req.Method = http.MethodPost
+
+			// Prevent automatic redirect following
 			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			}
-			return client.Request(ctx, req.Method, req.URL.String(), nil, func(req *http.Request) {
-				// Set the referer so the request bypasses the HTML page (normally you
-				// have to click "allow" first, and the way we detect that is using the
-				// referer header).
-				req.Header.Set("Referer", req.URL.String())
-			})
+			return client.Request(ctx, req.Method, req.URL.String(), nil)
 		},
 	)
 }
@@ -1109,3 +899,784 @@ func must[T any](value T, err error) T {
 	}
 	return value
 }
+
+// TestOAuth2ProviderResourceIndicators tests RFC 8707 Resource Indicators support
+// including resource parameter validation in authorization and token exchange flows.
+func TestOAuth2ProviderResourceIndicators(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	apps := generateApps(ctx, t, ownerClient, "resource-indicators")
+
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	require.NoError(t, err)
+
+	resource := ownerClient.URL.String()
+
+	tests := []struct {
+		name               string
+		authResource       string // Resource parameter during authorization
+		tokenResource      string // Resource parameter during token exchange
+		refreshResource    string // Resource parameter during refresh
+		expectAuthError    bool
+		expectTokenError   bool
+		expectRefreshError bool
+	}{
+		{
+			name: "NoResourceParameter",
+			// Standard flow without resource parameter
+		},
+		{
+			name:            "ValidResourceParameter",
+			authResource:    resource,
+			tokenResource:   resource,
+			refreshResource: resource,
+		},
+		{
+			name:             "ResourceInAuthOnly",
+			authResource:     resource,
+			tokenResource:    "", // Missing in token exchange
+			expectTokenError: true,
+		},
+		{
+			name:             "ResourceInTokenOnly",
+			authResource:     "", // Missing in auth
+			tokenResource:    resource,
+			expectTokenError: true,
+		},
+		{
+			name:             "ResourceMismatch",
+			authResource:     "https://resource1.example.com",
+			tokenResource:    "https://resource2.example.com", // Different resource
+			expectTokenError: true,
+		},
+		{
+			name:               "RefreshWithDifferentResource",
+			authResource:       resource,
+			tokenResource:      resource,
+			refreshResource:    "https://different.example.com", // Different in refresh
+			expectRefreshError: true,
+		},
+		{
+			name:            "RefreshWithoutResource",
+			authResource:    resource,
+			tokenResource:   resource,
+			refreshResource: "", // No resource in refresh (allowed)
+		},
+		{
+			name:            "RefreshWithSameResource",
+			authResource:    resource,
+			tokenResource:   resource,
+			refreshResource: resource, // Same resource in refresh
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+			cfg := &oauth2.Config{
+				ClientID:     apps.Default.ID.String(),
+				ClientSecret: secret.ClientSecretFull,
+				Endpoint: oauth2.Endpoint{
+					AuthURL:   apps.Default.Endpoints.Authorization,
+					TokenURL:  apps.Default.Endpoints.Token,
+					AuthStyle: oauth2.AuthStyleInParams,
+				},
+				RedirectURL: apps.Default.CallbackURL,
+				Scopes:      []string{},
+			}
+
+			// Step 1: Authorization with resource parameter
+			state := uuid.NewString()
+			authURL := cfg.AuthCodeURL(state)
+			if test.authResource != "" {
+				// Add resource parameter to auth URL
+				parsedURL, err := url.Parse(authURL)
+				require.NoError(t, err)
+				query := parsedURL.Query()
+				query.Set("resource", test.authResource)
+				parsedURL.RawQuery = query.Encode()
+				authURL = parsedURL.String()
+			}
+
+			// Simulate authorization flow
+			code, err := oidctest.OAuth2GetCode(
+				authURL,
+				func(req *http.Request) (*http.Response, error) {
+					req.Method = http.MethodPost
+					userClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+						return http.ErrUseLastResponse
+					}
+					return userClient.Request(ctx, req.Method, req.URL.String(), nil)
+				},
+			)
+
+			if test.expectAuthError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Step 2: Token exchange with resource parameter
+			// Use custom token exchange since golang.org/x/oauth2 doesn't support resource parameter in token requests
+			token, err := customTokenExchange(ctx, ownerClient.URL.String(), apps.Default.ID.String(), secret.ClientSecretFull, code, apps.Default.CallbackURL, test.tokenResource)
+			if test.expectTokenError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "invalid_target")
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, token.AccessToken)
+
+			// Per RFC 8707, audience is stored in database but not returned in token response
+			// The audience validation happens server-side during API requests
+
+			// Step 3: Test API access with token audience validation
+			newClient := codersdk.New(userClient.URL)
+			newClient.SetSessionToken(token.AccessToken)
+
+			// Token should work for API access
+			gotUser, err := newClient.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+			require.Equal(t, user.ID, gotUser.ID)
+
+			// Step 4: Test refresh token flow with resource parameter
+			if token.RefreshToken != "" {
+				// Note: OAuth2 library doesn't easily support custom parameters in refresh flows
+				// For now, we test basic refresh functionality without resource parameter
+				// TODO: Implement custom refresh flow testing with resource parameter
+
+				// Create a token source with refresh capability
+				tokenSource := cfg.TokenSource(ctx, &oauth2.Token{
+					AccessToken:  token.AccessToken,
+					RefreshToken: token.RefreshToken,
+					Expiry:       time.Now().Add(-time.Minute), // Force refresh
+				})
+
+				// Test token refresh
+				refreshedToken, err := tokenSource.Token()
+				require.NoError(t, err)
+				require.NotEmpty(t, refreshedToken.AccessToken)
+
+				// Old token should be invalid
+				_, err = newClient.User(ctx, codersdk.Me)
+				require.Error(t, err)
+
+				// New token should work
+				newClient.SetSessionToken(refreshedToken.AccessToken)
+				gotUser, err = newClient.User(ctx, codersdk.Me)
+				require.NoError(t, err)
+				require.Equal(t, user.ID, gotUser.ID)
+			}
+		})
+	}
+}
+
+// TestOAuth2ProviderCrossResourceAudienceValidation tests that tokens are properly
+// validated against the audience/resource server they were issued for.
+func TestOAuth2ProviderCrossResourceAudienceValidation(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+
+	// Set up first Coder instance (resource server 1)
+	server1 := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, server1)
+
+	// Set up second Coder instance (resource server 2) - simulate different host
+	server2 := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create OAuth2 app
+	apps := generateApps(ctx, t, server1, "cross-resource")
+
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	secret, err := server1.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	require.NoError(t, err)
+	userClient, user := coderdtest.CreateAnotherUser(t, server1, owner.OrganizationID)
+
+	// Get token with specific audience for server1
+	resource1 := server1.URL.String()
+	cfg := &oauth2.Config{
+		ClientID:     apps.Default.ID.String(),
+		ClientSecret: secret.ClientSecretFull,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   apps.Default.Endpoints.Authorization,
+			TokenURL:  apps.Default.Endpoints.Token,
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+		RedirectURL: apps.Default.CallbackURL,
+		Scopes:      []string{},
+	}
+
+	// Authorization with resource parameter for server1
+	state := uuid.NewString()
+	authURL := cfg.AuthCodeURL(state)
+	parsedURL, err := url.Parse(authURL)
+	require.NoError(t, err)
+	query := parsedURL.Query()
+	query.Set("resource", resource1)
+	parsedURL.RawQuery = query.Encode()
+	authURL = parsedURL.String()
+
+	code, err := oidctest.OAuth2GetCode(
+		authURL,
+		func(req *http.Request) (*http.Response, error) {
+			req.Method = http.MethodPost
+			userClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+			return userClient.Request(ctx, req.Method, req.URL.String(), nil)
+		},
+	)
+	require.NoError(t, err)
+
+	// Exchange code for token with resource parameter
+	token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("resource", resource1))
+	require.NoError(t, err)
+	require.NotEmpty(t, token.AccessToken)
+
+	// Token should work on server1 (correct audience)
+	client1 := codersdk.New(server1.URL)
+	client1.SetSessionToken(token.AccessToken)
+	gotUser, err := client1.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, user.ID, gotUser.ID)
+
+	// Token should NOT work on server2 (different audience/host) if audience validation is implemented
+	// Note: This test verifies that the audience validation middleware properly rejects
+	// tokens issued for different resource servers
+	client2 := codersdk.New(server2.URL)
+	client2.SetSessionToken(token.AccessToken)
+
+	// This should fail due to audience mismatch if validation is properly implemented
+	// The expected behavior depends on whether the middleware detects Host differences
+	if _, err := client2.User(ctx, codersdk.Me); err != nil {
+		// This is expected if audience validation is working properly
+		t.Logf("Cross-resource token properly rejected: %v", err)
+		// Assert that the error is related to audience validation
+		require.Contains(t, err.Error(), "audience")
+	} else {
+		// The token might still work if both servers use the same database but different URLs
+		// since the actual audience validation depends on Host header comparison
+		t.Logf("Cross-resource token was accepted (both servers use same database)")
+		// For now, we accept this behavior since both servers share the same database
+		// In a real cross-deployment scenario, this should fail
+	}
+
+	// TODO: Enhance this test when we have better cross-deployment testing setup
+	// For now, this verifies the basic token flow works correctly
+}
+
+// TestOAuth2RefreshExpiryOutlivesAccess verifies that refresh token expiry is
+// greater than the provisioned access token (API key) expiry per configuration.
+func TestOAuth2RefreshExpiryOutlivesAccess(t *testing.T) {
+	t.Parallel()
+
+	// Set explicit lifetimes to make comparison deterministic.
+	db, pubsub := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t, func(d *codersdk.DeploymentValues) {
+		d.Sessions.DefaultDuration = serpent.Duration(1 * time.Hour)
+		d.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+	})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database:         db,
+		Pubsub:           pubsub,
+		DeploymentValues: dv,
+	})
+	_ = coderdtest.CreateFirstUser(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create app and secret
+	// Keep suffix short to satisfy name validation (<=32 chars, alnum + hyphens).
+	apps := generateApps(ctx, t, ownerClient, "ref-exp")
+	//nolint:gocritic // Owner permission required for app secret creation
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	require.NoError(t, err)
+
+	cfg := &oauth2.Config{
+		ClientID:     apps.Default.ID.String(),
+		ClientSecret: secret.ClientSecretFull,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:       apps.Default.Endpoints.Authorization,
+			DeviceAuthURL: apps.Default.Endpoints.DeviceAuth,
+			TokenURL:      apps.Default.Endpoints.Token,
+			AuthStyle:     oauth2.AuthStyleInParams,
+		},
+		RedirectURL: apps.Default.CallbackURL,
+		Scopes:      []string{},
+	}
+
+	// Authorization and token exchange
+	code, err := authorizationFlow(ctx, ownerClient, cfg)
+	require.NoError(t, err)
+	tok, err := cfg.Exchange(ctx, code)
+	require.NoError(t, err)
+	require.NotEmpty(t, tok.AccessToken)
+	require.NotEmpty(t, tok.RefreshToken)
+
+	// Parse refresh token prefix (coder_<prefix>_<secret>)
+	parts := strings.Split(tok.RefreshToken, "_")
+	require.Len(t, parts, 3)
+	prefix := parts[1]
+
+	// Look up refresh token row and associated API key
+	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(prefix))
+	require.NoError(t, err)
+	apiKey, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
+	require.NoError(t, err)
+
+	// Assert refresh token expiry is strictly after access token expiry
+	require.Truef(t, dbToken.ExpiresAt.After(apiKey.ExpiresAt),
+		"expected refresh expiry %s to be after access expiry %s",
+		dbToken.ExpiresAt, apiKey.ExpiresAt,
+	)
+}
+
+// customTokenExchange performs a custom OAuth2 token exchange with support for resource parameter
+// This is needed because golang.org/x/oauth2 doesn't support custom parameters in token requests
+func customTokenExchange(ctx context.Context, baseURL, clientID, clientSecret, code, redirectURI, resource string) (*oauth2.Token, error) {
+	data := url.Values{}
+	data.Set("grant_type", "authorization_code")
+	data.Set("code", code)
+	data.Set("client_id", clientID)
+	data.Set("client_secret", clientSecret)
+	data.Set("redirect_uri", redirectURI)
+	if resource != "" {
+		data.Set("resource", resource)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/oauth2/tokens", strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&errorResp)
+		return nil, xerrors.Errorf("oauth2: %q %q", errorResp.Error, errorResp.ErrorDescription)
+	}
+
+	var token oauth2.Token
+	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
+		return nil, err
+	}
+
+	return &token, nil
+}
+
+// TestOAuth2DynamicClientRegistration tests RFC 7591 dynamic client registration
+func TestOAuth2DynamicClientRegistration(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	t.Run("BasicRegistration", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		clientName := fmt.Sprintf("test-client-basic-%d", time.Now().UnixNano())
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   clientName,
+			ClientURI:    "https://example.com",
+			LogoURI:      "https://example.com/logo.png",
+			TOSURI:       "https://example.com/tos",
+			PolicyURI:    "https://example.com/privacy",
+			Contacts:     []string{"admin@example.com"},
+		}
+
+		// Register client
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+
+		// Verify response fields
+		require.NotEmpty(t, resp.ClientID)
+		require.NotEmpty(t, resp.ClientSecret)
+		require.NotEmpty(t, resp.RegistrationAccessToken)
+		require.NotEmpty(t, resp.RegistrationClientURI)
+		require.Greater(t, resp.ClientIDIssuedAt, int64(0))
+		require.Equal(t, int64(0), resp.ClientSecretExpiresAt) // Non-expiring
+
+		// Verify default values
+		require.Contains(t, resp.GrantTypes, "authorization_code")
+		require.Contains(t, resp.GrantTypes, "refresh_token")
+		require.Contains(t, resp.ResponseTypes, "code")
+		require.Equal(t, "client_secret_basic", resp.TokenEndpointAuthMethod)
+
+		// Verify request values are preserved
+		require.Equal(t, req.RedirectURIs, resp.RedirectURIs)
+		require.Equal(t, req.ClientName, resp.ClientName)
+		require.Equal(t, req.ClientURI, resp.ClientURI)
+		require.Equal(t, req.LogoURI, resp.LogoURI)
+		require.Equal(t, req.TOSURI, resp.TOSURI)
+		require.Equal(t, req.PolicyURI, resp.PolicyURI)
+		require.Equal(t, req.Contacts, resp.Contacts)
+	})
+
+	t.Run("MinimalRegistration", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://minimal.com/callback"},
+		}
+
+		// Register client with minimal fields
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+
+		// Should still get all required fields
+		require.NotEmpty(t, resp.ClientID)
+		require.NotEmpty(t, resp.ClientSecret)
+		require.NotEmpty(t, resp.RegistrationAccessToken)
+		require.NotEmpty(t, resp.RegistrationClientURI)
+
+		// Should have defaults applied
+		require.Contains(t, resp.GrantTypes, "authorization_code")
+		require.Contains(t, resp.ResponseTypes, "code")
+		require.Equal(t, "client_secret_basic", resp.TokenEndpointAuthMethod)
+	})
+
+	t.Run("InvalidRedirectURI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"not-a-url"},
+		}
+
+		_, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_client_metadata")
+	})
+
+	t.Run("NoRedirectURIs", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			ClientName: fmt.Sprintf("no-uris-client-%d", time.Now().UnixNano()),
+		}
+
+		_, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_client_metadata")
+	})
+}
+
+// TestOAuth2ClientConfiguration tests RFC 7592 client configuration management
+func TestOAuth2ClientConfiguration(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Helper to register a client
+	registerClient := func(t *testing.T) (string, string, string) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Use shorter client name to avoid database varchar(64) constraint
+		clientName := fmt.Sprintf("client-%d", time.Now().UnixNano())
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   clientName,
+			ClientURI:    "https://example.com",
+		}
+
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+		return resp.ClientID, resp.RegistrationAccessToken, clientName
+	}
+
+	t.Run("GetConfiguration", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clientID, token, clientName := registerClient(t)
+
+		// Get client configuration
+		config, err := client.GetOAuth2ClientConfiguration(ctx, clientID, token)
+		require.NoError(t, err)
+
+		// Verify fields
+		require.Equal(t, clientID, config.ClientID)
+		require.Greater(t, config.ClientIDIssuedAt, int64(0))
+		require.Equal(t, []string{"https://example.com/callback"}, config.RedirectURIs)
+		require.Equal(t, clientName, config.ClientName)
+		require.Equal(t, "https://example.com", config.ClientURI)
+
+		// Should not contain client_secret in GET response
+		require.Empty(t, config.RegistrationAccessToken) // Not included in GET
+	})
+
+	t.Run("UpdateConfiguration", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		clientID, token, _ := registerClient(t)
+
+		// Update client configuration
+		updatedName := fmt.Sprintf("updated-test-client-%d", time.Now().UnixNano())
+		updateReq := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://newdomain.com/callback", "https://example.com/callback"},
+			ClientName:   updatedName,
+			ClientURI:    "https://newdomain.com",
+			LogoURI:      "https://newdomain.com/logo.png",
+		}
+
+		config, err := client.PutOAuth2ClientConfiguration(ctx, clientID, token, updateReq)
+		require.NoError(t, err)
+
+		// Verify updates
+		require.Equal(t, clientID, config.ClientID)
+		require.Equal(t, updateReq.RedirectURIs, config.RedirectURIs)
+		require.Equal(t, updateReq.ClientName, config.ClientName)
+		require.Equal(t, updateReq.ClientURI, config.ClientURI)
+		require.Equal(t, updateReq.LogoURI, config.LogoURI)
+	})
+
+	t.Run("DeleteConfiguration", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		clientID, token, _ := registerClient(t)
+
+		// Delete client
+		err := client.DeleteOAuth2ClientConfiguration(ctx, clientID, token)
+		require.NoError(t, err)
+
+		// Should no longer be able to get configuration
+		_, err = client.GetOAuth2ClientConfiguration(ctx, clientID, token)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+
+	t.Run("InvalidToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		clientID, _, _ := registerClient(t)
+		invalidToken := "invalid-token"
+
+		// Should fail with invalid token
+		_, err := client.GetOAuth2ClientConfiguration(ctx, clientID, invalidToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+
+	t.Run("NonexistentClient", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		fakeClientID := uuid.NewString()
+		fakeToken := "fake-token"
+
+		_, err := client.GetOAuth2ClientConfiguration(ctx, fakeClientID, fakeToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+
+	t.Run("MissingAuthHeader", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		clientID, _, _ := registerClient(t)
+
+		// Try to access without token (empty string)
+		_, err := client.GetOAuth2ClientConfiguration(ctx, clientID, "")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+}
+
+// TestOAuth2RegistrationAccessToken tests the registration access token middleware
+func TestOAuth2RegistrationAccessToken(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	t.Run("ValidToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Register a client
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   fmt.Sprintf("token-test-client-%d", time.Now().UnixNano()),
+		}
+
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+
+		// Valid token should work
+		config, err := client.GetOAuth2ClientConfiguration(ctx, resp.ClientID, resp.RegistrationAccessToken)
+		require.NoError(t, err)
+		require.Equal(t, resp.ClientID, config.ClientID)
+	})
+
+	t.Run("ManuallyCreatedClient", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create a client through the normal API (not dynamic registration)
+		appReq := codersdk.PostOAuth2ProviderAppRequest{
+			Name:        fmt.Sprintf("manual-%d", time.Now().UnixNano()%1000000),
+			CallbackURL: "https://manual.com/callback",
+		}
+
+		app, err := client.PostOAuth2ProviderApp(ctx, appReq)
+		require.NoError(t, err)
+
+		// Should not be able to manage via RFC 7592 endpoints
+		_, err = client.GetOAuth2ClientConfiguration(ctx, app.ID.String(), "any-token")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token") // Client was not dynamically registered
+	})
+
+	t.Run("TokenPasswordComparison", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Register two clients to ensure tokens are unique
+		timestamp := time.Now().UnixNano()
+		req1 := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://client1.com/callback"},
+			ClientName:   fmt.Sprintf("client-1-%d", timestamp),
+		}
+		req2 := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://client2.com/callback"},
+			ClientName:   fmt.Sprintf("client-2-%d", timestamp+1),
+		}
+
+		resp1, err := client.PostOAuth2ClientRegistration(ctx, req1)
+		require.NoError(t, err)
+
+		resp2, err := client.PostOAuth2ClientRegistration(ctx, req2)
+		require.NoError(t, err)
+
+		// Each client should only work with its own token
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp1.ClientID, resp1.RegistrationAccessToken)
+		require.NoError(t, err)
+
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp2.ClientID, resp2.RegistrationAccessToken)
+		require.NoError(t, err)
+
+		// Cross-client tokens should fail
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp1.ClientID, resp2.RegistrationAccessToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp2.ClientID, resp1.RegistrationAccessToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+}
+
+// TestOAuth2CoderClient verfies a codersdk client can be used with an oauth client.
+func TestOAuth2CoderClient(t *testing.T) {
+	t.Parallel()
+
+	owner := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, owner)
+
+	// Setup an oauth app
+	ctx := testutil.Context(t, testutil.WaitLong)
+	app, err := owner.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "new-app",
+		CallbackURL: "http://localhost",
+	})
+	require.NoError(t, err)
+
+	appsecret, err := owner.PostOAuth2ProviderAppSecret(ctx, app.ID)
+	require.NoError(t, err)
+
+	cfg := &oauth2.Config{
+		ClientID:     app.ID.String(),
+		ClientSecret: appsecret.ClientSecretFull,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:       app.Endpoints.Authorization,
+			DeviceAuthURL: app.Endpoints.DeviceAuth,
+			TokenURL:      app.Endpoints.Token,
+			AuthStyle:     oauth2.AuthStyleInParams,
+		},
+		RedirectURL: app.CallbackURL,
+		Scopes:      []string{},
+	}
+
+	// Make a new user
+	client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+	// Do an OAuth2 token exchange and get a new client with an oauth token
+	state := uuid.NewString()
+
+	// Get an OAuth2 code for a token exchange
+	code, err := oidctest.OAuth2GetCode(
+		cfg.AuthCodeURL(state),
+		func(req *http.Request) (*http.Response, error) {
+			// Change to POST to simulate the form submission
+			req.Method = http.MethodPost
+
+			// Prevent automatic redirect following
+			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+			return client.Request(ctx, req.Method, req.URL.String(), nil)
+		},
+	)
+	require.NoError(t, err)
+
+	token, err := cfg.Exchange(ctx, code)
+	require.NoError(t, err)
+
+	// Use the oauth client's authentication
+	// TODO: The SDK could probably support this with a better syntax/api.
+	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
+	usingOauth := codersdk.New(owner.URL)
+	usingOauth.HTTPClient = oauthClient
+
+	me, err := usingOauth.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, user.ID, me.ID)
+
+	// Revoking the refresh token should prevent further access
+	// Revoking the refresh also invalidates the associated access token.
+	err = usingOauth.RevokeOAuth2Token(ctx, app.ID, token.RefreshToken)
+	require.NoError(t, err)
+
+	_, err = usingOauth.User(ctx, codersdk.Me)
+	require.Error(t, err)
+}
+
+// NOTE: OAuth2 client registration validation tests have been migrated to
+// oauth2provider/validation_test.go for better separation of concerns

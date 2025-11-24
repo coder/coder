@@ -1,9 +1,13 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder show <workspace>
+  coder show [flags] <workspace>
 
   Display details of a workspace's resources and agents
+
+OPTIONS:
+      --details bool (default: false)
+          Show full error messages and additional details.
 
 ———
 Run `coder --help` for a list of global options.

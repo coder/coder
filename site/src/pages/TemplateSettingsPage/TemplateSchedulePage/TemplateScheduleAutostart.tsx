@@ -1,10 +1,10 @@
-import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import {
-	type TemplateAutostartRequirementDaysValue,
 	sortedDays,
+	type TemplateAutostartRequirementDaysValue,
 } from "utils/schedule";
 
 interface TemplateScheduleAutostartProps {
@@ -27,7 +27,7 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 				spacing={0}
 				alignItems="baseline"
 				justifyContent="center"
-				css={{ width: "100%" }}
+				className="w-full gap-0.5"
 			>
 				{(
 					[
@@ -44,11 +44,10 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 					}[]
 				).map((day) => (
 					<Button
-						fullWidth
-						key={day.key}
-						css={{ borderRadius: 0 }}
+						variant="outline"
 						// TODO: Adding a background color would also help
-						color={value.includes(day.value) ? "primary" : "secondary"}
+						className={`flex-1 rounded-none ${value.includes(day.value) ? "text-content-primary bg-surface-tertiary" : "text-content-secondary"}`}
+						key={day.key}
 						disabled={isSubmitting || !enabled}
 						onClick={() => {
 							if (!value.includes(day.value)) {

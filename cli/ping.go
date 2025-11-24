@@ -53,7 +53,7 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 	if s.Min == nil || r.LatencySeconds < s.Min.Seconds() {
 		s.Min = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
-	if s.Max == nil || r.LatencySeconds > s.Min.Seconds() {
+	if s.Max == nil || r.LatencySeconds > s.Max.Seconds() {
 		s.Max = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
 	s.latencySum += r.LatencySeconds
@@ -84,33 +84,33 @@ func (s *pingSummary) Write(w io.Writer) {
 
 func (r *RootCmd) ping() *serpent.Command {
 	var (
-		pingNum          int64
-		pingTimeout      time.Duration
-		pingWait         time.Duration
-		pingTimeLocal    bool
-		pingTimeUTC      bool
-		appearanceConfig codersdk.AppearanceConfig
+		pingNum       int64
+		pingTimeout   time.Duration
+		pingWait      time.Duration
+		pingTimeLocal bool
+		pingTimeUTC   bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
+			appearanceConfig := initAppearance(ctx, client)
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
 
 			workspaceName := inv.Args[0]
-			_, workspaceAgent, err := getWorkspaceAndAgent(
+			_, workspaceAgent, _, err := GetWorkspaceAndAgent(
 				ctx, inv, client,
 				false, // Do not autostart for a ping.
 				workspaceName,
@@ -147,7 +147,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			}
 			defer conn.Close()
 
-			derpMap := conn.DERPMap()
+			derpMap := conn.TailnetConn().DERPMap()
 
 			diagCtx, diagCancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer diagCancel()
@@ -156,7 +156,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			// Silent ping to determine whether we should show diags
 			_, didP2p, _, _ := conn.Ping(ctx)
 
-			ni := conn.GetNetInfo()
+			ni := conn.TailnetConn().GetNetInfo()
 			connDiags := cliui.ConnDiags{
 				DisableDirect:      r.disableDirect,
 				LocalNetInfo:       ni,

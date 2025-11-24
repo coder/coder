@@ -10,9 +10,9 @@ minimal installation of Coder, or for a step-by-step guide on how to install and
 configure your first Coder deployment, follow the
 [quickstart guide](../tutorials/quickstart.md).
 
-For production deployments with 50+ users, we recommend
-[installing on Kubernetes](./kubernetes.md). Otherwise, you can install Coder on
-your local machine or on a VM:
+## Local/Individual Installs
+
+This install guide is meant for **individual developers, small teams, and/or open source community members** setting up Coder locally or on a single server. It covers the light weight install for Linux, macOS, and Windows.
 
 <div class="tabs">
 
@@ -26,6 +26,23 @@ curl -L https://coder.com/install.sh | sh
 
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for
 alternate installation methods (e.g. standalone binaries, system packages).
+
+> [!Warning]
+> If you're using an Apple Silicon Mac with ARM64 architecture, so M1/M2/M3/M4, you'll need to use an external PostgreSQL Database using the following commands:
+
+``` bash
+# Install PostgreSQL
+brew install postgresql@16
+
+# Start PostgreSQL
+brew services start postgresql@16
+
+# Create database
+createdb coder
+
+# Run Coder with external database
+coder server --postgres-url="postgres://$(whoami)@localhost/coder?sslmode=disable"
+```
 
 ## Windows
 
@@ -46,11 +63,19 @@ package manager to install Coder:
 winget install Coder.Coder
 ```
 
-## Other
+</div>
+
+## Hosted/Enterprise Installs
+
+This install guide is meant for **IT Administrators, DevOps, and Platform Teams** deploying Coder for an organization. It covers production-grade, multi-user installs on Kubernetes and other hosted platforms.
+
+<div>
 
 <children></children>
 
 </div>
+
+## Starting the Coder Server
 
 To start the Coder server:
 
@@ -65,8 +90,3 @@ To log in to an existing Coder deployment:
 ```sh
 coder login https://coder.example.com
 ```
-
-## Next steps
-
-- [Quickstart](../tutorials/quickstart.md)
-- [Configure Control Plane Access](../admin/setup/index.md)

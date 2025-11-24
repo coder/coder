@@ -8,7 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/audittest"
 )
@@ -86,11 +86,12 @@ func TestAuditor(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
 
 			var (
 				backend  = &testBackend{decision: test.backendDecision, err: test.backendError}
 				exporter = audit.NewAuditor(
-					dbmem.New(),
+					db,
 					audit.FilterFunc(func(_ context.Context, _ database.AuditLog) (audit.FilterDecision, error) {
 						return test.filterDecision, test.filterError
 					}),

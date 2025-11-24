@@ -12,20 +12,23 @@ import (
 
 func (r *RootCmd) stop() *serpent.Command {
 	var bflags buildFlags
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			_, err := cliui.Prompt(inv, cliui.PromptOptions{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm stop workspace?",
 				IsConfirm: true,
 			})

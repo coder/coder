@@ -55,7 +55,6 @@ func TestWorkspaceBuild(t *testing.T) {
 		Auditor:                  auditor,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	//nolint:gocritic // testing
 	up, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 		ID:        user.UserID,
 		Email:     coderdtest.FirstUserParams.Email,
@@ -494,11 +493,14 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-			// Validate that the deletion was audited.
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				ResourceID: build.ID,
-				Action:     database.AuditActionDelete,
-			}))
+			// Validate that the deletion was audited. This happens after the transaction
+			// is committed, so it may not show up in the mock auditor immediately.
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				return auditor.Contains(t, database.AuditLog{
+					ResourceID: build.ID,
+					Action:     database.AuditActionDelete,
+				})
+			}, testutil.IntervalFast)
 		})
 
 		t.Run("NoProvisioners", func(t *testing.T) {
@@ -515,7 +517,6 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 				OrganizationID: first.OrganizationID,
 			}).Do()
 
-			// nolint:gocritic // For testing
 			daemons, err := store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
 			require.NoError(t, err)
 			require.Empty(t, daemons, "Provisioner daemons should be empty for this test")
@@ -535,11 +536,14 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 			require.Empty(t, ws)
 			require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
 
-			// Validate that the deletion was audited.
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				ResourceID: build.ID,
-				Action:     database.AuditActionDelete,
-			}))
+			// Validate that the deletion was audited. This happens after the transaction
+			// is committed, so it may not show up in the mock auditor immediately.
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				return auditor.Contains(t, database.AuditLog{
+					ResourceID: build.ID,
+					Action:     database.AuditActionDelete,
+				})
+			}, testutil.IntervalFast)
 		})
 	})
 }
@@ -573,8 +577,12 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.CancelWorkspaceBuild(ctx, build.ID)
-		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
+			return err == nil
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
 		require.Eventually(t, func() bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, build.ID)
@@ -618,10 +626,194 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			build, err = userClient.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := userClient.CancelWorkspaceBuild(ctx, build.ID)
+		err := userClient.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("Cancel with expect_state=pending", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the provisioner daemon.
+		require.NoError(t, closeDaemon.Close())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: no provisioner daemons exist.
+		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed.
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending.
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+
+		// Then: the response should indicate no provisioners are available.
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Count)
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+
+		// When: the workspace build is canceled
+		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
+		})
+		require.NoError(t, err)
+
+		// Then: the workspace build should be canceled.
+		build, err = client.WorkspaceBuild(ctx, build.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ProvisionerJobCanceled, build.Job.Status)
+	})
+
+	t.Run("Cancel with expect_state=pending when job is running - should fail with 412", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
+					Log: &proto.Log{},
+				},
+			}},
+			ProvisionPlan: echo.PlanComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		var build codersdk.WorkspaceBuild
+		require.Eventually(t, func() bool {
+			var err error
+			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		// When: a cancel request is made with expect_state=pending
+		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
+		})
+		// Then: the request should fail with 412.
+		require.Error(t, err)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+	})
+
+	t.Run("Cancel with expect_state=running when job is pending - should fail with 412", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the provisioner daemon.
+		require.NoError(t, closeDaemon.Close())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: no provisioner daemons exist.
+		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed.
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending.
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+
+		// Then: the response should indicate no provisioners are available.
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Count)
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+
+		// When: a cancel request is made with expect_state=running
+		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusRunning,
+		})
+		// Then: the request should fail with 412.
+		require.Error(t, err)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+	})
+
+	t.Run("Cancel with expect_state - invalid status", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a coderd instance with a provisioner daemon
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
+					Log: &proto.Log{},
+				},
+			}},
+			ProvisionPlan: echo.PlanComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: a cancel request is made with invalid expect_state
+		err := client.CancelWorkspaceBuild(ctx, workspace.LatestBuild.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: "invalid_status",
+		})
+		// Then: the request should fail with 400.
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Invalid expect_status")
 	})
 }
 
@@ -968,7 +1160,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
 	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 	require.NoError(t, err)
 
 	workspace, err = client.Workspace(ctx, workspace.ID)
@@ -1444,6 +1636,8 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("SetsPresetID", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -1451,9 +1645,20 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						Presets: []*proto.Preset{{
-							Name: "test",
-						}},
+						Presets: []*proto.Preset{
+							{
+								Name: "autodetected",
+							},
+							{
+								Name: "manual",
+								Parameters: []*proto.PresetParameter{
+									{
+										Name:  "param1",
+										Value: "value1",
+									},
+								},
+							},
+						},
 					},
 				},
 			}},
@@ -1461,28 +1666,29 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		require.Nil(t, workspace.LatestBuild.TemplateVersionPresetID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
 
 		presets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(presets))
-		require.Equal(t, "test", presets[0].Name)
+		require.Equal(t, 2, len(presets))
+		require.Equal(t, "autodetected", presets[0].Name)
+		require.Equal(t, "manual", presets[1].Name)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Preset ID was detected based on the workspace parameters:
+		require.Equal(t, presets[0].ID, *workspace.LatestBuild.TemplateVersionPresetID)
 
 		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID:       version.ID,
 			Transition:              codersdk.WorkspaceTransitionStart,
-			TemplateVersionPresetID: presets[0].ID,
+			TemplateVersionPresetID: presets[1].ID,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, build.TemplateVersionPresetID)
 
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
+		require.Equal(t, presets[1].ID, *workspace.LatestBuild.TemplateVersionPresetID)
 		require.Equal(t, build.TemplateVersionPresetID, workspace.LatestBuild.TemplateVersionPresetID)
 	})
 
@@ -1521,9 +1727,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("NoProvisionersAvailable", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
+
 		// Given: a coderd instance with a provisioner daemon
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
 		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
@@ -1567,9 +1771,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("AllProvisionersStale", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
+
 		// Given: a coderd instance with a provisioner daemon
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
 		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
@@ -1612,6 +1814,92 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			assert.Equal(t, 1, build.MatchedProvisioners.Count)
 			assert.Equal(t, newLastSeenAt.UTC(), build.MatchedProvisioners.MostRecentlySeen.Time.UTC())
 			assert.True(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+	})
+	t.Run("WithReason", func(t *testing.T) {
+		t.Parallel()
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		_ = closeDaemon.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			Reason:            codersdk.CreateWorkspaceBuildReasonDashboard,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.BuildReasonDashboard, build.Reason)
+	})
+	t.Run("DeletedWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a workspace that has already been deleted
+		var (
+			ctx             = testutil.Context(t, testutil.WaitShort)
+			logger          = slogtest.Make(t, &slogtest.Options{}).Leveled(slog.LevelError)
+			adminClient, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				Logger: &logger,
+			})
+			admin                         = coderdtest.CreateFirstUser(t, adminClient)
+			workspaceOwnerClient, member1 = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
+			otherMemberClient, _          = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
+			ws                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OwnerID: member1.ID, OrganizationID: admin.OrganizationID}).
+							Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionDelete}).
+							Do()
+		)
+
+		// This needs to be done separately as provisionerd handles marking the workspace as deleted
+		// and we're skipping provisionerd here for speed.
+		require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsProvisionerd(ctx), database.UpdateWorkspaceDeletedByIDParams{
+			ID:      ws.Workspace.ID,
+			Deleted: true,
+		}))
+
+		// Assert test invariant: Workspace should be deleted
+		dbWs, err := db.GetWorkspaceByID(dbauthz.AsProvisionerd(ctx), ws.Workspace.ID)
+		require.NoError(t, err)
+		require.True(t, dbWs.Deleted, "workspace should be deleted")
+
+		for _, tc := range []struct {
+			user         *codersdk.Client
+			tr           codersdk.WorkspaceTransition
+			expectStatus int
+		}{
+			// You should not be allowed to mess with a workspace you don't own, regardless of its deleted state.
+			{otherMemberClient, codersdk.WorkspaceTransitionStart, http.StatusNotFound},
+			{otherMemberClient, codersdk.WorkspaceTransitionStop, http.StatusNotFound},
+			{otherMemberClient, codersdk.WorkspaceTransitionDelete, http.StatusNotFound},
+			// Starting or stopping a workspace is not allowed when it is deleted.
+			{workspaceOwnerClient, codersdk.WorkspaceTransitionStart, http.StatusConflict},
+			{workspaceOwnerClient, codersdk.WorkspaceTransitionStop, http.StatusConflict},
+			// We allow a delete just in case a retry is required. In most cases, this will be a no-op.
+			// Note: this is the last test case because it will change the state of the workspace.
+			{workspaceOwnerClient, codersdk.WorkspaceTransitionDelete, http.StatusOK},
+		} {
+			// When: we create a workspace build with the given transition
+			_, err = tc.user.CreateWorkspaceBuild(ctx, ws.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: tc.tr,
+			})
+
+			// Then: we allow ONLY a delete build for a deleted workspace.
+			if tc.expectStatus < http.StatusBadRequest {
+				require.NoError(t, err, "creating a %s build for a deleted workspace should not error", tc.tr)
+			} else {
+				var apiError *codersdk.Error
+				require.Error(t, err, "creating a %s build for a deleted workspace should return an error", tc.tr)
+				require.ErrorAs(t, err, &apiError)
+				require.Equal(t, tc.expectStatus, apiError.StatusCode())
+			}
 		}
 	})
 }

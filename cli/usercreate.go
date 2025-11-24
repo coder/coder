@@ -26,15 +26,18 @@ func (r *RootCmd) userCreate() *serpent.Command {
 		loginType    string
 		orgContext   = NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create",
 		Short: "Create a new user.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err

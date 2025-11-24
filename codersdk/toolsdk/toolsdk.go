@@ -5,14 +5,58 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"runtime/debug"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
 
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+)
+
+// Tool name constants to avoid hardcoded strings
+const (
+	ToolNameReportTask                  = "coder_report_task"
+	ToolNameGetWorkspace                = "coder_get_workspace"
+	ToolNameCreateWorkspace             = "coder_create_workspace"
+	ToolNameListWorkspaces              = "coder_list_workspaces"
+	ToolNameListTemplates               = "coder_list_templates"
+	ToolNameListTemplateVersionParams   = "coder_template_version_parameters"
+	ToolNameGetAuthenticatedUser        = "coder_get_authenticated_user"
+	ToolNameCreateWorkspaceBuild        = "coder_create_workspace_build"
+	ToolNameCreateTemplateVersion       = "coder_create_template_version"
+	ToolNameGetWorkspaceAgentLogs       = "coder_get_workspace_agent_logs"
+	ToolNameGetWorkspaceBuildLogs       = "coder_get_workspace_build_logs"
+	ToolNameGetTemplateVersionLogs      = "coder_get_template_version_logs"
+	ToolNameUpdateTemplateActiveVersion = "coder_update_template_active_version"
+	ToolNameUploadTarFile               = "coder_upload_tar_file"
+	ToolNameCreateTemplate              = "coder_create_template"
+	ToolNameDeleteTemplate              = "coder_delete_template"
+	ToolNameWorkspaceBash               = "coder_workspace_bash"
+	ToolNameChatGPTSearch               = "search"
+	ToolNameChatGPTFetch                = "fetch"
+	ToolNameWorkspaceLS                 = "coder_workspace_ls"
+	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
+	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
+	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
+	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
+	ToolNameWorkspacePortForward        = "coder_workspace_port_forward"
+	ToolNameWorkspaceListApps           = "coder_workspace_list_apps"
+	ToolNameCreateTask                  = "coder_create_task"
+	ToolNameDeleteTask                  = "coder_delete_task"
+	ToolNameListTasks                   = "coder_list_tasks"
+	ToolNameGetTaskStatus               = "coder_get_task_status"
+	ToolNameSendTaskInput               = "coder_send_task_input"
+	ToolNameGetTaskLogs                 = "coder_get_task_logs"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -31,6 +75,13 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 type Deps struct {
 	coderClient *codersdk.Client
 	report      func(ReportTaskArgs) error
+}
+
+func (d Deps) ServerURL() string {
+	serverURLCopy := *d.coderClient.URL
+	serverURLCopy.Path = ""
+	serverURLCopy.RawQuery = ""
+	return serverURLCopy.String()
 }
 
 func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
@@ -101,7 +152,14 @@ func WithRecover(h GenericHandlerFunc) GenericHandlerFunc {
 	return func(ctx context.Context, deps Deps, args json.RawMessage) (ret json.RawMessage, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = xerrors.Errorf("tool handler panic: %v", r)
+				if buildinfo.IsDev() {
+					// Capture stack trace in dev builds
+					stack := debug.Stack()
+					err = xerrors.Errorf("tool handler panic: %v\nstack trace:\n%s", r, stack)
+				} else {
+					// Simple error message in production builds
+					err = xerrors.Errorf("tool handler panic: %v", r)
+				}
 			}
 		}()
 		return h(ctx, deps, args)
@@ -163,6 +221,22 @@ var All = []GenericTool{
 	ReportTask.Generic(),
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
+	WorkspaceBash.Generic(),
+	ChatGPTSearch.Generic(),
+	ChatGPTFetch.Generic(),
+	WorkspaceLS.Generic(),
+	WorkspaceReadFile.Generic(),
+	WorkspaceWriteFile.Generic(),
+	WorkspaceEditFile.Generic(),
+	WorkspaceEditFiles.Generic(),
+	WorkspacePortForward.Generic(),
+	WorkspaceListApps.Generic(),
+	CreateTask.Generic(),
+	DeleteTask.Generic(),
+	ListTasks.Generic(),
+	GetTaskStatus.Generic(),
+	SendTaskInput.Generic(),
+	GetTaskLogs.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -173,7 +247,7 @@ type ReportTaskArgs struct {
 
 var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name: "coder_report_task",
+		Name: ToolNameReportTask,
 		Description: `Report progress on your work.
 
 The user observes your work through a Task UI. To keep them updated
@@ -198,7 +272,7 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 			Properties: map[string]any{
 				"summary": map[string]any{
 					"type":        "string",
-					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length.",
+					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length and must not include newlines or other control characters.",
 				},
 				"link": map[string]any{
 					"type":        "string",
@@ -222,6 +296,10 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 		if len(args.Summary) > 160 {
 			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
 		}
+		// Check if task reporting is available to prevent nil pointer dereference
+		if deps.report == nil {
+			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
+		}
 		err := deps.report(args)
 		if err != nil {
 			return codersdk.Response{}, err
@@ -238,14 +316,15 @@ type GetWorkspaceArgs struct {
 
 var GetWorkspace = Tool[GetWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
-		Name: "coder_get_workspace",
-		Description: `Get a workspace by ID.
+		Name: ToolNameGetWorkspace,
+		Description: `Get a workspace by name or ID.
 
 This returns more data than list_workspaces to reduce token usage.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
-					"type": "string",
+					"type":        "string",
+					"description": workspaceDescription,
 				},
 			},
 			Required: []string{"workspace_id"},
@@ -254,7 +333,7 @@ This returns more data than list_workspaces to reduce token usage.`,
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
 		wsID, err := uuid.Parse(args.WorkspaceID)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.New("workspace_id must be a valid UUID")
+			return namedWorkspace(ctx, deps.coderClient, NormalizeWorkspaceInput(args.WorkspaceID))
 		}
 		return deps.coderClient.Workspace(ctx, wsID)
 	},
@@ -269,18 +348,30 @@ type CreateWorkspaceArgs struct {
 
 var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
-		Name: "coder_create_workspace",
+		Name: ToolNameCreateWorkspace,
 		Description: `Create a new workspace in Coder.
 
 If a user is asking to "test a template", they are typically referring
 to creating a workspace from a template to ensure the infrastructure
 is provisioned correctly and the agent can connect to the control plane.
+
+Before creating a workspace, always confirm the template choice with the user by:
+
+	1. Listing the available templates that match their request.
+	2. Recommending the most relevant option.
+	2. Asking the user to confirm which template to use.
+
+It is important to not create a workspace without confirming the template
+choice with the user.
+
+After creating a workspace, watch the build logs and wait for the workspace to
+be ready before trying to use or connect to the workspace.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"user": map[string]any{
 					"type":        "string",
-					"description": "Username or ID of the user to create the workspace for. Use the `me` keyword to create a workspace for the authenticated user.",
+					"description": userDescription("create a workspace"),
 				},
 				"template_version_id": map[string]any{
 					"type":        "string",
@@ -331,7 +422,7 @@ type ListWorkspacesArgs struct {
 
 var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 	Tool: aisdk.Tool{
-		Name:        "coder_list_workspaces",
+		Name:        ToolNameListWorkspaces,
 		Description: "Lists workspaces for the authenticated user.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -373,7 +464,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 
 var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 	Tool: aisdk.Tool{
-		Name:        "coder_list_templates",
+		Name:        ToolNameListTemplates,
 		Description: "Lists templates for the authenticated user.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
@@ -406,7 +497,7 @@ type ListTemplateVersionParametersArgs struct {
 
 var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []codersdk.TemplateVersionParameter]{
 	Tool: aisdk.Tool{
-		Name:        "coder_template_version_parameters",
+		Name:        ToolNameListTemplateVersionParams,
 		Description: "Get the parameters for a template version. You can refer to these as workspace parameters to the user, as they are typically important for creating a workspace.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -432,7 +523,7 @@ var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []co
 
 var GetAuthenticatedUser = Tool[NoArgs, codersdk.User]{
 	Tool: aisdk.Tool{
-		Name:        "coder_get_authenticated_user",
+		Name:        ToolNameGetAuthenticatedUser,
 		Description: "Get the currently authenticated user, similar to the `whoami` command.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
@@ -452,8 +543,13 @@ type CreateWorkspaceBuildArgs struct {
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
-		Name:        "coder_create_workspace_build",
-		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
+		Name: ToolNameCreateWorkspaceBuild,
+		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
+
+After creating a workspace build, watch the build logs and wait for the
+workspace build to complete before trying to start another build or use or
+connect to the workspace.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
@@ -502,7 +598,7 @@ type CreateTemplateVersionArgs struct {
 
 var CreateTemplateVersion = Tool[CreateTemplateVersionArgs, codersdk.TemplateVersion]{
 	Tool: aisdk.Tool{
-		Name: "coder_create_template_version",
+		Name: ToolNameCreateTemplateVersion,
 		Description: `Create a new template version. This is a precursor to creating a template, or you can update an existing template.
 
 Templates are Terraform defining a development environment. The provisioned infrastructure must run
@@ -1002,7 +1098,7 @@ type GetWorkspaceAgentLogsArgs struct {
 
 var GetWorkspaceAgentLogs = Tool[GetWorkspaceAgentLogsArgs, []string]{
 	Tool: aisdk.Tool{
-		Name: "coder_get_workspace_agent_logs",
+		Name: ToolNameGetWorkspaceAgentLogs,
 		Description: `Get the logs of a workspace agent.
 
 		More logs may appear after this call. It does not wait for the agent to finish.`,
@@ -1041,7 +1137,7 @@ type GetWorkspaceBuildLogsArgs struct {
 
 var GetWorkspaceBuildLogs = Tool[GetWorkspaceBuildLogsArgs, []string]{
 	Tool: aisdk.Tool{
-		Name: "coder_get_workspace_build_logs",
+		Name: ToolNameGetWorkspaceBuildLogs,
 		Description: `Get the logs of a workspace build.
 
 		Useful for checking whether a workspace builds successfully or not.`,
@@ -1078,7 +1174,7 @@ type GetTemplateVersionLogsArgs struct {
 
 var GetTemplateVersionLogs = Tool[GetTemplateVersionLogsArgs, []string]{
 	Tool: aisdk.Tool{
-		Name:        "coder_get_template_version_logs",
+		Name:        ToolNameGetTemplateVersionLogs,
 		Description: "Get the logs of a template version. This is useful to check whether a template version successfully imports or not.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1115,7 +1211,7 @@ type UpdateTemplateActiveVersionArgs struct {
 
 var UpdateTemplateActiveVersion = Tool[UpdateTemplateActiveVersionArgs, string]{
 	Tool: aisdk.Tool{
-		Name:        "coder_update_template_active_version",
+		Name:        ToolNameUpdateTemplateActiveVersion,
 		Description: "Update the active version of a template. This is helpful when iterating on templates.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1154,7 +1250,7 @@ type UploadTarFileArgs struct {
 
 var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
 	Tool: aisdk.Tool{
-		Name:        "coder_upload_tar_file",
+		Name:        ToolNameUploadTarFile,
 		Description: `Create and upload a tar file by key/value mapping of file names to file contents. Use this to create template versions. Reference the tool description of "create_template_version" to understand template requirements.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1216,7 +1312,7 @@ type CreateTemplateArgs struct {
 
 var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 	Tool: aisdk.Tool{
-		Name:        "coder_create_template",
+		Name:        ToolNameCreateTemplate,
 		Description: "Create a new template in Coder. First, you must create a template version.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1269,7 +1365,7 @@ type DeleteTemplateArgs struct {
 
 var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        "coder_delete_template",
+		Name:        ToolNameDeleteTemplate,
 		Description: "Delete a template. This is irreversible.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1313,4 +1409,805 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+}
+
+type WorkspaceLSArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+}
+
+type WorkspaceLSFile struct {
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
+type WorkspaceLSResponse struct {
+	Contents []WorkspaceLSFile `json:"contents"`
+}
+
+var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceLS,
+		Description: `List directories in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceAgentDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the directory in the workspace to list.",
+				},
+			},
+			Required: []string{"path", "workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return WorkspaceLSResponse{}, err
+		}
+		defer conn.Close()
+
+		res, err := conn.LS(ctx, args.Path, workspacesdk.LSRequest{})
+		if err != nil {
+			return WorkspaceLSResponse{}, err
+		}
+
+		contents := make([]WorkspaceLSFile, len(res.Contents))
+		for i, f := range res.Contents {
+			contents[i] = WorkspaceLSFile{
+				Path:  f.AbsolutePathString,
+				IsDir: f.IsDir,
+			}
+		}
+		return WorkspaceLSResponse{Contents: contents}, nil
+	},
+}
+
+type WorkspaceReadFileArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Offset    int64  `json:"offset"`
+	Limit     int64  `json:"limit"`
+}
+
+type WorkspaceReadFileResponse struct {
+	// Content is the base64-encoded bytes from the file.
+	Content  []byte `json:"content"`
+	MimeType string `json:"mimeType"`
+}
+
+const maxFileLimit = 1 << 20 // 1MiB
+
+var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceReadFile,
+		Description: `Read from a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceAgentDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to read in the workspace.",
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "A byte offset indicating where in the file to start reading. Defaults to zero. An empty string indicates the end of the file has been reached.",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "The number of bytes to read. Cannot exceed 1 MiB. Defaults to the full size of the file or 1 MiB, whichever is lower.",
+				},
+			},
+			Required: []string{"path", "workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+		defer conn.Close()
+
+		// Ideally we could stream this all the way back, but it looks like the MCP
+		// interfaces only allow returning full responses which means the whole
+		// thing has to be read into memory.  So, add a maximum limit to compensate.
+		limit := args.Limit
+		if limit == 0 {
+			limit = maxFileLimit
+		} else if limit > maxFileLimit {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
+		}
+
+		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+		defer reader.Close()
+
+		bs, err := io.ReadAll(reader)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("read response body: %w", err)
+		}
+
+		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
+	},
+}
+
+type WorkspaceWriteFileArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Content   []byte `json:"content"`
+}
+
+var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name: ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.
+
+If a file write fails due to syntax errors or encoding issues, do NOT switch
+to using bash commands as a workaround. Instead:
+
+	1. Read the error message carefully to identify the issue
+	2. Fix the content encoding/syntax
+	3. Retry with this tool
+
+The content parameter expects base64-encoded bytes. Ensure your source content
+is correct before encoding it. If you encounter errors, decode and verify the
+content you are trying to write, then re-encode it properly.
+`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceAgentDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to write in the workspace.",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "The base64-encoded bytes to write to the file.",
+				},
+			},
+			Required: []string{"path", "workspace", "content"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		reader := bytes.NewReader(args.Content)
+		err = conn.WriteFile(ctx, args.Path, reader)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File written successfully.",
+		}, nil
+	},
+}
+
+type WorkspaceEditFileArgs struct {
+	Workspace string                  `json:"workspace"`
+	Path      string                  `json:"path"`
+	Edits     []workspacesdk.FileEdit `json:"edits"`
+}
+
+var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceEditFile,
+		Description: `Edit a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceAgentDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to write in the workspace.",
+				},
+				"edits": map[string]any{
+					"type":        "array",
+					"description": "An array of edit operations.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"search": map[string]any{
+								"type":        "string",
+								"description": "The old string to replace.",
+							},
+							"replace": map[string]any{
+								"type":        "string",
+								"description": "The new string that replaces the old string.",
+							},
+						},
+						"required": []string{"search", "replace"},
+					},
+				},
+			},
+			Required: []string{"path", "workspace", "edits"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{
+					Path:  args.Path,
+					Edits: args.Edits,
+				},
+			},
+		})
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File edited successfully.",
+		}, nil
+	},
+}
+
+type WorkspaceEditFilesArgs struct {
+	Workspace string                   `json:"workspace"`
+	Files     []workspacesdk.FileEdits `json:"files"`
+}
+
+var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceEditFiles,
+		Description: `Edit one or more files in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceAgentDescription,
+				},
+				"files": map[string]any{
+					"type":        "array",
+					"description": "An array of files to edit.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"path": map[string]any{
+								"type":        "string",
+								"description": "The absolute path of the file to write in the workspace.",
+							},
+							"edits": map[string]any{
+								"type":        "array",
+								"description": "An array of edit operations.",
+								"items": map[string]any{
+									"type": "object",
+									"properties": map[string]any{
+										"search": map[string]any{
+											"type":        "string",
+											"description": "The old string to replace.",
+										},
+										"replace": map[string]any{
+											"type":        "string",
+											"description": "The new string that replaces the old string.",
+										},
+									},
+									"required": []string{"search", "replace"},
+								},
+							},
+						},
+						"required": []string{"path", "edits"},
+					},
+				},
+			},
+			Required: []string{"workspace", "files"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File(s) edited successfully.",
+		}, nil
+	},
+}
+
+type WorkspacePortForwardArgs struct {
+	Workspace string `json:"workspace"`
+	Port      int    `json:"port"`
+}
+
+type WorkspacePortForwardResponse struct {
+	URL string `json:"url"`
+}
+
+var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspacePortForward,
+		Description: `Fetch URLs that forward to the specified port.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceAgentDescription,
+				},
+				"port": map[string]any{
+					"type":        "number",
+					"description": "The port to forward.",
+				},
+			},
+			Required: []string{"workspace", "port"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspacePortForwardArgs) (WorkspacePortForwardResponse, error) {
+		workspaceName := NormalizeWorkspaceInput(args.Workspace)
+		workspace, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+		if err != nil {
+			return WorkspacePortForwardResponse{}, xerrors.Errorf("failed to find workspace: %w", err)
+		}
+		res, err := deps.coderClient.AppHost(ctx)
+		if err != nil {
+			return WorkspacePortForwardResponse{}, xerrors.Errorf("failed to get app host: %w", err)
+		}
+		if res.Host == "" {
+			return WorkspacePortForwardResponse{}, xerrors.New("no app host for forwarding has been configured")
+		}
+		url := appurl.ApplicationURL{
+			AppSlugOrPort: strconv.Itoa(args.Port),
+			AgentName:     workspaceAgent.Name,
+			WorkspaceName: workspace.Name,
+			Username:      workspace.OwnerName,
+		}
+		return WorkspacePortForwardResponse{
+			URL: deps.coderClient.URL.Scheme + "://" + strings.Replace(res.Host, "*", url.String(), 1),
+		}, nil
+	},
+}
+
+type WorkspaceListAppsArgs struct {
+	Workspace string `json:"workspace"`
+}
+
+type WorkspaceListApp struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type WorkspaceListAppsResponse struct {
+	Apps []WorkspaceListApp `json:"apps"`
+}
+
+var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceListApps,
+		Description: `List the URLs of Coder apps running in a workspace for a single agent.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceAgentDescription,
+				},
+			},
+			Required: []string{"workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceListAppsArgs) (WorkspaceListAppsResponse, error) {
+		workspaceName := NormalizeWorkspaceInput(args.Workspace)
+		_, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+		if err != nil {
+			return WorkspaceListAppsResponse{}, xerrors.Errorf("failed to find workspace: %w", err)
+		}
+
+		var res WorkspaceListAppsResponse
+		for _, app := range workspaceAgent.Apps {
+			name := app.DisplayName
+			if name == "" {
+				name = app.Slug
+			}
+			res.Apps = append(res.Apps, WorkspaceListApp{
+				Name: name,
+				URL:  app.URL,
+			})
+		}
+
+		return res, nil
+	},
+}
+
+type CreateTaskArgs struct {
+	Input                   string `json:"input"`
+	TemplateVersionID       string `json:"template_version_id"`
+	TemplateVersionPresetID string `json:"template_version_preset_id"`
+	User                    string `json:"user"`
+}
+
+var CreateTask = Tool[CreateTaskArgs, codersdk.Task]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameCreateTask,
+		Description: `Create a task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"input": map[string]any{
+					"type":        "string",
+					"description": "Input/prompt for the task.",
+				},
+				"template_version_id": map[string]any{
+					"type":        "string",
+					"description": "ID of the template version to create the task from.",
+				},
+				"template_version_preset_id": map[string]any{
+					"type":        "string",
+					"description": "Optional ID of the template version preset to create the task from.",
+				},
+				"user": map[string]any{
+					"type":        "string",
+					"description": userDescription("create a task"),
+				},
+			},
+			Required: []string{"input", "template_version_id"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args CreateTaskArgs) (codersdk.Task, error) {
+		if args.Input == "" {
+			return codersdk.Task{}, xerrors.New("input is required")
+		}
+
+		tvID, err := uuid.Parse(args.TemplateVersionID)
+		if err != nil {
+			return codersdk.Task{}, xerrors.New("template_version_id must be a valid UUID")
+		}
+
+		var tvPresetID uuid.UUID
+		if args.TemplateVersionPresetID != "" {
+			tvPresetID, err = uuid.Parse(args.TemplateVersionPresetID)
+			if err != nil {
+				return codersdk.Task{}, xerrors.New("template_version_preset_id must be a valid UUID")
+			}
+		}
+
+		if args.User == "" {
+			args.User = codersdk.Me
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+		task, err := expClient.CreateTask(ctx, args.User, codersdk.CreateTaskRequest{
+			Input:                   args.Input,
+			TemplateVersionID:       tvID,
+			TemplateVersionPresetID: tvPresetID,
+		})
+		if err != nil {
+			return codersdk.Task{}, xerrors.Errorf("create task: %w", err)
+		}
+
+		return task, nil
+	},
+}
+
+type DeleteTaskArgs struct {
+	TaskID string `json:"task_id"`
+}
+
+var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameDeleteTask,
+		Description: `Delete a task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("delete"),
+				},
+			},
+			Required: []string{"task_id"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args DeleteTaskArgs) (codersdk.Response, error) {
+		if args.TaskID == "" {
+			return codersdk.Response{}, xerrors.New("task_id is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
+		}
+
+		err = expClient.DeleteTask(ctx, task.OwnerName, task.ID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("delete task: %w", err)
+		}
+
+		return codersdk.Response{
+			Message: "Task deleted successfully",
+		}, nil
+	},
+}
+
+type ListTasksArgs struct {
+	Status codersdk.TaskStatus `json:"status"`
+	User   string              `json:"user"`
+}
+
+type ListTasksResponse struct {
+	Tasks []codersdk.Task `json:"tasks"`
+}
+
+var ListTasks = Tool[ListTasksArgs, ListTasksResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameListTasks,
+		Description: `List tasks.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"status": map[string]any{
+					"type":        "string",
+					"description": "Optional filter by task status.",
+				},
+				"user": map[string]any{
+					"type":        "string",
+					"description": userDescription("list tasks"),
+				},
+			},
+			Required: []string{},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args ListTasksArgs) (ListTasksResponse, error) {
+		if args.User == "" {
+			args.User = codersdk.Me
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+		tasks, err := expClient.Tasks(ctx, &codersdk.TasksFilter{
+			Owner:  args.User,
+			Status: args.Status,
+		})
+		if err != nil {
+			return ListTasksResponse{}, xerrors.Errorf("list tasks: %w", err)
+		}
+
+		return ListTasksResponse{
+			Tasks: tasks,
+		}, nil
+	},
+}
+
+type GetTaskStatusArgs struct {
+	TaskID string `json:"task_id"`
+}
+
+type GetTaskStatusResponse struct {
+	Status codersdk.TaskStatus      `json:"status"`
+	State  *codersdk.TaskStateEntry `json:"state"`
+}
+
+var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameGetTaskStatus,
+		Description: `Get the status of a task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("get"),
+				},
+			},
+			Required: []string{"task_id"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args GetTaskStatusArgs) (GetTaskStatusResponse, error) {
+		if args.TaskID == "" {
+			return GetTaskStatusResponse{}, xerrors.New("task_id is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
+		}
+
+		return GetTaskStatusResponse{
+			Status: task.Status,
+			State:  task.CurrentState,
+		}, nil
+	},
+}
+
+type SendTaskInputArgs struct {
+	TaskID string `json:"task_id"`
+	Input  string `json:"input"`
+}
+
+var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameSendTaskInput,
+		Description: `Send input to a running task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("prompt"),
+				},
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The input to send to the task.",
+				},
+			},
+			Required: []string{"task_id", "input"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args SendTaskInputArgs) (codersdk.Response, error) {
+		if args.TaskID == "" {
+			return codersdk.Response{}, xerrors.New("task_id is required")
+		}
+
+		if args.Input == "" {
+			return codersdk.Response{}, xerrors.New("input is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
+		}
+
+		err = expClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
+			Input: args.Input,
+		})
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("send task input %q: %w", args.TaskID, err)
+		}
+
+		return codersdk.Response{
+			Message: "Input sent to task successfully.",
+		}, nil
+	},
+}
+
+type GetTaskLogsArgs struct {
+	TaskID string `json:"task_id"`
+}
+
+var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameGetTaskLogs,
+		Description: `Get the logs of a task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("query"),
+				},
+			},
+			Required: []string{"task_id"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args GetTaskLogsArgs) (codersdk.TaskLogsResponse, error) {
+		if args.TaskID == "" {
+			return codersdk.TaskLogsResponse{}, xerrors.New("task_id is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, err
+		}
+
+		logs, err := expClient.TaskLogs(ctx, task.OwnerName, task.ID)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
+		}
+
+		return logs, nil
+	},
+}
+
+// NormalizeWorkspaceInput converts workspace name input to standard format.
+// Handles the following input formats:
+//   - workspace                    → workspace
+//   - workspace.agent              → workspace.agent
+//   - owner/workspace              → owner/workspace
+//   - owner--workspace             → owner/workspace
+//   - owner/workspace.agent        → owner/workspace.agent
+//   - owner--workspace.agent       → owner/workspace.agent
+//   - agent.workspace.owner        → owner/workspace.agent (Coder Connect format)
+func NormalizeWorkspaceInput(input string) string {
+	// Handle the special Coder Connect format: agent.workspace.owner
+	// This format uses only dots and has exactly 3 parts
+	if strings.Count(input, ".") == 2 && !strings.Contains(input, "/") && !strings.Contains(input, "--") {
+		parts := strings.Split(input, ".")
+		if len(parts) == 3 {
+			// Convert agent.workspace.owner → owner/workspace.agent
+			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0])
+		}
+	}
+
+	// Convert -- separator to / separator for consistency
+	normalized := strings.ReplaceAll(input, "--", "/")
+
+	return normalized
+}
+
+// newAgentConn returns a connection to the agent specified by the workspace,
+// which must be in the format [owner/]workspace[.agent].
+func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+	workspaceName := NormalizeWorkspaceInput(workspace)
+	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to find workspace: %w", err)
+	}
+
+	// Wait for agent to be ready.
+	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+		FetchInterval: 0,
+		Fetch:         client.WorkspaceAgent,
+		FetchLogs:     client.WorkspaceAgentLogsAfter,
+		Wait:          true, // Always wait for startup scripts
+	}); err != nil {
+		return nil, xerrors.Errorf("agent not ready: %w", err)
+	}
+
+	wsClient := workspacesdk.New(client)
+
+	conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+		BlockEndpoints: false,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to dial agent: %w", err)
+	}
+
+	if !conn.AwaitReachable(ctx) {
+		conn.Close()
+		return nil, xerrors.New("agent connection not reachable")
+	}
+	return conn, nil
+}
+
+const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."
+
+const workspaceAgentDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
+
+func taskIDDescription(action string) string {
+	return fmt.Sprintf("ID or workspace identifier in the format [owner/]workspace[.agent] for the task to %s. If an owner is not specified, the authenticated user is used.", action)
+}
+
+func userDescription(action string) string {
+	return fmt.Sprintf("Username or ID of the user for which to %s. Omit or use the `me` keyword to %s for the authenticated user.", action, action)
 }

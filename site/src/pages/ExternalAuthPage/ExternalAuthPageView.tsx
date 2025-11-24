@@ -8,11 +8,10 @@ import { Avatar } from "components/Avatar/Avatar";
 import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { ExternalLinkIcon } from "lucide-react";
-import { RotateCwIcon } from "lucide-react";
+import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
-export interface ExternalAuthPageViewProps {
+interface ExternalAuthPageViewProps {
 	externalAuth: ExternalAuth;
 	viewExternalAuthConfig: boolean;
 

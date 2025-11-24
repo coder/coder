@@ -93,7 +93,7 @@ export const XAxisRow: FC<XAxisRowProps> = ({ yAxisLabelId, ...htmlProps }) => {
 	};
 
 	return (
-		<div
+		<section
 			css={styles.row}
 			{...htmlProps}
 			aria-labelledby={yAxisLabelId}

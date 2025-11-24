@@ -11,10 +11,10 @@ import isEqual from "lodash/isEqual";
 import {
 	type FC,
 	type HTMLProps,
-	type ReactElement,
-	type ReactNode,
 	isValidElement,
 	memo,
+	type PropsWithChildren,
+	type ReactNode,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -251,9 +251,7 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const mainParentNode = jsxChildren.find((node): node is ReactElement =>
-		isValidElement(node),
-	);
+	const mainParentNode = jsxChildren.find(isValidElement<PropsWithChildren>);
 	let parentChildren = mainParentNode?.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other

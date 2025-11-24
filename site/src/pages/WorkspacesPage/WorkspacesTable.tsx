@@ -17,6 +17,7 @@ import type {
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -44,15 +45,17 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	CloudIcon,
+	EllipsisVertical,
+	ExternalLinkIcon,
+	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	SquareIcon,
 	SquareTerminalIcon,
+	StarIcon,
 } from "lucide-react";
 import {
 	getTerminalHref,
@@ -61,31 +64,26 @@ import {
 } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
+import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
+import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
+import { WorkspaceStatus } from "modules/workspaces/WorkspaceStatus/WorkspaceStatus";
 import {
-	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
-import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import type React from "react";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
-	useMemo,
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
-import {
-	getDisplayWorkspaceTemplateName,
-	lastUsedMessage,
-} from "utils/workspace";
+import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
 interface WorkspacesTableProps {
@@ -113,51 +111,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
-	const workspaceIDToAppByStatus = useMemo(() => {
-		return (
-			workspaces?.reduce(
-				(acc, workspace) => {
-					if (!workspace.latest_app_status) {
-						return acc;
-					}
-					for (const resource of workspace.latest_build.resources) {
-						for (const agent of resource.agents ?? []) {
-							for (const app of agent.apps ?? []) {
-								if (app.id === workspace.latest_app_status.app_id) {
-									acc[workspace.id] = { app, agent };
-									break;
-								}
-							}
-						}
-					}
-					return acc;
-				},
-				{} as Record<
-					string,
-					{
-						app: WorkspaceApp;
-						agent: WorkspaceAgent;
-					}
-				>,
-			) || {}
-		);
-	}, [workspaces]);
-	const hasActivity = useMemo(
-		() => Object.keys(workspaceIDToAppByStatus).length > 0,
-		[workspaceIDToAppByStatus],
-	);
-	const tableColumnSize = {
-		name: "w-2/6",
-		template: hasActivity ? "w-1/6" : "w-2/6",
-		status: hasActivity ? "w-1/6" : "w-2/6",
-		activity: "w-2/6",
-	};
 
 	return (
 		<Table>
 			<TableHeader>
 				<TableRow>
-					<TableHead className={tableColumnSize.name}>
+					<TableHead className="w-1/3">
 						<div className="flex items-center gap-2">
 							{canCheckWorkspaces && (
 								<Checkbox
@@ -181,11 +140,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							Name
 						</div>
 					</TableHead>
-					<TableHead className={tableColumnSize.template}>Template</TableHead>
-					<TableHead className={tableColumnSize.status}>Status</TableHead>
-					{hasActivity && (
-						<TableHead className={tableColumnSize.activity}>Activity</TableHead>
-					)}
+					<TableHead className="w-1/3">Template</TableHead>
+					<TableHead className="w-1/3">Status</TableHead>
 					<TableHead className="w-0">
 						<span className="sr-only">Actions</span>
 					</TableHead>
@@ -252,6 +208,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
+												{workspace.task_id && (
+													<Badge size="xs" variant="default">
+														Task
+													</Badge>
+												)}
 											</Stack>
 										}
 										subtitle={
@@ -297,16 +258,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
-							<WorkspaceStatusCell workspace={workspace} />
-
-							{hasActivity && (
-								<TableCell>
-									<WorkspaceAppStatus
-										status={workspace.latest_app_status}
-										disabled={workspace.latest_build.status !== "running"}
-									/>
-								</TableCell>
-							)}
+							<TableCell>
+								<WorkspaceStatus workspace={workspace} />
+							</TableCell>
 
 							<WorkspaceActionsCell
 								workspace={workspace}
@@ -404,27 +358,6 @@ const cantBeChecked = (workspace: Workspace) => {
 	return ["deleting", "pending"].includes(workspace.latest_build.status);
 };
 
-type WorkspaceStatusCellProps = {
-	workspace: Workspace;
-};
-
-const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
-	return (
-		<TableCell>
-			<div className="flex flex-col">
-				<WorkspaceStatusIndicator workspace={workspace}>
-					{workspace.dormant_at && (
-						<WorkspaceDormantBadge workspace={workspace} />
-					)}
-				</WorkspaceStatusIndicator>
-				<span className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap">
-					{lastUsedMessage(workspace.last_used_at)}
-				</span>
-			</div>
-		</TableCell>
-	);
-};
-
 type WorkspaceActionsCellProps = {
 	workspace: Workspace;
 	onActionSuccess: () => Promise<void>;
@@ -495,8 +428,8 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
-	// State for stop confirmation dialog
 	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
 	const isRetrying =
 		startWorkspaceMutation.isPending ||
@@ -606,7 +539,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 				{abilities.canCancel && (
 					<PrimaryAction
-						onClick={cancelBuildMutation.mutate}
+						onClick={() => setIsCancelConfirmOpen(true)}
 						isLoading={cancelBuildMutation.isPending}
 						label="Cancel build"
 					>
@@ -642,6 +575,16 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					setIsStopConfirmOpen(false);
 				}}
 				type="delete"
+			/>
+
+			<WorkspaceBuildCancelDialog
+				open={isCancelConfirmOpen}
+				onClose={() => setIsCancelConfirmOpen(false)}
+				onConfirm={() => {
+					cancelBuildMutation.mutate();
+					setIsCancelConfirmOpen(false);
+				}}
+				workspace={workspace}
 			/>
 		</TableCell>
 	);

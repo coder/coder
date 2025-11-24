@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -15,9 +13,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/net/idna"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -110,6 +111,13 @@ type ExtractAPIKeyConfig struct {
 	// This is originally implemented to send entitlement warning headers after
 	// a user is authenticated to prevent additional CLI invocations.
 	PostAuthAdditionalHeadersFunc func(a rbac.Subject, header http.Header)
+
+	// AccessURL is the configured access URL for this Coder deployment.
+	// Used for generating OAuth2 resource metadata URLs in WWW-Authenticate headers.
+	AccessURL *url.URL
+
+	// Logger is used for logging middleware operations.
+	Logger slog.Logger
 }
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
@@ -179,8 +187,7 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 	}
 
 	// Checking to see if the secret is valid.
-	hashedSecret := sha256.Sum256([]byte(keySecret))
-	if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
+	if !apikey.ValidateHash(key.HashedSecret, keySecret) {
 		return nil, codersdk.Response{
 			Message: SignedOutErrorMessage,
 			Detail:  "API key secret is invalid.",
@@ -207,6 +214,11 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		if cfg.RedirectToLogin {
 			RedirectToLogin(rw, r, nil, response.Message)
 			return nil, nil, false
+		}
+
+		// Add WWW-Authenticate header for 401/403 responses (RFC 6750 + RFC 9728)
+		if code == http.StatusUnauthorized || code == http.StatusForbidden {
+			rw.Header().Set("WWW-Authenticate", buildWWWAuthenticateHeader(cfg.AccessURL, r, code, response))
 		}
 
 		httpapi.Write(ctx, rw, code, response)
@@ -238,6 +250,17 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			Message: SignedOutErrorMessage,
 			Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
 		})
+	}
+
+	// Validate OAuth2 provider app token audience (RFC 8707) if applicable
+	if key.LoginType == database.LoginTypeOAuth2ProviderApp {
+		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, cfg.AccessURL, r); err != nil {
+			// Log the detailed error for debugging but don't expose it to the client
+			cfg.Logger.Debug(ctx, "oauth2 token audience validation failed", slog.Error(err))
+			return optionalWrite(http.StatusForbidden, codersdk.Response{
+				Message: "Token audience validation failed",
+			})
+		}
 	}
 
 	// We only check OIDC stuff if we have a valid APIKey. An expired key means we don't trust the requestor
@@ -409,7 +432,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, rbac.ScopeName(key.Scope))
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
 			Message: internalErrorMessage,
@@ -444,6 +467,201 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	}
 
 	return key, &actor, true
+}
+
+// validateOAuth2ProviderAppTokenAudience validates that an OAuth2 provider app token
+// is being used with the correct audience/resource server (RFC 8707).
+func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
+	// Get the OAuth2 provider app token to check its audience
+	//nolint:gocritic // System needs to access token for audience validation
+	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemRestricted(ctx), key.ID)
+	if err != nil {
+		return xerrors.Errorf("failed to get OAuth2 token: %w", err)
+	}
+
+	// If no audience is set, allow the request (for backward compatibility)
+	if !token.Audience.Valid || token.Audience.String == "" {
+		return nil
+	}
+
+	// Extract the expected audience from the access URL
+	expectedAudience := extractExpectedAudience(accessURL, r)
+
+	// Normalize both audience values for RFC 3986 compliant comparison
+	normalizedTokenAudience := normalizeAudienceURI(token.Audience.String)
+	normalizedExpectedAudience := normalizeAudienceURI(expectedAudience)
+
+	// Validate that the token's audience matches the expected audience
+	if normalizedTokenAudience != normalizedExpectedAudience {
+		return xerrors.Errorf("token audience %q does not match expected audience %q",
+			token.Audience.String, expectedAudience)
+	}
+
+	return nil
+}
+
+// normalizeAudienceURI implements RFC 3986 URI normalization for OAuth2 audience comparison.
+// This ensures consistent audience matching between authorization and token validation.
+func normalizeAudienceURI(audienceURI string) string {
+	if audienceURI == "" {
+		return ""
+	}
+
+	u, err := url.Parse(audienceURI)
+	if err != nil {
+		// If parsing fails, return as-is to avoid breaking existing functionality
+		return audienceURI
+	}
+
+	// Apply RFC 3986 syntax-based normalization:
+
+	// 1. Scheme normalization - case-insensitive
+	u.Scheme = strings.ToLower(u.Scheme)
+
+	// 2. Host normalization - case-insensitive and IDN (punnycode) normalization
+	u.Host = normalizeHost(u.Host)
+
+	// 3. Remove default ports for HTTP/HTTPS
+	if (u.Scheme == "http" && strings.HasSuffix(u.Host, ":80")) ||
+		(u.Scheme == "https" && strings.HasSuffix(u.Host, ":443")) {
+		// Extract host without default port
+		if idx := strings.LastIndex(u.Host, ":"); idx > 0 {
+			u.Host = u.Host[:idx]
+		}
+	}
+
+	// 4. Path normalization including dot-segment removal (RFC 3986 Section 6.2.2.3)
+	u.Path = normalizePathSegments(u.Path)
+
+	// 5. Remove fragment - should already be empty due to earlier validation,
+	// but clear it as a safety measure in case validation was bypassed
+	if u.Fragment != "" {
+		// This should not happen if validation is working correctly
+		u.Fragment = ""
+	}
+
+	// 6. Keep query parameters as-is (rarely used in audience URIs but preserved for compatibility)
+
+	return u.String()
+}
+
+// normalizeHost performs host normalization including case-insensitive conversion
+// and IDN (Internationalized Domain Name) punnycode normalization.
+func normalizeHost(host string) string {
+	if host == "" {
+		return host
+	}
+
+	// Handle IPv6 addresses - they are enclosed in brackets
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		// IPv6 addresses should be normalized to lowercase
+		return strings.ToLower(host)
+	}
+
+	// Extract port if present
+	var port string
+	if idx := strings.LastIndex(host, ":"); idx > 0 {
+		// Check if this is actually a port (not part of IPv6)
+		if !strings.Contains(host[idx+1:], ":") {
+			port = host[idx:]
+			host = host[:idx]
+		}
+	}
+
+	// Convert to lowercase for case-insensitive comparison
+	host = strings.ToLower(host)
+
+	// Apply IDN normalization - convert Unicode domain names to ASCII (punnycode)
+	if normalizedHost, err := idna.ToASCII(host); err == nil {
+		host = normalizedHost
+	}
+	// If IDN conversion fails, continue with lowercase version
+
+	return host + port
+}
+
+// normalizePathSegments normalizes path segments for consistent OAuth2 audience matching.
+// Uses url.URL.ResolveReference() which implements RFC 3986 dot-segment removal.
+func normalizePathSegments(path string) string {
+	if path == "" {
+		// If no path is specified, use "/" for consistency with RFC 8707 examples
+		return "/"
+	}
+
+	// Use url.URL.ResolveReference() to handle dot-segment removal per RFC 3986
+	base := &url.URL{Path: "/"}
+	ref := &url.URL{Path: path}
+	resolved := base.ResolveReference(ref)
+
+	normalizedPath := resolved.Path
+
+	// Remove trailing slash from paths longer than "/" to normalize
+	// This ensures "/api/" and "/api" are treated as equivalent
+	if len(normalizedPath) > 1 && strings.HasSuffix(normalizedPath, "/") {
+		normalizedPath = strings.TrimSuffix(normalizedPath, "/")
+	}
+
+	return normalizedPath
+}
+
+// Test export functions for testing package access
+
+// buildWWWAuthenticateHeader constructs RFC 6750 + RFC 9728 compliant WWW-Authenticate header
+func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, response codersdk.Response) string {
+	// Use the configured access URL for resource metadata
+	if accessURL == nil {
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+
+		// Use the Host header to construct the canonical audience URI
+		accessURL = &url.URL{
+			Scheme: scheme,
+			Host:   r.Host,
+		}
+	}
+
+	resourceMetadata := accessURL.JoinPath("/.well-known/oauth-protected-resource").String()
+
+	switch code {
+	case http.StatusUnauthorized:
+		switch {
+		case strings.Contains(response.Message, "expired") || strings.Contains(response.Detail, "expired"):
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token has expired", resource_metadata=%q`, resourceMetadata)
+		case strings.Contains(response.Message, "audience") || strings.Contains(response.Message, "mismatch"):
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token audience does not match this resource", resource_metadata=%q`, resourceMetadata)
+		default:
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token is invalid", resource_metadata=%q`, resourceMetadata)
+		}
+	case http.StatusForbidden:
+		return fmt.Sprintf(`Bearer realm="coder", error="insufficient_scope", error_description="The request requires higher privileges than provided by the access token", resource_metadata=%q`, resourceMetadata)
+	default:
+		return fmt.Sprintf(`Bearer realm="coder", resource_metadata=%q`, resourceMetadata)
+	}
+}
+
+// extractExpectedAudience determines the expected audience for the current request.
+// This should match the resource parameter used during authorization.
+func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
+	// For MCP compliance, the audience should be the canonical URI of the resource server
+	// This typically matches the access URL of the Coder deployment
+	var audience string
+
+	if accessURL != nil {
+		audience = accessURL.String()
+	} else {
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+
+		// Use the Host header to construct the canonical audience URI
+		audience = fmt.Sprintf("%s://%s", scheme, r.Host)
+	}
+
+	// Normalize the URI according to RFC 3986 for consistent comparison
+	return normalizeAudienceURI(audience)
 }
 
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
@@ -483,9 +701,14 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 // 1: The cookie
 // 2. The coder_session_token query parameter
 // 3. The custom auth header
+// 4. RFC 6750 Authorization: Bearer header
+// 5. RFC 6750 access_token query parameter
 //
 // API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
+	// Prioritize existing Coder custom authentication methods first
+	// to maintain backward compatibility and existing behavior
+
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
@@ -499,6 +722,20 @@ func APITokenFromRequest(r *http.Request) string {
 	headerValue := r.Header.Get(codersdk.SessionTokenHeader)
 	if headerValue != "" {
 		return headerValue
+	}
+
+	// RFC 6750 Bearer Token support (added as fallback methods)
+	// Check Authorization: Bearer <token> header (case-insensitive per RFC 6750)
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		// Skip "Bearer " (7 characters) and trim surrounding whitespace
+		return strings.TrimSpace(authHeader[7:])
+	}
+
+	// Check access_token query parameter
+	accessToken := r.URL.Query().Get("access_token")
+	if accessToken != "" {
+		return strings.TrimSpace(accessToken)
 	}
 
 	return ""

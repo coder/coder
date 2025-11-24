@@ -1,5 +1,5 @@
 {
-	"action": "never-match-action",
+	"action": "read",
 	"object": {
 		"id": "9046b041-58ed-47a3-9c3a-de302577875a",
 		"owner": "00000000-0000-0000-0000-000000000000",
@@ -23,8 +23,13 @@
 						"action": "*"
 					}
 				],
-				"org": {},
-				"user": []
+				"user": [],
+				"by_org_id": {
+					"bf7b72bd-a2b1-4ef2-962c-1d698e0483f6": {
+						"org": [],
+						"member": []
+					}
+				}
 			}
 		],
 		"groups": ["b617a647-b5d0-4cbe-9e40-26f89710bf18"],
@@ -38,9 +43,19 @@
 					"action": "*"
 				}
 			],
-			"org": {},
 			"user": [],
-			"allow_list": ["*"]
+			"by_org_id": {
+				"bf7b72bd-a2b1-4ef2-962c-1d698e0483f6": {
+					"org": [],
+					"member": []
+				}
+			},
+			"allow_list": [
+				{
+					"type": "workspace",
+					"id": "*"
+				}
+			]
 		}
 	}
 }

@@ -25,5 +25,9 @@ ignorePatterns:
   - pattern: "docs.github.com"
   - pattern: "claude.ai"
   - pattern: "splunk.com"
+  - pattern: "stackoverflow.com/questions"
+  - pattern: "developer.hashicorp.com/terraform/language"
+  - pattern: "platform.openai.com/docs/api-reference"
+  - pattern: "api.openai.com"
 aliveStatusCodes:
   - 200

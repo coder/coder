@@ -1,7 +1,7 @@
 import MuiAlert, {
 	type AlertColor as MuiAlertColor,
 	type AlertProps as MuiAlertProps,
-	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
+	// biome-ignore lint/style/noRestrictedImports: Used as base component
 } from "@mui/material/Alert";
 import Collapse from "@mui/material/Collapse";
 import { Button } from "components/Button/Button";
@@ -11,7 +11,6 @@ import {
 	type ReactNode,
 	useState,
 } from "react";
-
 export type AlertColor = MuiAlertColor;
 
 export type AlertProps = MuiAlertProps & {

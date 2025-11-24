@@ -1,8 +1,6 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableContainer from "@mui/material/TableContainer";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CodeExample } from "components/CodeExample/CodeExample";
+import { Table, TableBody } from "components/Table/Table";
 import { TableEmpty } from "./TableEmpty";
 
 const meta: Meta<typeof TableEmpty> = {
@@ -13,13 +11,11 @@ const meta: Meta<typeof TableEmpty> = {
 	},
 	decorators: [
 		(Story) => (
-			<TableContainer>
-				<Table>
-					<TableBody>
-						<Story />
-					</TableBody>
-				</Table>
-			</TableContainer>
+			<Table>
+				<TableBody>
+					<Story />
+				</TableBody>
+			</Table>
 		),
 	],
 };
@@ -43,13 +39,7 @@ export const WithImageAndCta: Story = {
 			<img
 				src="/featured/templates.webp"
 				alt=""
-				css={{
-					maxWidth: 800,
-					height: 320,
-					overflow: "hidden",
-					objectFit: "cover",
-					objectPosition: "top",
-				}}
+				className="max-w-3xl h-[320px] overflow-hidden object-cover object-top"
 			/>
 		),
 		style: { paddingBottom: 0 },

@@ -2,12 +2,14 @@ package files_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
@@ -25,6 +27,95 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestCancelledFetch(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+	// The file fetch should succeed.
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{
+			ID:   fileID,
+			Data: make([]byte, 100),
+		}, nil
+	})
+
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+	// Cancel the context for the first call; should fail.
+	ctx, cancel := context.WithCancel(dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort)))
+	cancel()
+	_, err := cache.Acquire(ctx, dbM, fileID)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// TestCancelledConcurrentFetch runs 2 Acquire calls. The first has a canceled
+// context and will get a ctx.Canceled error. The second call should get a warmfirst error and try to fetch the file
+// again, which should succeed.
+func TestCancelledConcurrentFetch(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+	// The file fetch should succeed.
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{
+			ID:   fileID,
+			Data: make([]byte, 100),
+		}, nil
+	})
+
+	cache := files.LeakCache{Cache: files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})}
+
+	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+
+	// Cancel the context for the first call; should fail.
+	canceledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err := cache.Acquire(canceledCtx, dbM, fileID)
+	require.ErrorIs(t, err, context.Canceled)
+
+	// Second call, that should succeed without fetching from the database again
+	// since the cache should be populated by the fetch the first request started
+	// even if it doesn't wait for completion.
+	_, err = cache.Acquire(ctx, dbM, fileID)
+	require.NoError(t, err)
+}
+
+func TestConcurrentFetch(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+
+	// Only allow one call, which should succeed
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{ID: fileID}, nil
+	})
+
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+
+	// Expect 2 calls to Acquire before we continue the test
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	for range 2 {
+		// TODO: wg.Go in Go 1.25
+		go func() {
+			defer wg.Done()
+			_, err := cache.Acquire(ctx, dbM, fileID)
+			assert.NoError(t, err)
+		}()
+	}
+
+	// Wait for both go routines to assert their errors and finish.
+	wg.Wait()
+	require.Equal(t, 1, cache.Count())
+}
 
 // nolint:paralleltest,tparallel // Serially testing is easier
 func TestCacheRBAC(t *testing.T) {
@@ -51,7 +142,6 @@ func TestCacheRBAC(t *testing.T) {
 		Scope: rbac.ScopeAll,
 	})
 
-	//nolint:gocritic // Unit testing
 	cacheReader := dbauthz.AsFileReader(ctx)
 
 	t.Run("NoRolesOpen", func(t *testing.T) {
@@ -107,7 +197,6 @@ func cachePromMetricName(metric string) string {
 
 func TestConcurrency(t *testing.T) {
 	t.Parallel()
-	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10
@@ -168,7 +257,6 @@ func TestConcurrency(t *testing.T) {
 
 func TestRelease(t *testing.T) {
 	t.Parallel()
-	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10

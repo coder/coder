@@ -47,6 +47,12 @@ func Int63() (int64, error) {
 	return rng.Int63(), cs.err
 }
 
+// Int63n returns a non-negative integer in [0,maxVal) as an int64.
+func Int63n(maxVal int64) (int64, error) {
+	rng, cs := secureRand()
+	return rng.Int63n(maxVal), cs.err
+}
+
 // Intn returns a non-negative integer in [0,maxVal) as an int.
 func Intn(maxVal int) (int, error) {
 	rng, cs := secureRand()

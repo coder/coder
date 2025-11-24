@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import AnsiToHTML from "ansi-to-html";
 import { type Line, LogLine, LogLinePrefix } from "components/Logs/LogLine";
 import { type FC, type ReactNode, useMemo } from "react";
-
 // Approximate height of a log line. Used to control virtualized list height.
 export const AGENT_LOG_LINE_HEIGHT = 20;
 

@@ -138,15 +138,14 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	}
 }
 
-function workspacesKey(config: WorkspacesRequest = {}) {
-	const { q, limit } = config;
-	return ["workspaces", { q, limit }] as const;
+function workspacesKey(req: WorkspacesRequest = {}) {
+	return ["workspaces", req] as const;
 }
 
-export function workspaces(config: WorkspacesRequest = {}) {
+export function workspaces(req: WorkspacesRequest = {}) {
 	return {
-		queryKey: workspacesKey(config),
-		queryFn: () => API.getWorkspaces(config),
+		queryKey: workspacesKey(req),
+		queryFn: () => API.getWorkspaces(req),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
@@ -266,7 +265,12 @@ export const startWorkspace = (
 export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
 	return {
 		mutationFn: () => {
-			return API.cancelWorkspaceBuild(workspace.latest_build.id);
+			const { status } = workspace.latest_build;
+			const params =
+				status === "pending" || status === "running"
+					? { expect_status: status }
+					: undefined;
+			return API.cancelWorkspaceBuild(workspace.latest_build.id, params);
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
@@ -414,5 +418,15 @@ export const workspacePermissions = (workspace?: Workspace) => {
 		queryKey: ["workspaces", workspace?.id, "permissions"],
 		enabled: !!workspace,
 		staleTime: Number.POSITIVE_INFINITY,
+	};
+};
+
+export const workspaceAgentCredentials = (
+	workspaceId: string,
+	agentName: string,
+) => {
+	return {
+		queryKey: ["workspaces", workspaceId, "agents", agentName, "credentials"],
+		queryFn: () => API.getWorkspaceAgentCredentials(workspaceId, agentName),
 	};
 };

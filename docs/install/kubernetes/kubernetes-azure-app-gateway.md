@@ -109,6 +109,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    ```shell
    helm repo add bitnami https://charts.bitnami.com/bitnami
    helm install coder-db bitnami/postgresql \
+   --set image.repository=bitnamilegacy/postgresql \
    --namespace coder \
    --set auth.username=coder \
    --set auth.password=coder \
@@ -129,7 +130,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    helm install coder coder-v2/coder \
        --namespace coder \
     --values values.yaml \
-    --version 2.18.5
+    --version 2.25.2
    ```
 
 1. Clean up Azure resources:

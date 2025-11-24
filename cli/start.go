@@ -21,14 +21,12 @@ func (r *RootCmd) start() *serpent.Command {
 		noWait bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
 			{
@@ -40,6 +38,11 @@ func (r *RootCmd) start() *serpent.Command {
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -168,6 +171,9 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 	}
 	if buildFlags.provisionerLogDebug {
 		wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
+	}
+	if buildFlags.reason != "" {
+		wbr.Reason = codersdk.CreateWorkspaceBuildReason(buildFlags.reason)
 	}
 
 	return wbr, nil

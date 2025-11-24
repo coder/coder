@@ -45,7 +45,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps
 > = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
 	return (
-		<section>
+		<section className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioner Keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

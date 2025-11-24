@@ -7,8 +7,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
@@ -33,7 +32,8 @@ const AuditPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const auditsQuery = usePaginatedQuery(paginatedAudits(searchParams));
 	const filter = useFilter({
-		searchParamsResult: [searchParams, setSearchParams],
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 		onUpdate: auditsQuery.goToFirstPage,
 	});
 
@@ -75,9 +75,7 @@ const AuditPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Audit")}</title>
-			</Helmet>
+			<title>{pageTitle("Audit")}</title>
 
 			<AuditPageView
 				auditLogs={auditsQuery.data?.audit_logs}

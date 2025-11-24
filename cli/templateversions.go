@@ -51,7 +51,6 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 		cliui.TableFormat([]templateVersionRow{}, defaultColumns),
 		cliui.JSONFormat(),
 	)
-	client := new(codersdk.Client)
 	orgContext := NewOrganizationContext()
 
 	var includeArchived serpent.Bool
@@ -60,7 +59,6 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 		Use: "list <template>",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 			func(next serpent.HandlerFunc) serpent.HandlerFunc {
 				return func(i *serpent.Invocation) error {
 					// This is the only way to dynamically add the "archived"
@@ -95,6 +93,10 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
@@ -177,15 +179,15 @@ func (r *RootCmd) templateVersionsPromote() *serpent.Command {
 		templateVersionName string
 		orgContext          = NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "promote --template=<template_name> --template-version=<template_version_name>",
 		Short: "Promote a template version to active.",
 		Long:  "Promote an existing template version to be the active version for the specified template.",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err

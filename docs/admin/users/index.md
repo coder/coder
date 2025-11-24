@@ -173,7 +173,7 @@ coder reset-password <username>
 ### Resetting a password on Kubernetes
 
 ```shell
-kubectl exec -it deployment/coder /bin/bash -n coder
+kubectl exec -it deployment/coder -n coder -- /bin/bash
 
 coder reset-password <username>
 ```

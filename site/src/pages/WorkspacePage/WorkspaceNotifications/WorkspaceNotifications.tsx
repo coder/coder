@@ -9,13 +9,13 @@ import type {
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { TriangleAlertIcon } from "lucide-react";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useEffect, useState } from "react";
 
 dayjs.extend(relativeTime);
+
 import { useQuery } from "react-query";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
@@ -275,7 +275,7 @@ const styles = {
 	},
 } satisfies Record<string, Interpolation<Theme>>;
 
-const findTroubleshootingURL = (
+export const findTroubleshootingURL = (
 	workspaceBuild: WorkspaceBuild,
 ): string | undefined => {
 	for (const resource of workspaceBuild.resources) {

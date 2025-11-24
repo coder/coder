@@ -90,8 +90,7 @@ func TestCollectInsights(t *testing.T) {
 	// Start an agent so that we can generate stats.
 	var agentClients []agentproto.DRPCAgentClient
 	for i, agent := range []database.WorkspaceAgent{agent1, agent2} {
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agent.AuthToken.String())
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agent.AuthToken.String()))
 		agentClient.SDK.SetLogger(logger.Leveled(slog.LevelDebug).Named(fmt.Sprintf("agent%d", i+1)))
 		conn, err := agentClient.ConnectRPC(context.Background())
 		require.NoError(t, err)
@@ -128,7 +127,6 @@ func TestCollectInsights(t *testing.T) {
 		AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 	})
 	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)
-	//nolint:gocritic // This is a test.
 	err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
 		{
 			UserID:           user.ID,

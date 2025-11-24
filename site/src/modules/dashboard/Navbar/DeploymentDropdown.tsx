@@ -1,34 +1,37 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import MenuItem from "@mui/material/MenuItem";
 import { Button } from "components/Button/Button";
 import {
 	Popover,
+	PopoverClose,
 	PopoverContent,
 	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
+	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
+	canViewAIBridge: boolean;
 }
 
 export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
 	canViewOrganizations,
 	canViewAuditLog,
+	canViewConnectionLog,
 	canViewHealth,
+	canViewAIBridge,
 }) => {
-	const theme = useTheme();
-
 	if (
 		!canViewAuditLog &&
+		!canViewConnectionLog &&
 		!canViewOrganizations &&
 		!canViewDeployment &&
 		!canViewHealth
@@ -38,7 +41,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Button variant="outline" size="lg">
 					Admin settings
 					<ChevronDownIcon className="text-content-primary !size-icon-xs" />
@@ -46,20 +49,16 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 			</PopoverTrigger>
 
 			<PopoverContent
-				horizontal="right"
-				css={{
-					".MuiPaper-root": {
-						minWidth: "auto",
-						width: 180,
-						boxShadow: theme.shadows[6],
-					},
-				}}
+				align="end"
+				className="bg-surface-secondary border-surface-quaternary w-[180px] min-w-auto"
 			>
 				<DeploymentDropdownContent
 					canViewDeployment={canViewDeployment}
 					canViewOrganizations={canViewOrganizations}
 					canViewAuditLog={canViewAuditLog}
+					canViewConnectionLog={canViewConnectionLog}
 					canViewHealth={canViewHealth}
+					canViewAIBridge={canViewAIBridge}
 				/>
 			</PopoverContent>
 		</Popover>
@@ -71,52 +70,64 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewOrganizations,
 	canViewAuditLog,
 	canViewHealth,
+	canViewConnectionLog,
+	canViewAIBridge,
 }) => {
-	const popover = usePopover();
-
-	const onPopoverClose = () => popover.setOpen(false);
-
 	return (
 		<nav>
 			{canViewDeployment && (
-				<MenuItem
-					component={NavLink}
-					to="/deployment"
-					css={styles.menuItem}
-					onClick={onPopoverClose}
-				>
-					Deployment
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem component={NavLink} to="/deployment" css={styles.menuItem}>
+						Deployment
+					</MenuItem>
+				</PopoverClose>
 			)}
 			{canViewOrganizations && (
-				<MenuItem
-					component={NavLink}
-					to="/organizations"
-					css={styles.menuItem}
-					onClick={onPopoverClose}
-				>
-					Organizations
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem
+						component={NavLink}
+						to="/organizations"
+						css={styles.menuItem}
+					>
+						Organizations
+					</MenuItem>
+				</PopoverClose>
 			)}
 			{canViewAuditLog && (
-				<MenuItem
-					component={NavLink}
-					to={linkToAuditing}
-					css={styles.menuItem}
-					onClick={onPopoverClose}
-				>
-					Audit Logs
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem
+						component={NavLink}
+						to={linkToAuditing}
+						css={styles.menuItem}
+					>
+						Audit Logs
+					</MenuItem>
+				</PopoverClose>
+			)}
+			{canViewConnectionLog && (
+				<PopoverClose asChild>
+					<MenuItem
+						component={NavLink}
+						to="/connectionlog"
+						css={styles.menuItem}
+					>
+						Connection Logs
+					</MenuItem>
+				</PopoverClose>
+			)}
+			{canViewAIBridge && (
+				<PopoverClose asChild>
+					<MenuItem component={NavLink} to="/aibridge" css={styles.menuItem}>
+						AI Bridge
+					</MenuItem>
+				</PopoverClose>
 			)}
 			{canViewHealth && (
-				<MenuItem
-					component={NavLink}
-					to="/health"
-					css={styles.menuItem}
-					onClick={onPopoverClose}
-				>
-					Healthcheck
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem component={NavLink} to="/health" css={styles.menuItem}>
+						Healthcheck
+					</MenuItem>
+				</PopoverClose>
 			)}
 		</nav>
 	);
@@ -124,17 +135,17 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 
 const styles = {
 	menuItem: (theme) => css`
-    text-decoration: none;
-    color: inherit;
-    gap: 8px;
-    padding: 8px 20px;
-    font-size: 14px;
+		text-decoration: none;
+		color: inherit;
+		gap: 8px;
+		padding: 8px 20px;
+		font-size: 14px;
 
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-      transition: background-color 0.3s ease;
-    }
-  `,
+		&:hover {
+			background-color: ${theme.palette.action.hover};
+			transition: background-color 0.3s ease;
+		}
+	`,
 	menuItemIcon: (theme) => ({
 		color: theme.palette.text.secondary,
 		width: 20,

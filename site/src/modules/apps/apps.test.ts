@@ -3,7 +3,7 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 } from "testHelpers/entities";
-import { SESSION_TOKEN_PLACEHOLDER, getAppHref } from "./apps";
+import { getAppHref, SESSION_TOKEN_PLACEHOLDER } from "./apps";
 
 describe("getAppHref", () => {
 	it("returns the URL without changes when external app has regular URL", () => {

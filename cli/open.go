@@ -11,7 +11,9 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/skratchdot/open-golang/open"
 	"golang.org/x/xerrors"
 
@@ -39,25 +41,25 @@ const vscodeDesktopName = "VS Code Desktop"
 
 func (r *RootCmd) openVSCode() *serpent.Command {
 	var (
-		generateToken    bool
-		testOpenError    bool
-		appearanceConfig codersdk.AppearanceConfig
-		containerName    string
+		generateToken bool
+		testOpenError bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "vscode <workspace> [<directory in workspace>]",
 		Short:       fmt.Sprintf("Open a workspace in %s", vscodeDesktopName),
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, 2),
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+			appearanceConfig := initAppearance(ctx, client)
 
 			// Check if we're inside a workspace, and especially inside _this_
 			// workspace so we can perform path resolution/expansion. Generally,
@@ -71,13 +73,77 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			// need to wait for the agent to start.
 			workspaceQuery := inv.Args[0]
 			autostart := true
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, workspaceQuery)
+			workspace, workspaceAgent, otherWorkspaceAgents, err := GetWorkspaceAndAgent(ctx, inv, client, autostart, workspaceQuery)
 			if err != nil {
 				return xerrors.Errorf("get workspace and agent: %w", err)
 			}
 
 			workspaceName := workspace.Name + "." + workspaceAgent.Name
 			insideThisWorkspace := insideAWorkspace && inWorkspaceName == workspaceName
+
+			// To properly work with devcontainers, VS Code has to connect to
+			// parent workspace agent. It will then proceed to enter the
+			// container given the correct parameters. There is inherently no
+			// dependency on the devcontainer agent in this scenario, but
+			// relying on it simplifies the logic and ensures the devcontainer
+			// is ready. To eliminate the dependency we would need to know that
+			// a sub-agent that hasn't been created yet may be a devcontainer,
+			// and thus will be created at a later time as well as expose the
+			// container folder on the API response.
+			var parentWorkspaceAgent codersdk.WorkspaceAgent
+			var devcontainer codersdk.WorkspaceAgentDevcontainer
+			if workspaceAgent.ParentID.Valid {
+				// This is likely a devcontainer agent, so we need to find the
+				// parent workspace agent as well as the devcontainer.
+				for _, otherAgent := range otherWorkspaceAgents {
+					if otherAgent.ID == workspaceAgent.ParentID.UUID {
+						parentWorkspaceAgent = otherAgent
+						break
+					}
+				}
+				if parentWorkspaceAgent.ID == uuid.Nil {
+					return xerrors.Errorf("parent workspace agent %s not found", workspaceAgent.ParentID.UUID)
+				}
+
+				printedWaiting := false
+				for {
+					resp, err := client.WorkspaceAgentListContainers(ctx, parentWorkspaceAgent.ID, nil)
+					if err != nil {
+						return xerrors.Errorf("list parent workspace agent containers: %w", err)
+					}
+
+					for _, dc := range resp.Devcontainers {
+						if dc.Agent.ID == workspaceAgent.ID {
+							devcontainer = dc
+							break
+						}
+					}
+					if devcontainer.ID == uuid.Nil {
+						cliui.Warnf(inv.Stderr, "Devcontainer %q not found, opening as a regular workspace...", workspaceAgent.Name)
+						parentWorkspaceAgent = codersdk.WorkspaceAgent{} // Reset to empty, so we don't use it later.
+						break
+					}
+
+					// Precondition, the devcontainer must be running to enter
+					// it. Once running, devcontainer.Container will be set.
+					if devcontainer.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
+						break
+					}
+					if devcontainer.Status != codersdk.WorkspaceAgentDevcontainerStatusStarting {
+						return xerrors.Errorf("devcontainer %q is in unexpected status %q, expected %q or %q",
+							devcontainer.Name, devcontainer.Status,
+							codersdk.WorkspaceAgentDevcontainerStatusRunning,
+							codersdk.WorkspaceAgentDevcontainerStatusStarting,
+						)
+					}
+
+					if !printedWaiting {
+						_, _ = fmt.Fprintf(inv.Stderr, "Waiting for devcontainer %q status to change from %q to %q...\n", devcontainer.Name, devcontainer.Status, codersdk.WorkspaceAgentDevcontainerStatusRunning)
+						printedWaiting = true
+					}
+					time.Sleep(5 * time.Second) // Wait a bit before retrying.
+				}
+			}
 
 			if !insideThisWorkspace {
 				// Wait for the agent to connect, we don't care about readiness
@@ -99,6 +165,9 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				// the created state, so we need to wait for that to happen.
 				// However, if no directory is set, the expanded directory will
 				// not be set either.
+				//
+				// Note that this is irrelevant for devcontainer sub agents, as
+				// they always have a directory set.
 				if workspaceAgent.Directory != "" {
 					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(_ codersdk.WorkspaceAgent) bool {
 						return workspaceAgent.LifecycleState != codersdk.WorkspaceAgentLifecycleCreated
@@ -112,41 +181,6 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			var directory string
 			if len(inv.Args) > 1 {
 				directory = inv.Args[1]
-			}
-
-			if containerName != "" {
-				containers, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, map[string]string{"devcontainer.local_folder": ""})
-				if err != nil {
-					return xerrors.Errorf("list workspace agent containers: %w", err)
-				}
-
-				var foundContainer bool
-
-				for _, container := range containers.Containers {
-					if container.FriendlyName != containerName {
-						continue
-					}
-
-					foundContainer = true
-
-					if directory == "" {
-						localFolder, ok := container.Labels["devcontainer.local_folder"]
-						if !ok {
-							return xerrors.New("container missing `devcontainer.local_folder` label")
-						}
-
-						directory, ok = container.Volumes[localFolder]
-						if !ok {
-							return xerrors.New("container missing volume for `devcontainer.local_folder`")
-						}
-					}
-
-					break
-				}
-
-				if !foundContainer {
-					return xerrors.New("no container found")
-				}
 			}
 
 			directory, err = resolveAgentAbsPath(workspaceAgent.ExpandedDirectory, directory, workspaceAgent.OperatingSystem, insideThisWorkspace)
@@ -174,14 +208,16 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				u  *url.URL
 				qp url.Values
 			)
-			if containerName != "" {
+			if devcontainer.ID != uuid.Nil {
 				u, qp = buildVSCodeWorkspaceDevContainerLink(
 					token,
 					client.URL.String(),
 					workspace,
-					workspaceAgent,
-					containerName,
+					parentWorkspaceAgent,
+					devcontainer.Container.FriendlyName,
 					directory,
+					devcontainer.WorkspaceFolder,
+					devcontainer.ConfigPath,
 				)
 			} else {
 				u, qp = buildVSCodeWorkspaceLink(
@@ -248,13 +284,6 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			Value: serpent.BoolOf(&generateToken),
 		},
 		{
-			Flag:          "container",
-			FlagShorthand: "c",
-			Description:   "Container name to connect to in the workspace.",
-			Value:         serpent.StringOf(&containerName),
-			Hidden:        true, // Hidden until this features is at least in beta.
-		},
-		{
 			Flag:        "test.open-error",
 			Description: "Don't run the open command.",
 			Value:       serpent.BoolOf(&testOpenError),
@@ -271,15 +300,16 @@ func (r *RootCmd) openApp() *serpent.Command {
 		testOpenError bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "app <workspace> <app slug>",
 		Short:       "Open a workspace application.",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
@@ -288,7 +318,7 @@ func (r *RootCmd) openApp() *serpent.Command {
 			}
 
 			workspaceName := inv.Args[0]
-			ws, agt, err := getWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
+			ws, agt, _, err := GetWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
 			if err != nil {
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
@@ -430,8 +460,14 @@ func buildVSCodeWorkspaceDevContainerLink(
 	workspaceAgent codersdk.WorkspaceAgent,
 	containerName string,
 	containerFolder string,
+	localWorkspaceFolder string,
+	localConfigFile string,
 ) (*url.URL, url.Values) {
 	containerFolder = filepath.ToSlash(containerFolder)
+	localWorkspaceFolder = filepath.ToSlash(localWorkspaceFolder)
+	if localConfigFile != "" {
+		localConfigFile = filepath.ToSlash(localConfigFile)
+	}
 
 	qp := url.Values{}
 	qp.Add("url", clientURL)
@@ -440,6 +476,8 @@ func buildVSCodeWorkspaceDevContainerLink(
 	qp.Add("agent", workspaceAgent.Name)
 	qp.Add("devContainerName", containerName)
 	qp.Add("devContainerFolder", containerFolder)
+	qp.Add("localWorkspaceFolder", localWorkspaceFolder)
+	qp.Add("localConfigFile", localConfigFile)
 
 	if token != "" {
 		qp.Add("token", token)
@@ -469,7 +507,7 @@ func waitForAgentCond(ctx context.Context, client *codersdk.Client, workspace co
 	}
 
 	for workspace = range wc {
-		workspaceAgent, err = getWorkspaceAgent(workspace, workspaceAgent.Name)
+		workspaceAgent, _, err = getWorkspaceAgent(workspace, workspaceAgent.Name)
 		if err != nil {
 			return workspace, workspaceAgent, xerrors.Errorf("get workspace agent: %w", err)
 		}

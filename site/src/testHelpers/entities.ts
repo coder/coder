@@ -39,6 +39,18 @@ export const MockOrganization2: TypesGen.Organization = {
 	is_default: false,
 };
 
+export const MockOrganization3: TypesGen.Organization = {
+	id: "my-organization-3-id",
+	name: "my-organization-3",
+	display_name: "My Organization 3",
+	description:
+		"Yet another organization that will show up in OrganizationPills.",
+	icon: "/emojis/1f957.png",
+	created_at: "",
+	updated_at: "",
+	is_default: false,
+};
+
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [
@@ -72,6 +84,8 @@ export const MockToken: TypesGen.APIKeyWithOwner = {
 	updated_at: "2022-12-16T20:10:45.637452Z",
 	login_type: "token",
 	scope: "all",
+	scopes: ["coder:all"],
+	allow_list: [{ type: "*", id: "*" }],
 	lifetime_seconds: 2592000,
 	token_name: "token-one",
 	username: "admin",
@@ -88,6 +102,8 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
 		updated_at: "2022-12-16T20:10:45.637452Z",
 		login_type: "token",
 		scope: "all",
+		scopes: ["coder:all"],
+		allow_list: [{ type: "*", id: "*" }],
 		lifetime_seconds: 2592000,
 		token_name: "token-two",
 		username: "admin",
@@ -265,45 +281,50 @@ export const MockOwnerRole: TypesGen.Role = {
 	name: "owner",
 	display_name: "Owner",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
 	name: "user_admin",
 	display_name: "User Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
 	name: "template_admin",
 	display_name: "Template Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockAuditorRole: TypesGen.Role = {
 	name: "auditor",
 	display_name: "Auditor",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockWorkspaceCreationBanRole: TypesGen.Role = {
 	name: "organization-workspace-creation-ban",
 	display_name: "Organization Workspace Creation Ban",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockMemberRole: TypesGen.SlimRole = {
@@ -315,27 +336,30 @@ export const MockOrganizationAdminRole: TypesGen.Role = {
 	name: "organization-admin",
 	display_name: "Organization Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationUserAdminRole: TypesGen.Role = {
 	name: "organization-user-admin",
 	display_name: "Organization User Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	name: "organization-template-admin",
 	display_name: "Organization Template Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
@@ -344,18 +368,20 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	assignable: true,
 	built_in: false,
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
-	organization_id: MockOrganization.id,
 	assignable: true,
 	built_in: false,
 	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
 	organization_permissions: [
 		{
 			negate: false,
@@ -438,14 +464,15 @@ export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 			action: "create",
 		},
 	],
-	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockRole2WithOrgPermissions: TypesGen.Role = {
 	name: "my-role-1",
 	display_name: "My Role 1",
-	organization_id: MockOrganization.id,
 	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
 	organization_permissions: [
 		{
 			negate: false,
@@ -453,7 +480,7 @@ export const MockRole2WithOrgPermissions: TypesGen.Role = {
 			action: "create",
 		},
 	],
-	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
@@ -479,10 +506,6 @@ export const MockAssignableSiteRoles = [
 	assignableRole(MockAuditorRole, true),
 	assignableRole(MockWorkspaceCreationBanRole, true),
 ];
-
-export const MockMemberPermissions = {
-	viewAuditLog: false,
-};
 
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
@@ -614,7 +637,7 @@ const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: { scope: "user" },
 };
 
-const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-psk-provisioner",
 	key_id: MockProvisionerPskKey.id,
@@ -622,7 +645,7 @@ const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	name: "Test psk provisioner",
 };
 
-const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-key-provisioner",
 	key_id: MockProvisionerKey.id,
@@ -632,7 +655,7 @@ const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: MockProvisionerKey.tags,
 };
 
-const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+const _MockProvisioner2: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-provisioner-2",
 	name: "Test Provisioner 2",
@@ -665,6 +688,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 	status: "succeeded",
 	file_id: MockOrganization.id,
 	completed_at: "2022-05-17T17:39:01.382927298Z",
+	initiator_id: MockUserMember.id,
 	tags: {
 		scope: "organization",
 		owner: "",
@@ -689,6 +713,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 		template_version_name: "test-version",
 		workspace_name: "test-workspace",
 	},
+	logs_overflowed: false,
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -731,6 +756,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -750,6 +776,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
@@ -826,10 +853,12 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
-	use_classic_parameter_flow: true,
+	use_classic_parameter_flow: false,
+	cors_behavior: "simple",
+	use_terraform_workspace_cache: false,
 };
 
-const MockTemplateVersionFiles: TemplateVersionFiles = {
+const _MockTemplateVersionFiles: TemplateVersionFiles = {
 	"README.md": "# Example\n\nThis is an example template.",
 	"main.tf": `// Provides info about the workspace.
 data "coder_workspace" "me" {}
@@ -908,6 +937,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	hidden: false,
 	open_in: "slim-window",
 	statuses: [],
+	tooltip: "Test **Tooltip**",
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
@@ -988,6 +1018,15 @@ export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+};
+
+const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "test-workspace-unhealthy-agent",
+	name: "a-workspace-unhealthy-agent",
+	status: "timeout",
+	lifecycle_state: "start_error",
+	health: { healthy: false },
 };
 
 export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
@@ -1199,7 +1238,7 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
@@ -1242,7 +1281,7 @@ export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
 	daily_cost: 0,
 };
 
-const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
+const _MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
 	{
 		schedule: "",
 	};
@@ -1411,6 +1450,14 @@ export const MockWorkspace: TypesGen.Workspace = {
 	deleting_at: null,
 	dormant_at: null,
 	next_start_at: null,
+	is_prebuild: false,
+};
+
+export const MockPrebuiltWorkspace = {
+	...MockWorkspace,
+	owner_name: "prebuilds",
+	name: "prebuilt-workspace",
+	is_prebuild: true,
 };
 
 export const MockFavoriteWorkspace: TypesGen.Workspace = {
@@ -1431,6 +1478,20 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildStop,
 		job: MockRunningProvisionerJob,
 		status: "stopping",
+	},
+};
+export const MockUnhealthyWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-unhealthy-workspace",
+	health: {
+		healthy: false,
+		failing_agents: [MockWorkspaceUnhealthyAgent.id],
+	},
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceUnhealthyAgent] },
+		],
 	},
 };
 export const MockStartingWorkspace: TypesGen.Workspace = {
@@ -1544,7 +1605,7 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
 		},
 	};
 
-const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -1563,6 +1624,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
+export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-non-classic-parameter-flow-workspace",
+	template_use_classic_parameter_flow: false,
+};
+
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({
@@ -1573,7 +1640,7 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	count: 26,
 };
 
-const MockWorkspacesResponseWithDeletions = {
+const _MockWorkspacesResponseWithDeletions = {
 	workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
 	count: MockWorkspacesResponse.count + 1,
 };
@@ -1660,6 +1727,21 @@ const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	ephemeral: false,
 };
 
+export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
+	{
+		name: "ephemeral_parameter",
+		type: "string",
+		form_type: "input",
+		description: "This is ephemeral parameter",
+		description_plaintext: "Markdown: This is ephemeral parameter",
+		default_value: "abc",
+		mutable: true,
+		icon: "/icon/folder.svg",
+		options: [],
+		required: true,
+		ephemeral: true,
+	};
+
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
 	description: "This is first variable.",
@@ -1728,7 +1810,7 @@ export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest
 		],
 	};
 
-const MockUserAgent = {
+const _MockUserAgent = {
 	browser: "Chrome 99.0.4844",
 	device: "Other",
 	ip_address: "11.22.33.44",
@@ -2410,7 +2492,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	refreshed_at: "2022-05-20T16:45:57.122Z",
 };
 
-const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 	errors: [],
 	warnings: ["You are over your active user limit.", "And another thing."],
 	has_license: true,
@@ -2450,6 +2532,21 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
 	}),
 };
 
+export const MockEntitlementsWithConnectionLog: TypesGen.Entitlements = {
+	errors: [],
+	warnings: [],
+	has_license: true,
+	require_telemetry: false,
+	trial: false,
+	refreshed_at: "2022-05-20T16:45:57.122Z",
+	features: withDefaultFeatures({
+		connection_log: {
+			enabled: true,
+			entitlement: "entitled",
+		},
+	}),
+};
+
 export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -2465,7 +2562,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	}),
 };
 
-const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
 	has_license: true,
@@ -2642,7 +2739,7 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
 	},
 };
 
-const MockAuditOauthConvert: TypesGen.AuditLog = {
+const _MockAuditOauthConvert: TypesGen.AuditLog = {
 	...MockAuditLog,
 	resource_type: "convert_login",
 	resource_target: "oidc",
@@ -2718,6 +2815,79 @@ export const MockAuditLogRequestPasswordReset: TypesGen.AuditLog = {
 	},
 };
 
+export const MockWebConnectionLog: TypesGen.ConnectionLog = {
+	id: "497dcba3-ecbf-4587-a2dd-5eb0665e6880",
+	connect_time: "2022-05-19T16:45:57.122Z",
+	organization: {
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+	},
+	workspace_owner_id: MockUserMember.id,
+	workspace_owner_username: MockUserMember.username,
+	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
+	agent_name: "dev",
+	ip: "127.0.0.1",
+	type: "workspace_app",
+	web_info: {
+		user_agent:
+			'"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
+		user: MockUserMember,
+		slug_or_port: "code-server",
+		status_code: 200,
+	},
+};
+
+export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
+	connect_time: "2022-05-19T16:45:57.122Z",
+	organization: {
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+	},
+	workspace_owner_id: MockUserMember.id,
+	workspace_owner_username: MockUserMember.username,
+	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
+	agent_name: "dev",
+	ip: "127.0.0.1",
+	type: "ssh",
+	ssh_info: {
+		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
+		disconnect_reason: undefined,
+		disconnect_time: undefined,
+		exit_code: undefined,
+	},
+};
+
+export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+	id: "893e75e0-1518-4ac8-9629-35923a39533a",
+	connect_time: "2022-05-19T16:45:57.122Z",
+	organization: {
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+	},
+	workspace_owner_id: MockUserMember.id,
+	workspace_owner_username: MockUserMember.username,
+	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
+	agent_name: "dev",
+	ip: "127.0.0.1",
+	type: "ssh",
+	ssh_info: {
+		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
+		disconnect_reason: "server shut down",
+		disconnect_time: "2022-05-19T16:49:57.122Z",
+		exit_code: 0,
+	},
+};
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
 	budget: 100,
@@ -2758,6 +2928,20 @@ export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {
 	auto_create_missing_groups: false,
 };
 
+export const MockMultipleOverflowGroupSyncSettings: TypesGen.GroupSyncSettings =
+	{
+		field: "group-multiple-overflow-test",
+		mapping: {
+			"idp-group-1": [
+				"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+				"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+				"d3562dc1-c120-43a9-ba02-88e43bbca192",
+			],
+		},
+		regex_filter: "@[a-zA-Z0-9_]+",
+		auto_create_missing_groups: false,
+	};
+
 export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
 	field: "role-test",
 	mapping: {
@@ -2782,7 +2966,11 @@ export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
 	{
 		field: "organization-test",
 		mapping: {
-			"idp-org-1": ["my-organization-id", "my-organization-2-id"],
+			"idp-org-1": [
+				"my-organization-id",
+				"my-organization-2-id",
+				"my-organization-3-id",
+			],
 			"idp-org-2": ["my-organization-id"],
 		},
 		organization_assign_default: true,
@@ -2812,6 +3000,20 @@ export const MockGroup: TypesGen.Group = {
 export const MockGroup2: TypesGen.Group = {
 	id: "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
 	name: "developer",
+	display_name: "",
+	avatar_url: "https://example.com",
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
+	members: [MockUserOwner, MockUserMember],
+	quota_allowance: 5,
+	source: "user",
+	total_member_count: 2,
+};
+
+export const MockGroup3: TypesGen.Group = {
+	id: "d3562dc1-c120-43a9-ba02-88e43bbca192",
+	name: "Back-End",
 	display_name: "",
 	avatar_url: "https://example.com",
 	organization_id: MockOrganization.id,
@@ -2882,6 +3084,7 @@ export const MockPermissions: Permissions = {
 	viewAllUsers: true,
 	updateUsers: true,
 	viewAnyAuditLog: true,
+	viewAnyConnectionLog: true,
 	viewDeploymentConfig: true,
 	editDeploymentConfig: true,
 	viewDeploymentStats: true,
@@ -2899,6 +3102,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -2909,6 +3113,7 @@ export const MockNoPermissions: Permissions = {
 	viewAllUsers: false,
 	updateUsers: false,
 	viewAnyAuditLog: false,
+	viewAnyConnectionLog: false,
 	viewDeploymentConfig: false,
 	editDeploymentConfig: false,
 	viewDeploymentStats: false,
@@ -2926,6 +3131,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -3011,19 +3217,196 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	display_name: "Parameter 1",
 	description: "This is a parameter",
 	type: "string",
-	mutable: true,
 	form_type: "input",
-	validations: [],
-	value: { valid: true, value: "" },
-	diagnostics: [],
-	options: [],
+	mutable: true,
 	ephemeral: false,
 	required: true,
+	value: { valid: true, value: "" },
+	default_value: { valid: true, value: "" },
+	options: [],
+	validations: [],
+	diagnostics: [],
 	icon: "",
 	styling: {},
-	default_value: { valid: true, value: "" },
 	order: 0,
 };
+
+export const MockDropdownParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "instance_type",
+	display_name: "Instance Type",
+	description: "The type of instance to create",
+	form_type: "dropdown",
+	default_value: { value: "t3.micro", valid: true },
+	options: [
+		{
+			name: "t3.micro",
+			description: "Micro instance",
+			value: { value: "t3.micro", valid: true },
+			icon: "",
+		},
+		{
+			name: "t3.small",
+			description: "Small instance",
+			value: { value: "t3.small", valid: true },
+			icon: "",
+		},
+		{
+			name: "t3.medium",
+			description: "Medium instance",
+			value: { value: "t3.medium", valid: true },
+			icon: "",
+		},
+	],
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 1,
+};
+
+const MockTagSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "tags",
+	display_name: "Tags",
+	description: "Resource tags",
+	type: "list(string)",
+	form_type: "tag-select",
+	required: false,
+	value: { value: "[]", valid: true },
+	default_value: { value: "[]", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 4,
+};
+
+const MockSwitchParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "enable_monitoring",
+	display_name: "Enable Monitoring",
+	description: "Enable system monitoring",
+	type: "bool",
+	form_type: "switch",
+	required: false,
+	value: { value: "true", valid: true },
+	default_value: { value: "true", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 3,
+};
+
+export const MockSliderParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "cpu_count",
+	display_name: "CPU Count",
+	description: "Number of CPU cores",
+	type: "number",
+	form_type: "slider",
+	value: { value: "2", valid: true },
+	default_value: { value: "2", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 2,
+};
+
+const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "ides",
+	display_name: "IDEs",
+	description: "Enabled IDEs",
+	type: "list(string)",
+	form_type: "multi-select",
+	required: false,
+	value: { value: "[]", valid: true },
+	default_value: { value: "[]", valid: true },
+	options: [
+		{
+			name: "vscode",
+			description: "Visual Studio Code",
+			value: { value: "vscode", valid: true },
+			icon: "",
+		},
+		{
+			name: "cursor",
+			description: "Cursor",
+			value: { value: "cursor", valid: true },
+			icon: "",
+		},
+		{
+			name: "goland",
+			description: "Goland",
+			value: { value: "goland", valid: true },
+			icon: "",
+		},
+		{
+			name: "windsurf",
+			description: "Windsurf",
+			value: { value: "windsurf", valid: true },
+			icon: "",
+		},
+	],
+	order: 5,
+};
+
+export const MockValidationParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "invalid_number",
+	display_name: "Invalid Parameter",
+	description: "Number parameter with validation error",
+	type: "number",
+	form_type: "input",
+	value: { value: "50", valid: true },
+	default_value: { value: "50", valid: true },
+	validations: [
+		{
+			validation_error: "Number must be between 0 and 100",
+			validation_regex: null,
+			validation_min: 0,
+			validation_max: 100,
+			validation_monotonic: null,
+		},
+	],
+	order: 1,
+};
+
+export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
+	{
+		id: 1,
+		parameters: [
+			MockDropdownParameter,
+			MockSliderParameter,
+			MockSwitchParameter,
+			MockTagSelectParameter,
+			MockMultiSelectParameter,
+		],
+		diagnostics: [],
+	};
+
+export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
+	{
+		id: 2,
+		parameters: [MockDropdownParameter],
+		diagnostics: [
+			{
+				severity: "error",
+				summary: "Validation failed",
+				detail: "The selected instance type is not available in this region",
+				extra: {
+					code: "",
+				},
+			},
+		],
+	};
 
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
 	{
@@ -4134,6 +4517,7 @@ export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
 	display_name: "GitHub",
 	allow_refresh: true,
 	allow_validate: true,
+	supports_revocation: false,
 };
 
 export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
@@ -4156,6 +4540,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 			authorization: "http://localhost:3001/oauth2/authorize",
 			token: "http://localhost:3001/oauth2/token",
 			device_authorization: "",
+			token_revoke: "http://localhost:3001/oauth2/revoke",
 		},
 	},
 ];
@@ -4212,99 +4597,166 @@ export const MockNotificationPreferences: TypesGen.NotificationPreference[] = [
 	},
 ];
 
-export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
-	{
-		id: "381df2a9-c0c0-4749-420f-80a9280c66f9",
-		name: "Workspace Autobuild Failed",
-		title_template: 'Workspace "{{.Labels.name}}" autobuild failed',
-		body_template:
-			'Hi {{.UserName}}\nAutomatic build of your workspace **{{.Labels.name}}** failed.\nThe specified reason was "**{{.Labels.reason}}**".',
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "webhook",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "f517da0b-cdc9-410f-ab89-a86107c420ed",
-		name: "Workspace Deleted",
-		title_template: 'Workspace "{{.Labels.name}}" deleted',
-		body_template:
-			'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}{{ if .Labels.initiator }} ({{ .Labels.initiator }}){{end}}**".',
-		actions:
-			'[{"url": "{{ base_url }}/workspaces", "label": "View workspaces"}, {"url": "{{ base_url }}/templates", "label": "View templates"}]',
-		group: "Workspace Events",
-		method: "smtp",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "f44d9314-ad03-4bc8-95d0-5cad491da6b6",
-		name: "User account deleted",
-		title_template: 'User account "{{.Labels.deleted_account_name}}" deleted',
-		body_template:
-			"Hi {{.UserName}},\n\nUser account **{{.Labels.deleted_account_name}}** has been deleted.",
-		actions:
-			'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
-		group: "User Events",
-		method: "",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "4e19c0ac-94e1-4532-9515-d1801aa283b2",
-		name: "User account created",
-		title_template: 'User account "{{.Labels.created_account_name}}" created',
-		body_template:
-			"Hi {{.UserName}},\n\nNew user account **{{.Labels.created_account_name}}** has been created.",
-		actions:
-			'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
-		group: "User Events",
-		method: "",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "0ea69165-ec14-4314-91f1-69566ac3c5a0",
-		name: "Workspace Marked as Dormant",
-		title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
-		body_template:
-			"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "smtp",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "c34a0c09-0704-4cac-bd1c-0c0146811c2b",
-		name: "Workspace updated automatically",
-		title_template: 'Workspace "{{.Labels.name}}" updated automatically',
-		body_template:
-			"Hi {{.UserName}}\nYour workspace **{{.Labels.name}}** has been updated automatically to the latest template version ({{.Labels.template_version_name}}).",
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "smtp",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "51ce2fdf-c9ca-4be1-8d70-628674f9bc42",
-		name: "Workspace Marked for Deletion",
-		title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
-		body_template:
-			"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "webhook",
-		kind: "system",
-		enabled_by_default: true,
-	},
-];
+export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
+	[
+		{
+			id: "381df2a9-c0c0-4749-420f-80a9280c66f9",
+			name: "Workspace Autobuild Failed",
+			title_template: 'Workspace "{{.Labels.name}}" autobuild failed',
+			body_template:
+				'Hi {{.UserName}}\nAutomatic build of your workspace **{{.Labels.name}}** failed.\nThe specified reason was "**{{.Labels.reason}}**".',
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "webhook",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "f517da0b-cdc9-410f-ab89-a86107c420ed",
+			name: "Workspace Deleted",
+			title_template: 'Workspace "{{.Labels.name}}" deleted',
+			body_template:
+				'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}{{ if .Labels.initiator }} ({{ .Labels.initiator }}){{end}}**".',
+			actions:
+				'[{"url": "{{ base_url }}/workspaces", "label": "View workspaces"}, {"url": "{{ base_url }}/templates", "label": "View templates"}]',
+			group: "Workspace Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "f44d9314-ad03-4bc8-95d0-5cad491da6b6",
+			name: "User account deleted",
+			title_template: 'User account "{{.Labels.deleted_account_name}}" deleted',
+			body_template:
+				"Hi {{.UserName}},\n\nUser account **{{.Labels.deleted_account_name}}** has been deleted.",
+			actions:
+				'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
+			group: "User Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "4e19c0ac-94e1-4532-9515-d1801aa283b2",
+			name: "User account created",
+			title_template: 'User account "{{.Labels.created_account_name}}" created',
+			body_template:
+				"Hi {{.UserName}},\n\nNew user account **{{.Labels.created_account_name}}** has been created.",
+			actions:
+				'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
+			group: "User Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "0ea69165-ec14-4314-91f1-69566ac3c5a0",
+			name: "Workspace Marked as Dormant",
+			title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
+			body_template:
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "c34a0c09-0704-4cac-bd1c-0c0146811c2b",
+			name: "Workspace updated automatically",
+			title_template: 'Workspace "{{.Labels.name}}" updated automatically',
+			body_template:
+				"Hi {{.UserName}}\nYour workspace **{{.Labels.name}}** has been updated automatically to the latest template version ({{.Labels.template_version_name}}).",
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "51ce2fdf-c9ca-4be1-8d70-628674f9bc42",
+			name: "Workspace Marked for Deletion",
+			title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
+			body_template:
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "webhook",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "template-event-1",
+			name: "Template Version Created",
+			title_template: 'Template version "{{.Labels.version_name}}" created',
+			body_template:
+				'Hi {{.UserName}}\nA new version of template "{{.Labels.template_name}}" has been created.',
+			actions:
+				'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+			group: "Template Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "template-event-2",
+			name: "Template Updated",
+			title_template: 'Template "{{.Labels.template_name}}" updated',
+			body_template:
+				'Hi {{.UserName}}\nTemplate "{{.Labels.template_name}}" has been updated.',
+			actions:
+				'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+			group: "Template Events",
+			method: "webhook",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+			name: "Task Idle",
+			title_template: "Task '{{.Labels.workspace}}' is idle",
+			body_template: "The task '{{.Labels.task}}' is idle and ready for input.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
+			name: "Task Working",
+			title_template: "Task '{{.Labels.workspace}}' is working",
+			body_template:
+				"The task '{{.Labels.task}}' transitioned to a working state.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+	];
+
+export const MockCustomNotificationTemplates: TypesGen.NotificationTemplate[] =
+	[
+		{
+			id: "39b1e189-c857-4b0c-877a-511144c18516",
+			name: "Custom Notification",
+			title_template: "{{.Labels.custom_title}}",
+			body_template: "{{.Labels.custom_message}}",
+			actions: "[]",
+			group: "Custom Events",
+			method: "",
+			kind: "custom",
+			enabled_by_default: true,
+		},
+	];
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
 	{ available: ["smtp", "webhook"], default: "smtp" };
@@ -4473,3 +4925,228 @@ export function createTimestamp(minuteOffset: number, secondOffset: number) {
 	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
 	return baseDate.toISOString();
 }
+
+// Mock Presets for AI Tasks
+export const MockPresets: TypesGen.Preset[] = [
+	{
+		ID: "preset-1",
+		Name: "Development",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "preset-2",
+		Name: "Testing",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "2" },
+			{ Name: "memory", Value: "4GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "preset-3",
+		Name: "Production",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "8" },
+			{ Name: "memory", Value: "16GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
+export const MockAIPromptPresets: TypesGen.Preset[] = [
+	{
+		ID: "ai-preset-1",
+		Name: "Code Review",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "AI Prompt", Value: "Review the code for best practices" },
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "ai-preset-2",
+		Name: "Custom Prompt",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
+export const MockTask = {
+	id: "test-task",
+	name: "task-wild-test-123",
+	organization_id: MockOrganization.id,
+	owner_id: MockUserOwner.id,
+	owner_name: MockUserOwner.username,
+	owner_avatar_url: MockUserOwner.avatar_url,
+	template_id: MockTemplate.id,
+	template_name: MockTemplate.name,
+	template_display_name: MockTemplate.display_name,
+	template_icon: MockTemplate.icon,
+	template_version_id: MockTemplateVersion.id,
+	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
+	workspace_status: "running",
+	workspace_build_number: MockWorkspaceBuild.build_number,
+	workspace_agent_id: MockWorkspaceAgent.id,
+	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
+	workspace_agent_health: MockWorkspaceAgent.health,
+	workspace_app_id: MockWorkspaceApp.id,
+	initial_prompt: "Perform some task",
+	status: "active",
+	current_state: {
+		timestamp: "2022-05-17T17:39:01.382927298Z",
+		state: "idle",
+		message: "Should I continue?",
+		uri: "https://dev.coder.com",
+	},
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	updated_at: "2022-05-17T17:39:01.382927298Z",
+} satisfies TypesGen.Task;
+
+export const MockTaskWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	task_id: MockTask.id,
+};
+
+export const MockTasks = [
+	MockTask,
+	{
+		...MockTask,
+		id: "task-2",
+		name: "fix-avatar-size",
+		current_state: {
+			...MockTask.current_state,
+			message: "Avatar size fixed!",
+			state: "complete",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-3",
+		name: "fix-accessibility-issues",
+		current_state: {
+			...MockTask.current_state,
+			message: "Accessibility issues fixed!",
+			state: "complete",
+		},
+	},
+] satisfies TypesGen.Task[];
+
+export const MockInitializingTasks = [
+	{
+		...MockTask,
+		id: "task-1",
+		name: "task-workspace-pending",
+		initial_prompt: "Task Workspace Pending",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is pending",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-2",
+		name: "task-workspace-starting",
+		initial_prompt: "Task Workspace Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is starting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-3",
+		name: "task-agent-connecting",
+		initial_prompt: "Task Agent Connecting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is connecting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-4",
+		name: "task-agent-starting",
+		initial_prompt: "Task Agent Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is starting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-5",
+		name: "task-app-initializing",
+		initial_prompt: "Task App Initializing",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "App is initializing",
+			uri: "",
+		},
+	},
+] satisfies TypesGen.Task[];
+
+export const MockInterception: TypesGen.AIBridgeInterception = {
+	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+	initiator: {
+		id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
+		username: "testuser",
+		avatar_url: "https://example.com/avatar.png",
+	},
+	provider: "openai",
+	model: "gpt-4o",
+	started_at: "2022-05-17T17:39:01.382927298Z",
+	ended_at: "2022-05-17T17:39:01.382927298Z",
+	token_usages: [
+		{
+			id: "32e7fd17-24be-46b9-b867-2f0adfd42aff",
+			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+			provider_response_id: "res_1234567890",
+			input_tokens: 5,
+			output_tokens: 1,
+			metadata: {},
+			created_at: "2022-05-17T17:39:01.382927298Z",
+		},
+	],
+	metadata: {},
+	user_prompts: [],
+	tool_usages: [],
+	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+};

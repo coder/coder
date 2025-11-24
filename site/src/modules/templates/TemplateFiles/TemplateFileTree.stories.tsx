@@ -1,6 +1,6 @@
-import { useTheme } from "@emotion/react";
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
+import { useTheme } from "@emotion/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FileTree } from "utils/filetree";
 import { TemplateFileTree } from "./TemplateFileTree";
 

@@ -33,6 +33,300 @@
 				}
 			}
 		},
+		"/.well-known/oauth-authorization-server": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "OAuth2 authorization server metadata.",
+				"operationId": "oauth2-authorization-server-metadata",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.OAuth2AuthorizationServerMetadata"
+						}
+					}
+				}
+			}
+		},
+		"/.well-known/oauth-protected-resource": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "OAuth2 protected resource metadata.",
+				"operationId": "oauth2-protected-resource-metadata",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.OAuth2ProtectedResourceMetadata"
+						}
+					}
+				}
+			}
+		},
+		"/aibridge/interceptions": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["AIBridge"],
+				"summary": "List AIBridge interceptions",
+				"operationId": "list-aibridge-interceptions",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before.",
+						"name": "q",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page limit",
+						"name": "limit",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Cursor pagination after ID (cannot be used with offset)",
+						"name": "after_id",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Offset pagination (cannot be used with after_id)",
+						"name": "offset",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/experimental/tasks": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Experimental"],
+				"summary": "List AI tasks",
+				"operationId": "list-tasks",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
+						"name": "q",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.TasksListResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/experimental/tasks/{user}": {
+			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Experimental"],
+				"summary": "Create a new AI task",
+				"operationId": "create-task",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Username, user ID, or 'me' for the authenticated user",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Create task request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateTaskRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Task"
+						}
+					}
+				}
+			}
+		},
+		"/api/experimental/tasks/{user}/{task}": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Experimental"],
+				"summary": "Get AI task by ID",
+				"operationId": "get-task",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Username, user ID, or 'me' for the authenticated user",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Task ID",
+						"name": "task",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Task"
+						}
+					}
+				}
+			},
+			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Experimental"],
+				"summary": "Delete AI task by ID",
+				"operationId": "delete-task",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Username, user ID, or 'me' for the authenticated user",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Task ID",
+						"name": "task",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"202": {
+						"description": "Task deletion initiated"
+					}
+				}
+			}
+		},
+		"/api/experimental/tasks/{user}/{task}/logs": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Experimental"],
+				"summary": "Get AI task logs",
+				"operationId": "get-task-logs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Username, user ID, or 'me' for the authenticated user",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Task ID",
+						"name": "task",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.TaskLogsResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/experimental/tasks/{user}/{task}/send": {
+			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Experimental"],
+				"summary": "Send input to AI task",
+				"operationId": "send-task-input",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Username, user ID, or 'me' for the authenticated user",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Task ID",
+						"name": "task",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Task input request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.TaskSendRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Input sent successfully"
+					}
+				}
+			}
+		},
 		"/appearance": {
 			"get": {
 				"security": [
@@ -242,6 +536,22 @@
 				}
 			}
 		},
+		"/auth/scopes": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Authorization"],
+				"summary": "List API key scopes",
+				"operationId": "list-api-key-scopes",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ExternalAPIKeyScopes"
+						}
+					}
+				}
+			}
+		},
 		"/authcheck": {
 			"post": {
 				"security": [
@@ -286,6 +596,48 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.BuildInfoResponse"
+						}
+					}
+				}
+			}
+		},
+		"/connectionlog": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get connection logs",
+				"operationId": "get-connection-logs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Search query",
+						"name": "q",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page limit",
+						"name": "limit",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "Page offset",
+						"name": "offset",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ConnectionLogResponse"
 						}
 					}
 				}
@@ -468,6 +820,126 @@
 							"$ref": "#/definitions/healthsdk.UpdateHealthSettings"
 						}
 					}
+				}
+			}
+		},
+		"/debug/metrics": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug metrics",
+				"operationId": "debug-metrics",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof index",
+				"operationId": "debug-pprof-index",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/cmdline": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof cmdline",
+				"operationId": "debug-pprof-cmdline",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/profile": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof profile",
+				"operationId": "debug-pprof-profile",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/symbol": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof symbol",
+				"operationId": "debug-pprof-symbol",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/trace": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof trace",
+				"operationId": "debug-pprof-trace",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},
@@ -748,6 +1220,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Delete external auth user link by ID",
 				"operationId": "delete-external-auth-user-link-by-id",
@@ -763,7 +1236,10 @@
 				],
 				"responses": {
 					"200": {
-						"description": "OK"
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.DeleteExternalAuthByIDResponse"
+						}
 					}
 				}
 			}
@@ -1030,6 +1506,35 @@
 						"schema": {
 							"$ref": "#/definitions/codersdk.Group"
 						}
+					}
+				}
+			}
+		},
+		"/init-script/{os}/{arch}": {
+			"get": {
+				"produces": ["text/plain"],
+				"tags": ["InitScript"],
+				"summary": "Get agent init script",
+				"operationId": "get-agent-init-script",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Operating system",
+						"name": "os",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Architecture",
+						"name": "arch",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Success"
 					}
 				}
 			}
@@ -1353,6 +1858,54 @@
 				}
 			}
 		},
+		"/notifications/custom": {
+			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Notifications"],
+				"summary": "Send a custom notification",
+				"operationId": "send-a-custom-notification",
+				"parameters": [
+					{
+						"description": "Provide a non-empty title or message",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CustomNotificationRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					},
+					"400": {
+						"description": "Invalid request body",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"403": {
+						"description": "System users cannot send custom notifications",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"500": {
+						"description": "Failed to send custom notification",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					}
+				}
+			}
+		},
 		"/notifications/dispatch-methods": {
 			"get": {
 				"security": [
@@ -1575,6 +2128,36 @@
 				}
 			}
 		},
+		"/notifications/templates/custom": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Notifications"],
+				"summary": "Get custom notification templates",
+				"operationId": "get-custom-notification-templates",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.NotificationTemplate"
+							}
+						}
+					},
+					"500": {
+						"description": "Failed to retrieve 'custom' notifications template",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					}
+				}
+			}
+		},
 		"/notifications/templates/system": {
 			"get": {
 				"security": [
@@ -1594,6 +2177,12 @@
 							"items": {
 								"$ref": "#/definitions/codersdk.NotificationTemplate"
 							}
+						}
+					},
+					"500": {
+						"description": "Failed to retrieve 'system' notifications template",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
 				}
@@ -1899,6 +2488,57 @@
 			}
 		},
 		"/oauth2/authorize": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Enterprise"],
+				"summary": "OAuth2 authorization request (GET - show authorization page).",
+				"operationId": "oauth2-authorization-request-get",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Client ID",
+						"name": "client_id",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "A random unguessable string",
+						"name": "state",
+						"in": "query",
+						"required": true
+					},
+					{
+						"enum": ["code"],
+						"type": "string",
+						"description": "Response type",
+						"name": "response_type",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Redirect here after authorization",
+						"name": "redirect_uri",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Token scopes (currently ignored)",
+						"name": "scope",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Returns HTML authorization page"
+					}
+				}
+			},
 			"post": {
 				"security": [
 					{
@@ -1906,8 +2546,8 @@
 					}
 				],
 				"tags": ["Enterprise"],
-				"summary": "OAuth2 authorization request.",
-				"operationId": "oauth2-authorization-request",
+				"summary": "OAuth2 authorization request (POST - process authorization).",
+				"operationId": "oauth2-authorization-request-post",
 				"parameters": [
 					{
 						"type": "string",
@@ -1946,7 +2586,148 @@
 				],
 				"responses": {
 					"302": {
-						"description": "Found"
+						"description": "Returns redirect with authorization code"
+					}
+				}
+			}
+		},
+		"/oauth2/clients/{client_id}": {
+			"get": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get OAuth2 client configuration (RFC 7592)",
+				"operationId": "get-oauth2-client-configuration",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Client ID",
+						"name": "client_id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Update OAuth2 client configuration (RFC 7592)",
+				"operationId": "put-oauth2-client-configuration",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Client ID",
+						"name": "client_id",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Client update request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.OAuth2ClientRegistrationRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": ["Enterprise"],
+				"summary": "Delete OAuth2 client registration (RFC 7592)",
+				"operationId": "delete-oauth2-client-configuration",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Client ID",
+						"name": "client_id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
+		"/oauth2/register": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "OAuth2 dynamic client registration (RFC 7591)",
+				"operationId": "oauth2-dynamic-client-registration",
+				"parameters": [
+					{
+						"description": "Client registration request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.OAuth2ClientRegistrationRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.OAuth2ClientRegistrationResponse"
+						}
+					}
+				}
+			}
+		},
+		"/oauth2/revoke": {
+			"post": {
+				"consumes": ["application/x-www-form-urlencoded"],
+				"tags": ["Enterprise"],
+				"summary": "Revoke OAuth2 tokens (RFC 7009).",
+				"operationId": "oauth2-token-revocation",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Client ID for authentication",
+						"name": "client_id",
+						"in": "formData",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "The token to revoke",
+						"name": "token",
+						"in": "formData",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Hint about token type (access_token or refresh_token)",
+						"name": "token_type_hint",
+						"in": "formData"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Token successfully revoked"
 					}
 				}
 			}
@@ -2894,6 +3675,13 @@
 						"description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
 						"name": "tags",
 						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Filter results by initiator",
+						"name": "initiator",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -3732,6 +4520,61 @@
 				}
 			}
 		},
+		"/prebuilds/settings": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Prebuilds"],
+				"summary": "Get prebuilds settings",
+				"operationId": "get-prebuilds-settings",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.PrebuildsSettings"
+						}
+					}
+				}
+			},
+			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Prebuilds"],
+				"summary": "Update prebuilds settings",
+				"operationId": "update-prebuilds-settings",
+				"parameters": [
+					{
+						"description": "Prebuilds settings request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.PrebuildsSettings"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.PrebuildsSettings"
+						}
+					},
+					"304": {
+						"description": "Not Modified"
+					}
+				}
+			}
+		},
 		"/provisionerkeys/{provisionerkey}": {
 			"get": {
 				"security": [
@@ -4241,8 +5084,8 @@
 				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
-				"summary": "Get template metadata by ID",
-				"operationId": "get-template-metadata-by-id",
+				"summary": "Get template settings by ID",
+				"operationId": "get-template-settings-by-id",
 				"parameters": [
 					{
 						"type": "string",
@@ -4297,10 +5140,11 @@
 						"CoderSessionToken": []
 					}
 				],
+				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
-				"summary": "Update template metadata by ID",
-				"operationId": "update-template-metadata-by-id",
+				"summary": "Update template settings by ID",
+				"operationId": "update-template-settings-by-id",
 				"parameters": [
 					{
 						"type": "string",
@@ -4309,6 +5153,15 @@
 						"name": "template",
 						"in": "path",
 						"required": true
+					},
+					{
+						"description": "Patch template settings request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateTemplateMeta"
+						}
 					}
 				],
 				"responses": {
@@ -4346,10 +5199,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/codersdk.TemplateUser"
-							}
+							"$ref": "#/definitions/codersdk.TemplateACL"
 						}
 					}
 				}
@@ -4375,7 +5225,7 @@
 						"required": true
 					},
 					{
-						"description": "Update template request",
+						"description": "Update template ACL request",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -4454,6 +5304,37 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.DAUsResponse"
+						}
+					}
+				}
+			}
+		},
+		"/templates/{template}/prebuilds/invalidate": {
+			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Invalidate presets for template",
+				"operationId": "invalidate-presets-for-template",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Template ID",
+						"name": "template",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.InvalidatePresetsResponse"
 						}
 					}
 				}
@@ -6233,7 +7114,7 @@
 					},
 					{
 						"type": "string",
-						"format": "uuid",
+						"format": "string",
 						"description": "Key ID",
 						"name": "keyid",
 						"in": "path",
@@ -6268,7 +7149,7 @@
 					},
 					{
 						"type": "string",
-						"format": "uuid",
+						"format": "string",
 						"description": "Key ID",
 						"name": "keyid",
 						"in": "path",
@@ -7510,6 +8391,37 @@
 				}
 			}
 		},
+		"/workspaceagents/{workspaceagent}/containers/watch": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Watch workspace agent for container updates.",
+				"operationId": "watch-workspace-agent-for-container-updates",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
+						}
+					}
+				}
+			}
+		},
 		"/workspaceagents/{workspaceagent}/coordinate": {
 			"get": {
 				"security": [
@@ -7824,6 +8736,13 @@
 						"name": "workspacebuild",
 						"in": "path",
 						"required": true
+					},
+					{
+						"enum": ["running", "pending"],
+						"type": "string",
+						"description": "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation.",
+						"name": "expect_status",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -8372,7 +9291,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task.",
+						"description": "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent.",
 						"name": "q",
 						"in": "query"
 					},
@@ -8461,6 +9380,98 @@
 						"required": true,
 						"schema": {
 							"$ref": "#/definitions/codersdk.UpdateWorkspaceRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
+		"/workspaces/{workspace}/acl": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Workspaces"],
+				"summary": "Get workspace ACLs",
+				"operationId": "get-workspace-acls",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace ID",
+						"name": "workspace",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceACL"
+						}
+					}
+				}
+			},
+			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Workspaces"],
+				"summary": "Completely clears the workspace's user and group ACLs.",
+				"operationId": "completely-clears-the-workspaces-user-and-group-acls",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace ID",
+						"name": "workspace",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			},
+			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Workspaces"],
+				"summary": "Update workspace ACL",
+				"operationId": "update-workspace-acl",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace ID",
+						"name": "workspace",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Update workspace ACL request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateWorkspaceACL"
 						}
 					}
 				],
@@ -8721,6 +9732,44 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.Response"
+						}
+					}
+				}
+			}
+		},
+		"/workspaces/{workspace}/external-agent/{agent}/credentials": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get workspace external agent credentials",
+				"operationId": "get-workspace-external-agent-credentials",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace ID",
+						"name": "workspace",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Agent name",
+						"name": "agent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ExternalAgentCredentials"
 						}
 					}
 				}
@@ -9335,6 +10384,251 @@
 				}
 			}
 		},
+		"codersdk.AIBridgeAnthropicConfig": {
+			"type": "object",
+			"properties": {
+				"base_url": {
+					"type": "string"
+				},
+				"key": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIBridgeBedrockConfig": {
+			"type": "object",
+			"properties": {
+				"access_key": {
+					"type": "string"
+				},
+				"access_key_secret": {
+					"type": "string"
+				},
+				"model": {
+					"type": "string"
+				},
+				"region": {
+					"type": "string"
+				},
+				"small_fast_model": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIBridgeConfig": {
+			"type": "object",
+			"properties": {
+				"anthropic": {
+					"$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+				},
+				"bedrock": {
+					"$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
+				},
+				"enabled": {
+					"type": "boolean"
+				},
+				"inject_coder_mcp_tools": {
+					"type": "boolean"
+				},
+				"openai": {
+					"$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+				},
+				"retention": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.AIBridgeInterception": {
+			"type": "object",
+			"properties": {
+				"api_key_id": {
+					"type": "string"
+				},
+				"ended_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"initiator": {
+					"$ref": "#/definitions/codersdk.MinimalUser"
+				},
+				"metadata": {
+					"type": "object",
+					"additionalProperties": {}
+				},
+				"model": {
+					"type": "string"
+				},
+				"provider": {
+					"type": "string"
+				},
+				"started_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"token_usages": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIBridgeTokenUsage"
+					}
+				},
+				"tool_usages": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIBridgeToolUsage"
+					}
+				},
+				"user_prompts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIBridgeUserPrompt"
+					}
+				}
+			}
+		},
+		"codersdk.AIBridgeListInterceptionsResponse": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"type": "integer"
+				},
+				"results": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIBridgeInterception"
+					}
+				}
+			}
+		},
+		"codersdk.AIBridgeOpenAIConfig": {
+			"type": "object",
+			"properties": {
+				"base_url": {
+					"type": "string"
+				},
+				"key": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIBridgeTokenUsage": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"input_tokens": {
+					"type": "integer"
+				},
+				"interception_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"metadata": {
+					"type": "object",
+					"additionalProperties": {}
+				},
+				"output_tokens": {
+					"type": "integer"
+				},
+				"provider_response_id": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIBridgeToolUsage": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"injected": {
+					"type": "boolean"
+				},
+				"input": {
+					"type": "string"
+				},
+				"interception_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"invocation_error": {
+					"type": "string"
+				},
+				"metadata": {
+					"type": "object",
+					"additionalProperties": {}
+				},
+				"provider_response_id": {
+					"type": "string"
+				},
+				"server_url": {
+					"type": "string"
+				},
+				"tool": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIBridgeUserPrompt": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"interception_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"metadata": {
+					"type": "object",
+					"additionalProperties": {}
+				},
+				"prompt": {
+					"type": "string"
+				},
+				"provider_response_id": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIConfig": {
+			"type": "object",
+			"properties": {
+				"bridge": {
+					"$ref": "#/definitions/codersdk.AIBridgeConfig"
+				}
+			}
+		},
+		"codersdk.APIAllowListTarget": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"type": {
+					"$ref": "#/definitions/codersdk.RBACResource"
+				}
+			}
+		},
 		"codersdk.APIKey": {
 			"type": "object",
 			"required": [
@@ -9344,12 +10638,17 @@
 				"last_used",
 				"lifetime_seconds",
 				"login_type",
-				"scope",
 				"token_name",
 				"updated_at",
 				"user_id"
 			],
 			"properties": {
+				"allow_list": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIAllowListTarget"
+					}
+				},
 				"created_at": {
 					"type": "string",
 					"format": "date-time"
@@ -9377,12 +10676,19 @@
 					]
 				},
 				"scope": {
+					"description": "Deprecated: use Scopes instead.",
 					"enum": ["all", "application_connect"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.APIKeyScope"
 						}
 					]
+				},
+				"scopes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIKeyScope"
+					}
 				},
 				"token_name": {
 					"type": "string"
@@ -9399,8 +10705,402 @@
 		},
 		"codersdk.APIKeyScope": {
 			"type": "string",
-			"enum": ["all", "application_connect"],
-			"x-enum-varnames": ["APIKeyScopeAll", "APIKeyScopeApplicationConnect"]
+			"enum": [
+				"all",
+				"application_connect",
+				"aibridge_interception:*",
+				"aibridge_interception:create",
+				"aibridge_interception:read",
+				"aibridge_interception:update",
+				"api_key:*",
+				"api_key:create",
+				"api_key:delete",
+				"api_key:read",
+				"api_key:update",
+				"assign_org_role:*",
+				"assign_org_role:assign",
+				"assign_org_role:create",
+				"assign_org_role:delete",
+				"assign_org_role:read",
+				"assign_org_role:unassign",
+				"assign_org_role:update",
+				"assign_role:*",
+				"assign_role:assign",
+				"assign_role:read",
+				"assign_role:unassign",
+				"audit_log:*",
+				"audit_log:create",
+				"audit_log:read",
+				"coder:all",
+				"coder:apikeys.manage_self",
+				"coder:application_connect",
+				"coder:templates.author",
+				"coder:templates.build",
+				"coder:workspaces.access",
+				"coder:workspaces.create",
+				"coder:workspaces.delete",
+				"coder:workspaces.operate",
+				"connection_log:*",
+				"connection_log:read",
+				"connection_log:update",
+				"crypto_key:*",
+				"crypto_key:create",
+				"crypto_key:delete",
+				"crypto_key:read",
+				"crypto_key:update",
+				"debug_info:*",
+				"debug_info:read",
+				"deployment_config:*",
+				"deployment_config:read",
+				"deployment_config:update",
+				"deployment_stats:*",
+				"deployment_stats:read",
+				"file:*",
+				"file:create",
+				"file:read",
+				"group:*",
+				"group:create",
+				"group:delete",
+				"group:read",
+				"group:update",
+				"group_member:*",
+				"group_member:read",
+				"idpsync_settings:*",
+				"idpsync_settings:read",
+				"idpsync_settings:update",
+				"inbox_notification:*",
+				"inbox_notification:create",
+				"inbox_notification:read",
+				"inbox_notification:update",
+				"license:*",
+				"license:create",
+				"license:delete",
+				"license:read",
+				"notification_message:*",
+				"notification_message:create",
+				"notification_message:delete",
+				"notification_message:read",
+				"notification_message:update",
+				"notification_preference:*",
+				"notification_preference:read",
+				"notification_preference:update",
+				"notification_template:*",
+				"notification_template:read",
+				"notification_template:update",
+				"oauth2_app:*",
+				"oauth2_app:create",
+				"oauth2_app:delete",
+				"oauth2_app:read",
+				"oauth2_app:update",
+				"oauth2_app_code_token:*",
+				"oauth2_app_code_token:create",
+				"oauth2_app_code_token:delete",
+				"oauth2_app_code_token:read",
+				"oauth2_app_secret:*",
+				"oauth2_app_secret:create",
+				"oauth2_app_secret:delete",
+				"oauth2_app_secret:read",
+				"oauth2_app_secret:update",
+				"organization:*",
+				"organization:create",
+				"organization:delete",
+				"organization:read",
+				"organization:update",
+				"organization_member:*",
+				"organization_member:create",
+				"organization_member:delete",
+				"organization_member:read",
+				"organization_member:update",
+				"prebuilt_workspace:*",
+				"prebuilt_workspace:delete",
+				"prebuilt_workspace:update",
+				"provisioner_daemon:*",
+				"provisioner_daemon:create",
+				"provisioner_daemon:delete",
+				"provisioner_daemon:read",
+				"provisioner_daemon:update",
+				"provisioner_jobs:*",
+				"provisioner_jobs:create",
+				"provisioner_jobs:read",
+				"provisioner_jobs:update",
+				"replicas:*",
+				"replicas:read",
+				"system:*",
+				"system:create",
+				"system:delete",
+				"system:read",
+				"system:update",
+				"tailnet_coordinator:*",
+				"tailnet_coordinator:create",
+				"tailnet_coordinator:delete",
+				"tailnet_coordinator:read",
+				"tailnet_coordinator:update",
+				"task:*",
+				"task:create",
+				"task:delete",
+				"task:read",
+				"task:update",
+				"template:*",
+				"template:create",
+				"template:delete",
+				"template:read",
+				"template:update",
+				"template:use",
+				"template:view_insights",
+				"usage_event:*",
+				"usage_event:create",
+				"usage_event:read",
+				"usage_event:update",
+				"user:*",
+				"user:create",
+				"user:delete",
+				"user:read",
+				"user:read_personal",
+				"user:update",
+				"user:update_personal",
+				"user_secret:*",
+				"user_secret:create",
+				"user_secret:delete",
+				"user_secret:read",
+				"user_secret:update",
+				"webpush_subscription:*",
+				"webpush_subscription:create",
+				"webpush_subscription:delete",
+				"webpush_subscription:read",
+				"workspace:*",
+				"workspace:application_connect",
+				"workspace:create",
+				"workspace:create_agent",
+				"workspace:delete",
+				"workspace:delete_agent",
+				"workspace:read",
+				"workspace:share",
+				"workspace:ssh",
+				"workspace:start",
+				"workspace:stop",
+				"workspace:update",
+				"workspace_agent_devcontainers:*",
+				"workspace_agent_devcontainers:create",
+				"workspace_agent_resource_monitor:*",
+				"workspace_agent_resource_monitor:create",
+				"workspace_agent_resource_monitor:read",
+				"workspace_agent_resource_monitor:update",
+				"workspace_dormant:*",
+				"workspace_dormant:application_connect",
+				"workspace_dormant:create",
+				"workspace_dormant:create_agent",
+				"workspace_dormant:delete",
+				"workspace_dormant:delete_agent",
+				"workspace_dormant:read",
+				"workspace_dormant:share",
+				"workspace_dormant:ssh",
+				"workspace_dormant:start",
+				"workspace_dormant:stop",
+				"workspace_dormant:update",
+				"workspace_proxy:*",
+				"workspace_proxy:create",
+				"workspace_proxy:delete",
+				"workspace_proxy:read",
+				"workspace_proxy:update"
+			],
+			"x-enum-varnames": [
+				"APIKeyScopeAll",
+				"APIKeyScopeApplicationConnect",
+				"APIKeyScopeAibridgeInterceptionAll",
+				"APIKeyScopeAibridgeInterceptionCreate",
+				"APIKeyScopeAibridgeInterceptionRead",
+				"APIKeyScopeAibridgeInterceptionUpdate",
+				"APIKeyScopeApiKeyAll",
+				"APIKeyScopeApiKeyCreate",
+				"APIKeyScopeApiKeyDelete",
+				"APIKeyScopeApiKeyRead",
+				"APIKeyScopeApiKeyUpdate",
+				"APIKeyScopeAssignOrgRoleAll",
+				"APIKeyScopeAssignOrgRoleAssign",
+				"APIKeyScopeAssignOrgRoleCreate",
+				"APIKeyScopeAssignOrgRoleDelete",
+				"APIKeyScopeAssignOrgRoleRead",
+				"APIKeyScopeAssignOrgRoleUnassign",
+				"APIKeyScopeAssignOrgRoleUpdate",
+				"APIKeyScopeAssignRoleAll",
+				"APIKeyScopeAssignRoleAssign",
+				"APIKeyScopeAssignRoleRead",
+				"APIKeyScopeAssignRoleUnassign",
+				"APIKeyScopeAuditLogAll",
+				"APIKeyScopeAuditLogCreate",
+				"APIKeyScopeAuditLogRead",
+				"APIKeyScopeCoderAll",
+				"APIKeyScopeCoderApikeysManageSelf",
+				"APIKeyScopeCoderApplicationConnect",
+				"APIKeyScopeCoderTemplatesAuthor",
+				"APIKeyScopeCoderTemplatesBuild",
+				"APIKeyScopeCoderWorkspacesAccess",
+				"APIKeyScopeCoderWorkspacesCreate",
+				"APIKeyScopeCoderWorkspacesDelete",
+				"APIKeyScopeCoderWorkspacesOperate",
+				"APIKeyScopeConnectionLogAll",
+				"APIKeyScopeConnectionLogRead",
+				"APIKeyScopeConnectionLogUpdate",
+				"APIKeyScopeCryptoKeyAll",
+				"APIKeyScopeCryptoKeyCreate",
+				"APIKeyScopeCryptoKeyDelete",
+				"APIKeyScopeCryptoKeyRead",
+				"APIKeyScopeCryptoKeyUpdate",
+				"APIKeyScopeDebugInfoAll",
+				"APIKeyScopeDebugInfoRead",
+				"APIKeyScopeDeploymentConfigAll",
+				"APIKeyScopeDeploymentConfigRead",
+				"APIKeyScopeDeploymentConfigUpdate",
+				"APIKeyScopeDeploymentStatsAll",
+				"APIKeyScopeDeploymentStatsRead",
+				"APIKeyScopeFileAll",
+				"APIKeyScopeFileCreate",
+				"APIKeyScopeFileRead",
+				"APIKeyScopeGroupAll",
+				"APIKeyScopeGroupCreate",
+				"APIKeyScopeGroupDelete",
+				"APIKeyScopeGroupRead",
+				"APIKeyScopeGroupUpdate",
+				"APIKeyScopeGroupMemberAll",
+				"APIKeyScopeGroupMemberRead",
+				"APIKeyScopeIdpsyncSettingsAll",
+				"APIKeyScopeIdpsyncSettingsRead",
+				"APIKeyScopeIdpsyncSettingsUpdate",
+				"APIKeyScopeInboxNotificationAll",
+				"APIKeyScopeInboxNotificationCreate",
+				"APIKeyScopeInboxNotificationRead",
+				"APIKeyScopeInboxNotificationUpdate",
+				"APIKeyScopeLicenseAll",
+				"APIKeyScopeLicenseCreate",
+				"APIKeyScopeLicenseDelete",
+				"APIKeyScopeLicenseRead",
+				"APIKeyScopeNotificationMessageAll",
+				"APIKeyScopeNotificationMessageCreate",
+				"APIKeyScopeNotificationMessageDelete",
+				"APIKeyScopeNotificationMessageRead",
+				"APIKeyScopeNotificationMessageUpdate",
+				"APIKeyScopeNotificationPreferenceAll",
+				"APIKeyScopeNotificationPreferenceRead",
+				"APIKeyScopeNotificationPreferenceUpdate",
+				"APIKeyScopeNotificationTemplateAll",
+				"APIKeyScopeNotificationTemplateRead",
+				"APIKeyScopeNotificationTemplateUpdate",
+				"APIKeyScopeOauth2AppAll",
+				"APIKeyScopeOauth2AppCreate",
+				"APIKeyScopeOauth2AppDelete",
+				"APIKeyScopeOauth2AppRead",
+				"APIKeyScopeOauth2AppUpdate",
+				"APIKeyScopeOauth2AppCodeTokenAll",
+				"APIKeyScopeOauth2AppCodeTokenCreate",
+				"APIKeyScopeOauth2AppCodeTokenDelete",
+				"APIKeyScopeOauth2AppCodeTokenRead",
+				"APIKeyScopeOauth2AppSecretAll",
+				"APIKeyScopeOauth2AppSecretCreate",
+				"APIKeyScopeOauth2AppSecretDelete",
+				"APIKeyScopeOauth2AppSecretRead",
+				"APIKeyScopeOauth2AppSecretUpdate",
+				"APIKeyScopeOrganizationAll",
+				"APIKeyScopeOrganizationCreate",
+				"APIKeyScopeOrganizationDelete",
+				"APIKeyScopeOrganizationRead",
+				"APIKeyScopeOrganizationUpdate",
+				"APIKeyScopeOrganizationMemberAll",
+				"APIKeyScopeOrganizationMemberCreate",
+				"APIKeyScopeOrganizationMemberDelete",
+				"APIKeyScopeOrganizationMemberRead",
+				"APIKeyScopeOrganizationMemberUpdate",
+				"APIKeyScopePrebuiltWorkspaceAll",
+				"APIKeyScopePrebuiltWorkspaceDelete",
+				"APIKeyScopePrebuiltWorkspaceUpdate",
+				"APIKeyScopeProvisionerDaemonAll",
+				"APIKeyScopeProvisionerDaemonCreate",
+				"APIKeyScopeProvisionerDaemonDelete",
+				"APIKeyScopeProvisionerDaemonRead",
+				"APIKeyScopeProvisionerDaemonUpdate",
+				"APIKeyScopeProvisionerJobsAll",
+				"APIKeyScopeProvisionerJobsCreate",
+				"APIKeyScopeProvisionerJobsRead",
+				"APIKeyScopeProvisionerJobsUpdate",
+				"APIKeyScopeReplicasAll",
+				"APIKeyScopeReplicasRead",
+				"APIKeyScopeSystemAll",
+				"APIKeyScopeSystemCreate",
+				"APIKeyScopeSystemDelete",
+				"APIKeyScopeSystemRead",
+				"APIKeyScopeSystemUpdate",
+				"APIKeyScopeTailnetCoordinatorAll",
+				"APIKeyScopeTailnetCoordinatorCreate",
+				"APIKeyScopeTailnetCoordinatorDelete",
+				"APIKeyScopeTailnetCoordinatorRead",
+				"APIKeyScopeTailnetCoordinatorUpdate",
+				"APIKeyScopeTaskAll",
+				"APIKeyScopeTaskCreate",
+				"APIKeyScopeTaskDelete",
+				"APIKeyScopeTaskRead",
+				"APIKeyScopeTaskUpdate",
+				"APIKeyScopeTemplateAll",
+				"APIKeyScopeTemplateCreate",
+				"APIKeyScopeTemplateDelete",
+				"APIKeyScopeTemplateRead",
+				"APIKeyScopeTemplateUpdate",
+				"APIKeyScopeTemplateUse",
+				"APIKeyScopeTemplateViewInsights",
+				"APIKeyScopeUsageEventAll",
+				"APIKeyScopeUsageEventCreate",
+				"APIKeyScopeUsageEventRead",
+				"APIKeyScopeUsageEventUpdate",
+				"APIKeyScopeUserAll",
+				"APIKeyScopeUserCreate",
+				"APIKeyScopeUserDelete",
+				"APIKeyScopeUserRead",
+				"APIKeyScopeUserReadPersonal",
+				"APIKeyScopeUserUpdate",
+				"APIKeyScopeUserUpdatePersonal",
+				"APIKeyScopeUserSecretAll",
+				"APIKeyScopeUserSecretCreate",
+				"APIKeyScopeUserSecretDelete",
+				"APIKeyScopeUserSecretRead",
+				"APIKeyScopeUserSecretUpdate",
+				"APIKeyScopeWebpushSubscriptionAll",
+				"APIKeyScopeWebpushSubscriptionCreate",
+				"APIKeyScopeWebpushSubscriptionDelete",
+				"APIKeyScopeWebpushSubscriptionRead",
+				"APIKeyScopeWorkspaceAll",
+				"APIKeyScopeWorkspaceApplicationConnect",
+				"APIKeyScopeWorkspaceCreate",
+				"APIKeyScopeWorkspaceCreateAgent",
+				"APIKeyScopeWorkspaceDelete",
+				"APIKeyScopeWorkspaceDeleteAgent",
+				"APIKeyScopeWorkspaceRead",
+				"APIKeyScopeWorkspaceShare",
+				"APIKeyScopeWorkspaceSsh",
+				"APIKeyScopeWorkspaceStart",
+				"APIKeyScopeWorkspaceStop",
+				"APIKeyScopeWorkspaceUpdate",
+				"APIKeyScopeWorkspaceAgentDevcontainersAll",
+				"APIKeyScopeWorkspaceAgentDevcontainersCreate",
+				"APIKeyScopeWorkspaceAgentResourceMonitorAll",
+				"APIKeyScopeWorkspaceAgentResourceMonitorCreate",
+				"APIKeyScopeWorkspaceAgentResourceMonitorRead",
+				"APIKeyScopeWorkspaceAgentResourceMonitorUpdate",
+				"APIKeyScopeWorkspaceDormantAll",
+				"APIKeyScopeWorkspaceDormantApplicationConnect",
+				"APIKeyScopeWorkspaceDormantCreate",
+				"APIKeyScopeWorkspaceDormantCreateAgent",
+				"APIKeyScopeWorkspaceDormantDelete",
+				"APIKeyScopeWorkspaceDormantDeleteAgent",
+				"APIKeyScopeWorkspaceDormantRead",
+				"APIKeyScopeWorkspaceDormantShare",
+				"APIKeyScopeWorkspaceDormantSsh",
+				"APIKeyScopeWorkspaceDormantStart",
+				"APIKeyScopeWorkspaceDormantStop",
+				"APIKeyScopeWorkspaceDormantUpdate",
+				"APIKeyScopeWorkspaceProxyAll",
+				"APIKeyScopeWorkspaceProxyCreate",
+				"APIKeyScopeWorkspaceProxyDelete",
+				"APIKeyScopeWorkspaceProxyRead",
+				"APIKeyScopeWorkspaceProxyUpdate"
+			]
 		},
 		"codersdk.AddLicenseRequest": {
 			"type": "object",
@@ -9544,6 +11244,13 @@
 				"organization_id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"organization_member_permissions": {
+					"description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.Permission"
+					}
 				},
 				"organization_permissions": {
 					"description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
@@ -9858,12 +11565,33 @@
 		},
 		"codersdk.BuildReason": {
 			"type": "string",
-			"enum": ["initiator", "autostart", "autostop"],
+			"enum": [
+				"initiator",
+				"autostart",
+				"autostop",
+				"dormancy",
+				"dashboard",
+				"cli",
+				"ssh_connection",
+				"vscode_connection",
+				"jetbrains_connection"
+			],
 			"x-enum-varnames": [
 				"BuildReasonInitiator",
 				"BuildReasonAutostart",
-				"BuildReasonAutostop"
+				"BuildReasonAutostop",
+				"BuildReasonDormancy",
+				"BuildReasonDashboard",
+				"BuildReasonCLI",
+				"BuildReasonSSHConnection",
+				"BuildReasonVSCodeConnection",
+				"BuildReasonJetbrainsConnection"
 			]
+		},
+		"codersdk.CORSBehavior": {
+			"type": "string",
+			"enum": ["simple", "passthru"],
+			"x-enum-varnames": ["CORSBehaviorSimple", "CORSBehaviorPassthru"]
 		},
 		"codersdk.ChangePasswordWithOneTimePasscodeRequest": {
 			"type": "object",
@@ -9893,6 +11621,139 @@
 					"example": 119.832
 				}
 			}
+		},
+		"codersdk.ConnectionLog": {
+			"type": "object",
+			"properties": {
+				"agent_name": {
+					"type": "string"
+				},
+				"connect_time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"ip": {
+					"type": "string"
+				},
+				"organization": {
+					"$ref": "#/definitions/codersdk.MinimalOrganization"
+				},
+				"ssh_info": {
+					"description": "SSHInfo is only set when `type` is one of:\n- `ConnectionTypeSSH`\n- `ConnectionTypeReconnectingPTY`\n- `ConnectionTypeVSCode`\n- `ConnectionTypeJetBrains`",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ConnectionLogSSHInfo"
+						}
+					]
+				},
+				"type": {
+					"$ref": "#/definitions/codersdk.ConnectionType"
+				},
+				"web_info": {
+					"description": "WebInfo is only set when `type` is one of:\n- `ConnectionTypePortForwarding`\n- `ConnectionTypeWorkspaceApp`",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
+						}
+					]
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"workspace_name": {
+					"type": "string"
+				},
+				"workspace_owner_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"workspace_owner_username": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ConnectionLogResponse": {
+			"type": "object",
+			"properties": {
+				"connection_logs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ConnectionLog"
+					}
+				},
+				"count": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ConnectionLogSSHInfo": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"disconnect_reason": {
+					"description": "DisconnectReason is omitted if a disconnect event with the same connection ID\nhas not yet been seen.",
+					"type": "string"
+				},
+				"disconnect_time": {
+					"description": "DisconnectTime is omitted if a disconnect event with the same connection ID\nhas not yet been seen.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"exit_code": {
+					"description": "ExitCode is the exit code of the SSH session. It is omitted if a\ndisconnect event with the same connection ID has not yet been seen.",
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ConnectionLogWebInfo": {
+			"type": "object",
+			"properties": {
+				"slug_or_port": {
+					"type": "string"
+				},
+				"status_code": {
+					"description": "StatusCode is the HTTP status code of the request.",
+					"type": "integer"
+				},
+				"user": {
+					"description": "User is omitted if the connection event was from an unauthenticated user.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.User"
+						}
+					]
+				},
+				"user_agent": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ConnectionType": {
+			"type": "string",
+			"enum": [
+				"ssh",
+				"vscode",
+				"jetbrains",
+				"reconnecting_pty",
+				"workspace_app",
+				"port_forwarding"
+			],
+			"x-enum-varnames": [
+				"ConnectionTypeSSH",
+				"ConnectionTypeVSCode",
+				"ConnectionTypeJetBrains",
+				"ConnectionTypeReconnectingPTY",
+				"ConnectionTypeWorkspaceApp",
+				"ConnectionTypePortForwarding"
+			]
 		},
 		"codersdk.ConvertLoginRequest": {
 			"type": "object",
@@ -10019,6 +11880,25 @@
 				}
 			}
 		},
+		"codersdk.CreateTaskRequest": {
+			"type": "object",
+			"properties": {
+				"input": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"template_version_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"template_version_preset_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
 		"codersdk.CreateTemplateRequest": {
 			"type": "object",
 			"required": ["name", "template_version_id"],
@@ -10052,6 +11932,14 @@
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+						}
+					]
+				},
+				"cors_behavior": {
+					"description": "CORSBehavior allows optionally specifying the CORS behavior for all shared ports.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.CORSBehavior"
 						}
 					]
 				},
@@ -10101,6 +11989,10 @@
 				},
 				"require_active_version": {
 					"description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+					"type": "boolean"
+				},
+				"template_use_classic_parameter_flow": {
+					"description": "UseClassicParameterFlow allows optionally specifying whether\nthe template should use the classic parameter flow. The default if unset is\ntrue, and is why `*bool` is used here. When dynamic parameters becomes\nthe default, this will default to false.",
 					"type": "boolean"
 				},
 				"template_version_id": {
@@ -10179,21 +12071,89 @@
 			}
 		},
 		"codersdk.CreateTestAuditLogRequest": {
-			"type": "object"
+			"type": "object",
+			"properties": {
+				"action": {
+					"enum": ["create", "write", "delete", "start", "stop"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AuditAction"
+						}
+					]
+				},
+				"additional_fields": {
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"build_reason": {
+					"enum": ["autostart", "autostop", "initiator"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.BuildReason"
+						}
+					]
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"request_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"resource_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"resource_type": {
+					"enum": [
+						"template",
+						"template_version",
+						"user",
+						"workspace",
+						"workspace_build",
+						"git_ssh_key",
+						"auditable_group"
+					],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ResourceType"
+						}
+					]
+				},
+				"time": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
 		},
 		"codersdk.CreateTokenRequest": {
 			"type": "object",
 			"properties": {
+				"allow_list": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIAllowListTarget"
+					}
+				},
 				"lifetime": {
 					"type": "integer"
 				},
 				"scope": {
-					"enum": ["all", "application_connect"],
+					"description": "Deprecated: use Scopes instead.",
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.APIKeyScope"
 						}
 					]
+				},
+				"scopes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIKeyScope"
+					}
 				},
 				"token_name": {
 					"type": "string"
@@ -10243,6 +12203,23 @@
 				}
 			}
 		},
+		"codersdk.CreateWorkspaceBuildReason": {
+			"type": "string",
+			"enum": [
+				"dashboard",
+				"cli",
+				"ssh_connection",
+				"vscode_connection",
+				"jetbrains_connection"
+			],
+			"x-enum-varnames": [
+				"CreateWorkspaceBuildReasonDashboard",
+				"CreateWorkspaceBuildReasonCLI",
+				"CreateWorkspaceBuildReasonSSHConnection",
+				"CreateWorkspaceBuildReasonVSCodeConnection",
+				"CreateWorkspaceBuildReasonJetbrainsConnection"
+			]
+		},
 		"codersdk.CreateWorkspaceBuildRequest": {
 			"type": "object",
 			"required": ["transition"],
@@ -10262,6 +12239,21 @@
 				"orphan": {
 					"description": "Orphan may be set for the Destroy transition.",
 					"type": "boolean"
+				},
+				"reason": {
+					"description": "Reason sets the reason for the workspace build.",
+					"enum": [
+						"dashboard",
+						"cli",
+						"ssh_connection",
+						"vscode_connection",
+						"jetbrains_connection"
+					],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.CreateWorkspaceBuildReason"
+						}
+					]
 				},
 				"rich_parameter_values": {
 					"description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",
@@ -10387,6 +12379,25 @@
 				"CryptoKeyFeatureTailnetResume"
 			]
 		},
+		"codersdk.CustomNotificationContent": {
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string"
+				},
+				"title": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.CustomNotificationRequest": {
+			"type": "object",
+			"properties": {
+				"content": {
+					"$ref": "#/definitions/codersdk.CustomNotificationContent"
+				}
+			}
+		},
 		"codersdk.CustomRoleRequest": {
 			"type": "object",
 			"properties": {
@@ -10395,6 +12406,13 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"organization_member_permissions": {
+					"description": "OrganizationMemberPermissions are specific to the organization the role belongs to.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.Permission"
+					}
 				},
 				"organization_permissions": {
 					"description": "OrganizationPermissions are specific to the organization the role belongs to.",
@@ -10522,6 +12540,18 @@
 				}
 			}
 		},
+		"codersdk.DeleteExternalAuthByIDResponse": {
+			"type": "object",
+			"properties": {
+				"token_revocation_error": {
+					"type": "string"
+				},
+				"token_revoked": {
+					"description": "TokenRevoked set to true if token revocation was attempted and was successful",
+					"type": "boolean"
+				}
+			}
+		},
 		"codersdk.DeleteWebpushSubscription": {
 			"type": "object",
 			"properties": {
@@ -10607,6 +12637,9 @@
 				"agent_stat_refresh_interval": {
 					"type": "integer"
 				},
+				"ai": {
+					"$ref": "#/definitions/codersdk.AIConfig"
+				},
 				"allow_workspace_renames": {
 					"type": "boolean"
 				},
@@ -10646,6 +12679,9 @@
 				"docs_url": {
 					"$ref": "#/definitions/serpent.URL"
 				},
+				"enable_authz_recording": {
+					"type": "boolean"
+				},
 				"enable_terraform_debug_mode": {
 					"type": "boolean"
 				},
@@ -10679,9 +12715,6 @@
 				},
 				"http_cookies": {
 					"$ref": "#/definitions/codersdk.HTTPCookieConfig"
-				},
-				"in_memory_database": {
-					"type": "boolean"
 				},
 				"job_hang_detector_interval": {
 					"type": "integer"
@@ -10927,13 +12960,21 @@
 				"auto-fill-parameters",
 				"notifications",
 				"workspace-usage",
-				"web-push"
+				"web-push",
+				"oauth2",
+				"mcp-server-http",
+				"workspace-sharing",
+				"terraform-directory-reuse"
 			],
 			"x-enum-comments": {
 				"ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
 				"ExperimentExample": "This isn't used for anything.",
+				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+				"ExperimentOAuth2": "Enables OAuth2 provider functionality.",
+				"ExperimentTerraformWorkspace": "Enables reuse of existing terraform directory for builds",
 				"ExperimentWebPush": "Enables web push notifications through the browser.",
+				"ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
 				"ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
 			},
 			"x-enum-varnames": [
@@ -10941,8 +12982,34 @@
 				"ExperimentAutoFillParameters",
 				"ExperimentNotifications",
 				"ExperimentWorkspaceUsage",
-				"ExperimentWebPush"
+				"ExperimentWebPush",
+				"ExperimentOAuth2",
+				"ExperimentMCPServerHTTP",
+				"ExperimentWorkspaceSharing",
+				"ExperimentTerraformWorkspace"
 			]
+		},
+		"codersdk.ExternalAPIKeyScopes": {
+			"type": "object",
+			"properties": {
+				"external": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIKeyScope"
+					}
+				}
+			}
+		},
+		"codersdk.ExternalAgentCredentials": {
+			"type": "object",
+			"properties": {
+				"agent_token": {
+					"type": "string"
+				},
+				"command": {
+					"type": "string"
+				}
+			}
 		},
 		"codersdk.ExternalAuth": {
 			"type": "object",
@@ -10970,6 +13037,9 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
 					}
+				},
+				"supports_revocation": {
+					"type": "boolean"
 				},
 				"user": {
 					"description": "User is the user that authenticated with the provider.",
@@ -11028,11 +13098,23 @@
 					"description": "ID is a unique identifier for the auth config.\nIt defaults to `type` when not provided.",
 					"type": "string"
 				},
+				"mcp_tool_allow_regex": {
+					"type": "string"
+				},
+				"mcp_tool_deny_regex": {
+					"type": "string"
+				},
+				"mcp_url": {
+					"type": "string"
+				},
 				"no_refresh": {
 					"type": "boolean"
 				},
 				"regex": {
 					"description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
+					"type": "string"
+				},
+				"revoke_url": {
 					"type": "string"
 				},
 				"scopes": {
@@ -11136,6 +13218,18 @@
 				},
 				"limit": {
 					"type": "integer"
+				},
+				"soft_limit": {
+					"description": "SoftLimit is the soft limit of the feature, and is only used for showing\nincluded limits in the dashboard. No license validation or warnings are\ngenerated from this value.",
+					"type": "integer"
+				},
+				"usage_period": {
+					"description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.UsagePeriod"
+						}
+					]
 				}
 			}
 		},
@@ -11239,7 +13333,8 @@
 			"type": "object",
 			"properties": {
 				"avatar_url": {
-					"type": "string"
+					"type": "string",
+					"format": "uri"
 				},
 				"display_name": {
 					"type": "string"
@@ -11426,6 +13521,31 @@
 				"InsightsReportIntervalWeek"
 			]
 		},
+		"codersdk.InvalidatePresetsResponse": {
+			"type": "object",
+			"properties": {
+				"invalidated": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.InvalidatedPreset"
+					}
+				}
+			}
+		},
+		"codersdk.InvalidatedPreset": {
+			"type": "object",
+			"properties": {
+				"preset_name": {
+					"type": "string"
+				},
+				"template_name": {
+					"type": "string"
+				},
+				"template_version_name": {
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.IssueReconnectingPTYSignedTokenRequest": {
 			"type": "object",
 			"required": ["agentID", "url"],
@@ -11479,7 +13599,11 @@
 			"properties": {
 				"icon": {
 					"type": "string",
-					"enum": ["bug", "chat", "docs"]
+					"enum": ["bug", "chat", "docs", "star"]
+				},
+				"location": {
+					"type": "string",
+					"enum": ["navbar", "dropdown"]
 				},
 				"name": {
 					"type": "string"
@@ -11621,6 +13745,9 @@
 				"id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
 				},
 				"username": {
 					"type": "string"
@@ -11894,6 +14021,284 @@
 				},
 				"token": {
 					"type": "string"
+				},
+				"token_revoke": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.OAuth2AuthorizationServerMetadata": {
+			"type": "object",
+			"properties": {
+				"authorization_endpoint": {
+					"type": "string"
+				},
+				"code_challenge_methods_supported": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"grant_types_supported": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"issuer": {
+					"type": "string"
+				},
+				"registration_endpoint": {
+					"type": "string"
+				},
+				"response_types_supported": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"revocation_endpoint": {
+					"type": "string"
+				},
+				"scopes_supported": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"token_endpoint": {
+					"type": "string"
+				},
+				"token_endpoint_auth_methods_supported": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"codersdk.OAuth2ClientConfiguration": {
+			"type": "object",
+			"properties": {
+				"client_id": {
+					"type": "string"
+				},
+				"client_id_issued_at": {
+					"type": "integer"
+				},
+				"client_name": {
+					"type": "string"
+				},
+				"client_secret_expires_at": {
+					"type": "integer"
+				},
+				"client_uri": {
+					"type": "string"
+				},
+				"contacts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"grant_types": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"jwks": {
+					"type": "object"
+				},
+				"jwks_uri": {
+					"type": "string"
+				},
+				"logo_uri": {
+					"type": "string"
+				},
+				"policy_uri": {
+					"type": "string"
+				},
+				"redirect_uris": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"registration_access_token": {
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"registration_client_uri": {
+					"type": "string"
+				},
+				"response_types": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"scope": {
+					"type": "string"
+				},
+				"software_id": {
+					"type": "string"
+				},
+				"software_version": {
+					"type": "string"
+				},
+				"token_endpoint_auth_method": {
+					"type": "string"
+				},
+				"tos_uri": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.OAuth2ClientRegistrationRequest": {
+			"type": "object",
+			"properties": {
+				"client_name": {
+					"type": "string"
+				},
+				"client_uri": {
+					"type": "string"
+				},
+				"contacts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"grant_types": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"jwks": {
+					"type": "object"
+				},
+				"jwks_uri": {
+					"type": "string"
+				},
+				"logo_uri": {
+					"type": "string"
+				},
+				"policy_uri": {
+					"type": "string"
+				},
+				"redirect_uris": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"response_types": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"scope": {
+					"type": "string"
+				},
+				"software_id": {
+					"type": "string"
+				},
+				"software_statement": {
+					"type": "string"
+				},
+				"software_version": {
+					"type": "string"
+				},
+				"token_endpoint_auth_method": {
+					"type": "string"
+				},
+				"tos_uri": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.OAuth2ClientRegistrationResponse": {
+			"type": "object",
+			"properties": {
+				"client_id": {
+					"type": "string"
+				},
+				"client_id_issued_at": {
+					"type": "integer"
+				},
+				"client_name": {
+					"type": "string"
+				},
+				"client_secret": {
+					"type": "string"
+				},
+				"client_secret_expires_at": {
+					"type": "integer"
+				},
+				"client_uri": {
+					"type": "string"
+				},
+				"contacts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"grant_types": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"jwks": {
+					"type": "object"
+				},
+				"jwks_uri": {
+					"type": "string"
+				},
+				"logo_uri": {
+					"type": "string"
+				},
+				"policy_uri": {
+					"type": "string"
+				},
+				"redirect_uris": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"registration_access_token": {
+					"type": "string"
+				},
+				"registration_client_uri": {
+					"type": "string"
+				},
+				"response_types": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"scope": {
+					"type": "string"
+				},
+				"software_id": {
+					"type": "string"
+				},
+				"software_version": {
+					"type": "string"
+				},
+				"token_endpoint_auth_method": {
+					"type": "string"
+				},
+				"tos_uri": {
+					"type": "string"
 				}
 			}
 		},
@@ -11940,6 +14345,32 @@
 				},
 				"enterprise_base_url": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.OAuth2ProtectedResourceMetadata": {
+			"type": "object",
+			"properties": {
+				"authorization_servers": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"bearer_methods_supported": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"resource": {
+					"type": "string"
+				},
+				"scopes_supported": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -12600,11 +15031,28 @@
 				}
 			}
 		},
+		"codersdk.PrebuildsSettings": {
+			"type": "object",
+			"properties": {
+				"reconciliation_paused": {
+					"type": "boolean"
+				}
+			}
+		},
 		"codersdk.Preset": {
 			"type": "object",
 			"properties": {
 				"default": {
 					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"desiredPrebuildInstances": {
+					"type": "integer"
+				},
+				"icon": {
+					"type": "string"
 				},
 				"id": {
 					"type": "string"
@@ -12719,6 +15167,9 @@
 				},
 				"label": {
 					"type": "string"
+				},
+				"mask_input": {
+					"type": "boolean"
 				},
 				"placeholder": {
 					"type": "string"
@@ -12943,8 +15394,15 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"initiator_id": {
+					"type": "string",
+					"format": "uuid"
+				},
 				"input": {
 					"$ref": "#/definitions/codersdk.ProvisionerJobInput"
+				},
+				"logs_overflowed": {
+					"type": "boolean"
 				},
 				"metadata": {
 					"$ref": "#/definitions/codersdk.ProvisionerJobMetadata"
@@ -13251,6 +15709,7 @@
 				"read",
 				"read_personal",
 				"ssh",
+				"share",
 				"unassign",
 				"update",
 				"update_personal",
@@ -13269,6 +15728,7 @@
 				"ActionRead",
 				"ActionReadPersonal",
 				"ActionSSH",
+				"ActionShare",
 				"ActionUnassign",
 				"ActionUpdate",
 				"ActionUpdatePersonal",
@@ -13282,10 +15742,12 @@
 			"type": "string",
 			"enum": [
 				"*",
+				"aibridge_interception",
 				"api_key",
 				"assign_org_role",
 				"assign_role",
 				"audit_log",
+				"connection_log",
 				"crypto_key",
 				"debug_info",
 				"deployment_config",
@@ -13310,8 +15772,11 @@
 				"replicas",
 				"system",
 				"tailnet_coordinator",
+				"task",
 				"template",
+				"usage_event",
 				"user",
+				"user_secret",
 				"webpush_subscription",
 				"workspace",
 				"workspace_agent_devcontainers",
@@ -13321,10 +15786,12 @@
 			],
 			"x-enum-varnames": [
 				"ResourceWildcard",
+				"ResourceAibridgeInterception",
 				"ResourceApiKey",
 				"ResourceAssignOrgRole",
 				"ResourceAssignRole",
 				"ResourceAuditLog",
+				"ResourceConnectionLog",
 				"ResourceCryptoKey",
 				"ResourceDebugInfo",
 				"ResourceDeploymentConfig",
@@ -13349,8 +15816,11 @@
 				"ResourceReplicas",
 				"ResourceSystem",
 				"ResourceTailnetCoordinator",
+				"ResourceTask",
 				"ResourceTemplate",
+				"ResourceUsageEvent",
 				"ResourceUser",
+				"ResourceUserSecret",
 				"ResourceWebpushSubscription",
 				"ResourceWorkspace",
 				"ResourceWorkspaceAgentDevcontainers",
@@ -13540,6 +16010,7 @@
 				"convert_login",
 				"health_settings",
 				"notifications_settings",
+				"prebuilds_settings",
 				"workspace_proxy",
 				"organization",
 				"oauth2_provider_app",
@@ -13551,7 +16022,8 @@
 				"idp_sync_settings_group",
 				"idp_sync_settings_role",
 				"workspace_agent",
-				"workspace_app"
+				"workspace_app",
+				"task"
 			],
 			"x-enum-varnames": [
 				"ResourceTypeTemplate",
@@ -13566,6 +16038,7 @@
 				"ResourceTypeConvertLogin",
 				"ResourceTypeHealthSettings",
 				"ResourceTypeNotificationsSettings",
+				"ResourceTypePrebuildsSettings",
 				"ResourceTypeWorkspaceProxy",
 				"ResourceTypeOrganization",
 				"ResourceTypeOAuth2ProviderApp",
@@ -13577,7 +16050,8 @@
 				"ResourceTypeIdpSyncSettingsGroup",
 				"ResourceTypeIdpSyncSettingsRole",
 				"ResourceTypeWorkspaceAgent",
-				"ResourceTypeWorkspaceApp"
+				"ResourceTypeWorkspaceApp",
+				"ResourceTypeTask"
 			]
 		},
 		"codersdk.Response": {
@@ -13612,6 +16086,13 @@
 				"organization_id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"organization_member_permissions": {
+					"description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.Permission"
+					}
 				},
 				"organization_permissions": {
 					"description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
@@ -13742,6 +16223,10 @@
 				},
 				"max_token_lifetime": {
 					"type": "integer"
+				},
+				"refresh_default_duration": {
+					"description": "RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.\nThis should generally be longer than access token lifetimes to allow\nrefreshing after access token expiry.",
+					"type": "integer"
 				}
 			}
 		},
@@ -13825,6 +16310,236 @@
 				}
 			}
 		},
+		"codersdk.Task": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"current_state": {
+					"$ref": "#/definitions/codersdk.TaskStateEntry"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"initial_prompt": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_avatar_url": {
+					"type": "string"
+				},
+				"owner_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_name": {
+					"type": "string"
+				},
+				"status": {
+					"enum": [
+						"pending",
+						"initializing",
+						"active",
+						"paused",
+						"unknown",
+						"error"
+					],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.TaskStatus"
+						}
+					]
+				},
+				"template_display_name": {
+					"type": "string"
+				},
+				"template_icon": {
+					"type": "string"
+				},
+				"template_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"template_name": {
+					"type": "string"
+				},
+				"template_version_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"workspace_agent_health": {
+					"$ref": "#/definitions/codersdk.WorkspaceAgentHealth"
+				},
+				"workspace_agent_id": {
+					"format": "uuid",
+					"allOf": [
+						{
+							"$ref": "#/definitions/uuid.NullUUID"
+						}
+					]
+				},
+				"workspace_agent_lifecycle": {
+					"$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+				},
+				"workspace_app_id": {
+					"format": "uuid",
+					"allOf": [
+						{
+							"$ref": "#/definitions/uuid.NullUUID"
+						}
+					]
+				},
+				"workspace_build_number": {
+					"type": "integer"
+				},
+				"workspace_id": {
+					"format": "uuid",
+					"allOf": [
+						{
+							"$ref": "#/definitions/uuid.NullUUID"
+						}
+					]
+				},
+				"workspace_name": {
+					"type": "string"
+				},
+				"workspace_status": {
+					"enum": [
+						"pending",
+						"starting",
+						"running",
+						"stopping",
+						"stopped",
+						"failed",
+						"canceling",
+						"canceled",
+						"deleting",
+						"deleted"
+					],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.WorkspaceStatus"
+						}
+					]
+				}
+			}
+		},
+		"codersdk.TaskLogEntry": {
+			"type": "object",
+			"properties": {
+				"content": {
+					"type": "string"
+				},
+				"id": {
+					"type": "integer"
+				},
+				"time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"type": {
+					"$ref": "#/definitions/codersdk.TaskLogType"
+				}
+			}
+		},
+		"codersdk.TaskLogType": {
+			"type": "string",
+			"enum": ["input", "output"],
+			"x-enum-varnames": ["TaskLogTypeInput", "TaskLogTypeOutput"]
+		},
+		"codersdk.TaskLogsResponse": {
+			"type": "object",
+			"properties": {
+				"logs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.TaskLogEntry"
+					}
+				}
+			}
+		},
+		"codersdk.TaskSendRequest": {
+			"type": "object",
+			"properties": {
+				"input": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.TaskState": {
+			"type": "string",
+			"enum": ["working", "idle", "complete", "failed"],
+			"x-enum-varnames": [
+				"TaskStateWorking",
+				"TaskStateIdle",
+				"TaskStateComplete",
+				"TaskStateFailed"
+			]
+		},
+		"codersdk.TaskStateEntry": {
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string"
+				},
+				"state": {
+					"$ref": "#/definitions/codersdk.TaskState"
+				},
+				"timestamp": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"uri": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.TaskStatus": {
+			"type": "string",
+			"enum": [
+				"pending",
+				"initializing",
+				"active",
+				"paused",
+				"unknown",
+				"error"
+			],
+			"x-enum-varnames": [
+				"TaskStatusPending",
+				"TaskStatusInitializing",
+				"TaskStatusActive",
+				"TaskStatusPaused",
+				"TaskStatusUnknown",
+				"TaskStatusError"
+			]
+		},
+		"codersdk.TasksListResponse": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"type": "integer"
+				},
+				"tasks": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.Task"
+					}
+				}
+			}
+		},
 		"codersdk.TelemetryConfig": {
 			"type": "object",
 			"properties": {
@@ -13876,6 +16591,9 @@
 				},
 				"build_time_stats": {
 					"$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
+				},
+				"cors_behavior": {
+					"$ref": "#/definitions/codersdk.CORSBehavior"
 				},
 				"created_at": {
 					"type": "string",
@@ -13954,6 +16672,26 @@
 				},
 				"use_classic_parameter_flow": {
 					"type": "boolean"
+				},
+				"use_terraform_workspace_cache": {
+					"type": "boolean"
+				}
+			}
+		},
+		"codersdk.TemplateACL": {
+			"type": "object",
+			"properties": {
+				"group": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.TemplateGroup"
+					}
+				},
+				"users": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.TemplateUser"
+					}
 				}
 			}
 		},
@@ -14080,6 +16818,59 @@
 				},
 				"url": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.TemplateGroup": {
+			"type": "object",
+			"properties": {
+				"avatar_url": {
+					"type": "string",
+					"format": "uri"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"members": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ReducedUser"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"organization_display_name": {
+					"type": "string"
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"organization_name": {
+					"type": "string"
+				},
+				"quota_allowance": {
+					"type": "integer"
+				},
+				"role": {
+					"enum": ["admin", "use"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.TemplateRole"
+						}
+					]
+				},
+				"source": {
+					"$ref": "#/definitions/codersdk.GroupSource"
+				},
+				"total_member_count": {
+					"description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than `len(Group.Members)`.",
+					"type": "integer"
 				}
 			}
 		},
@@ -14305,6 +17096,9 @@
 				},
 				"created_by": {
 					"$ref": "#/definitions/codersdk.MinimalUser"
+				},
+				"has_external_agent": {
+					"type": "boolean"
 				},
 				"id": {
 					"type": "string",
@@ -14662,26 +17456,113 @@
 			"type": "object",
 			"properties": {
 				"group_perms": {
-					"description": "GroupPerms should be a mapping of group id to role.",
+					"description": "GroupPerms is a mapping from valid group UUIDs to the template role they\nshould be granted. To remove a group from the template, use \"\" as the role\n(available as a constant named codersdk.TemplateRoleDeleted)",
 					"type": "object",
 					"additionalProperties": {
 						"$ref": "#/definitions/codersdk.TemplateRole"
 					},
 					"example": {
 						"8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-						"\u003cuser_id\u003e\u003e": "admin"
+						"\u003cgroup_id\u003e": "admin"
 					}
 				},
 				"user_perms": {
-					"description": "UserPerms should be a mapping of user id to role. The user id must be the\nuuid of the user, not a username or email address.",
+					"description": "UserPerms is a mapping from valid user UUIDs to the template role they\nshould be granted. To remove a user from the template, use \"\" as the role\n(available as a constant named codersdk.TemplateRoleDeleted)",
 					"type": "object",
 					"additionalProperties": {
 						"$ref": "#/definitions/codersdk.TemplateRole"
 					},
 					"example": {
 						"4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-						"\u003cgroup_id\u003e": "admin"
+						"\u003cuser_id\u003e": "admin"
 					}
+				}
+			}
+		},
+		"codersdk.UpdateTemplateMeta": {
+			"type": "object",
+			"properties": {
+				"activity_bump_ms": {
+					"description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
+					"type": "integer"
+				},
+				"allow_user_autostart": {
+					"type": "boolean"
+				},
+				"allow_user_autostop": {
+					"type": "boolean"
+				},
+				"allow_user_cancel_workspace_jobs": {
+					"type": "boolean"
+				},
+				"autostart_requirement": {
+					"$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
+				},
+				"autostop_requirement": {
+					"description": "AutostopRequirement and AutostartRequirement can only be set if your license\nincludes the advanced template scheduling feature. If you attempt to set this\nvalue while unlicensed, it will be ignored.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+						}
+					]
+				},
+				"cors_behavior": {
+					"$ref": "#/definitions/codersdk.CORSBehavior"
+				},
+				"default_ttl_ms": {
+					"type": "integer"
+				},
+				"deprecation_message": {
+					"description": "DeprecationMessage if set, will mark the template as deprecated and block\nany new workspaces from using this template.\nIf passed an empty string, will remove the deprecated message, making\nthe template usable for new workspaces again.",
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"disable_everyone_group_access": {
+					"description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+					"type": "boolean"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"failure_ttl_ms": {
+					"type": "integer"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"max_port_share_level": {
+					"$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+				},
+				"name": {
+					"type": "string"
+				},
+				"require_active_version": {
+					"description": "RequireActiveVersion mandates workspaces built using this template\nuse the active version of the template. This option has no\neffect on template admins.",
+					"type": "boolean"
+				},
+				"time_til_dormant_autodelete_ms": {
+					"type": "integer"
+				},
+				"time_til_dormant_ms": {
+					"type": "integer"
+				},
+				"update_workspace_dormant_at": {
+					"description": "UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being immediately\ndeleted when updating the dormant_ttl field to a new, shorter value.",
+					"type": "boolean"
+				},
+				"update_workspace_last_used_at": {
+					"description": "UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces\nspawned from the template. This is useful for preventing workspaces being\nimmediately locked when updating the inactivity_ttl field to a new, shorter\nvalue.",
+					"type": "boolean"
+				},
+				"use_classic_parameter_flow": {
+					"description": "UseClassicParameterFlow is a flag that switches the default behavior to use the classic\nparameter flow when creating a workspace. This only affects deployments with the experiment\n\"dynamic-parameters\" enabled. This setting will live for a period after the experiment is\nmade the default.\nAn \"opt-out\" is present in case the new feature breaks some existing templates.",
+					"type": "boolean"
+				},
+				"use_terraform_workspace_cache": {
+					"description": "UseTerraformWorkspaceCache allows optionally specifying whether to use cached\nterraform directories for workspaces created from this template. This field\nonly applies when the correct experiment is enabled. This field is subject to\nbeing removed in the future.",
+					"type": "boolean"
 				}
 			}
 		},
@@ -14739,6 +17620,25 @@
 				"schedule": {
 					"description": "Schedule is a cron expression that defines when the user's quiet hours\nwindow is. Schedule must not be empty. For new users, the schedule is set\nto 2am in their browser or computer's timezone. The schedule denotes the\nbeginning of a 4 hour window where the workspace is allowed to\nautomatically stop or restart due to maintenance or template schedule.\n\nThe schedule must be daily with a single time, and should have a timezone\nspecified via a CRON_TZ prefix (otherwise UTC will be used).\n\nIf the schedule is empty, the user will be updated to use the default\nschedule.",
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.UpdateWorkspaceACL": {
+			"type": "object",
+			"properties": {
+				"group_roles": {
+					"description": "GroupRoles is a mapping from valid group UUIDs to the workspace role they\nshould be granted. To remove a group from the workspace, use \"\" as the role\n(available as a constant named codersdk.WorkspaceRoleDeleted)",
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/codersdk.WorkspaceRole"
+					}
+				},
+				"user_roles": {
+					"description": "UserRoles is a mapping from valid user UUIDs to the workspace role they\nshould be granted. To remove a user from the workspace, use \"\" as the role\n(available as a constant named codersdk.WorkspaceRoleDeleted)",
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/codersdk.WorkspaceRole"
+					}
 				}
 			}
 		},
@@ -14828,6 +17728,23 @@
 				"UsageAppNameReconnectingPty",
 				"UsageAppNameSSH"
 			]
+		},
+		"codersdk.UsagePeriod": {
+			"type": "object",
+			"properties": {
+				"end": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"issued_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"start": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
 		},
 		"codersdk.User": {
 			"type": "object",
@@ -15217,6 +18134,10 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"is_prebuild": {
+					"description": "IsPrebuild indicates whether the workspace is a prebuilt workspace.\nPrebuilt workspaces are owned by the prebuilds system user and have specific behavior,\nsuch as being managed differently from regular workspaces.\nOnce a prebuilt workspace is claimed by a user, it transitions to a regular workspace,\nand IsPrebuild returns false.",
+					"type": "boolean"
+				},
 				"last_used_at": {
 					"type": "string",
 					"format": "date-time"
@@ -15255,6 +18176,14 @@
 					"description": "OwnerName is the username of the owner of the workspace.",
 					"type": "string"
 				},
+				"task_id": {
+					"description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/uuid.NullUUID"
+						}
+					]
+				},
 				"template_active_version_id": {
 					"type": "string",
 					"format": "uuid"
@@ -15287,6 +18216,23 @@
 				"updated_at": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"codersdk.WorkspaceACL": {
+			"type": "object",
+			"properties": {
+				"group": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkspaceGroup"
+					}
+				},
+				"users": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkspaceUser"
+					}
 				}
 			}
 		},
@@ -15526,6 +18472,9 @@
 				},
 				"dirty": {
 					"type": "boolean"
+				},
+				"error": {
+					"type": "string"
 				},
 				"id": {
 					"type": "string",
@@ -15895,6 +18844,10 @@
 					"description": "SubdomainName is the application domain exposed on the `coder server`.",
 					"type": "string"
 				},
+				"tooltip": {
+					"description": "Tooltip is an optional markdown supported field that is displayed\nwhen hovering over workspace apps in the UI.",
+					"type": "string"
+				},
 				"url": {
 					"description": "URL is the address being proxied to inside the workspace.\nIf external is specified, this will be opened on the client.",
 					"type": "string"
@@ -15985,10 +18938,6 @@
 		"codersdk.WorkspaceBuild": {
 			"type": "object",
 			"properties": {
-				"ai_task_sidebar_app_id": {
-					"type": "string",
-					"format": "uuid"
-				},
 				"build_number": {
 					"type": "integer"
 				},
@@ -16004,6 +18953,10 @@
 					"format": "date-time"
 				},
 				"has_ai_task": {
+					"description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
+					"type": "boolean"
+				},
+				"has_external_agent": {
 					"type": "boolean"
 				},
 				"id": {
@@ -16174,6 +19127,59 @@
 					"type": "integer"
 				},
 				"tx_bytes": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.WorkspaceGroup": {
+			"type": "object",
+			"properties": {
+				"avatar_url": {
+					"type": "string",
+					"format": "uri"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"members": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ReducedUser"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"organization_display_name": {
+					"type": "string"
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"organization_name": {
+					"type": "string"
+				},
+				"quota_allowance": {
+					"type": "integer"
+				},
+				"role": {
+					"enum": ["admin", "use"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.WorkspaceRole"
+						}
+					]
+				},
+				"source": {
+					"$ref": "#/definitions/codersdk.GroupSource"
+				},
+				"total_member_count": {
+					"description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than `len(Group.Members)`.",
 					"type": "integer"
 				}
 			}
@@ -16350,6 +19356,15 @@
 				}
 			}
 		},
+		"codersdk.WorkspaceRole": {
+			"type": "string",
+			"enum": ["admin", "use", ""],
+			"x-enum-varnames": [
+				"WorkspaceRoleAdmin",
+				"WorkspaceRoleUse",
+				"WorkspaceRoleDeleted"
+			]
+		},
 		"codersdk.WorkspaceStatus": {
 			"type": "string",
 			"enum": [
@@ -16385,6 +19400,34 @@
 				"WorkspaceTransitionStop",
 				"WorkspaceTransitionDelete"
 			]
+		},
+		"codersdk.WorkspaceUser": {
+			"type": "object",
+			"required": ["id", "username"],
+			"properties": {
+				"avatar_url": {
+					"type": "string",
+					"format": "uri"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
+				},
+				"role": {
+					"enum": ["admin", "use"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.WorkspaceRole"
+						}
+					]
+				},
+				"username": {
+					"type": "string"
+				}
+			}
 		},
 		"codersdk.WorkspacesResponse": {
 			"type": "object",
@@ -17037,7 +20080,7 @@
 					"type": "integer"
 				},
 				"expiry": {
-					"description": "Expiry is the optional expiration time of the access token.\n\nIf zero, TokenSource implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
+					"description": "Expiry is the optional expiration time of the access token.\n\nIf zero, [TokenSource] implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
 					"type": "string"
 				},
 				"refresh_token": {

@@ -30,10 +30,6 @@ import (
 func TestMetricsCollector(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	type metricCheck struct {
 		name      string
 		value     *float64
@@ -201,7 +197,7 @@ func TestMetricsCollector(t *testing.T) {
 									clock := quartz.NewMock(t)
 									db, pubsub := dbtestutil.NewDB(t)
 									cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-									reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+									reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 									ctx := testutil.Context(t, testutil.WaitLong)
 
 									createdUsers := []uuid.UUID{database.PrebuildsSystemUserID}
@@ -231,7 +227,6 @@ func TestMetricsCollector(t *testing.T) {
 									}
 
 									// Force an update to the metrics state to allow the collector to collect fresh metrics.
-									// nolint:gocritic // Authz context needed to retrieve state.
 									require.NoError(t, collector.UpdateState(dbauthz.AsPrebuildsOrchestrator(ctx), testutil.WaitLong))
 
 									metricsFamilies, err := registry.Gather()
@@ -299,10 +294,6 @@ func TestMetricsCollector(t *testing.T) {
 func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	type metricCheck struct {
 		name      string
 		value     *float64
@@ -338,7 +329,7 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	clock := quartz.NewMock(t)
 	db, pubsub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	collector := prebuilds.NewMetricsCollector(db, logger, reconciler)
@@ -367,7 +358,6 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 		"organization_name": defaultOrg.Name,
 	}
 
-	// nolint:gocritic // Authz context needed to retrieve state.
 	ctx = dbauthz.AsPrebuildsOrchestrator(ctx)
 
 	// Then: metrics collect successfully.
@@ -475,4 +465,94 @@ func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labe
 		}
 	}
 	return series
+}
+
+func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reconciliation_not_paused", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		db, pubsub := dbtestutil.NewDB(t)
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		registry := prometheus.NewPedanticRegistry()
+		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer(), newNoopUsageCheckerPtr())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Ensure no pause setting is set (default state)
+		err := db.UpsertPrebuildsSettings(ctx, `{}`)
+		require.NoError(t, err)
+
+		// Run reconciliation to update the metric
+		_, err = reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
+
+		// Check that the metric shows reconciliation is not paused
+		metricsFamilies, err := registry.Gather()
+		require.NoError(t, err)
+
+		metric := findMetric(metricsFamilies, prebuilds.MetricReconciliationPausedGauge, map[string]string{})
+		require.NotNil(t, metric, "reconciliation paused metric should exist")
+		require.NotNil(t, metric.GetGauge())
+		require.Equal(t, 0.0, metric.GetGauge().GetValue(), "reconciliation should not be paused")
+	})
+
+	t.Run("reconciliation_paused", func(t *testing.T) {
+		t.Parallel()
+
+		// Create isolated collector and registry for this test
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		db, pubsub := dbtestutil.NewDB(t)
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		registry := prometheus.NewPedanticRegistry()
+		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer(), newNoopUsageCheckerPtr())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Set reconciliation to paused
+		err := prebuilds.SetPrebuildsReconciliationPaused(ctx, db, true)
+		require.NoError(t, err)
+
+		// Run reconciliation to update the metric
+		_, err = reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
+
+		// Check that the metric shows reconciliation is paused
+		metricsFamilies, err := registry.Gather()
+		require.NoError(t, err)
+
+		metric := findMetric(metricsFamilies, prebuilds.MetricReconciliationPausedGauge, map[string]string{})
+		require.NotNil(t, metric, "reconciliation paused metric should exist")
+		require.NotNil(t, metric.GetGauge())
+		require.Equal(t, 1.0, metric.GetGauge().GetValue(), "reconciliation should be paused")
+	})
+
+	t.Run("reconciliation_resumed", func(t *testing.T) {
+		t.Parallel()
+
+		// Create isolated collector and registry for this test
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		db, pubsub := dbtestutil.NewDB(t)
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		registry := prometheus.NewPedanticRegistry()
+		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer(), newNoopUsageCheckerPtr())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Set reconciliation back to not paused
+		err := prebuilds.SetPrebuildsReconciliationPaused(ctx, db, false)
+		require.NoError(t, err)
+
+		// Run reconciliation to update the metric
+		_, err = reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
+
+		// Check that the metric shows reconciliation is not paused
+		metricsFamilies, err := registry.Gather()
+		require.NoError(t, err)
+
+		metric := findMetric(metricsFamilies, prebuilds.MetricReconciliationPausedGauge, map[string]string{})
+		require.NotNil(t, metric, "reconciliation paused metric should exist")
+		require.NotNil(t, metric.GetGauge())
+		require.Equal(t, 0.0, metric.GetGauge().GetValue(), "reconciliation should not be paused")
+	})
 }

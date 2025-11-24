@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -48,24 +49,22 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		preSharedKey   string
 		provisionerKey string
 		verbose        bool
+		experiments    []string
 
 		prometheusEnable  bool
 		prometheusAddress string
 	)
 	orgContext := agpl.NewOrganizationContext()
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
-		Middleware: serpent.Chain(
-			// disable checks and warnings because this command starts a daemon; it is
-			// not meant for humans typing commands.  Furthermore, the checks are
-			// incompatible with PSK auth that this command uses
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			stopCtx, stopCancel := inv.SignalNotifyContext(ctx, agpl.StopSignalsNoInterrupt...)
 			defer stopCancel()
@@ -108,7 +107,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			if provisionerKey != "" {
 				pkDetails, err := client.GetProvisionerKey(ctx, provisionerKey)
 				if err != nil {
-					return xerrors.New("unable to get provisioner key details")
+					return xerrors.Errorf("unable to get provisioner key details: %w", err)
 				}
 
 				for k, v := range pkDetails.Tags {
@@ -189,6 +188,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 						Listener:      terraformServer,
 						Logger:        logger.Named("terraform"),
 						WorkDirectory: tempDir,
+						Experiments:   coderd.ReadExperiments(logger, experiments),
 					},
 					CachePath: cacheDir,
 				})
@@ -380,6 +380,14 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			Description: "The bind address to serve prometheus metrics.",
 			Value:       serpent.StringOf(&prometheusAddress),
 			Default:     "127.0.0.1:2112",
+		},
+		{
+			Name:        "Experiments",
+			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Flag:        "experiments",
+			Env:         "CODER_EXPERIMENTS",
+			Value:       serpent.StringArrayOf(&experiments),
+			YAML:        "experiments",
 		},
 	}
 	orgContext.AttachOptions(cmd)

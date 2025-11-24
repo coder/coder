@@ -1,18 +1,20 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent } from "@storybook/test";
 import {
 	MockGroup,
 	MockGroup2,
+	MockGroup3,
 	MockGroupSyncSettings,
 	MockGroupSyncSettings2,
 	MockLegacyMappingGroupSyncSettings,
+	MockMultipleOverflowGroupSyncSettings,
 	MockOrganization,
 	MockRoleSyncSettings,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent } from "storybook/test";
 import IdpSyncPageView from "./IdpSyncPageView";
 
 const groupsMap = new Map<string, string>();
-for (const group of [MockGroup, MockGroup2]) {
+for (const group of [MockGroup, MockGroup2, MockGroup3]) {
 	groupsMap.set(group.id, group.display_name || group.name);
 }
 
@@ -67,6 +69,12 @@ export const HasError: Story = {
 export const MissingGroups: Story = {
 	args: {
 		groupSyncSettings: MockGroupSyncSettings2,
+	},
+};
+
+export const MultipleOverflowGroups: Story = {
+	args: {
+		groupSyncSettings: MockMultipleOverflowGroupSyncSettings,
 	},
 };
 

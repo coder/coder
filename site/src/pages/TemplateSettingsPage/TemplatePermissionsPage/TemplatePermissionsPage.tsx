@@ -3,7 +3,6 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
@@ -26,13 +25,12 @@ const TemplatePermissionsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name, "Permissions")}</title>
-			</Helmet>
+			<title>{pageTitle(template.name, "Permissions")}</title>
+
 			{!isTemplateRBACEnabled ? (
 				<Paywall
 					message="Template permissions"
-					description="Control access of templates for users and groups to templates. You need an Premium license to use this feature."
+					description="Control access of templates for users and groups to templates. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/templates/template-permissions")}
 				/>
 			) : (

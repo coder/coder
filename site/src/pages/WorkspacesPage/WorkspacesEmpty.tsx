@@ -4,7 +4,7 @@ import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;

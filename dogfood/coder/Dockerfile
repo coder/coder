@@ -1,17 +1,18 @@
 # 1.86.0
-FROM rust:slim@sha256:3f391b0678a6e0c88fd26f13e399c9c515ac47354e3cadfee7daee3b21651a4f AS rust-utils
+FROM rust:slim@sha256:cef0ec962e08d8b5dcba05604189e5751c1bd3ec7d12db0a93e4215468d4ac4a AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
-    apt-get update || true
+	apt-get update || true
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
-FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
+FROM ubuntu:jammy@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.4
+ARG GO_VERSION=1.24.10
+ARG GO_CHECKSUM="dd52b974e3d9c5a7bbfb222c685806def6be5d6f7efd10f9caa9ca1fa2f47955"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -19,6 +20,7 @@ RUN apt-get update && \
 	curl --silent --show-error --location \
 	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
 	-o /usr/local/go.tar.gz && \
+	echo "$GO_CHECKSUM /usr/local/go.tar.gz" | sha256sum -c && \
 	rm -rf /var/lib/apt/lists/*
 
 ENV PATH=$PATH:/usr/local/go/bin
@@ -29,6 +31,7 @@ RUN apt-get update && \
 	mkdir --parents /usr/local/go && \
 	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
 	mkdir --parents "$GOPATH" && \
+	go env -w GOSUMDB=sum.golang.org && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
 	# swag for Swagger doc generation
@@ -38,7 +41,7 @@ RUN apt-get update && \
 	# goimports for updating imports
 	go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
 	# protoc-gen-go is needed to build sysbox from source
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
 	# drpc support for v2
 	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
 	# migrate for migration support for v2
@@ -59,7 +62,12 @@ RUN apt-get update && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0) && \
+	# (CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0) && \
+	#
+	# Switched to coder/sqlc fork to fix ambiguous column bug, see:
+	# - https://github.com/coder/sqlc/pull/1
+	# - https://github.com/sqlc-dev/sqlc/pull/4159
+	(CGO_ENABLED=1 go install github.com/coder/sqlc/cmd/sqlc@aab4e865a51df0c43e1839f81a9d349b41d14f05) && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
@@ -94,7 +102,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97
+FROM ubuntu:jammy@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb
 
 SHELL ["/bin/bash", "-c"]
 
@@ -123,8 +131,8 @@ RUN mkdir -p /etc/sudoers.d && \
 
 # Use more reliable mirrors for Ubuntu packages
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
-    apt-get update --quiet && apt-get install --yes \
+	sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
+	apt-get update --quiet && apt-get install --yes \
 	ansible \
 	apt-transport-https \
 	apt-utils \
@@ -206,7 +214,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.12.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.12.2/terraform_1.12.2_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
@@ -242,7 +250,7 @@ RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/rel
 ARG NVM_INSTALL_SHA=bdea8c52186c4dd12657e77e7515509cda5bf9fa5a2f0046bce749e62645076d
 # Install frontend utilities
 ENV NVM_DIR=/usr/local/nvm
-ENV NODE_VERSION=20.16.0
+ENV NODE_VERSION=22.19.0
 RUN mkdir -p $NVM_DIR
 RUN curl -o nvm_install.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh && \
 	echo "${NVM_INSTALL_SHA}  nvm_install.sh" | sha256sum -c && \
@@ -252,9 +260,9 @@ RUN source $NVM_DIR/nvm.sh && \
 	nvm install $NODE_VERSION && \
 	nvm use $NODE_VERSION
 ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
-# Allow patch updates for npm and pnpm
-RUN npm install -g npm@10.8.1 --integrity=sha512-Dp1C6SvSMYQI7YHq/y2l94uvI+59Eqbu1EpuKQHQ8p16txXRuRit5gH3Lnaagk2aXDIjg/Iru9pd05bnneKgdw==
-RUN npm install -g pnpm@9.15.1 --integrity=sha512-GstWXmGT7769p3JwKVBGkVDPErzHZCYudYfnHRncmKQj3/lTblfqRMSb33kP9pToPCe+X6oj1n4MAztYO+S/zw==
+RUN corepack enable && \
+	corepack prepare npm@10.8.1 --activate && \
+	corepack prepare pnpm@10.14.0 --activate
 
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 

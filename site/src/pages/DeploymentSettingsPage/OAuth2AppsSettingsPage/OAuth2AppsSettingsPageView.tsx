@@ -1,25 +1,28 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
@@ -48,42 +51,39 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					</SettingsHeader>
 				</div>
 
-				<Button
-					component={Link}
-					to="/deployment/oauth2-provider/apps/add"
-					startIcon={<PlusIcon className="size-icon-sm" />}
-				>
-					Add application
+				<Button variant="outline" asChild>
+					<Link to="/deployment/oauth2-provider/apps/add">
+						<PlusIcon />
+						Add application
+					</Link>
 				</Button>
 			</Stack>
 
 			{error && <ErrorAlert error={error} />}
 
-			<TableContainer css={{ marginTop: 32 }}>
-				<Table>
-					<TableHead>
+			<Table className="mt-8">
+				<TableHeader>
+					<TableRow>
+						<TableHead>Name</TableHead>
+						<TableHead className="w-[1%]" />
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{isLoading && <TableLoader />}
+					{apps?.map((app) => (
+						<OAuth2AppRow key={app.id} app={app} />
+					))}
+					{apps?.length === 0 && (
 						<TableRow>
-							<TableCell width="100%">Name</TableCell>
-							<TableCell width="1%" />
+							<TableCell colSpan={999}>
+								<div css={{ textAlign: "center" }}>
+									No OAuth2 applications have been configured.
+								</div>
+							</TableCell>
 						</TableRow>
-					</TableHead>
-					<TableBody>
-						{isLoading && <TableLoader />}
-						{apps?.map((app) => (
-							<OAuth2AppRow key={app.id} app={app} />
-						))}
-						{apps?.length === 0 && (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<div css={{ textAlign: "center" }}>
-										No OAuth2 applications have been configured.
-									</div>
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
-			</TableContainer>
+					)}
+				</TableBody>
+			</Table>
 		</>
 	);
 };
@@ -93,7 +93,7 @@ type OAuth2AppRowProps = {
 };
 
 const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
-	const theme = useTheme();
+	const _theme = useTheme();
 	const navigate = useNavigate();
 	const clickableProps = useClickableTableRow({
 		onClick: () => navigate(`/deployment/oauth2-provider/apps/${app.id}`),
@@ -102,10 +102,10 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 	return (
 		<TableRow key={app.id} data-testid={`app-${app.id}`} {...clickableProps}>
 			<TableCell>
-				<Stack direction="row" spacing={1}>
-					<Avatar variant="icon" src={app.icon} fallback={app.name} />
-					<span className="font-semibold">{app.name}</span>
-				</Stack>
+				<AvatarData
+					avatar={<Avatar variant="icon" src={app.icon} fallback={app.name} />}
+					title={app.name}
+				/>
 			</TableCell>
 
 			<TableCell>

@@ -10,15 +10,15 @@ import { Paywall } from "components/Paywall/Paywall";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import { Spinner } from "components/Spinner/Spinner";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { docs } from "utils/docs";
 import {
 	displayNameValidator,
@@ -82,23 +82,29 @@ export const CreateOrganizationPageView: FC<
 					)}
 
 					<Badges>
-						<Popover mode="hover">
-							{isEntitled && (
-								<PopoverTrigger>
-									<span>
-										<PremiumBadge />
-									</span>
-								</PopoverTrigger>
-							)}
+						<TooltipProvider>
+							<Tooltip delayDuration={0}>
+								{isEntitled && (
+									<TooltipTrigger asChild>
+										<span>
+											<PremiumBadge />
+										</span>
+									</TooltipTrigger>
+								)}
 
-							<PopoverContent css={{ transform: "translateY(-28px)" }}>
-								<PopoverPaywall
-									message="Organizations"
-									description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-									documentationLink={docs("/admin/users/organizations")}
-								/>
-							</PopoverContent>
-						</Popover>
+								<TooltipContent
+									sideOffset={-28}
+									collisionPadding={16}
+									className="p-0"
+								>
+									<PopoverPaywall
+										message="Organizations"
+										description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+										documentationLink={docs("/admin/users/organizations")}
+									/>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					</Badges>
 
 					<header className="flex flex-col items-center">

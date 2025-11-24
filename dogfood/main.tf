@@ -9,6 +9,11 @@ terraform {
   }
 }
 
+import {
+  to = coderd_template.envbuilder_dogfood
+  id = "e75f1212-834c-4183-8bed-d6817cac60a5"
+}
+
 data "coderd_organization" "default" {
   is_default = true
 }
@@ -33,6 +38,13 @@ variable "CODER_TEMPLATE_MESSAGE" {
   type = string
 }
 
+variable "CODER_DOGFOOD_ANTHROPIC_API_KEY" {
+  type        = string
+  description = "The API key that workspaces will use to authenticate with the Anthropic API."
+  default     = ""
+  sensitive   = true
+}
+
 resource "coderd_template" "dogfood" {
   name            = var.CODER_TEMPLATE_NAME
   display_name    = "Write Coder on Coder"
@@ -45,6 +57,12 @@ resource "coderd_template" "dogfood" {
       message   = var.CODER_TEMPLATE_MESSAGE
       directory = var.CODER_TEMPLATE_DIR
       active    = true
+      tf_vars = [
+        {
+          name  = "anthropic_api_key"
+          value = var.CODER_DOGFOOD_ANTHROPIC_API_KEY
+        }
+      ]
     }
   ]
   acl = {

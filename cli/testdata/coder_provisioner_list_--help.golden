@@ -17,8 +17,17 @@ OPTIONS:
   -l, --limit int, $CODER_PROVISIONER_LIST_LIMIT (default: 50)
           Limit the number of provisioners returned.
 
+  -m, --max-age duration, $CODER_PROVISIONER_LIST_MAX_AGE
+          Filter provisioners by maximum age.
+
   -o, --output table|json (default: table)
           Output format.
+
+  -f, --show-offline bool, $CODER_PROVISIONER_SHOW_OFFLINE
+          Show offline provisioners.
+
+  -s, --status [offline|idle|busy], $CODER_PROVISIONER_LIST_STATUS
+          Filter by provisioner status.
 
 ———
 Run `coder --help` for a list of global options.

@@ -89,7 +89,7 @@ func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 
 	// Ensure DERP for completeness.
 	if r.cfg.ConnectionMode == ConnectionModeDerp {
-		status := conn.Status()
+		status := conn.TailnetConn().Status()
 		if len(status.Peers()) != 1 {
 			return xerrors.Errorf("check connection mode: expected 1 peer, got %d", len(status.Peers()))
 		}
@@ -133,7 +133,7 @@ func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 	return nil
 }
 
-func waitForDisco(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn) error {
+func waitForDisco(ctx context.Context, logs io.Writer, conn workspacesdk.AgentConn) error {
 	const pingAttempts = 10
 	const pingDelay = 1 * time.Second
 
@@ -165,7 +165,7 @@ func waitForDisco(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentC
 	return nil
 }
 
-func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn) error {
+func waitForDirectConnection(ctx context.Context, logs io.Writer, conn workspacesdk.AgentConn) error {
 	const directConnectionAttempts = 30
 	const directConnectionDelay = 1 * time.Second
 
@@ -174,7 +174,7 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *workspac
 
 	for i := 0; i < directConnectionAttempts; i++ {
 		_, _ = fmt.Fprintf(logs, "\tDirect connection check %d/%d...\n", i+1, directConnectionAttempts)
-		status := conn.Status()
+		status := conn.TailnetConn().Status()
 
 		var err error
 		if len(status.Peers()) != 1 {
@@ -207,7 +207,7 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *workspac
 	return nil
 }
 
-func verifyConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn) error {
+func verifyConnection(ctx context.Context, logs io.Writer, conn workspacesdk.AgentConn) error {
 	const verifyConnectionAttempts = 30
 	const verifyConnectionDelay = 1 * time.Second
 
@@ -249,7 +249,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.Ag
 	return nil
 }
 
-func performInitialConnections(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn, specs []Connection) error {
+func performInitialConnections(ctx context.Context, logs io.Writer, conn workspacesdk.AgentConn, specs []Connection) error {
 	if len(specs) == 0 {
 		return nil
 	}
@@ -287,7 +287,7 @@ func performInitialConnections(ctx context.Context, logs io.Writer, conn *worksp
 	return nil
 }
 
-func holdConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn, holdDur time.Duration, specs []Connection) error {
+func holdConnection(ctx context.Context, logs io.Writer, conn workspacesdk.AgentConn, holdDur time.Duration, specs []Connection) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -364,7 +364,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.Agen
 	return nil
 }
 
-func agentHTTPClient(conn *workspacesdk.AgentConn) *http.Client {
+func agentHTTPClient(conn workspacesdk.AgentConn) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DisableKeepAlives: true,

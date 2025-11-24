@@ -22,15 +22,16 @@ import (
 )
 
 func (r *RootCmd) rptyCommand() *serpent.Command {
-	var (
-		client = new(codersdk.Client)
-		args   handleRPTYArgs
-	)
+	var args handleRPTYArgs
 
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			if r.disableDirect {
 				return xerrors.New("direct connections are disabled, but you can try websocat ;-)")
+			}
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
 			}
 			args.NamedWorkspace = inv.Args[0]
 			args.Command = inv.Args[1:]
@@ -39,7 +40,6 @@ func (r *RootCmd) rptyCommand() *serpent.Command {
 		Long: "Establish an RPTY session with a workspace/agent. This uses the same mechanism as the Web Terminal.",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, -1),
-			r.InitClient(client),
 		),
 		Options: []serpent.Option{
 			{
@@ -97,7 +97,7 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		reconnectID = uuid.New()
 	}
 
-	ws, agt, err := getWorkspaceAndAgent(ctx, inv, client, true, args.NamedWorkspace)
+	ws, agt, _, err := GetWorkspaceAndAgent(ctx, inv, client, true, args.NamedWorkspace)
 	if err != nil {
 		return err
 	}

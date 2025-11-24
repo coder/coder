@@ -73,12 +73,14 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 }
 
 // Enqueue queues a notification message for later delivery, assumes no structured input data.
+// Returns the IDs of successfully enqueued messages, if any.
 func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	return s.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
 }
 
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
+// Returns the IDs of successfully enqueued messages, if any.
 func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
@@ -141,14 +143,26 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 			//
 			// This is more efficient than fetching the user's preferences for each enqueue, and centralizes the business logic.
 			if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
-				return nil, ErrCannotEnqueueDisabledNotification
+				s.log.Debug(ctx, "notification not enqueued",
+					slog.F("template_id", templateID),
+					slog.F("user_id", userID),
+					slog.F("method", method),
+					slog.Error(ErrCannotEnqueueDisabledNotification),
+				)
+				continue
 			}
 
 			// If the enqueue fails due to a dedupe hash conflict, this means that a notification has already been enqueued
 			// today with identical properties. It's far simpler to prevent duplicate sends in this central manner, rather than
 			// having each notification enqueue handle its own logic.
 			if database.IsUniqueViolation(err, database.UniqueNotificationMessagesDedupeHashIndex) {
-				return nil, ErrDuplicate
+				s.log.Debug(ctx, "notification not enqueued",
+					slog.F("template_id", templateID),
+					slog.F("user_id", userID),
+					slog.F("method", method),
+					slog.Error(ErrDuplicate),
+				)
+				continue
 			}
 
 			s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))

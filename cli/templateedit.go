@@ -37,16 +37,18 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		disableEveryone                bool
 		orgContext                     = NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
 		Use: "edit <template>",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
 			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
 				autostopRequirementWeeks > 0 ||
@@ -169,9 +171,9 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			req := codersdk.UpdateTemplateMeta{
 				Name:               name,
-				DisplayName:        displayName,
-				Description:        description,
-				Icon:               icon,
+				DisplayName:        &displayName,
+				Description:        &description,
+				Icon:               &icon,
 				DefaultTTLMillis:   defaultTTL.Milliseconds(),
 				ActivityBumpMillis: activityBump.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{

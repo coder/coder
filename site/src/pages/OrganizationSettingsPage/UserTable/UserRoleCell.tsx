@@ -14,15 +14,16 @@
  * users like that, though, know that it will be painful
  */
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
+import MUITooltip from "@mui/material/Tooltip";
 import type { LoginType, SlimRole } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import { TableCell } from "components/Table/Table";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { EditRolesButton } from "./EditRolesButton";
 
@@ -87,9 +88,9 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 					}
 				>
 					{mainDisplayRole.global ? (
-						<Tooltip title="This user has this role for all organizations.">
+						<MUITooltip title="This user has this role for all organizations.">
 							<span>{displayName}*</span>
-						</Tooltip>
+						</MUITooltip>
 					) : (
 						displayName
 					)}
@@ -109,51 +110,37 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 	const theme = useTheme();
 
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				<Pill
-					css={{
-						backgroundColor: theme.palette.background.paper,
-						borderColor: theme.palette.divider,
-					}}
-				>
-					+{roles.length} more
-				</Pill>
-			</PopoverTrigger>
-
-			<PopoverContent
-				disableRestoreFocus
-				disableScrollLock
-				css={{
-					".MuiPaper-root": {
-						display: "flex",
-						flexFlow: "row wrap",
-						columnGap: 8,
-						rowGap: 12,
-						padding: "12px 16px",
-						alignContent: "space-around",
-						minWidth: "auto",
-					},
-				}}
-				anchorOrigin={{ vertical: -4, horizontal: "center" }}
-				transformOrigin={{ vertical: "bottom", horizontal: "center" }}
-			>
-				{roles.map((role) => (
+		<TooltipProvider>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
 					<Pill
-						key={role.name}
-						css={role.global ? styles.globalRoleBadge : styles.roleBadge}
+						css={{
+							backgroundColor: theme.palette.background.paper,
+							borderColor: theme.palette.divider,
+						}}
 					>
-						{role.global ? (
-							<Tooltip title="This user has this role for all organizations.">
-								<span>{role.display_name || role.name}*</span>
-							</Tooltip>
-						) : (
-							role.display_name || role.name
-						)}
+						+{roles.length} more
 					</Pill>
-				))}
-			</PopoverContent>
-		</Popover>
+				</TooltipTrigger>
+
+				<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">
+					{roles.map((role) => (
+						<Pill
+							key={role.name}
+							css={role.global ? styles.globalRoleBadge : styles.roleBadge}
+						>
+							{role.global ? (
+								<MUITooltip title="This user has this role for all organizations.">
+									<span>{role.display_name || role.name}*</span>
+								</MUITooltip>
+							) : (
+								role.display_name || role.name
+							)}
+						</Pill>
+					))}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 

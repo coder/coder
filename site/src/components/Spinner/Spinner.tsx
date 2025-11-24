@@ -5,11 +5,11 @@
  */
 
 import isChromatic from "chromatic/isChromatic";
-import { type VariantProps, cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "utils/cn";
 
-const leaves = 8;
+const leaves = Array.from({ length: 8 }).map((_, i) => i);
 
 const spinnerVariants = cva("", {
 	variants: {
@@ -49,29 +49,25 @@ export function Spinner({
 			{...props}
 		>
 			<title>Loading spinner</title>
-			{[...Array(leaves)].map((_, i) => {
-				const rotation = i * (360 / leaves);
-
-				return (
-					<rect
-						key={i}
-						x="10.9"
-						y="2"
-						width="2"
-						height="5.5"
-						rx="1"
-						// 0.8 = leaves * 0.1
-						className={
-							isChromatic() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
-						}
-						style={{
-							transform: `rotate(${rotation}deg)`,
-							transformOrigin: "center",
-							animationDelay: `${-i * 0.1}s`,
-						}}
-					/>
-				);
-			})}
+			{leaves.map((leaf) => (
+				<rect
+					key={leaf}
+					x="10.9"
+					y="2"
+					width="2"
+					height="5.5"
+					rx="1"
+					// 0.8 = leaves * 0.1
+					className={
+						isChromatic() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
+					}
+					style={{
+						transform: `rotate(${leaf * (360 / leaves.length)}deg)`,
+						transformOrigin: "center",
+						animationDelay: `${-leaf * 0.1}s`,
+					}}
+				/>
+			))}
 		</svg>
 	);
 }

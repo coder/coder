@@ -24,6 +24,10 @@ var permanentErrorStatuses = []int{
 	http.StatusBadRequest,          // returned if API mismatch
 	http.StatusNotFound,            // returned if user doesn't have permission or agent doesn't exist
 	http.StatusInternalServerError, // returned if database is not reachable,
+	http.StatusForbidden,           // returned if user is not authorized
+	// StatusUnauthorized is only a permanent error if the error is not due to
+	// an invalid resume token. See `checkResumeTokenFailure`.
+	http.StatusUnauthorized,
 }
 
 type WebsocketDialer struct {
@@ -37,6 +41,24 @@ type WebsocketDialer struct {
 	resumeTokenFailed bool
 	connected         chan error
 	isFirst           bool
+}
+
+// checkResumeTokenFailure checks if the parsed error indicates a resume token failure
+// and updates the resumeTokenFailed flag accordingly. Returns true if a resume token
+// failure was detected.
+func (w *WebsocketDialer) checkResumeTokenFailure(ctx context.Context, sdkErr *codersdk.Error) bool {
+	if sdkErr == nil {
+		return false
+	}
+
+	for _, v := range sdkErr.Validations {
+		if v.Field == "resume_token" {
+			w.logger.Warn(ctx, "failed to dial tailnet v2+ API: server replied invalid resume token; unsetting for next connection attempt")
+			w.resumeTokenFailed = true
+			return true
+		}
+	}
+	return false
 }
 
 type WebsocketDialerOption func(*WebsocketDialer)
@@ -82,9 +104,14 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 	if w.isFirst {
 		if res != nil && slices.Contains(permanentErrorStatuses, res.StatusCode) {
 			err = codersdk.ReadBodyAsError(res)
-			// A bit more human-readable help in the case the API version was rejected
 			var sdkErr *codersdk.Error
 			if xerrors.As(err, &sdkErr) {
+				// Check for resume token failure first
+				if w.checkResumeTokenFailure(ctx, sdkErr) {
+					return tailnet.ControlProtocolClients{}, err
+				}
+
+				// A bit more human-readable help in the case the API version was rejected
 				if sdkErr.Message == AgentAPIMismatchMessage &&
 					sdkErr.StatusCode() == http.StatusBadRequest {
 					sdkErr.Helper = fmt.Sprintf(
@@ -107,13 +134,8 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 		bodyErr := codersdk.ReadBodyAsError(res)
 		var sdkErr *codersdk.Error
 		if xerrors.As(bodyErr, &sdkErr) {
-			for _, v := range sdkErr.Validations {
-				if v.Field == "resume_token" {
-					// Unset the resume token for the next attempt
-					w.logger.Warn(ctx, "failed to dial tailnet v2+ API: server replied invalid resume token; unsetting for next connection attempt")
-					w.resumeTokenFailed = true
-					return tailnet.ControlProtocolClients{}, err
-				}
+			if w.checkResumeTokenFailure(ctx, sdkErr) {
+				return tailnet.ControlProtocolClients{}, err
 			}
 		}
 		if !errors.Is(err, context.Canceled) {

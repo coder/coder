@@ -1,12 +1,15 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow, { type TableRowProps } from "@mui/material/TableRow";
-import { type FC, type ReactNode, cloneElement, isValidElement } from "react";
+import {
+	TableCell,
+	TableRow,
+	type TableRowProps,
+} from "components/Table/Table";
+import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
 	return (
 		<TableRow>
-			<TableCell colSpan={999} css={{ textAlign: "center", height: 160 }}>
+			<TableCell colSpan={999} className="text-center h-40">
 				<Loader />
 			</TableCell>
 		</TableRow>

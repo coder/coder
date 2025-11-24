@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	strings2 "github.com/coder/coder/v2/coderd/util/strings"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -514,7 +515,10 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	defer span.End()
 
 	failedJob := r.configure(&sdkproto.Config{
-		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
+		TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
+		TemplateId:                 strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
+		TemplateVersionId:          strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
+		ExpReuseTerraformWorkspace: ptr.Ref(false),
 	})
 	if failedJob != nil {
 		return nil, failedJob
@@ -600,8 +604,9 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				// ModuleFiles are not on the stopProvision. So grab from the startProvision.
 				ModuleFiles: startProvision.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
-				ModuleFilesHash: []byte{},
-				HasAiTasks:      startProvision.HasAITasks,
+				ModuleFilesHash:   []byte{},
+				HasAiTasks:        startProvision.HasAITasks,
+				HasExternalAgents: startProvision.HasExternalAgents,
 			},
 		},
 	}, nil
@@ -666,6 +671,7 @@ type templateImportProvision struct {
 	Plan                  json.RawMessage
 	ModuleFiles           []byte
 	HasAITasks            bool
+	HasExternalAgents     bool
 }
 
 // Performs a dry-run provision when importing a template.
@@ -807,6 +813,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Plan:                  c.Plan,
 				ModuleFiles:           moduleFilesData,
 				HasAITasks:            c.HasAiTasks,
+				HasExternalAgents:     c.HasExternalAgents,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -1007,9 +1014,12 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	failedJob := r.configure(&sdkproto.Config{
-		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
-		State:                 r.job.GetWorkspaceBuild().State,
-		ProvisionerLogLevel:   r.job.GetWorkspaceBuild().LogLevel,
+		TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
+		State:                      r.job.GetWorkspaceBuild().State,
+		ProvisionerLogLevel:        r.job.GetWorkspaceBuild().LogLevel,
+		TemplateId:                 strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
+		TemplateVersionId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
+		ExpReuseTerraformWorkspace: r.job.GetWorkspaceBuild().ExpReuseTerraformWorkspace,
 	})
 	if failedJob != nil {
 		return nil, failedJob

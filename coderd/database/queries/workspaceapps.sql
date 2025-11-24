@@ -31,10 +31,11 @@ INSERT INTO
         display_order,
         hidden,
         open_in,
-        display_group
+        display_group,
+        tooltip
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 ON CONFLICT (id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     icon = EXCLUDED.icon,
@@ -52,7 +53,8 @@ ON CONFLICT (id) DO UPDATE SET
     open_in = EXCLUDED.open_in,
     display_group = EXCLUDED.display_group,
     agent_id = EXCLUDED.agent_id,
-    slug = EXCLUDED.slug
+    slug = EXCLUDED.slug,
+    tooltip = EXCLUDED.tooltip
 RETURNING *;
 
 -- name: UpdateWorkspaceAppHealthByID :exec
@@ -70,6 +72,12 @@ RETURNING *;
 
 -- name: GetWorkspaceAppStatusesByAppIDs :many
 SELECT * FROM workspace_app_statuses WHERE app_id = ANY(@ids :: uuid [ ]);
+
+-- name: GetLatestWorkspaceAppStatusesByAppID :many
+SELECT *
+FROM workspace_app_statuses
+WHERE app_id = @app_id::uuid
+ORDER BY created_at DESC, id DESC;
 
 -- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
 SELECT DISTINCT ON (workspace_id)

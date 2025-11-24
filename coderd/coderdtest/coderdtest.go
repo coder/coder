@@ -1,6 +1,7 @@
 package coderdtest
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto"
@@ -52,13 +53,17 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -123,6 +128,7 @@ type Options struct {
 	TemplateScheduleStore          schedule.TemplateScheduleStore
 	Coordinator                    tailnet.Coordinator
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
+	ConnectionLogger               connectionlog.ConnectionLogger
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -178,6 +184,8 @@ type Options struct {
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	TelemetryReporter                  telemetry.Reporter
+
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -354,6 +362,16 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	auditor.Store(&options.Auditor)
 
+	var connectionLogger atomic.Pointer[connectionlog.ConnectionLogger]
+	if options.ConnectionLogger == nil {
+		options.ConnectionLogger = connectionlog.NewNop()
+	}
+	connectionLogger.Store(&options.ConnectionLogger)
+
+	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
+	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+	buildUsageChecker.Store(&noopUsageChecker)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
@@ -365,11 +383,13 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		&templateScheduleStore,
 		&auditor,
 		accessControlStore,
+		&buildUsageChecker,
 		*options.Logger,
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
 		experiments,
 	).WithStatsChannel(options.AutobuildStats)
+
 	lifecycleExecutor.Run()
 
 	jobReaperTicker := time.NewTicker(options.DeploymentValues.JobReaperDetectorInterval.Value())
@@ -453,7 +473,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	serverURL.Host = fmt.Sprintf("localhost:%d", tcpAddr.Port)
+	serverURL.Host = fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port)
 
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)
@@ -541,6 +561,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 
 			Auditor:                            options.Auditor,
+			ConnectionLogger:                   options.ConnectionLogger,
 			AWSCertificates:                    options.AWSCertificates,
 			AzureCertificates:                  options.AzureCertificates,
 			GithubOAuth2Config:                 options.GithubOAuth2Config,
@@ -585,6 +606,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Clock:                              options.Clock,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 		}
 }
 
@@ -823,8 +845,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL)
-	other.SetSessionToken(sessionToken)
+	other := codersdk.New(client.URL, codersdk.WithSessionToken(sessionToken))
 	t.Cleanup(func() {
 		other.HTTPClient.CloseIdleConnections()
 	})
@@ -886,14 +907,22 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	return other, user
 }
 
-// CreateTemplateVersion creates a template import provisioner job
-// with the responses provided. It uses the "echo" provisioner for compatibility
-// with testing.
-func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+func CreateTemplateVersionMimeType(t testing.TB, client *codersdk.Client, mimeType string, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
 	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
+
+	switch mimeType {
+	case codersdk.ContentTypeTar:
+		// do nothing
+	case codersdk.ContentTypeZip:
+		data, err = archive.CreateZipFromTar(tar.NewReader(bytes.NewBuffer(data)), int64(len(data)))
+		require.NoError(t, err, "creating zip")
+	default:
+		t.Fatal("unexpected mime type", mimeType)
+	}
+
+	file, err := client.Upload(context.Background(), mimeType, bytes.NewReader(data))
 	require.NoError(t, err)
 
 	req := codersdk.CreateTemplateVersionRequest{
@@ -908,6 +937,13 @@ func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, req)
 	require.NoError(t, err)
 	return templateVersion
+}
+
+// CreateTemplateVersion creates a template import provisioner job
+// with the responses provided. It uses the "echo" provisioner for compatibility
+// with testing.
+func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+	return CreateTemplateVersionMimeType(t, client, codersdk.ContentTypeTar, organizationID, res, mutators...)
 }
 
 // CreateWorkspaceBuild creates a workspace build for the given workspace and transition.
@@ -1060,9 +1096,17 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 	require.Eventually(t, func() bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
-		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
+		if err != nil {
+			t.Logf("failed to get workspace build %s: %v", build, err)
+			return false
+		}
+		if workspaceBuild.Job.CompletedAt == nil {
+			t.Logf("workspace build job %s still running (status: %s)", build, workspaceBuild.Job.Status)
+			return false
+		}
+		return true
 	}, testutil.WaitMedium, testutil.IntervalMedium)
-	t.Logf("got workspace build job %s", build)
+	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }
 
@@ -1084,6 +1128,7 @@ type WorkspaceAgentWaiter struct {
 	workspaceID      uuid.UUID
 	agentNames       []string
 	resourcesMatcher func([]codersdk.WorkspaceResource) bool
+	ctx              context.Context
 }
 
 // NewWorkspaceAgentWaiter returns an object that waits for agents to connect when
@@ -1112,6 +1157,14 @@ func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource
 	return w
 }
 
+// WithContext instructs the waiter to use the provided context for all operations.
+// If not specified, the waiter will create its own context with testutil.WaitLong timeout.
+func (w WorkspaceAgentWaiter) WithContext(ctx context.Context) WorkspaceAgentWaiter {
+	//nolint: revive // returns modified struct
+	w.ctx = ctx
+	return w
+}
+
 // WaitForAgentFn represents a boolean assertion to be made against each agent
 // that a given WorkspaceAgentWaited knows about. Each WaitForAgentFn should apply
 // the check to a single agent, but it should be named for plural, because `func (w WorkspaceAgentWaiter) WaitFor`
@@ -1132,6 +1185,8 @@ func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
 	return !AgentsReady(agent)
 }
 
+// WaitFor waits for the given criteria and fails the test if they are not met before the
+// waiter's context is canceled.
 func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 	w.t.Helper()
 
@@ -1140,11 +1195,13 @@ func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 		agentNamesMap[name] = struct{}{}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := w.ctx
+	if w.ctx == nil {
+		ctx = testutil.Context(w.t, testutil.WaitLong)
+	}
 
 	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
-	require.Eventually(w.t, func() bool {
+	testutil.Eventually(ctx, w.t, func(ctx context.Context) bool {
 		var err error
 		workspace, err := w.client.Workspace(ctx, w.workspaceID)
 		if err != nil {
@@ -1172,10 +1229,11 @@ func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 			}
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 }
 
-// Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong
+// Wait waits for the agent(s) to connect and fails the test if they do not connect before the
+// waiter's context is canceled.
 func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 	w.t.Helper()
 
@@ -1184,12 +1242,14 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 		agentNamesMap[name] = struct{}{}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := w.ctx
+	if w.ctx == nil {
+		ctx = testutil.Context(w.t, testutil.WaitLong)
+	}
 
 	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
 	var resources []codersdk.WorkspaceResource
-	require.Eventually(w.t, func() bool {
+	testutil.Eventually(ctx, w.t, func(ctx context.Context) bool {
 		var err error
 		workspace, err := w.client.Workspace(ctx, w.workspaceID)
 		if err != nil {
@@ -1221,7 +1281,7 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 			return true
 		}
 		return w.resourcesMatcher(resources)
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 	w.t.Logf("got workspace agents (workspace %s)", w.workspaceID)
 	return resources
 }
@@ -1544,7 +1604,7 @@ func (nopcloser) Close() error { return nil }
 // SDKError coerces err into an SDK error.
 func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
-	require.True(t, errors.As(err, &cerr))
+	require.True(t, errors.As(err, &cerr), "should be SDK error, got %s", err)
 	return cerr
 }
 
@@ -1557,4 +1617,141 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 		fn(cfg)
 	}
 	return cfg
+}
+
+// GetProvisionerForTags returns the first valid provisioner for a workspace + template tags.
+func GetProvisionerForTags(tx database.Store, curTime time.Time, orgID uuid.UUID, tags map[string]string) (database.ProvisionerDaemon, error) {
+	if tags == nil {
+		tags = map[string]string{}
+	}
+	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: orgID,
+		WantTags:       tags,
+	}
+
+	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
+	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(context.Background()), queryParams)
+	if err != nil {
+		return database.ProvisionerDaemon{}, xerrors.Errorf("get provisioner daemons: %w", err)
+	}
+
+	// Check if any provisioners are active (not stale)
+	for _, pd := range provisionerDaemons {
+		if pd.LastSeenAt.Valid {
+			age := curTime.Sub(pd.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
+				return pd, nil
+			}
+		}
+	}
+	return database.ProvisionerDaemon{}, xerrors.New("no available provisioners found")
+}
+
+func ctxWithProvisionerPermissions(ctx context.Context) context.Context {
+	// Use system restricted context which has permissions to update provisioner daemons
+	//nolint: gocritic // We need system context to modify this.
+	return dbauthz.AsSystemRestricted(ctx)
+}
+
+// UpdateProvisionerLastSeenAt updates the provisioner daemon's LastSeenAt timestamp
+// to the specified time to prevent it from appearing stale during autobuild operations
+func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, tickTime time.Time) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(context.Background())
+	t.Logf("Updating provisioner %s LastSeenAt to %v", id, tickTime)
+	err := db.UpdateProvisionerDaemonLastSeenAt(ctx, database.UpdateProvisionerDaemonLastSeenAtParams{
+		ID:         id,
+		LastSeenAt: sql.NullTime{Time: tickTime, Valid: true},
+	})
+	require.NoError(t, err)
+	t.Logf("Successfully updated provisioner LastSeenAt")
+}
+
+func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
+	// testutil.Eventually(t, func)
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		daemons, err := db.GetProvisionerDaemons(ctx)
+		return err == nil && len(daemons) > 0
+	}, testutil.IntervalFast, "no provisioner daemons found")
+}
+
+// MustWaitForProvisionersUnavailable waits for provisioners to become unavailable for a specific workspace
+func MustWaitForProvisionersUnavailable(t *testing.T, db database.Store, workspace codersdk.Workspace, tags map[string]string, checkTime time.Time) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitMedium))
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		// Use the same logic as hasValidProvisioner but expect false
+		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: workspace.OrganizationID,
+			WantTags:       tags,
+		})
+		if err != nil {
+			return false
+		}
+
+		// Check if NO provisioners are active (all are stale or gone)
+		for _, pd := range provisionerDaemons {
+			if pd.LastSeenAt.Valid {
+				age := checkTime.Sub(pd.LastSeenAt.Time)
+				if age <= provisionerdserver.StaleInterval {
+					return false // Found an active provisioner, keep waiting
+				}
+			}
+		}
+		return true // No active provisioners found
+	}, testutil.IntervalFast, "there are still provisioners available for workspace, expected none")
+}
+
+// MustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace.
+func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, ts time.Time) uuid.UUID {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitLong))
+	id := uuid.UUID{}
+	// Get the workspace from the database
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return false
+		}
+
+		// Get the latest build
+		latestBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
+		if err != nil {
+			return false
+		}
+
+		// Get the template version job
+		templateVersionJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+		if err != nil {
+			return false
+		}
+
+		// Check if provisioners are available using the same logic as hasAvailableProvisioners
+		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: ws.OrganizationID,
+			WantTags:       templateVersionJob.Tags,
+		})
+		if err != nil {
+			return false
+		}
+
+		// Check if any provisioners are active (not stale)
+		for _, pd := range provisionerDaemons {
+			if pd.LastSeenAt.Valid {
+				age := ts.Sub(pd.LastSeenAt.Time)
+				if age <= provisionerdserver.StaleInterval {
+					id = pd.ID
+					return true // Found an active provisioner
+				}
+			}
+		}
+		return false // No active provisioners found
+	}, testutil.IntervalFast, "no active provisioners available for workspace, expected at least one (non-stale)")
+
+	return id
 }

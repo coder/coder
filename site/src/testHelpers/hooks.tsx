@@ -1,11 +1,11 @@
+import { AppProviders } from "App";
 import {
+	act,
 	type RenderHookOptions,
 	type RenderHookResult,
-	act,
 	renderHook,
 	waitFor,
 } from "@testing-library/react";
-import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import {
 	type FC,
@@ -15,14 +15,14 @@ import {
 } from "react";
 import type { QueryClient } from "react-query";
 import {
+	createMemoryRouter,
 	type Location,
 	RouterProvider,
-	createMemoryRouter,
 	useLocation,
-} from "react-router-dom";
+} from "react-router";
 import {
-	type RenderWithAuthOptions,
 	createTestQueryClient,
+	type RenderWithAuthOptions,
 } from "./renderHelpers";
 
 type RouterLocationSnapshot<TLocationState = unknown> = Readonly<{
@@ -98,7 +98,7 @@ export async function renderHookWithAuth<Result, Props>(
 	};
 
 	let forceUpdateRenderHookChildren!: () => void;
-	let currentRenderHookChildren: ReactNode = undefined;
+	let currentRenderHookChildren: ReactNode;
 
 	const InitialRoute: FC = () => {
 		const [, forceRerender] = useReducer((b: boolean) => !b, false);

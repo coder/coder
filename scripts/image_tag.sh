@@ -51,10 +51,7 @@ fi
 
 image="${CODER_IMAGE_BASE:-ghcr.io/coder/coder}"
 
-# use CODER_IMAGE_TAG_PREFIX if set as a prefix for the tag
-tag_prefix="${CODER_IMAGE_TAG_PREFIX:-}"
-
-tag="${tag_prefix:+$tag_prefix-}v$version"
+tag="v$version"
 
 if [[ "$version" == "latest" ]]; then
 	tag="latest"

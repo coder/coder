@@ -1,28 +1,13 @@
-// biome-ignore lint/nursery/noRestrictedImports: we use the classes for customization
+// biome-ignore lint/style/noRestrictedImports: we use the classes for customization
 import { alertClasses } from "@mui/material/Alert";
-// biome-ignore lint/nursery/noRestrictedImports: we use the MUI theme as a base
+// biome-ignore lint/style/noRestrictedImports: we use the MUI theme as a base
 import type { ThemeOptions } from "@mui/material/styles";
 import {
 	BODY_FONT_FAMILY,
 	BUTTON_LG_HEIGHT,
 	BUTTON_MD_HEIGHT,
-	BUTTON_SM_HEIGHT,
-	BUTTON_XL_HEIGHT,
-	borderRadius,
 } from "./constants";
 import tw from "./tailwindColors";
-
-type PaletteIndex =
-	| "primary"
-	| "secondary"
-	| "background"
-	| "text"
-	| "error"
-	| "warning"
-	| "info"
-	| "success"
-	| "action"
-	| "neutral";
 
 // biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
 type MuiStyle = any;
@@ -70,179 +55,6 @@ export const components = {
 			},
 			colorDefault: ({ theme }) => ({
 				backgroundColor: theme.palette.primary.light,
-			}),
-		},
-	},
-	// Button styles are based on
-	// https://tailwindui.com/components/application-ui/elements/buttons
-	MuiButtonBase: {
-		defaultProps: {
-			disableRipple: true,
-		},
-	},
-	MuiButton: {
-		defaultProps: {
-			variant: "outlined",
-			color: "neutral",
-		},
-		styleOverrides: {
-			root: ({ theme }) => ({
-				textTransform: "none",
-				letterSpacing: "normal",
-				fontWeight: 500,
-				height: BUTTON_MD_HEIGHT,
-				padding: "8px 16px",
-				borderRadius: "6px",
-				fontSize: 14,
-
-				whiteSpace: "nowrap",
-				":focus-visible": {
-					outline: `2px solid ${theme.palette.primary.main}`,
-				},
-
-				"& .MuiLoadingButton-loadingIndicator": {
-					width: 14,
-					height: 14,
-				},
-
-				"& .MuiLoadingButton-loadingIndicator .MuiCircularProgress-root": {
-					width: "inherit !important",
-					height: "inherit !important",
-				},
-			}),
-			sizeSmall: {
-				height: BUTTON_SM_HEIGHT,
-			},
-			sizeLarge: {
-				height: BUTTON_LG_HEIGHT,
-			},
-			["sizeXlarge" as MuiStyle]: {
-				height: BUTTON_XL_HEIGHT,
-
-				// With higher size we need to increase icon spacing.
-				"& .MuiButton-startIcon": {
-					marginRight: 12,
-				},
-				"& .MuiButton-endIcon": {
-					marginLeft: 12,
-				},
-			},
-			outlined: ({ theme }) => ({
-				":hover": {
-					border: `1px solid ${theme.palette.secondary.main}`,
-				},
-			}),
-			["outlinedNeutral" as MuiStyle]: {
-				borderColor: tw.zinc[600],
-
-				"&.Mui-disabled": {
-					borderColor: tw.zinc[700],
-					color: tw.zinc[500],
-
-					"& > .MuiLoadingButton-loadingIndicator": {
-						color: tw.zinc[500],
-					},
-				},
-			},
-			["containedNeutral" as MuiStyle]: {
-				backgroundColor: tw.zinc[800],
-
-				"&:hover": {
-					backgroundColor: tw.zinc[700],
-				},
-			},
-			iconSizeMedium: {
-				"& > .MuiSvgIcon-root": {
-					fontSize: 14,
-				},
-			},
-			iconSizeSmall: {
-				"& > .MuiSvgIcon-root": {
-					fontSize: 13,
-				},
-			},
-		},
-	},
-	MuiButtonGroup: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				">button:hover+button": {
-					// The !important is unfortunate, but necessary for the border.
-					borderLeftColor: `${theme.palette.secondary.main} !important`,
-				},
-			}),
-		},
-	},
-	["MuiLoadingButton" as MuiStyle]: {
-		defaultProps: {
-			variant: "outlined",
-			color: "neutral",
-		},
-	},
-	MuiTableContainer: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				borderRadius,
-				border: `1px solid ${theme.palette.divider}`,
-			}),
-		},
-	},
-	MuiTable: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				borderCollapse: "unset",
-				border: "none",
-				boxShadow: `0 0 0 1px ${theme.palette.background.default} inset`,
-				overflow: "hidden",
-
-				"& td": {
-					paddingTop: 16,
-					paddingBottom: 16,
-					background: "transparent",
-				},
-
-				[theme.breakpoints.down("md")]: {
-					minWidth: 1000,
-				},
-			}),
-		},
-	},
-	MuiTableCell: {
-		styleOverrides: {
-			head: ({ theme }) => ({
-				fontSize: 14,
-				color: theme.palette.text.secondary,
-				fontWeight: 500,
-				background: theme.palette.background.paper,
-				borderWidth: 2,
-			}),
-			root: ({ theme }) => ({
-				fontSize: 14,
-				background: theme.palette.background.paper,
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				padding: "12px 8px",
-				// This targets the first+last td elements, and also the first+last elements
-				// of a TableCellLink.
-				"&:not(:only-child):first-of-type, &:not(:only-child):first-of-type > a":
-					{
-						paddingLeft: 32,
-					},
-				"&:not(:only-child):last-child, &:not(:only-child):last-child > a": {
-					paddingRight: 32,
-				},
-			}),
-		},
-	},
-	MuiTableRow: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				"&:last-child .MuiTableCell-body": {
-					borderBottom: 0,
-				},
-
-				"&.MuiTableRow-hover:hover": {
-					backgroundColor: theme.palette.background.paper,
-				},
 			}),
 		},
 	},
@@ -507,16 +319,6 @@ export const components = {
 			root: {
 				fontSize: "inherit",
 				marginBottom: 0,
-			},
-		},
-	},
-
-	MuiIconButton: {
-		styleOverrides: {
-			root: {
-				"&.Mui-focusVisible": {
-					boxShadow: `0 0 0 2px ${tw.blue[400]}`,
-				},
 			},
 		},
 	},

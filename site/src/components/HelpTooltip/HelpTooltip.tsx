@@ -1,66 +1,71 @@
 import {
 	type CSSObject,
+	css,
 	type Interpolation,
 	type Theme,
-	css,
-	useTheme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { Stack } from "components/Stack/Stack";
 import {
-	Popover,
-	PopoverContent,
-	type PopoverContentProps,
-	type PopoverProps,
-	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
-import { ExternalLinkIcon } from "lucide-react";
-import { CircleHelpIcon } from "lucide-react";
+	Tooltip,
+	TooltipContent,
+	type TooltipContentProps,
+	type TooltipProps,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
+	forwardRef,
 	type HTMLAttributes,
 	type PropsWithChildren,
 	type ReactNode,
-	forwardRef,
 } from "react";
+import { cn } from "utils/cn";
 
 type Icon = typeof CircleHelpIcon;
 
 type Size = "small" | "medium";
 
+export const HelpTooltipTrigger = TooltipTrigger;
+
 export const HelpTooltipIcon = CircleHelpIcon;
 
-export const HelpTooltip: FC<PopoverProps> = (props) => {
-	return <Popover mode="hover" {...props} />;
+export const HelpTooltip: FC<TooltipProps> = (props) => {
+	return (
+		<TooltipProvider>
+			<Tooltip delayDuration={0} {...props} />
+		</TooltipProvider>
+	);
 };
 
-export const HelpTooltipContent: FC<PopoverContentProps> = (props) => {
-	const theme = useTheme();
-
+export const HelpTooltipContent: FC<TooltipContentProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<PopoverContent
+		<TooltipContent
+			side="bottom"
+			align="start"
+			collisionPadding={16}
 			{...props}
-			css={{
-				"& .MuiPaper-root": {
-					fontSize: 14,
-					width: 304,
-					padding: 20,
-					color: theme.palette.text.secondary,
-				},
-			}}
+			className={cn(
+				"w-[320px] p-5 bg-surface-secondary border-surface-quaternary text-sm",
+				className,
+			)}
 		/>
 	);
 };
 
-type HelpTooltipTriggerProps = HTMLAttributes<HTMLButtonElement> & {
+type HelpTooltipIconTriggerProps = HTMLAttributes<HTMLButtonElement> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };
 
-export const HelpTooltipTrigger = forwardRef<
+export const HelpTooltipIconTrigger = forwardRef<
 	HTMLButtonElement,
-	HelpTooltipTriggerProps
+	HelpTooltipIconTriggerProps
 >((props, ref) => {
 	const {
 		size = "medium",
@@ -77,7 +82,7 @@ export const HelpTooltipTrigger = forwardRef<
 	});
 
 	return (
-		<PopoverTrigger>
+		<HelpTooltipTrigger asChild>
 			<button
 				{...buttonProps}
 				aria-label="More info"
@@ -103,7 +108,7 @@ export const HelpTooltipTrigger = forwardRef<
 			>
 				{children}
 			</button>
-		</PopoverTrigger>
+		</HelpTooltipTrigger>
 	);
 });
 
@@ -156,18 +161,12 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 	onClick,
 	ariaLabel,
 }) => {
-	const popover = usePopover();
-
 	return (
 		<button
 			type="button"
 			aria-label={ariaLabel ?? ""}
 			css={styles.action}
-			onClick={(event) => {
-				event.stopPropagation();
-				onClick();
-				popover.setOpen(false);
-			}}
+			onClick={onClick}
 		>
 			<Icon css={styles.actionIcon} />
 			{children}

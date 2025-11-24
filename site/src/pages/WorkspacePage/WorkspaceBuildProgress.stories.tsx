@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import dayjs from "dayjs";
 import {
 	MockProvisionerJob,
 	MockStartingWorkspace,
 	MockWorkspaceBuild,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
 import { WorkspaceBuildProgress } from "./WorkspaceBuildProgress";
 
 const meta: Meta<typeof WorkspaceBuildProgress> = {

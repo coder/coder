@@ -10,16 +10,15 @@
 import { API } from "api/api";
 import { Avatar } from "components/Avatar/Avatar";
 import {
+	type UseFilterMenuOptions,
+	useFilterMenu,
+} from "components/Filter/menu";
+import {
 	SelectFilter,
 	type SelectFilterOption,
 	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
-import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "components/Filter/menu";
 import type { FC } from "react";
-
 // Organization helpers ////////////////////////////////////////////////////////
 
 export const useOrganizationsFilterMenu = ({

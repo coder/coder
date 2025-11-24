@@ -1,17 +1,18 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
-import { Suspense, lazy } from "react";
+import { lazy, Suspense } from "react";
 import {
+	createBrowserRouter,
+	createRoutesFromChildren,
 	Navigate,
 	Outlet,
 	Route,
-	createBrowserRouter,
-	createRoutesFromChildren,
-} from "react-router-dom";
+} from "react-router";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
+import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDevicePage";
 import LoginPage from "./pages/LoginPage/LoginPage";
@@ -83,6 +84,12 @@ const WorkspaceParametersExperimentRouter = lazy(
 	() =>
 		import(
 			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
+		),
+);
+const WorkspaceSharingPage = lazy(
+	() =>
+		import(
+			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
@@ -327,6 +334,12 @@ const ProvisionerJobsPage = lazy(
 );
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
+const AIBridgeLayout = lazy(
+	() => import("./pages/AIBridgePage/AIBridgeLayout"),
+);
+const AIBridgeRequestLogsPage = lazy(
+	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
+);
 
 const RoutesWithSuspense = () => {
 	return (
@@ -432,6 +445,8 @@ export const router = createBrowserRouter(
 					/>
 
 					<Route path="/audit" element={<AuditPage />} />
+
+					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
 					<Route path="/tasks" element={<TasksPage />} />
 
@@ -544,7 +559,13 @@ export const router = createBrowserRouter(
 								element={<WorkspaceParametersExperimentRouter />}
 							/>
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
+							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
+					</Route>
+
+					<Route path="/aibridge" element={<AIBridgeLayout />}>
+						<Route index element={<Navigate to="request-logs" replace />} />
+						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
@@ -587,7 +608,7 @@ export const router = createBrowserRouter(
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				<Route path="/tasks/:username/:workspace" element={<TaskPage />} />
+				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
 			</Route>
 		</Route>,
 	),

@@ -1,6 +1,5 @@
 import { API } from "api/api";
-import { type ApiError, getErrorMessage } from "api/errors";
-import { isApiError } from "api/errors";
+import { type ApiError, getErrorMessage, isApiError } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
@@ -20,13 +19,13 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
-import {
-	WorkspaceUpdateDialogs,
-	useWorkspaceUpdate,
-} from "modules/workspaces/WorkspaceUpdateDialogs";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
+import {
+	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
+} from "modules/workspaces/WorkspaceUpdateDialogs";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
 import { Workspace } from "./Workspace";
@@ -79,6 +78,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		buildParameters?: TypesGen.WorkspaceBuildParameter[];
 		ephemeralParameters: TypesGen.TemplateVersionParameter[];
 	}>({ open: false, action: "start", ephemeralParameters: [] });
+
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
 	const { mutate: mutateRestartWorkspace, isPending: isRestarting } =
 		useMutation({
@@ -209,7 +210,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				hasEphemeral: ephemeralParameters.length > 0,
 				ephemeralParameters,
 			};
-		} catch (error) {
+		} catch (_error) {
 			return { hasEphemeral: false, ephemeralParameters: [] };
 		}
 	};
@@ -261,19 +262,17 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
-				<link
-					rel="alternate icon"
-					type="image/png"
-					href={`/favicons/${favicon}-${faviconTheme}.png`}
-				/>
-				<link
-					rel="icon"
-					type="image/svg+xml"
-					href={`/favicons/${favicon}-${faviconTheme}.svg`}
-				/>
-			</Helmet>
+			<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
+			<link
+				rel="alternate icon"
+				type="image/png"
+				href={`/favicons/${favicon}-${faviconTheme}.png`}
+			/>
+			<link
+				rel="icon"
+				type="image/svg+xml"
+				href={`/favicons/${favicon}-${faviconTheme}.svg`}
+			/>
 
 			<Workspace
 				permissions={permissions}
@@ -316,7 +315,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					}
 				}}
 				handleUpdate={workspaceUpdate.update}
-				handleCancel={cancelBuildMutation.mutate}
+				handleCancel={() => setIsCancelConfirmOpen(true)}
 				handleRetry={handleRetry}
 				handleDebug={handleDebug}
 				handleDormantActivate={async () => {
@@ -350,6 +349,16 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 						<strong>delete non-persistent data</strong>.
 					</>
 				}
+			/>
+
+			<WorkspaceBuildCancelDialog
+				open={isCancelConfirmOpen}
+				onClose={() => setIsCancelConfirmOpen(false)}
+				onConfirm={() => {
+					cancelBuildMutation.mutate();
+					setIsCancelConfirmOpen(false);
+				}}
+				workspace={workspace}
 			/>
 
 			<EphemeralParametersDialog
@@ -392,6 +401,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}
+				isDeleting={false}
 			/>
 		</>
 	);

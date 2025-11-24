@@ -1,4 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockAuditLog,
 	MockAuditLogRequestPasswordReset,
@@ -7,6 +6,7 @@ import {
 	MockAuditLogWithWorkspaceBuild,
 	MockWorkspaceCreateAuditLogForDifferentOwner,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AuditLogDescription } from "./AuditLogDescription";
 
 const meta: Meta<typeof AuditLogDescription> = {

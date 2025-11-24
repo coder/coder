@@ -448,7 +448,6 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	var user database.User
 	var themePreference string
 	var terminalFont string
-	var tasksTabVisible bool
 	orgIDs := []uuid.UUID{}
 	eg.Go(func() error {
 		var err error
@@ -483,20 +482,6 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		}
 		orgIDs = memberIDs[0].OrganizationIDs
 		return err
-	})
-	eg.Go(func() error {
-		// If HideAITasks is true, force hide the tasks tab
-		if h.opts.HideAITasks {
-			tasksTabVisible = false
-			return nil
-		}
-
-		hasAITask, err := h.opts.Database.HasTemplateVersionsWithAITask(ctx)
-		if err != nil {
-			return err
-		}
-		tasksTabVisible = hasAITask
-		return nil
 	})
 	err := eg.Wait()
 	if err == nil {
@@ -571,7 +556,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			tasksTabVisible, err := json.Marshal(tasksTabVisible)
+			tasksTabVisible, err := json.Marshal(!h.opts.HideAITasks)
 			if err == nil {
 				state.TasksTabVisible = html.EscapeString(string(tasksTabVisible))
 			}
@@ -1044,6 +1029,16 @@ func (b *binMetadataCache) getMetadata(name string) (binMetadata, error) {
 	v, err, _ := b.sf.Do(name, func() (any, error) {
 		b.sem <- struct{}{}
 		defer func() { <-b.sem }()
+
+		// Reject any invalid or non-basename paths before touching the filesystem.
+		if name == "" ||
+			name == "." ||
+			strings.Contains(name, "/") ||
+			strings.Contains(name, "\\") ||
+			!fs.ValidPath(name) ||
+			path.Base(name) != name {
+			return binMetadata{}, os.ErrNotExist
+		}
 
 		f, err := b.binFS.Open(name)
 		if err != nil {

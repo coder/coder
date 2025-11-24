@@ -8,10 +8,9 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/quartz"
 )
 
 // GlobalSnapshot represents a full point-in-time snapshot of state relating to prebuilds across all templates.
@@ -20,6 +19,7 @@ type GlobalSnapshot struct {
 	PrebuildSchedules     []database.TemplateVersionPresetPrebuildSchedule
 	RunningPrebuilds      []database.GetRunningPrebuiltWorkspacesRow
 	PrebuildsInProgress   []database.CountInProgressPrebuildsRow
+	PendingPrebuilds      []database.CountPendingNonActivePrebuildsRow
 	Backoffs              []database.GetPresetsBackoffRow
 	HardLimitedPresetsMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
 	clock                 quartz.Clock
@@ -31,6 +31,7 @@ func NewGlobalSnapshot(
 	prebuildSchedules []database.TemplateVersionPresetPrebuildSchedule,
 	runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
+	pendingPrebuilds []database.CountPendingNonActivePrebuildsRow,
 	backoffs []database.GetPresetsBackoffRow,
 	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
 	clock quartz.Clock,
@@ -46,6 +47,7 @@ func NewGlobalSnapshot(
 		PrebuildSchedules:     prebuildSchedules,
 		RunningPrebuilds:      runningPrebuilds,
 		PrebuildsInProgress:   prebuildsInProgress,
+		PendingPrebuilds:      pendingPrebuilds,
 		Backoffs:              backoffs,
 		HardLimitedPresetsMap: hardLimitedPresetsMap,
 		clock:                 clock,
@@ -76,9 +78,19 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	// Separate running workspaces into non-expired and expired based on the preset's TTL
 	nonExpired, expired := filterExpiredWorkspaces(preset, running)
 
+	// Includes in-progress prebuilds only for active template versions.
+	// In-progress prebuilds correspond to workspace statuses: 'pending', 'starting', 'stopping', and 'deleting'
 	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.CountInProgressPrebuildsRow) bool {
 		return prebuild.PresetID.UUID == preset.ID
 	})
+
+	// Includes count of pending prebuilds only for non-active template versions
+	pendingCount := 0
+	if found, ok := slice.Find(s.PendingPrebuilds, func(prebuild database.CountPendingNonActivePrebuildsRow) bool {
+		return prebuild.PresetID.UUID == preset.ID
+	}); ok {
+		pendingCount = int(found.Count)
+	}
 
 	var backoffPtr *database.GetPresetsBackoffRow
 	backoff, found := slice.Find(s.Backoffs, func(row database.GetPresetsBackoffRow) bool {
@@ -96,6 +108,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		nonExpired,
 		expired,
 		inProgress,
+		pendingCount,
 		backoffPtr,
 		isHardLimited,
 		s.clock,
@@ -112,20 +125,29 @@ func (s GlobalSnapshot) IsHardLimited(presetID uuid.UUID) bool {
 }
 
 // filterExpiredWorkspaces splits running workspaces into expired and non-expired
-// based on the preset's TTL.
-// If TTL is missing or zero, all workspaces are considered non-expired.
+// based on the preset's TTL and last_invalidated_at timestamp.
+// A prebuild is considered expired if:
+// 1. The preset has been invalidated (last_invalidated_at is set), OR
+// 2. It exceeds the preset's TTL (if TTL is set)
+// If TTL is missing or zero, only last_invalidated_at is checked.
 func filterExpiredWorkspaces(preset database.GetTemplatePresetsWithPrebuildsRow, runningWorkspaces []database.GetRunningPrebuiltWorkspacesRow) (nonExpired []database.GetRunningPrebuiltWorkspacesRow, expired []database.GetRunningPrebuiltWorkspacesRow) {
-	if !preset.Ttl.Valid {
-		return runningWorkspaces, expired
-	}
-
-	ttl := time.Duration(preset.Ttl.Int32) * time.Second
-	if ttl <= 0 {
-		return runningWorkspaces, expired
-	}
-
 	for _, prebuild := range runningWorkspaces {
-		if time.Since(prebuild.CreatedAt) > ttl {
+		isExpired := false
+
+		// Check if prebuild was created before last invalidation
+		if preset.LastInvalidatedAt.Valid && prebuild.CreatedAt.Before(preset.LastInvalidatedAt.Time) {
+			isExpired = true
+		}
+
+		// Check TTL expiration if set
+		if !isExpired && preset.Ttl.Valid {
+			ttl := time.Duration(preset.Ttl.Int32) * time.Second
+			if ttl > 0 && time.Since(prebuild.CreatedAt) > ttl {
+				isExpired = true
+			}
+		}
+
+		if isExpired {
 			expired = append(expired, prebuild)
 		} else {
 			nonExpired = append(nonExpired, prebuild)

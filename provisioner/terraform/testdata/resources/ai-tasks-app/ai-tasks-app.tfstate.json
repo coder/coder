@@ -1,0 +1,93 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.13.0",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "data.coder_provisioner.me",
+          "mode": "data",
+          "type": "coder_provisioner",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "id": "a1fe389c-ac5e-4e9d-ba76-bc23fe275cc0",
+            "os": "linux"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.coder_workspace.me",
+          "mode": "data",
+          "type": "coder_workspace",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "access_port": 443,
+            "access_url": "https://dev.coder.com/",
+            "id": "bca94359-107b-43c9-a272-99af4b239aad",
+            "is_prebuild": false,
+            "is_prebuild_claim": false,
+            "name": "coder",
+            "prebuild_count": 0,
+            "start_count": 1,
+            "template_id": "",
+            "template_name": "",
+            "template_version": "",
+            "transition": "start"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.coder_workspace_owner.me",
+          "mode": "data",
+          "type": "coder_workspace_owner",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "email": "default@example.com",
+            "full_name": "coder",
+            "groups": [],
+            "id": "cb8c55f2-7f66-4e69-a584-eb08f4a7cf04",
+            "login_type": null,
+            "name": "default",
+            "oidc_access_token": "",
+            "rbac_roles": [],
+            "session_token": "",
+            "ssh_private_key": "",
+            "ssh_public_key": ""
+          },
+          "sensitive_values": {
+            "groups": [],
+            "oidc_access_token": true,
+            "rbac_roles": [],
+            "session_token": true,
+            "ssh_private_key": true
+          }
+        },
+        {
+          "address": "coder_ai_task.a[0]",
+          "mode": "managed",
+          "type": "coder_ai_task",
+          "name": "a",
+          "index": 0,
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "id": "c4f032b8-97e4-42b0-aa2f-30a9e698f8d4",
+            "prompt": "default",
+            "sidebar_app": []
+          },
+          "sensitive_values": {
+            "sidebar_app": []
+          }
+        }
+      ]
+    }
+  }
+}

@@ -14,7 +14,7 @@ import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import {
 	Area,
 	AreaChart,
@@ -28,7 +28,7 @@ import { docs } from "utils/docs";
 const chartConfig = {
 	users: {
 		label: "Users",
-		color: "hsl(var(--highlight-green))",
+		color: "hsl(var(--highlight-purple))",
 	},
 } satisfies ChartConfig;
 
@@ -81,17 +81,18 @@ export const LicenseSeatConsumptionChart: FC<
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
-								<div
-									className="rounded-[2px] bg-highlight-green size-3 inline-block"
-									aria-label="Legend for active users in the chart"
-								/>
+								<div className="rounded-[2px] bg-highlight-green size-3 inline-block">
+									<span className="sr-only">
+										Legend for active users in the chart
+									</span>
+								</div>
 								The user was active at least once during the last 90 days.
 							</li>
 							<li className="flex items-center gap-2">
-								<div
-									className="size-3 inline-flex items-center justify-center"
-									aria-label="Legend for license seat limit in the chart"
-								>
+								<div className="size-3 inline-flex items-center justify-center">
+									<span className="sr-only">
+										Legend for license seat limit in the chart
+									</span>
 									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
 								</div>
 								Current license seat limit, or the maximum number of allowed
@@ -179,7 +180,7 @@ export const LicenseSeatConsumptionChart: FC<
 													const item = p[0];
 													return `${item.value} seats`;
 												}}
-												formatter={(v, n, item) => {
+												formatter={(_v, _n, item) => {
 													const date = new Date(item.payload.date);
 													return date.toLocaleString(undefined, {
 														month: "long",
@@ -206,7 +207,7 @@ export const LicenseSeatConsumptionChart: FC<
 
 									<Area
 										dataKey="users"
-										type="natural"
+										type="linear"
 										fill="url(#fillUsers)"
 										fillOpacity={0.4}
 										stroke="var(--color-users)"

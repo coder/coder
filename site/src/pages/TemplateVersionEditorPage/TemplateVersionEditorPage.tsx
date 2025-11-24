@@ -17,15 +17,14 @@ import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import {
 	keepPreviousData,
 	useMutation,
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { type FileTree, existsFile, traverse } from "utils/filetree";
+import { useNavigate, useParams, useSearchParams } from "react-router";
+import { existsFile, type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
@@ -105,12 +104,10 @@ const TemplateVersionEditorPage: FC = () => {
 	};
 
 	const navigateToVersion = (version: TemplateVersion) => {
-		return navigate(
-			`${getLink(linkToTemplate(organizationName, templateName))}/versions/${
-				version.name
-			}/edit`,
-			{ replace: true },
-		);
+		const url = `${getLink(linkToTemplate(organizationName, templateName))}/versions/${
+			version.name
+		}/edit?${searchParams.toString()}`;
+		return navigate(url, { replace: true });
 	};
 
 	const onBuildEnds = (newVersion: TemplateVersion) => {
@@ -130,9 +127,7 @@ const TemplateVersionEditorPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(templateName, "Template Editor")}</title>
-			</Helmet>
+			<title>{pageTitle(templateName, "Template Editor")}</title>
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
 				<Loader fullscreen />

@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -87,17 +89,13 @@ func TestBlockNonBrowser(t *testing.T) {
 func TestReinitializeAgent(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("dbmem cannot currently claim a workspace")
-	}
-
 	if runtime.GOOS == "windows" {
 		t.Skip("test startup script is not supported on windows")
 	}
 
 	// Ensure that workspace agents can reinitialize against claimed prebuilds in non-default organizations:
 	for _, useDefaultOrg := range []bool{true, false} {
-		t.Run("", func(t *testing.T) {
+		t.Run(fmt.Sprintf("useDefaultOrg=%t", useDefaultOrg), func(t *testing.T) {
 			t.Parallel()
 
 			tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
@@ -317,7 +315,7 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	agentClient := agentsdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 	agentClient.SDK.HTTPClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -326,7 +324,6 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 			},
 		},
 	}
-	agentClient.SetSessionToken(authToken)
 	agnt := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: testutil.Logger(t).Named("agent"),
@@ -343,4 +340,124 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	require.NoError(t, err)
 
 	return setupResp{workspace, sdkAgent, agnt}
+}
+
+func TestWorkspaceExternalAgentCredentials(t *testing.T) {
+	t.Parallel()
+
+	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceExternalAgent: 1,
+			},
+		},
+	})
+
+	t.Run("Success - linux", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Resource(&proto.Resource{
+			Name: "test-agent",
+			Type: "coder_external_agent",
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].OperatingSystem = "linux"
+			a[0].Architecture = "amd64"
+			return a
+		}).Do()
+
+		credentials, err := client.WorkspaceExternalAgentCredentials(
+			ctx, r.Workspace.ID, "test-agent")
+		require.NoError(t, err)
+
+		require.Equal(t, r.AgentToken, credentials.AgentToken)
+		expectedCommand := fmt.Sprintf("curl -fsSL \"%s/api/v2/init-script/linux/amd64\" | CODER_AGENT_TOKEN=%q sh", client.URL, r.AgentToken)
+		require.Equal(t, expectedCommand, credentials.Command)
+	})
+
+	t.Run("Success - windows", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).Resource(&proto.Resource{
+			Name: "test-agent",
+			Type: "coder_external_agent",
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].OperatingSystem = "windows"
+			a[0].Architecture = "amd64"
+			return a
+		}).Do()
+
+		credentials, err := client.WorkspaceExternalAgentCredentials(
+			ctx, r.Workspace.ID, "test-agent")
+		require.NoError(t, err)
+
+		require.Equal(t, r.AgentToken, credentials.AgentToken)
+		expectedCommand := fmt.Sprintf("$env:CODER_AGENT_TOKEN=%q; iwr -useb \"%s/api/v2/init-script/windows/amd64\" | iex", r.AgentToken, client.URL)
+		require.Equal(t, expectedCommand, credentials.Command)
+	})
+
+	t.Run("WithInstanceID - should return 404", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Resource(&proto.Resource{
+			Name: "test-agent",
+			Type: "coder_external_agent",
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].Auth = &proto.Agent_InstanceId{
+				InstanceId: uuid.New().String(),
+			}
+			return a
+		}).Do()
+
+		_, err := client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent")
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, "External agent is authenticated with an instance ID.", apiErr.Message)
+	})
+
+	t.Run("No external agent - should return 404", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).Do()
+
+		_, err := client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent")
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, "Workspace does not have an external agent.", apiErr.Message)
+	})
 }

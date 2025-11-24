@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/button}
  */
 import { Slot } from "@radix-ui/react-slot";
-import { type VariantProps, cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
@@ -12,7 +12,7 @@ import { cn } from "utils/cn";
 const buttonVariants = cva(
 	`
 	inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans
-	border-solid rounded-md transition-colors
+	border-solid rounded-md transition-colors shrink-0
 	text-sm font-medium cursor-pointer no-underline
 	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled

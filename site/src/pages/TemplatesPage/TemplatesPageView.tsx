@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Skeleton from "@mui/material/Skeleton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
@@ -9,15 +8,14 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
-import type { useFilter } from "components/Filter/Filter";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -39,11 +37,11 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { PlusIcon } from "lucide-react";
+import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
@@ -52,6 +50,7 @@ import {
 } from "utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
+import type { TemplateFilterState } from "./TemplatesPage";
 
 const Language = {
 	developerCount: (activeCount: number): string => {
@@ -72,7 +71,7 @@ const Language = {
 const TemplateHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger />
+			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
 				<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
@@ -172,7 +171,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						}}
 					>
 						<RouterLink to={`${templatePageLink}/workspace`}>
-							<ArrowForwardOutlined />
+							<ArrowRightIcon />
 							Create Workspace
 						</RouterLink>
 					</Button>
@@ -184,7 +183,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 
 interface TemplatesPageViewProps {
 	error?: unknown;
-	filter: ReturnType<typeof useFilter>;
+	filterState: TemplateFilterState;
 	showOrganizations: boolean;
 	canCreateTemplates: boolean;
 	examples: TemplateExample[] | undefined;
@@ -194,7 +193,7 @@ interface TemplatesPageViewProps {
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	error,
-	filter,
+	filterState,
 	showOrganizations,
 	canCreateTemplates,
 	examples,
@@ -205,7 +204,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	const isEmpty = templates && templates.length === 0;
 
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader
 				actions={
 					canCreateTemplates && (
@@ -229,7 +228,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<TemplatesFilter filter={filter} error={error} />
+			<TemplatesFilter
+				filter={filterState.filter}
+				error={error}
+				userMenu={filterState.menus.user}
+			/>
 			{/* Validation errors are shown on the filter, other errors are an alert box. */}
 			{hasError(error) && !isApiValidationError(error) && (
 				<ErrorAlert error={error} />
@@ -256,7 +259,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						<EmptyTemplates
 							canCreateTemplates={canCreateTemplates}
 							examples={examples ?? []}
-							isUsingFilter={filter.used}
+							isUsingFilter={filterState.filter.used}
 						/>
 					) : (
 						templates?.map((template) => (

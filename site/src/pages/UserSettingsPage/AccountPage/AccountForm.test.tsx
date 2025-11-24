@@ -1,7 +1,7 @@
-import { screen } from "@testing-library/react";
-import type { UpdateUserProfileRequest } from "api/typesGenerated";
 import { MockUserMember } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
+import type { UpdateUserProfileRequest } from "api/typesGenerated";
 import { AccountForm } from "./AccountForm";
 
 // NOTE: it does not matter what the role props of MockUser are set to,

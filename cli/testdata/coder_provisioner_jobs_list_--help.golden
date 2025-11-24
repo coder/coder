@@ -11,8 +11,11 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
-  -c, --column [id|created at|started at|completed at|canceled at|error|error code|status|worker id|worker name|file id|tags|queue position|queue size|organization id|template version id|workspace build id|type|available workers|template version name|template id|template name|template display name|template icon|workspace id|workspace name|organization|queue] (default: created at,id,type,template display name,status,queue,tags)
+  -c, --column [id|created at|started at|completed at|canceled at|error|error code|status|worker id|worker name|file id|tags|queue position|queue size|organization id|initiator id|template version id|workspace build id|type|available workers|template version name|template id|template name|template display name|template icon|workspace id|workspace name|logs overflowed|organization|queue] (default: created at,id,type,template display name,status,queue,tags)
           Columns to display in table output.
+
+  -i, --initiator string, $CODER_PROVISIONER_JOB_LIST_INITIATOR
+          Filter by initiator (user ID or username).
 
   -l, --limit int, $CODER_PROVISIONER_JOB_LIST_LIMIT (default: 50)
           Limit the number of jobs returned.

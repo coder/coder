@@ -65,6 +65,7 @@ const (
 	SubjectTypeUser                         SubjectType = "user"
 	SubjectTypeProvisionerd                 SubjectType = "provisionerd"
 	SubjectTypeAutostart                    SubjectType = "autostart"
+	SubjectTypeConnectionLogger             SubjectType = "connection_logger"
 	SubjectTypeJobReaper                    SubjectType = "job_reaper"
 	SubjectTypeResourceMonitor              SubjectType = "resource_monitor"
 	SubjectTypeCryptoKeyRotator             SubjectType = "crypto_key_rotator"
@@ -72,9 +73,12 @@ const (
 	SubjectTypePrebuildsOrchestrator        SubjectType = "prebuilds_orchestrator"
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
+	SubjectTypeSystemOAuth                  SubjectType = "system_oauth"
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"
+	SubjectTypeUsagePublisher               SubjectType = "usage_publisher"
+	SubjectAibridged                        SubjectType = "aibridged"
 )
 
 const (
@@ -707,7 +711,7 @@ func (a *authorizedSQLFilter) SQLString() string {
 type authCache struct {
 	// cache is a cache of hashed Authorize inputs to the result of the Authorize
 	// call.
-	// determistic function.
+	// deterministic function.
 	cache *tlru.Cache[[32]byte, error]
 
 	authz Authorizer

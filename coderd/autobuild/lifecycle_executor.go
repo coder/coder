@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
@@ -42,6 +44,7 @@ type Executor struct {
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
+	buildUsageChecker     *atomic.Pointer[wsbuilder.UsageChecker]
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
@@ -65,7 +68,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
@@ -78,6 +81,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *f
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
 		accessControlStore:    acs,
+		buildUsageChecker:     buildUsageChecker,
 		notificationsEnqueuer: enqueuer,
 		reg:                   reg,
 		experiments:           exp,
@@ -105,10 +109,10 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	go func() {
+	pproflabel.Go(e.ctx, pproflabel.Service(pproflabel.ServiceLifecycles), func(ctx context.Context) {
 		for {
 			select {
-			case <-e.ctx.Done():
+			case <-ctx.Done():
 				return
 			case t, ok := <-e.tick:
 				if !ok {
@@ -118,15 +122,48 @@ func (e *Executor) Run() {
 				e.metrics.autobuildExecutionDuration.Observe(stats.Elapsed.Seconds())
 				if e.statsCh != nil {
 					select {
-					case <-e.ctx.Done():
+					case <-ctx.Done():
 						return
 					case e.statsCh <- stats:
 					}
 				}
-				e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
+				e.log.Debug(ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 			}
 		}
-	}()
+	})
+}
+
+// hasValidProvisioner checks whether there is at least one valid (non-stale, correct tags) provisioner
+// based on time t and the tags maps (such as from a templateVersionJob).
+func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, tags map[string]string) (bool, error) {
+	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: ws.OrganizationID,
+		WantTags:       tags,
+	}
+
+	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
+	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), queryParams)
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner daemons: %w", err)
+	}
+
+	logger := e.log.With(slog.F("tags", tags))
+	// Check if any provisioners are active (not stale)
+	for _, pd := range provisionerDaemons {
+		if pd.LastSeenAt.Valid {
+			age := t.Sub(pd.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
+				logger.Debug(ctx, "hasValidProvisioner: found active provisioner",
+					slog.F("daemon_id", pd.ID),
+				)
+				return true, nil
+			}
+		}
+	}
+	logger.Debug(ctx, "hasValidProvisioner: no active provisioners found")
+	return false, nil
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
@@ -278,8 +315,24 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return nil
 					}
 
+					// Get the template version job to access tags
+					templateVersionJob, err := tx.GetProvisionerJobByID(e.ctx, activeTemplateVersion.JobID)
+					if err != nil {
+						return xerrors.Errorf("get template version job: %w", err)
+					}
+
+					// Before creating the workspace build, check for available provisioners
+					hasProvisioners, err := e.hasValidProvisioner(e.ctx, tx, t, ws, templateVersionJob.Tags)
+					if err != nil {
+						return xerrors.Errorf("check provisioner availability: %w", err)
+					}
+					if !hasProvisioners {
+						log.Warn(e.ctx, "skipping autostart - no available provisioners")
+						return nil // Skip this workspace
+					}
+
 					if nextTransition != "" {
-						builder := wsbuilder.New(ws, nextTransition).
+						builder := wsbuilder.New(ws, nextTransition, *e.buildUsageChecker.Load()).
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
@@ -520,6 +573,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 		return false
 	}
 
+	// Get the next allowed autostart time after the build's creation time,
+	// based on the workspace's schedule and the template's allowed days.
 	nextTransition, err := schedule.NextAllowedAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
 	if err != nil {
 		return false

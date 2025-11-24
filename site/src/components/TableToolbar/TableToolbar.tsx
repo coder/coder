@@ -1,22 +1,8 @@
 import Skeleton from "@mui/material/Skeleton";
 import type { FC, PropsWithChildren } from "react";
-
 export const TableToolbar: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<div
-			css={(theme) => ({
-				fontSize: 13,
-				marginBottom: "8px",
-				marginTop: 0,
-				height: "36px", // The size of a small button
-				color: theme.palette.text.secondary,
-				display: "flex",
-				alignItems: "center",
-				"& strong": {
-					color: theme.palette.text.primary,
-				},
-			})}
-		>
+		<div className="text-sm mb-2 mt-0 h-9 text-content-secondary flex items-center [&_strong]:text-content-primary">
 			{children}
 		</div>
 	);
@@ -42,7 +28,7 @@ export const PaginationStatus: FC<PaginationStatusProps> = (props) => {
 
 	if (isLoading) {
 		return (
-			<div css={{ height: 24, display: "flex", alignItems: "center" }}>
+			<div className="h-6 flex items-center">
 				<Skeleton variant="text" width={160} height={16} />
 			</div>
 		);

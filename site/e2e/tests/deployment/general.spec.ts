@@ -19,7 +19,7 @@ test("experiments", async ({ page }) => {
 	await page.goto("/deployment/overview", { waitUntil: "domcontentloaded" });
 
 	const experimentsLocator = page.locator(
-		"div.options-table tr.option-experiments ul.option-array",
+		"table.options-table tr.option-experiments ul.option-array",
 	);
 	await expect(experimentsLocator).toBeVisible();
 

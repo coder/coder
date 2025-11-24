@@ -21,15 +21,17 @@ jobs:
       pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@e2ccef58c4b9eb89cd71ee23a8629744bba75aa6 # v1.3.5
+        uses: umbrelladocs/action-linkspector@652f85bc57bb1e7d4327260decc10aa68f7694c3 # v1.4.0
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         with:
@@ -41,7 +43,10 @@ jobs:
       - name: Send Slack notification
         if: failure() && github.event_name == 'schedule'
         run: |
-          curl -X POST -H 'Content-type: application/json' -d '{"msg":"Broken links found in the documentation. Please check the logs at ${{ env.LOGS_URL }}"}' ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+          curl \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"msg":"Broken links found in the documentation. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
           echo "Sent Slack notification"
         env:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}

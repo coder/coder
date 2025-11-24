@@ -296,22 +296,23 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 // returned. If the table tag is malformed, an error is returned.
 //
 // The returned name is transformed from "snake_case" to "normal text".
-func parseTableStructTag(field reflect.StructField) (name string, defaultSort, noSortOpt, recursive, skipParentName bool, err error) {
+func parseTableStructTag(field reflect.StructField) (name string, defaultSort, noSortOpt, recursive, skipParentName, emptyNil bool, err error) {
 	tags, err := structtag.Parse(string(field.Tag))
 	if err != nil {
-		return "", false, false, false, false, xerrors.Errorf("parse struct field tag %q: %w", string(field.Tag), err)
+		return "", false, false, false, false, false, xerrors.Errorf("parse struct field tag %q: %w", string(field.Tag), err)
 	}
 
 	tag, err := tags.Get("table")
 	if err != nil || tag.Name == "-" {
 		// tags.Get only returns an error if the tag is not found.
-		return "", false, false, false, false, nil
+		return "", false, false, false, false, false, nil
 	}
 
 	defaultSortOpt := false
 	noSortOpt = false
 	recursiveOpt := false
 	skipParentNameOpt := false
+	emptyNilOpt := false
 	for _, opt := range tag.Options {
 		switch opt {
 		case "default_sort":
@@ -326,12 +327,14 @@ func parseTableStructTag(field reflect.StructField) (name string, defaultSort, n
 			// make sure the child name is unique across all nested structs in the parent.
 			recursiveOpt = true
 			skipParentNameOpt = true
+		case "empty_nil":
+			emptyNilOpt = true
 		default:
-			return "", false, false, false, false, xerrors.Errorf("unknown option %q in struct field tag", opt)
+			return "", false, false, false, false, false, xerrors.Errorf("unknown option %q in struct field tag", opt)
 		}
 	}
 
-	return strings.ReplaceAll(tag.Name, "_", " "), defaultSortOpt, noSortOpt, recursiveOpt, skipParentNameOpt, nil
+	return strings.ReplaceAll(tag.Name, "_", " "), defaultSortOpt, noSortOpt, recursiveOpt, skipParentNameOpt, emptyNilOpt, nil
 }
 
 func isStructOrStructPointer(t reflect.Type) bool {
@@ -358,7 +361,7 @@ func typeToTableHeaders(t reflect.Type, requireDefault bool) ([]string, string, 
 	noSortOpt := false
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		name, defaultSort, noSort, recursive, skip, err := parseTableStructTag(field)
+		name, defaultSort, noSort, recursive, skip, _, err := parseTableStructTag(field)
 		if err != nil {
 			return nil, "", xerrors.Errorf("parse struct tags for field %q in type %q: %w", field.Name, t.String(), err)
 		}
@@ -435,7 +438,7 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Type().Field(i)
 		fieldVal := val.Field(i)
-		name, _, _, recursive, skip, err := parseTableStructTag(field)
+		name, _, _, recursive, skip, emptyNil, err := parseTableStructTag(field)
 		if err != nil {
 			return nil, xerrors.Errorf("parse struct tags for field %q in type %T: %w", field.Name, val, err)
 		}
@@ -443,8 +446,14 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 			continue
 		}
 
-		// Recurse if it's a struct.
 		fieldType := field.Type
+
+		// If empty_nil is set and this is a nil pointer, use a zero value.
+		if emptyNil && fieldVal.Kind() == reflect.Pointer && fieldVal.IsNil() {
+			fieldVal = reflect.New(fieldType.Elem())
+		}
+
+		// Recurse if it's a struct.
 		if recursive {
 			if !isStructOrStructPointer(fieldType) {
 				return nil, xerrors.Errorf("field %q in type %q is marked as recursive but does not contain a struct or a pointer to a struct", field.Name, fieldType.String())
@@ -467,7 +476,7 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 		}
 
 		// Otherwise, we just use the field value.
-		row[name] = val.Field(i).Interface()
+		row[name] = fieldVal.Interface()
 	}
 
 	return row, nil

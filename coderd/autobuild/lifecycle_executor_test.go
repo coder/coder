@@ -2,8 +2,16 @@ package autobuild_test
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/quartz"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,14 +37,18 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
+
 func TestExecutorAutostartOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
-		tickCh  = make(chan time.Time)
-		statsCh = make(chan autobuild.Stats)
-		client  = coderdtest.New(t, &coderdtest.Options{
+		sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
@@ -48,10 +60,13 @@ func TestExecutorAutostartOK(t *testing.T) {
 	)
 	// Given: workspace is stopped
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
-
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+	require.NoError(t, err)
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
-		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 		close(tickCh)
 	}()
 
@@ -107,8 +122,11 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	// Have the workspace stopped so we can perform an autostart
 	workspace = coderdtest.MustTransitionWorkspace(t, clientA, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
 	// Get both clients to perform a lifecycle execution tick
 	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
 
 	startCh := make(chan struct{})
 	go func() {
@@ -180,14 +198,14 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var (
-				sched    = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
-				ctx      = context.Background()
-				err      error
-				tickCh   = make(chan time.Time)
-				statsCh  = make(chan autobuild.Stats)
-				logger   = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
-				enqueuer = notificationstest.FakeEnqueuer{}
-				client   = coderdtest.New(t, &coderdtest.Options{
+				sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+				ctx        = context.Background()
+				err        error
+				tickCh     = make(chan time.Time)
+				statsCh    = make(chan autobuild.Stats)
+				logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
+				enqueuer   = notificationstest.FakeEnqueuer{}
+				client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 					AutobuildTicker:          tickCh,
 					IncludeProvisionerDaemon: true,
 					AutobuildStats:           statsCh,
@@ -240,10 +258,15 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				},
 			))
 
+			p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+			require.NoError(t, err)
+
 			t.Log("sending autobuild tick")
 			// When: the autobuild executor ticks after the scheduled time
 			go func() {
-				tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+				tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+				coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+				tickCh <- tickTime
 				close(tickCh)
 			}()
 
@@ -407,9 +430,9 @@ func TestExecutorAutostopOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh  = make(chan time.Time)
-		statsCh = make(chan autobuild.Stats)
-		client  = coderdtest.New(t, &coderdtest.Options{
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
@@ -421,9 +444,14 @@ func TestExecutorAutostopOK(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 	require.NotZero(t, workspace.LatestBuild.Deadline)
 
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+
 	// When: the autobuild executor ticks *after* the deadline:
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+		tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 		close(tickCh)
 	}()
 
@@ -442,10 +470,10 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = context.Background()
-		tickCh  = make(chan time.Time)
-		statsCh = make(chan autobuild.Stats)
-		client  = coderdtest.New(t, &coderdtest.Options{
+		ctx        = context.Background()
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
@@ -465,9 +493,14 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	})
 	require.NoError(t, err, "extend workspace deadline")
 
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+
 	// When: the autobuild executor ticks *after* the original deadline:
 	go func() {
-		tickCh <- originalDeadline.Time.Add(time.Minute)
+		tickTime := originalDeadline.Time.Add(time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 	}()
 
 	// Then: nothing should happen and the workspace should stay running
@@ -477,7 +510,9 @@ func TestExecutorAutostopExtend(t *testing.T) {
 
 	// When: the autobuild executor ticks after the *new* deadline:
 	go func() {
-		tickCh <- newDeadline.Add(time.Minute)
+		tickTime := newDeadline.Add(time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 		close(tickCh)
 	}()
 
@@ -659,9 +694,9 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh  = make(chan time.Time)
-		statsCh = make(chan autobuild.Stats)
-		client  = coderdtest.New(t, &coderdtest.Options{
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
@@ -669,6 +704,8 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	)
 
 	admin := coderdtest.CreateFirstUser(t, client)
+	// Wait for provisioner to be available
+	coderdtest.MustWaitForAnyProvisioner(t, db)
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
@@ -739,24 +776,20 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
-	}
-
 	t.Parallel()
 
 	var (
-		sched    = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
-		tickCh   = make(chan time.Time)
-		tickCh2  = make(chan time.Time)
-		statsCh1 = make(chan autobuild.Stats)
-		statsCh2 = make(chan autobuild.Stats)
-		client   = coderdtest.New(t, &coderdtest.Options{
+		sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh     = make(chan time.Time)
+		tickCh2    = make(chan time.Time)
+		statsCh1   = make(chan autobuild.Stats)
+		statsCh2   = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh1,
 		})
-		_ = coderdtest.New(t, &coderdtest.Options{
+		_, _ = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh2,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh2,
@@ -769,10 +802,15 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	// Given: workspace is stopped
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+
 	// When: the autobuild executor ticks past the scheduled time
 	go func() {
-		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
-		tickCh2 <- sched.Next(workspace.LatestBuild.CreatedAt)
+		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
+		tickCh2 <- tickTime
 		close(tickCh)
 		close(tickCh2)
 	}()
@@ -802,10 +840,10 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 	)
 
 	var (
-		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
-		tickCh  = make(chan time.Time)
-		statsCh = make(chan autobuild.Stats)
-		client  = coderdtest.New(t, &coderdtest.Options{
+		sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
@@ -834,9 +872,14 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 	// Given: workspace is stopped
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
-		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 		close(tickCh)
 	}()
 
@@ -904,7 +947,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
 
-		client = coderdtest.New(t, &coderdtest.Options{
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
@@ -928,9 +971,14 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 	// Then: the deadline should be set to the template default TTL
 	assert.WithinDuration(t, workspace.LatestBuild.CreatedAt.Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Minute)
 
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+
 	// When: the autobuild executor ticks after the workspace setting, but before the template setting:
 	go func() {
-		tickCh <- workspace.LatestBuild.Job.CompletedAt.Add(45 * time.Minute)
+		tickTime := workspace.LatestBuild.Job.CompletedAt.Add(45 * time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 	}()
 
 	// Then: nothing should happen
@@ -940,7 +988,9 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 
 	// When: the autobuild executor ticks after the template setting:
 	go func() {
-		tickCh <- workspace.LatestBuild.Job.CompletedAt.Add(61 * time.Minute)
+		tickTime := workspace.LatestBuild.Job.CompletedAt.Add(61 * time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 		close(tickCh)
 	}()
 
@@ -969,6 +1019,9 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 			TemplateScheduleStore:    schedule.NewAGPLTemplateScheduleStore(),
 		})
 	)
+	// Wait for provisioner to be available
+	coderdtest.MustWaitForAnyProvisioner(t, db)
+
 	ctx := testutil.Context(t, testutil.WaitShort)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	me, err := ownerClient.User(ctx, codersdk.Me)
@@ -1005,7 +1058,13 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 		req.TemplateVersionID = inactiveVersion.ID
 	})
 	require.Equal(t, inactiveVersion.ID, ws.LatestBuild.TemplateVersionID)
-	ticker <- sched.Next(ws.LatestBuild.CreatedAt)
+
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+	require.NoError(t, err)
+
+	tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+	ticker <- tickTime
 	stats := <-statCh
 	require.Len(t, stats.Transitions, 1)
 
@@ -1125,7 +1184,7 @@ func TestNotifications(t *testing.T) {
 			statCh         = make(chan autobuild.Stats)
 			notifyEnq      = notificationstest.FakeEnqueuer{}
 			timeTilDormant = time.Minute
-			client         = coderdtest.New(t, &coderdtest.Options{
+			client, db     = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				AutobuildStats:           statCh,
 				IncludeProvisionerDaemon: true,
@@ -1162,9 +1221,14 @@ func TestNotifications(t *testing.T) {
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		require.NoError(t, err)
+
 		// Wait for workspace to become dormant
 		notifyEnq.Clear()
-		ticker <- workspace.LastUsedAt.Add(timeTilDormant * 3)
+		tickTime := workspace.LastUsedAt.Add(timeTilDormant * 3)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		_ = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statCh)
 
 		// Check that the workspace is dormant
@@ -1183,12 +1247,393 @@ func TestNotifications(t *testing.T) {
 	})
 }
 
+// TestExecutorPrebuilds verifies AGPL behavior for prebuilt workspaces.
+// It ensures that workspace schedules do not trigger while the workspace
+// is still in a prebuilt state. Scheduling behavior only applies after the
+// workspace has been claimed and becomes a regular user workspace.
+// For enterprise-related functionality, see enterprise/coderd/workspaces_test.go.
+func TestExecutorPrebuilds(t *testing.T) {
+	t.Parallel()
+
+	// Prebuild workspaces should not be autostopped when the deadline is reached.
+	// After being claimed, the workspace should stop at the deadline.
+	t.Run("OnlyStopsAfterClaimed", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		var (
+			tickCh  = make(chan time.Time)
+			statsCh = make(chan autobuild.Stats)
+			client  = coderdtest.New(t, &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pb,
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+			})
+		)
+
+		// Setup user, template and template version
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Database setup of a preset with a prebuild instance
+		preset := setupTestDBPreset(t, db, version.ID, int32(1))
+
+		// Given: a running prebuilt workspace with a deadline and ready to be claimed
+		dbPrebuild := setupTestDBPrebuiltWorkspace(
+			ctx, t, clock, db, pb,
+			owner.OrganizationID,
+			template.ID,
+			version.ID,
+			preset.ID,
+		)
+		prebuild := coderdtest.MustWorkspace(t, client, dbPrebuild.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+		require.NotZero(t, prebuild.LatestBuild.Deadline)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), prebuild.OrganizationID, nil)
+		require.NoError(t, err)
+
+		// When: the autobuild executor ticks *after* the deadline:
+		go func() {
+			tickTime := prebuild.LatestBuild.Deadline.Time.Add(time.Minute)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+			tickCh <- tickTime
+		}()
+
+		// Then: the prebuilt workspace should remain in a start transition
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
+		require.Len(t, prebuildStats.Errors, 0)
+		require.Len(t, prebuildStats.Transitions, 0)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+		prebuild = coderdtest.MustWorkspace(t, client, prebuild.ID)
+		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
+
+		// Given: a user claims the prebuilt workspace
+		dbWorkspace := dbgen.ClaimPrebuild(
+			t, db,
+			clock.Now(),
+			user.ID,
+			"claimedWorkspace-autostop",
+			preset.ID,
+			sql.NullString{},
+			sql.NullTime{},
+			sql.NullInt64{})
+		workspace := coderdtest.MustWorkspace(t, client, dbWorkspace.ID)
+
+		// When: the autobuild executor ticks *after* the deadline:
+		go func() {
+			tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+			tickCh <- tickTime
+			close(tickCh)
+		}()
+
+		// Then: the workspace should be stopped
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
+		require.Len(t, workspaceStats.Errors, 0)
+		require.Len(t, workspaceStats.Transitions, 1)
+		require.Contains(t, workspaceStats.Transitions, workspace.ID)
+		require.Equal(t, database.WorkspaceTransitionStop, workspaceStats.Transitions[workspace.ID])
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, codersdk.BuildReasonAutostop, workspace.LatestBuild.Reason)
+	})
+
+	// Prebuild workspaces should not be autostarted when the autostart scheduled is reached.
+	// After being claimed, the workspace should autostart at the schedule.
+	t.Run("OnlyStartsAfterClaimed", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		var (
+			tickCh  = make(chan time.Time)
+			statsCh = make(chan autobuild.Stats)
+			client  = coderdtest.New(t, &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pb,
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+			})
+		)
+
+		// Setup user, template and template version
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Database setup of a preset with a prebuild instance
+		preset := setupTestDBPreset(t, db, version.ID, int32(1))
+
+		// Given: prebuilt workspace is stopped and set to autostart daily at midnight
+		sched := mustSchedule(t, "CRON_TZ=UTC 0 0 * * *")
+		autostartSched := sql.NullString{
+			String: sched.String(),
+			Valid:  true,
+		}
+		dbPrebuild := setupTestDBPrebuiltWorkspace(
+			ctx, t, clock, db, pb,
+			owner.OrganizationID,
+			template.ID,
+			version.ID,
+			preset.ID,
+			WithAutostartSchedule(autostartSched),
+			WithIsStopped(true),
+		)
+		prebuild := coderdtest.MustWorkspace(t, client, dbPrebuild.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, prebuild.LatestBuild.Transition)
+		require.NotNil(t, prebuild.AutostartSchedule)
+
+		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
+		// since the next allowed autostart is calculated starting from that point.
+		// When: the autobuild executor ticks after the scheduled time
+		go func() {
+			tickCh <- sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
+		}()
+
+		// Then: the prebuilt workspace should remain in a stop transition
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
+		require.Len(t, prebuildStats.Errors, 0)
+		require.Len(t, prebuildStats.Transitions, 0)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, prebuild.LatestBuild.Transition)
+		prebuild = coderdtest.MustWorkspace(t, client, prebuild.ID)
+		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
+
+		// Given: prebuilt workspace is in a start status
+		setupTestDBWorkspaceBuild(
+			ctx, t, clock, db, pb,
+			owner.OrganizationID,
+			prebuild.ID,
+			version.ID,
+			preset.ID,
+			database.WorkspaceTransitionStart)
+
+		// Given: a user claims the prebuilt workspace
+		dbWorkspace := dbgen.ClaimPrebuild(
+			t, db,
+			clock.Now(),
+			user.ID,
+			"claimedWorkspace-autostart",
+			preset.ID,
+			autostartSched,
+			sql.NullTime{},
+			sql.NullInt64{})
+		workspace := coderdtest.MustWorkspace(t, client, dbWorkspace.ID)
+
+		// Given: the prebuilt workspace goes to a stop status
+		setupTestDBWorkspaceBuild(
+			ctx, t, clock, db, pb,
+			owner.OrganizationID,
+			prebuild.ID,
+			version.ID,
+			preset.ID,
+			database.WorkspaceTransitionStop)
+
+		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
+		// since the next allowed autostart is calculated starting from that point.
+		// When: the autobuild executor ticks after the scheduled time
+		go func() {
+			tickCh <- sched.Next(workspace.LatestBuild.CreatedAt).Add(time.Minute)
+			close(tickCh)
+		}()
+
+		// Then: the workspace should eventually be started
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
+		require.Len(t, workspaceStats.Errors, 0)
+		require.Len(t, workspaceStats.Transitions, 1)
+		require.Contains(t, workspaceStats.Transitions, workspace.ID)
+		require.Equal(t, database.WorkspaceTransitionStart, workspaceStats.Transitions[workspace.ID])
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, codersdk.BuildReasonAutostart, workspace.LatestBuild.Reason)
+	})
+}
+
+func setupTestDBPreset(
+	t *testing.T,
+	db database.Store,
+	templateVersionID uuid.UUID,
+	desiredInstances int32,
+) database.TemplateVersionPreset {
+	t.Helper()
+
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: templateVersionID,
+		Name:              "preset-test",
+		DesiredInstances: sql.NullInt32{
+			Valid: true,
+			Int32: desiredInstances,
+		},
+	})
+	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: preset.ID,
+		Names:                   []string{"test-name"},
+		Values:                  []string{"test-value"},
+	})
+
+	return preset
+}
+
+type SetupPrebuiltOptions struct {
+	AutostartSchedule sql.NullString
+	IsStopped         bool
+}
+
+func WithAutostartSchedule(sched sql.NullString) func(*SetupPrebuiltOptions) {
+	return func(o *SetupPrebuiltOptions) {
+		o.AutostartSchedule = sched
+	}
+}
+
+func WithIsStopped(isStopped bool) func(*SetupPrebuiltOptions) {
+	return func(o *SetupPrebuiltOptions) {
+		o.IsStopped = isStopped
+	}
+}
+
+func setupTestDBWorkspaceBuild(
+	ctx context.Context,
+	t *testing.T,
+	clock quartz.Clock,
+	db database.Store,
+	ps pubsub.Pubsub,
+	orgID uuid.UUID,
+	workspaceID uuid.UUID,
+	templateVersionID uuid.UUID,
+	presetID uuid.UUID,
+	transition database.WorkspaceTransition,
+) (database.ProvisionerJob, database.WorkspaceBuild) {
+	t.Helper()
+
+	var buildNumber int32 = 1
+	latestWorkspaceBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+	if !errors.Is(err, sql.ErrNoRows) {
+		buildNumber = latestWorkspaceBuild.BuildNumber + 1
+	}
+
+	job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		InitiatorID:    database.PrebuildsSystemUserID,
+		CreatedAt:      clock.Now().Add(-time.Hour * 2),
+		StartedAt:      sql.NullTime{Time: clock.Now().Add(-time.Hour * 2), Valid: true},
+		CompletedAt:    sql.NullTime{Time: clock.Now().Add(-time.Hour), Valid: true},
+		OrganizationID: orgID,
+		JobStatus:      database.ProvisionerJobStatusSucceeded,
+	})
+	workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:             workspaceID,
+		InitiatorID:             database.PrebuildsSystemUserID,
+		TemplateVersionID:       templateVersionID,
+		BuildNumber:             buildNumber,
+		JobID:                   job.ID,
+		TemplateVersionPresetID: uuid.NullUUID{UUID: presetID, Valid: true},
+		Transition:              transition,
+		CreatedAt:               clock.Now(),
+	})
+	dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+		{
+			WorkspaceBuildID: workspaceBuild.ID,
+			Name:             "test",
+			Value:            "test",
+		},
+	})
+
+	workspaceResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID:      job.ID,
+		Transition: database.WorkspaceTransitionStart,
+		Type:       "compute",
+		Name:       "main",
+	})
+
+	// Workspaces are eligible to be claimed once their agent is marked "ready"
+	dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:            "test",
+		ResourceID:      workspaceResource.ID,
+		Architecture:    "i386",
+		OperatingSystem: "linux",
+		LifecycleState:  database.WorkspaceAgentLifecycleStateReady,
+		StartedAt:       sql.NullTime{Time: clock.Now().Add(time.Hour), Valid: true},
+		ReadyAt:         sql.NullTime{Time: clock.Now().Add(-1 * time.Hour), Valid: true},
+		APIKeyScope:     database.AgentKeyScopeEnumAll,
+	})
+
+	return job, workspaceBuild
+}
+
+func setupTestDBPrebuiltWorkspace(
+	ctx context.Context,
+	t *testing.T,
+	clock quartz.Clock,
+	db database.Store,
+	ps pubsub.Pubsub,
+	orgID uuid.UUID,
+	templateID uuid.UUID,
+	templateVersionID uuid.UUID,
+	presetID uuid.UUID,
+	opts ...func(*SetupPrebuiltOptions),
+) database.WorkspaceTable {
+	t.Helper()
+
+	// Optional parameters
+	options := &SetupPrebuiltOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	buildTransition := database.WorkspaceTransitionStart
+	if options.IsStopped {
+		buildTransition = database.WorkspaceTransitionStop
+	}
+
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:        templateID,
+		OrganizationID:    orgID,
+		OwnerID:           database.PrebuildsSystemUserID,
+		Deleted:           false,
+		CreatedAt:         clock.Now().Add(-time.Hour * 2),
+		AutostartSchedule: options.AutostartSchedule,
+		LastUsedAt:        clock.Now(),
+	})
+	setupTestDBWorkspaceBuild(ctx, t, clock, db, ps, orgID, workspace.ID, templateVersionID, presetID, buildTransition)
+
+	return workspace
+}
+
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	ws := coderdtest.CreateWorkspace(t, client, template.ID, mut...)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+	return coderdtest.MustWorkspace(t, client, ws.ID)
+}
+
+// mustProvisionWorkspaceWithProvisionerTags creates a workspace with a template version that has specific provisioner tags
+func mustProvisionWorkspaceWithProvisionerTags(t *testing.T, client *codersdk.Client, provisionerTags map[string]string, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+	t.Helper()
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create template version with specific provisioner tags
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(request *codersdk.CreateTemplateVersionRequest) {
+		request.ProvisionerTags = provisionerTags
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	t.Logf("template version %s job has completed with provisioner tags %v", version.ID, provisionerTags)
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
 	ws := coderdtest.CreateWorkspace(t, client, template.ID, mut...)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 	return coderdtest.MustWorkspace(t, client, ws.ID)
@@ -1231,6 +1676,263 @@ func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID 
 	require.NotEmpty(t, buildParameters)
 }
 
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
+	t.Parallel()
+
+	var (
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+	)
+
+	// Use provisioner daemon tags so we can test `hasAvailableProvisioner` more thoroughly.
+	// We can't overwrite owner or scope as there's a `provisionersdk.MutateTags` function that has restrictions on those.
+	provisionerDaemonTags := map[string]string{"test-tag": "asdf"}
+	t.Logf("Setting provisioner daemon tags: %v", provisionerDaemonTags)
+
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   ps,
+		IncludeProvisionerDaemon: false,
+		AutobuildTicker:          tickCh,
+		AutobuildStats:           statsCh,
+	})
+
+	daemon1Closer := coderdtest.NewTaggedProvisionerDaemon(t, api, "name", provisionerDaemonTags)
+	t.Cleanup(func() {
+		_ = daemon1Closer.Close()
+	})
+
+	// Create workspace with autostart enabled and matching provisioner tags
+	workspace := mustProvisionWorkspaceWithProvisionerTags(t, client, provisionerDaemonTags, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutostartSchedule = ptr.Ref(sched.String())
+	})
+
+	// Stop the workspace while provisioner is available
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	require.NoError(t, err, "Error getting provisioner for workspace")
+
+	// We're going to use an artificial next scheduled autostart time, as opposed to calculating it via sched.Next, since
+	// we want to assert/require specific behavior here around the provisioner being stale, and therefore we need to be
+	// able to give the provisioner(s) specific `LastSeenAt` times while dealing with the contraint that we cannot set
+	// that value to some time in the past (relative to it's current value).
+	next := p.LastSeenAt.Time.Add(5 * time.Minute)
+	staleTime := next.Add(-(provisionerdserver.StaleInterval + time.Second))
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, staleTime)
+
+	// Require that the provisioners LastSeenAt has been updated to the expected time.
+	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	require.NoError(t, err, "Error getting provisioner for workspace")
+	// This assertion *may* no longer need to be `Eventually`.
+	require.Eventually(t, func() bool { return p.LastSeenAt.Time.UnixNano() == staleTime.UnixNano() },
+		testutil.WaitMedium, testutil.IntervalFast, "expected provisioner LastSeenAt to be:%+v, saw :%+v", staleTime.UTC(), p.LastSeenAt.Time.UTC())
+
+	// Ensure the provisioner is gone or stale, relative to the artificial next autostart time, before triggering the autobuild.
+	coderdtest.MustWaitForProvisionersUnavailable(t, db, workspace, provisionerDaemonTags, next)
+
+	// Trigger autobuild.
+	tickCh <- next
+	stats := <-statsCh
+	assert.Len(t, stats.Transitions, 0, "should not create builds when no provisioners available")
+
+	daemon2Closer := coderdtest.NewTaggedProvisionerDaemon(t, api, "name", provisionerDaemonTags)
+	t.Cleanup(func() {
+		_ = daemon2Closer.Close()
+	})
+
+	// Ensure the provisioner is  NOT stale, and see if we get a successful state transition.
+	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	require.NoError(t, err, "Error getting provisioner for workspace")
+
+	next = sched.Next(workspace.LatestBuild.CreatedAt)
+	notStaleTime := next.Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
+	// Require that the provisioner time has actually been updated to the expected value.
+	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	require.NoError(t, err, "Error getting provisioner for workspace")
+	require.True(t, next.UnixNano() > p.LastSeenAt.Time.UnixNano())
+
+	// Trigger autobuild
+	go func() {
+		tickCh <- next
+		close(tickCh)
+	}()
+	stats = <-statsCh
+
+	assert.Len(t, stats.Transitions, 1, "should create builds when provisioners are available")
+}
+
+func TestExecutorTaskWorkspace(t *testing.T) {
+	t.Parallel()
+
+	createTaskTemplate := func(t *testing.T, client *codersdk.Client, orgID uuid.UUID, ctx context.Context, defaultTTL time.Duration) codersdk.Template {
+		t.Helper()
+
+		taskAppID := uuid.New()
+		version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{HasAiTasks: true},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Response{
+				{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Resources: []*proto.Resource{
+								{
+									Agents: []*proto.Agent{
+										{
+											Id:   uuid.NewString(),
+											Name: "dev",
+											Auth: &proto.Agent_Token{
+												Token: uuid.NewString(),
+											},
+											Apps: []*proto.App{
+												{
+													Id:   taskAppID.String(),
+													Slug: "task-app",
+												},
+											},
+										},
+									},
+								},
+							},
+							AiTasks: []*proto.AITask{
+								{
+									AppId: taskAppID.String(),
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
+
+		if defaultTTL > 0 {
+			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				DefaultTTLMillis: defaultTTL.Milliseconds(),
+			})
+			require.NoError(t, err)
+		}
+
+		return template
+	}
+
+	createTaskWorkspace := func(t *testing.T, client *codersdk.Client, template codersdk.Template, ctx context.Context, input string) codersdk.Workspace {
+		t.Helper()
+
+		exp := codersdk.NewExperimentalClient(client)
+		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             input,
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid, "task should have a workspace")
+
+		workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		return workspace
+	}
+
+	t.Run("Autostart", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+			tickCh     = make(chan time.Time)
+			statsCh    = make(chan autobuild.Stats)
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+			})
+			admin = coderdtest.CreateFirstUser(t, client)
+		)
+
+		// Given: A task workspace
+		template := createTaskTemplate(t, client, admin.OrganizationID, ctx, 0)
+		workspace := createTaskWorkspace(t, client, template, ctx, "test task for autostart")
+
+		// Given: The task workspace has an autostart schedule
+		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			Schedule: ptr.Ref(sched.String()),
+		})
+		require.NoError(t, err)
+
+		// Given: That the workspace is in a stopped state.
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+		require.NoError(t, err)
+
+		// When: the autobuild executor ticks after the scheduled time
+		go func() {
+			tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+			tickCh <- tickTime
+			close(tickCh)
+		}()
+
+		// Then: We expect to see a start transition
+		stats := <-statsCh
+		require.Len(t, stats.Transitions, 1, "lifecycle executor should transition the task workspace")
+		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
+		assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID], "should autostart the workspace")
+		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
+	})
+
+	t.Run("Autostop", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			tickCh     = make(chan time.Time)
+			statsCh    = make(chan autobuild.Stats)
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+			})
+			admin = coderdtest.CreateFirstUser(t, client)
+		)
+
+		// Given: A task workspace with an 8 hour deadline
+		template := createTaskTemplate(t, client, admin.OrganizationID, ctx, 8*time.Hour)
+		workspace := createTaskWorkspace(t, client, template, ctx, "test task for autostop")
+
+		// Given: The workspace is currently running
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+		require.NotZero(t, workspace.LatestBuild.Deadline, "workspace should have a deadline for autostop")
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+		require.NoError(t, err)
+
+		// When: the autobuild executor ticks after the deadline
+		go func() {
+			tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+			tickCh <- tickTime
+			close(tickCh)
+		}()
+
+		// Then: We expect to see a stop transition
+		stats := <-statsCh
+		require.Len(t, stats.Transitions, 1, "lifecycle executor should transition the task workspace")
+		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
+		assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID], "should autostop the workspace")
+		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
+	})
 }

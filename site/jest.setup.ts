@@ -1,11 +1,11 @@
 import "@testing-library/jest-dom";
 import "jest-location-mock";
+import { server } from "testHelpers/server";
 import crypto from "node:crypto";
 import { cleanup } from "@testing-library/react";
 import type { Region } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { useMemo } from "react";
-import { server } from "testHelpers/server";
 
 // useProxyLatency does some http requests to determine latency.
 // This would fail unit testing, or at least make it very slow with
@@ -40,6 +40,12 @@ jest.mock("contexts/useProxyLatency", () => ({
 global.scrollTo = jest.fn();
 
 window.HTMLElement.prototype.scrollIntoView = jest.fn();
+// Polyfill pointer capture methods for JSDOM compatibility with Radix UI
+window.HTMLElement.prototype.hasPointerCapture = jest
+	.fn()
+	.mockReturnValue(false);
+window.HTMLElement.prototype.setPointerCapture = jest.fn();
+window.HTMLElement.prototype.releasePointerCapture = jest.fn();
 window.open = jest.fn();
 navigator.sendBeacon = jest.fn();
 

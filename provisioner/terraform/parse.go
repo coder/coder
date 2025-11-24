@@ -15,15 +15,19 @@ import (
 )
 
 // Parse extracts Terraform variables from source-code.
+// TODO: This Parse is incomplete. It uses tfparse instead of terraform.
+// The inputs are incomplete, as values such as the user context, parameters,
+// etc are all important to the parsing process. This should be replaced with
+// preview and have all inputs.
 func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
 	ctx := sess.Context()
 	_, span := s.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	// Load the module and print any parse errors.
-	parser, diags := tfparse.New(sess.WorkDirectory, tfparse.WithLogger(s.logger.Named("tfparse")))
+	parser, diags := tfparse.New(sess.Files.WorkDirectory(), tfparse.WithLogger(s.logger.Named("tfparse")))
 	if diags.HasErrors() {
-		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
+		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.Files.WorkDirectory(), diags))
 	}
 
 	workspaceTags, _, err := parser.WorkspaceTags(ctx)

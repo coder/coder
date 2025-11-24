@@ -1,6 +1,5 @@
 import { css } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -10,6 +9,7 @@ import type {
 	TemplateVersionParameter,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
@@ -97,10 +97,15 @@ export const UpdateBuildParametersDialog: FC<
 				</VerticalForm>
 			</DialogContent>
 			<DialogActions disableSpacing css={styles.dialogActions}>
-				<Button fullWidth type="button" onClick={dialogProps.onClose}>
+				<Button
+					variant="outline"
+					className="w-full"
+					type="button"
+					onClick={dialogProps.onClose}
+				>
 					Cancel
 				</Button>
-				<Button color="primary" fullWidth type="submit" form="updateParameters">
+				<Button className="w-full" type="submit" form="updateParameters">
 					Update parameters
 				</Button>
 			</DialogActions>

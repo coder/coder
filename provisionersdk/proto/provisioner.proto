@@ -101,6 +101,8 @@ message Preset {
   repeated PresetParameter parameters = 2;
   Prebuild prebuild = 3;
   bool default = 4;
+  string description = 5;
+  string icon = 6;
 }
 
 message PresetParameter {
@@ -268,6 +270,7 @@ message App {
   AppOpenIn open_in = 12;
   string group = 13;
   string id = 14; // If nil, new UUID will be generated.
+  string tooltip = 15;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
@@ -332,7 +335,8 @@ message AITaskSidebarApp {
 
 message AITask {
   string id = 1;
-  AITaskSidebarApp sidebar_app = 2;
+  optional AITaskSidebarApp sidebar_app = 2;
+  string app_id = 3;
 }
 
 // Metadata is information about a workspace used in the execution of a build
@@ -358,6 +362,9 @@ message Metadata {
   repeated Role workspace_owner_rbac_roles = 19;
   PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
   repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
+  string task_id = 22;
+  string task_prompt = 23;
+  string template_version_id = 24;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -367,6 +374,11 @@ message Config {
   // state is the provisioner state (if any)
   bytes state = 2;
   string provisioner_log_level = 3;
+  // Template imports can omit template id
+  optional string template_id = 4;
+  // Dry runs omit version id
+  optional string template_version_id = 5;
+  optional bool exp_reuse_terraform_workspace = 6; // Whether to reuse existing terraform workspaces if they exist.
 }
 
 // ParseRequest consumes source-code to produce inputs.
@@ -417,6 +429,7 @@ message PlanComplete {
   // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
   bool has_ai_tasks = 13;
   repeated provisioner.AITask ai_tasks = 14;
+  bool has_external_agents = 15;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

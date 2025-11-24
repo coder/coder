@@ -24,7 +24,7 @@ import {
 import { useClickableTableRow } from "hooks";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { docs } from "utils/docs";
 
 type GroupsPageViewProps = {
@@ -42,66 +42,64 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	const isEmpty = Boolean(groups && groups.length === 0);
 
 	return (
-		<>
-			<ChooseOne>
-				<Cond condition={!groupsEnabled}>
-					<Paywall
-						message="Groups"
-						description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/users/groups-roles")}
-					/>
-				</Cond>
-				<Cond>
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="w-2/5">Name</TableHead>
-								<TableHead className="w-3/5">Users</TableHead>
-								<TableHead className="w-auto" />
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							<ChooseOne>
-								<Cond condition={isLoading}>
-									<TableLoader />
-								</Cond>
+		<ChooseOne>
+			<Cond condition={!groupsEnabled}>
+				<Paywall
+					message="Groups"
+					description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
+					documentationLink={docs("/admin/users/groups-roles")}
+				/>
+			</Cond>
+			<Cond>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-2/5">Name</TableHead>
+							<TableHead className="w-3/5">Users</TableHead>
+							<TableHead className="w-auto" />
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						<ChooseOne>
+							<Cond condition={isLoading}>
+								<TableLoader />
+							</Cond>
 
-								<Cond condition={isEmpty}>
-									<TableRow>
-										<TableCell colSpan={999}>
-											<EmptyState
-												message="No groups yet"
-												description={
-													canCreateGroup
-														? "Create your first group"
-														: "You don't have permission to create a group"
-												}
-												cta={
-													canCreateGroup && (
-														<Button asChild>
-															<RouterLink to="create">
-																<PlusIcon className="size-icon-sm" />
-																Create group
-															</RouterLink>
-														</Button>
-													)
-												}
-											/>
-										</TableCell>
-									</TableRow>
-								</Cond>
+							<Cond condition={isEmpty}>
+								<TableRow>
+									<TableCell colSpan={999}>
+										<EmptyState
+											message="No groups yet"
+											description={
+												canCreateGroup
+													? "Create your first group"
+													: "You don't have permission to create a group"
+											}
+											cta={
+												canCreateGroup && (
+													<Button asChild>
+														<RouterLink to="create">
+															<PlusIcon className="size-icon-sm" />
+															Create group
+														</RouterLink>
+													</Button>
+												)
+											}
+										/>
+									</TableCell>
+								</TableRow>
+							</Cond>
 
-								<Cond>
-									{groups?.map((group) => (
-										<GroupRow key={group.id} group={group} />
-									))}
-								</Cond>
-							</ChooseOne>
-						</TableBody>
-					</Table>
-				</Cond>
-			</ChooseOne>
-		</>
+							<Cond>
+								{groups?.map((group) => (
+									<GroupRow key={group.id} group={group} />
+								))}
+							</Cond>
+						</ChooseOne>
+					</TableBody>
+				</Table>
+			</Cond>
+		</ChooseOne>
 	);
 };
 

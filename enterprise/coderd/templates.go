@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -9,12 +8,15 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -99,7 +101,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
-// @Success 200 {array} codersdk.TemplateUser
+// @Success 200 {object} codersdk.TemplateACL
 // @Router /templates/{template}/acl [get]
 func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -184,7 +186,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
-// @Param request body codersdk.UpdateTemplateACL true "Update template request"
+// @Param request body codersdk.UpdateTemplateACL true "Update template ACL request"
 // @Success 200 {object} codersdk.Response
 // @Router /templates/{template}/acl [patch]
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
@@ -208,13 +210,10 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validErrs := validateTemplateACLPerms(ctx, api.Database, req.UserPerms, "user_perms", true)
-	validErrs = append(validErrs,
-		validateTemplateACLPerms(ctx, api.Database, req.GroupPerms, "group_perms", false)...)
-
+	validErrs := acl.Validate(ctx, api.Database, TemplateACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update template metadata!",
+			Message:     "Invalid request to update template ACL",
 			Validations: validErrs,
 		})
 		return
@@ -227,28 +226,20 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("get template by ID: %w", err)
 		}
 
-		if len(req.UserPerms) > 0 {
-			for id, role := range req.UserPerms {
-				// A user with an empty string implies
-				// deletion.
-				if role == "" {
-					delete(template.UserACL, id)
-					continue
-				}
-				template.UserACL[id] = db2sdk.TemplateRoleActions(role)
+		for id, role := range req.UserPerms {
+			if role == codersdk.TemplateRoleDeleted {
+				delete(template.UserACL, id)
+				continue
 			}
+			template.UserACL[id] = db2sdk.TemplateRoleActions(role)
 		}
 
-		if len(req.GroupPerms) > 0 {
-			for id, role := range req.GroupPerms {
-				// An id with an empty string implies
-				// deletion.
-				if role == "" {
-					delete(template.GroupACL, id)
-					continue
-				}
-				template.GroupACL[id] = db2sdk.TemplateRoleActions(role)
+		for id, role := range req.GroupPerms {
+			if role == codersdk.TemplateRoleDeleted {
+				delete(template.GroupACL, id)
+				continue
 			}
+			template.GroupACL[id] = db2sdk.TemplateRoleActions(role)
 		}
 
 		err = tx.UpdateTemplateACLByID(ctx, database.UpdateTemplateACLByIDParams{
@@ -277,42 +268,31 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// nolint TODO fix stupid flag.
-func validateTemplateACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.TemplateRole, field string, isUser bool) []codersdk.ValidationError {
-	// Validate requires full read access to users and groups
-	// nolint:gocritic
-	ctx = dbauthz.AsSystemRestricted(ctx)
-	var validErrs []codersdk.ValidationError
-	for k, v := range perms {
-		if err := validateTemplateRole(v); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: err.Error()})
-			continue
-		}
+type TemplateACLUpdateValidator codersdk.UpdateTemplateACL
 
-		id, err := uuid.Parse(k)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: "ID " + k + "must be a valid UUID."})
-			continue
-		}
+var (
+	templateACLUpdateUsersFieldName  = "user_perms"
+	templateACLUpdateGroupsFieldName = "group_perms"
+)
 
-		if isUser {
-			// This could get slow if we get a ton of user perm updates.
-			_, err = db.GetUserByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", k, err.Error())})
-				continue
-			}
-		} else {
-			// This could get slow if we get a ton of group perm updates.
-			_, err = db.GetGroupByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", k, err.Error())})
-				continue
-			}
-		}
+// TemplateACLUpdateValidator implements acl.UpdateValidator[codersdk.TemplateRole]
+var _ acl.UpdateValidator[codersdk.TemplateRole] = TemplateACLUpdateValidator{}
+
+func (w TemplateACLUpdateValidator) Users() (map[string]codersdk.TemplateRole, string) {
+	return w.UserPerms, templateACLUpdateUsersFieldName
+}
+
+func (w TemplateACLUpdateValidator) Groups() (map[string]codersdk.TemplateRole, string) {
+	return w.GroupPerms, templateACLUpdateGroupsFieldName
+}
+
+func (TemplateACLUpdateValidator) ValidateRole(role codersdk.TemplateRole) error {
+	actions := db2sdk.TemplateRoleActions(role)
+	if len(actions) == 0 && role != codersdk.TemplateRoleDeleted {
+		return xerrors.Errorf("role %q is not a valid template role", role)
 	}
 
-	return validErrs
+	return nil
 }
 
 func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.UUID][]uuid.UUID) []codersdk.TemplateUser {
@@ -328,24 +308,15 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 	return users
 }
 
-func validateTemplateRole(role codersdk.TemplateRole) error {
-	actions := db2sdk.TemplateRoleActions(role)
-	if len(actions) == 0 && role != codersdk.TemplateRoleDeleted {
-		return xerrors.Errorf("role %q is not a valid Template role", role)
-	}
-
-	return nil
-}
-
 func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
-	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
-		return codersdk.TemplateRoleUse
-	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
+	case slice.SameElements(actions, db2sdk.TemplateRoleActions(codersdk.TemplateRoleAdmin)):
 		return codersdk.TemplateRoleAdmin
+	case slice.SameElements(actions, db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse)):
+		return codersdk.TemplateRoleUse
 	}
 
-	return ""
+	return codersdk.TemplateRoleDeleted
 }
 
 // TODO move to api.RequireFeatureMW when we are OK with changing the behavior.
@@ -368,4 +339,46 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 			next.ServeHTTP(rw, r)
 		})
 	}
+}
+
+// @Summary Invalidate presets for template
+// @ID invalidate-presets-for-template
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.InvalidatePresetsResponse
+// @Router /templates/{template}/prebuilds/invalidate [post]
+func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	template := httpmw.TemplateParam(r)
+
+	// Authorization: user must be able to update the template
+	if !api.Authorize(r, policy.ActionUpdate, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Update last_invalidated_at for all presets of the active template version
+	invalidatedPresets, err := api.Database.UpdatePresetsLastInvalidatedAt(ctx, database.UpdatePresetsLastInvalidatedAtParams{
+		TemplateID:        template.ID,
+		LastInvalidatedAt: sql.NullTime{Time: api.Clock.Now(), Valid: true},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to invalidate presets.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.Logger.Info(ctx, "invalidated presets",
+		slog.F("template_id", template.ID),
+		slog.F("template_name", template.Name),
+		slog.F("preset_count", len(invalidatedPresets)),
+	)
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePresetsResponse{
+		Invalidated: db2sdk.InvalidatedPresets(invalidatedPresets),
+	})
 }

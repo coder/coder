@@ -17,7 +17,7 @@ machine/VM.
   options.
 - To only display certain types of logs, use
   the[`CODER_LOG_FILTER`](../../reference/cli/server.md#-l---log-filter) server
-  config.
+  config. Using `.*` will result in the `DEBUG` log level being used.
 
 Events such as server errors, audit logs, user activities, and SSO & OpenID
 Connect logs are all captured in the `coderd` logs.

@@ -146,7 +146,9 @@ func TestProvisionerDaemons(t *testing.T) {
 	t.Run("Default limit", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		daemons, err := templateAdminClient.OrganizationProvisionerDaemons(ctx, owner.OrganizationID, nil)
+		daemons, err := templateAdminClient.OrganizationProvisionerDaemons(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerDaemonsOptions{
+			Offline: true,
+		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 50)
 	})
@@ -155,7 +157,8 @@ func TestProvisionerDaemons(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		daemons, err := templateAdminClient.OrganizationProvisionerDaemons(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerDaemonsOptions{
-			IDs: []uuid.UUID{pd1.ID, pd2.ID},
+			IDs:     []uuid.UUID{pd1.ID, pd2.ID},
+			Offline: true,
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
@@ -167,7 +170,8 @@ func TestProvisionerDaemons(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		daemons, err := templateAdminClient.OrganizationProvisionerDaemons(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerDaemonsOptions{
-			Tags: map[string]string{"count": "1"},
+			Tags:    map[string]string{"count": "1"},
+			Offline: true,
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)
@@ -209,7 +213,8 @@ func TestProvisionerDaemons(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		daemons, err := templateAdminClient.OrganizationProvisionerDaemons(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerDaemonsOptions{
-			IDs: []uuid.UUID{pd2.ID},
+			IDs:     []uuid.UUID{pd2.ID},
+			Offline: true,
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)

@@ -1,7 +1,6 @@
 package apikey_test
 
 import (
-	"crypto/sha256"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +34,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -62,7 +61,7 @@ func TestGenerate(t *testing.T) {
 				ExpiresAt:       time.Time{},
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -75,7 +74,7 @@ func TestGenerate(t *testing.T) {
 				ExpiresAt:       time.Time{},
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -88,7 +87,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -126,8 +125,8 @@ func TestGenerate(t *testing.T) {
 			require.Equal(t, key.ID, keytokens[0])
 
 			// Assert that the hashed secret is correct.
-			hashed := sha256.Sum256([]byte(keytokens[1]))
-			assert.ElementsMatch(t, hashed, key.HashedSecret)
+			equal := apikey.ValidateHash(key.HashedSecret, keytokens[1])
+			require.True(t, equal, "valid secret")
 
 			assert.Equal(t, tc.params.UserID, key.UserID)
 			assert.WithinDuration(t, dbtime.Now(), key.CreatedAt, time.Second*5)
@@ -159,9 +158,9 @@ func TestGenerate(t *testing.T) {
 			}
 
 			if tc.params.Scope != "" {
-				assert.Equal(t, tc.params.Scope, key.Scope)
+				assert.True(t, key.Scopes.Has(tc.params.Scope))
 			} else {
-				assert.Equal(t, database.APIKeyScopeAll, key.Scope)
+				assert.True(t, key.Scopes.Has(database.ApiKeyScopeCoderAll))
 			}
 
 			if tc.params.TokenName != "" {
@@ -172,4 +171,18 @@ func TestGenerate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestInvalid just ensures the false case is asserted by some tests.
+// Otherwise, a function that just `returns true` might pass all tests incorrectly.
+func TestInvalid(t *testing.T) {
+	t.Parallel()
+
+	require.Falsef(t, apikey.ValidateHash([]byte{}, "secret"), "empty hash")
+
+	secret, hash, err := apikey.GenerateSecret(10)
+	require.NoError(t, err)
+
+	require.Falsef(t, apikey.ValidateHash(hash, secret+"_"), "different secret")
+	require.Falsef(t, apikey.ValidateHash(hash[:len(hash)-1], secret), "different hash length")
 }

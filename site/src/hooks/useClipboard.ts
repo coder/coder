@@ -1,22 +1,18 @@
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffectEvent } from "./hookPolyfills";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
 export const HTTP_FALLBACK_DATA_ID = "http-fallback";
 
 export type UseClipboardInput = Readonly<{
-	textToCopy: string;
-
-	/**
-	 * Optional callback to call when an error happens. If not specified, the hook
-	 * will dispatch an error message to the GlobalSnackbar
-	 */
 	onError?: (errorMessage: string) => void;
+	clearErrorOnSuccess?: boolean;
 }>;
 
 export type UseClipboardResult = Readonly<{
-	copyToClipboard: () => Promise<void>;
+	copyToClipboard: (textToCopy: string) => Promise<void>;
 	error: Error | undefined;
 
 	/**
@@ -40,47 +36,56 @@ export type UseClipboardResult = Readonly<{
 	showCopiedSuccess: boolean;
 }>;
 
-export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
-	const { textToCopy, onError: errorCallback } = input;
+export const useClipboard = (input?: UseClipboardInput): UseClipboardResult => {
+	const { onError = displayError, clearErrorOnSuccess = true } = input ?? {};
+
 	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
 	const [error, setError] = useState<Error>();
-	const timeoutIdRef = useRef<number | undefined>();
+	const timeoutIdRef = useRef<number | undefined>(undefined);
 
 	useEffect(() => {
-		const clearIdOnUnmount = () => window.clearTimeout(timeoutIdRef.current);
-		return clearIdOnUnmount;
+		const clearTimeoutOnUnmount = () => {
+			window.clearTimeout(timeoutIdRef.current);
+		};
+		return clearTimeoutOnUnmount;
 	}, []);
 
-	const handleSuccessfulCopy = () => {
+	const stableOnError = useEffectEvent(() => onError(COPY_FAILED_MESSAGE));
+	const handleSuccessfulCopy = useEffectEvent(() => {
 		setShowCopiedSuccess(true);
+		if (clearErrorOnSuccess) {
+			setError(undefined);
+		}
+
 		timeoutIdRef.current = window.setTimeout(() => {
 			setShowCopiedSuccess(false);
 		}, CLIPBOARD_TIMEOUT_MS);
-	};
+	});
 
-	const copyToClipboard = async () => {
-		try {
-			await window.navigator.clipboard.writeText(textToCopy);
-			handleSuccessfulCopy();
-		} catch (err) {
-			const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
-			if (fallbackCopySuccessful) {
+	const copyToClipboard = useCallback(
+		async (textToCopy: string) => {
+			try {
+				await window.navigator.clipboard.writeText(textToCopy);
 				handleSuccessfulCopy();
-				return;
+			} catch (err) {
+				const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
+				if (fallbackCopySuccessful) {
+					handleSuccessfulCopy();
+					return;
+				}
+
+				const wrappedErr = new Error(COPY_FAILED_MESSAGE);
+				if (err instanceof Error) {
+					wrappedErr.stack = err.stack;
+				}
+
+				console.error(wrappedErr);
+				setError(wrappedErr);
+				stableOnError();
 			}
-
-			const wrappedErr = new Error(COPY_FAILED_MESSAGE);
-			if (err instanceof Error) {
-				wrappedErr.stack = err.stack;
-			}
-
-			console.error(wrappedErr);
-			setError(wrappedErr);
-
-			const notifyUser = errorCallback ?? displayError;
-			notifyUser(COPY_FAILED_MESSAGE);
-		}
-	};
+		},
+		[stableOnError, handleSuccessfulCopy],
+	);
 
 	return { showCopiedSuccess, error, copyToClipboard };
 };

@@ -49,16 +49,18 @@
 	"[javascript][javascriptreact][json][jsonc][typescript][typescriptreact]": {
 		"editor.defaultFormatter": "biomejs.biome",
 		"editor.codeActionsOnSave": {
-			"quickfix.biome": "explicit"
+			"source.fixAll.biome": "explicit"
 			//   "source.organizeImports.biome": "explicit"
 		}
 	},
 
+	"tailwindCSS.classFunctions": ["cva", "cn"],
 	"[css][html][markdown][yaml]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},
 	"typos.config": ".github/workflows/typos.toml",
 	"[markdown]": {
 		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
-	}
+	},
+	"biome.lsp.bin": "site/node_modules/.bin/biome"
 }

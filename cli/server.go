@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -55,17 +56,12 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
-
-	"github.com/coder/coder/v2/coderd/entitlements"
-	"github.com/coder/coder/v2/coderd/notifications/reports"
-	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/coder/v2/coderd/webpush"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -77,21 +73,24 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/devtunnel"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -99,9 +98,11 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -280,6 +281,12 @@ func enablePrometheus(
 		}
 	}
 
+	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger)
+	if err := provisionerdserverMetrics.Register(options.PrometheusRegistry); err != nil {
+		return nil, xerrors.Errorf("failed to register provisionerd_server metrics: %w", err)
+	}
+	options.ProvisionerdServerMetrics = provisionerdserverMetrics
+
 	//nolint:revive
 	return ServeHandler(
 		ctx, logger, promhttp.InstrumentMetricHandler(
@@ -342,6 +349,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if vals.AccessURL.String() != "" &&
 				!(vals.AccessURL.Scheme == "http" || vals.AccessURL.Scheme == "https") {
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
+			}
+
+			// Cross-field configuration validation after initial parsing.
+			if err := vals.Validate(); err != nil {
+				return err
 			}
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
@@ -423,7 +435,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
-			if !vals.InMemoryDatabase && vals.PostgresURL == "" {
+			if vals.PostgresURL == "" {
 				var closeFunc func() error
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", config.PostgresPath())
 				customPostgresCacheDir := ""
@@ -726,42 +738,37 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
 			var pubsubWatchdogTimeout <-chan struct{}
-			if vals.InMemoryDatabase {
-				// This is only used for testing.
-				options.Database = dbmem.New()
-				options.Pubsub = pubsub.NewInMemory()
-			} else {
-				sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("connect to postgres: %w", err)
-				}
-				defer func() {
-					_ = sqlDB.Close()
-				}()
 
-				if options.DeploymentValues.Prometheus.Enable {
-					// At this stage we don't think the database name serves much purpose in these metrics.
-					// It requires parsing the DSN to determine it, which requires pulling in another dependency
-					// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
-					// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
-					// take different forms, which make parsing non-trivial.
-					options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
-				}
-
-				options.Database = database.New(sqlDB)
-				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
-				if err != nil {
-					return xerrors.Errorf("create pubsub: %w", err)
-				}
-				options.Pubsub = ps
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(ps)
-				}
-				defer options.Pubsub.Close()
-				psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
-				pubsubWatchdogTimeout = psWatchdog.Timeout()
-				defer psWatchdog.Close()
+			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+			if err != nil {
+				return xerrors.Errorf("connect to postgres: %w", err)
 			}
+			defer func() {
+				_ = sqlDB.Close()
+			}()
+
+			if options.DeploymentValues.Prometheus.Enable {
+				// At this stage we don't think the database name serves much purpose in these metrics.
+				// It requires parsing the DSN to determine it, which requires pulling in another dependency
+				// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
+				// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
+				// take different forms, which make parsing non-trivial.
+				options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
+			}
+
+			options.Database = database.New(sqlDB)
+			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			if err != nil {
+				return xerrors.Errorf("create pubsub: %w", err)
+			}
+			options.Pubsub = ps
+			if options.DeploymentValues.Prometheus.Enable {
+				options.PrometheusRegistry.MustRegister(ps)
+			}
+			defer options.Pubsub.Close()
+			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
+			pubsubWatchdogTimeout = psWatchdog.Timeout()
+			defer psWatchdog.Close()
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
@@ -968,23 +975,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			client := codersdk.New(localURL)
-			if localURL.Scheme == "https" && IsLocalhost(localURL.Hostname()) {
-				// The certificate will likely be self-signed or for a different
-				// hostname, so we need to skip verification.
-				client.HTTPClient.Transport = &http.Transport{
-					TLSClientConfig: &tls.Config{
-						//nolint:gosec
-						InsecureSkipVerify: true,
-					},
-				}
-			}
-			defer client.HTTPClient.CloseIdleConnections()
-
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
 			// such as via the systemd service.
-			err = config.URL().Write(client.URL.String())
+			err = config.URL().Write(localURL.String())
 			if err != nil && flag.Lookup("test.v") != nil {
 				return xerrors.Errorf("write config url: %w", err)
 			}
@@ -1035,7 +1029,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, quartz.NewReal())
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, quartz.NewReal())
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -1107,7 +1101,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
+				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, coderAPI.BuildUsageChecker, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
 			autobuildExecutor.Run()
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
@@ -1384,6 +1378,7 @@ func IsLocalURL(ctx context.Context, u *url.URL) (bool, error) {
 }
 
 func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Duration) error {
+	// nolint:gocritic // The magic number is parameterized.
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return shutdown(ctx)
@@ -1465,14 +1460,14 @@ func newProvisionerDaemon(
 			tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			wg.Add(1)
-			go func() {
+			pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTerraformProvisioner), func(ctx context.Context) {
 				defer wg.Done()
 				<-ctx.Done()
 				_ = terraformClient.Close()
 				_ = terraformServer.Close()
-			}()
+			})
 			wg.Add(1)
-			go func() {
+			pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTerraformProvisioner), func(ctx context.Context) {
 				defer wg.Done()
 				defer cancel()
 
@@ -1481,6 +1476,7 @@ func newProvisionerDaemon(
 						Listener:      terraformServer,
 						Logger:        provisionerLogger,
 						WorkDirectory: workDir,
+						Experiments:   coderAPI.Experiments,
 					},
 					CachePath: tfDir,
 					Tracer:    tracer,
@@ -1491,7 +1487,7 @@ func newProvisionerDaemon(
 					default:
 					}
 				}
-			}()
+			})
 
 			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 		default:
@@ -2141,50 +2137,90 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
 	}
 
-	// Ensure a password and port have been generated!
-	connectionURL, err := embeddedPostgresURL(cfg)
-	if err != nil {
-		return "", nil, err
-	}
-	pgPassword, err := cfg.PostgresPassword().Read()
-	if err != nil {
-		return "", nil, xerrors.Errorf("read postgres password: %w", err)
-	}
-	pgPortRaw, err := cfg.PostgresPort().Read()
-	if err != nil {
-		return "", nil, xerrors.Errorf("read postgres port: %w", err)
-	}
-	pgPort, err := strconv.ParseUint(pgPortRaw, 10, 16)
-	if err != nil {
-		return "", nil, xerrors.Errorf("parse postgres port: %w", err)
-	}
-
 	cachePath := filepath.Join(cfg.PostgresPath(), "cache")
 	if customCacheDir != "" {
 		cachePath = filepath.Join(customCacheDir, "postgres")
 	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
-	ep := embeddedpostgres.NewDatabase(
-		embeddedpostgres.DefaultConfig().
-			Version(embeddedpostgres.V13).
-			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
-			// Default BinaryRepositoryURL repo1.maven.org is flaky.
-			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
-			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
-			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
-			CachePath(cachePath).
-			Username("coder").
-			Password(pgPassword).
-			Database("coder").
-			Encoding("UTF8").
-			Port(uint32(pgPort)).
-			Logger(stdlibLogger.Writer()),
-	)
-	err = ep.Start()
-	if err != nil {
-		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
+
+	// If the port is not defined, an available port will be found dynamically. This has
+	// implications in CI because here is no way to tell Postgres to use an ephemeral
+	// port, so to avoid flaky tests in CI we need to retry EmbeddedPostgres.Start in
+	// case of a race condition where the port we quickly listen on and close in
+	// embeddedPostgresURL() is not free by the time the embedded postgres starts up.
+	// The maximum retry attempts _should_ cover most cases where port conflicts occur
+	// in CI and cause flaky tests.
+	maxAttempts := 1
+	_, err = cfg.PostgresPort().Read()
+	// Important: if retryPortDiscovery is changed to not include testing.Testing(),
+	// the retry logic below also needs to be updated to ensure we don't delete an
+	// existing database
+	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
+	if retryPortDiscovery {
+		maxAttempts = 3
 	}
-	return connectionURL, ep.Stop, nil
+
+	var startErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if retryPortDiscovery && attempt > 0 {
+			// Clean up the data and runtime directories and the port file from the
+			// previous failed attempt to ensure a clean slate for the next attempt.
+			_ = os.RemoveAll(filepath.Join(cfg.PostgresPath(), "data"))
+			_ = os.RemoveAll(filepath.Join(cfg.PostgresPath(), "runtime"))
+			_ = cfg.PostgresPort().Delete()
+		}
+
+		// Ensure a password and port have been generated.
+		connectionURL, err := embeddedPostgresURL(cfg)
+		if err != nil {
+			return "", nil, err
+		}
+		pgPassword, err := cfg.PostgresPassword().Read()
+		if err != nil {
+			return "", nil, xerrors.Errorf("read postgres password: %w", err)
+		}
+		pgPortRaw, err := cfg.PostgresPort().Read()
+		if err != nil {
+			return "", nil, xerrors.Errorf("read postgres port: %w", err)
+		}
+		pgPort, err := strconv.ParseUint(pgPortRaw, 10, 16)
+		if err != nil {
+			return "", nil, xerrors.Errorf("parse postgres port: %w", err)
+		}
+
+		ep := embeddedpostgres.NewDatabase(
+			embeddedpostgres.DefaultConfig().
+				Version(embeddedpostgres.V13).
+				BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
+				// Default BinaryRepositoryURL repo1.maven.org is flaky.
+				BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
+				DataPath(filepath.Join(cfg.PostgresPath(), "data")).
+				RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
+				CachePath(cachePath).
+				Username("coder").
+				Password(pgPassword).
+				Database("coder").
+				Encoding("UTF8").
+				Port(uint32(pgPort)).
+				Logger(stdlibLogger.Writer()),
+		)
+
+		startErr = ep.Start()
+		if startErr == nil {
+			return connectionURL, ep.Stop, nil
+		}
+
+		logger.Warn(ctx, "failed to start embedded postgres",
+			slog.F("attempt", attempt+1),
+			slog.F("max_attempts", maxAttempts),
+			slog.F("port", pgPort),
+			slog.Error(startErr),
+		)
+	}
+
+	return "", nil, xerrors.Errorf("failed to start built-in PostgreSQL after %d attempts. "+
+		"Optionally, specify an external deployment. See https://coder.com/docs/tutorials/external-database "+
+		"for more details: %w", maxAttempts, startErr)
 }
 
 func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile string, tlsClientCAFile string) (context.Context, *http.Client, error) {
@@ -2293,7 +2329,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	var err error
 	var sqlDB *sql.DB
 	dbNeedsClosing := true
-	// Try to connect for 30 seconds.
+	// nolint:gocritic // Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -2389,6 +2425,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 }
 
 func pingPostgres(ctx context.Context, db *sql.DB) error {
+	// nolint:gocritic // This is a reasonable magic number for a ping timeout.
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	return db.PingContext(ctx)
@@ -2686,6 +2723,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.AuthURL = v.Value
 		case "TOKEN_URL":
 			provider.TokenURL = v.Value
+		case "REVOKE_URL":
+			provider.RevokeURL = v.Value
 		case "VALIDATE_URL":
 			provider.ValidateURL = v.Value
 		case "REGEX":
@@ -2716,6 +2755,12 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.DisplayName = v.Value
 		case "DISPLAY_ICON":
 			provider.DisplayIcon = v.Value
+		case "MCP_URL":
+			provider.MCPURL = v.Value
+		case "MCP_TOOL_ALLOW_REGEX":
+			provider.MCPToolAllowRegex = v.Value
+		case "MCP_TOOL_DENY_REGEX":
+			provider.MCPToolDenyRegex = v.Value
 		}
 		providers[providerNum] = provider
 	}

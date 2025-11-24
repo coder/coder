@@ -5,7 +5,6 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import type { FC, ReactNode } from "react";
-
 export interface FullPageFormProps {
 	title: string;
 	detail?: ReactNode;
@@ -19,7 +18,7 @@ export const FullPageForm: FC<FullPageFormProps> = ({
 }) => {
 	return (
 		<Margins size="small">
-			<PageHeader css={{ paddingBottom: 24 }}>
+			<PageHeader className="pb-6">
 				<PageHeaderTitle>{title}</PageHeaderTitle>
 				{detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
 			</PageHeader>

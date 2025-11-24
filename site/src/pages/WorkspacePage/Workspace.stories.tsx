@@ -1,14 +1,15 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import type { ProvisionerJobLog } from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ProvisionerJobLog } from "api/typesGenerated";
+import { action } from "storybook/actions";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { Workspace } from "./Workspace";
+import { defaultPermissions } from "./WorkspaceNotifications/WorkspaceNotifications.stories";
 
 // Helper function to create timestamps easily - Copied from AppStatuses.stories.tsx
 const createTimestamp = (
@@ -111,9 +112,9 @@ export const RunningWithChildAgent: Story = {
 export const RunningWithAppStatuses: Story = {
 	args: {
 		workspace: {
-			...Mocks.MockWorkspace,
+			...Mocks.MockTaskWorkspace,
 			latest_build: {
-				...Mocks.MockWorkspace.latest_build,
+				...Mocks.MockTaskWorkspace.latest_build,
 				resources: [
 					{
 						...Mocks.MockWorkspaceResource,
@@ -346,6 +347,23 @@ export const Stopping: Story = {
 	args: {
 		...Running.args,
 		workspace: Mocks.MockStoppingWorkspace,
+	},
+};
+
+export const Unhealthy: Story = {
+	args: {
+		...Running.args,
+		workspace: Mocks.MockUnhealthyWorkspace,
+	},
+};
+
+export const UnhealthyWithoutUpdatePermission: Story = {
+	args: {
+		...Unhealthy.args,
+		permissions: {
+			...defaultPermissions,
+			updateWorkspace: false,
+		},
 	},
 };
 

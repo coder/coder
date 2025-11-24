@@ -22,15 +22,20 @@ import { type FormikTouched, useFormik } from "formik";
 import { type ChangeEvent, type FC, useEffect, useState } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
-	type TemplateAutostartRequirementDaysValue,
 	calculateAutostopRequirementDaysValue,
+	type TemplateAutostartRequirementDaysValue,
 } from "utils/schedule";
 import {
 	AutostopRequirementDaysHelperText,
 	AutostopRequirementWeeksHelperText,
 	convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
+import {
+	getValidationSchema,
+	type TemplateScheduleFormValues,
+} from "./formHelpers";
 import { ScheduleDialog } from "./ScheduleDialog";
+import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 import {
 	ActivityBumpHelperText,
 	DefaultTTLHelperText,
@@ -38,11 +43,6 @@ import {
 	DormancyTTLHelperText,
 	FailureTTLHelperText,
 } from "./TTLHelperText";
-import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
-import {
-	type TemplateScheduleFormValues,
-	getValidationSchema,
-} from "./formHelpers";
 import {
 	useWorkspacesToBeDeleted,
 	useWorkspacesToGoDormant,

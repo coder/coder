@@ -1,6 +1,6 @@
 import { type CSSObject, useTheme } from "@emotion/react";
 import { Button } from "components/Button/Button";
-import type { FC, FormEventHandler, ReactNode } from "react";
+import type { FC, FormEventHandler, JSX, ReactNode } from "react";
 
 interface FieldsetProps {
 	children: ReactNode;

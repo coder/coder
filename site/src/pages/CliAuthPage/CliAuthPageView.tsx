@@ -5,17 +5,14 @@ import { Welcome } from "components/Welcome/Welcome";
 import { useClipboard } from "hooks";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 
 interface CliAuthPageViewProps {
 	sessionToken?: string;
 }
 
 export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
-	const clipboard = useClipboard({
-		textToCopy: sessionToken ?? "",
-	});
-
+	const clipboardState = useClipboard();
 	return (
 		<SignInLayout>
 			<Welcome>Session token</Welcome>
@@ -30,16 +27,20 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 					className="w-full"
 					size="lg"
 					disabled={!sessionToken}
-					onClick={clipboard.copyToClipboard}
+					onClick={() => {
+						if (sessionToken) {
+							clipboardState.copyToClipboard(sessionToken);
+						}
+					}}
 				>
-					{clipboard.showCopiedSuccess ? (
+					{clipboardState.showCopiedSuccess ? (
 						<CheckIcon />
 					) : (
 						<Spinner loading={!sessionToken}>
 							<CopyIcon />
 						</Spinner>
 					)}
-					{clipboard.showCopiedSuccess
+					{clipboardState.showCopiedSuccess
 						? "Session token copied!"
 						: "Copy session token"}
 				</Button>

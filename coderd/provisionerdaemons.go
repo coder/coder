@@ -6,6 +6,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/sdk2db"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -45,6 +46,9 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	limit := p.PositiveInt32(qp, 50, "limit")
 	ids := p.UUIDs(qp, nil, "ids")
 	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
+	includeOffline := p.NullableBoolean(qp, sql.NullBool{}, "offline")
+	statuses := p.ProvisionerDaemonStatuses(qp, []codersdk.ProvisionerDaemonStatus{}, "status")
+	maxAge := p.Duration(qp, 0, "max_age")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -54,12 +58,17 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dbStatuses := sdk2db.ProvisionerDaemonStatuses(statuses)
+
 	daemons, err := api.Database.GetProvisionerDaemonsWithStatusByOrganization(
 		ctx,
 		database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID:  org.ID,
 			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
 			Limit:           sql.NullInt32{Int32: limit, Valid: limit > 0},
+			Offline:         includeOffline,
+			Statuses:        dbStatuses,
+			MaxAgeMs:        sql.NullInt64{Int64: maxAge.Milliseconds(), Valid: maxAge > 0},
 			IDs:             ids,
 			Tags:            tags,
 		},

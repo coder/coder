@@ -18,7 +18,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) gitssh() *serpent.Command {
+func gitssh() *serpent.Command {
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:    "gitssh",
 		Hidden: true,
@@ -38,7 +39,7 @@ func (r *RootCmd) gitssh() *serpent.Command {
 				return err
 			}
 
-			client, err := r.tryCreateAgentClient()
+			client, err := agentAuth.CreateClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
@@ -108,7 +109,7 @@ func (r *RootCmd) gitssh() *serpent.Command {
 			return nil
 		},
 	}
-
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 

@@ -10,9 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
-
-	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -20,10 +19,16 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	agplusage "github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
+	"github.com/coder/coder/v2/enterprise/coderd/usage"
+	"github.com/coder/quartz"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -36,6 +41,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
+	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck"
@@ -87,6 +93,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
+	if options.Options.UsageInserter == nil {
+		options.Options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
+	}
+	if options.Options.UsageInserter.Load() == nil {
+		collector := usage.NewDBInserter()
+		options.Options.UsageInserter.Store(&collector)
+	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
@@ -121,6 +134,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	if options.IDPSync == nil {
 		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))
+	}
+
+	if options.ConnectionLogger == nil {
+		options.ConnectionLogger = connectionlog.NewConnectionLogger(
+			connectionlog.NewDBBackend(options.Database),
+			connectionlog.NewSlogBackend(options.Logger),
+		)
 	}
 
 	api := &API{
@@ -206,6 +226,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
+	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		// Deprecated.
+		// TODO: remove with Beta release.
+		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -216,6 +246,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/replicas", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.replicas)
+		})
+		r.Route("/connectionlog", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureConnectionLog),
+			)
+			r.Get("/", api.connectionLogs)
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -421,6 +458,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
+		r.Route("/templates/{template}/prebuilds", func(r chi.Router) {
+			r.Use(
+				api.templateRBACEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractTemplateParam(api.Database),
+			)
+			r.Post("/invalidate", api.postInvalidateTemplatePresets)
+		})
+
 		r.Route("/groups", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
@@ -474,6 +520,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/prebuilds", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureWorkspacePrebuilds),
+			)
+			r.Get("/settings", api.prebuildsSettings)
+			r.Put("/settings", api.putPrebuildsSettings)
+		})
 		// The /notifications base route is mounted by the AGPL router, so we can't group it here.
 		// Additionally, because we have a static route for /notifications/templates/system which conflicts
 		// with the below route, we need to register this route without any mounts or groups to make both work.
@@ -481,6 +535,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			apiKeyMiddleware,
 			httpmw.ExtractNotificationTemplateParam(options.Database),
 		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
+
+		r.Route("/workspaces/{workspace}/external-agent", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractWorkspaceParam(options.Database),
+				api.RequireFeatureMW(codersdk.FeatureWorkspaceExternalAgent),
+			)
+			r.Get("/{agent}/credentials", api.workspaceExternalAgentCredentials)
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
@@ -585,8 +648,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 type Options struct {
 	*coderd.Options
 
-	RBAC         bool
-	AuditLogging bool
+	RBAC              bool
+	AuditLogging      bool
+	ConnectionLogging bool
 	// Whether to block non-browser connections.
 	BrowserOnly bool
 	SCIMAPIKey  []byte
@@ -632,6 +696,8 @@ type API struct {
 
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
+
+	aibridgedHandler http.Handler
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -687,6 +753,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			ctx, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 				codersdk.FeatureAuditLog:                   api.AuditLogging,
+				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
 				codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 				codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 				codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
@@ -698,6 +765,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureUserRoleManagement:         true,
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,
+				codersdk.FeatureAIBridge:                   true,
 			})
 		if err != nil {
 			return codersdk.Entitlements{}, err
@@ -723,6 +791,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				auditor = api.AGPL.Options.Auditor
 			}
 			api.AGPL.Auditor.Store(&auditor)
+		}
+
+		if initial, changed, enabled := featureChanged(codersdk.FeatureConnectionLog); shouldUpdate(initial, changed, enabled) {
+			connectionLogger := agplconnectionlog.NewNop()
+			if enabled {
+				connectionLogger = api.AGPL.Options.ConnectionLogger
+			}
+			api.AGPL.ConnectionLogger.Store(&connectionLogger)
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureBrowserOnly); shouldUpdate(initial, changed, enabled) {
@@ -772,13 +848,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 			var coordinator agpltailnet.Coordinator
-			// If HA is enabled, but the database is in-memory, we can't actually
-			// run HA and the PG coordinator. So throw a log line, and continue to use
-			// the in memory AGPL coordinator.
-			if enabled && api.DeploymentValues.InMemoryDatabase.Value() {
-				api.Logger.Warn(ctx, "high availability is enabled, but cannot be configured due to the database being set to in-memory")
-			}
-			if enabled && !api.DeploymentValues.InMemoryDatabase.Value() {
+			if enabled {
 				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 				if err != nil {
 					api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
@@ -801,7 +871,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 						}
 						api.derpMesh.SetAddresses(addresses, false)
 					}
-					_ = api.updateEntitlements(ctx)
+					_ = api.updateEntitlements(api.ctx)
 				})
 			} else {
 				coordinator = agpltailnet.NewCoordinator(api.Logger)
@@ -811,7 +881,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.replicaManager.SetCallback(func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
-					_ = api.updateEntitlements(ctx)
+					_ = api.updateEntitlements(api.ctx)
 				})
 			}
 
@@ -874,7 +944,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 
 			api.AGPL.PrebuildsReconciler.Store(&reconciler)
-			go reconciler.Run(context.Background())
+			// TODO: Should this context be the api.ctx context? To cancel when
+			// 	the API (and entire app) is closed via shutdown?
+			pproflabel.Go(context.Background(), pproflabel.Service(pproflabel.ServicePrebuildReconciler), reconciler.Run)
 
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 		}
@@ -888,8 +960,72 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			reloadedEntitlements.Warnings = append(reloadedEntitlements.Warnings, msg)
 		}
 		reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption] = featureExternalTokenEncryption
+
+		// Always use the enterprise usage checker
+		var checker wsbuilder.UsageChecker = api
+		api.AGPL.BuildUsageChecker.Store(&checker)
+
 		return reloadedEntitlements, nil
 	})
+}
+
+var _ wsbuilder.UsageChecker = &API{}
+
+func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+	// If the template version has an external agent, we need to check that the
+	// license is entitled to this feature.
+	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
+		feature, ok := api.Entitlements.Feature(codersdk.FeatureWorkspaceExternalAgent)
+		if !ok || !feature.Enabled {
+			return wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   "You have a template which uses external agents but your license is not entitled to this feature. You will be unable to create new workspaces from these templates.",
+			}, nil
+		}
+	}
+
+	// If the template version doesn't have an AI task, we don't need to check
+	// usage.
+	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
+		return wsbuilder.UsageCheckResponse{
+			Permitted: true,
+		}, nil
+	}
+
+	// When unlicensed, we need to check that we haven't breached the managed agent
+	// limit.
+	// Unlicensed deployments are allowed to use unlimited managed agents.
+	if api.Entitlements.HasLicense() {
+		managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
+		if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
+			return wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
+			}, nil
+		}
+
+		// This check is intentionally not committed to the database. It's fine if
+		// it's not 100% accurate or allows for minor breaches due to build races.
+		// nolint:gocritic // Requires permission to read all usage events.
+		managedAgentCount, err := store.GetTotalUsageDCManagedAgentsV1(agpldbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
+			StartDate: managedAgentLimit.UsagePeriod.Start,
+			EndDate:   managedAgentLimit.UsagePeriod.End,
+		})
+		if err != nil {
+			return wsbuilder.UsageCheckResponse{}, xerrors.Errorf("get managed agent count: %w", err)
+		}
+
+		if managedAgentCount >= *managedAgentLimit.Limit {
+			return wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   "You have breached the managed agent limit in your license. Please contact sales to continue using managed agents.",
+			}, nil
+		}
+	}
+
+	return wsbuilder.UsageCheckResponse{
+		Permitted: true,
+	}, nil
 }
 
 // getProxyDERPStartingRegionID returns the starting region ID that should be
@@ -1158,6 +1294,6 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 	}
 
 	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.AGPL.FileCache, api.DeploymentValues.Prebuilds,
-		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer)
+		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer, api.AGPL.BuildUsageChecker)
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
 }

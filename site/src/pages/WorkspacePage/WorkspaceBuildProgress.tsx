@@ -9,9 +9,9 @@ import { type FC, useEffect, useState } from "react";
 
 dayjs.extend(duration);
 
-// ActiveTransition gets the build estimate for the workspace,
+// getActiveTransitionStats gets the build estimate for the workspace,
 // if it is in a transition state.
-export const ActiveTransition = (
+export const getActiveTransitionStats = (
 	template: Template,
 	workspace: Workspace,
 ): TransitionStats | undefined => {
@@ -117,7 +117,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	// HACK: the codersdk type generator doesn't support null values, but this
 	// can be null when the template is new.
 	if ((transitionStats.P50 as number | null) === null) {
-		return <></>;
+		return null;
 	}
 	return (
 		<div css={styles.stack}>

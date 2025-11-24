@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"go.opentelemetry.io/otel/baggage"
 	"golang.org/x/xerrors"
 
@@ -113,6 +111,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "" // no target?
 	case database.NotificationsSettings:
 		return "" // no target?
+	case database.PrebuildsSettings:
+		return "" // no target?
 	case database.OAuth2ProviderApp:
 		return typed.Name
 	case database.OAuth2ProviderAppSecret:
@@ -131,10 +131,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "Organization Group Sync"
 	case idpsync.RoleSyncSettings:
 		return "Organization Role Sync"
-	case database.WorkspaceAgent:
+	case database.TaskTable:
 		return typed.Name
-	case database.WorkspaceApp:
-		return typed.Slug
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -176,6 +174,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.NotificationsSettings:
 		// Artificial ID for auditing purposes
 		return typed.ID
+	case database.PrebuildsSettings:
+		// Artificial ID for auditing purposes
+		return typed.ID
 	case database.OAuth2ProviderApp:
 		return typed.ID
 	case database.OAuth2ProviderAppSecret:
@@ -194,9 +195,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return noID // Org field on audit log has org id
 	case idpsync.RoleSyncSettings:
 		return noID // Org field on audit log has org id
-	case database.WorkspaceAgent:
-		return typed.ID
-	case database.WorkspaceApp:
+	case database.TaskTable:
 		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
@@ -231,6 +230,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeHealthSettings
 	case database.NotificationsSettings:
 		return database.ResourceTypeNotificationsSettings
+	case database.PrebuildsSettings:
+		return database.ResourceTypePrebuildsSettings
 	case database.OAuth2ProviderApp:
 		return database.ResourceTypeOauth2ProviderApp
 	case database.OAuth2ProviderAppSecret:
@@ -249,10 +250,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeIdpSyncSettingsRole
 	case idpsync.GroupSyncSettings:
 		return database.ResourceTypeIdpSyncSettingsGroup
-	case database.WorkspaceAgent:
-		return database.ResourceTypeWorkspaceAgent
-	case database.WorkspaceApp:
-		return database.ResourceTypeWorkspaceApp
+	case database.TaskTable:
+		return database.ResourceTypeTask
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -288,6 +287,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.NotificationsSettings:
 		// Artificial ID for auditing purposes
 		return false
+	case database.PrebuildsSettings:
+		// Artificial ID for auditing purposes
+		return false
 	case database.OAuth2ProviderApp:
 		return false
 	case database.OAuth2ProviderAppSecret:
@@ -306,9 +308,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case idpsync.RoleSyncSettings:
 		return true
-	case database.WorkspaceAgent:
-		return true
-	case database.WorkspaceApp:
+	case database.TaskTable:
 		return true
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
@@ -424,7 +424,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			action = req.Action
 		}
 
-		ip := ParseIP(p.Request.RemoteAddr)
+		ip := database.ParseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:             uuid.New(),
 			Time:           dbtime.Now(),
@@ -456,7 +456,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
-	ip := ParseIP(p.IP)
+	ip := database.ParseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
@@ -569,21 +569,5 @@ func either[T Auditable, R any](old, newVal T, fn func(T) R, auditAction databas
 		return fn(old)
 	default:
 		panic("both old and new are nil")
-	}
-}
-
-func ParseIP(ipStr string) pqtype.Inet {
-	ip := net.ParseIP(ipStr)
-	ipNet := net.IPNet{}
-	if ip != nil {
-		ipNet = net.IPNet{
-			IP:   ip,
-			Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
-		}
-	}
-
-	return pqtype.Inet{
-		IPNet: ipNet,
-		Valid: ip != nil,
 	}
 }

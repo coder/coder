@@ -14,11 +14,11 @@ import {
 } from "api/queries/workspaces";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import { useClipboard } from "hooks/useClipboard";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import themes from "theme";
 import { DEFAULT_TERMINAL_FONT, terminalFonts } from "theme/constants";
 import { pageTitle } from "utils/page";
@@ -26,6 +26,13 @@ import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
 import { v4 as uuidv4 } from "uuid";
+// Use websocket-ts for better WebSocket handling and auto-reconnection.
+import {
+	ExponentialBackoff,
+	type Websocket,
+	WebsocketBuilder,
+	WebsocketEvent,
+} from "websocket-ts";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 
@@ -74,6 +81,8 @@ const TerminalPage: FC = () => {
 	const config = useQuery(deploymentConfig());
 	const renderer = config.data?.config.web_terminal_renderer;
 
+	const { copyToClipboard } = useClipboard();
+
 	// Periodically report workspace usage.
 	useQuery(
 		workspaceUsage({
@@ -110,7 +119,7 @@ const TerminalPage: FC = () => {
 		appearanceSettingsQuery.data?.terminal_font || DEFAULT_TERMINAL_FONT;
 
 	// Create the terminal!
-	const fitAddonRef = useRef<FitAddon>();
+	const fitAddonRef = useRef<FitAddon>(undefined);
 	useEffect(() => {
 		if (!terminalWrapperRef.current || config.isLoading) {
 			return;
@@ -141,6 +150,61 @@ const TerminalPage: FC = () => {
 			}),
 		);
 
+		const isMac = navigator.platform.match("Mac");
+
+		const copySelection = () => {
+			const selection = terminal.getSelection();
+			if (selection) {
+				copyToClipboard(selection);
+			}
+		};
+
+		// There is no way to remove this handler, so we must attach it once and
+		// rely on a ref to send it to the current socket.
+		const escapedCarriageReturn = "\x1b\r";
+		terminal.attachCustomKeyEventHandler((ev) => {
+			// Make shift+enter send ^[^M (escaped carriage return).  Applications
+			// typically take this to mean to insert a literal newline.
+			if (ev.shiftKey && ev.key === "Enter") {
+				if (ev.type === "keydown") {
+					websocketRef.current?.send(
+						new TextEncoder().encode(
+							JSON.stringify({ data: escapedCarriageReturn }),
+						),
+					);
+				}
+				return false;
+			}
+			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
+			// By default this usually launches the browser dev tools, but users
+			// expect this keybinding to copy when in the context of the web terminal.
+			if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.shiftKey && ev.key === "C") {
+				ev.preventDefault();
+				if (ev.type === "keydown") {
+					copySelection();
+				}
+				return false;
+			}
+			return true;
+		});
+
+		// Copy using the clipboard API on selection.  This selected text will go
+		// into the clipboard, not the primary selection, as the browser does not
+		// give us an API to set the primary selection (only relevant to systems
+		// that have this distinction, like X11).
+		//
+		// We could bind the middle mouse button to paste from the clipboard to
+		// compensate, but then we would break pasting selections from external
+		// applications into the web terminal.  Not sure which tradeoff is worse; it
+		// probably varies between users.
+		//
+		// In other words, this copied text can be pasted with a keybinding
+		// (typically ctrl+v, ctrl+shift+v, or shift+insert), but *not* with the
+		// middle mouse button.
+		terminal.onSelectionChange(() => {
+			copySelection();
+		});
+
 		terminal.open(terminalWrapperRef.current);
 
 		// We have to fit twice here. It's unknown why, but the first fit will
@@ -164,6 +228,7 @@ const TerminalPage: FC = () => {
 		renderer,
 		theme.palette.background.default,
 		currentTerminalFont,
+		copyToClipboard,
 	]);
 
 	// Updates the reconnection token into the URL if necessary.
@@ -183,6 +248,7 @@ const TerminalPage: FC = () => {
 	}, [navigate, reconnectionToken, searchParams]);
 
 	// Hook up the terminal through a web socket.
+	const websocketRef = useRef<Websocket>(undefined);
 	useEffect(() => {
 		if (!terminal) {
 			return;
@@ -221,7 +287,7 @@ const TerminalPage: FC = () => {
 		}
 
 		// Hook up terminal events to the websocket.
-		let websocket: WebSocket | null;
+		let websocket: Websocket | null;
 		const disposers = [
 			terminal.onData((data) => {
 				websocket?.send(
@@ -259,9 +325,12 @@ const TerminalPage: FC = () => {
 				if (disposed) {
 					return; // Unmounted while we waited for the async call.
 				}
-				websocket = new WebSocket(url);
+				websocket = new WebsocketBuilder(url)
+					.withBackoff(new ExponentialBackoff(1000, 6))
+					.build();
 				websocket.binaryType = "arraybuffer";
-				websocket.addEventListener("open", () => {
+				websocketRef.current = websocket;
+				websocket.addEventListener(WebsocketEvent.open, () => {
 					// Now that we are connected, allow user input.
 					terminal.options = {
 						disableStdin: false,
@@ -278,18 +347,16 @@ const TerminalPage: FC = () => {
 					);
 					setConnectionStatus("connected");
 				});
-				websocket.addEventListener("error", () => {
-					terminal.options.disableStdin = true;
-					terminal.writeln(
-						`${Language.websocketErrorMessagePrefix}socket errored`,
-					);
-					setConnectionStatus("disconnected");
-				});
-				websocket.addEventListener("close", () => {
+				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
+					console.error("WebSocket error:", event);
 					terminal.options.disableStdin = true;
 					setConnectionStatus("disconnected");
 				});
-				websocket.addEventListener("message", (event) => {
+				websocket.addEventListener(WebsocketEvent.close, () => {
+					terminal.options.disableStdin = true;
+					setConnectionStatus("disconnected");
+				});
+				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
 					if (typeof event.data === "string") {
 						// This exclusively occurs when testing.
 						// "jest-websocket-mock" doesn't support ArrayBuffer.
@@ -298,12 +365,25 @@ const TerminalPage: FC = () => {
 						terminal.write(new Uint8Array(event.data));
 					}
 				});
+				websocket.addEventListener(WebsocketEvent.reconnect, () => {
+					if (websocket) {
+						websocket.binaryType = "arraybuffer";
+						websocket.send(
+							new TextEncoder().encode(
+								JSON.stringify({
+									height: terminal.rows,
+									width: terminal.cols,
+								}),
+							),
+						);
+					}
+				});
 			})
 			.catch((error) => {
 				if (disposed) {
 					return; // Unmounted while we waited for the async call.
 				}
-				terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
+				console.error("WebSocket connection failed:", error);
 				setConnectionStatus("disconnected");
 			});
 
@@ -313,6 +393,7 @@ const TerminalPage: FC = () => {
 				d.dispose();
 			}
 			websocket?.close(1000);
+			websocketRef.current = undefined;
 		};
 	}, [
 		command,
@@ -328,15 +409,15 @@ const TerminalPage: FC = () => {
 
 	return (
 		<ThemeOverride theme={theme}>
-			<Helmet>
+			{workspace.data && (
 				<title>
-					{workspace.data
-						? pageTitle(
-								`Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
-							)
-						: ""}
+					{pageTitle(
+						"Terminal",
+						`${workspace.data.owner_name}/${workspace.data.name}`,
+					)}
 				</title>
-			</Helmet>
+			)}
+
 			<div
 				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
 				data-status={connectionStatus}

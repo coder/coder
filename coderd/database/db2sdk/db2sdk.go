@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -46,6 +48,13 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 			into = append(into, convert(item))
 		}
 		return into
+	}
+}
+
+func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget {
+	return codersdk.APIAllowListTarget{
+		Type: codersdk.RBACResource(entry.Type),
+		ID:   entry.ID,
 	}
 }
 
@@ -183,20 +192,33 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
+func MinimalUser(user database.User) codersdk.MinimalUser {
+	return codersdk.MinimalUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		Name:      user.Name,
+		AvatarURL: user.AvatarURL,
+	}
+}
+
+func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser {
+	return codersdk.MinimalUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		Name:      user.Name,
+		AvatarURL: user.AvatarURL,
+	}
+}
+
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
-		MinimalUser: codersdk.MinimalUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			AvatarURL: user.AvatarURL,
-		},
-		Email:      user.Email,
-		Name:       user.Name,
-		CreatedAt:  user.CreatedAt,
-		UpdatedAt:  user.UpdatedAt,
-		LastSeenAt: user.LastSeenAt,
-		Status:     codersdk.UserStatus(user.Status),
-		LoginType:  codersdk.LoginType(user.LoginType),
+		MinimalUser: MinimalUser(user),
+		Email:       user.Email,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		LastSeenAt:  user.LastSeenAt,
+		Status:      codersdk.UserStatus(user.Status),
+		LoginType:   codersdk.LoginType(user.LoginType),
 	}
 }
 
@@ -368,6 +390,9 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 			}).String(),
 			// We do not currently support DeviceAuth.
 			DeviceAuth: "",
+			TokenRevoke: accessURL.ResolveReference(&url.URL{
+				Path: "/oauth2/revoke",
+			}).String(),
 		},
 	}
 }
@@ -526,13 +551,20 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	if appSlug == "" {
 		appSlug = dbApp.DisplayName
 	}
+
+	// Agent name is optional when app slug is present
+	normalizedAgentName := agentName
+	if !appurl.PortRegex.MatchString(appSlug) {
+		normalizedAgentName = ""
+	}
+
 	return appurl.ApplicationURL{
 		// We never generate URLs with a prefix. We only allow prefixes when
 		// parsing URLs from the hostname. Users that want this feature can
 		// write out their own URLs.
 		Prefix:        "",
 		AppSlugOrPort: appSlug,
-		AgentName:     agentName,
+		AgentName:     normalizedAgentName,
 		WorkspaceName: workspaceName,
 		Username:      ownerName,
 	}.String()
@@ -577,6 +609,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Tooltip:  dbApp.Tooltip,
 			Statuses: WorkspaceAppStatuses(statuses),
 		})
 	}
@@ -679,14 +712,15 @@ func SlimRoleFromName(name string) codersdk.SlimRole {
 func RBACRole(role rbac.Role) codersdk.Role {
 	slim := SlimRole(role)
 
-	orgPerms := role.Org[slim.OrganizationID]
+	orgPerms := role.ByOrgID[slim.OrganizationID]
 	return codersdk.Role{
-		Name:                    slim.Name,
-		OrganizationID:          slim.OrganizationID,
-		DisplayName:             slim.DisplayName,
-		SitePermissions:         List(role.Site, RBACPermission),
-		OrganizationPermissions: List(orgPerms, RBACPermission),
-		UserPermissions:         List(role.User, RBACPermission),
+		Name:                          slim.Name,
+		OrganizationID:                slim.OrganizationID,
+		DisplayName:                   slim.DisplayName,
+		SitePermissions:               List(role.Site, RBACPermission),
+		UserPermissions:               List(role.User, RBACPermission),
+		OrganizationPermissions:       List(orgPerms.Org, RBACPermission),
+		OrganizationMemberPermissions: List(orgPerms.Member, RBACPermission),
 	}
 }
 
@@ -701,8 +735,8 @@ func Role(role database.CustomRole) codersdk.Role {
 		OrganizationID:          orgID,
 		DisplayName:             role.DisplayName,
 		SitePermissions:         List(role.SitePermissions, Permission),
-		OrganizationPermissions: List(role.OrgPermissions, Permission),
 		UserPermissions:         List(role.UserPermissions, Permission),
+		OrganizationPermissions: List(role.OrgPermissions, Permission),
 	}
 }
 
@@ -781,26 +815,54 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
-	switch action {
-	case agentproto.Connection_CONNECT:
-		return database.AuditActionConnect, nil
-	case agentproto.Connection_DISCONNECT:
-		return database.AuditActionDisconnect, nil
+func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
+	switch role {
+	case codersdk.WorkspaceRoleAdmin:
+		return slice.Omit(
+			// Small note: This intentionally includes "create" because it's sort of
+			// double purposed as "can edit ACL". That's maybe a bit "incorrect", but
+			// it's what templates do already and we're copying that implementation.
+			rbac.ResourceWorkspace.AvailableActions(),
+			// Don't let anyone delete something they can't recreate.
+			policy.ActionDelete,
+		)
+	case codersdk.WorkspaceRoleUse:
+		return []policy.Action{
+			policy.ActionApplicationConnect,
+			policy.ActionRead,
+			policy.ActionSSH,
+			policy.ActionWorkspaceStart,
+			policy.ActionWorkspaceStop,
+		}
+	}
+	return []policy.Action{}
+}
+
+func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return database.ConnectionTypeSsh, nil
+	case agentproto.Connection_JETBRAINS:
+		return database.ConnectionTypeJetbrains, nil
+	case agentproto.Connection_VSCODE:
+		return database.ConnectionTypeVscode, nil
+	case agentproto.Connection_RECONNECTING_PTY:
+		return database.ConnectionTypeReconnectingPty, nil
 	default:
-		// Also Connection_ACTION_UNSPECIFIED, no mapping.
-		return "", xerrors.Errorf("unknown agent connection action %q", action)
+		// Also Connection_TYPE_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection type %q", typ)
 	}
 }
 
-func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
+func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
 	switch action {
-	case database.AuditActionConnect:
-		return agentproto.Connection_CONNECT, nil
-	case database.AuditActionDisconnect:
-		return agentproto.Connection_DISCONNECT, nil
+	case agentproto.Connection_CONNECT:
+		return database.ConnectionStatusConnected, nil
+	case agentproto.Connection_DISCONNECT:
+		return database.ConnectionStatusDisconnected, nil
 	default:
-		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
+		// Also Connection_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection action %q", action)
 	}
 }
 
@@ -816,6 +878,7 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 				Placeholder: param.Styling.Placeholder,
 				Disabled:    param.Styling.Disabled,
 				Label:       param.Styling.Label,
+				MaskInput:   param.Styling.MaskInput,
 			},
 			Mutable:      param.Mutable,
 			DefaultValue: PreviewHCLString(param.DefaultValue),
@@ -882,4 +945,104 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 		Max:       v.Max,
 		Monotonic: v.Monotonic,
 	}
+}
+
+func AIBridgeInterception(interception database.AIBridgeInterception, initiator database.VisibleUser, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
+	sdkTokenUsages := List(tokenUsages, AIBridgeTokenUsage)
+	sort.Slice(sdkTokenUsages, func(i, j int) bool {
+		// created_at ASC
+		return sdkTokenUsages[i].CreatedAt.Before(sdkTokenUsages[j].CreatedAt)
+	})
+	sdkUserPrompts := List(userPrompts, AIBridgeUserPrompt)
+	sort.Slice(sdkUserPrompts, func(i, j int) bool {
+		// created_at ASC
+		return sdkUserPrompts[i].CreatedAt.Before(sdkUserPrompts[j].CreatedAt)
+	})
+	sdkToolUsages := List(toolUsages, AIBridgeToolUsage)
+	sort.Slice(sdkToolUsages, func(i, j int) bool {
+		// created_at ASC
+		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
+	})
+	intc := codersdk.AIBridgeInterception{
+		ID:          interception.ID,
+		Initiator:   MinimalUserFromVisibleUser(initiator),
+		Provider:    interception.Provider,
+		Model:       interception.Model,
+		Metadata:    jsonOrEmptyMap(interception.Metadata),
+		StartedAt:   interception.StartedAt,
+		TokenUsages: sdkTokenUsages,
+		UserPrompts: sdkUserPrompts,
+		ToolUsages:  sdkToolUsages,
+	}
+	if interception.APIKeyID.Valid {
+		intc.APIKeyID = &interception.APIKeyID.String
+	}
+	if interception.EndedAt.Valid {
+		intc.EndedAt = &interception.EndedAt.Time
+	}
+	return intc
+}
+
+func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
+	return codersdk.AIBridgeTokenUsage{
+		ID:                 usage.ID,
+		InterceptionID:     usage.InterceptionID,
+		ProviderResponseID: usage.ProviderResponseID,
+		InputTokens:        usage.InputTokens,
+		OutputTokens:       usage.OutputTokens,
+		Metadata:           jsonOrEmptyMap(usage.Metadata),
+		CreatedAt:          usage.CreatedAt,
+	}
+}
+
+func AIBridgeUserPrompt(prompt database.AIBridgeUserPrompt) codersdk.AIBridgeUserPrompt {
+	return codersdk.AIBridgeUserPrompt{
+		ID:                 prompt.ID,
+		InterceptionID:     prompt.InterceptionID,
+		ProviderResponseID: prompt.ProviderResponseID,
+		Prompt:             prompt.Prompt,
+		Metadata:           jsonOrEmptyMap(prompt.Metadata),
+		CreatedAt:          prompt.CreatedAt,
+	}
+}
+
+func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUsage {
+	return codersdk.AIBridgeToolUsage{
+		ID:                 usage.ID,
+		InterceptionID:     usage.InterceptionID,
+		ProviderResponseID: usage.ProviderResponseID,
+		ServerURL:          usage.ServerUrl.String,
+		Tool:               usage.Tool,
+		Input:              usage.Input,
+		Injected:           usage.Injected,
+		InvocationError:    usage.InvocationError.String,
+		Metadata:           jsonOrEmptyMap(usage.Metadata),
+		CreatedAt:          usage.CreatedAt,
+	}
+}
+
+func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
+	var presets []codersdk.InvalidatedPreset
+	for _, p := range invalidatedPresets {
+		presets = append(presets, codersdk.InvalidatedPreset{
+			TemplateName:        p.TemplateName,
+			TemplateVersionName: p.TemplateVersionName,
+			PresetName:          p.TemplateVersionPresetName,
+		})
+	}
+	return presets
+}
+
+func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
+	var m map[string]any
+	if !rawMessage.Valid {
+		return m
+	}
+
+	err := json.Unmarshal(rawMessage.RawMessage, &m)
+	if err != nil {
+		// Don't reuse m
+		return map[string]any{}
+	}
+	return m
 }

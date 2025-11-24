@@ -28,6 +28,9 @@ type Config struct {
 
 	SSH bool `json:"ssh"`
 
+	// Ignored unless SSH is true.
+	DisableDirect bool `json:"ssh_disable_direct"`
+
 	// Echo controls whether the agent should echo the data it receives.
 	// If false, the agent will discard the data. Note that setting this
 	// to true will double the amount of data read from the agent for

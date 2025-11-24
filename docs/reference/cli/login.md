@@ -9,6 +9,12 @@ Authenticate with Coder deployment
 coder login [flags] [<url>]
 ```
 
+## Description
+
+```console
+By default, the session token is stored in a plain text file. Use the --use-keyring flag or set CODER_USE_KEYRING=true to store the token in the operating system keyring instead.
+```
+
 ## Options
 
 ### --first-user-email

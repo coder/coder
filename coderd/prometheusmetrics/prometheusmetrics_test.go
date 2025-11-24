@@ -247,6 +247,32 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 			codersdk.ProvisionerJobSucceeded: 3,
 			codersdk.ProvisionerJobRunning:   1,
 		},
+	}, {
+		Name: "MultipleWithDeleted",
+		Database: func() database.Store {
+			db, _ := dbtestutil.NewDB(t)
+			u := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			insertCanceled(t, db, u, org)
+			insertFailed(t, db, u, org)
+			insertSuccess(t, db, u, org)
+			insertRunning(t, db, u, org)
+
+			// Verify that deleted workspaces/builds are NOT counted in metrics.
+			n, err := cryptorand.Intn(5)
+			require.NoError(t, err)
+			for range 1 + n {
+				insertDeleted(t, db, u, org)
+			}
+			return db
+		},
+		Total: 4, // Only non-deleted workspaces should be counted
+		Status: map[codersdk.ProvisionerJobStatus]int{
+			codersdk.ProvisionerJobCanceled:  1,
+			codersdk.ProvisionerJobFailed:    1,
+			codersdk.ProvisionerJobSucceeded: 1,
+			codersdk.ProvisionerJobRunning:   1,
+		},
 	}} {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
@@ -323,6 +349,33 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 			codersdk.ProvisionerJobSucceeded: 3,
 			codersdk.ProvisionerJobRunning:   1,
 		},
+	}, {
+		Name: "MultipleWithDeleted",
+		Database: func() database.Store {
+			db, _ := dbtestutil.NewDB(t)
+			u := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			insertTemplates(t, db, u, org)
+			insertCanceled(t, db, u, org)
+			insertFailed(t, db, u, org)
+			insertSuccess(t, db, u, org)
+			insertRunning(t, db, u, org)
+
+			// Verify that deleted workspaces/builds are NOT counted in metrics.
+			n, err := cryptorand.Intn(5)
+			require.NoError(t, err)
+			for range 1 + n {
+				insertDeleted(t, db, u, org)
+			}
+			return db
+		},
+		ExpectedWorkspaces: 4, // Only non-deleted workspaces should be counted
+		ExpectedStatuses: map[codersdk.ProvisionerJobStatus]int{
+			codersdk.ProvisionerJobCanceled:  1,
+			codersdk.ProvisionerJobFailed:    1,
+			codersdk.ProvisionerJobSucceeded: 1,
+			codersdk.ProvisionerJobRunning:   1,
+		},
 	}} {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
@@ -366,6 +419,107 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 
 				t.Logf("status series = %d, expected == %d", stSum, tc.ExpectedWorkspaces)
 				return stSum == tc.ExpectedWorkspaces
+			}, testutil.WaitShort, testutil.IntervalFast)
+		})
+	}
+}
+
+func TestWorkspaceCreationTotal(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		Name               string
+		Database           func() database.Store
+		ExpectedWorkspaces int
+	}{
+		{
+			Name: "None",
+			Database: func() database.Store {
+				db, _ := dbtestutil.NewDB(t)
+				return db
+			},
+			ExpectedWorkspaces: 0,
+		},
+		{
+			// Should count only the successfully created workspaces
+			Name: "Multiple",
+			Database: func() database.Store {
+				db, _ := dbtestutil.NewDB(t)
+				u := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				insertTemplates(t, db, u, org)
+				insertCanceled(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertRunning(t, db, u, org)
+				return db
+			},
+			ExpectedWorkspaces: 3,
+		},
+		{
+			// Should not include prebuilt workspaces
+			Name: "MultipleWithPrebuild",
+			Database: func() database.Store {
+				ctx := context.Background()
+				db, _ := dbtestutil.NewDB(t)
+				u := dbgen.User(t, db, database.User{})
+				prebuildUser, err := db.GetUserByID(ctx, database.PrebuildsSystemUserID)
+				require.NoError(t, err)
+				org := dbgen.Organization(t, db, database.Organization{})
+				insertTemplates(t, db, u, org)
+				insertCanceled(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertSuccess(t, db, prebuildUser, org)
+				insertRunning(t, db, u, org)
+				return db
+			},
+			ExpectedWorkspaces: 1,
+		},
+		{
+			// Should include deleted workspaces
+			Name: "MultipleWithDeleted",
+			Database: func() database.Store {
+				db, _ := dbtestutil.NewDB(t)
+				u := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				insertTemplates(t, db, u, org)
+				insertCanceled(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertRunning(t, db, u, org)
+				insertDeleted(t, db, u, org)
+				return db
+			},
+			ExpectedWorkspaces: 2,
+		},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			registry := prometheus.NewRegistry()
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast)
+			require.NoError(t, err)
+			t.Cleanup(closeFunc)
+
+			require.Eventually(t, func() bool {
+				metrics, err := registry.Gather()
+				assert.NoError(t, err)
+
+				sum := 0
+				for _, m := range metrics {
+					if m.GetName() != "coderd_workspace_creation_total" {
+						continue
+					}
+					for _, metric := range m.Metric {
+						sum += int(metric.GetCounter().GetValue())
+					}
+				}
+
+				t.Logf("count = %d, expected == %d", sum, tc.ExpectedWorkspaces)
+				return sum == tc.ExpectedWorkspaces
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
@@ -721,8 +875,7 @@ func prepareWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersd
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	ac := agentsdk.New(client.URL)
-	ac.SetSessionToken(authToken)
+	ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 	conn, err := ac.ConnectRPC(ctx)
 	require.NoError(t, err)
 	agentAPI := agentproto.NewDRPCAgentClient(conn)
@@ -744,6 +897,7 @@ func insertTemplates(t *testing.T, db database.Store, u database.User, org datab
 		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
 		CreatedBy:           u.ID,
 		OrganizationID:      org.ID,
+		CorsBehavior:        database.CorsBehaviorSimple,
 	}))
 	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
 
@@ -763,6 +917,7 @@ func insertTemplates(t *testing.T, db database.Store, u database.User, org datab
 		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
 		CreatedBy:           u.ID,
 		OrganizationID:      org.ID,
+		CorsBehavior:        database.CorsBehaviorSimple,
 	}))
 
 	require.NoError(t, db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
@@ -842,6 +997,7 @@ func insertRunning(t *testing.T, db database.Store, u database.User, org databas
 		Transition:        database.WorkspaceTransitionStart,
 		Reason:            database.BuildReasonInitiator,
 		TemplateVersionID: templateVersionID,
+		InitiatorID:       u.ID,
 	})
 	require.NoError(t, err)
 	// This marks the job as started.
@@ -902,6 +1058,27 @@ func insertSuccess(t *testing.T, db database.Store, u database.User, org databas
 			Time:  dbtime.Now(),
 			Valid: true,
 		},
+	})
+	require.NoError(t, err)
+}
+
+func insertDeleted(t *testing.T, db database.Store, u database.User, org database.Organization) {
+	job := insertRunning(t, db, u, org)
+	err := db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID: job.ID,
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	build, err := db.GetWorkspaceBuildByJobID(context.Background(), job.ID)
+	require.NoError(t, err)
+
+	err = db.UpdateWorkspaceDeletedByID(context.Background(), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      build.WorkspaceID,
+		Deleted: true,
 	})
 	require.NoError(t, err)
 }

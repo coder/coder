@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -378,6 +377,43 @@ func TestDeleteUser(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr, "should be a coderd error")
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode(), "should be forbidden")
 	})
+	t.Run("CountCheckIncludesAllWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdtest.NewWithProvisionerCloser(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Create a target user who will own a workspace
+		targetUserClient, targetUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		// Create a User Admin who should not have permission to see the target user's workspace
+		userAdminClient, userAdmin := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		// Grant User Admin role to the userAdmin
+		userAdmin, err := client.UpdateUserRoles(context.Background(), userAdmin.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleUserAdmin().String()},
+		})
+		require.NoError(t, err)
+
+		// Create a template and workspace owned by the target user
+		version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+		_ = coderdtest.CreateWorkspace(t, targetUserClient, template.ID)
+
+		workspaces, err := userAdminClient.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Owner: targetUser.Username,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 0)
+
+		// Attempt to delete the target user - this should fail because the
+		// user has a workspace not visible to the deleting user.
+		err = userAdminClient.DeleteUser(context.Background(), targetUser.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusExpectationFailed, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "has workspaces")
+	})
 }
 
 func TestNotifyUserStatusChanged(t *testing.T) {
@@ -563,21 +599,28 @@ func TestNotifyDeletedUser(t *testing.T) {
 		// then
 		sent := notifyEnq.Sent()
 		require.Len(t, sent, 5)
-		// sent[0]: "User admin" account created, "owner" notified
-		// sent[1]: "Member" account created, "owner" notified
-		// sent[2]: "Member" account created, "user admin" notified
+		// Other notifications:
+		// "User admin" account created, "owner" notified
+		// "Member" account created, "owner" notified
+		// "Member" account created, "user admin" notified
 
 		// "Member" account deleted, "owner" notified
-		require.Equal(t, notifications.TemplateUserAccountDeleted, sent[3].TemplateID)
-		require.Equal(t, firstUser.UserID, sent[3].UserID)
-		require.Contains(t, sent[3].Targets, member.ID)
-		require.Equal(t, member.Username, sent[3].Labels["deleted_account_name"])
+		ownerNotifications := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountDeleted &&
+				n.UserID == firstUser.UserID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["deleted_account_name"] == member.Username
+		})
+		require.Len(t, ownerNotifications, 1)
 
 		// "Member" account deleted, "user admin" notified
-		require.Equal(t, notifications.TemplateUserAccountDeleted, sent[4].TemplateID)
-		require.Equal(t, userAdmin.ID, sent[4].UserID)
-		require.Contains(t, sent[4].Targets, member.ID)
-		require.Equal(t, member.Username, sent[4].Labels["deleted_account_name"])
+		adminNotifications := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountDeleted &&
+				n.UserID == userAdmin.ID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["deleted_account_name"] == member.Username
+		})
+		require.Len(t, adminNotifications, 1)
 	})
 }
 
@@ -924,22 +967,31 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Len(t, sent, 3)
 
 		// "User admin" account created, "owner" notified
-		require.Equal(t, notifications.TemplateUserAccountCreated, sent[0].TemplateID)
-		require.Equal(t, firstUser.UserID, sent[0].UserID)
-		require.Contains(t, sent[0].Targets, userAdmin.ID)
-		require.Equal(t, userAdmin.Username, sent[0].Labels["created_account_name"])
+		ownerNotifiedAboutUserAdmin := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+				n.UserID == firstUser.UserID &&
+				slices.Contains(n.Targets, userAdmin.ID) &&
+				n.Labels["created_account_name"] == userAdmin.Username
+		})
+		require.Len(t, ownerNotifiedAboutUserAdmin, 1)
 
 		// "Member" account created, "owner" notified
-		require.Equal(t, notifications.TemplateUserAccountCreated, sent[1].TemplateID)
-		require.Equal(t, firstUser.UserID, sent[1].UserID)
-		require.Contains(t, sent[1].Targets, member.ID)
-		require.Equal(t, member.Username, sent[1].Labels["created_account_name"])
+		ownerNotifiedAboutMember := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+				n.UserID == firstUser.UserID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["created_account_name"] == member.Username
+		})
+		require.Len(t, ownerNotifiedAboutMember, 1)
 
 		// "Member" account created, "user admin" notified
-		require.Equal(t, notifications.TemplateUserAccountCreated, sent[1].TemplateID)
-		require.Equal(t, userAdmin.ID, sent[2].UserID)
-		require.Contains(t, sent[2].Targets, member.ID)
-		require.Equal(t, member.Username, sent[2].Labels["created_account_name"])
+		userAdminNotifiedAboutMember := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+				n.UserID == userAdmin.ID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["created_account_name"] == member.Username
+		})
+		require.Len(t, userAdminNotifiedAboutMember, 1)
 	})
 }
 
@@ -1015,7 +1067,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
-	t.Run("UpdateSelfAsMember", func(t *testing.T) {
+	t.Run("UpdateSelfAsMember_Name", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -1024,24 +1076,77 @@ func TestUpdateUserProfile(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for login
 
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		numLogs++ // add an audit log for user creation
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		newName := coderdtest.RandomName(t)
+		userProfile, err := memberClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name:     newName,
+			Username: memberUser.Username,
+		})
+		numLogs++ // add an audit log for user update
+		numLogs++ // add an audit log for API key creation
+
+		require.NoError(t, err)
+		require.Equal(t, memberUser.Username, userProfile.Username)
+		require.Equal(t, newName, userProfile.Name)
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	t.Run("UpdateSelfAsMember_Username", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		newUsername := coderdtest.RandomUsername(t)
+		_, err := memberClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name:     memberUser.Name,
+			Username: newUsername,
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("UpdateMemberAsAdmin_Username", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		adminClient := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		numLogs := len(auditor.AuditLogs())
+
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		numLogs++ // add an audit log for login
+
+		_, memberUser := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 		numLogs++ // add an audit log for user creation
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		newUsername := coderdtest.RandomUsername(t)
-		newName := coderdtest.RandomName(t)
-		userProfile, err := memberClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+		userProfile, err := adminClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name:     memberUser.Name,
 			Username: newUsername,
-			Name:     newName,
 		})
+
 		numLogs++ // add an audit log for user update
 		numLogs++ // add an audit log for API key creation
 
 		require.NoError(t, err)
 		require.Equal(t, newUsername, userProfile.Username)
-		require.Equal(t, newName, userProfile.Name)
+		require.Equal(t, memberUser.Name, userProfile.Name)
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
@@ -1508,7 +1613,6 @@ func TestUsersFilter(t *testing.T) {
 		}
 		userClient, userData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
 		// Set the last seen for each user to a unique day
-		// nolint:gocritic // Unit test
 		_, err := api.Database.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         userData.ID,
 			LastSeenAt: lastSeenNow.Add(-1 * time.Hour * 24 * time.Duration(i)),
@@ -1536,7 +1640,6 @@ func TestUsersFilter(t *testing.T) {
 
 	// Add users with different creation dates for testing date filters
 	for i := 0; i < 3; i++ {
-		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user1, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("before%d@coder.com", i),
@@ -1558,7 +1661,6 @@ func TestUsersFilter(t *testing.T) {
 		require.NoError(t, err)
 		users = append(users, sdkUser1)
 
-		// nolint:gocritic //Using system context is necessary to seed data in tests
 		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("during%d@coder.com", i),
@@ -1579,7 +1681,6 @@ func TestUsersFilter(t *testing.T) {
 		require.NoError(t, err)
 		users = append(users, sdkUser2)
 
-		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("after%d@coder.com", i),
@@ -1794,15 +1895,6 @@ func TestUsersFilter(t *testing.T) {
 				}
 			}
 
-			// TODO: This can be removed with dbmem
-			if !dbtestutil.WillUsePostgres() {
-				for i := range matched.Users {
-					if len(matched.Users[i].OrganizationIDs) == 0 {
-						matched.Users[i].OrganizationIDs = nil
-					}
-				}
-			}
-
 			require.ElementsMatch(t, exp, matched.Users, "expected users returned")
 		})
 	}
@@ -1885,7 +1977,6 @@ func TestGetUsers(t *testing.T) {
 			Email:    "test2@coder.com",
 			Username: "test2",
 		})
-		// nolint:gocritic // Unit test
 		err := db.UpdateUserGithubComUserID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserGithubComUserIDParams{
 			ID: first.UserID,
 			GithubComUserID: sql.NullInt64{

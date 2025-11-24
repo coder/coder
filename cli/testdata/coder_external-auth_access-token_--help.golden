@@ -25,6 +25,18 @@ USAGE:
        $ coder external-auth access-token slack --extra "authed_user.id"
 
 OPTIONS:
+      --auth string, $CODER_AGENT_AUTH (default: token)
+          Specify the authentication type to use for the agent.
+
+      --agent-token string, $CODER_AGENT_TOKEN
+          An agent authentication token.
+
+      --agent-token-file string, $CODER_AGENT_TOKEN_FILE
+          A file containing an agent authentication token.
+
+      --agent-url url, $CODER_AGENT_URL
+          URL for an agent to access your deployment.
+
       --extra string
           Extract a field from the "extra" properties of the OAuth token.
 

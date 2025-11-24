@@ -10,9 +10,12 @@ Google Cloud Platform project.
 
 ## Launch a Coder instance from the Google Cloud Marketplace
 
-We publish an Ubuntu 22.04 VM image with Coder and Docker pre-installed. Search
-for `Coder v2` in the GCP Marketplace or
-[use direct link](https://console.cloud.google.com/marketplace/product/coder-enterprise-market-public/coder-v2).
+We publish an Ubuntu 22.04 VM image with Coder and Docker pre-installed.
+
+Two SKU's are available via the Google Cloud Marketplace:
+
+1. [License purchase via Google Cloud Marketplace](https://console.cloud.google.com/marketplace/product/coder-enterprise-market-public/coder-gcmp?inv=1&invt=Ab45rg&project=secret-beacon-468405-p5)
+2. [A solution to deploy VM's on GCP (Bring Your Own License)](https://console.cloud.google.com/marketplace/product/workspan-public-422119/coder?inv=1&invt=Ab45rg&project=secret-beacon-468405-p5)
 
 ![Coder on GCP Marketplace](../../images/platforms/gcp/marketplace.png)
 

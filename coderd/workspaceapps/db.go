@@ -3,7 +3,6 @@ package workspaceapps
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -18,7 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -36,11 +35,12 @@ import (
 // by querying the database if the request is missing a valid token.
 type DBTokenProvider struct {
 	Logger slog.Logger
+	ctx    context.Context
 
 	// DashboardURL is the main dashboard access URL for error pages.
 	DashboardURL                    *url.URL
 	Authorizer                      rbac.Authorizer
-	Auditor                         *atomic.Pointer[audit.Auditor]
+	ConnectionLogger                *atomic.Pointer[connectionlog.ConnectionLogger]
 	Database                        database.Store
 	DeploymentValues                *codersdk.DeploymentValues
 	OAuth2Configs                   *httpmw.OAuth2Configs
@@ -51,10 +51,11 @@ type DBTokenProvider struct {
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger,
+func NewDBTokenProvider(ctx context.Context,
+	log slog.Logger,
 	accessURL *url.URL,
 	authz rbac.Authorizer,
-	auditor *atomic.Pointer[audit.Auditor],
+	connectionLogger *atomic.Pointer[connectionlog.ConnectionLogger],
 	db database.Store,
 	cfg *codersdk.DeploymentValues,
 	oauth2Cfgs *httpmw.OAuth2Configs,
@@ -71,9 +72,10 @@ func NewDBTokenProvider(log slog.Logger,
 
 	return &DBTokenProvider{
 		Logger:                          log,
+		ctx:                             ctx,
 		DashboardURL:                    accessURL,
 		Authorizer:                      authz,
-		Auditor:                         auditor,
+		ConnectionLogger:                connectionLogger,
 		Database:                        db,
 		DeploymentValues:                cfg,
 		OAuth2Configs:                   oauth2Cfgs,
@@ -95,7 +97,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-	aReq, commitAudit := p.auditInitRequest(ctx, rw, r)
+	aReq, commitAudit := p.connLogInitRequest(rw, r)
 	defer commitAudit()
 
 	appReq := issueReq.AppRequest.Normalize()
@@ -152,6 +154,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	if dbReq.AppURL != nil {
 		token.AppURL = dbReq.AppURL.String()
 	}
+	token.CORSBehavior = codersdk.CORSBehavior(dbReq.CorsBehavior)
 
 	// Verify the user has access to the app.
 	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)
@@ -324,11 +327,19 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// rbacResourceOwned is for the level "authenticated". We still need to
 		// make sure the API key has permissions to connect to the actor's own
 		// workspace. Scopes would prevent this.
-		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID)
+		// TODO: This is an odd repercussion of the org_member permission level.
+		// This Object used to not specify an org restriction, and `InOrg` would
+		// actually have a significantly different meaning (only sharing with
+		// other authenticated users in the same org, whereas the existing behavior
+		// is to share with any authenticated user). Because workspaces are always
+		// jointly owned by an organization, there _must_ be an org restriction on
+		// the object to check the proper permissions. AnyOrg is almost the same,
+		// but technically excludes users who are not in any organization. This is
+		// the closest we can get though without more significant refactoring.
+		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
 	)
 	if dbReq.AccessMethod == AccessMethodTerminal {
 		rbacAction = policy.ActionSSH
-		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID)
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
@@ -355,21 +366,20 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 			return true, []string{}, nil
 		}
 	case database.AppSharingLevelOrganization:
-		// Check if the user is a member of the same organization as the workspace
 		// First check if they have permission to connect to their own workspace (enforces scopes)
 		err := p.Authorizer.Authorize(ctx, *roles, rbacAction, rbacResourceOwned)
 		if err != nil {
 			return false, warnings, nil
 		}
 
-		// Check if the user is a member of the workspace's organization
+		// Check if the user is a member of the same organization as the workspace
 		workspaceOrgID := dbReq.Workspace.OrganizationID
 		expandedRoles, err := roles.Roles.Expand()
 		if err != nil {
 			return false, warnings, xerrors.Errorf("expand roles: %w", err)
 		}
 		for _, role := range expandedRoles {
-			if _, ok := role.Org[workspaceOrgID.String()]; ok {
+			if _, ok := role.ByOrgID[workspaceOrgID.String()]; ok {
 				return true, []string{}, nil
 			}
 		}
@@ -386,20 +396,20 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 	return false, warnings, nil
 }
 
-type auditRequest struct {
+type connLogRequest struct {
 	time   time.Time
 	apiKey *database.APIKey
 	dbReq  *databaseRequest
 }
 
-// auditInitRequest creates a new audit session and audit log for the given
-// request, if one does not already exist. If an audit session already exists,
-// it will be updated with the current timestamp. A session is used to reduce
-// the number of audit logs created.
+// connLogInitRequest creates a new connection log session and connect log for the
+// given request, if one does not already exist. If a connection log session
+// already exists, it will be updated with the current timestamp. A session is used to
+// reduce the number of connection logs created.
 //
 // A session is unique to the agent, app, user and users IP. If any of these
-// values change, a new session and audit log is created.
-func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) (aReq *auditRequest, commit func()) {
+// values change, a new session and connect log is created.
+func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Request) (aReq *connLogRequest, commit func()) {
 	// Get the status writer from the request context so we can figure
 	// out the HTTP status and autocommit the audit log.
 	sw, ok := w.(*tracing.StatusWriter)
@@ -407,14 +417,17 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 	}
 
-	aReq = &auditRequest{
+	aReq = &connLogRequest{
 		time: dbtime.Now(),
 	}
 
-	// Set the commit function on the status writer to create an audit
-	// log, this ensures that the status and response body are available.
+	// Set the commit function on the status writer to create a connection log
+	// this ensures that the status and response body are available.
 	var committed bool
 	return aReq, func() {
+		// We want to log/audit the connection attempt even if the request context has expired.
+		ctx, cancel := context.WithCancel(p.ctx)
+		defer cancel()
 		if committed {
 			return
 		}
@@ -422,7 +435,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 
 		if aReq.dbReq == nil {
 			// App doesn't exist, there's information in the Request
-			// struct but we need UUIDs for audit logging.
+			// struct but we need UUIDs for connection logging.
 			return
 		}
 
@@ -434,28 +447,25 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 		ip := r.RemoteAddr
 
 		// Approximation of the status code.
-		statusCode := sw.Status
+		// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
+		var statusCode int32 = int32(sw.Status)
 		if statusCode == 0 {
 			statusCode = http.StatusOK
 		}
 
-		type additionalFields struct {
-			audit.AdditionalFields
-			SlugOrPort string `json:"slug_or_port,omitempty"`
-		}
-		appInfo := additionalFields{
-			AdditionalFields: audit.AdditionalFields{
-				WorkspaceOwner: aReq.dbReq.Workspace.OwnerUsername,
-				WorkspaceName:  aReq.dbReq.Workspace.Name,
-				WorkspaceID:    aReq.dbReq.Workspace.ID,
-			},
-		}
+		var (
+			connType   database.ConnectionType
+			slugOrPort = aReq.dbReq.AppSlugOrPort
+		)
+
 		switch {
 		case aReq.dbReq.AccessMethod == AccessMethodTerminal:
-			appInfo.SlugOrPort = "terminal"
+			connType = database.ConnectionTypeWorkspaceApp
+			slugOrPort = "terminal"
 		case aReq.dbReq.App.ID == uuid.Nil:
-			// If this isn't an app or a terminal, it's a port.
-			appInfo.SlugOrPort = aReq.dbReq.AppSlugOrPort
+			connType = database.ConnectionTypePortForwarding
+		default:
+			connType = database.ConnectionTypeWorkspaceApp
 		}
 
 		// If we end up logging, ensure relevant fields are set.
@@ -465,7 +475,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			slog.F("app_id", aReq.dbReq.App.ID),
 			slog.F("user_id", userID),
 			slog.F("user_agent", userAgent),
-			slog.F("app_slug_or_port", appInfo.SlugOrPort),
+			slog.F("app_slug_or_port", slugOrPort),
 			slog.F("status_code", statusCode),
 		)
 
@@ -485,9 +495,8 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 				UserID:     userID,            // Can be unset, in which case uuid.Nil is fine.
 				Ip:         ip,
 				UserAgent:  userAgent,
-				SlugOrPort: appInfo.SlugOrPort,
-				// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
-				StatusCode: int32(statusCode),
+				SlugOrPort: slugOrPort,
+				StatusCode: statusCode,
 				StartedAt:  aReq.time,
 				UpdatedAt:  aReq.time,
 			})
@@ -500,7 +509,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 		if err != nil {
 			logger.Error(ctx, "update workspace app audit session failed", slog.Error(err))
 
-			// Avoid spamming the audit log if deduplication failed, this should
+			// Avoid spamming the connection log if deduplication failed, this should
 			// only happen if there are problems communicating with the database.
 			return
 		}
@@ -511,51 +520,37 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			return
 		}
 
-		// Marshal additional fields only if we're writing an audit log entry.
-		appInfoBytes, err := json.Marshal(appInfo)
+		connLogger := *p.ConnectionLogger.Load()
+
+		err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             aReq.time,
+			OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
+			WorkspaceOwnerID: aReq.dbReq.Workspace.OwnerID,
+			WorkspaceID:      aReq.dbReq.Workspace.ID,
+			WorkspaceName:    aReq.dbReq.Workspace.Name,
+			AgentName:        aReq.dbReq.Agent.Name,
+			Type:             connType,
+			Code: sql.NullInt32{
+				Int32: statusCode,
+				Valid: true,
+			},
+			Ip:        database.ParseIP(ip),
+			UserAgent: sql.NullString{Valid: userAgent != "", String: userAgent},
+			UserID: uuid.NullUUID{
+				UUID:  userID,
+				Valid: userID != uuid.Nil,
+			},
+			SlugOrPort:       sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
+			ConnectionStatus: database.ConnectionStatusConnected,
+
+			// N/A
+			ConnectionID:     uuid.NullUUID{},
+			DisconnectReason: sql.NullString{},
+		})
 		if err != nil {
-			logger.Error(ctx, "marshal additional fields failed", slog.Error(err))
-		}
-
-		// We use the background audit function instead of init request
-		// here because we don't know the resource type ahead of time.
-		// This also allows us to log unauthenticated access.
-		auditor := *p.Auditor.Load()
-		requestID := httpmw.RequestID(r)
-		switch {
-		case aReq.dbReq.App.ID != uuid.Nil:
-			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceApp]{
-				Audit: auditor,
-				Log:   logger,
-
-				Action:           database.AuditActionOpen,
-				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
-				UserID:           userID,
-				RequestID:        requestID,
-				Time:             aReq.time,
-				Status:           statusCode,
-				IP:               ip,
-				UserAgent:        userAgent,
-				New:              aReq.dbReq.App,
-				AdditionalFields: appInfoBytes,
-			})
-		default:
-			// Web terminal, port app, etc.
-			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceAgent]{
-				Audit: auditor,
-				Log:   logger,
-
-				Action:           database.AuditActionOpen,
-				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
-				UserID:           userID,
-				RequestID:        requestID,
-				Time:             aReq.time,
-				Status:           statusCode,
-				IP:               ip,
-				UserAgent:        userAgent,
-				New:              aReq.dbReq.Agent,
-				AdditionalFields: appInfoBytes,
-			})
+			logger.Error(ctx, "upsert connection log failed", slog.Error(err))
+			return
 		}
 	}
 }

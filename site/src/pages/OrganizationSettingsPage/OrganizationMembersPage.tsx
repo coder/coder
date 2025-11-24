@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { getErrorMessage } from "api/errors";
 import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
@@ -18,9 +17,8 @@ import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -66,18 +64,16 @@ const OrganizationMembersPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle("Members", organization.display_name || organization.name)}
-			</title>
-		</Helmet>
+	const title = (
+		<title>
+			{pageTitle("Members", organization.display_name || organization.name)}
+		</title>
 	);
 
 	if (!organizationPermissions) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -85,7 +81,7 @@ const OrganizationMembersPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}
@@ -156,20 +152,12 @@ const OrganizationMembersPage: FC = () => {
 							</ul>
 						</p>
 
-						<p css={styles.test}>
-							Are you sure you want to remove this member?
-						</p>
+						<p className="pb-5">Are you sure you want to remove this member?</p>
 					</Stack>
 				}
 			/>
 		</>
 	);
 };
-
-const styles = {
-	test: {
-		paddingBottom: 20,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default OrganizationMembersPage;

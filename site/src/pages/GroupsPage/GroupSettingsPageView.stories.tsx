@@ -1,6 +1,6 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockGroup } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
 const meta: Meta<typeof GroupSettingsPageView> = {

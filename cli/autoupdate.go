@@ -12,18 +12,21 @@ import (
 )
 
 func (r *RootCmd) autoupdate() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "autoupdate <workspace> <always|never>",
 		Short:       "Toggle auto-update policy for a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			policy := strings.ToLower(inv.Args[1])
-			err := validateAutoUpdatePolicy(policy)
+			err = validateAutoUpdatePolicy(policy)
 			if err != nil {
 				return xerrors.Errorf("validate policy: %w", err)
 			}

@@ -13,8 +13,8 @@ coder templates init [flags] [directory]
 
 ### --id
 
-|      |                                                                                                                                                                                                                                             |
-|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Type | <code>aws-devcontainer\|aws-linux\|aws-windows\|azure-linux\|digitalocean-linux\|docker\|docker-devcontainer\|gcp-devcontainer\|gcp-linux\|gcp-vm-container\|gcp-windows\|kubernetes\|kubernetes-devcontainer\|nomad-docker\|scratch</code> |
+|      |                                                                                                                                                                                                                                                                              |
+|------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type | <code>aws-devcontainer\|aws-linux\|aws-windows\|azure-linux\|digitalocean-linux\|docker\|docker-devcontainer\|docker-envbuilder\|gcp-devcontainer\|gcp-linux\|gcp-vm-container\|gcp-windows\|kubernetes\|kubernetes-devcontainer\|nomad-docker\|scratch\|tasks-docker</code> |
 
 Specify a given example template by ID.

@@ -1,37 +1,27 @@
-# Use AI Coding Agents in Coder Workspaces
+# Run AI Coding Agents in Coder
 
-> [!NOTE]
->
-> This functionality is in beta and is evolving rapidly.
->
-> When using any AI tool for development, exercise a level of caution appropriate to your use case and environment.
-> Always review AI-generated content before using it in critical systems.
->
-> Join our [Discord channel](https://discord.gg/coder) or
-> [contact us](https://coder.com/contact) to get help or share feedback.
+Learn how to run & manage coding agents with Coder, both alongside existing workspaces and for background task execution.
 
-AI Coding Agents such as [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Goose](https://block.github.io/goose/), and [Aider](https://github.com/paul-gauthier/aider) are becoming increasingly popular for:
+## Agents in the IDE
 
-- Protyping web applications or landing pages
-- Researching / onboarding to a codebase
-- Assisting with lightweight refactors
-- Writing tests and draft documentation
-- Small, well-defined chores
+Coder [integrates with IDEs](../user-guides/workspace-access/index.md) such as Cursor, Windsurf, and Zed that include built-in coding agents to work alongside developers. Additionally, template admins can [pre-install extensions](https://registry.coder.com/modules/coder/vscode-web) for agents such as GitHub Copilot and Roo Code.
 
-With Coder, you can self-host AI agents in isolated development environments with proper context and tooling around your existing developer workflows. Whether you are a regulated enterprise or an individual developer, running AI agents at scale with Coder is much more productive and secure than running them locally.
+These agents work well inside existing Coder workspaces as they can simply be enabled via an extension or are built-into the editor.
 
-![AI Agents in Coder](../images/guides/ai-agents/landing.png)
+## Agents with Coder Tasks (Beta)
 
-## Prerequisites
+In cases where the IDE is secondary, such as prototyping or long-running background jobs, agents like Claude Code or Aider are better for the job and new SaaS interfaces like [Devin](https://devin.ai) and [ChatGPT Codex](https://openai.com/index/introducing-codex/) are emerging.
 
-Coder is free and open source for developers, with a [premium plan](https://coder.com/pricing) for enterprises. You can self-host a Coder deployment in your own cloud provider.
+[Coder Tasks](./tasks.md) is a new interface inside Coder to run and manage coding agents with a chat-based UI. Unlike SaaS-based products, Coder Tasks is self-hosted (included in your Coder deployment) and allows you to run any terminal-based agent such as Claude Code or Codex's Open Source CLI.
 
-- A [Coder deployment](../install/index.md) with v2.21.0 or later
-- A Coder [template](../admin/templates/index.md) for your project(s).
-- Access to at least one ML model (e.g. Anthropic Claude, Google Gemini, OpenAI)
-  - Cloud Model Providers (AWS Bedrock, GCP Vertex AI, Azure OpenAI) are supported with some agents
-  - Self-hosted models (e.g. llama3) and AI proxies (OpenRouter) are supported with some agents
+![Coder Tasks UI](../images/guides/ai-agents/tasks-ui.png)
 
-## Table of Contents
+[Learn more about Coder Tasks](./tasks.md) for best practices and how to get started.
 
-<children></children>
+## Secure Your Workflows with Agent Boundaries (Beta)
+
+AI agents can be powerful teammates, but must be treated as untrusted and unpredictable interns as opposed to tools. Without the right controls, they can go rogue.
+
+[Agent Boundaries](./agent-boundary.md) is a new tool that offers process-level safeguards that detect and prevent destructive actions. Unlike traditional mitigation methods like firewalls, service meshes, and RBAC systems, Agent Boundaries is an agent-aware, centralized control point that can either be embedded in the same secure Coder Workspaces that enterprises already trust, or used through an open source CLI.
+
+To learn more about features, implementation details, and how to get started, check out the [Agent Boundary documentation](./agent-boundary.md).

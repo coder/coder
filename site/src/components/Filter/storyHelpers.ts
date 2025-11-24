@@ -1,4 +1,4 @@
-import { action } from "@storybook/addon-actions";
+import { action } from "storybook/actions";
 import type { UseFilterResult } from "./Filter";
 import type { UseFilterMenuResult } from "./menu";
 

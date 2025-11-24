@@ -5,10 +5,10 @@ import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useEffect, useReducer } from "react";
 import {
-	type TimeUnit,
 	durationInDays,
 	durationInHours,
 	suggestedTimeUnit,
+	type TimeUnit,
 } from "utils/time";
 
 type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
@@ -45,19 +45,12 @@ const reducer = (state: State, action: Action): State => {
 				state.unit,
 			);
 
-			if (
-				action.unit === "days" &&
-				!canConvertDurationToDays(currentDurationMs)
-			) {
-				return state;
-			}
-
 			return {
 				unit: action.unit,
 				durationFieldValue:
 					action.unit === "hours"
 						? durationInHours(currentDurationMs).toString()
-						: durationInDays(currentDurationMs).toString(),
+						: Math.ceil(durationInDays(currentDurationMs)).toString(),
 			};
 		}
 		default: {
@@ -124,17 +117,30 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 							type: "CHANGE_TIME_UNIT",
 							unit,
 						});
+
+						// Calculate the new duration in ms after changing the unit
+						// Important: When changing from hours to days, we need to round up to nearest day
+						// but keep the millisecond value consistent for the parent component
+						let newDurationMs: number;
+						if (unit === "hours") {
+							// When switching to hours, use the current milliseconds to get exact hours
+							newDurationMs = currentDurationMs;
+						} else {
+							// When switching to days, round up to the nearest day
+							const daysValue = Math.ceil(durationInDays(currentDurationMs));
+							newDurationMs = daysToDuration(daysValue);
+						}
+
+						// Notify parent component if the value has changed
+						if (newDurationMs !== parentValueMs) {
+							onChange(newDurationMs);
+						}
 					}}
 					inputProps={{ "aria-label": "Time unit" }}
 					IconComponent={ChevronDownIcon}
 				>
 					<MenuItem value="hours">Hours</MenuItem>
-					<MenuItem
-						value="days"
-						disabled={!canConvertDurationToDays(currentDurationMs)}
-					>
-						Days
-					</MenuItem>
+					<MenuItem value="days">Days</MenuItem>
 				</Select>
 			</div>
 
@@ -180,8 +186,4 @@ function hoursToDuration(hours: number): number {
 
 function daysToDuration(days: number): number {
 	return days * 24 * hoursToDuration(1);
-}
-
-function canConvertDurationToDays(duration: number): boolean {
-	return Number.isInteger(durationInDays(duration));
 }

@@ -1,6 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { MockNoPermissions, MockPermissions } from "testHelpers/entities";
+import {
+	MockBuildInfo,
+	MockNoPermissions,
+	MockPermissions,
+} from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
 
 const meta: Meta<typeof DeploymentSidebarView> = {
@@ -10,6 +14,8 @@ const meta: Meta<typeof DeploymentSidebarView> = {
 	parameters: { showOrganizations: true },
 	args: {
 		permissions: MockPermissions,
+		experiments: [],
+		buildInfo: MockBuildInfo,
 	},
 };
 

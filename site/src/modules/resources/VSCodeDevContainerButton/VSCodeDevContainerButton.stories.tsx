@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton";
 
 const meta: Meta<typeof VSCodeDevContainerButton> = {
@@ -17,6 +17,8 @@ export const Default: Story = {
 		agentName: MockWorkspaceAgent.name,
 		devContainerName: "musing_ride",
 		devContainerFolder: "/workspace/coder",
+		localWorkspaceFolder: "/home/coder/coder",
+		localConfigFile: "/home/coder/coder/.devcontainer/devcontainer.json",
 		displayApps: [
 			"vscode",
 			"vscode_insiders",
@@ -34,6 +36,8 @@ export const VSCodeOnly: Story = {
 		agentName: MockWorkspaceAgent.name,
 		devContainerName: "nifty_borg",
 		devContainerFolder: "/workspace/coder",
+		localWorkspaceFolder: "/home/coder/coder",
+		localConfigFile: "/home/coder/coder/.devcontainer/devcontainer.json",
 		displayApps: [
 			"vscode",
 			"port_forwarding_helper",
@@ -50,6 +54,8 @@ export const InsidersOnly: Story = {
 		agentName: MockWorkspaceAgent.name,
 		devContainerName: "amazing_swartz",
 		devContainerFolder: "/workspace/coder",
+		localWorkspaceFolder: "/home/coder/coder",
+		localConfigFile: "/home/coder/coder/.devcontainer/devcontainer.json",
 		displayApps: [
 			"vscode_insiders",
 			"port_forwarding_helper",

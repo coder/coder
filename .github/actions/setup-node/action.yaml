@@ -16,7 +16,7 @@ runs:
     - name: Setup Node
       uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
       with:
-        node-version: 20.16.0
+        node-version: 22.19.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "pnpm"
         cache-dependency-path: ${{ inputs.directory }}/pnpm-lock.yaml

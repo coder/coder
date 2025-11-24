@@ -4,12 +4,16 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
@@ -33,6 +37,11 @@ type HealthSettings struct {
 type NotificationsSettings struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	NotifierPaused bool      `db:"notifier_paused" json:"notifier_paused"`
+}
+
+type PrebuildsSettings struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
 }
 
 type Actions []policy.Action
@@ -68,6 +77,39 @@ func (t *TemplateACL) Scan(src interface{}) error {
 
 func (t TemplateACL) Value() (driver.Value, error) {
 	return json.Marshal(t)
+}
+
+type WorkspaceACL map[string]WorkspaceACLEntry
+
+func (t *WorkspaceACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &t)
+	case []byte, json.RawMessage:
+		//nolint
+		return json.Unmarshal(v.([]byte), &t)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+//nolint:revive
+func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
+	// Convert WorkspaceACL to a map of string to []policy.Action.
+	// This is used for RBAC checks.
+	rbacACL := make(map[string][]policy.Action, len(w))
+	for id, entry := range w {
+		rbacACL[id] = entry.Permissions
+	}
+	return rbacACL
+}
+
+func (t WorkspaceACL) Value() (driver.Value, error) {
+	return json.Marshal(t)
+}
+
+type WorkspaceACLEntry struct {
+	Permissions []policy.Action `json:"permissions"`
 }
 
 type ExternalAuthProvider struct {
@@ -120,6 +162,27 @@ func (m StringMapOfInt) Value() (driver.Value, error) {
 }
 
 type CustomRolePermissions []CustomRolePermission
+
+func (s *APIKeyScopes) Scan(src any) error {
+	var arr []string
+	if err := pq.Array(&arr).Scan(src); err != nil {
+		return err
+	}
+	out := make(APIKeyScopes, len(arr))
+	for i, v := range arr {
+		out[i] = APIKeyScope(v)
+	}
+	*s = out
+	return nil
+}
+
+func (s APIKeyScopes) Value() (driver.Value, error) {
+	arr := make([]string, len(s))
+	for i, v := range s {
+		arr[i] = string(v)
+	}
+	return pq.Array(arr).Value()
+}
 
 func (a *CustomRolePermissions) Scan(src interface{}) error {
 	switch v := src.(type) {
@@ -231,4 +294,55 @@ func (a *UserLinkClaims) Scan(src interface{}) error {
 
 func (a UserLinkClaims) Value() (driver.Value, error) {
 	return json.Marshal(a)
+}
+
+func ParseIP(ipStr string) pqtype.Inet {
+	ip := net.ParseIP(ipStr)
+	ipNet := net.IPNet{}
+	if ip != nil {
+		ipNet = net.IPNet{
+			IP:   ip,
+			Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
+		}
+	}
+
+	return pqtype.Inet{
+		IPNet: ipNet,
+		Valid: ip != nil,
+	}
+}
+
+// AllowList is a typed wrapper around a list of AllowListTarget entries.
+// It implements sql.Scanner and driver.Valuer so it can be stored in and
+// loaded from a Postgres text[] column that stores each entry in the
+// canonical form "type:id".
+type AllowList []rbac.AllowListElement
+
+// Scan implements sql.Scanner. It supports inputs that pq.Array can decode
+// into []string, and then converts each element to an AllowListTarget.
+func (a *AllowList) Scan(src any) error {
+	var raw []string
+	if err := pq.Array(&raw).Scan(src); err != nil {
+		return err
+	}
+	out := make([]rbac.AllowListElement, len(raw))
+	for i, s := range raw {
+		e, err := rbac.ParseAllowListEntry(s)
+		if err != nil {
+			return err
+		}
+		out[i] = e
+	}
+	*a = out
+	return nil
+}
+
+// Value implements driver.Valuer by converting the list to []string using the
+// canonical "type:id" form and delegating to pq.Array for encoding.
+func (a AllowList) Value() (driver.Value, error) {
+	raw := make([]string, len(a))
+	for i, t := range a {
+		raw[i] = t.String()
+	}
+	return pq.Array(raw).Value()
 }

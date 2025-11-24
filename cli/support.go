@@ -62,16 +62,18 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
 	var coderURLOverride string
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			var cliLogBuf bytes.Buffer
 			cliLogW := sloghuman.Sink(&cliLogBuf)
 			cliLog := slog.Make(cliLogW).Leveled(slog.LevelDebug)
@@ -251,7 +253,7 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 
 	clientNetcheckSummary := bun.Network.Netcheck.Summarize("Client netcheck:", docsURL)
 	if len(clientNetcheckSummary) > 0 {
-		cliui.Warn(inv.Stdout, "Networking issues detected:", deployHealthSummary...)
+		cliui.Warn(inv.Stdout, "Networking issues detected:", clientNetcheckSummary...)
 	}
 }
 

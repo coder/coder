@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { MockWorkspaceBuildLogs } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { WorkspaceBuildLogs } from "./WorkspaceBuildLogs";
 
 const meta: Meta<typeof WorkspaceBuildLogs> = {

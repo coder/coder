@@ -33,10 +33,11 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-		}).WithACLUserList(map[string][]policy.Action{
-		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-	})
+		}).
+		WithACLUserList(map[string][]policy.Action{
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+		})
 
 	jsonSubject := authSubject{
 		ID:     actor.ID,
@@ -107,7 +108,7 @@ func TestRegoInputValue(t *testing.T) {
 		t.Parallel()
 
 		// This is the input that would be passed to the rego policy.
-		jsonInput := map[string]interface{}{
+		jsonInput := map[string]any{
 			"subject": authSubject{
 				ID:     actor.ID,
 				Roles:  must(actor.Roles.Expand()),
@@ -138,7 +139,7 @@ func TestRegoInputValue(t *testing.T) {
 		t.Parallel()
 
 		// This is the input that would be passed to the rego policy.
-		jsonInput := map[string]interface{}{
+		jsonInput := map[string]any{
 			"subject": authSubject{
 				ID:     actor.ID,
 				Roles:  must(actor.Roles.Expand()),
@@ -146,7 +147,7 @@ func TestRegoInputValue(t *testing.T) {
 				Scope:  must(actor.Scope.Expand()),
 			},
 			"action": action,
-			"object": map[string]interface{}{
+			"object": map[string]any{
 				"type": obj.Type,
 			},
 		}
@@ -249,17 +250,39 @@ func TestRoleByName(t *testing.T) {
 	})
 }
 
-// SameAs compares 2 roles for equality.
+func TestDeduplicatePermissions(t *testing.T) {
+	t.Parallel()
+
+	perms := []Permission{
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+	}
+
+	got := DeduplicatePermissions(perms)
+	want := []Permission{
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+	}
+
+	require.Equal(t, want, got)
+}
+
+// equalRoles compares 2 roles for equality.
 func equalRoles(t *testing.T, a, b Role) {
 	require.Equal(t, a.Identifier, b.Identifier, "role names")
 	require.Equal(t, a.DisplayName, b.DisplayName, "role display names")
 	require.ElementsMatch(t, a.Site, b.Site, "site permissions")
 	require.ElementsMatch(t, a.User, b.User, "user permissions")
-	require.Equal(t, len(a.Org), len(b.Org), "same number of org roles")
+	require.Equal(t, len(a.ByOrgID), len(b.ByOrgID), "same number of org roles")
 
-	for ak, av := range a.Org {
-		bv, ok := b.Org[ak]
+	for ak, av := range a.ByOrgID {
+		bv, ok := b.ByOrgID[ak]
 		require.True(t, ok, "org permissions missing: %s", ak)
-		require.ElementsMatchf(t, av, bv, "org %s permissions", ak)
+		require.ElementsMatchf(t, av.Org, bv.Org, "org %s permissions", ak)
+		require.ElementsMatchf(t, av.Member, bv.Member, "member %s permissions", ak)
 	}
 }

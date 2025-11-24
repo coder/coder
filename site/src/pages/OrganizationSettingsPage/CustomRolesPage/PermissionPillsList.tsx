@@ -3,10 +3,11 @@ import Stack from "@mui/material/Stack";
 import type { Permission } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 
 function getUniqueResourceTypes(jsonObject: readonly Permission[]) {
@@ -76,52 +77,34 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 	const theme = useTheme();
 
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				<Pill
-					css={{
-						backgroundColor: theme.palette.background.paper,
-						borderColor: theme.palette.divider,
-					}}
-					data-testid="overflow-permissions-pill"
-				>
-					+{resources.length} more
-				</Pill>
-			</PopoverTrigger>
+		<TooltipProvider>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<Pill
+						css={{
+							backgroundColor: theme.palette.background.paper,
+							borderColor: theme.palette.divider,
+						}}
+						data-testid="overflow-permissions-pill"
+					>
+						+{resources.length} more
+					</Pill>
+				</TooltipTrigger>
 
-			<PopoverContent
-				disableRestoreFocus
-				disableScrollLock
-				css={{
-					".MuiPaper-root": {
-						display: "flex",
-						flexFlow: "column wrap",
-						columnGap: 8,
-						rowGap: 12,
-						padding: "12px 16px",
-						alignContent: "space-around",
-						minWidth: "auto",
-						backgroundColor: theme.palette.background.default,
-					},
-				}}
-				anchorOrigin={{
-					vertical: -4,
-					horizontal: "center",
-				}}
-				transformOrigin={{
-					vertical: "bottom",
-					horizontal: "center",
-				}}
-			>
-				{resources.map((resource) => (
-					<PermissionsPill
-						key={resource}
-						resource={resource}
-						permissions={permissions}
-					/>
-				))}
-			</PopoverContent>
-		</Popover>
+				<TooltipContent className="px-4 py-3 border-surface-quaternary">
+					<ul className="flex flex-col gap-2 list-none my-0 pl-0">
+						{resources.map((resource) => (
+							<li key={resource}>
+								<PermissionsPill
+									resource={resource}
+									permissions={permissions}
+								/>
+							</li>
+						))}
+					</ul>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 

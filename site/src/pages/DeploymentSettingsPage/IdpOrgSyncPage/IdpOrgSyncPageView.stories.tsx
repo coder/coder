@@ -1,12 +1,13 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
+	MockOrganization3,
 	MockOrganizationSyncSettings,
 	MockOrganizationSyncSettings2,
 	MockOrganizationSyncSettingsEmpty,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
 const meta: Meta<typeof IdpOrgSyncPageView> = {
@@ -15,7 +16,7 @@ const meta: Meta<typeof IdpOrgSyncPageView> = {
 	args: {
 		organizationSyncSettings: MockOrganizationSyncSettings2,
 		claimFieldValues: Object.keys(MockOrganizationSyncSettings2.mapping),
-		organizations: [MockOrganization, MockOrganization2],
+		organizations: [MockOrganization, MockOrganization2, MockOrganization3],
 		error: undefined,
 	},
 };

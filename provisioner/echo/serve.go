@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"text/template"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -120,8 +122,8 @@ func readResponses(sess *provisionersdk.Session, trans string, suffix string) ([
 	for i := 0; ; i++ {
 		paths := []string{
 			// Try more specific path first, then fallback to generic.
-			filepath.Join(sess.WorkDirectory, fmt.Sprintf("%d.%s.%s", i, trans, suffix)),
-			filepath.Join(sess.WorkDirectory, fmt.Sprintf("%d.%s", i, suffix)),
+			filepath.Join(sess.Files.WorkDirectory(), fmt.Sprintf("%d.%s.%s", i, trans, suffix)),
+			filepath.Join(sess.Files.WorkDirectory(), fmt.Sprintf("%d.%s", i, suffix)),
 		}
 		for pathIndex, path := range paths {
 			_, err := os.Stat(path)
@@ -358,8 +360,25 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 		}
 	}
+	dirs := []string{}
 	for name, content := range responses.ExtraFiles {
 		logger.Debug(ctx, "extra file", slog.F("name", name))
+
+		// We need to add directories before any files that use them. But, we only need to do this
+		// once.
+		dir := filepath.Dir(name)
+		if dir != "." && !slices.Contains(dirs, dir) {
+			logger.Debug(ctx, "adding extra file directory", slog.F("dir", dir))
+			dirs = append(dirs, dir)
+			err := writer.WriteHeader(&tar.Header{
+				Name:     dir,
+				Mode:     0o755,
+				Typeflag: tar.TypeDir,
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		err := writer.WriteHeader(&tar.Header{
 			Name: name,
@@ -377,12 +396,114 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 
 		logger.Debug(context.Background(), "extra file written", slog.F("name", name), slog.F("bytes_written", n))
 	}
+
+	// Write a main.tf with the appropriate parameters. This is to write terraform
+	// that matches the parameters defined in the responses. Dynamic parameters
+	// parsed these, even in the echo provisioner.
+	var mainTF bytes.Buffer
+	for _, respPlan := range responses.ProvisionPlan {
+		plan := respPlan.GetPlan()
+		if plan == nil {
+			continue
+		}
+
+		for _, param := range plan.Parameters {
+			paramTF, err := ParameterTerraform(param)
+			if err != nil {
+				return nil, xerrors.Errorf("parameter terraform: %w", err)
+			}
+			_, _ = mainTF.WriteString(paramTF)
+		}
+	}
+
+	if mainTF.Len() > 0 {
+		mainTFData := `
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+    }
+  }
+}
+` + mainTF.String()
+
+		_ = writer.WriteHeader(&tar.Header{
+			Name: `main.tf`,
+			Size: int64(len(mainTFData)),
+			Mode: 0o644,
+		})
+		_, _ = writer.Write([]byte(mainTFData))
+	}
+
 	// `writer.Close()` function flushes the writer buffer, and adds extra padding to create a legal tarball.
 	err := writer.Close()
 	if err != nil {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// ParameterTerraform will create a Terraform data block for the provided parameter.
+func ParameterTerraform(param *proto.RichParameter) (string, error) {
+	tmpl := template.Must(template.New("parameter").Funcs(map[string]any{
+		"showValidation": func(v *proto.RichParameter) bool {
+			return v != nil && (v.ValidationMax != nil || v.ValidationMin != nil ||
+				v.ValidationError != "" || v.ValidationRegex != "" ||
+				v.ValidationMonotonic != "")
+		},
+		"formType": func(v *proto.RichParameter) string {
+			s, _ := proto.ProviderFormType(v.FormType)
+			return string(s)
+		},
+	}).Parse(`
+data "coder_parameter" "{{ .Name }}" {
+  name         = "{{ .Name }}"
+  display_name = "{{ .DisplayName }}"
+  description  = "{{ .Description }}"
+  icon  = "{{ .Icon }}"
+  mutable      = {{ .Mutable }}
+  ephemeral    = {{ .Ephemeral }}
+  order 	 = {{ .Order }}
+{{- if .DefaultValue }}
+  default      = {{ .DefaultValue }}
+{{- end }}
+{{- if .Type }}
+  type      = "{{ .Type }}"
+{{- end }}
+{{- if .FormType }}
+  form_type      = "{{ formType . }}"
+{{- end }}
+{{- range .Options }}
+  option {
+    name  = "{{ .Name }}"
+    value = "{{ .Value }}"
+  }
+{{- end }}
+{{- if showValidation .}}
+  validation {
+	{{- if .ValidationRegex }}
+	regex = "{{ .ValidationRegex }}"
+	{{- end }}
+	{{- if .ValidationError }}
+	error = "{{ .ValidationError }}"
+	{{- end }}
+	{{- if .ValidationMin }}
+	min   = {{ .ValidationMin }}
+	{{- end }}
+	{{- if .ValidationMax }}
+	max   = {{ .ValidationMax }}
+	{{- end }}
+	{{- if .ValidationMonotonic }}
+	monotonic = "{{ .ValidationMonotonic }}"
+	{{- end }}
+  }
+{{- end }}
+}
+`))
+
+	var buf bytes.Buffer
+	err := tmpl.Execute(&buf, param)
+	return buf.String(), err
 }
 
 func WithResources(resources []*proto.Resource) *Responses {

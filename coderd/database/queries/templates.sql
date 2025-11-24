@@ -30,10 +30,28 @@ WHERE
 			LOWER(t.name) = LOWER(@exact_name)
 		ELSE true
 	END
+	-- Filter by exact display name
+	AND CASE
+		WHEN @exact_display_name :: text != '' THEN
+			LOWER(t.display_name) = LOWER(@exact_display_name)
+		ELSE true
+	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @fuzzy_name :: text != '' THEN
 			lower(t.name) ILIKE '%' || lower(@fuzzy_name) || '%'
+		ELSE true
+	END
+	-- Filter by display_name, matching on substring (fallback to name if display_name is empty)
+	AND CASE
+		WHEN @fuzzy_display_name :: text != '' THEN
+			CASE
+				WHEN t.display_name IS NOT NULL AND t.display_name != '' THEN
+					lower(t.display_name) ILIKE '%' || lower(@fuzzy_display_name) || '%'
+				ELSE
+					-- Remove spaces if present since 't.name' cannot have any spaces
+					lower(t.name) ILIKE '%' || REPLACE(lower(@fuzzy_display_name), ' ', '') || '%'
+			END
 		ELSE true
 	END
 	-- Filter by ids
@@ -57,6 +75,25 @@ WHERE
 	AND CASE
 		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
 			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
+		ELSE true
+	END
+	-- Filter by author_id
+	AND CASE
+		  WHEN @author_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = @author_id
+		  ELSE true
+	END
+	-- Filter by author_username
+	AND CASE
+		  WHEN @author_username :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower(@author_username) AND deleted = false)
+		  ELSE true
+	END
+
+	-- Filter by has_external_agent in latest version
+	AND CASE
+		WHEN sqlc.narg('has_external_agent') :: boolean IS NOT NULL THEN
+			tv.has_external_agent = sqlc.narg('has_external_agent') :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -98,10 +135,12 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing_level
+		max_port_sharing_level,
+		use_classic_parameter_flow,
+		cors_behavior
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -133,7 +172,9 @@ SET
 	allow_user_cancel_workspace_jobs = $7,
 	group_acl = $8,
 	max_port_sharing_level = $9,
-	use_classic_parameter_flow = $10
+	use_classic_parameter_flow = $10,
+	cors_behavior = $11,
+	use_terraform_workspace_cache = $12
 WHERE
 	id = $1
 ;
@@ -181,11 +222,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = @template_id AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > @start_time) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other

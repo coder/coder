@@ -48,18 +48,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	onCancel,
 	templateVersionId,
 }) => {
-	const autofillByName = Object.fromEntries(
-		autofillParameters.map((param) => [param.name, param]),
-	);
-	const initialTouched = parameters.reduce(
-		(touched, parameter) => {
-			if (autofillByName[parameter.name] !== undefined) {
-				touched[parameter.name] = true;
-			}
-			return touched;
-		},
-		{} as Record<string, boolean>,
-	);
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
@@ -68,7 +56,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				autofillParameters,
 			),
 		},
-		initialTouched,
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
@@ -89,27 +76,22 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			name: parameter.name,
 			value,
 		});
-		form.setFieldTouched(parameter.name, true);
 		sendDynamicParamsRequest(parameter, value);
 	};
 
-	// Send the changed parameter and all touched parameters to the websocket
 	const sendDynamicParamsRequest = (
 		parameter: PreviewParameter,
 		value: string,
 	) => {
 		const formInputs: Record<string, string> = {};
-		formInputs[parameter.name] = value;
 		const parameters = form.values.rich_parameter_values ?? [];
-
-		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-			if (isTouched && fieldName !== parameter.name) {
-				const param = parameters.find((p) => p.name === fieldName);
-				if (param?.value) {
-					formInputs[fieldName] = param.value;
-				}
+		for (const param of parameters) {
+			if (param?.name && param?.value) {
+				formInputs[param.name] = param.value;
 			}
 		}
+
+		formInputs[parameter.name] = value;
 
 		sendMessage(formInputs);
 	};
@@ -210,7 +192,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 								parameters cannot be modified once the workspace is created.
 								<Link
 									href={docs(
-										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										"/admin/templates/extending-templates/dynamic-parameters",
 									)}
 								>
 									View docs

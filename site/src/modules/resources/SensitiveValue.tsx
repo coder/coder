@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, css } from "@emotion/react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
@@ -32,7 +32,10 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 				gap: 4,
 			}}
 		>
-			<CopyableValue value={value} css={styles.value}>
+			<CopyableValue
+				value={value}
+				className="w-[calc(100%-22px)] overflow-hidden whitespace-nowrap text-ellipsis"
+			>
 				{displayValue}
 			</CopyableValue>
 			<Tooltip title={buttonLabel}>
@@ -52,14 +55,6 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 };
 
 const styles = {
-	value: {
-		// 22px is the button width
-		width: "calc(100% - 22px)",
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-	},
-
 	button: css`
     color: inherit;
   `,

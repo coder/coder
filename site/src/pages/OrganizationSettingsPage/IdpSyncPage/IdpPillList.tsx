@@ -1,11 +1,12 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import { Pill } from "components/Pill/Pill";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { isUUID } from "utils/uuid";
 
@@ -34,53 +35,26 @@ interface OverflowPillProps {
 }
 
 const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
-	const theme = useTheme();
-
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				<Pill
-					css={{
-						backgroundColor: theme.palette.background.paper,
-						borderColor: theme.palette.divider,
-					}}
-					data-testid="overflow-pill"
-				>
-					+{roles.length} more
-				</Pill>
-			</PopoverTrigger>
+		<TooltipProvider>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<Pill data-testid="overflow-pill">+{roles.length} more</Pill>
+				</TooltipTrigger>
 
-			<PopoverContent
-				disableRestoreFocus
-				disableScrollLock
-				css={{
-					".MuiPaper-root": {
-						display: "flex",
-						flexFlow: "column wrap",
-						columnGap: 8,
-						rowGap: 12,
-						padding: "12px 16px",
-						alignContent: "space-around",
-						minWidth: "auto",
-						backgroundColor: theme.palette.background.default,
-					},
-				}}
-				anchorOrigin={{
-					vertical: -4,
-					horizontal: "center",
-				}}
-				transformOrigin={{
-					vertical: "bottom",
-					horizontal: "center",
-				}}
-			>
-				{roles.map((role) => (
-					<Pill key={role} css={isUUID(role) ? styles.errorPill : styles.pill}>
-						{role}
-					</Pill>
-				))}
-			</PopoverContent>
-		</Popover>
+				<TooltipContent className="px-4 py-3 border-surface-quaternary">
+					<ul className="flex flex-col gap-2 list-none my-0 pl-0">
+						{roles.map((role) => (
+							<li key={role}>
+								<Pill css={isUUID(role) ? styles.errorPill : styles.pill}>
+									{role}
+								</Pill>
+							</li>
+						))}
+					</ul>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 

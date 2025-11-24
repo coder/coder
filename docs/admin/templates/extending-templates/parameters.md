@@ -207,8 +207,8 @@ data "coder_parameter" "dotfiles_url" {
 Immutable parameters can only be set in these situations:
 
 - Creating a workspace for the first time.
-- Updating a workspace to a new template version. This sets the initial value
-  for required parameters.
+- Updating a workspace to a new template version.
+  This sets the initial value for required parameters.
 
 The idea is to prevent users from modifying fragile or persistent workspace
 resources like volumes, regions, and so on.
@@ -224,9 +224,8 @@ data "coder_parameter" "region" {
 }
 ```
 
-You can modify a parameter's `mutable` attribute state anytime. In case of
-emergency, you can temporarily allow for changing immutable parameters to fix an
-operational issue, but it is not advised to overuse this opportunity.
+If a required parameter is empty or if the workspace creation page detects an incompatibility between selected
+parameters, the **Create workspace** button is disabled until the issues are resolved.
 
 ## Ephemeral parameters
 
@@ -315,7 +314,7 @@ data "coder_parameter" "project_id" {
 }
 ```
 
-## Workspace presets (beta)
+## Workspace presets
 
 Workspace presets allow you to configure commonly used combinations of parameters
 into a single option, which makes it easier for developers to pick one that fits
@@ -323,20 +322,48 @@ their needs.
 
 ![Template with options in the preset dropdown](../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
 
-Use `coder_workspace_preset` to define the preset parameters.
-After you save the template file, the presets will be available for all new
-workspace deployments.
+Use the
+[`coder_workspace_preset`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset)
+data source to define the preset parameters. After you save the template file,
+the presets will be available for all new workspace deployments.
+
+### Optional preset fields
+
+In addition to the required `name` and `parameters` fields, you can enhance your
+workspace presets with optional `description` and `icon` fields:
+
+- **description**: A helpful text description that provides additional context
+  about the preset. This helps users understand what the preset is for and when
+  to use it.
+- **icon**: A visual icon displayed alongside the preset name in the UI. Use
+  emoji icons with the format `/emojis/{code}.png` (e.g.,
+  `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
+
+For a complete list of all available fields, see the
+[Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
 
 <details><summary>Expand for an example</summary>
 
 ```tf
 data "coder_workspace_preset" "goland-gpu" {
   name        = "GoLand with GPU"
+  description = "Development workspace with GPU acceleration for GoLand IDE"
+  icon        = "/emojis/1f680.png"
   parameters = {
     "machine_type"  = "n1-standard-1"
     "attach_gpu"    = "true"
     "gcp_region"    = "europe-west4-c"
     "jetbrains_ide" = "GO"
+  }
+}
+
+data "coder_workspace_preset" "pittsburgh" {
+  name        = "Pittsburgh"
+  description = "Development workspace hosted in United States"
+  icon        = "/emojis/1f1fa-1f1f8.png"
+  parameters = {
+    "region"       = "us-pittsburgh"
+    "machine_type" = "n1-standard-2"
   }
 }
 
@@ -356,16 +383,23 @@ data "coder_parameter" "attach_gpu" {
 
 data "coder_parameter" "gcp_region" {
   name          = "gcp_region"
-  display_name  = "Machine Type"
+  display_name  = "GCP Region"
   type          = "string"
-  default       = "n1-standard-2"
+  default       = "us-central1-a"
 }
 
 data "coder_parameter" "jetbrains_ide" {
   name          = "jetbrains_ide"
-  display_name  = "Machine Type"
+  display_name  = "JetBrains IDE"
   type          = "string"
-  default       = "n1-standard-2"
+  default       = "IU"
+}
+
+data "coder_parameter" "region" {
+  name          = "region"
+  display_name  = "Region"
+  type          = "string"
+  default       = "us-east-1"
 }
 ```
 
@@ -392,546 +426,12 @@ parameters in one of two ways:
 
   Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
 
-## Dynamic Parameters (Early Access)
-
-Dynamic Parameters enhances Coder's existing parameter system with real-time validation,
-conditional parameter behavior, and richer input types.
-This feature allows template authors to create more interactive and responsive workspace creation experiences.
-
-### Enable Dynamic Parameters
-
-To use Dynamic Parameters, enable the experiment flag or set the environment variable.
-
-Note that as of v2.22.0, Dynamic parameters are an unsafe experiment and will not be enabled with the experiment wildcard.
-
-<div class="tabs">
-
-#### Flag
-
-```shell
-coder server --experiments=dynamic-parameters
-```
-
-#### Env Variable
-
-```shell
-CODER_EXPERIMENTS=dynamic-parameters
-```
-
-</div>
-
-Dynamic Parameters also require version >=2.4.0 of the Coder provider.
-
-Enable the experiment, then include the following at the top of your template:
-
-```terraform
-terraform {
-  required_providers {
-    coder = {
-      source = "coder/coder"
-      version = ">=2.4.0"
-    }
-  }
-}
-```
-
-Once enabled, users can toggle between the experimental and classic interfaces during
-workspace creation using an escape hatch in the workspace creation form.
-
-## Features and Capabilities
-
-Dynamic Parameters introduces three primary enhancements to the standard parameter system:
-
-- **Conditional Parameters**
-
-  - Parameters can respond to changes in other parameters
-  - Show or hide parameters based on other selections
-  - Modify validation rules conditionally
-  - Create branching paths in workspace creation forms
-
-- **Reference User Properties**
-
-  - Read user data at build time from [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
-  - Conditionally hide parameters based on user's role
-  - Change parameter options based on user groups
-  - Reference user name in parameters
-
-- **Additional Form Inputs**
-
-  - Searchable dropdown lists for easier selection
-  - Multi-select options for choosing multiple items
-  - Secret text inputs for sensitive information
-  - Key-value pair inputs for complex data
-  - Button parameters for toggling sections
-
-## Available Form Input Types
-
-Dynamic Parameters supports a variety of form types to create rich, interactive user experiences.
-
-You can specify the form type using the `form_type` property.
-Different parameter types support different form types.
-
-The "Options" column in the table below indicates whether the form type requires options to be defined (Yes) or doesn't support/require them (No). When required, options are specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
-
-| Form Type      | Parameter Types                            | Options | Notes                                                                                                                        |
-|----------------|--------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------|
-| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
-| `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list. Default for `string` or `number` parameters with options. |
-| `input`        | `string`, `number`                         | No      | Standard single-line text input field. Default for string/number parameters without options.                                 |
-| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                           |
-| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                |
-| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
-| `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                            |
-| `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                         |
-| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |
-| `error`        |                                            | No      | Used to display an error message when a parameter  form_type is unknown                                                      |
-
-### Form Type Examples
-
-<details><summary>checkbox: A single checkbox for boolean values</summary>
-
-```tf
-data "coder_parameter" "enable_gpu" {
-  name         = "enable_gpu"
-  display_name = "Enable GPU"
-  type         = "bool"
-  form_type    = "checkbox" # This is the default for boolean parameters
-  default      = false
-}
-```
-
-</details>
-
-<details><summary>dropdown: A searchable select menu for choosing a single option from a list</summary>
-
-```tf
-data "coder_parameter" "region" {
-  name         = "region"
-  display_name = "Region"
-  description  = "Select a region"
-  type         = "string"
-  form_type    = "dropdown" # This is the default for string parameters with options
-
-  option {
-    name  = "US East"
-    value = "us-east-1"
-  }
-  option {
-    name  = "US West"
-    value = "us-west-2"
-  }
-}
-```
-
-</details>
-
-<details><summary>input: A standard text input field</summary>
-
-```tf
-data "coder_parameter" "custom_domain" {
-  name         = "custom_domain"
-  display_name = "Custom Domain"
-  type         = "string"
-  form_type    = "input" # This is the default for string parameters without options
-  default      = ""
-}
-```
-
-</details>
-
-<details><summary>key-value: Input for entering key-value pairs</summary>
-
-```tf
-data "coder_parameter" "environment_vars" {
-  name         = "environment_vars"
-  display_name = "Environment Variables"
-  type         = "string"
-  form_type    = "key-value"
-  default      = jsonencode({"NODE_ENV": "development"})
-}
-```
-
-</details>
-
-<details><summary>multi-select: Checkboxes for selecting multiple options from a list</summary>
-
-```tf
-data "coder_parameter" "tools" {
-  name         = "tools"
-  display_name = "Developer Tools"
-  type         = "list(string)"
-  form_type    = "multi-select"
-  default      = jsonencode(["git", "docker"])
-
-  option {
-    name  = "Git"
-    value = "git"
-  }
-  option {
-    name  = "Docker"
-    value = "docker"
-  }
-  option {
-    name  = "Kubernetes CLI"
-    value = "kubectl"
-  }
-}
-```
-
-</details>
-
-<details><summary>password: A text input that masks sensitive information</summary>
-
-```tf
-data "coder_parameter" "api_key" {
-  name         = "api_key"
-  display_name = "API Key"
-  type         = "string"
-  form_type    = "password"
-  secret       = true
-}
-```
-
-</details>
-
-<details><summary>radio: Radio buttons for selecting a single option with high visibility</summary>
-
-```tf
-data "coder_parameter" "environment" {
-  name         = "environment"
-  display_name = "Environment"
-  type         = "string"
-  form_type    = "radio"
-  default      = "dev"
-
-  option {
-    name  = "Development"
-    value = "dev"
-  }
-  option {
-    name  = "Staging"
-    value = "staging"
-  }
-}
-```
-
-</details>
-
-<details><summary>slider: A slider for selecting numeric values within a range</summary>
-
-```tf
-data "coder_parameter" "cpu_cores" {
-  name         = "cpu_cores"
-  display_name = "CPU Cores"
-  type         = "number"
-  form_type    = "slider"
-  default      = 2
-  validation {
-    min = 1
-    max = 8
-  }
-}
-```
-
-</details>
-
-<details><summary>switch: A toggle switch for boolean values</summary>
-
-```tf
-data "coder_parameter" "advanced_mode" {
-  name         = "advanced_mode"
-  display_name = "Advanced Mode"
-  type         = "bool"
-  form_type    = "switch"
-  default      = false
-}
-```
-
-</details>
-
-<details><summary>textarea: A multi-line text input field for longer content</summary>
-
-```tf
-data "coder_parameter" "init_script" {
-  name         = "init_script"
-  display_name = "Initialization Script"
-  type         = "string"
-  form_type    = "textarea"
-  default      = "#!/bin/bash\necho 'Hello World'"
-}
-```
-
-</details>
-
-## Dynamic Parameter Use Case Examples
-
-<details><summary>Conditional Parameters: Region and Instance Types</summary>
-
-This example shows instance types based on the selected region:
-
-```tf
-data "coder_parameter" "region" {
-  name        = "region"
-  display_name = "Region"
-  description = "Select a region for your workspace"
-  type        = "string"
-  default     = "us-east-1"
-
-  option {
-    name  = "US East (N. Virginia)"
-    value = "us-east-1"
-  }
-
-  option {
-    name  = "US West (Oregon)"
-    value = "us-west-2"
-  }
-}
-
-data "coder_parameter" "instance_type" {
-  name         = "instance_type"
-  display_name = "Instance Type"
-  description  = "Select an instance type available in the selected region"
-  type         = "string"
-
-  # This option will only appear when us-east-1 is selected
-  dynamic "option" {
-    for_each = data.coder_parameter.region.value == "us-east-1" ? [1] : []
-    content {
-      name  = "t3.large (US East)"
-      value = "t3.large"
-    }
-  }
-
-  # This option will only appear when us-west-2 is selected
-  dynamic "option" {
-    for_each = data.coder_parameter.region.value == "us-west-2" ? [1] : []
-    content {
-      name  = "t3.medium (US West)"
-      value = "t3.medium"
-    }
-  }
-}
-```
-
-</details>
-
-<details><summary>Advanced Options Toggle</summary>
-
-This example shows how to create an advanced options section:
-
-```tf
-data "coder_parameter" "show_advanced" {
-  name         = "show_advanced"
-  display_name = "Show Advanced Options"
-  description  = "Enable to show advanced configuration options"
-  type         = "bool"
-  default      = false
-  order        = 0
-}
-
-data "coder_parameter" "advanced_setting" {
-  # This parameter is only visible when show_advanced is true
-  count = data.coder_parameter.show_advanced.value ? 1 : 0
-  name         = "advanced_setting"
-  display_name = "Advanced Setting"
-  description  = "An advanced configuration option"
-  type         = "string"
-  default      = "default_value"
-  mutable      = true
-  order        = 1
-}
-
-</details>
-
-<details><summary>Multi-select IDE Options</summary>
-
-This example allows selecting multiple IDEs to install:
-
-```tf
-data "coder_parameter" "ides" {
-  name         = "ides"
-  display_name = "IDEs to Install"
-  description  = "Select which IDEs to install in your workspace"
-  type         = "list(string)"
-  default      = jsonencode(["vscode"])
-  mutable      = true
-  form_type    = "multi-select"
-
-  option {
-    name  = "VS Code"
-    value = "vscode"
-    icon  = "/icon/vscode.png"
-  }
-
-  option {
-    name  = "JetBrains IntelliJ"
-    value = "intellij"
-    icon  = "/icon/intellij.png"
-  }
-
-  option {
-    name  = "JupyterLab"
-    value = "jupyter"
-    icon  = "/icon/jupyter.png"
-  }
-}
-```
-
-</details>
-
-<details><summary>Team-specific Resources</summary>
-
-This example filters resources based on user group membership:
-
-```tf
-data "coder_parameter" "instance_type" {
-  name        = "instance_type"
-  display_name = "Instance Type"
-  description = "Select an instance type for your workspace"
-  type        = "string"
-
-  # Show GPU options only if user belongs to the "data-science" group
-  dynamic "option" {
-    for_each = contains(data.coder_workspace_owner.me.groups, "data-science") ? [1] : []
-    content {
-      name  = "p3.2xlarge (GPU)"
-      value = "p3.2xlarge"
-    }
-  }
-
-  # Standard options for all users
-  option {
-    name  = "t3.medium (Standard)"
-    value = "t3.medium"
-  }
-}
-```
-
-### Advanced Usage Patterns
-
-<details><summary>Creating Branching Paths</summary>
-
-For templates serving multiple teams or use cases, you can create comprehensive branching paths:
-
-```tf
-data "coder_parameter" "environment_type" {
-  name         = "environment_type"
-  display_name = "Environment Type"
-  description  = "Select your preferred development environment"
-  type         = "string"
-  default      = "container"
-
-  option {
-    name  = "Container"
-    value = "container"
-  }
-
-  option {
-    name  = "Virtual Machine"
-    value = "vm"
-  }
-}
-
-# Container-specific parameters
-data "coder_parameter" "container_image" {
-  name         = "container_image"
-  display_name = "Container Image"
-  description  = "Select a container image for your environment"
-  type         = "string"
-  default      = "ubuntu:latest"
-
-  # Only show when container environment is selected
-  condition {
-    field = data.coder_parameter.environment_type.name
-    value = "container"
-  }
-
-  option {
-    name  = "Ubuntu"
-    value = "ubuntu:latest"
-  }
-
-  option {
-    name  = "Python"
-    value = "python:3.9"
-  }
-}
-
-# VM-specific parameters
-data "coder_parameter" "vm_image" {
-  name         = "vm_image"
-  display_name = "VM Image"
-  description  = "Select a VM image for your environment"
-  type         = "string"
-  default      = "ubuntu-20.04"
-
-  # Only show when VM environment is selected
-  condition {
-    field = data.coder_parameter.environment_type.name
-    value = "vm"
-  }
-
-  option {
-    name  = "Ubuntu 20.04"
-    value = "ubuntu-20.04"
-  }
-
-  option {
-    name  = "Debian 11"
-    value = "debian-11"
-  }
-}
-```
-
-</details>
-
-<details><summary>Conditional Validation</summary>
-
-Adjust validation rules dynamically based on parameter values:
-
-```tf
-data "coder_parameter" "team" {
-  name        = "team"
-  display_name = "Team"
-  type        = "string"
-  default     = "engineering"
-
-  option {
-    name  = "Engineering"
-    value = "engineering"
-  }
-
-  option {
-    name  = "Data Science"
-    value = "data-science"
-  }
-}
-
-data "coder_parameter" "cpu_count" {
-  name        = "cpu_count"
-  display_name = "CPU Count"
-  type        = "number"
-  default     = 2
-
-  # Engineering team has lower limits
-  dynamic "validation" {
-    for_each = data.coder_parameter.team.value == "engineering" ? [1] : []
-    content {
-      min = 1
-      max = 4
-    }
-  }
-
-  # Data Science team has higher limits
-  dynamic "validation" {
-    for_each = data.coder_parameter.team.value == "data-science" ? [1] : []
-    content {
-      min = 2
-      max = 8
-    }
-  }
-}
-```
-
-</details>
+## Dynamic Parameters
+
+Coder v2.24.0 introduces [Dynamic Parameters](./dynamic-parameters.md) to extend the existing parameter system with
+conditional form controls, enriched input types, and user identity awareness.
+This feature allows template authors to create interactive workspace creation forms, meaning more environment
+customization and fewer templates to maintain.
+
+You can read more in the [Dynamic Parameters documentation](./dynamic-parameters.md) and try it out in the
+[Parameters Playground](https://playground.coder.app/parameters).

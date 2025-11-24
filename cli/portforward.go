@@ -38,9 +38,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 		tcpForwards      []string // <port>:<port>
 		udpForwards      []string // <port>:<port>
 		disableAutostart bool
-		appearanceConfig codersdk.AppearanceConfig
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "port-forward <workspace>",
 		Short:   `Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
@@ -69,12 +67,15 @@ func (r *RootCmd) portForward() *serpent.Command {
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+			appearanceConfig := initAppearance(ctx, client)
 
 			specs, err := parsePortForwards(tcpForwards, udpForwards)
 			if err != nil {
@@ -84,7 +85,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 				return xerrors.New("no port-forwards requested")
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
+			workspace, workspaceAgent, _, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -221,7 +222,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 func listenAndPortForward(
 	ctx context.Context,
 	inv *serpent.Invocation,
-	conn *workspacesdk.AgentConn,
+	conn workspacesdk.AgentConn,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	logger slog.Logger,

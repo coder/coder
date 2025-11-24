@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, spyOn, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { useState } from "react";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { PasswordField } from "./PasswordField";
 
 const meta: Meta<typeof PasswordField> = {

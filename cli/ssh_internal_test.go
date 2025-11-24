@@ -158,7 +158,7 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	ac := newAsyncCloser(testCtx, t)
-	defer ac.complete()
+	defer ac.unblock()
 	err := uut.push("async", ac)
 	require.NoError(t, err)
 	cancel()
@@ -178,8 +178,9 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 		t.Fatal("closed before stack was finished")
 	}
 
-	ac.complete()
+	ac.unblock()
 	testutil.TryReceive(testCtx, t, closed)
+	testutil.TryReceive(testCtx, t, ac.done)
 }
 
 func TestCloserStack_Timeout(t *testing.T) {
@@ -198,7 +199,8 @@ func TestCloserStack_Timeout(t *testing.T) {
 	}
 	defer func() {
 		for _, a := range ac {
-			a.complete()
+			a.unblock()
+			testutil.TryReceive(ctx, t, a.done) // ensure we don't race with context cancellation
 		}
 	}()
 
@@ -215,7 +217,7 @@ func TestCloserStack_Timeout(t *testing.T) {
 	testutil.TryReceive(ctx, t, ac[1].started)
 
 	// middle one finishes
-	ac[1].complete()
+	ac[1].unblock()
 	// bottom starts, but also hangs
 	testutil.TryReceive(ctx, t, ac[0].started)
 
@@ -317,34 +319,37 @@ func (c *fakeCloser) Close() error {
 }
 
 type asyncCloser struct {
-	t             *testing.T
-	ctx           context.Context
-	started       chan struct{}
-	isComplete    chan struct{}
-	comepleteOnce sync.Once
+	t           *testing.T
+	ctx         context.Context
+	started     chan struct{}
+	done        chan struct{}
+	isUnblocked chan struct{}
+	unblockOnce sync.Once
 }
 
 func (c *asyncCloser) Close() error {
 	close(c.started)
+	defer close(c.done)
 	select {
 	case <-c.ctx.Done():
 		c.t.Error("timed out")
 		return c.ctx.Err()
-	case <-c.isComplete:
+	case <-c.isUnblocked:
 		return nil
 	}
 }
 
-func (c *asyncCloser) complete() {
-	c.comepleteOnce.Do(func() { close(c.isComplete) })
+func (c *asyncCloser) unblock() {
+	c.unblockOnce.Do(func() { close(c.isUnblocked) })
 }
 
 func newAsyncCloser(ctx context.Context, t *testing.T) *asyncCloser {
 	return &asyncCloser{
-		t:          t,
-		ctx:        ctx,
-		isComplete: make(chan struct{}),
-		started:    make(chan struct{}),
+		t:           t,
+		ctx:         ctx,
+		isUnblocked: make(chan struct{}),
+		started:     make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -376,7 +381,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent := createAgent("main")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent})
 
-		result, err := getWorkspaceAgent(workspace, "")
+		result, _, err := getWorkspaceAgent(workspace, "")
 		require.NoError(t, err)
 		assert.Equal(t, agent.ID, result.ID)
 		assert.Equal(t, "main", result.Name)
@@ -388,7 +393,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent2 := createAgent("main2")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
 
-		_, err := getWorkspaceAgent(workspace, "")
+		_, _, err := getWorkspaceAgent(workspace, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "multiple agents found")
 		assert.Contains(t, err.Error(), "available agents: [main1 main2]")
@@ -400,10 +405,13 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent2 := createAgent("main2")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
 
-		result, err := getWorkspaceAgent(workspace, "main1")
+		result, other, err := getWorkspaceAgent(workspace, "main1")
 		require.NoError(t, err)
 		assert.Equal(t, agent1.ID, result.ID)
 		assert.Equal(t, "main1", result.Name)
+		assert.Len(t, other, 1)
+		assert.Equal(t, agent2.ID, other[0].ID)
+		assert.Equal(t, "main2", other[0].Name)
 	})
 
 	t.Run("AgentNameSpecified_NotFound", func(t *testing.T) {
@@ -412,7 +420,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent2 := createAgent("main2")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
 
-		_, err := getWorkspaceAgent(workspace, "nonexistent")
+		_, _, err := getWorkspaceAgent(workspace, "nonexistent")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `agent not found by name "nonexistent"`)
 		assert.Contains(t, err.Error(), "available agents: [main1 main2]")
@@ -422,7 +430,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{})
 
-		_, err := getWorkspaceAgent(workspace, "")
+		_, _, err := getWorkspaceAgent(workspace, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `workspace "test-workspace" has no agents`)
 	})
@@ -435,7 +443,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent3 := createAgent("krypton")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent2, agent1, agent3})
 
-		_, err := getWorkspaceAgent(workspace, "nonexistent")
+		_, _, err := getWorkspaceAgent(workspace, "nonexistent")
 		require.Error(t, err)
 		// Available agents should be sorted alphabetically.
 		assert.Contains(t, err.Error(), "available agents: [clark krypton zod]")

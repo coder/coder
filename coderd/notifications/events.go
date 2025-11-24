@@ -42,12 +42,21 @@ var (
 	TemplateWorkspaceResourceReplaced   = uuid.MustParse("89d9745a-816e-4695-a17f-3d0a229e2b8d")
 )
 
-// Prebuilds-related events
+// Prebuilds-related events.
 var (
 	PrebuildFailureLimitReached = uuid.MustParse("414d9331-c1fc-4761-b40c-d1f4702279eb")
 )
 
 // Notification-related events.
 var (
-	TemplateTestNotification = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")
+	TemplateTestNotification   = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")
+	TemplateCustomNotification = uuid.MustParse("39b1e189-c857-4b0c-877a-511144c18516")
+)
+
+// Task-related events.
+var (
+	TemplateTaskWorking   = uuid.MustParse("bd4b7168-d05e-4e19-ad0f-3593b77aa90f")
+	TemplateTaskIdle      = uuid.MustParse("d4a6271c-cced-4ed0-84ad-afd02a9c7799")
+	TemplateTaskCompleted = uuid.MustParse("8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c")
+	TemplateTaskFailed    = uuid.MustParse("3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e")
 )

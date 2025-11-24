@@ -1,10 +1,9 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import MuiButton from "@mui/material/Button";
 import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import type { GetLicensesResponse } from "api/api";
-import type { UserStatusChangeCount } from "api/typesGenerated";
+import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
@@ -17,9 +16,10 @@ import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
+import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 
 type Props = {
 	showConfetti: boolean;
@@ -32,6 +32,7 @@ type Props = {
 	removeLicense: (licenseId: number) => void;
 	refreshEntitlements: () => void;
 	activeUsers: UserStatusChangeCount[] | undefined;
+	managedAgentFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -45,6 +46,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	removeLicense,
 	refreshEntitlements,
 	activeUsers,
+	managedAgentFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -72,13 +74,12 @@ const LicensesSettingsPageView: FC<Props> = ({
 				</SettingsHeader>
 
 				<Stack direction="row" spacing={2}>
-					<MuiButton
-						component={Link}
-						to="/deployment/licenses/add"
-						startIcon={<PlusIcon className="size-icon-sm" />}
-					>
-						Add a license
-					</MuiButton>
+					<Button variant="outline" asChild>
+						<Link to="/deployment/licenses/add">
+							<PlusIcon />
+							Add a license
+						</Link>
+					</Button>
 					<Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
 						<Button
 							disabled={isRefreshing}
@@ -150,6 +151,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 							limit: 80,
 						}))}
 					/>
+				)}
+
+				{licenses && licenses.length > 0 && (
+					<ManagedAgentsConsumption managedAgentFeature={managedAgentFeature} />
 				)}
 			</div>
 		</>

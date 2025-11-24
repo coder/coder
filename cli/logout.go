@@ -8,24 +8,24 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) logout() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "logout",
 		Short: "Unauthenticate your local session",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			var errors []error
 
 			config := r.createConfig()
 
-			var err error
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Are you sure you want to log out?",
 				IsConfirm: true,
@@ -47,11 +47,15 @@ func (r *RootCmd) logout() *serpent.Command {
 				errors = append(errors, xerrors.Errorf("remove URL file: %w", err))
 			}
 
-			err = config.Session().Delete()
+			err = r.ensureTokenBackend().Delete(client.URL)
 			// Only throw error if the session configuration file is present,
 			// otherwise the user is already logged out, and we proceed
-			if err != nil && !os.IsNotExist(err) {
-				errors = append(errors, xerrors.Errorf("remove session file: %w", err))
+			if err != nil && !xerrors.Is(err, os.ErrNotExist) {
+				if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+					errors = append(errors, errKeyringNotSupported)
+				} else {
+					errors = append(errors, xerrors.Errorf("remove session token: %w", err))
+				}
 			}
 
 			err = config.Organization().Delete()

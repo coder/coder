@@ -4,12 +4,14 @@ import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
@@ -22,8 +24,22 @@ export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps
 > = ({ starterTemplatesByTag, error }) => {
 	return (
-		<Margins>
-			<PageHeader>
+		<Margins className="pb-12">
+			<PageHeader
+				actions={
+					<Button asChild size="sm" variant="outline">
+						<a
+							href="https://registry.coder.com"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="flex items-center"
+						>
+							Browse the Coder Registry
+							<ExternalLinkIcon className="size-icon-sm ml-1" />
+						</a>
+					</Button>
+				}
+			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
 			</PageHeader>
 			<Stack spacing={8}>

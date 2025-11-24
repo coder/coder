@@ -4,11 +4,12 @@ import {
 	buildWorkspaceWithParameters,
 	createTemplate,
 	createWorkspace,
+	disableDynamicParameters,
 	echoResponsesWithParameters,
+	login,
 	stopWorkspace,
 	verifyParameters,
 } from "../../helpers";
-import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import { firstBuildOption, secondBuildOption } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
@@ -24,6 +25,9 @@ test("start workspace with ephemeral parameters", async ({ page }) => {
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
+
+	// Disable dynamic parameters to use classic parameter flow for this test
+	await disableDynamicParameters(page, template);
 
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);

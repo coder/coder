@@ -38,14 +38,14 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	}
 
 	var (
-		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
 			cliui.TableFormat([]provisionerJobRow{}, []string{"created at", "id", "type", "template display name", "status", "queue", "tags"}),
 			cliui.JSONFormat(),
 		)
-		status []string
-		limit  int64
+		status    []string
+		limit     int64
+		initiator string
 	)
 
 	cmd := &serpent.Command{
@@ -54,18 +54,30 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
+			if initiator != "" {
+				user, err := client.User(ctx, initiator)
+				if err != nil {
+					return xerrors.Errorf("initiator not found: %s", initiator)
+				}
+				initiator = user.ID.String()
+			}
+
 			jobs, err := client.OrganizationProvisionerJobs(ctx, org.ID, &codersdk.OrganizationProvisionerJobsOptions{
-				Status: slice.StringEnums[codersdk.ProvisionerJobStatus](status),
-				Limit:  int(limit),
+				Status:    slice.StringEnums[codersdk.ProvisionerJobStatus](status),
+				Limit:     int(limit),
+				Initiator: initiator,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner jobs: %w", err)
@@ -120,6 +132,13 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			Default:       "50",
 			Value:         serpent.Int64Of(&limit),
 		},
+		{
+			Flag:          "initiator",
+			FlagShorthand: "i",
+			Env:           "CODER_PROVISIONER_JOB_LIST_INITIATOR",
+			Description:   "Filter by initiator (user ID or username).",
+			Value:         serpent.StringOf(&initiator),
+		},
 	}...)
 
 	orgContext.AttachOptions(cmd)
@@ -129,19 +148,19 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 }
 
 func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
-	var (
-		client     = new(codersdk.Client)
-		orgContext = NewOrganizationContext()
-	)
+	orgContext := NewOrganizationContext()
 	cmd := &serpent.Command{
 		Use:   "cancel <job_id>",
 		Short: "Cancel a provisioner job",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
@@ -166,7 +185,7 @@ func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 				err = client.CancelTemplateVersion(ctx, ptr.NilToEmpty(job.Input.TemplateVersionID))
 			case codersdk.ProvisionerJobTypeWorkspaceBuild:
 				_, _ = fmt.Fprintf(inv.Stdout, "Canceling workspace build job %s...\n", job.ID)
-				err = client.CancelWorkspaceBuild(ctx, ptr.NilToEmpty(job.Input.WorkspaceBuildID))
+				err = client.CancelWorkspaceBuild(ctx, ptr.NilToEmpty(job.Input.WorkspaceBuildID), codersdk.CancelWorkspaceBuildParams{})
 			}
 			if err != nil {
 				return xerrors.Errorf("cancel provisioner job: %w", err)

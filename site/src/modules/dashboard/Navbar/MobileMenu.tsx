@@ -23,7 +23,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { cn } from "utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 
@@ -37,6 +37,7 @@ type MobileMenuPermissions = {
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
+	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
 };
 
@@ -161,7 +162,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 								<img className="w-4 h-4" src={p.icon_url} alt={p.name} />
 								{p.display_name || p.name}
 								{latency ? (
-									<Latency latency={latency.latencyMS} />
+									<Latency className="ml-auto" latency={latency.latencyMS} />
 								) : (
 									<CircleHelpIcon className="ml-auto" />
 								)}
@@ -192,6 +193,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 	canViewDeployment,
 	canViewOrganizations,
 	canViewAuditLog,
+	canViewConnectionLog,
 	canViewHealth,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -235,6 +237,14 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
 						<Link to="/audit">Audit logs</Link>
+					</DropdownMenuItem>
+				)}
+				{canViewConnectionLog && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/connectionlog">Connection logs</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewHealth && (

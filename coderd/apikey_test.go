@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,8 +14,10 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -48,6 +51,8 @@ func TestTokenCRUD(t *testing.T) {
 	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
 	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
 	require.Equal(t, codersdk.APIKeyScopeAll, keys[0].Scope)
+	require.Len(t, keys[0].AllowList, 1)
+	require.Equal(t, "*:*", keys[0].AllowList[0].String())
 
 	// no update
 
@@ -83,6 +88,58 @@ func TestTokenScoped(t *testing.T) {
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
 	require.Equal(t, keys[0].Scope, codersdk.APIKeyScopeApplicationConnect)
+	require.Len(t, keys[0].AllowList, 1)
+	require.Equal(t, "*:*", keys[0].AllowList[0].String())
+}
+
+// Ensure backward-compat: when a token is created using the legacy singular
+// scope names ("all" or "application_connect"), the API returns the same
+// legacy value in the deprecated singular Scope field while also supporting
+// the new multi-scope field.
+func TestTokenLegacySingularScopeCompat(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		scope  codersdk.APIKeyScope
+		scopes []codersdk.APIKeyScope
+	}{
+		{
+			name:   "all",
+			scope:  codersdk.APIKeyScopeAll,
+			scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
+		},
+		{
+			name:   "application_connect",
+			scope:  codersdk.APIKeyScopeApplicationConnect,
+			scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderApplicationConnect},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			defer cancel()
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			// Create with legacy singular scope.
+			_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scope: tc.scope,
+			})
+			require.NoError(t, err)
+
+			// Read back and ensure the deprecated singular field matches exactly.
+			keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+			require.NoError(t, err)
+			require.Len(t, keys, 1)
+			require.Equal(t, tc.scope, keys[0].Scope)
+			require.ElementsMatch(t, keys[0].Scopes, tc.scopes)
+			require.Len(t, keys[0].AllowList, 1)
+			require.Equal(t, "*:*", keys[0].AllowList[0].String())
+		})
+	}
 }
 
 func TestUserSetTokenDuration(t *testing.T) {
@@ -301,14 +358,32 @@ func TestSessionExpiry(t *testing.T) {
 
 func TestAPIKey_OK(t *testing.T) {
 	t.Parallel()
+
+	// Given: a deployment with auditing enabled
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	_ = coderdtest.CreateFirstUser(t, client)
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	owner := coderdtest.CreateFirstUser(t, client)
+	auditor.ResetLogs()
 
+	// When: an API key is created
 	res, err := client.CreateAPIKey(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
+
+	// Then: an audit log is generated
+	als := auditor.AuditLogs()
+	require.Len(t, als, 1)
+	al := als[0]
+	assert.Equal(t, owner.UserID, al.UserID)
+	assert.Equal(t, database.AuditActionCreate, al.Action)
+	assert.Equal(t, database.ResourceTypeApiKey, al.ResourceType)
+
+	// Then: the diff MUST NOT contain the generated key.
+	raw, err := json.Marshal(al)
+	require.NoError(t, err)
+	require.NotContains(t, res.Key, string(raw))
 }
 
 func TestAPIKey_Deleted(t *testing.T) {
@@ -350,4 +425,35 @@ func TestAPIKey_SetDefault(t *testing.T) {
 	apiKey1, err := db.GetAPIKeyByID(ctx, split[0])
 	require.NoError(t, err)
 	require.EqualValues(t, dc.Sessions.DefaultTokenDuration.Value().Seconds(), apiKey1.LifetimeSeconds)
+}
+
+func TestAPIKey_PrebuildsNotAllowed(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.DefaultTokenDuration = serpent.Duration(time.Hour * 12)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         db,
+		Pubsub:           pubsub,
+		DeploymentValues: dc,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Given: an existing api token for the prebuilds user
+	_, prebuildsToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID: database.PrebuildsSystemUserID,
+	})
+	client.SetSessionToken(prebuildsToken)
+
+	// When: the prebuilds user tries to create an API key
+	_, err := client.CreateAPIKey(ctx, database.PrebuildsSystemUserID.String())
+	// Then: denied.
+	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
+
+	// When: the prebuilds user tries to create a token
+	_, err = client.CreateToken(ctx, database.PrebuildsSystemUserID.String(), codersdk.CreateTokenRequest{})
+	// Then: also denied.
+	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
 }

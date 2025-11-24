@@ -8,10 +8,9 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"strconv"
+	"sync"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
@@ -27,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
@@ -37,34 +37,35 @@ import (
 // log-source. This should be removed in the future.
 var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
 
-// ConnectionType is the type of connection that the agent is receiving.
-type ConnectionType string
+// SessionTokenSetup is a function that creates the token provider while setting up the workspace agent. We do it this
+// way because cloud instance identity (AWS, Azure, Google, etc.) requires interacting with coderd to exchange tokens.
+// This means that the token providers need a codersdk.Client. However, the SessionTokenProvider is itself used by
+// the client to authenticate requests. Thus, the dependency is bidirectional. Functions of this type are used in
+// New() to ensure that things are set up correctly so there is only one instance of the codersdk.Client created.
+// @typescript-ignore SessionTokenSetup
+type SessionTokenSetup func(client *codersdk.Client) RefreshableSessionTokenProvider
 
-// Connection type enums.
-const (
-	ConnectionTypeUnspecified     ConnectionType = "Unspecified"
-	ConnectionTypeSSH             ConnectionType = "SSH"
-	ConnectionTypeVSCode          ConnectionType = "VS Code"
-	ConnectionTypeJetBrains       ConnectionType = "JetBrains"
-	ConnectionTypeReconnectingPTY ConnectionType = "Web Terminal"
-)
-
-// New returns a client that is used to interact with the
-// Coder API from a workspace agent.
-func New(serverURL *url.URL) *Client {
+// New creates a new *Client which can be used by an agent to connect to Coderd. Use a SessionTokenSetup function
+// to define the session token provider for the Client. This overrides the SessionTokenProvider on the underlying
+// `*codersdk.Client`, so any `codersdk.ClientOptions` passed as `opts` should not set this property.
+func New(serverURL *url.URL, setup SessionTokenSetup, opts ...codersdk.ClientOption) *Client {
+	var provider RefreshableSessionTokenProvider
+	opts = append(opts, func(c *codersdk.Client) {
+		provider = setup(c)
+		c.SessionTokenProvider = provider
+	})
+	c := codersdk.New(serverURL, opts...)
 	return &Client{
-		SDK: codersdk.New(serverURL),
+		SDK:                             c,
+		RefreshableSessionTokenProvider: provider,
 	}
 }
 
 // Client wraps `codersdk.Client` with specific functions
 // scoped to a workspace agent.
 type Client struct {
+	RefreshableSessionTokenProvider
 	SDK *codersdk.Client
-}
-
-func (c *Client) SetSessionToken(token string) {
-	c.SDK.SetSessionToken(token)
 }
 
 type GitSSHKey struct {
@@ -138,40 +139,13 @@ type Script struct {
 	Script string `json:"script"`
 }
 
-// RewriteDERPMap rewrites the DERP map to use the access URL of the SDK as the
-// "embedded relay" access URL. The passed derp map is modified in place.
+// RewriteDERPMap rewrites the DERP map to use the configured access URL of the
+// agent as the "embedded relay" access URL.
 //
-// Agents can provide an arbitrary access URL that may be different that the
-// globally configured one. This breaks the built-in DERP, which would continue
-// to reference the global access URL.
+// See tailnet.RewriteDERPMapDefaultRelay for more details on why this is
+// necessary.
 func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
-	accessingPort := c.SDK.URL.Port()
-	if accessingPort == "" {
-		accessingPort = "80"
-		if c.SDK.URL.Scheme == "https" {
-			accessingPort = "443"
-		}
-	}
-	accessPort, err := strconv.Atoi(accessingPort)
-	if err != nil {
-		// this should never happen because URL.Port() returns the empty string if the port is not
-		// valid.
-		c.SDK.Logger().Critical(context.Background(), "failed to parse URL port", slog.F("port", accessingPort))
-	}
-	for _, region := range derpMap.Regions {
-		if !region.EmbeddedRelay {
-			continue
-		}
-
-		for _, node := range region.Nodes {
-			if node.STUNOnly {
-				continue
-			}
-			node.HostName = c.SDK.URL.Hostname()
-			node.DERPPort = accessPort
-			node.ForceHTTP = c.SDK.URL.Scheme == "http"
-		}
-	}
+	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.SDK.Logger(), derpMap, c.SDK.URL)
 }
 
 // ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing
@@ -365,146 +339,91 @@ type AuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
-type GoogleInstanceIdentityToken struct {
-	JSONWebToken string `json:"json_web_token" validate:"required"`
+// RefreshableSessionTokenProvider is a SessionTokenProvider that can be refreshed, for example, via token exchange.
+// @typescript-ignore RefreshableSessionTokenProvider
+type RefreshableSessionTokenProvider interface {
+	codersdk.SessionTokenProvider
+	RefreshToken(ctx context.Context) error
 }
 
-// AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
-// fetch a signed JWT, and exchange it for a session token for a workspace agent.
-//
-// The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthGoogleInstanceIdentity(ctx context.Context, serviceAccount string, gcpClient *metadata.Client) (AuthenticateResponse, error) {
-	if serviceAccount == "" {
-		// This is the default name specified by Google.
-		serviceAccount = "default"
-	}
-	if gcpClient == nil {
-		gcpClient = metadata.NewClient(c.SDK.HTTPClient)
-	}
-	// "format=full" is required, otherwise the responding payload will be missing "instance_id".
-	jwt, err := gcpClient.Get(fmt.Sprintf("instance/service-accounts/%s/identity?audience=coder&format=full", serviceAccount))
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
-	}
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
-		JSONWebToken: jwt,
-	})
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+// InstanceIdentitySessionTokenProvider implements RefreshableSessionTokenProvider via token exchange for a cloud
+// compute instance identity.
+// @typescript-ignore InstanceIdentitySessionTokenProvider
+type InstanceIdentitySessionTokenProvider struct {
+	TokenExchanger TokenExchanger
+	logger         slog.Logger
+
+	// cache so we don't request each time
+	mu           sync.Mutex
+	sessionToken string
 }
 
-type AWSInstanceIdentityToken struct {
-	Signature string `json:"signature" validate:"required"`
-	Document  string `json:"document" validate:"required"`
+// TokenExchanger obtains a session token by exchanging a cloud instance identity credential for a Coder session token.
+// @typescript-ignore TokenExchanger
+type TokenExchanger interface {
+	exchange(ctx context.Context) (AuthenticateResponse, error)
 }
 
-// AuthWorkspaceAWSInstanceIdentity uses the Amazon Metadata API to
-// fetch a signed payload, and exchange it for a session token for a workspace agent.
-//
-// The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthAWSInstanceIdentity(ctx context.Context) (AuthenticateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://169.254.169.254/latest/api/token", nil)
-	if err != nil {
-		return AuthenticateResponse{}, nil
+func (i *InstanceIdentitySessionTokenProvider) AsRequestOption() codersdk.RequestOption {
+	t := i.GetSessionToken()
+	return func(req *http.Request) {
+		req.Header.Set(codersdk.SessionTokenHeader, t)
 	}
-	req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "21600")
-	res, err := c.SDK.HTTPClient.Do(req)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	token, err := io.ReadAll(res.Body)
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
-	if err != nil {
-		return AuthenticateResponse{}, nil
-	}
-	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = c.SDK.HTTPClient.Do(req)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	signature, err := io.ReadAll(res.Body)
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
-	if err != nil {
-		return AuthenticateResponse{}, nil
-	}
-	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = c.SDK.HTTPClient.Do(req)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	document, err := io.ReadAll(res.Body)
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	res, err = c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
-		Signature: string(signature),
-		Document:  string(document),
-	})
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-type AzureInstanceIdentityToken struct {
-	Signature string `json:"signature" validate:"required"`
-	Encoding  string `json:"encoding" validate:"required"`
+func (i *InstanceIdentitySessionTokenProvider) SetDialOption(opts *websocket.DialOptions) {
+	t := i.GetSessionToken()
+	if opts.HTTPHeader == nil {
+		opts.HTTPHeader = http.Header{}
+	}
+	if opts.HTTPHeader.Get(codersdk.SessionTokenHeader) == "" {
+		opts.HTTPHeader.Set(codersdk.SessionTokenHeader, t)
+	}
 }
 
-// AuthWorkspaceAzureInstanceIdentity uses the Azure Instance Metadata Service to
-// fetch a signed payload, and exchange it for a session token for a workspace agent.
-func (c *Client) AuthAzureInstanceIdentity(ctx context.Context) (AuthenticateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/metadata/attested/document?api-version=2020-09-01", nil)
-	if err != nil {
-		return AuthenticateResponse{}, nil
+func (i *InstanceIdentitySessionTokenProvider) GetSessionToken() string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.sessionToken != "" {
+		return i.sessionToken
 	}
-	req.Header.Set("Metadata", "true")
-	res, err := c.SDK.HTTPClient.Do(req)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resp, err := i.TokenExchanger.exchange(ctx)
 	if err != nil {
-		return AuthenticateResponse{}, err
+		i.logger.Error(ctx, "failed to exchange session token", slog.Error(err))
+		return ""
 	}
-	defer res.Body.Close()
+	i.sessionToken = resp.SessionToken
+	return i.sessionToken
+}
 
-	var token AzureInstanceIdentityToken
-	err = json.NewDecoder(res.Body).Decode(&token)
+func (i *InstanceIdentitySessionTokenProvider) RefreshToken(ctx context.Context) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	resp, err := i.TokenExchanger.exchange(ctx)
 	if err != nil {
-		return AuthenticateResponse{}, err
+		return err
 	}
+	i.sessionToken = resp.SessionToken
+	return nil
+}
 
-	res, err = c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
-	if err != nil {
-		return AuthenticateResponse{}, err
+// FixedSessionTokenProvider wraps the codersdk variant to add a no-op RefreshToken method to satisfy the
+// RefreshableSessionTokenProvider interface.
+// @typescript-ignore FixedSessionTokenProvider
+type FixedSessionTokenProvider struct {
+	codersdk.FixedSessionTokenProvider
+}
+
+func (FixedSessionTokenProvider) RefreshToken(_ context.Context) error {
+	return nil
+}
+
+func WithFixedToken(token string) SessionTokenSetup {
+	return func(_ *codersdk.Client) RefreshableSessionTokenProvider {
+		return FixedSessionTokenProvider{FixedSessionTokenProvider: codersdk.FixedSessionTokenProvider{SessionToken: token}}
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // Stats records the Agent's network connection statistics for use in

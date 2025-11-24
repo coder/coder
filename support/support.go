@@ -390,7 +390,7 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 		if err := conn.Close(); err != nil {
 			log.Error(ctx, "failed to close agent connection", slog.Error(err))
 		}
-		<-conn.Closed()
+		<-conn.TailnetConn().Closed()
 	}
 
 	eg.Go(func() error {
@@ -399,7 +399,7 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 			return xerrors.Errorf("create request: %w", err)
 		}
 		rr := httptest.NewRecorder()
-		conn.MagicsockServeHTTPDebug(rr, req)
+		conn.TailnetConn().MagicsockServeHTTPDebug(rr, req)
 		a.ClientMagicsockHTML = rr.Body.Bytes()
 		return nil
 	})

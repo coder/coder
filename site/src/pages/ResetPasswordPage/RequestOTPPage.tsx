@@ -7,10 +7,10 @@ import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { getApplicationName } from "utils/appearance";
+import { pageTitle } from "utils/page";
 
 const RequestOTPPage: FC = () => {
 	const applicationName = getApplicationName();
@@ -18,9 +18,7 @@ const RequestOTPPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Reset Password - {applicationName}</title>
-			</Helmet>
+			<title>{pageTitle("Reset Password", applicationName)}</title>
 
 			<main css={styles.root}>
 				<CustomLogo css={styles.logo} />

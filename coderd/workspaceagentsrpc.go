@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -139,7 +138,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Database:                          api.Database,
 		NotificationsEnqueuer:             api.NotificationsEnqueuer,
 		Pubsub:                            api.Pubsub,
-		Auditor:                           &api.Auditor,
+		ConnectionLogger:                  &api.ConnectionLogger,
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
@@ -348,16 +347,14 @@ func (m *agentConnectionMonitor) init() {
 func (m *agentConnectionMonitor) start(ctx context.Context) {
 	ctx, m.cancel = context.WithCancel(ctx)
 	m.wg.Add(2)
-	go pprof.Do(ctx, pprof.Labels("agent", m.workspaceAgent.ID.String()),
-		func(ctx context.Context) {
-			defer m.wg.Done()
-			m.sendPings(ctx)
-		})
-	go pprof.Do(ctx, pprof.Labels("agent", m.workspaceAgent.ID.String()),
-		func(ctx context.Context) {
-			defer m.wg.Done()
-			m.monitor(ctx)
-		})
+	go func(ctx context.Context) {
+		defer m.wg.Done()
+		m.sendPings(ctx)
+	}(ctx)
+	go func(ctx context.Context) {
+		defer m.wg.Done()
+		m.monitor(ctx)
+	}(ctx)
 }
 
 func (m *agentConnectionMonitor) monitor(ctx context.Context) {

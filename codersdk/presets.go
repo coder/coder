@@ -11,10 +11,13 @@ import (
 )
 
 type Preset struct {
-	ID         uuid.UUID
-	Name       string
-	Parameters []PresetParameter
-	Default    bool
+	ID                       uuid.UUID
+	Name                     string
+	Parameters               []PresetParameter
+	Default                  bool
+	DesiredPrebuildInstances *int
+	Description              string
+	Icon                     string
 }
 
 type PresetParameter struct {

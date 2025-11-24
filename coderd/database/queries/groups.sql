@@ -8,6 +8,24 @@ WHERE
 LIMIT
 	1;
 
+-- name: ValidateGroupIDs :one
+WITH input AS (
+	SELECT
+		unnest(@group_ids::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_group_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (groups) row for each
+	-- right (input) row...
+	groups
+	RIGHT JOIN input ON groups.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing group.
+	groups.id IS NULL;
+
 -- name: GetGroupByOrgAndName :one
 SELECT
 	*

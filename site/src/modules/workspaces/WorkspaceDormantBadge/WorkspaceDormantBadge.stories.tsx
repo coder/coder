@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
 import { MockDormantWorkspace } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { WorkspaceDormantBadge } from "./WorkspaceDormantBadge";
 
 const meta: Meta<typeof WorkspaceDormantBadge> = {

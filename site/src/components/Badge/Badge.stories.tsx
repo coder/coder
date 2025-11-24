@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Settings, TriangleAlert } from "lucide-react";
 import { Badge } from "./Badge";
 
@@ -18,6 +18,24 @@ export const Default: Story = {};
 export const Warning: Story = {
 	args: {
 		variant: "warning",
+	},
+};
+
+export const Destructive: Story = {
+	args: {
+		variant: "destructive",
+	},
+};
+
+export const Info: Story = {
+	args: {
+		variant: "info",
+	},
+};
+
+export const Green: Story = {
+	args: {
+		variant: "green",
 	},
 };
 

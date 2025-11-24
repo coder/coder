@@ -1,4 +1,4 @@
-// biome-ignore lint/nursery/noRestrictedImports: base theme types
+// biome-ignore lint/style/noRestrictedImports: base theme types
 import type { PaletteColor, PaletteColorOptions } from "@mui/material/styles";
 
 declare module "@mui/material/styles" {
@@ -10,16 +10,6 @@ declare module "@mui/material/styles" {
 	interface PaletteOptions {
 		neutral?: PaletteColorOptions;
 		dots?: string;
-	}
-}
-
-declare module "@mui/material/Button" {
-	interface ButtonPropsColorOverrides {
-		neutral: true;
-	}
-
-	interface ButtonPropsSizeOverrides {
-		xlarge: true;
 	}
 }
 

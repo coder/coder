@@ -76,34 +76,16 @@ LIMIT
 	1;
 
 -- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.*
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    WHERE
-        workspace_id = ANY(@ids :: uuid [ ])
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
-
--- name: GetLatestWorkspaceBuilds :many
-SELECT wb.*
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
+SELECT
+	DISTINCT ON (workspace_id)
+	*
+FROM
+	workspace_build_with_user AS workspace_builds
+WHERE
+	workspace_id = ANY(@ids :: uuid [ ])
+ORDER BY
+	workspace_id, build_number DESC -- latest first
+;
 
 -- name: InsertWorkspaceBuild :exec
 INSERT INTO
@@ -141,22 +123,21 @@ SET
 	deadline = @deadline::timestamptz,
 	max_deadline = @max_deadline::timestamptz,
 	updated_at = @updated_at::timestamptz
-WHERE id = @id::uuid;
+FROM
+	workspaces
+WHERE
+	workspace_builds.id = @id::uuid
+	AND workspace_builds.workspace_id = workspaces.id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- deadline and max_deadline
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceBuildProvisionerStateByID :exec
 UPDATE
 	workspace_builds
 SET
 	provisioner_state = @provisioner_state::bytea,
-	updated_at = @updated_at::timestamptz
-WHERE id = @id::uuid;
-
--- name: UpdateWorkspaceBuildAITaskByID :exec
-UPDATE
-	workspace_builds
-SET
-	has_ai_task = @has_ai_task,
-	ai_task_sidebar_app_id = @sidebar_app_id,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 
@@ -253,3 +234,12 @@ WHERE
 	AND pj.job_status = 'failed'
 ORDER BY
 	tv.name ASC, wb.build_number DESC;
+
+-- name: UpdateWorkspaceBuildFlagsByID :exec
+UPDATE
+	workspace_builds
+SET
+	has_ai_task = @has_ai_task,
+	has_external_agent = @has_external_agent,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;

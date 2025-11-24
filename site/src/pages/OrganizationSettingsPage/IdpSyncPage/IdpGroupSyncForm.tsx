@@ -8,9 +8,9 @@ import { Combobox } from "components/Combobox/Combobox";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -219,7 +219,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 					</span>
 				</div>
 				<div className="flex flex-row gap-2 justify-between items-start">
-					<div className="grid items-center gap-1">
+					<div className="grid items-center gap-1 w-72">
 						<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
 							IdP group name
 						</Label>
@@ -414,7 +414,7 @@ const GroupRow: FC<GroupRowProps> = ({
 const AutoCreateMissingGroupsHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger />
+			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
 				<HelpTooltipText>
 					Enabling auto create missing groups will automatically create groups
@@ -431,7 +431,7 @@ const LegacyGroupSyncHeader: FC = () => {
 			<div className="flex items-end gap-2">
 				<span>Legacy group sync settings</span>
 				<HelpTooltip>
-					<HelpTooltipTrigger />
+					<HelpTooltipIconTrigger />
 					<HelpTooltipContent>
 						<HelpTooltipTitle>Legacy group sync settings</HelpTooltipTitle>
 						<HelpTooltipText>

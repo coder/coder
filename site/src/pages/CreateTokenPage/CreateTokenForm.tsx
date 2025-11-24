@@ -14,14 +14,14 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { FormikContextType } from "formik";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import {
 	type CreateTokenData,
-	NANO_HOUR,
 	customLifetimeDay,
 	determineDefaultLtValue,
 	filterByMaxTokenLifetime,
+	NANO_HOUR,
 } from "./utils";
 
 dayjs.extend(utc);
@@ -80,15 +80,21 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 				</FormFields>
 			</FormSection>
 			<FormSection
-				data-chromatic="ignore"
 				title="Expiration"
 				description={
-					form.values.lifetime
-						? `The token will expire on ${dayjs()
-								.add(form.values.lifetime, "days")
-								.utc()
-								.format("MMMM DD, YYYY")}`
-						: "Please set a token expiration."
+					form.values.lifetime ? (
+						<>
+							The token will expire on{" "}
+							<span data-chromatic="ignore">
+								{dayjs()
+									.add(form.values.lifetime, "days")
+									.utc()
+									.format("MMMM DD, YYYY")}
+							</span>
+						</>
+					) : (
+						"Please set a token expiration."
+					)
 				}
 				classes={{ sectionInfo: classNames.sectionInfo }}
 			>

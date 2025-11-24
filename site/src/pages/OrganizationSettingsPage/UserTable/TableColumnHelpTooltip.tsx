@@ -1,11 +1,11 @@
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -45,7 +45,7 @@ export const TableColumnHelpTooltip: FC<Props> = ({ variant }) => {
 
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger size="small" />
+			<HelpTooltipIconTrigger size="small" />
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{variantLang.title}</HelpTooltipTitle>
 				<HelpTooltipText>{variantLang.text}</HelpTooltipText>

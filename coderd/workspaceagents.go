@@ -36,11 +36,13 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -383,6 +385,20 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Treat the message as untrusted input.
+	cleaned := strutil.UISanitize(req.Message)
+
+	// Get the latest statuses for the workspace app to detect no-op updates
+	// nolint:gocritic // This is a system restricted operation.
+	latestAppStatus, err := api.Database.GetLatestWorkspaceAppStatusesByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get latest workspace app statuses.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// nolint:gocritic // This is a system restricted operation.
 	_, err = api.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
@@ -391,7 +407,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		AgentID:     workspaceAgent.ID,
 		AppID:       app.ID,
 		State:       database.WorkspaceAppStatusState(req.State),
-		Message:     req.Message,
+		Message:     cleaned,
 		Uri: sql.NullString{
 			String: req.URI,
 			Valid:  req.URI != "",
@@ -411,7 +427,104 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		AgentID:     &workspaceAgent.ID,
 	})
 
+	// Notify on state change to Working/Idle for AI tasks
+	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace, workspaceAgent)
+
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
+}
+
+// enqueueAITaskStateNotification enqueues a notification when an AI task's app
+// transitions to Working or Idle.
+// No-op if:
+//   - the workspace agent app isn't configured as an AI task,
+//   - the new state equals the latest persisted state,
+//   - the workspace agent is not ready (still starting up).
+func (api *API) enqueueAITaskStateNotification(
+	ctx context.Context,
+	appID uuid.UUID,
+	latestAppStatus []database.WorkspaceAppStatus,
+	newAppStatus codersdk.WorkspaceAppStatusState,
+	workspace database.Workspace,
+	agent database.WorkspaceAgent,
+) {
+	// Select notification template based on the new state
+	var notificationTemplate uuid.UUID
+	switch newAppStatus {
+	case codersdk.WorkspaceAppStatusStateWorking:
+		notificationTemplate = notifications.TemplateTaskWorking
+	case codersdk.WorkspaceAppStatusStateIdle:
+		notificationTemplate = notifications.TemplateTaskIdle
+	case codersdk.WorkspaceAppStatusStateComplete:
+		notificationTemplate = notifications.TemplateTaskCompleted
+	case codersdk.WorkspaceAppStatusStateFailure:
+		notificationTemplate = notifications.TemplateTaskFailed
+	default:
+		// Not a notifiable state, do nothing
+		return
+	}
+
+	if !workspace.TaskID.Valid {
+		// Workspace has no task ID, do nothing.
+		return
+	}
+
+	// Only send notifications when the agent is ready. We want to skip
+	// any state transitions that occur whilst the workspace is starting
+	// up as it doesn't make sense to receive them.
+	if agent.LifecycleState != database.WorkspaceAgentLifecycleStateReady {
+		api.Logger.Debug(ctx, "skipping AI task notification because agent is not ready",
+			slog.F("agent_id", agent.ID),
+			slog.F("lifecycle_state", agent.LifecycleState),
+			slog.F("new_app_status", newAppStatus),
+		)
+		return
+	}
+
+	task, err := api.Database.GetTaskByID(ctx, workspace.TaskID.UUID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to get task", slog.Error(err))
+		return
+	}
+
+	if !task.WorkspaceAppID.Valid || task.WorkspaceAppID.UUID != appID {
+		// Non-task app, do nothing.
+		return
+	}
+
+	// Skip if the latest persisted state equals the new state (no new transition)
+	if len(latestAppStatus) > 0 && latestAppStatus[0].State == database.WorkspaceAppStatusState(newAppStatus) {
+		return
+	}
+
+	// Skip the initial "Working" notification when task first starts.
+	// This is obvious to the user since they just created the task.
+	// We still notify on first "Idle" status and all subsequent transitions.
+	if len(latestAppStatus) == 0 && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
+		return
+	}
+
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notificationTemplate,
+		map[string]string{
+			"task":      task.Name,
+			"workspace": workspace.Name,
+		},
+		map[string]any{
+			// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
+			// allowing identical content to resend within the same day
+			// (but not more than once every 10s).
+			"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
+		},
+		"api-workspace-agent-app-status",
+		// Associate this notification with related entities
+		workspace.ID, workspace.OwnerID, workspace.OrganizationID, appID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of task state", slog.Error(err))
+		return
+	}
 }
 
 // workspaceAgentLogs returns the logs associated with a workspace agent
@@ -799,6 +912,113 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 	portsResponse.Ports = filteredPorts
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
+}
+
+// @Summary Watch workspace agent for container updates.
+// @ID watch-workspace-agent-for-container-updates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceAgentListContainersResponse
+// @Router /workspaceagents/{workspaceagent}/containers/watch [get]
+func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx            = r.Context()
+		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+		logger         = api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
+	)
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		workspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	containersCh, closer, err := agentConn.WatchContainers(ctx, logger)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error watching agent's containers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer closer.Close()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	// Here we close the websocket for reading, so that the websocket library will handle pings and
+	// close frames.
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+
+	encoder := json.NewEncoder(wsNetConn)
+
+	for {
+		select {
+		case <-api.ctx.Done():
+			return
+
+		case <-ctx.Done():
+			return
+
+		case containers, ok := <-containersCh:
+			if !ok {
+				return
+			}
+
+			if err := encoder.Encode(containers); err != nil {
+				api.Logger.Error(ctx, "encode containers", slog.Error(err))
+				return
+			}
+		}
+	}
 }
 
 // @Summary Get running containers for workspace agent

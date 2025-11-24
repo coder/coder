@@ -15,7 +15,7 @@
     "template_allow_user_cancel_workspace_jobs": false,
     "template_active_version_id": "============[version ID]============",
     "template_require_active_version": false,
-    "template_use_classic_parameter_flow": true,
+    "template_use_classic_parameter_flow": false,
     "latest_build": {
       "id": "========[workspace build ID]========",
       "created_at": "====[timestamp]=====",
@@ -45,6 +45,7 @@
         "queue_position": 0,
         "queue_size": 0,
         "organization_id": "===========[first org ID]===========",
+        "initiator_id": "==========[first user ID]===========",
         "input": {
           "workspace_build_id": "========[workspace build ID]========"
         },
@@ -55,7 +56,8 @@
           "template_name": "",
           "template_display_name": "",
           "template_icon": ""
-        }
+        },
+        "logs_overflowed": false
       },
       "reason": "initiator",
       "resources": [],
@@ -69,7 +71,8 @@
         "most_recently_seen": null
       },
       "template_version_preset_id": null,
-      "has_ai_task": false
+      "has_ai_task": false,
+      "has_external_agent": false
     },
     "latest_app_status": null,
     "outdated": false,
@@ -86,6 +89,8 @@
     "automatic_updates": "never",
     "allow_renames": false,
     "favorite": false,
-    "next_start_at": "====[timestamp]====="
+    "next_start_at": "====[timestamp]=====",
+    "is_prebuild": false,
+    "task_id": null
   }
 ]

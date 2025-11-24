@@ -1,11 +1,12 @@
+import type { Mock } from "vitest";
 import {
+	displayError,
+	displaySuccess,
+	isNotificationTextPrefixed,
 	MsgType,
 	type NotificationMsg,
 	type NotificationTextPrefixed,
 	SnackbarEventType,
-	displayError,
-	displaySuccess,
-	isNotificationTextPrefixed,
 } from "./utils";
 
 describe("Snackbar", () => {
@@ -48,7 +49,7 @@ describe("Snackbar", () => {
 
 	describe("displaySuccess", () => {
 		const originalWindowDispatchEvent = window.dispatchEvent;
-		type TDispatchEventMock = jest.MockedFunction<
+		type TDispatchEventMock = Mock<
 			(msg: CustomEvent<NotificationMsg>) => boolean
 		>;
 		let dispatchEventMock: TDispatchEventMock;
@@ -67,7 +68,7 @@ describe("Snackbar", () => {
 		};
 
 		beforeEach(() => {
-			dispatchEventMock = jest.fn();
+			dispatchEventMock = vi.fn();
 			window.dispatchEvent =
 				dispatchEventMock as unknown as typeof window.dispatchEvent;
 		});
@@ -114,16 +115,18 @@ describe("Snackbar", () => {
 	});
 
 	describe("displayError", () => {
-		it("shows the title and the message", (done) => {
+		it("shows the title and the message", () => {
 			const message = "Some error happened";
 
-			window.addEventListener(SnackbarEventType, (event) => {
-				const notificationEvent = event as CustomEvent<NotificationMsg>;
-				expect(notificationEvent.detail.msg).toEqual(message);
-				done();
-			});
+			return new Promise<void>((resolve) => {
+				window.addEventListener(SnackbarEventType, (event) => {
+					const notificationEvent = event as CustomEvent<NotificationMsg>;
+					expect(notificationEvent.detail.msg).toEqual(message);
+					resolve();
+				});
 
-			displayError(message);
+				displayError(message);
+			});
 		});
 	});
 });

@@ -44,9 +44,27 @@ import "github.com/coder/coder/v2/apiversion"
 //     -> `has_ai_tasks` in `CompleteJob.TemplateImport`
 //     -> `has_ai_tasks` and `ai_tasks` in `PlanComplete`
 //     -> new message types `AITaskSidebarApp` and `AITask`
+//
+// API v1.8:
+//   - Add new fields `description` and `icon` to `Preset`.
+//
+// API v1.9:
+//   - Added new field named 'has_external_agent' in 'CompleteJob.TemplateImport'
+//
+// API v1.10:
+//   - Added new field `tooltip` in `App`
+//
+// API v1.11:
+//   - Added new fields `task_id` and `task_prompt` to `Manifest`.
+//   - Added new field `app_id` to `AITask`
+//
+// API v1.12:
+//   - Added new field `template_version_id` to `provisioner.Metadata`
+//   - Added new field `exp_reuse_terraform_workspace` to `provisioner.Job.WorkspaceBuild`
+//   - Added fields `template_version_id`, `template_id`, and `exp_reuse_terraform_workspace` to `provisioner.Config`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 7
+	CurrentMinor = 12
 )
 
 // CurrentVersion is the current provisionerd API version.

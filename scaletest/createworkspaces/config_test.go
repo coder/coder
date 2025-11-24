@@ -43,22 +43,29 @@ func Test_UserConfig(t *testing.T) {
 			errContains: "organization_id must not be a nil UUID",
 		},
 		{
-			name: "NoUsername",
+			name: "OKSessionToken",
 			config: createworkspaces.UserConfig{
 				OrganizationID: id,
-				Username:       "",
-				Email:          "test@test.coder.com",
+				SessionToken:   "sometoken",
 			},
-			errContains: "username must be set",
 		},
 		{
-			name: "NoEmail",
+			name: "WithSessionTokenAndUsername",
 			config: createworkspaces.UserConfig{
 				OrganizationID: id,
 				Username:       "test",
-				Email:          "",
+				SessionToken:   "sometoken",
 			},
-			errContains: "email must be set",
+			errContains: "username must be empty when session_token is set",
+		},
+		{
+			name: "WithSessionTokenAndEmail",
+			config: createworkspaces.UserConfig{
+				OrganizationID: id,
+				Email:          "test@test.coder.com",
+				SessionToken:   "sometoken",
+			},
+			errContains: "email must be empty when session_token is set",
 		},
 	}
 

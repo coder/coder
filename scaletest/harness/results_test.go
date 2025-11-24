@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 )
 
 type testError struct {
@@ -36,40 +37,46 @@ func Test_Results(t *testing.T) {
 		TotalFail: 2,
 		Runs: map[string]harness.RunResult{
 			"test-0/0": {
-				FullID:            "test-0/0",
-				TestName:          "test-0",
-				ID:                "0",
-				Logs:              "test-0/0 log line 1\ntest-0/0 log line 2",
-				Error:             xerrors.New("test-0/0 error"),
-				StartedAt:         now,
-				Duration:          httpapi.Duration(time.Second),
-				DurationMS:        1000,
-				TotalBytesRead:    1024,
-				TotalBytesWritten: 2048,
+				FullID:     "test-0/0",
+				TestName:   "test-0",
+				ID:         "0",
+				Logs:       "test-0/0 log line 1\ntest-0/0 log line 2",
+				Error:      xerrors.New("test-0/0 error"),
+				StartedAt:  now,
+				Duration:   httpapi.Duration(time.Second),
+				DurationMS: 1000,
+				Metrics: map[string]any{
+					workspacetraffic.BytesReadMetric:    1024,
+					workspacetraffic.BytesWrittenMetric: 2048,
+				},
 			},
 			"test-0/1": {
-				FullID:            "test-0/1",
-				TestName:          "test-0",
-				ID:                "1",
-				Logs:              "test-0/1 log line 1\ntest-0/1 log line 2",
-				Error:             nil,
-				StartedAt:         now.Add(333 * time.Millisecond),
-				Duration:          httpapi.Duration(time.Second),
-				DurationMS:        1000,
-				TotalBytesRead:    512,
-				TotalBytesWritten: 1024,
+				FullID:     "test-0/1",
+				TestName:   "test-0",
+				ID:         "1",
+				Logs:       "test-0/1 log line 1\ntest-0/1 log line 2",
+				Error:      nil,
+				StartedAt:  now.Add(333 * time.Millisecond),
+				Duration:   httpapi.Duration(time.Second),
+				DurationMS: 1000,
+				Metrics: map[string]any{
+					workspacetraffic.BytesReadMetric:    512,
+					workspacetraffic.BytesWrittenMetric: 1024,
+				},
 			},
 			"test-0/2": {
-				FullID:            "test-0/2",
-				TestName:          "test-0",
-				ID:                "2",
-				Logs:              "test-0/2 log line 1\ntest-0/2 log line 2",
-				Error:             testError{hidden: xerrors.New("test-0/2 error")},
-				StartedAt:         now.Add(666 * time.Millisecond),
-				Duration:          httpapi.Duration(time.Second),
-				DurationMS:        1000,
-				TotalBytesRead:    2048,
-				TotalBytesWritten: 4096,
+				FullID:     "test-0/2",
+				TestName:   "test-0",
+				ID:         "2",
+				Logs:       "test-0/2 log line 1\ntest-0/2 log line 2",
+				Error:      testError{hidden: xerrors.New("test-0/2 error")},
+				StartedAt:  now.Add(666 * time.Millisecond),
+				Duration:   httpapi.Duration(time.Second),
+				DurationMS: 1000,
+				Metrics: map[string]any{
+					workspacetraffic.BytesReadMetric:    2048,
+					workspacetraffic.BytesWrittenMetric: 4096,
+				},
 			},
 		},
 		Elapsed:   httpapi.Duration(time.Second),
@@ -115,9 +122,11 @@ Test results:
 			"started_at": "2023-10-05T12:03:56.395813665Z",
 			"duration": "1s",
 			"duration_ms": 1000,
-			"total_bytes_read": 1024,
-			"total_bytes_written": 2048,
-			"error": "test-0/0 error:\n    github.com/coder/coder/v2/scaletest/harness_test.Test_Results\n        [working_directory]/results_test.go:43"
+			"metrics": {
+				"bytes_read": 1024,
+				"bytes_written": 2048
+			},
+			"error": "test-0/0 error:\n    github.com/coder/coder/v2/scaletest/harness_test.Test_Results\n        [working_directory]/results_test.go:44"
 		},
 		"test-0/1": {
 			"full_id": "test-0/1",
@@ -127,8 +136,10 @@ Test results:
 			"started_at": "2023-10-05T12:03:56.728813665Z",
 			"duration": "1s",
 			"duration_ms": 1000,
-			"total_bytes_read": 512,
-			"total_bytes_written": 1024,
+			"metrics": {
+				"bytes_read": 512,
+				"bytes_written": 1024
+			},
 			"error": "\u003cnil\u003e"
 		},
 		"test-0/2": {
@@ -139,8 +150,10 @@ Test results:
 			"started_at": "2023-10-05T12:03:57.061813665Z",
 			"duration": "1s",
 			"duration_ms": 1000,
-			"total_bytes_read": 2048,
-			"total_bytes_written": 4096,
+			"metrics": {
+				"bytes_read": 2048,
+				"bytes_written": 4096
+			},
 			"error": "test-0/2 error"
 		}
 	}

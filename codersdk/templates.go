@@ -61,8 +61,10 @@ type Template struct {
 	// template version.
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
 
-	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow    bool `json:"use_classic_parameter_flow"`
+	UseTerraformWorkspaceCache bool `json:"use_terraform_workspace_cache"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -192,11 +194,14 @@ type TemplateUser struct {
 }
 
 type UpdateTemplateACL struct {
-	// UserPerms should be a mapping of user id to role. The user id must be the
-	// uuid of the user, not a username or email address.
-	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<group_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
-	// GroupPerms should be a mapping of group id to role.
-	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<user_id>>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
+	// UserPerms is a mapping from valid user UUIDs to the template role they
+	// should be granted. To remove a user from the template, use "" as the role
+	// (available as a constant named codersdk.TemplateRoleDeleted)
+	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<user_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
+	// GroupPerms is a mapping from valid group UUIDs to the template role they
+	// should be granted. To remove a group from the template, use "" as the role
+	// (available as a constant named codersdk.TemplateRoleDeleted)
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<group_id>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
 // ACLAvailable is a list of users and groups that can be added to a template
@@ -207,11 +212,11 @@ type ACLAvailable struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description      string `json:"description,omitempty"`
-	Icon             string `json:"icon,omitempty"`
-	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description      *string `json:"description,omitempty"`
+	Icon             *string `json:"icon,omitempty"`
+	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
@@ -252,12 +257,18 @@ type UpdateTemplateMeta struct {
 	// of the template.
 	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
+	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`
 	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
 	// parameter flow when creating a workspace. This only affects deployments with the experiment
 	// "dynamic-parameters" enabled. This setting will live for a period after the experiment is
 	// made the default.
 	// An "opt-out" is present in case the new feature breaks some existing templates.
 	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
+	// UseTerraformWorkspaceCache allows optionally specifying whether to use cached
+	// terraform directories for workspaces created from this template. This field
+	// only applies when the correct experiment is enabled. This field is subject to
+	// being removed in the future.
+	UseTerraformWorkspaceCache *bool `json:"use_terraform_workspace_cache,omitempty"`
 }
 
 type TemplateExample struct {
@@ -501,4 +512,35 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 	}
 	var templateExamples []TemplateExample
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
+}
+
+type InvalidatePresetsResponse struct {
+	Invalidated []InvalidatedPreset `json:"invalidated"`
+}
+
+type InvalidatedPreset struct {
+	TemplateName        string `json:"template_name"`
+	TemplateVersionName string `json:"template_version_name"`
+	PresetName          string `json:"preset_name"`
+}
+
+// InvalidateTemplatePresets invalidates all presets for the
+// template's active version by setting last_invalidated_at timestamp.
+// The reconciler will then mark these prebuilds as expired and create new ones.
+func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UUID) (InvalidatePresetsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/prebuilds/invalidate", template),
+		nil,
+	)
+	if err != nil {
+		return InvalidatePresetsResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return InvalidatePresetsResponse{}, ReadBodyAsError(res)
+	}
+
+	var response InvalidatePresetsResponse
+	return response, json.NewDecoder(res.Body).Decode(&response)
 }

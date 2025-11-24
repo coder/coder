@@ -50,8 +50,19 @@ type CalculateAutostopParams struct {
 	// by autobuild.NextAutostart
 	WorkspaceAutostart string
 
-	Now       time.Time
-	Workspace database.WorkspaceTable
+	// WorkspaceBuildCompletedAt is the time when the workspace build was
+	// completed.
+	//
+	// We always want to calculate using the build completion time, and not just
+	// the current time, to avoid forcing a workspace build's max_deadline being
+	// pushed to the next potential cron instance.
+	//
+	// E.g. if this function is called for an existing workspace build, which
+	//      currently has a max_deadline within the next 2 hours (see leeway
+	//      above), and the current time is passed into this function, the
+	//      max_deadline will be updated to be much later than expected.
+	WorkspaceBuildCompletedAt time.Time
+	Workspace                 database.WorkspaceTable
 }
 
 type AutostopTime struct {
@@ -68,8 +79,8 @@ type AutostopTime struct {
 // Deadline is the time when the workspace will be stopped, as long as it
 // doesn't see any new activity (such as SSH, app requests, etc.). When activity
 // is detected the deadline is bumped by the workspace's TTL (this only happens
-// when activity is detected and more than 20% of the TTL has passed to save
-// database queries).
+// when activity is detected and more than 5% of the TTL has passed to save
+// database queries, see the ActivityBumpWorkspace query).
 //
 // MaxDeadline is the maximum value for deadline. The deadline cannot be bumped
 // past this value, so it denotes the absolute deadline that the workspace build
@@ -77,55 +88,45 @@ type AutostopTime struct {
 // requirement" settings and the user's "quiet hours" settings to pick a time
 // outside of working hours.
 //
-// Deadline is a cost saving measure, while max deadline is a
-// compliance/updating measure.
+// Note that the deadline is checked at the database level:
+//
+//	(deadline IS NOT zero AND deadline <= max_deadline) UNLESS max_deadline is zero.
+//
+// Deadline is intended as a cost saving measure, not as a hard policy. It is
+// derived from either the workspace's TTL or the template's TTL, depending on
+// the template's policy, to ensure workspaces are stopped when they are idle.
+//
+// MaxDeadline is intended as a compliance policy. It is derived from the
+// template's autostop requirement to cap workspace uptime and effectively force
+// people to update often.
+//
+// Note that only the build's CURRENT deadline property influences automation in
+// the autobuild package. As stated above, the MaxDeadline property is only used
+// to cap the value of a build's deadline.
 func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (AutostopTime, error) {
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithAttributes(attribute.String("coder.workspace_id", params.Workspace.ID.String())),
 		trace.WithAttributes(attribute.String("coder.template_id", params.Workspace.TemplateID.String())),
 	)
 	defer span.End()
-	defer span.End()
 
 	var (
-		db        = params.Database
-		workspace = params.Workspace
-		now       = params.Now
+		db               = params.Database
+		workspace        = params.Workspace
+		buildCompletedAt = params.WorkspaceBuildCompletedAt
 
 		autostop AutostopTime
 	)
-
-	var ttl time.Duration
-	if workspace.Ttl.Valid {
-		// When the workspace is made it copies the template's TTL, and the user
-		// can unset it to disable it (unless the template has
-		// UserAutoStopEnabled set to false, see below).
-		ttl = time.Duration(workspace.Ttl.Int64)
-	}
-
-	if workspace.Ttl.Valid {
-		// When the workspace is made it copies the template's TTL, and the user
-		// can unset it to disable it (unless the template has
-		// UserAutoStopEnabled set to false, see below).
-		autostop.Deadline = now.Add(time.Duration(workspace.Ttl.Int64))
-	}
 
 	templateSchedule, err := params.TemplateScheduleStore.Get(ctx, db, workspace.TemplateID)
 	if err != nil {
 		return autostop, xerrors.Errorf("get template schedule options: %w", err)
 	}
-	if !templateSchedule.UserAutostopEnabled {
-		// The user is not permitted to set their own TTL, so use the template
-		// default.
-		ttl = 0
-		if templateSchedule.DefaultTTL > 0 {
-			ttl = templateSchedule.DefaultTTL
-		}
-	}
 
+	ttl := workspaceTTL(workspace, templateSchedule)
 	if ttl > 0 {
 		// Only apply non-zero TTLs.
-		autostop.Deadline = now.Add(ttl)
+		autostop.Deadline = buildCompletedAt.Add(ttl)
 		if params.WorkspaceAutostart != "" {
 			// If the deadline passes the next autostart, we need to extend the deadline to
 			// autostart + deadline. ActivityBumpWorkspace already covers this case
@@ -137,14 +138,14 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 			// 3. User starts workspace at 9:45pm.
 			//	- The initial deadline is calculated to be 9:45am
 			//	- This crosses the autostart deadline, so the deadline is extended to 9pm
-			nextAutostart, ok := NextAutostart(params.Now, params.WorkspaceAutostart, templateSchedule)
+			nextAutostart, ok := NextAutostart(params.WorkspaceBuildCompletedAt, params.WorkspaceAutostart, templateSchedule)
 			if ok && autostop.Deadline.After(nextAutostart) {
 				autostop.Deadline = nextAutostart.Add(ttl)
 			}
 		}
 	}
 
-	// Otherwise, use the autostop_requirement algorithm.
+	// Enforce the template autostop requirement if it's configured correctly.
 	if templateSchedule.AutostopRequirement.DaysOfWeek != 0 {
 		// The template has a autostop requirement, so determine the max deadline
 		// of this workspace build.
@@ -161,10 +162,10 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		// workspace.
 		if userQuietHoursSchedule.Schedule != nil {
 			loc := userQuietHoursSchedule.Schedule.Location()
-			now := now.In(loc)
+			buildCompletedAtInLoc := buildCompletedAt.In(loc)
 			// Add the leeway here so we avoid checking today's quiet hours if
 			// the workspace was started <1h before midnight.
-			startOfStopDay := truncateMidnight(now.Add(autostopRequirementLeeway))
+			startOfStopDay := truncateMidnight(buildCompletedAtInLoc.Add(autostopRequirementLeeway))
 
 			// If the template schedule wants to only autostop on n-th weeks
 			// then change the startOfDay to be the Monday of the next
@@ -183,7 +184,7 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 			// hour of the scheduled stop time will always bounce to the next
 			// stop window).
 			checkSchedule := userQuietHoursSchedule.Schedule.Next(startOfStopDay.Add(autostopRequirementBuffer))
-			if checkSchedule.Before(now.Add(autostopRequirementLeeway)) {
+			if checkSchedule.Before(buildCompletedAtInLoc.Add(autostopRequirementLeeway)) {
 				// Set the first stop day we try to tomorrow because today's
 				// schedule is too close to now or has already passed.
 				startOfStopDay = nextDayMidnight(startOfStopDay)
@@ -213,14 +214,17 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 				startOfStopDay = nextDayMidnight(startOfStopDay)
 			}
 
-			// If the startOfDay is within an hour of now, then we add an hour.
+			// If the startOfDay is within an hour of the build completion time,
+			// then we add an hour.
 			checkTime := startOfStopDay
-			if checkTime.Before(now.Add(time.Hour)) {
-				checkTime = now.Add(time.Hour)
+			if checkTime.Before(buildCompletedAtInLoc.Add(time.Hour)) {
+				checkTime = buildCompletedAtInLoc.Add(time.Hour)
 			} else {
-				// If it's not within an hour of now, subtract 15 minutes to
-				// give a little leeway. This prevents skipped stop events
-				// because autostart perfectly lines up with autostop.
+				// If it's not within an hour of the build completion time,
+				// subtract 15 minutes to give a little leeway. This prevents
+				// skipped stop events because the build time (e.g. autostart
+				// time) perfectly lines up with the max_deadline minus the
+				// leeway.
 				checkTime = checkTime.Add(autostopRequirementBuffer)
 			}
 
@@ -238,13 +242,33 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		autostop.Deadline = autostop.MaxDeadline
 	}
 
-	if (!autostop.Deadline.IsZero() && autostop.Deadline.Before(now)) || (!autostop.MaxDeadline.IsZero() && autostop.MaxDeadline.Before(now)) {
+	if (!autostop.Deadline.IsZero() && autostop.Deadline.Before(buildCompletedAt)) || (!autostop.MaxDeadline.IsZero() && autostop.MaxDeadline.Before(buildCompletedAt)) {
 		// Something went wrong with the deadline calculation, so we should
 		// bail.
-		return autostop, xerrors.Errorf("deadline calculation error, computed deadline or max deadline is in the past for workspace build: deadline=%q maxDeadline=%q now=%q", autostop.Deadline, autostop.MaxDeadline, now)
+		return autostop, xerrors.Errorf("deadline calculation error, computed deadline or max deadline is in the past for workspace build: deadline=%q maxDeadline=%q now=%q", autostop.Deadline, autostop.MaxDeadline, buildCompletedAt)
 	}
 
 	return autostop, nil
+}
+
+// workspaceTTL returns the TTL to use for a workspace.
+//
+// If the template forbids custom workspace TTLs, then we always use the
+// template's configured TTL (or 0 if the template has no TTL configured).
+func workspaceTTL(workspace database.WorkspaceTable, templateSchedule TemplateScheduleOptions) time.Duration {
+	// If the template forbids custom workspace TTLs, then we always use the
+	// template's configured TTL (or 0 if the template has no TTL configured).
+	if !templateSchedule.UserAutostopEnabled {
+		// This is intentionally a nested if statement because of the else if.
+		if templateSchedule.DefaultTTL > 0 {
+			return templateSchedule.DefaultTTL
+		}
+		return 0
+	}
+	if workspace.Ttl.Valid {
+		return time.Duration(workspace.Ttl.Int64)
+	}
+	return 0
 }
 
 // truncateMidnight truncates a time to midnight in the time object's timezone.

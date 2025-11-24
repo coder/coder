@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { MockWorkspaceBuildLogs } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Line } from "./LogLine";
 import { Logs } from "./Logs";
 

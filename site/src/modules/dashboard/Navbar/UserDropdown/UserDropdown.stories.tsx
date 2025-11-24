@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 import { MockBuildInfo, MockUserOwner } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { UserDropdown } from "./UserDropdown";
 
 const meta: Meta<typeof UserDropdown> = {
@@ -30,8 +30,8 @@ const Example: Story = {
 
 		await step("click to open", async () => {
 			await userEvent.click(canvas.getByRole("button"));
-			await waitFor(() =>
-				expect(screen.getByText(/v2\.\d+\.\d+/i)).toBeInTheDocument(),
+			await waitFor(async () =>
+				expect(await screen.findByText(/v2\.\d+\.\d+/i)).toBeInTheDocument(),
 			);
 		});
 	},

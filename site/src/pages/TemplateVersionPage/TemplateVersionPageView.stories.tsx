@@ -1,4 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockTemplate,
 	MockTemplateVersion,
@@ -6,6 +5,7 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	TemplateVersionPageView,
 	type TemplateVersionPageViewProps,

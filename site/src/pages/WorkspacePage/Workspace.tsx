@@ -1,29 +1,28 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { useTheme } from "@emotion/react";
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { BlocksIcon, HistoryIcon } from "lucide-react";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
+import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
-	ActiveTransition,
+	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
+import { NotificationActionButton } from "./WorkspaceNotifications/Notifications";
+import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
@@ -68,10 +67,11 @@ export const Workspace: FC<WorkspaceProps> = ({
 	handleDebug,
 }) => {
 	const navigate = useNavigate();
-	const theme = useTheme();
 
 	const transitionStats =
-		template !== undefined ? ActiveTransition(template, workspace) : undefined;
+		template !== undefined
+			? getActiveTransitionStats(template, workspace)
+			: undefined;
 
 	const sidebarOption = useSearchParamsKey({ key: "sidebar" });
 	const setSidebarOption = (newOption: string) => {
@@ -98,20 +98,11 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+	const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
+	const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
 	return (
-		<div
-			css={{
-				flex: 1,
-				display: "grid",
-				gridTemplate: `
-          "topbar topbar topbar" auto
-          "leftbar sidebar content" 1fr / auto auto 1fr
-        `,
-				// We need this to make the sidebar scrollable
-				overflow: "hidden",
-			}}
-		>
+		<div className="flex flex-col flex-1 min-h-0">
 			<WorkspaceTopbar
 				workspace={workspace}
 				template={template}
@@ -130,153 +121,170 @@ export const Workspace: FC<WorkspaceProps> = ({
 				handleToggleFavorite={handleToggleFavorite}
 			/>
 
-			<div
-				css={{
-					gridArea: "leftbar",
-					height: "100%",
-					overflowY: "auto",
-					borderRight: `1px solid ${theme.palette.divider}`,
-					display: "flex",
-					flexDirection: "column",
-				}}
-			>
-				<SidebarIconButton
-					isActive={sidebarOption.value === "resources"}
-					onClick={() => {
-						setSidebarOption("resources");
-					}}
-				>
-					<HubOutlined />
-				</SidebarIconButton>
-				<SidebarIconButton
-					isActive={sidebarOption.value === "history"}
-					onClick={() => {
-						setSidebarOption("history");
-					}}
-				>
-					<HistoryOutlined />
-				</SidebarIconButton>
-			</div>
-
-			{sidebarOption.value === "resources" && (
-				<ResourcesSidebar
-					failed={workspace.latest_build.status === "failed"}
-					resources={resources}
-					isSelected={resourcesNav.isSelected}
-					onChange={resourcesNav.select}
-				/>
-			)}
-			{sidebarOption.value === "history" && (
-				<HistorySidebar workspace={workspace} />
-			)}
-
-			<div css={[styles.content, styles.dotsBackground]}>
-				{selectedResource && (
-					<ResourceMetadata
-						resource={selectedResource}
-						css={{ margin: "-32px -32px 0 -32px", marginBottom: 24 }}
-					/>
-				)}
-				<div
-					css={{
-						display: "flex",
-						flexDirection: "column",
-						gap: 24,
-						maxWidth: 24 * 50,
-						margin: "auto",
-					}}
-				>
-					{workspace.latest_build.status === "deleted" && (
-						<WorkspaceDeletedBanner
-							handleClick={() => navigate("/templates")}
-						/>
-					)}
-
-					{shouldShowProvisionerAlert && (
-						<ProvisionerStatusAlert
-							matchingProvisioners={
-								workspace.latest_build.matched_provisioners?.count
-							}
-							availableProvisioners={
-								workspace.latest_build.matched_provisioners?.available ?? 0
-							}
-							tags={workspace.latest_build.job.tags}
-						/>
-					)}
-
-					{workspace.latest_build.job.error && (
-						<Alert severity="error">
-							<AlertTitle>Workspace build failed</AlertTitle>
-							<AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
-						</Alert>
-					)}
-
-					{transitionStats !== undefined && (
-						<WorkspaceBuildProgress
-							workspace={workspace}
-							transitionStats={transitionStats}
-						/>
-					)}
-
-					{shouldShowBuildLogs && (
-						<WorkspaceBuildLogsSection logs={buildLogs} />
-					)}
-
-					{selectedResource && (
-						<section
-							css={{
-								display: "flex",
-								flexDirection: "column",
-								gap: 24,
-								flexGrow: 1,
-								minWidth: 0 /* Prevent overflow */,
+			<div className="flex flex-1 min-h-0">
+				<div className="flex">
+					<div className="flex flex-col h-full overflow-y-auto border-solid border-0 border-r border-r-border">
+						<SidebarIconButton
+							isActive={sidebarOption.value === "resources"}
+							onClick={() => {
+								setSidebarOption("resources");
 							}}
 						>
-							{selectedResource.agents
-								// If an agent has a `parent_id`, that means it is
-								// child of another agent. We do not want these agents
-								// to be displayed at the top-level on this page. We
-								// want them to display _as children_ of their parents.
-								?.filter((agent) => agent.parent_id === null)
-								.map((agent) => (
-									<AgentRow
-										key={agent.id}
-										agent={agent}
-										subAgents={selectedResource.agents?.filter(
-											(a) => a.parent_id === agent.id,
-										)}
-										workspace={workspace}
-										template={template}
-										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-									/>
-								))}
+							<BlocksIcon className="size-icon-sm" />
+							<span className="sr-only">Resources</span>
+						</SidebarIconButton>
+						<SidebarIconButton
+							isActive={sidebarOption.value === "history"}
+							onClick={() => {
+								setSidebarOption("history");
+							}}
+						>
+							<HistoryIcon className="size-icon-sm" />
+							<span className="sr-only">History</span>
+						</SidebarIconButton>
+					</div>
 
-							{(!selectedResource.agents ||
-								selectedResource.agents?.length === 0) && (
-								<div
-									css={{
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										width: "100%",
-										height: "100%",
-									}}
-								>
-									<div>
-										<h4 css={{ fontSize: 16, fontWeight: 500 }}>
-											No agents are currently assigned to this resource.
-										</h4>
-									</div>
-								</div>
-							)}
-						</section>
+					{sidebarOption.value === "resources" && (
+						<ResourcesSidebar
+							failed={workspace.latest_build.status === "failed"}
+							resources={resources}
+							isSelected={resourcesNav.isSelected}
+							onChange={resourcesNav.select}
+						/>
 					)}
+					{sidebarOption.value === "history" && (
+						<HistorySidebar workspace={workspace} />
+					)}
+				</div>
 
-					<WorkspaceTimings
-						provisionerTimings={timings?.provisioner_timings}
-						agentScriptTimings={timings?.agent_script_timings}
-						agentConnectionTimings={timings?.agent_connection_timings}
-					/>
+				<div
+					style={{
+						background: `radial-gradient(
+			circle at 1px 1px,
+			hsl(var(--surface-invert-secondary)) 0,
+			transparent 1px
+		) -2px -2px / 16px 16px`,
+					}}
+					className="p-8 overflow-y-auto relative w-full"
+				>
+					{selectedResource && (
+						<ResourceMetadata
+							resource={selectedResource}
+							className="-mx-8 -mt-8 mb-6"
+						/>
+					)}
+					<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
+						{workspace.latest_build.status === "deleted" && (
+							<WorkspaceDeletedBanner
+								handleClick={() => navigate("/templates")}
+							/>
+						)}
+
+						{shouldShowProvisionerAlert && (
+							<ProvisionerStatusAlert
+								matchingProvisioners={
+									workspace.latest_build.matched_provisioners?.count
+								}
+								availableProvisioners={
+									workspace.latest_build.matched_provisioners?.available ?? 0
+								}
+								tags={workspace.latest_build.job.tags}
+							/>
+						)}
+
+						{workspace.latest_build.job.error && (
+							<Alert severity="error">
+								<AlertTitle>Workspace build failed</AlertTitle>
+								<AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+							</Alert>
+						)}
+
+						{!workspace.health.healthy && (
+							<Alert severity="warning">
+								<AlertTitle>Workspace is unhealthy</AlertTitle>
+								<AlertDetail>
+									<p>
+										Your workspace is running but{" "}
+										{workspace.health.failing_agents.length > 1
+											? `${workspace.health.failing_agents.length} agents are unhealthy`
+											: "1 agent is unhealthy"}
+										.
+									</p>
+									{hasActions && (
+										<div className="flex items-center gap-2">
+											{permissions.updateWorkspace && (
+												<NotificationActionButton
+													onClick={() => handleRestart()}
+												>
+													Restart
+												</NotificationActionButton>
+											)}
+											{troubleshootingURL && (
+												<NotificationActionButton
+													onClick={() =>
+														window.open(troubleshootingURL, "_blank")
+													}
+												>
+													Troubleshooting
+												</NotificationActionButton>
+											)}
+										</div>
+									)}
+								</AlertDetail>
+							</Alert>
+						)}
+
+						{transitionStats !== undefined && (
+							<WorkspaceBuildProgress
+								workspace={workspace}
+								transitionStats={transitionStats}
+							/>
+						)}
+
+						{shouldShowBuildLogs && (
+							<WorkspaceBuildLogsSection logs={buildLogs} />
+						)}
+
+						{selectedResource && (
+							<section className="flex flex-col gap-6 flex-grow min-w-0">
+								{selectedResource.agents
+									// If an agent has a `parent_id`, that means it is
+									// child of another agent. We do not want these agents
+									// to be displayed at the top-level on this page. We
+									// want them to display _as children_ of their parents.
+									?.filter((agent) => agent.parent_id === null)
+									.map((agent) => (
+										<AgentRow
+											key={agent.id}
+											agent={agent}
+											subAgents={selectedResource.agents?.filter(
+												(a) => a.parent_id === agent.id,
+											)}
+											workspace={workspace}
+											template={template}
+											onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+										/>
+									))}
+
+								{(!selectedResource.agents ||
+									selectedResource.agents?.length === 0) && (
+									<div className="flex justify-center items-center w-full h-full">
+										<div>
+											<h4 className="text-base font-medium">
+												No agents are currently assigned to this resource.
+											</h4>
+										</div>
+									</div>
+								)}
+							</section>
+						)}
+
+						<WorkspaceTimings
+							provisionerTimings={timings?.provisioner_timings}
+							agentScriptTimings={timings?.agent_script_timings}
+							agentConnectionTimings={timings?.agent_connection_timings}
+						/>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -286,33 +294,3 @@ export const Workspace: FC<WorkspaceProps> = ({
 const countAgents = (resource: TypesGen.WorkspaceResource) => {
 	return resource.agents ? resource.agents.length : 0;
 };
-
-const styles = {
-	content: {
-		padding: 32,
-		gridArea: "content",
-		overflowY: "auto",
-		position: "relative",
-	},
-
-	dotsBackground: (theme) => ({
-		"--d": "1px",
-		background: `
-      radial-gradient(
-        circle at
-          var(--d)
-          var(--d),
-
-        ${theme.palette.dots} calc(var(--d) - 1px),
-        ${theme.palette.background.default} var(--d)
-      )
-      -2px -2px / 16px 16px
-    `,
-	}),
-
-	actions: (theme) => ({
-		[theme.breakpoints.down("md")]: {
-			flexDirection: "column",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

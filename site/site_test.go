@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -46,7 +45,7 @@ func TestInjection(t *testing.T) {
 		},
 	}
 	binFs := http.FS(fstest.MapFS{})
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 	handler := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
 		BinFS:     binFs,
@@ -73,13 +72,17 @@ func TestInjection(t *testing.T) {
 	// This will update as part of the request!
 	got.LastSeenAt = user.LastSeenAt
 
+	// json.Unmarshal doesn't parse the timezone correctly
+	got.CreatedAt = got.CreatedAt.In(user.CreatedAt.Location())
+	got.UpdatedAt = got.UpdatedAt.In(user.CreatedAt.Location())
+
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	t.Parallel()
 
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	// Create an expired user with a refresh token, but provide no OAuth2
 	// configuration so that refresh is impossible, this should result in
@@ -229,6 +232,7 @@ func TestServingFiles(t *testing.T) {
 		Database:  db,
 	}))
 	defer srv.Close()
+	client := &http.Client{}
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -272,7 +276,7 @@ func TestServingFiles(t *testing.T) {
 
 		req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err, "get file")
 		data, _ := io.ReadAll(resp.Body)
 		require.Equal(t, string(data), testCase.expected, "Verify file: "+testCase.path)
@@ -518,6 +522,7 @@ func TestServingBin(t *testing.T) {
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
 			srv := httptest.NewServer(compressor.Handler(site))
 			defer srv.Close()
+			client := &http.Client{}
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -535,7 +540,7 @@ func TestServingBin(t *testing.T) {
 						req.Header.Set("Accept-Encoding", "gzip")
 					}
 
-					resp, err := http.DefaultClient.Do(req)
+					resp, err := client.Do(req)
 					require.NoError(t, err, "http do failed")
 					defer resp.Body.Close()
 

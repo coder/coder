@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
-import { API } from "api/api";
 import { mockApiError } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { spyOn, userEvent, within } from "storybook/test";
 import ChangePasswordPage from "./ChangePasswordPage";
 
 const meta: Meta<typeof ChangePasswordPage> = {

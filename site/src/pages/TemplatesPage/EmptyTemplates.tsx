@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -7,11 +6,12 @@ import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
+	"tasks-docker",
 	"docker",
 	"kubernetes",
 	"aws-linux",
@@ -72,7 +72,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 				}
 				cta={
 					<Stack alignItems="center" spacing={4}>
-						<div css={styles.featuredExamples}>
+						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
 								<TemplateExampleCard example={example} key={example.id} />
 							))}
@@ -91,39 +91,9 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			css={styles.withImage}
 			message="Create a Template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
-			image={
-				<div css={styles.emptyImage}>
-					<img src="/featured/templates.webp" alt="" />
-				</div>
-			}
 		/>
 	);
 };
-
-const styles = {
-	withImage: {
-		paddingBottom: 0,
-	},
-
-	emptyImage: {
-		maxWidth: "50%",
-		height: 320,
-		overflow: "hidden",
-		opacity: 0.85,
-
-		"& img": {
-			maxWidth: "100%",
-		},
-	},
-
-	featuredExamples: {
-		display: "flex",
-		flexWrap: "wrap",
-		justifyContent: "center",
-		gap: 16,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

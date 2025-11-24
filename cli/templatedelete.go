@@ -16,13 +16,9 @@ import (
 
 func (r *RootCmd) templateDelete() *serpent.Command {
 	orgContext := NewOrganizationContext()
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
@@ -32,7 +28,10 @@ func (r *RootCmd) templateDelete() *serpent.Command {
 				templateNames = []string{}
 				templates     = []codersdk.Template{}
 			)
-
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err

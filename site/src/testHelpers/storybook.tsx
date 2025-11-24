@@ -1,15 +1,15 @@
-import type { StoryContext } from "@storybook/react";
+import type { StoryContext } from "@storybook/react-vite";
 import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { AuthProvider } from "contexts/auth/AuthProvider";
 import {
+	getPreferredProxy,
 	ProxyContext,
 	type ProxyContextValue,
-	getPreferredProxy,
 } from "contexts/ProxyContext";
-import { AuthProvider } from "contexts/auth/AuthProvider";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
@@ -18,6 +18,7 @@ import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import {
 	MockAppearanceConfig,
+	MockBuildInfo,
 	MockDefaultOrganization,
 	MockDeploymentConfig,
 	MockEntitlements,
@@ -56,6 +57,10 @@ export const withDashboardProvider = (
 				entitlements,
 				experiments,
 				appearance: MockAppearanceConfig,
+				buildInfo: {
+					...MockBuildInfo,
+					version: "v0.0.0-test",
+				},
 				organizations,
 				showOrganizations,
 				canViewOrganizationSettings,
@@ -101,7 +106,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 			}, 0);
 		}
 
-		removeEventListener(type: string, callback: CallbackFn) {}
+		removeEventListener(_type: string, _callback: CallbackFn) {}
 
 		close() {}
 	} as unknown as typeof window.WebSocket;

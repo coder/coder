@@ -13,6 +13,6 @@ our [installation guides](../../install/index.md).
 The following resources may help as you're deploying Coder.
 
 - [Coder packages: one-click install on cloud providers](https://github.com/coder/packages)
-- [Deploy Coder offline](../../install/offline.md)
+- [Deploy Coder Air-gapped](../../install/airgap.md)
 - [Supported resources (Terraform registry)](https://registry.terraform.io)
 - [Writing custom templates](../templates/index.md)

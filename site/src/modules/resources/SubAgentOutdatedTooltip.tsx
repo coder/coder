@@ -9,9 +9,9 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
+import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -39,11 +39,11 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger>
+			<TooltipTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
 				<span role="status" className="cursor-pointer">
 					Outdated
 				</span>
-			</HelpTooltipTrigger>
+			</TooltipTrigger>
 			<HelpTooltipContent>
 				<Stack spacing={1}>
 					<div>

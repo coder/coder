@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { SerpentGroup } from "api/typesGenerated";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
@@ -52,3 +52,5 @@ export default meta;
 type Story = StoryObj<typeof ObservabilitySettingsPageView>;
 
 export const Page: Story = {};
+
+export const Premium: Story = { args: { isPremium: true } };

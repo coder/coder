@@ -42,7 +42,6 @@ import {
 } from "components/Tooltip/Tooltip";
 import { XIcon } from "lucide-react";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";
@@ -90,24 +89,21 @@ const OrganizationProvisionerJobsPageView: FC<
 	if (!organization) {
 		return (
 			<>
-				<Helmet>
-					<title>{pageTitle("Provisioner Jobs")}</title>
-				</Helmet>
+				<title>{pageTitle("Provisioner Jobs")}</title>
+
 				<EmptyState message="Organization not found" />
 			</>
 		);
 	}
 
 	return (
-		<>
-			<Helmet>
-				<title>
-					{pageTitle(
-						"Provisioner Jobs",
-						organization.display_name || organization.name,
-					)}
-				</title>
-			</Helmet>
+		<div className="w-full max-w-screen-2xl pb-10">
+			<title>
+				{pageTitle(
+					"Provisioner Jobs",
+					organization.display_name || organization.name,
+				)}
+			</title>
 
 			<section>
 				<SettingsHeader>
@@ -227,7 +223,7 @@ const OrganizationProvisionerJobsPageView: FC<
 					</TableBody>
 				</Table>
 			</section>
-		</>
+		</div>
 	);
 };
 

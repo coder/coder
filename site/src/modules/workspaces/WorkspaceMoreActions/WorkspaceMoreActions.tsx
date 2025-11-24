@@ -1,4 +1,5 @@
-import { MissingBuildParameters } from "api/api";
+import { MissingBuildParameters, ParameterValidationError } from "api/api";
+import { type ApiError, getErrorMessage, isApiError } from "api/errors";
 import {
 	changeVersion,
 	deleteWorkspace,
@@ -13,6 +14,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -23,13 +25,14 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
+import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
@@ -41,6 +44,11 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	disabled,
 }) => {
 	const queryClient = useQueryClient();
+
+	const [workspaceErrorDialog, setWorkspaceErrorDialog] = useState<{
+		open: boolean;
+		error?: ApiError;
+	}>({ open: false });
 
 	// Permissions
 	const { data: permissions } = useQuery(workspacePermissions(workspace));
@@ -58,11 +66,25 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 		),
 	);
 
+	const handleError = (error: unknown) => {
+		if (isApiError(error) && error.code === "ERR_BAD_REQUEST") {
+			setWorkspaceErrorDialog({
+				open: true,
+				error: error,
+			});
+		} else {
+			displayError(getErrorMessage(error, "Failed to delete workspace."));
+		}
+	};
+
 	// Delete
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-	const deleteWorkspaceMutation = useMutation(
-		deleteWorkspace(workspace, queryClient),
-	);
+	const deleteWorkspaceMutation = useMutation({
+		...deleteWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Duplicate
 	const { duplicateWorkspace, isDuplicationReady } =
@@ -169,20 +191,20 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				/>
 			) : (
 				<UpdateBuildParametersDialogExperimental
-					missedParameters={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error.parameters
+					validations={
+						changeVersionMutation.error instanceof ParameterValidationError
+							? changeVersionMutation.error.validations
 							: []
 					}
-					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					open={changeVersionMutation.error instanceof ParameterValidationError}
 					onClose={() => {
 						changeVersionMutation.reset();
 					}}
 					workspaceOwnerName={workspace.owner_name}
 					workspaceName={workspace.name}
 					templateVersionId={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error?.versionId
+						changeVersionMutation.error instanceof ParameterValidationError
+							? changeVersionMutation.error.versionId
 							: undefined
 					}
 				/>
@@ -211,6 +233,17 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 					deleteWorkspaceMutation.mutate({ orphan });
 					setIsConfirmingDelete(false);
 				}}
+			/>
+
+			<WorkspaceErrorDialog
+				open={workspaceErrorDialog.open}
+				error={workspaceErrorDialog.error}
+				onClose={() => setWorkspaceErrorDialog({ open: false })}
+				showDetail={workspace.template_use_classic_parameter_flow}
+				workspaceOwner={workspace.owner_name}
+				workspaceName={workspace.name}
+				templateVersionId={workspace.latest_build.template_version_id}
+				isDeleting={true}
 			/>
 		</>
 	);

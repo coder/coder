@@ -1,0 +1,80 @@
+{
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true,
+		"defaultBranch": "main"
+	},
+	"files": {
+		"includes": ["**", "!**/pnpm-lock.yaml"],
+		"ignoreUnknown": true
+	},
+	"linter": {
+		"rules": {
+			"a11y": {
+				"noSvgWithoutTitle": "off",
+				"useButtonType": "off",
+				"useSemanticElements": "off",
+				"noStaticElementInteractions": "off"
+			},
+			"correctness": {
+				"noUnusedImports": "warn",
+				"useUniqueElementIds": "off", // TODO: This is new but we want to fix it
+				"noNestedComponentDefinitions": "off", // TODO: Investigate, since it is used by shadcn components
+				"noUnusedVariables": {
+					"level": "warn",
+					"options": {
+						"ignoreRestSiblings": true
+					}
+				}
+			},
+			"style": {
+				"noNonNullAssertion": "off",
+				"noParameterAssign": "off",
+				"useDefaultParameterLast": "off",
+				"useSelfClosingElements": "off",
+				"useAsConstAssertion": "error",
+				"useEnumInitializers": "error",
+				"useSingleVarDeclarator": "error",
+				"noUnusedTemplateLiteral": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noUselessElse": "error",
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"@mui/material": "Use @mui/material/<name> instead. See: https://material-ui.com/guides/minimizing-bundle-size/.",
+							"@mui/material/Avatar": "Use components/Avatar/Avatar instead.",
+							"@mui/material/Alert": "Use components/Alert/Alert instead.",
+							"@mui/material/Popover": "Use components/Popover/Popover instead.",
+							"@mui/material/Typography": "Use native HTML elements instead. Eg: <span>, <p>, <h1>, etc.",
+							"@mui/material/Box": "Use a <div> instead.",
+							"@mui/material/Button": "Use a components/Button/Button instead.",
+							"@mui/material/styles": "Import from @emotion/react instead.",
+							"@mui/material/Table*": "Import from components/Table/Table instead.",
+							"lodash": "Use lodash/<name> instead."
+						}
+					}
+				}
+			},
+			"suspicious": {
+				"noArrayIndexKey": "off",
+				"noThenProperty": "off",
+				"noTemplateCurlyInString": "off",
+				"useIterableCallbackReturn": "off",
+				"noUnknownAtRules": "off", // Allow Tailwind directives
+				"noConsole": {
+					"level": "error",
+					"options": {
+						"allow": ["error", "info", "warn"]
+					}
+				}
+			},
+			"complexity": {
+				"noImportantStyles": "off" // TODO: check and fix !important styles
+			}
+		}
+	},
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
+}

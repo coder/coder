@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -32,7 +32,7 @@ func TestEntry(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		mgr := runtimeconfig.NewManager()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 
 		override := serpent.String("dogfood@dev.coder.com")
 
@@ -54,7 +54,7 @@ func TestEntry(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		mgr := runtimeconfig.NewManager()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 
 		override := serpent.Struct[map[string]string]{
 			Value: map[string]string{

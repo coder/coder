@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -19,11 +20,10 @@ import (
 
 func TestReplicas(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("only test with real postgres")
-	}
+
 	t.Run("ErrorWithoutLicense", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		// This will error because replicas are expected to instantly report
 		// errors when the license is not present.
 		db, pubsub := dbtestutil.NewDB(t)
@@ -46,14 +46,19 @@ func TestReplicas(t *testing.T) {
 			ReplicaErrorGracePeriod: time.Nanosecond,
 		})
 		secondClient.SetSessionToken(firstClient.SessionToken())
-		ents, err := secondClient.Entitlements(context.Background())
-		require.NoError(t, err)
-		require.Len(t, ents.Errors, 1)
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			ents, err := secondClient.Entitlements(ctx)
+			return assert.NoError(t, err, "unexpected error from secondClient.Entitlements") &&
+				len(ents.Errors) == 1
+		}, testutil.IntervalFast)
 		_ = secondAPI.Close()
 
-		ents, err = firstClient.Entitlements(context.Background())
-		require.NoError(t, err)
-		require.Len(t, ents.Warnings, 0)
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			ents, err := firstClient.Entitlements(ctx)
+			return assert.NoError(t, err, "unexpected error from firstClient.Entitlements") &&
+				len(ents.Warnings) == 0
+		}, testutil.IntervalFast)
 	})
 	t.Run("DoesNotErrorBeforeGrace", func(t *testing.T) {
 		t.Parallel()

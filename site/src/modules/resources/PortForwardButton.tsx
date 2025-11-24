@@ -1,8 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import BusinessIcon from "@mui/icons-material/Business";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import SensorsIcon from "@mui/icons-material/Sensors";
 import FormControl from "@mui/material/FormControl";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -31,6 +27,11 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -38,16 +39,14 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import {
+	BuildingIcon,
 	ChevronDownIcon,
 	ExternalLinkIcon,
+	LockIcon,
+	LockOpenIcon,
+	RadioIcon,
 	ShareIcon,
 	X as XIcon,
 } from "lucide-react";
@@ -77,7 +76,6 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 	agent,
 }) => {
 	const { entitlements } = useDashboard();
-	const paper = useClassName(classNames.paper, []);
 
 	const { data: listeningPorts } = useQuery({
 		queryKey: ["portForward", agent.id],
@@ -95,7 +93,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Button disabled={!listeningPorts} size="sm" variant="subtle">
 					<Spinner loading={!listeningPorts}>
 						<span css={styles.portCount}>{listeningPorts?.length}</span>
@@ -104,7 +102,10 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 					<ChevronDownIcon className="size-4" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent horizontal="right" classes={{ paper }}>
+			<PopoverContent
+				align="end"
+				className="p-0 w-[404px] mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
+			>
 				<PortForwardPopoverView
 					host={host}
 					agent={agent}
@@ -384,7 +385,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										target="_blank"
 										rel="noreferrer"
 									>
-										<SensorsIcon css={{ width: 14, height: 14 }} />
+										<RadioIcon className="size-icon-sm" />
 										{port.port}
 									</Link>
 									<Link
@@ -474,11 +475,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										rel="noreferrer"
 									>
 										{share.share_level === "public" ? (
-											<LockOpenIcon css={{ width: 14, height: 14 }} />
+											<LockOpenIcon className="size-icon-sm" />
 										) : share.share_level === "organization" ? (
-											<BusinessIcon css={{ width: 14, height: 14 }} />
+											<BuildingIcon className="size-icon-sm" />
 										) : (
-											<LockIcon css={{ width: 14, height: 14 }} />
+											<LockIcon className="size-icon-sm" />
 										)}
 										{label}
 									</Link>
@@ -617,15 +618,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		</>
 	);
 };
-
-const classNames = {
-	paper: (css, theme) => css`
-		padding: 0;
-		width: 404px;
-		color: ${theme.palette.text.secondary};
-		margin-top: 4px;
-	`,
-} satisfies Record<string, ClassName>;
 
 const styles = {
 	portCount: (theme) => ({

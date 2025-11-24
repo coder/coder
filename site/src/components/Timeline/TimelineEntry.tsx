@@ -1,7 +1,6 @@
-import type { Interpolation } from "@emotion/react";
-import TableRow, { type TableRowProps } from "@mui/material/TableRow";
+import { TableRow, type TableRowProps } from "components/Table/Table";
 import { forwardRef } from "react";
-import type { Theme } from "theme";
+import { cn } from "utils/cn";
 
 interface TimelineEntryProps extends TableRowProps {
 	clickable?: boolean;
@@ -10,48 +9,20 @@ interface TimelineEntryProps extends TableRowProps {
 export const TimelineEntry = forwardRef<
 	HTMLTableRowElement,
 	TimelineEntryProps
->(function TimelineEntry({ children, clickable = true, ...props }, ref) {
+>(({ children, clickable = true, className, ...props }, ref) => {
 	return (
 		<TableRow
 			ref={ref}
-			css={[styles.row, clickable ? styles.clickable : null]}
+			className={cn(
+				"focus:outline focus:-outline-offset-1 focus:outline-2 focus:outline-content-primary ",
+				"[&_td]:relative [&_td]:overflow-hidden",
+				"[&_td:before]:absolute [&_td:before]:block [&_td:before]:h-full [&_td:before]:content-[''] [&_td:before]:bg-border [&_td:before]:w-0.5 [&_td:before]:left-[calc((32px+(var(--avatar-default)/2))-1px)]",
+				clickable && "cursor-pointer hover:bg-surface-secondary",
+				className,
+			)}
 			{...props}
 		>
 			{children}
 		</TableRow>
 	);
 });
-
-const styles = {
-	row: (theme) => ({
-		"--side-padding": "32px",
-		"&:focus": {
-			outlineStyle: "solid",
-			outlineOffset: -1,
-			outlineWidth: 2,
-			outlineColor: theme.palette.primary.main,
-		},
-		"& td": {
-			position: "relative",
-			overflow: "hidden",
-		},
-		"& td:before": {
-			"--line-width": "2px",
-			position: "absolute",
-			left: "calc((var(--side-padding) + var(--avatar-default)/2) - var(--line-width) / 2)",
-			display: "block",
-			content: "''",
-			height: "100%",
-			width: "var(--line-width)",
-			background: theme.palette.divider,
-		},
-	}),
-
-	clickable: (theme) => ({
-		cursor: "pointer",
-
-		"&:hover": {
-			backgroundColor: theme.palette.action.hover,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

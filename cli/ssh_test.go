@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1241,7 +1242,8 @@ func TestSSH(t *testing.T) {
 				// true exits the loop.
 				return true
 			}
-			resp, err := http.DefaultClient.Do(req)
+			client := &http.Client{}
+			resp, err := client.Do(req)
 			if err != nil {
 				t.Logf("HTTP GET http://localhost:8222/ %s", err)
 				return false
@@ -1318,9 +1320,6 @@ func TestSSH(t *testing.T) {
 
 		tmpdir := tempDirUnixSocket(t)
 		localSock := filepath.Join(tmpdir, "local.sock")
-		l, err := net.Listen("unix", localSock)
-		require.NoError(t, err)
-		defer l.Close()
 		remoteSock := filepath.Join(tmpdir, "remote.sock")
 
 		inv, root := clitest.New(t,
@@ -1332,23 +1331,62 @@ func TestSSH(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err, "ssh command failed")
-		})
 
-		// Wait for the prompt or any output really to indicate the command has
-		// started and accepting input on stdin.
+		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+		defer w.Wait() // We don't care about any exit error (exit code 255: SSH connection ended unexpectedly).
+
+		// Since something was output, it should be safe to write input.
+		// This could show a prompt or "running startup scripts", so it's
+		// not indicative of the SSH connection being ready.
 		_ = pty.Peek(ctx, 1)
 
-		// This needs to support most shells on Linux or macOS
-		// We can't include exactly what's expected in the input, as that will always be matched
-		pty.WriteLine(fmt.Sprintf(`echo "results: $(netstat -an | grep %s | wc -l | tr -d ' ')"`, remoteSock))
-		pty.ExpectMatchContext(ctx, "results: 1")
+		// Ensure the SSH connection is ready by testing the shell
+		// input/output.
+		pty.WriteLine("echo ping' 'pong")
+		pty.ExpectMatchContext(ctx, "ping pong")
+
+		// Start the listener on the "local machine".
+		l, err := net.Listen("unix", localSock)
+		require.NoError(t, err)
+		defer l.Close()
+		testutil.Go(t, func() {
+			var wg sync.WaitGroup
+			defer wg.Wait()
+			for {
+				fd, err := l.Accept()
+				if err != nil {
+					if !errors.Is(err, net.ErrClosed) {
+						assert.NoError(t, err, "listener accept failed")
+					}
+					return
+				}
+
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					defer fd.Close()
+					agentssh.Bicopy(ctx, fd, fd)
+				}()
+			}
+		})
+
+		// Dial the forwarded socket on the "remote machine".
+		d := &net.Dialer{}
+		fd, err := d.DialContext(ctx, "unix", remoteSock)
+		require.NoError(t, err)
+		defer fd.Close()
+
+		// Ping / pong to ensure the socket is working.
+		_, err = fd.Write([]byte("hello world"))
+		require.NoError(t, err)
+
+		buf := make([]byte, 11)
+		_, err = fd.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, "hello world", string(buf))
 
 		// And we're done.
 		pty.WriteLine("exit")
-		<-cmdDone
 	})
 
 	// Test that we can forward a local unix socket to a remote unix socket and
@@ -1377,6 +1415,8 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 		defer l.Close()
 		testutil.Go(t, func() {
+			var wg sync.WaitGroup
+			defer wg.Wait()
 			for {
 				fd, err := l.Accept()
 				if err != nil {
@@ -1386,10 +1426,12 @@ func TestSSH(t *testing.T) {
 					return
 				}
 
-				testutil.Go(t, func() {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
 					defer fd.Close()
 					agentssh.Bicopy(ctx, fd, fd)
-				})
+				}()
 			}
 		})
 
@@ -1522,6 +1564,8 @@ func TestSSH(t *testing.T) {
 			require.NoError(t, err)
 			defer l.Close() //nolint:revive // Defer is fine in this loop, we only run it twice.
 			testutil.Go(t, func() {
+				var wg sync.WaitGroup
+				defer wg.Wait()
 				for {
 					fd, err := l.Accept()
 					if err != nil {
@@ -1531,10 +1575,12 @@ func TestSSH(t *testing.T) {
 						return
 					}
 
-					testutil.Go(t, func() {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
 						defer fd.Close()
 						agentssh.Bicopy(ctx, fd, fd)
-					})
+					}()
 				}
 			})
 
@@ -2031,6 +2077,7 @@ func TestSSH_Container(t *testing.T) {
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.Devcontainers = true
 			o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+				agentcontainers.WithProjectDiscovery(false),
 				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 			)
 		})
@@ -2072,6 +2119,7 @@ func TestSSH_Container(t *testing.T) {
 			o.Devcontainers = true
 			o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 				agentcontainers.WithContainerCLI(mLister),
+				agentcontainers.WithProjectDiscovery(false),
 				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 			)
 		})
@@ -2104,7 +2152,7 @@ func TestSSH_Container(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "The agent dev containers feature is experimental and not enabled by default.")
+		require.ErrorContains(t, err, "Dev Container feature not enabled.")
 	})
 }
 
@@ -2398,4 +2446,100 @@ func tempDirUnixSocket(t *testing.T) string {
 	}
 
 	return t.TempDir()
+}
+
+func TestSSH_Completion(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SingleAgent", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		var stdout bytes.Buffer
+		inv, root := clitest.New(t, "ssh", "")
+		inv.Stdout = &stdout
+		inv.Environ.Set("COMPLETION_MODE", "1")
+		clitest.SetupConfig(t, client, root)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// For single-agent workspaces, the only completion should be the
+		// bare workspace name.
+		output := stdout.String()
+		t.Logf("Completion output: %q", output)
+		require.Contains(t, output, workspace.Name)
+	})
+
+	t.Run("MultiAgent", func(t *testing.T) {
+		t.Parallel()
+
+		client, store := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "multiuser"
+		})
+
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "multiworkspace",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			return []*proto.Agent{
+				{
+					Name: "agent1",
+					Auth: &proto.Agent_Token{},
+				},
+				{
+					Name: "agent2",
+					Auth: &proto.Agent_Token{},
+				},
+			}
+		}).Do()
+
+		var stdout bytes.Buffer
+		inv, root := clitest.New(t, "ssh", "")
+		inv.Stdout = &stdout
+		inv.Environ.Set("COMPLETION_MODE", "1")
+		clitest.SetupConfig(t, userClient, root)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// For multi-agent workspaces, completions should include the
+		// workspace.agent format but NOT the bare workspace name.
+		output := stdout.String()
+		t.Logf("Completion output: %q", output)
+		lines := strings.Split(strings.TrimSpace(output), "\n")
+		require.NotContains(t, lines, r.Workspace.Name)
+		require.Contains(t, output, r.Workspace.Name+".agent1")
+		require.Contains(t, output, r.Workspace.Name+".agent2")
+	})
+
+	t.Run("NetworkError", func(t *testing.T) {
+		t.Parallel()
+
+		var stdout bytes.Buffer
+		inv, _ := clitest.New(t, "ssh", "")
+		inv.Stdout = &stdout
+		inv.Environ.Set("COMPLETION_MODE", "1")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		output := stdout.String()
+		require.Empty(t, output)
+	})
 }

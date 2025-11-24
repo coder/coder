@@ -22,6 +22,8 @@ import (
 func Test_IssueSignedAppTokenHTML(t *testing.T) {
 	t.Parallel()
 
+	fakeClientIP := "127.0.0.1"
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -60,8 +62,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		client := wsproxysdk.New(u)
-		client.SetSessionToken(expectedProxyToken)
+		client := wsproxysdk.New(u, expectedProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -69,7 +70,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 		tokenRes, ok := client.IssueSignedAppTokenHTML(ctx, rw, workspaceapps.IssueTokenRequest{
 			AppRequest:   expectedAppReq,
 			SessionToken: expectedSessionToken,
-		})
+		}, fakeClientIP)
 		if !assert.True(t, ok) {
 			t.Log("issue request failed when it should've succeeded")
 			t.Log("response dump:")
@@ -111,8 +112,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		client := wsproxysdk.New(u)
-		_ = client.SetSessionToken(expectedProxyToken)
+		client := wsproxysdk.New(u, expectedProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -120,7 +120,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 		tokenRes, ok := client.IssueSignedAppTokenHTML(ctx, rw, workspaceapps.IssueTokenRequest{
 			AppRequest:   workspaceapps.Request{},
 			SessionToken: "user-session-token",
-		})
+		}, fakeClientIP)
 		require.False(t, ok)
 		require.Empty(t, tokenRes)
 		require.True(t, rw.WasWritten())

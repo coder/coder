@@ -1,9 +1,8 @@
-import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import { Button } from "components/Button/Button";
 import dayjs from "dayjs";
-import { ChevronDownIcon } from "lucide-react";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type { DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";
@@ -32,15 +31,16 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 	return (
 		<div>
 			<Button
+				variant="outline"
 				ref={anchorRef}
 				id="interval-button"
 				aria-controls={open ? "interval-menu" : undefined}
 				aria-haspopup="true"
 				aria-expanded={open ? "true" : undefined}
 				onClick={() => setOpen(true)}
-				endIcon={<ChevronDownIcon className="size-icon-xs" />}
 			>
 				Last {numberOfWeeks} weeks
+				<ChevronDownIcon />
 			</Button>
 			<Menu
 				id="interval-menu"

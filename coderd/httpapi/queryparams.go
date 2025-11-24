@@ -120,6 +120,27 @@ func (p *QueryParamParser) PositiveInt32(vals url.Values, def int32, queryParam 
 	return v
 }
 
+// PositiveInt64 function checks if the given value is 64-bit and positive.
+func (p *QueryParamParser) PositiveInt64(vals url.Values, def int64, queryParam string) int64 {
+	v, err := parseQueryParam(p, vals, func(v string) (int64, error) {
+		intValue, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		if intValue < 0 {
+			return 0, xerrors.Errorf("value is negative")
+		}
+		return intValue, nil
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid 64-bit positive integer: %s", queryParam, err.Error()),
+		})
+	}
+	return v
+}
+
 // NullableBoolean will return a null sql value if no input is provided.
 // SQLc still uses sql.NullBool rather than the generic type. So converting from
 // the generic type is required.
@@ -282,6 +303,29 @@ func (p *QueryParamParser) JSONStringMap(vals url.Values, def map[string]string,
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid JSON object: %s", queryParam, err.Error()),
+		})
+	}
+	return v
+}
+
+func (p *QueryParamParser) ProvisionerDaemonStatuses(vals url.Values, def []codersdk.ProvisionerDaemonStatus, queryParam string) []codersdk.ProvisionerDaemonStatus {
+	return ParseCustomList(p, vals, def, queryParam, func(v string) (codersdk.ProvisionerDaemonStatus, error) {
+		return codersdk.ProvisionerDaemonStatus(v), nil
+	})
+}
+
+func (p *QueryParamParser) Duration(vals url.Values, def time.Duration, queryParam string) time.Duration {
+	v, err := parseQueryParam(p, vals, func(v string) (time.Duration, error) {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return 0, err
+		}
+		return d, nil
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid duration (e.g., '24h', '30m', '1h30m'): %s", queryParam, err.Error()),
 		})
 	}
 	return v

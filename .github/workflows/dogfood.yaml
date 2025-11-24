@@ -18,8 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
-  id-token: write
+  contents: read
 
 jobs:
   build_image:
@@ -27,19 +26,21 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Setup Nix
-        uses: nixbuild/nix-quick-install-action@63ca48f939ee3b8d835f4126562537df0fee5b91 # v32
+        uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
         with:
           # Pinning to 2.28 here, as Nix gets a "error: [json.exception.type_error.302] type must be array, but is string"
           # on version 2.29 and above.
-          nix_version: "2.28.4"
+          nix_version: "2.28.5"
 
       - uses: nix-community/cache-nix-action@135667ec418502fa5a3598af6fb9eb733888ce6a # v6.1.3
         with:
@@ -62,15 +63,16 @@ jobs:
 
       - name: Get branch name
         id: branch-name
-        uses: tj-actions/branch-names@dde14ac574a8b9b1cedc59a1cf312788af43d8d8 # v8.2.1
+        uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5 # v9.0.2
 
       - name: "Branch name to Docker tag name"
         id: docker-tag-name
         run: |
-          tag=${{ steps.branch-name.outputs.current_branch }}
           # Replace / with --, e.g. user/feature => user--feature.
-          tag=${tag//\//--}
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
+          tag=${BRANCH_NAME//\//--}
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH_NAME: ${{ steps.branch-name.outputs.current_branch }}
 
       - name: Set up Depot CLI
         uses: depot/setup-action@b0b1ea4f69e92ebf5dea3f8713a1b0c37b2126a5 # v1.6.0
@@ -80,13 +82,13 @@ jobs:
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Build and push Non-Nix image
-        uses: depot/build-push-action@2583627a84956d07561420dcc1d0eb1f2af3fac0 # v1.15.0
+        uses: depot/build-push-action@9785b135c3c76c33db102e45be96a25ab55cd507 # v1.16.2
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
@@ -107,32 +109,39 @@ jobs:
 
           CURRENT_SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
 
-          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
-          docker image push codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
+          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:${DOCKER_TAG}"
+          docker image push "codercom/oss-dogfood-nix:${DOCKER_TAG}"
 
-          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:latest
-          docker image push codercom/oss-dogfood-nix:latest
+          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:latest"
+          docker image push "codercom/oss-dogfood-nix:latest"
+        env:
+          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
   deploy_template:
     needs: build_image
     runs-on: ubuntu-latest
+    permissions:
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
-          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Terraform init and validate
         run: |
@@ -152,12 +161,12 @@ jobs:
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get latest commit title
         if: github.ref == 'refs/heads/main'
         id: message
-        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
       - name: "Push template"
         if: github.ref == 'refs/heads/main'
@@ -169,6 +178,7 @@ jobs:
           CODER_URL: https://dev.coder.com
           CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
           # Template source & details
+          TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY: ${{ secrets.CODER_DOGFOOD_ANTHROPIC_API_KEY }}
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
           TF_VAR_CODER_TEMPLATE_DIR: ./coder

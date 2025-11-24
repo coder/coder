@@ -15,6 +15,7 @@
     "queue_position": 0,
     "queue_size": 0,
     "organization_id": "===========[first org ID]===========",
+    "initiator_id": "==========[first user ID]===========",
     "input": {
       "template_version_id": "============[version ID]============"
     },
@@ -26,6 +27,7 @@
       "template_display_name": "",
       "template_icon": ""
     },
+    "logs_overflowed": false,
     "organization_name": "Coder"
   },
   {
@@ -44,6 +46,7 @@
     "queue_position": 0,
     "queue_size": 0,
     "organization_id": "===========[first org ID]===========",
+    "initiator_id": "==========[first user ID]===========",
     "input": {
       "workspace_build_id": "========[workspace build ID]========"
     },
@@ -57,6 +60,7 @@
       "workspace_id": "===========[workspace ID]===========",
       "workspace_name": "test-workspace"
     },
+    "logs_overflowed": false,
     "organization_name": "Coder"
   }
 ]

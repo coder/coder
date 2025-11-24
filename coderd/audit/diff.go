@@ -24,6 +24,7 @@ type Auditable interface {
 		database.NotificationsSettings |
 		database.OAuth2ProviderApp |
 		database.OAuth2ProviderAppSecret |
+		database.PrebuildsSettings |
 		database.CustomRole |
 		database.AuditableOrganizationMember |
 		database.Organization |
@@ -31,8 +32,7 @@ type Auditable interface {
 		idpsync.OrganizationSyncSettings |
 		idpsync.GroupSyncSettings |
 		idpsync.RoleSyncSettings |
-		database.WorkspaceAgent |
-		database.WorkspaceApp
+		database.TaskTable
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

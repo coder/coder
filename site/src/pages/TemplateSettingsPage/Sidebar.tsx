@@ -5,10 +5,12 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { CodeIcon as VariablesIcon } from "lucide-react";
-import { TimerIcon as ScheduleIcon } from "lucide-react";
-import { SettingsIcon } from "lucide-react";
-import { LockIcon } from "lucide-react";
+import {
+	LockIcon,
+	TimerIcon as ScheduleIcon,
+	SettingsIcon,
+	CodeIcon as VariablesIcon,
+} from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 

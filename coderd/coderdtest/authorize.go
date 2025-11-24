@@ -68,7 +68,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 			ID:     key.UserID.String(),
 			Roles:  rbac.RoleIdentifiers(roleNames),
 			Groups: roles.Groups,
-			Scope:  rbac.ScopeName(key.Scope),
+			Scope:  key.ScopeSet(),
 		},
 		Recorder: recorder,
 	}
@@ -451,6 +451,7 @@ func randomRBACType() string {
 	all := []string{
 		rbac.ResourceWorkspace.Type,
 		rbac.ResourceAuditLog.Type,
+		rbac.ResourceConnectionLog.Type,
 		rbac.ResourceTemplate.Type,
 		rbac.ResourceGroup.Type,
 		rbac.ResourceFile.Type,

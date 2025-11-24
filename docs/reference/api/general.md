@@ -161,6 +161,28 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "bridge": {
+        "anthropic": {
+          "base_url": "string",
+          "key": "string"
+        },
+        "bedrock": {
+          "access_key": "string",
+          "access_key_secret": "string",
+          "model": "string",
+          "region": "string",
+          "small_fast_model": "string"
+        },
+        "enabled": true,
+        "inject_coder_mcp_tools": true,
+        "openai": {
+          "base_url": "string",
+          "key": "string"
+        },
+        "retention": 0
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -224,6 +246,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scheme": "string",
       "user": {}
     },
+    "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
     "experiments": [
@@ -241,8 +264,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "mcp_tool_allow_regex": "string",
+          "mcp_tool_deny_regex": "string",
+          "mcp_url": "string",
           "no_refresh": true,
           "regex": "string",
+          "revoke_url": "string",
           "scopes": [
             "string"
           ],
@@ -265,7 +292,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "same_site": "string",
       "secure_auth_cookie": true
     },
-    "in_memory_database": true,
     "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
@@ -443,7 +469,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
       "max_admin_token_lifetime": 0,
-      "max_token_lifetime": 0
+      "max_token_lifetime": 0,
+      "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
@@ -455,6 +482,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "value": [
           {
             "icon": "bug",
+            "location": "navbar",
             "name": "string",
             "target": "string"
           }

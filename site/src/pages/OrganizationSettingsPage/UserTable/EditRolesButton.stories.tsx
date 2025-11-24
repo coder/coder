@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
 import {
 	MockOwnerRole,
 	MockSiteRoles,
@@ -7,6 +5,8 @@ import {
 	MockWorkspaceCreationBanRole,
 } from "testHelpers/entities";
 import { withDesktopViewport } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { EditRolesButton } from "./EditRolesButton";
 
 const meta: Meta<typeof EditRolesButton> = {
@@ -40,6 +40,17 @@ export const Loading: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
+	},
+};
+
+export const CannotSetRoles: Story = {
+	args: {
+		userLoginType: "oidc",
+		oidcRoleSync: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByLabelText("More info"));
 	},
 };
 

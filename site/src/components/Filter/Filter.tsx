@@ -13,10 +13,8 @@ import { Button } from "components/Button/Button";
 import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
-import { ExternalLinkIcon } from "lucide-react";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
-import type { useSearchParams } from "react-router-dom";
 
 type PresetFilter = {
 	name: string;
@@ -27,35 +25,55 @@ type FilterValues = Record<string, string | undefined>;
 
 type UseFilterConfig = {
 	/**
-	 * The fallback value to use in the event that no filter params can be parsed
-	 * from the search params object. This value is allowed to change on
-	 * re-renders.
+	 * The fallback value to use in the event that no filter params can be
+	 * parsed from the search params object.
 	 */
 	fallbackFilter?: string;
-	searchParamsResult: ReturnType<typeof useSearchParams>;
+	searchParams: URLSearchParams;
+	onSearchParamsChange: (newParams: URLSearchParams) => void;
 	onUpdate?: (newValue: string) => void;
 };
+
+export type UseFilterResult = Readonly<{
+	query: string;
+	values: FilterValues;
+	used: boolean;
+	update: (newValues: string | FilterValues) => void;
+	debounceUpdate: (newValues: string | FilterValues) => void;
+	cancelDebounce: () => void;
+}>;
 
 export const useFilterParamsKey = "filter";
 
 export const useFilter = ({
 	fallbackFilter = "",
-	searchParamsResult,
+	searchParams,
+	onSearchParamsChange,
 	onUpdate,
-}: UseFilterConfig) => {
-	const [searchParams, setSearchParams] = searchParamsResult;
+}: UseFilterConfig): UseFilterResult => {
 	const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
 
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
 			typeof newValues === "string" ? newValues : stringifyFilter(newValues);
-
-		searchParams.set(useFilterParamsKey, serialized);
-		setSearchParams(searchParams);
-
-		if (onUpdate !== undefined) {
-			onUpdate(serialized);
+		const noUpdateNeeded = query === serialized;
+		if (noUpdateNeeded) {
+			return;
 		}
+
+		/**
+		 * @todo 2025-07-15 - We have a slightly nasty bug here, where trying to
+		 * update state via immutable state updates causes our code to break.
+		 *
+		 * In theory, it would be better to make a copy of the search params. We
+		 * can then mutate and dispatch the copy instead of the original. Doing
+		 * that causes other parts of our existing logic to break, though.
+		 * That's a sign that our other code is slightly broken, and only just
+		 * happens to work by chance right now.
+		 */
+		searchParams.set(useFilterParamsKey, serialized);
+		onSearchParamsChange(searchParams);
+		onUpdate?.(serialized);
 	};
 
 	const { debounced: debounceUpdate, cancelDebounce } = useDebouncedFunction(
@@ -72,8 +90,6 @@ export const useFilter = ({
 		used: query !== "" && query !== fallbackFilter,
 	};
 };
-
-export type UseFilterResult = ReturnType<typeof useFilter>;
 
 const parseFilterQuery = (filterQuery: string): FilterValues => {
 	if (filterQuery === "") {

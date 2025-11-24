@@ -17,11 +17,11 @@ test.describe.skip("externalAuth", () => {
 		const srv = await createServer(gitAuth.webPort);
 
 		// The GitHub validate endpoint returns the currently authenticated user!
-		srv.use(gitAuth.validatePath, (req, res) => {
+		srv.use(gitAuth.validatePath, (_req, res) => {
 			res.write(JSON.stringify(ghUser));
 			res.end();
 		});
-		srv.use(gitAuth.tokenPath, (req, res) => {
+		srv.use(gitAuth.tokenPath, (_req, res) => {
 			const r = (Math.random() + 1).toString(36).substring(7);
 			res.write(JSON.stringify({ access_token: r }));
 			res.end();
@@ -51,15 +51,15 @@ test.describe.skip("externalAuth", () => {
 
 		// Start a server to mock the GitHub API.
 		const srv = await createServer(gitAuth.devicePort);
-		srv.use(gitAuth.validatePath, (req, res) => {
+		srv.use(gitAuth.validatePath, (_req, res) => {
 			res.write(JSON.stringify(ghUser));
 			res.end();
 		});
-		srv.use(gitAuth.codePath, (req, res) => {
+		srv.use(gitAuth.codePath, (_req, res) => {
 			res.write(JSON.stringify(device));
 			res.end();
 		});
-		srv.use(gitAuth.installationsPath, (req, res) => {
+		srv.use(gitAuth.installationsPath, (_req, res) => {
 			res.write(JSON.stringify(ghInstall));
 			res.end();
 		});
@@ -72,7 +72,7 @@ test.describe.skip("externalAuth", () => {
 		// First we send a result from the API that the token hasn't been
 		// authorized yet to ensure the UI reacts properly.
 		const sentPending = new Awaiter();
-		srv.use(gitAuth.tokenPath, (req, res) => {
+		srv.use(gitAuth.tokenPath, (_req, res) => {
 			res.write(JSON.stringify(token));
 			res.end();
 			sentPending.done();

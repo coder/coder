@@ -14,7 +14,7 @@ import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 const chartConfig = {
@@ -130,7 +130,7 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 													const item = p[0];
 													return `${item.value} users`;
 												}}
-												formatter={(v, n, item) => {
+												formatter={(_v, _n, item) => {
 													const date = new Date(item.payload.date);
 													return date.toLocaleString(undefined, {
 														month: "long",

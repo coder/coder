@@ -12,11 +12,12 @@ import type {
 	UsersRequest,
 } from "api/typesGenerated";
 import {
-	type MetadataState,
 	defaultMetadataManager,
+	type MetadataState,
 } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type {
+	MutationOptions,
 	QueryClient,
 	UseMutationOptions,
 	UseQueryOptions,
@@ -192,10 +193,15 @@ const loginFn = async ({
 	};
 };
 
-export const logout = (queryClient: QueryClient) => {
+export const logout = (queryClient: QueryClient): MutationOptions => {
 	return {
 		mutationFn: API.logout,
-		onSuccess: () => {
+		// We're doing this cleanup in `onSettled` instead of `onSuccess` because in the case where an oAuth refresh token has expired this endpoint will return a 401 instead of 200.
+		onSettled: (_, error) => {
+			if (error) {
+				console.error(error);
+			}
+
 			/**
 			 * 2024-05-02 - If we persist any form of user data after the user logs
 			 * out, that will continue to seed the React Query cache, creating
@@ -210,6 +216,14 @@ export const logout = (queryClient: QueryClient) => {
 			 * Deleting the user data will mean that all future requests have to take
 			 * a full roundtrip, but this still felt like the best way to ensure that
 			 * manually logging out doesn't blow the entire app up.
+			 *
+			 * 2025-08-20 - Since this endpoint is for performing a post logout clean up
+			 * on the backend we should move this local clean up outside of the mutation
+			 * so that it can be explicitly performed even in cases where we don't want
+			 * run the clean up (e.g. when a user is unauthorized). Unfortunately our
+			 * auth logic is too tangled up with some obscured React Query behaviors to
+			 * be able to move right now. After `AuthProvider.tsx` is refactored this
+			 * should be moved.
 			 */
 			defaultMetadataManager.clearMetadataByKey("user");
 			queryClient.removeQueries();

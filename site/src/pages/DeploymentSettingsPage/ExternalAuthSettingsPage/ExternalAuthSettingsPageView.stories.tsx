@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const meta: Meta<typeof ExternalAuthSettingsPageView> = {
@@ -15,6 +15,7 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 					auth_url: "",
 					token_url: "",
 					validate_url: "",
+					revoke_url: "",
 					app_install_url: "https://github.com/apps/coder/installations/new",
 					app_installations_url: "",
 					no_refresh: false,
@@ -23,6 +24,9 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 					device_code_url: "",
 					display_icon: "",
 					display_name: "GitHub",
+					mcp_url: "",
+					mcp_tool_allow_regex: "",
+					mcp_tool_deny_regex: "",
 				},
 			],
 		},

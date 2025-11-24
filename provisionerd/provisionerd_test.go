@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -318,8 +319,8 @@ func TestProvisionerd(t *testing.T) {
 				JobId:       "test",
 				Provisioner: "someprovisioner",
 				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
-					"test.txt":                "content",
-					provisionersdk.ReadmeFile: "# A cool template 😎\n",
+					"test.txt":        "content",
+					tfpath.ReadmeFile: "# A cool template 😎\n",
 				}),
 				Type: &proto.AcquiredJob_TemplateImport_{
 					TemplateImport: &proto.AcquiredJob_TemplateImport{
@@ -353,7 +354,7 @@ func TestProvisionerd(t *testing.T) {
 					_ *sdkproto.ParseRequest,
 					cancelOrComplete <-chan struct{},
 				) *sdkproto.ParseComplete {
-					data, err := os.ReadFile(filepath.Join(s.WorkDirectory, "test.txt"))
+					data, err := os.ReadFile(filepath.Join(s.Files.WorkDirectory(), "test.txt"))
 					require.NoError(t, err)
 					require.Equal(t, "content", string(data))
 					s.ProvisionLog(sdkproto.LogLevel_INFO, "hello")

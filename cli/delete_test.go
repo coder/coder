@@ -111,7 +111,6 @@ func TestDelete(t *testing.T) {
 		// The API checks if the user has any workspaces, so we cannot delete a user
 		// this way.
 		ctx := testutil.Context(t, testutil.WaitShort)
-		// nolint:gocritic // Unit test
 		err := api.Database.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(ctx), deleteMeUser.ID)
 		require.NoError(t, err)
 
@@ -186,9 +185,6 @@ func TestDelete(t *testing.T) {
 
 	t.Run("WarnNoProvisioners", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
 
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
 		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
@@ -229,12 +225,6 @@ func TestDelete(t *testing.T) {
 
 	t.Run("Prebuilt workspace delete permissions", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
-
-		clock := quartz.NewMock(t)
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		// Setup
 		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
@@ -300,6 +290,9 @@ func TestDelete(t *testing.T) {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
+
+				clock := quartz.NewMock(t)
+				ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 				// Create one prebuilt workspace (owned by system user) and one normal workspace (owned by a user)
 				// Each workspace is persisted in the DB along with associated workspace jobs and builds.

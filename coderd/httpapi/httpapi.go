@@ -493,3 +493,18 @@ func OneWayWebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
 
 	return sendEvent, closed, nil
 }
+
+// OAuth2Error represents an OAuth2-compliant error response per RFC 6749.
+type OAuth2Error struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description,omitempty"`
+}
+
+// WriteOAuth2Error writes an OAuth2-compliant error response per RFC 6749.
+// This should be used for all OAuth2 endpoints (/oauth2/*) to ensure compliance.
+func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode, description string) {
+	Write(ctx, rw, status, OAuth2Error{
+		Error:            errorCode,
+		ErrorDescription: description,
+	})
+}

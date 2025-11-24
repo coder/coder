@@ -4,6 +4,7 @@ import {
 	type RefObject,
 	useRef,
 } from "react";
+import { useEffectEvent } from "./hookPolyfills";
 
 // Literally any object (ideally an HTMLElement) that has a .click method
 type ClickableElement = {
@@ -23,7 +24,7 @@ export type UseClickableResult<
 	TElement extends ClickableElement = ClickableElement,
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 > = Readonly<{
-	ref: RefObject<TElement>;
+	ref: RefObject<TElement | null>;
 	tabIndex: 0;
 	role: TRole;
 	onClick: MouseEventHandler<TElement>;
@@ -43,10 +44,11 @@ export const useClickable = <
 	role?: TRole,
 ): UseClickableResult<TElement, TRole> => {
 	const ref = useRef<TElement>(null);
+	const stableOnClick = useEffectEvent(onClick);
 
 	return {
 		ref,
-		onClick,
+		onClick: stableOnClick,
 		tabIndex: 0,
 		role: (role ?? "button") as TRole,
 

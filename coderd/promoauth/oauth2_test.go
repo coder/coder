@@ -94,7 +94,8 @@ func TestInstrument(t *testing.T) {
 		must[*url.URL](t)(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 

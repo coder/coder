@@ -1,28 +1,12 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, within } from "@storybook/test";
-import {
-	type Workspace,
-	type WorkspaceStatus,
-	WorkspaceStatuses,
-} from "api/typesGenerated";
-import {
-	MockMenu,
-	getDefaultFilterProps,
-} from "components/Filter/storyHelpers";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import type { ComponentProps } from "react";
 import {
 	MockBuildInfo,
 	MockOrganization,
 	MockPendingProvisionerJob,
-	MockStoppedWorkspace,
+	MockTaskWorkspace,
 	MockTemplate,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
-	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
 import {
@@ -30,6 +14,21 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	type Workspace,
+	type WorkspaceStatus,
+	WorkspaceStatuses,
+} from "api/typesGenerated";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import { expect, within } from "storybook/test";
+import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -134,9 +133,7 @@ const allWorkspaces = [
 	...Object.values(additionalWorkspaces),
 ];
 
-type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"];
-
-const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
 	query: "owner:me",
 	menus: {
 		user: MockMenu,
@@ -169,7 +166,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 	component: WorkspacesPageView,
 	args: {
 		limit: DEFAULT_RECORDS_PER_PAGE,
-		filterProps: defaultFilterProps,
+		filterState: defaultFilterProps,
 		checkedWorkspaces: [],
 		canCheckWorkspaces: true,
 		templates: mockTemplates,
@@ -266,7 +263,7 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 export const NoSearchResults: Story = {
 	args: {
 		workspaces: [],
-		filterProps: {
+		filterState: {
 			...defaultFilterProps,
 			filter: {
 				...defaultFilterProps.filter,
@@ -386,66 +383,16 @@ export const ShowOrganizations: Story = {
 	},
 };
 
-export const WithLatestAppStatus: Story = {
+export const ShowWorkspaceTasks: Story = {
 	args: {
 		workspaces: [
 			{
 				...MockWorkspace,
-				name: "long-app-status",
-				latest_app_status: {
-					...MockWorkspaceAppStatus,
-					message:
-						"This is a long message that will wrap around the component. It should wrap many times because this is very very very very very long.",
-				},
+				name: "regular-user-workspace",
 			},
 			{
-				...MockWorkspace,
-				name: "no-app-status",
-				latest_app_status: null,
-			},
-			{
-				...MockWorkspace,
-				name: "app-status-working",
-				latest_app_status: {
-					...MockWorkspaceAppStatus,
-					state: "working",
-					message: "Fixing the competitors page...",
-				},
-			},
-			{
-				...MockWorkspace,
-				name: "app-status-failure",
-				latest_app_status: {
-					...MockWorkspaceAppStatus,
-					state: "failure",
-					message: "I couldn't figure it out...",
-				},
-			},
-			{
-				...{
-					...MockStoppedWorkspace,
-					latest_build: {
-						...MockStoppedWorkspace.latest_build,
-						resources: [],
-					},
-				},
-				name: "stopped-app-status-failure",
-				latest_app_status: {
-					...MockWorkspaceAppStatus,
-					state: "failure",
-					message: "I couldn't figure it out...",
-					uri: "",
-				},
-			},
-			{
-				...MockWorkspace,
-				name: "app-status-working-with-uri",
-				latest_app_status: {
-					...MockWorkspaceAppStatus,
-					state: "working",
-					message: "Updating the README...",
-					uri: "file:///home/coder/projects/coder/coder/README.md",
-				},
+				...MockTaskWorkspace,
+				name: "task-workspace",
 			},
 		],
 	},

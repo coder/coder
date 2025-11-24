@@ -3,13 +3,12 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import { Link } from "components/Link/Link";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import {
 	type ErrorResponse,
 	isRouteErrorResponse,
 	useLocation,
 	useRouteError,
-} from "react-router-dom";
+} from "react-router";
 
 const errorPageTitle = "Something went wrong";
 
@@ -34,9 +33,7 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 
 	return (
 		<div className="bg-surface-primary text-center w-full h-full flex justify-center items-center">
-			<Helmet>
-				<title>{errorPageTitle}</title>
-			</Helmet>
+			<title>{errorPageTitle}</title>
 
 			<main className="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
 				<div className="flex gap-2 flex-col items-center">

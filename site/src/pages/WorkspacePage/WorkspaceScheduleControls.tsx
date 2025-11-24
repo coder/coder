@@ -15,9 +15,9 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
-import { type FC, type ReactNode, forwardRef, useRef, useState } from "react";
+import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -118,7 +118,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	);
 	const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
 	const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-	const deadlineUpdateTimeout = useRef<number>();
+	const deadlineUpdateTimeout = useRef<number>(undefined);
 	const lastStableDeadline = useRef<Dayjs>(deadline);
 
 	const updateWorkspaceDeadlineQueryData = (deadline: Dayjs) => {

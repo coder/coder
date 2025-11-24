@@ -7,7 +7,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import { ChevronDownIcon } from "lucide-react";
 import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
@@ -26,7 +26,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<TopbarButton
 					color="neutral"
 					css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
@@ -36,8 +36,8 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent
-				horizontal="right"
-				css={{ ".MuiPaper-root": { width: 300 } }}
+				align="end"
+				className="w-[300px] bg-surface-secondary border-surface-quaternary"
 			>
 				<div
 					css={{

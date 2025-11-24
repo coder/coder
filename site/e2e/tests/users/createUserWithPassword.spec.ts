@@ -1,6 +1,5 @@
 import { test } from "@playwright/test";
-import { createUser } from "../../helpers";
-import { login } from "../../helpers";
+import { createUser, login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {

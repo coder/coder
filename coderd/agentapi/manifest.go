@@ -110,7 +110,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		}
 	}
 
-	apps, err := dbAppsToProto(dbApps, workspaceAgent, workspace.OwnerUsername, workspace)
+	apps, err := dbAppsToProto(dbApps, workspaceAgent, workspace.OwnerUsername, workspace, a.AppHostname)
 	if err != nil {
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
 	}
@@ -196,11 +196,11 @@ func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.Work
 	}
 }
 
-func dbAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) ([]*agentproto.WorkspaceApp, error) {
+func dbAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace, appHostname string) ([]*agentproto.WorkspaceApp, error) {
 	ret := make([]*agentproto.WorkspaceApp, len(dbApps))
 	for i, dbApp := range dbApps {
 		var err error
-		ret[i], err = dbAppToProto(dbApp, agent, ownerName, workspace)
+		ret[i], err = dbAppToProto(dbApp, agent, ownerName, workspace, appHostname)
 		if err != nil {
 			return nil, xerrors.Errorf("parse app %v (%q): %w", i, dbApp.Slug, err)
 		}
@@ -208,7 +208,7 @@ func dbAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent
 	return ret, nil
 }
 
-func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) (*agentproto.WorkspaceApp, error) {
+func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace, appHostname string) (*agentproto.WorkspaceApp, error) {
 	sharingLevelRaw, ok := agentproto.WorkspaceApp_SharingLevel_value[strings.ToUpper(string(dbApp.SharingLevel))]
 	if !ok {
 		return nil, xerrors.Errorf("unknown app sharing level: %q", dbApp.SharingLevel)
@@ -217,6 +217,12 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 	healthRaw, ok := agentproto.WorkspaceApp_Health_value[strings.ToUpper(string(dbApp.Health))]
 	if !ok {
 		return nil, xerrors.Errorf("unknown app health: %q", dbApp.SharingLevel)
+	}
+
+	// SubdomainName should be empty if AppHostname is not configured
+	subdomainName := ""
+	if appHostname != "" {
+		subdomainName = db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName)
 	}
 
 	return &agentproto.WorkspaceApp{
@@ -228,7 +234,7 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 		Command:       dbApp.Command.String,
 		Icon:          dbApp.Icon,
 		Subdomain:     dbApp.Subdomain,
-		SubdomainName: db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
+		SubdomainName: subdomainName,
 		SharingLevel:  agentproto.WorkspaceApp_SharingLevel(sharingLevelRaw),
 		Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
 			Url:       dbApp.HealthcheckUrl,

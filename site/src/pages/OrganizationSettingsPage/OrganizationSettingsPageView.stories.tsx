@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockDefaultOrganization,
 	MockOrganization,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const meta: Meta<typeof OrganizationSettingsPageView> = {

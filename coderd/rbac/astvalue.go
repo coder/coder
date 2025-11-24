@@ -157,9 +157,20 @@ func (role Role) regoValue() ast.Value {
 	if role.cachedRegoValue != nil {
 		return role.cachedRegoValue
 	}
-	orgMap := ast.NewObject()
-	for k, p := range role.Org {
-		orgMap.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(p)))
+	byOrgIDMap := ast.NewObject()
+	for k, p := range role.ByOrgID {
+		byOrgIDMap.Insert(ast.StringTerm(k), ast.NewTerm(
+			ast.NewObject(
+				[2]*ast.Term{
+					ast.StringTerm("org"),
+					ast.NewTerm(regoSlice(p.Org)),
+				},
+				[2]*ast.Term{
+					ast.StringTerm("member"),
+					ast.NewTerm(regoSlice(p.Member)),
+				},
+			),
+		))
 	}
 	return ast.NewObject(
 		[2]*ast.Term{
@@ -167,12 +178,12 @@ func (role Role) regoValue() ast.Value {
 			ast.NewTerm(regoSlice(role.Site)),
 		},
 		[2]*ast.Term{
-			ast.StringTerm("org"),
-			ast.NewTerm(orgMap),
-		},
-		[2]*ast.Term{
 			ast.StringTerm("user"),
 			ast.NewTerm(regoSlice(role.User)),
+		},
+		[2]*ast.Term{
+			ast.StringTerm("by_org_id"),
+			ast.NewTerm(byOrgIDMap),
 		},
 	)
 }
@@ -182,9 +193,25 @@ func (s Scope) regoValue() ast.Value {
 	if !ok {
 		panic("developer error: role is not an object")
 	}
+
+	terms := make([]*ast.Term, len(s.AllowIDList))
+	for i, v := range s.AllowIDList {
+		terms[i] = ast.NewTerm(ast.NewObject(
+			[2]*ast.Term{
+				ast.StringTerm("type"),
+				ast.StringTerm(v.Type),
+			},
+			[2]*ast.Term{
+				ast.StringTerm("id"),
+				ast.StringTerm(v.ID),
+			},
+		),
+		)
+	}
+
 	r.Insert(
 		ast.StringTerm("allow_list"),
-		ast.NewTerm(regoSliceString(s.AllowIDList...)),
+		ast.NewTerm(ast.NewArray(terms...)),
 	)
 	return r
 }

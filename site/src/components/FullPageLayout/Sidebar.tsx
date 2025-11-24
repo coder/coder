@@ -1,30 +1,28 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { ComponentProps, FC, HTMLAttributes } from "react";
-import { Link, type LinkProps } from "react-router-dom";
+import { Link, type LinkProps } from "react-router";
+import { cn } from "utils/cn";
 import { TopbarIconButton } from "./Topbar";
 
 export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	const theme = useTheme();
 	return (
 		<div
-			css={{
-				width: 260,
-				borderRight: `1px solid ${theme.palette.divider}`,
-				height: "100%",
-				overflow: "auto",
-				flexShrink: 0,
-				padding: "8px 0",
-				display: "flex",
-				flexDirection: "column",
-				gap: 1,
-			}}
+			// TODO: Remove extra border classes once MUI is removed
+			className="flex flex-col gap-px w-64 border-solid border-0 border-r border-r-border h-full py-2 shrink-0 overflow-y-auto"
 			{...props}
 		/>
 	);
 };
 
-export const SidebarLink: FC<LinkProps> = (props) => {
-	return <Link css={styles.sidebarItem} {...props} />;
+export const SidebarLink: FC<LinkProps> = ({ className, ...props }) => {
+	return (
+		<Link
+			className={cn(
+				"text-[13px] text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary cursor-pointer border-0 no-underline",
+				className,
+			)}
+			{...props}
+		/>
+	);
 };
 
 interface SidebarItemProps extends HTMLAttributes<HTMLButtonElement> {
@@ -33,21 +31,16 @@ interface SidebarItemProps extends HTMLAttributes<HTMLButtonElement> {
 
 export const SidebarItem: FC<SidebarItemProps> = ({
 	isActive,
+	className,
 	...buttonProps
 }) => {
-	const theme = useTheme();
-
 	return (
 		<button
-			css={[
-				styles.sidebarItem,
-				{ opacity: "0.75", "&:hover": { opacity: 1 } },
-				isActive && {
-					background: theme.palette.action.selected,
-					opacity: 1,
-					pointerEvents: "none",
-				},
-			]}
+			className={cn(
+				"text-[13px] text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary opacity-75 hover:opacity-100 cursor-pointer border-0",
+				isActive && "opacity-100 bg-surface-tertiary",
+				className,
+			)}
 			{...buttonProps}
 		/>
 	);
@@ -56,15 +49,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	return (
 		<span
-			css={{
-				fontSize: 10,
-				lineHeight: 1.2,
-				padding: "12px 16px",
-				display: "block",
-				textTransform: "uppercase",
-				fontWeight: 500,
-				letterSpacing: "0.1em",
-			}}
+			className="text-[10px] leading-tight py-3 px-4 uppercase font-medium text-content-primary tracking-widest"
 			{...props}
 		/>
 	);
@@ -76,49 +61,17 @@ interface SidebarIconButton extends ComponentProps<typeof TopbarIconButton> {
 
 export const SidebarIconButton: FC<SidebarIconButton> = ({
 	isActive,
+	className,
 	...buttonProps
 }) => {
 	return (
 		<TopbarIconButton
-			css={[
-				{ opacity: 0.75, "&:hover": { opacity: 1 } },
-				isActive && styles.activeSidebarIconButton,
-			]}
+			className={cn(
+				"opacity-75 hover:opacity-100 border-0 border-x-2 border-x-transparent border-solid",
+				isActive && "opacity-100 relative border-l-sky-400",
+				className,
+			)}
 			{...buttonProps}
 		/>
 	);
 };
-
-const styles = {
-	sidebarItem: (theme) => ({
-		fontSize: 13,
-		lineHeight: 1.2,
-		color: theme.palette.text.primary,
-		textDecoration: "none",
-		padding: "8px 16px",
-		display: "block",
-		textAlign: "left",
-		background: "none",
-		border: 0,
-		cursor: "pointer",
-
-		"&:hover": {
-			backgroundColor: theme.palette.action.hover,
-		},
-	}),
-
-	activeSidebarIconButton: (theme) => ({
-		opacity: 1,
-		position: "relative",
-		"&::before": {
-			content: '""',
-			position: "absolute",
-			left: 0,
-			top: 0,
-			bottom: 0,
-			width: 2,
-			backgroundColor: theme.palette.primary.main,
-			height: "100%",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

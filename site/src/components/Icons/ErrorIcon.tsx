@@ -1,5 +1,6 @@
 import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
 
+import type { JSX } from "react";
 export const ErrorIcon = (props: SvgIconProps): JSX.Element => (
 	<SvgIcon {...props} viewBox="0 0 24 24">
 		<path

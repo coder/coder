@@ -20,7 +20,7 @@ test("setup deployment", async ({ page }) => {
 	await page.getByLabel(Language.passwordLabel).fill(users.owner.password);
 	await page.getByTestId("create").click();
 
-	await expectUrl(page).toHavePathName("/workspaces");
+	await expectUrl(page).toHavePathName("/templates");
 	await page.getByTestId("button-select-template").isVisible();
 
 	for (const user of Object.values(users)) {

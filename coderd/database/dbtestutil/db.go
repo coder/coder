@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,15 +19,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
 )
-
-// WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
-func WillUsePostgres() bool {
-	return os.Getenv("DB") != ""
-}
 
 type options struct {
 	fixedTimezone string
@@ -75,10 +68,6 @@ func withReturnSQLDB(f func(*sql.DB)) Option {
 func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
 	t.Helper()
 
-	if !WillUsePostgres() {
-		t.Fatal("cannot use NewDBWithSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
-	}
-
 	var sqlDB *sql.DB
 	opts = append(opts, withReturnSQLDB(func(db *sql.DB) {
 		sqlDB = db
@@ -109,52 +98,48 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 
 	var db database.Store
 	var ps pubsub.Pubsub
-	if WillUsePostgres() {
-		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
-		if connectionURL == "" && o.url != "" {
-			connectionURL = o.url
-		}
-		if connectionURL == "" {
-			var err error
-			connectionURL, err = Open(t)
-			require.NoError(t, err)
-		}
 
-		if o.fixedTimezone == "" {
-			// To make sure we find timezone-related issues, we set the timezone
-			// of the database to a non-UTC one.
-			// The below was picked due to the following properties:
-			// - It has a non-UTC offset
-			// - It has a fractional hour UTC offset
-			// - It includes a daylight savings time component
-			o.fixedTimezone = DefaultTimezone
-		}
-		dbName := dbNameFromConnectionURL(t, connectionURL)
-		setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
-
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		if o.returnSQLDB != nil {
-			o.returnSQLDB(sqlDB)
-		}
-		if o.dumpOnFailure {
-			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
-		}
-		// Unit tests should not retry serial transaction failures.
-		db = database.New(sqlDB, database.WithSerialRetryCount(1))
-
-		ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = ps.Close()
-		})
-	} else {
-		db = dbmem.New()
-		ps = pubsub.NewInMemory()
+	connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
+	if connectionURL == "" && o.url != "" {
+		connectionURL = o.url
 	}
+	if connectionURL == "" {
+		var err error
+		connectionURL, err = Open(t)
+		require.NoError(t, err)
+	}
+
+	if o.fixedTimezone == "" {
+		// To make sure we find timezone-related issues, we set the timezone
+		// of the database to a non-UTC one.
+		// The below was picked due to the following properties:
+		// - It has a non-UTC offset
+		// - It has a fractional hour UTC offset
+		// - It includes a daylight savings time component
+		o.fixedTimezone = DefaultTimezone
+	}
+	dbName := dbNameFromConnectionURL(t, connectionURL)
+	setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	if o.returnSQLDB != nil {
+		o.returnSQLDB(sqlDB)
+	}
+	if o.dumpOnFailure {
+		t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
+	}
+	// Unit tests should not retry serial transaction failures.
+	db = database.New(sqlDB, database.WithSerialRetryCount(1))
+
+	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ps.Close()
+	})
 
 	return db, ps
 }
@@ -209,7 +194,7 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 	outPath := filepath.Join(cwd, snakeCaseName+"."+timeSuffix+".test.sql")
 	dump, err := PGDump(connectionURL)
 	if err != nil {
-		t.Errorf("dump on failure: failed to run pg_dump")
+		t.Errorf("dump on failure: failed to run pg_dump: %s", err.Error())
 		return
 	}
 	if err := os.WriteFile(outPath, normalizeDump(dump), 0o600); err != nil {
@@ -246,34 +231,40 @@ func PGDump(dbURL string) ([]byte, error) {
 		"PGCLIENTENCODING=UTF8",
 		"PGDATABASE=", // we should always specify the database name in the connection string
 	}
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, xerrors.Errorf("exec pg_dump: %w", err)
+		return nil, xerrors.Errorf("exec pg_dump: %w\n%s", err, stderr.String())
 	}
 	return stdout.Bytes(), nil
 }
 
-const minimumPostgreSQLVersion = 13
+const (
+	minimumPostgreSQLVersion = 13
+	postgresImageSha         = "sha256:467e7f2fb97b2f29d616e0be1d02218a7bbdfb94eb3cda7461fd80165edfd1f7"
+)
 
 // PGDumpSchemaOnly is for use by gen/dump only.
 // It runs pg_dump against dbURL and sets a consistent timezone and encoding.
 func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 	hasPGDump := false
-	if _, err := exec.LookPath("pg_dump"); err == nil {
-		out, err := exec.Command("pg_dump", "--version").Output()
-		if err == nil {
-			// Parse output:
-			// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
-			parts := strings.Split(string(out), " ")
-			if len(parts) > 2 {
-				version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
-				if err == nil && version >= minimumPostgreSQLVersion {
-					hasPGDump = true
-				}
-			}
-		}
-	}
+	// TODO: Temporarily pin pg_dump to the docker image until
+	// https://github.com/sqlc-dev/sqlc/issues/4065 is resolved.
+	// if _, err := exec.LookPath("pg_dump"); err == nil {
+	// 	out, err := exec.Command("pg_dump", "--version").Output()
+	// 	if err == nil {
+	// 		// Parse output:
+	// 		// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
+	// 		parts := strings.Split(string(out), " ")
+	// 		if len(parts) > 2 {
+	// 			version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
+	// 			if err == nil && version >= minimumPostgreSQLVersion {
+	// 				hasPGDump = true
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	cmdArgs := []string{
 		"pg_dump",
@@ -298,7 +289,7 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 			"run",
 			"--rm",
 			"--network=host",
-			fmt.Sprintf("%s:%d", postgresImage, minimumPostgreSQLVersion),
+			fmt.Sprintf("%s:%d@%s", postgresImage, minimumPostgreSQLVersion, postgresImageSha),
 		}, cmdArgs...)
 	}
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec

@@ -7,6 +7,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import type { JSX } from "react";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
@@ -29,66 +30,62 @@ export const UserAuthSettingsPageView = ({
 	);
 
 	return (
-		<>
-			<Stack direction="column" spacing={6}>
-				<div>
-					<SettingsHeader>
-						<SettingsHeaderTitle>User Authentication</SettingsHeaderTitle>
-					</SettingsHeader>
+		<Stack direction="column" spacing={6}>
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>User Authentication</SettingsHeaderTitle>
+				</SettingsHeader>
 
-					<SettingsHeader
-						actions={
-							<SettingsHeaderDocsLink
-								href={docs("/admin/users/oidc-auth#openid-connect")}
-							/>
-						}
-					>
-						<SettingsHeaderTitle level="h2" hierarchy="secondary">
-							Login with OpenID Connect
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Set up authentication to login with OpenID Connect.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-
-					<Badges>{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
-
-					{oidcEnabled && (
-						<OptionsTable
-							options={options.filter((o) =>
-								deploymentGroupHasParent(o.group, "OIDC"),
-							)}
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/oidc-auth#openid-connect")}
 						/>
-					)}
-				</div>
+					}
+				>
+					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+						Login with OpenID Connect
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Set up authentication to login with OpenID Connect.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
-				<div>
-					<SettingsHeader
-						actions={
-							<SettingsHeaderDocsLink href={docs("/admin/users/github-auth")} />
-						}
-					>
-						<SettingsHeaderTitle level="h2" hierarchy="secondary">
-							Login with GitHub
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Set up authentication to login with GitHub.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+				<Badges>{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
 
-					<Badges>
-						{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}
-					</Badges>
+				{oidcEnabled && (
+					<OptionsTable
+						options={options.filter((o) =>
+							deploymentGroupHasParent(o.group, "OIDC"),
+						)}
+					/>
+				)}
+			</div>
 
-					{githubEnabled && (
-						<OptionsTable
-							options={options.filter((o) =>
-								deploymentGroupHasParent(o.group, "GitHub"),
-							)}
-						/>
-					)}
-				</div>
-			</Stack>
-		</>
+			<div>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/admin/users/github-auth")} />
+					}
+				>
+					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+						Login with GitHub
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Set up authentication to login with GitHub.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<Badges>{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
+
+				{githubEnabled && (
+					<OptionsTable
+						options={options.filter((o) =>
+							deploymentGroupHasParent(o.group, "GitHub"),
+						)}
+					/>
+				)}
+			</div>
+		</Stack>
 	);
 };

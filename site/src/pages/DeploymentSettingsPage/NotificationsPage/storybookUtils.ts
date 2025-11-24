@@ -1,12 +1,7 @@
-import type { Meta } from "@storybook/react";
 import {
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-} from "api/queries/notifications";
-import type { DeploymentValues, SerpentOption } from "api/typesGenerated";
-import {
+	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
-	MockNotificationTemplates,
+	MockSystemNotificationTemplates,
 	MockUserOwner,
 } from "testHelpers/entities";
 import {
@@ -15,6 +10,13 @@ import {
 	withGlobalSnackbar,
 	withOrganizationSettingsProvider,
 } from "testHelpers/storybook";
+import type { Meta } from "@storybook/react-vite";
+import {
+	customNotificationTemplatesKey,
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+} from "api/queries/notifications";
+import type { DeploymentValues, SerpentOption } from "api/typesGenerated";
 import type NotificationsPage from "./NotificationsPage";
 
 // Extracted from a real API response
@@ -187,7 +189,14 @@ export const baseMeta = {
 	parameters: {
 		experiments: ["notifications"],
 		queries: [
-			{ key: systemNotificationTemplatesKey, data: MockNotificationTemplates },
+			{
+				key: systemNotificationTemplatesKey,
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				key: customNotificationTemplatesKey,
+				data: MockCustomNotificationTemplates,
+			},
 			{
 				key: notificationDispatchMethodsKey,
 				data: MockNotificationMethodsResponse,

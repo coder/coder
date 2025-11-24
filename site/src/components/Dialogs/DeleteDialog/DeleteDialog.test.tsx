@@ -1,7 +1,7 @@
+import { renderComponent } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "react-dom/test-utils";
-import { renderComponent } from "testHelpers/renderHelpers";
+import { act } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 
 const inputTestId = "delete-dialog-name-confirmation";
@@ -23,8 +23,8 @@ describe("DeleteDialog", () => {
 		renderComponent(
 			<DeleteDialog
 				isOpen
-				onConfirm={jest.fn()}
-				onCancel={jest.fn()}
+				onConfirm={vi.fn()}
+				onCancel={vi.fn()}
 				entity="template"
 				name="MyTemplate"
 			/>,
@@ -38,8 +38,8 @@ describe("DeleteDialog", () => {
 		renderComponent(
 			<DeleteDialog
 				isOpen
-				onConfirm={jest.fn()}
-				onCancel={jest.fn()}
+				onConfirm={vi.fn()}
+				onCancel={vi.fn()}
 				entity="template"
 				name="MyTemplate"
 			/>,
@@ -56,8 +56,8 @@ describe("DeleteDialog", () => {
 		renderComponent(
 			<DeleteDialog
 				isOpen
-				onConfirm={jest.fn()}
-				onCancel={jest.fn()}
+				onConfirm={vi.fn()}
+				onCancel={vi.fn()}
 				entity="template"
 				name="MyTemplate"
 			/>,

@@ -66,6 +66,33 @@ logs (which have `msg: audit_log`) and retain them for a minimum of two years
 If a security incident with Coder does occur, audit logs are invaluable in
 determining the nature and scope of the impact.
 
+### Disable path-based apps
+
+For production deployments, we recommend that you disable path-based apps after you've configured a wildcard access URL.
+
+Path-based apps share the same origin as the Coder API, which can be convenient for trialing Coder,
+but can expose the deployment to cross-site-scripting (XSS) attacks in production.
+A malicious workspace could reuse Coder cookies to call the API or interact with other workspaces owned by the same user.
+
+1. [Enable sub-domain apps with a wildcard DNS record](../../admin/setup/index.md#wildcard-access-url) (like `*.coder.example.com`)
+
+1. Disable path-based apps:
+
+   ```shell
+   coderd server --disable-path-apps
+   # or
+   export CODER_DISABLE_PATH_APPS=true
+   ```
+
+By default, Coder mitigates the impact of having path-based apps enabled, but we still recommend disabling it to prevent
+malicious workspaces accessing other workspaces owned by the same user or performing requests against the Coder API.
+
+If you do keep path-based apps enabled:
+
+- Path-based apps cannot be shared with other users unless you start the Coder server with `--dangerous-allow-path-app-sharing`.
+- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspaces unless the
+  server is started with `--dangerous-allow-path-app-site-owner-access`.
+
 ## PostgreSQL
 
 PostgreSQL is the persistent datastore underlying the entire Coder deployment.

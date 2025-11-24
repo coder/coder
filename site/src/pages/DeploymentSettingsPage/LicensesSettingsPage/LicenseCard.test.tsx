@@ -1,6 +1,6 @@
-import { screen } from "@testing-library/react";
 import { MockLicenseResponse } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
 import { LicenseCard } from "./LicenseCard";
 
 describe("LicenseCard", () => {

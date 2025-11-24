@@ -25,10 +25,10 @@ Specifies whether all users' tokens will be listed or not (must have Owner role 
 
 ### -c, --column
 
-|         |                                                                   |
-|---------|-------------------------------------------------------------------|
-| Type    | <code>[id\|name\|last used\|expires at\|created at\|owner]</code> |
-| Default | <code>id,name,last used,expires at,created at</code>              |
+|         |                                                                                       |
+|---------|---------------------------------------------------------------------------------------|
+| Type    | <code>[id\|name\|scopes\|allow list\|last used\|expires at\|created at\|owner]</code> |
+| Default | <code>id,name,scopes,allow list,last used,expires at,created at</code>                |
 
 Columns to display in table output.
 

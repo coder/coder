@@ -3,9 +3,8 @@ import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
 import dayjs from "dayjs";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { keepPreviousData, useQuery } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
@@ -36,15 +35,11 @@ const WorkspaceBuildPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
+			{build && (
 				<title>
-					{build
-						? pageTitle(
-								`Build #${build.build_number} · ${build.workspace_name}`,
-							)
-						: ""}
+					{pageTitle(`Build #${build.build_number} · ${build.workspace_name}`)}
 				</title>
-			</Helmet>
+			)}
 
 			<WorkspaceBuildPageView
 				logs={logs}

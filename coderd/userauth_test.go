@@ -335,7 +335,6 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// nolint:gocritic // Unit test
 		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
@@ -897,7 +896,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Empty(t, links)
 
 		// Make sure a user_link cannot be created with a deleted user.
-		// nolint:gocritic // Unit test
 		_, err = db.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
 			UserID:            deleted.ID,
 			LoginType:         "github",
@@ -1957,20 +1955,20 @@ func TestUserLogout(t *testing.T) {
 	}
 
 	// Create a few application_connect-scoped API keys that should be deleted.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		key, _ := dbgen.APIKey(t, db, database.APIKey{
 			UserID: newUser.ID,
-			Scope:  database.APIKeyScopeApplicationConnect,
+			Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
 		})
 		shouldBeDeleted[fmt.Sprintf("application_connect key owned by logout user %d", i)] = key.ID
 	}
 
 	// Create a few application_connect-scoped API keys for the admin user that
 	// should not be deleted.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		key, _ := dbgen.APIKey(t, db, database.APIKey{
 			UserID: firstUser.UserID,
-			Scope:  database.APIKeyScopeApplicationConnect,
+			Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
 		})
 		shouldNotBeDeleted[fmt.Sprintf("application_connect key owned by admin user %d", i)] = key.ID
 	}

@@ -30,6 +30,7 @@ test("update template schedule settings without override other settings", async 
 		disable_everyone_group_access: false,
 		require_active_version: true,
 		max_port_share_level: null,
+		cors_behavior: null,
 		allow_user_cancel_workspace_jobs: null,
 	});
 

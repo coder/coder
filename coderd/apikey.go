@@ -12,6 +12,8 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -56,9 +58,48 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scope := database.APIKeyScopeAll
-	if scope != "" {
-		scope = database.APIKeyScope(createToken.Scope)
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Map and validate requested scope.
+	// Accept legacy special scopes (all, application_connect) and external scopes.
+	// Default to coder:all scopes for backward compatibility.
+	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+	if len(createToken.Scopes) > 0 {
+		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
+		for _, s := range createToken.Scopes {
+			name := string(s)
+			if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to create API key.",
+					Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
+				})
+				return
+			}
+			scopes = append(scopes, database.APIKeyScope(name))
+		}
+	} else if string(createToken.Scope) != "" {
+		name := string(createToken.Scope)
+		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to create API key.",
+				Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
+			})
+			return
+		}
+		switch name {
+		case "all":
+			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+		case "application_connect":
+			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}
+		default:
+			scopes = database.APIKeyScopes{database.APIKeyScope(name)}
+		}
 	}
 
 	tokenName := namesgenerator.GetRandomName(1)
@@ -71,8 +112,39 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
-		Scope:           scope,
+		Scopes:          scopes,
 		TokenName:       tokenName,
+	}
+
+	if len(createToken.AllowList) > 0 {
+		rbacAllowListElements := make([]rbac.AllowListElement, 0, len(createToken.AllowList))
+		for _, t := range createToken.AllowList {
+			entry, err := rbac.NewAllowListElement(string(t.Type), t.ID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to create API key.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			rbacAllowListElements = append(rbacAllowListElements, entry)
+		}
+
+		rbacAllowList, err := rbac.NormalizeAllowList(rbacAllowListElements)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to create API key.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		dbAllowList := make(database.AllowList, 0, len(rbacAllowList))
+		for _, e := range rbacAllowList {
+			dbAllowList = append(dbAllowList, rbac.AllowListElement{Type: e.Type, ID: e.ID})
+		}
+
+		params.AllowList = dbAllowList
 	}
 
 	if createToken.Lifetime != 0 {
@@ -121,10 +193,29 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /users/{user}/keys [post]
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
-	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LoginType:       database.LoginTypePassword,
@@ -138,6 +229,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = *key
 	// We intentionally do not set the cookie on the response here.
 	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
@@ -151,7 +243,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
@@ -292,7 +384,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 204
 // @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {

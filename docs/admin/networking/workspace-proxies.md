@@ -178,7 +178,7 @@ regular Coder server.
 #### Docker Compose
 
 Change the provided
-[`docker-compose.yml`](https://github.com/coder/coder/blob/main/docker-compose.yaml)
+[`compose.yml`](https://github.com/coder/coder/blob/main/compose.yaml)
 file to include a custom entrypoint:
 
 ```diff

@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
@@ -18,6 +16,8 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getPreferredProxy } from "contexts/ProxyContext";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
@@ -45,6 +45,16 @@ const meta: Meta<typeof AgentDevcontainerCard> = {
 
 export default meta;
 type Story = StoryObj<typeof AgentDevcontainerCard>;
+
+export const HasError: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			error: "unable to inject devcontainer with agent",
+			agent: undefined,
+		},
+	},
+};
 
 export const NoPorts: Story = {};
 
@@ -76,6 +86,29 @@ export const Recreating: Story = {
 			dirty: true,
 			status: "starting",
 			container: undefined,
+		},
+		subAgents: [],
+	},
+};
+
+export const NoContainerOrSubAgent: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+};
+
+export const NoContainerOrAgentOrName: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+			name: "",
 		},
 		subAgents: [],
 	},

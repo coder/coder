@@ -7,12 +7,11 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { RouterProvider } from "react-router-dom";
+import { RouterProvider } from "react-router";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
+import { ThemeProvider } from "./contexts/ThemeProvider";
 import { router } from "./router";
 
 const defaultQueryClient = new QueryClient({
@@ -29,14 +28,6 @@ interface AppProvidersProps {
 	queryClient?: QueryClient;
 }
 
-// extending the global window interface so we can conditionally
-// show our react query devtools
-declare global {
-	interface Window {
-		toggleDevtools: () => void;
-	}
-}
-
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,
 	queryClient = defaultQueryClient,
@@ -45,35 +36,29 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	const [showDevtools, setShowDevtools] = useState(false);
 
 	useEffect(() => {
-		// Storing key in variable to avoid accidental typos; we're working with the
-		// window object, so there's basically zero type-checking available
-		const toggleKey = "toggleDevtools";
-
 		// Don't want to throw away the previous devtools value if some other
 		// extension added something already
-		const devtoolsBeforeSync = window[toggleKey];
-		window[toggleKey] = () => {
+		const devtoolsBeforeSync = window.toggleDevtools;
+		window.toggleDevtools = () => {
 			devtoolsBeforeSync?.();
 			setShowDevtools((current) => !current);
 		};
 
 		return () => {
-			window[toggleKey] = devtoolsBeforeSync;
+			window.toggleDevtools = devtoolsBeforeSync;
 		};
 	}, []);
 
 	return (
-		<HelmetProvider>
-			<QueryClientProvider client={queryClient}>
-				<AuthProvider>
-					<ThemeProvider>
-						{children}
-						<GlobalSnackbar />
-					</ThemeProvider>
-				</AuthProvider>
-				{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
-			</QueryClientProvider>
-		</HelmetProvider>
+		<QueryClientProvider client={queryClient}>
+			<AuthProvider>
+				<ThemeProvider>
+					{children}
+					<GlobalSnackbar />
+				</ThemeProvider>
+			</AuthProvider>
+			{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
+		</QueryClientProvider>
 	);
 };
 

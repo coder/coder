@@ -222,8 +222,9 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		RefreshToken string `json:"refresh_token,omitempty"`
 
 		// Extra fields returned by the refresh that are needed
-		IDToken   string `json:"id_token"`
-		ExpiresIn int64  `json:"expires_in"` // relative seconds from now
+		IDToken   string      `json:"id_token"`
+		ExpiresIn json.Number `json:"expires_in"` // relative seconds from now, use Number since Azure AD might return string
+
 		// error fields
 		// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
 		ErrorCode        string `json:"error"`
@@ -247,7 +248,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	if unmarshalError != nil {
-		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", err)
+		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", unmarshalError)
 	}
 
 	newToken := &oauth2.Token{
@@ -256,8 +257,13 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		RefreshToken: tokenRes.RefreshToken,
 	}
 
-	if secs := tokenRes.ExpiresIn; secs > 0 {
-		newToken.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
+	expiresIn, convertErr := tokenRes.ExpiresIn.Int64()
+	if convertErr != nil {
+		return nil, xerrors.Errorf("oauth2: cannot convert expires_in to int64: %w", convertErr)
+	}
+
+	if expiresIn > 0 {
+		newToken.Expiry = time.Now().Add(time.Duration(expiresIn) * time.Second)
 	}
 
 	// ID token is a JWT token. We can decode it to get the expiry.

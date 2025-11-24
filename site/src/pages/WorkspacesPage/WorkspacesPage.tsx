@@ -1,8 +1,7 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
-import { templates } from "api/queries/templates";
+import { templates, templateVersionRoot } from "api/queries/templates";
 import { workspaces } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -11,16 +10,21 @@ import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
-import { type FC, useEffect, useMemo, useState } from "react";
-import { Helmet } from "react-helmet-async";
+import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
+import { type FC, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
-import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
-import { WorkspacesPageView } from "./WorkspacesPageView";
+import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { useBatchActions } from "./batchActions";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
+import { WorkspacesPageView } from "./WorkspacesPageView";
+
+// To reduce the number of fetches, we reduce the fetch interval if there are no
+// active workspace builds.
+const ACTIVE_BUILDS_REFRESH_INTERVAL = 5_000;
+const NO_ACTIVE_BUILDS_REFRESH_INTERVAL = 30_000;
 
 function useSafeSearchParams() {
 	// Have to wrap setSearchParams because React Router doesn't make sure that
@@ -36,13 +40,35 @@ function useSafeSearchParams() {
 	>;
 }
 
+type BatchAction = "delete" | "update";
+
 const WorkspacesPage: FC = () => {
 	const queryClient = useQueryClient();
-	// If we use a useSearchParams for each hook, the values will not be in sync.
-	// So we have to use a single one, centralizing the values, and pass it to
-	// each hook.
-	const searchParamsResult = useSafeSearchParams();
-	const pagination = usePagination({ searchParamsResult });
+	// We have to be careful with how we use useSearchParams or any other
+	// derived hooks. The URL is global state, but each call to useSearchParams
+	// creates a different, contradictory source of truth for what the URL
+	// should look like. We need to make sure that we only mount the hook once
+	// per page
+	const [searchParams, setSearchParams] = useSafeSearchParams();
+	// Always need to make sure that we reset the checked workspaces each time
+	// the filtering or pagination changes, as that will almost always change
+	// which workspaces are shown on screen and which can be interacted with
+	const [checkedWorkspaceIds, setCheckedWorkspaceIds] = useState(
+		new Set<string>(),
+	);
+	const resetChecked = () => {
+		if (checkedWorkspaceIds.size !== 0) {
+			setCheckedWorkspaceIds(new Set());
+		}
+	};
+
+	const pagination = usePagination({
+		searchParams,
+		onSearchParamsChange: (newParams) => {
+			setSearchParams(newParams);
+			resetChecked();
+		},
+	});
 	const { permissions, user: me } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const templatesQuery = useQuery(templates());
@@ -66,56 +92,75 @@ const WorkspacesPage: FC = () => {
 		});
 	}, [templatesQuery.data, workspacePermissionsQuery.data]);
 
-	const filterProps = useWorkspacesFilter({
-		searchParamsResult,
-		onFilterChange: () => pagination.goToPage(1),
+	const filterState = useWorkspacesFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onFilterChange: () => {
+			pagination.goToPage(1);
+			resetChecked();
+		},
 	});
 
 	const workspacesQueryOptions = workspaces({
-		...pagination,
-		q: filterProps.filter.query,
+		limit: pagination.limit,
+		offset: pagination.offset,
+		q: filterState.filter.query,
 	});
 	const { data, error, refetch } = useQuery({
 		...workspacesQueryOptions,
 		refetchInterval: ({ state }) => {
-			return state.error ? false : 5_000;
+			if (state.error) return false;
+
+			// Default to 5s interval until first fetch completes
+			if (!state.data) return ACTIVE_BUILDS_REFRESH_INTERVAL;
+
+			// Check if any workspace has an active build
+			const hasActiveBuilds = state.data.workspaces?.some((workspace) => {
+				const status = workspace.latest_build.status;
+				return ACTIVE_BUILD_STATUSES.includes(status);
+			});
+
+			// Poll every 5s if there are active builds, otherwise every 30s
+			return hasActiveBuilds
+				? ACTIVE_BUILDS_REFRESH_INTERVAL
+				: NO_ACTIVE_BUILDS_REFRESH_INTERVAL;
 		},
+		refetchOnWindowFocus: "always",
 	});
 
-	const [checkedWorkspaces, setCheckedWorkspaces] = useState<
-		readonly Workspace[]
-	>([]);
-	const [confirmingBatchAction, setConfirmingBatchAction] = useState<
-		"delete" | "update" | null
-	>(null);
-	const [urlSearchParams] = searchParamsResult;
+	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
 	const canCheckWorkspaces =
 		entitlements.features.workspace_batch_actions.enabled;
 	const batchActions = useBatchActions({
 		onSuccess: async () => {
 			await refetch();
-			setCheckedWorkspaces([]);
+			resetChecked();
 		},
 	});
 
-	// We want to uncheck the selected workspaces always when the url changes
-	// because of filtering or pagination
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useEffect(() => {
-		setCheckedWorkspaces([]);
-	}, [urlSearchParams]);
+	const checkedWorkspaces =
+		data?.workspaces.filter((w) => checkedWorkspaceIds.has(w.id)) ?? [];
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Workspaces")}</title>
-			</Helmet>
+			<title>{pageTitle("Workspaces")}</title>
 
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
 				canChangeVersions={permissions.updateTemplates}
 				checkedWorkspaces={checkedWorkspaces}
-				onCheckChange={setCheckedWorkspaces}
+				onCheckChange={(newWorkspaces) => {
+					setCheckedWorkspaceIds((current) => {
+						const newIds = newWorkspaces.map((ws) => ws.id);
+						const sameContent =
+							current.size === newIds.length &&
+							newIds.every((id) => current.has(id));
+						if (sameContent) {
+							return current;
+						}
+						return new Set(newIds);
+					});
+				}}
 				canCheckWorkspaces={canCheckWorkspaces}
 				templates={filteredTemplates}
 				templatesFetchStatus={templatesQuery.status}
@@ -125,12 +170,31 @@ const WorkspacesPage: FC = () => {
 				page={pagination.page}
 				limit={pagination.limit}
 				onPageChange={pagination.goToPage}
-				filterProps={filterProps}
-				isRunningBatchAction={batchActions.isLoading}
-				onDeleteAll={() => setConfirmingBatchAction("delete")}
-				onUpdateAll={() => setConfirmingBatchAction("update")}
-				onStartAll={() => batchActions.startAll(checkedWorkspaces)}
-				onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
+				filterState={filterState}
+				isRunningBatchAction={batchActions.isProcessing}
+				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
+				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
+				onBatchStopTransition={() => batchActions.stop(checkedWorkspaces)}
+				onBatchUpdateTransition={() => {
+					// Just because batch-updating can be really dangerous
+					// action for running workspaces, we're going to invalidate
+					// all relevant queries as a prefetch strategy before the
+					// modal content is even allowed to mount.
+					for (const ws of checkedWorkspaces) {
+						// Our data layer is a little messy right now, so
+						// there's no great way to invalidate a bunch of
+						// template version queries with a single function call,
+						// while also avoiding all other tangentially connected
+						// resources that use the same key pattern. Have to be
+						// super granular and make one call per workspace.
+						queryClient.invalidateQueries({
+							queryKey: [templateVersionRoot, ws.template_active_version_id],
+							exact: true,
+							type: "all",
+						});
+					}
+					setActiveBatchAction("update");
+				}}
 				onActionSuccess={async () => {
 					await queryClient.invalidateQueries({
 						queryKey: workspacesQueryOptions.queryKey,
@@ -145,31 +209,27 @@ const WorkspacesPage: FC = () => {
 			/>
 
 			<BatchDeleteConfirmation
-				isLoading={batchActions.isLoading}
+				isLoading={batchActions.isProcessing}
 				checkedWorkspaces={checkedWorkspaces}
-				open={confirmingBatchAction === "delete"}
+				open={activeBatchAction === "delete"}
+				onClose={() => setActiveBatchAction(undefined)}
 				onConfirm={async () => {
-					await batchActions.deleteAll(checkedWorkspaces);
-					setConfirmingBatchAction(null);
-				}}
-				onClose={() => {
-					setConfirmingBatchAction(null);
+					await batchActions.delete(checkedWorkspaces);
+					setActiveBatchAction(undefined);
 				}}
 			/>
 
-			<BatchUpdateConfirmation
-				isLoading={batchActions.isLoading}
-				checkedWorkspaces={checkedWorkspaces}
-				open={confirmingBatchAction === "update"}
-				onConfirm={async () => {
-					await batchActions.updateAll({
+			<BatchUpdateModalForm
+				open={activeBatchAction === "update"}
+				workspacesToUpdate={checkedWorkspaces}
+				isProcessing={batchActions.isProcessing}
+				onCancel={() => setActiveBatchAction(undefined)}
+				onSubmit={async () => {
+					await batchActions.updateTemplateVersions({
 						workspaces: checkedWorkspaces,
 						isDynamicParametersEnabled: false,
 					});
-					setConfirmingBatchAction(null);
-				}}
-				onClose={() => {
-					setConfirmingBatchAction(null);
+					setActiveBatchAction(undefined);
 				}}
 			/>
 		</>
@@ -179,17 +239,20 @@ const WorkspacesPage: FC = () => {
 export default WorkspacesPage;
 
 type UseWorkspacesFilterOptions = {
-	searchParamsResult: ReturnType<typeof useSearchParams>;
+	searchParams: URLSearchParams;
+	onSearchParamsChange: (newParams: URLSearchParams) => void;
 	onFilterChange: () => void;
 };
 
 const useWorkspacesFilter = ({
-	searchParamsResult,
+	searchParams,
+	onSearchParamsChange,
 	onFilterChange,
 }: UseWorkspacesFilterOptions) => {
 	const filter = useFilter({
 		fallbackFilter: "owner:me",
-		searchParamsResult,
+		searchParams,
+		onSearchParamsChange,
 		onUpdate: onFilterChange,
 	});
 

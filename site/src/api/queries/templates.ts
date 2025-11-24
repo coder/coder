@@ -35,7 +35,7 @@ export const templateByName = (organization: string, name: string) => {
 	} satisfies QueryOptions<Template>;
 };
 
-const getTemplatesQueryKey = (
+export const getTemplatesQueryKey = (
 	options?: GetTemplatesOptions | GetTemplatesQuery,
 ) => ["templates", options];
 
@@ -45,21 +45,6 @@ export const templates = (
 	return {
 		queryKey: getTemplatesQueryKey(options),
 		queryFn: () => API.getTemplates(options),
-	};
-};
-
-const getTemplatesByOrganizationQueryKey = (
-	organization: string,
-	options?: GetTemplatesOptions,
-) => [organization, "templates", options?.deprecated];
-
-const templatesByOrganization = (
-	organization: string,
-	options: GetTemplatesOptions = {},
-) => {
-	return {
-		queryKey: getTemplatesByOrganizationQueryKey(organization, options),
-		queryFn: () => API.getTemplatesByOrganization(organization, options),
 	};
 };
 
@@ -121,9 +106,11 @@ export const templateExamples = () => {
 	};
 };
 
+export const templateVersionRoot: string = "templateVersion";
+
 export const templateVersion = (versionId: string) => {
 	return {
-		queryKey: ["templateVersion", versionId],
+		queryKey: [templateVersionRoot, versionId],
 		queryFn: () => API.getTemplateVersion(versionId),
 	};
 };
@@ -134,7 +121,7 @@ export const templateVersionByName = (
 	versionName: string,
 ) => {
 	return {
-		queryKey: ["templateVersion", organizationId, templateName, versionName],
+		queryKey: [templateVersionRoot, organizationId, templateName, versionName],
 		queryFn: () =>
 			API.getTemplateVersionByName(organizationId, templateName, versionName),
 	};
@@ -153,7 +140,7 @@ export const templateVersions = (templateId: string) => {
 };
 
 export const templateVersionVariablesKey = (versionId: string) => [
-	"templateVersion",
+	templateVersionRoot,
 	versionId,
 	"variables",
 ];
@@ -216,7 +203,7 @@ export const templaceACLAvailable = (
 };
 
 const templateVersionExternalAuthKey = (versionId: string) => [
-	"templateVersion",
+	templateVersionRoot,
 	versionId,
 	"externalAuth",
 ];
@@ -257,21 +244,27 @@ const createTemplateFn = async (options: CreateTemplateOptions) => {
 
 export const templateVersionLogs = (versionId: string) => {
 	return {
-		queryKey: ["templateVersion", versionId, "logs"],
+		queryKey: [templateVersionRoot, versionId, "logs"],
 		queryFn: () => API.getTemplateVersionLogs(versionId),
 	};
 };
 
+export const richParametersKey = (versionId: string) => [
+	templateVersionRoot,
+	versionId,
+	"richParameters",
+];
+
 export const richParameters = (versionId: string) => {
 	return {
-		queryKey: ["templateVersion", versionId, "richParameters"],
+		queryKey: richParametersKey(versionId),
 		queryFn: () => API.getTemplateVersionRichParameters(versionId),
 	};
 };
 
 export const resources = (versionId: string) => {
 	return {
-		queryKey: ["templateVersion", versionId, "resources"],
+		queryKey: [templateVersionRoot, versionId, "resources"],
 		queryFn: () => API.getTemplateVersionResources(versionId),
 	};
 };
@@ -293,7 +286,7 @@ export const previousTemplateVersion = (
 ) => {
 	return {
 		queryKey: [
-			"templateVersion",
+			templateVersionRoot,
 			organizationId,
 			templateName,
 			versionName,
@@ -313,7 +306,7 @@ export const previousTemplateVersion = (
 
 export const templateVersionPresets = (versionId: string) => {
 	return {
-		queryKey: ["templateVersion", versionId, "presets"],
+		queryKey: [templateVersionRoot, versionId, "presets"],
 		queryFn: () => API.getTemplateVersionPresets(versionId),
 	};
 };
@@ -323,7 +316,7 @@ const waitBuildToBeFinished = async (
 	onRequest?: (data: TemplateVersion) => void,
 ) => {
 	let data: TemplateVersion;
-	let jobStatus: ProvisionerJobStatus | undefined = undefined;
+	let jobStatus: ProvisionerJobStatus | undefined;
 	do {
 		// When pending we want to poll more frequently
 		await delay(jobStatus === "pending" ? 250 : 1000);

@@ -163,11 +163,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, err
 	}
 
-	client := wsproxysdk.New(opts.DashboardURL)
-	err := client.SetSessionToken(opts.ProxySessionToken)
-	if err != nil {
-		return nil, xerrors.Errorf("set client token: %w", err)
-	}
+	client := wsproxysdk.New(opts.DashboardURL, opts.ProxySessionToken)
 
 	// Use the configured client if provided.
 	if opts.HTTPClient != nil {
@@ -294,7 +290,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		opts.StatsCollectorOptions.Reporter = &appStatsReporter{Client: client}
 	}
 
-	s.AppServer = &workspaceapps.Server{
+	s.AppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
@@ -312,12 +308,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 
 		DisablePathApps: opts.DisablePathApps,
-		Cookies:         opts.CookieConfig,
+		CookiesConfig:   opts.CookieConfig,
 
 		AgentProvider:            agentProvider,
 		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
 		APIKeyEncryptionKeycache: encryptionCache,
-	}
+	})
 
 	derpHandler := derphttp.Handler(derpServer)
 	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derpHandler)
@@ -333,17 +329,18 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Use(
 		// TODO: @emyrk Should we standardize these in some other package?
 		httpmw.Recover(s.Logger),
+		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		loggermw.Logger(s.Logger),
 		prometheusMW,
-		corsMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
 		s.AppServer.HandleSubdomain(apiRateLimiter),
+		corsMW,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -439,8 +436,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) RegisterNow() error {
-	_, err := s.registerLoop.RegisterNow()
+func (s *Server) RegisterNow(ctx context.Context) error {
+	_, err := s.registerLoop.RegisterNow(ctx)
 	return err
 }
 
@@ -524,7 +521,7 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 		errs := make(chan error, len(replicas))
 		for _, peer := range replicas {
 			go func(peer codersdk.Replica) {
-				err := replicasync.PingPeerReplica(ctx, client, peer.RelayAddress)
+				err := pingReplica(ctx, client, peer)
 				if err != nil {
 					errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
 					logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
@@ -554,6 +551,28 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 
 	//nolint:forcetypeassert
 	return errStrInterface.(string)
+}
+
+// pingReplica pings a replica over it's internal relay address to ensure it's
+// reachable and alive for health purposes. It will try to ping the replica
+// twice if the first ping fails, with a short delay between attempts.
+func pingReplica(ctx context.Context, client http.Client, replica codersdk.Replica) error {
+	const attempts = 2
+	var err error
+	for i := 0; i < attempts; i++ {
+		err = replicasync.PingPeerReplica(ctx, client, replica.RelayAddress)
+		if err == nil {
+			return nil
+		}
+		if i < attempts-1 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(1 * time.Second):
+			}
+		}
+	}
+	return err
 }
 
 func (s *Server) handleRegisterFailure(err error) {

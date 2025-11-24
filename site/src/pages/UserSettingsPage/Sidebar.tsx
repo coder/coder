@@ -1,5 +1,3 @@
-import AppearanceIcon from "@mui/icons-material/Brush";
-import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitIcon } from "components/Icons/GitIcon";
@@ -9,21 +7,25 @@ import {
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import {
+	BellIcon,
+	BrushIcon,
 	CalendarCogIcon,
 	FingerprintIcon,
 	KeyIcon,
 	LockIcon,
+	ShieldIcon,
 	UserIcon,
 } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import { isDevBuild } from "utils/buildInfo";
 
 interface SidebarProps {
 	user: User;
 }
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments, buildInfo } = useDashboard();
 	const showSchedulePage =
 		entitlements.features.advanced_template_scheduling.enabled;
 
@@ -37,12 +39,17 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="account" icon={UserIcon}>
 				Account
 			</SidebarNavItem>
-			<SidebarNavItem href="appearance" icon={AppearanceIcon}>
+			<SidebarNavItem href="appearance" icon={BrushIcon}>
 				Appearance
 			</SidebarNavItem>
 			<SidebarNavItem href="external-auth" icon={GitIcon}>
 				External Authentication
 			</SidebarNavItem>
+			{(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
+				<SidebarNavItem href="oauth2-provider" icon={ShieldIcon}>
+					OAuth2 Applications
+				</SidebarNavItem>
+			)}
 			{showSchedulePage && (
 				<SidebarNavItem href="schedule" icon={CalendarCogIcon}>
 					Schedule
@@ -57,7 +64,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="tokens" icon={KeyIcon}>
 				Tokens
 			</SidebarNavItem>
-			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+			<SidebarNavItem href="notifications" icon={BellIcon}>
 				Notifications
 			</SidebarNavItem>
 		</BaseSidebar>

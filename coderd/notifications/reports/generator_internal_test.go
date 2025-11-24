@@ -505,7 +505,6 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.Pubsub, *notificationstest.FakeEnqueuer, *quartz.Mock) {
 	t.Helper()
 
-	// nolint:gocritic // reportFailedWorkspaceBuilds is called by system.
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	logger := slogtest.Make(t, &slogtest.Options{})
 	db, ps := dbtestutil.NewDB(t)

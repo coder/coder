@@ -3,13 +3,12 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
-const Language = {
+const _Language = {
 	unknownError: "Oops, an unknown error occurred.",
 };
 
@@ -22,9 +21,7 @@ const CreateUserPage: FC = () => {
 
 	return (
 		<Margins>
-			<Helmet>
-				<title>{pageTitle("Create User")}</title>
-			</Helmet>
+			<title>{pageTitle("Create User")}</title>
 
 			<CreateUserForm
 				error={createUserMutation.error}

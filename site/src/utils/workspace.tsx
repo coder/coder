@@ -5,8 +5,12 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
-import { HourglassIcon } from "lucide-react";
-import { CircleAlertIcon, PlayIcon, SquareIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	HourglassIcon,
+	PlayIcon,
+	SquareIcon,
+} from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
 
@@ -75,14 +79,38 @@ export const getDisplayWorkspaceBuildStatus = (
 
 export const getDisplayWorkspaceBuildInitiatedBy = (
 	build: TypesGen.WorkspaceBuild,
-): string => {
+): string | undefined => {
 	switch (build.reason) {
 		case "initiator":
+		case "dashboard":
+		case "cli":
+		case "ssh_connection":
+		case "vscode_connection":
+		case "jetbrains_connection":
 			return build.initiator_name;
 		case "autostart":
 		case "autostop":
+		case "dormancy":
 			return "Coder";
 	}
+	return undefined;
+};
+
+export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
+
+export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
+	// User build reasons
+	initiator: "API",
+	dashboard: "Dashboard",
+	cli: "CLI",
+	ssh_connection: "SSH Connection",
+	vscode_connection: "VSCode Connection",
+	jetbrains_connection: "JetBrains Connection",
+
+	// System build reasons
+	autostart: "Autostart",
+	autostop: "Autostop",
+	dormancy: "Dormancy",
 };
 
 const getWorkspaceBuildDurationInSeconds = (

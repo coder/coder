@@ -12,8 +12,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { SettingsIcon } from "lucide-react";
-import { CircleAlertIcon } from "lucide-react";
+import { CircleAlertIcon, SettingsIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import type {
 	AutofillBuildParameter,

@@ -74,7 +74,6 @@ type Options struct {
 	LogDir                       string
 	TempDir                      string
 	ScriptDataDir                string
-	ExchangeToken                func(ctx context.Context) (string, error)
 	Client                       Client
 	ReconnectingPTYTimeout       time.Duration
 	EnvironmentVariables         map[string]string
@@ -98,7 +97,8 @@ type Client interface {
 	ConnectRPC26(ctx context.Context) (
 		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 	)
-	RewriteDERPMap(derpMap *tailcfg.DERPMap)
+	tailnet.DERPMapRewriter
+	agentsdk.RefreshableSessionTokenProvider
 }
 
 type Agent interface {
@@ -130,11 +130,6 @@ func New(options Options) Agent {
 			options.Logger.Debug(context.Background(), "using script data dir", slog.F("script_data_dir", options.ScriptDataDir))
 		}
 		options.ScriptDataDir = options.TempDir
-	}
-	if options.ExchangeToken == nil {
-		options.ExchangeToken = func(_ context.Context) (string, error) {
-			return "", nil
-		}
 	}
 	if options.ReportMetadataInterval == 0 {
 		options.ReportMetadataInterval = time.Second
@@ -172,7 +167,6 @@ func New(options Options) Agent {
 		coordDisconnected:                  make(chan struct{}),
 		environmentVariables:               options.EnvironmentVariables,
 		client:                             options.Client,
-		exchangeToken:                      options.ExchangeToken,
 		filesystem:                         options.Filesystem,
 		logDir:                             options.LogDir,
 		tempDir:                            options.TempDir,
@@ -203,7 +197,6 @@ func New(options Options) Agent {
 	// coordinator during shut down.
 	close(a.coordDisconnected)
 	a.announcementBanners.Store(new([]codersdk.BannerConfig))
-	a.sessionToken.Store(new(string))
 	a.init()
 	return a
 }
@@ -212,7 +205,6 @@ type agent struct {
 	clock             quartz.Clock
 	logger            slog.Logger
 	client            Client
-	exchangeToken     func(ctx context.Context) (string, error)
 	tailnetListenPort uint16
 	filesystem        afero.Fs
 	logDir            string
@@ -254,7 +246,6 @@ type agent struct {
 	scriptRunner                       *agentscripts.Runner
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
-	sessionToken                       atomic.Pointer[string]
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
 	blockFileTransfer                  bool
@@ -336,18 +327,16 @@ func (a *agent) init() {
 	// will not report anywhere.
 	a.scriptRunner.RegisterMetrics(a.prometheusRegistry)
 
-	if a.devcontainers {
-		containerAPIOpts := []agentcontainers.Option{
-			agentcontainers.WithExecer(a.execer),
-			agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
-			agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
-				return a.logSender.GetScriptLogger(logSourceID)
-			}),
-		}
-		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
-
-		a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+	containerAPIOpts := []agentcontainers.Option{
+		agentcontainers.WithExecer(a.execer),
+		agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
+		agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
+			return a.logSender.GetScriptLogger(logSourceID)
+		}),
 	}
+	containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
+
+	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -792,10 +781,14 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 			logger.Debug(ctx, "reporting connection")
 			_, err := aAPI.ReportConnection(ctx, payload)
 			if err != nil {
-				return xerrors.Errorf("failed to report connection: %w", err)
+				// Do not fail the loop if we fail to report a connection, just
+				// log a warning.
+				// Related to https://github.com/coder/coder/issues/20194
+				logger.Warn(ctx, "failed to report connection to server", slog.Error(err))
+				// keep going, we still need to remove it from the slice
+			} else {
+				logger.Debug(ctx, "successfully reported connection")
 			}
-
-			logger.Debug(ctx, "successfully reported connection")
 
 			// Remove the payload we sent.
 			a.reportConnectionsMu.Lock()
@@ -825,6 +818,13 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 	} else {
 		// Best effort.
 		ip = host
+	}
+
+	// If the IP is "localhost" (which it can be in some cases), set it to
+	// 127.0.0.1 instead.
+	// Related to https://github.com/coder/coder/issues/20194
+	if ip == "localhost" {
+		ip = "127.0.0.1"
 	}
 
 	a.reportConnectionsMu.Lock()
@@ -918,11 +918,10 @@ func (a *agent) run() (retErr error) {
 	// This allows the agent to refresh its token if necessary.
 	// For instance identity this is required, since the instance
 	// may not have re-provisioned, but a new agent ID was created.
-	sessionToken, err := a.exchangeToken(a.hardCtx)
+	err := a.client.RefreshToken(a.hardCtx)
 	if err != nil {
-		return xerrors.Errorf("exchange token: %w", err)
+		return xerrors.Errorf("refresh token: %w", err)
 	}
-	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
 	aAPI, tAPI, err := a.client.ConnectRPC26(a.hardCtx)
@@ -1162,7 +1161,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				scripts             = manifest.Scripts
 				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
 			)
-			if a.containerAPI != nil {
+			if a.devcontainers {
 				// Init the container API with the manifest and client so that
 				// we can start accepting requests. The final start of the API
 				// happens after the startup scripts have been executed to
@@ -1170,7 +1169,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// return existing devcontainers but actual container detection
 				// and creation will be deferred.
 				a.containerAPI.Init(
-					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName),
+					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName, manifest.Directory),
 					agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
 					agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
 				)
@@ -1197,7 +1196,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// autostarted devcontainer will be included in this time.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
 
-				if a.containerAPI != nil {
+				if a.devcontainers {
 					// Start the container API after the startup scripts have
 					// been executed to ensure that the required tools can be
 					// installed.
@@ -1361,7 +1360,7 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
 
 		// Specific Coder subcommands require the agent token exposed!
-		"CODER_AGENT_TOKEN": *a.sessionToken.Load(),
+		"CODER_AGENT_TOKEN": a.client.GetSessionToken(),
 
 		// Git on Windows resolves with UNIX-style paths.
 		// If using backslashes, it's unable to find the executable.
@@ -1928,10 +1927,8 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
 	}
 
-	if a.containerAPI != nil {
-		if err := a.containerAPI.Close(); err != nil {
-			a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
-		}
+	if err := a.containerAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so

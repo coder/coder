@@ -12,7 +12,6 @@ import (
 )
 
 func (r *RootCmd) userEditRoles() *serpent.Command {
-	client := new(codersdk.Client)
 	var givenRoles []string
 	cmd := &serpent.Command{
 		Use:   "edit-roles <username|user_id>",
@@ -26,8 +25,13 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				Value:       serpent.StringArrayOf(&givenRoles),
 			},
 		},
-		Middleware: serpent.Chain(serpent.RequireNArgs(1), r.InitClient(client)),
+		Middleware: serpent.Chain(serpent.RequireNArgs(1)),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 
 			user, err := client.User(ctx, inv.Args[0])

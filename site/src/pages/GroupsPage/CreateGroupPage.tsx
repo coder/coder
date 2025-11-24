@@ -1,8 +1,7 @@
 import { createGroup } from "api/queries/groups";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateGroupPageView } from "./CreateGroupPageView";
 
@@ -16,9 +15,8 @@ const CreateGroupPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Create Group")}</title>
-			</Helmet>
+			<title>{pageTitle("Create Group")}</title>
+
 			<CreateGroupPageView
 				onSubmit={async (data) => {
 					const newGroup = await createGroupMutation.mutateAsync(data);

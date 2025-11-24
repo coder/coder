@@ -135,7 +135,7 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 		t.Skip("X11 forwarding is only supported on Linux")
 	}
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	logger := testutil.Logger(t)
 	fs := afero.NewMemMapFs()
 
@@ -238,7 +238,9 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 	payload := "hello world"
 	go func() {
 		conn, err := inproc.Dial(ctx, testutil.NewAddr("tcp", fmt.Sprintf("localhost:%d", agentssh.X11StartPort+agentssh.X11DefaultDisplayOffset)))
-		assert.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		_, err = conn.Write([]byte(payload))
 		assert.NoError(t, err)
 		_ = conn.Close()

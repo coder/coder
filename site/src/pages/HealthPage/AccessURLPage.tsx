@@ -1,7 +1,6 @@
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { Helmet } from "react-helmet-async";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
 import {
 	GridData,
@@ -21,9 +20,7 @@ const AccessURLPage = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Access URL - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Access URL - Health")}</title>
 
 			<Header>
 				<HeaderTitle>
@@ -39,7 +36,7 @@ const AccessURLPage = () => {
 				{accessUrl.warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>

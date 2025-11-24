@@ -1,23 +1,9 @@
 import { Stack } from "components/Stack/Stack";
 import type { FC, PropsWithChildren } from "react";
-
 export const AppPreview: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<Stack
-			css={(theme) => ({
-				padding: "2px 12px",
-				borderRadius: 9999,
-				border: `1px solid ${theme.palette.divider}`,
-				color: theme.palette.text.primary,
-				background: theme.palette.background.paper,
-				flexShrink: 0,
-				width: "fit-content",
-				fontSize: 12,
-
-				"& img, & svg": {
-					width: 13,
-				},
-			})}
+			className="flex items-center h-8 px-3 rounded-full border border-solid border-surface-quaternary text-content-primary bg-surface-secondary flex-shrink-0 w-fit text-xs [&>svg]:w-[13px] [&>img]:w-[13px]"
 			alignItems="center"
 			direction="row"
 			spacing={1}

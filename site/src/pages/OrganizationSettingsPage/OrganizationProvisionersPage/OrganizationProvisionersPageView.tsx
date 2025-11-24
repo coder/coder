@@ -1,6 +1,7 @@
 import type { ProvisionerDaemon } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
@@ -24,7 +25,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { SquareArrowOutUpRightIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
@@ -32,6 +33,7 @@ import { ProvisionerRow } from "./ProvisionerRow";
 
 type ProvisionersFilter = {
 	ids: string;
+	offline: boolean;
 };
 
 interface OrganizationProvisionersPageViewProps {
@@ -56,7 +58,7 @@ export const OrganizationProvisionersPageView: FC<
 	onRetry,
 }) => {
 	return (
-		<section>
+		<section className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
@@ -102,70 +104,89 @@ export const OrganizationProvisionersPageView: FC<
 					documentationLink={docs("/")}
 				/>
 			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Key</TableHead>
-							<TableHead>Version</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead>Tags</TableHead>
-							<TableHead>
-								<LastConnectionHead />
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{provisioners ? (
-							provisioners.length > 0 ? (
-								provisioners.map((provisioner) => (
-									<ProvisionerRow
-										provisioner={provisioner}
-										key={provisioner.id}
-										buildVersion={buildVersion}
-										defaultIsOpen={filter.ids.includes(provisioner.id)}
-									/>
-								))
-							) : (
+				<>
+					<div className="flex items-center gap-2 mb-6">
+						<Checkbox
+							id="offline-filter"
+							checked={filter.offline}
+							onCheckedChange={(checked) => {
+								onFilterChange({
+									...filter,
+									offline: checked === true,
+								});
+							}}
+						/>
+						<label
+							htmlFor="offline-filter"
+							className="text-sm font-medium leading-none"
+						>
+							Include offline provisioners
+						</label>
+					</div>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Name</TableHead>
+								<TableHead>Key</TableHead>
+								<TableHead>Version</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead>Tags</TableHead>
+								<TableHead>
+									<LastConnectionHead />
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{provisioners ? (
+								provisioners.length > 0 ? (
+									provisioners.map((provisioner) => (
+										<ProvisionerRow
+											provisioner={provisioner}
+											key={provisioner.id}
+											buildVersion={buildVersion}
+											defaultIsOpen={filter.ids.includes(provisioner.id)}
+										/>
+									))
+								) : (
+									<TableRow>
+										<TableCell colSpan={999}>
+											<EmptyState
+												message="No provisioners found"
+												description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
+												cta={
+													<Button size="sm" asChild>
+														<Link href={docs("/admin/provisioners")}>
+															Create a provisioner
+														</Link>
+													</Button>
+												}
+											/>
+										</TableCell>
+									</TableRow>
+								)
+							) : error ? (
 								<TableRow>
 									<TableCell colSpan={999}>
 										<EmptyState
-											message="No provisioners found"
-											description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
+											message="Error loading the provisioner jobs"
 											cta={
-												<Button size="sm" asChild>
-													<a href={docs("/admin/provisioners")}>
-														Create a provisioner
-														<SquareArrowOutUpRightIcon />
-													</a>
+												<Button onClick={onRetry} size="sm">
+													Retry
 												</Button>
 											}
 										/>
 									</TableCell>
 								</TableRow>
-							)
-						) : error ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="Error loading the provisioner jobs"
-										cta={
-											<Button onClick={onRetry} size="sm">
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
+							) : (
+								<TableRow>
+									<TableCell colSpan={999}>
+										<Loader />
+									</TableCell>
+								</TableRow>
+							)}
+						</TableBody>
+					</Table>
+				</>
 			)}
 		</section>
 	);

@@ -5,15 +5,13 @@ import {
 	patchOrganizationSyncSettings,
 } from "api/queries/idpsync";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
@@ -62,9 +60,7 @@ const IdpOrgSyncPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Organization IdP Sync")}</title>
-			</Helmet>
+			<title>{pageTitle("Organization IdP Sync")}</title>
 
 			<div className="flex flex-col gap-12">
 				<header className="flex flex-row items-baseline justify-between">
@@ -84,7 +80,7 @@ const IdpOrgSyncPage: FC = () => {
 					<Cond condition={!isIdpSyncEnabled}>
 						<Paywall
 							message="IdP Organization Sync"
-							description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need an Premium license to use this feature."
+							description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
 							documentationLink={docs("/admin/users/idp-sync")}
 						/>
 					</Cond>

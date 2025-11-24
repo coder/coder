@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -158,11 +159,16 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		organization = httpmw.OrganizationParam(r)
 	)
 
-	members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		OrganizationID: organization.ID,
-		UserID:         uuid.Nil,
-		IncludeSystem:  false,
-	})
+	params, errors := searchquery.Members(r.URL.Query().Get("q"), organization.ID)
+	if len(errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid organization member search query.",
+			Validations: errors,
+		})
+		return
+	}
+
+	members, err := api.Database.OrganizationMembers(ctx, params)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -195,7 +201,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                  = r.Context()
 		organization         = httpmw.OrganizationParam(r)
-		paginationParams, ok = parsePagination(rw, r)
+		paginationParams, ok = ParsePagination(rw, r)
 	)
 	if !ok {
 		return
@@ -203,6 +209,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 
 	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
 		OrganizationID: organization.ID,
+		IncludeSystem:  false,
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
 		// #nosec G115 - Pagination offsets are small and fit in int32

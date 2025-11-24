@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import {
 	MockGroupSyncSettings,
 	MockOrganization,
 	MockRoleSyncSettings,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 
 const meta: Meta<typeof ExportPolicyButton> = {

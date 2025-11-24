@@ -148,7 +148,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Password not strong enough!",
+			Message: "Password is invalid",
 			Validations: []codersdk.ValidationError{{
 				Field:  "password",
 				Detail: err.Error(),
@@ -290,7 +290,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		return nil, -1, false
 	}
 
-	paginationParams, ok := parsePagination(rw, r)
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return nil, -1, false
 	}
@@ -448,7 +448,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		err = userpassword.Validate(req.Password)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Password not strong enough!",
+				Message: "Password is invalid",
 				Validations: []codersdk.ValidationError{{
 					Field:  "password",
 					Detail: err.Error(),
@@ -542,7 +542,10 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+	// This query is ONLY done to get the workspace count, so we use a system
+	// context to return ALL workspaces. Not just workspaces the user can view.
+	// nolint:gocritic
+	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		OwnerID: user.ID,
 	})
 	if err != nil {
@@ -750,6 +753,14 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
+
+	// If caller wants to update user's username, they need "update_users" permission.
+	// This is restricted to user admins only.
+	if params.Username != user.Username && !api.Authorize(r, policy.ActionUpdate, user) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	existentUser, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: params.Username,
 	})
@@ -1233,6 +1244,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		UserID:         user.ID,
 		OrganizationID: uuid.Nil,
 		IncludeSystem:  false,
+		GithubUserID:   0,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1525,21 +1537,13 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 // findUserAdmins fetches all users with user admin permission including owners.
 func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner, codersdk.RoleUserAdmin},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("get owners: %w", err)
 	}
-	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleUserAdmin},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get user admins: %w", err)
-	}
-	return append(owners, userAdmins...), nil
+	return userAdmins, nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
@@ -1567,6 +1571,23 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {
+	// Derive a single legacy scope name for response compatibility.
+	// Historically, the API exposed only two scope strings: "all" and
+	// "application_connect". Continue to return those for clients even
+	// though the database stores canonical values (e.g. "coder:all")
+	// and may include low-level scopes.
+	var legacyScope codersdk.APIKeyScope
+	if k.Scopes.Has(database.ApiKeyScopeCoderApplicationConnect) {
+		legacyScope = codersdk.APIKeyScopeApplicationConnect
+	} else if k.Scopes.Has(database.ApiKeyScopeCoderAll) {
+		legacyScope = codersdk.APIKeyScopeAll
+	}
+
+	scopes := make([]codersdk.APIKeyScope, 0, len(k.Scopes))
+	for _, s := range k.Scopes {
+		scopes = append(scopes, codersdk.APIKeyScope(s))
+	}
+
 	return codersdk.APIKey{
 		ID:              k.ID,
 		UserID:          k.UserID,
@@ -1575,8 +1596,10 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		CreatedAt:       k.CreatedAt,
 		UpdatedAt:       k.UpdatedAt,
 		LoginType:       codersdk.LoginType(k.LoginType),
-		Scope:           codersdk.APIKeyScope(k.Scope),
+		Scope:           legacyScope,
+		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
+		AllowList:       db2sdk.List(k.AllowList, db2sdk.APIAllowListTarget),
 	}
 }

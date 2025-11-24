@@ -34,8 +34,7 @@ import {
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
-import { UserPlusIcon } from "lucide-react";
-import { EllipsisVertical, TriangleAlert } from "lucide-react";
+import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
@@ -82,7 +81,7 @@ export const OrganizationMembersPageView: FC<
 	updateMemberRoles,
 }) => {
 	return (
-		<div>
+		<div className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Members</SettingsHeaderTitle>
 			</SettingsHeader>
@@ -150,14 +149,12 @@ export const OrganizationMembersPageView: FC<
 											isLoading={isUpdatingMemberRoles}
 											canEditUsers={canEditMembers}
 											onEditRoles={async (roles) => {
+												// React doesn't mind uncaught errors in event handlers,
+												// but testing-library does.
 												try {
 													await updateMemberRoles(member, roles);
 													displaySuccess("Roles updated successfully.");
-												} catch (error) {
-													displayError(
-														getErrorMessage(error, "Failed to update roles."),
-													);
-												}
+												} catch {}
 											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />

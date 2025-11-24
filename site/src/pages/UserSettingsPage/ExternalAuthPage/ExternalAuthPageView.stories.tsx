@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockGithubAuthLink,
 	MockGithubExternalProvider,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
 const meta: Meta<typeof ExternalAuthPageView> = {

@@ -74,17 +74,17 @@ performing the following step or copying the directory to another location.
 
 <div class="tabs">
 
-## macOS
-
-```shell
-rm -rf ~/Library/Application\ Support/coderv2
-```
-
 ## Linux
 
 ```shell
 rm -rf ~/.config/coderv2
 rm -rf ~/.cache/coder
+```
+
+## macOS
+
+```shell
+rm -rf ~/Library/Application\ Support/coderv2
 ```
 
 ## Windows

@@ -2,14 +2,12 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { API } from "api/api";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
-import { isAxiosError } from "axios";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
@@ -21,15 +19,14 @@ import {
 	useCallback,
 	useEffect,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
+import { AgentExternal } from "./AgentExternal";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
@@ -40,8 +37,10 @@ import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
-import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
+import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -60,13 +59,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 	onUpdateAgent,
 	initialMetadata,
 }) => {
-	const { browser_only } = useFeatureVisibility();
+	const { browser_only, workspace_external_agent } = useFeatureVisibility();
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
+	const isExternalAgent = workspace.latest_build.has_external_agent;
 	const shouldDisplayAgentApps =
 		(agent.status === "connected" && hasAppsToDisplay) ||
-		agent.status === "connecting";
+		(agent.status === "connecting" && !isExternalAgent);
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
@@ -78,24 +78,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
 			hasStartupFeatures,
 	);
-	const agentLogs = useAgentLogs(agent, showLogs);
+	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
-	const startupLogs = useMemo(() => {
-		const allLogs = agentLogs || [];
-
-		const logs = [...allLogs];
-		if (agent.logs_overflowed) {
-			logs.push({
-				id: -1,
-				level: "error",
-				output: "Startup logs exceeded the max size of 1MB!",
-				created_at: new Date().toISOString(),
-				source_id: "",
-			});
-		}
-		return logs;
-	}, [agentLogs, agent.logs_overflowed]);
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
@@ -107,9 +92,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 	useLayoutEffect(() => {
 		// If we're currently watching the bottom, we always want to stay at the bottom.
 		if (bottomOfLogs && logListRef.current) {
-			logListRef.current.scrollToItem(startupLogs.length - 1, "end");
+			logListRef.current.scrollToItem(agentLogs.length - 1, "end");
 		}
-	}, [showLogs, startupLogs, bottomOfLogs]);
+	}, [showLogs, agentLogs, bottomOfLogs]);
 
 	// This is a bit of a hack on the react-window API to get the scroll position.
 	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
@@ -133,28 +118,30 @@ export const AgentRow: FC<AgentRowProps> = ({
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	}, []);
 
-	const { data: devcontainers } = useQuery({
-		queryKey: ["agents", agent.id, "containers"],
-		queryFn: () => API.getAgentContainers(agent.id),
-		enabled: agent.status === "connected",
-		select: (res) => res.devcontainers,
-		// TODO: Implement a websocket connection to get updates on containers
-		// without having to poll.
-		refetchInterval: ({ state }) => {
-			const { error } = state;
-			return isAxiosError(error) && error.response?.status === 403
-				? false
-				: 10_000;
-		},
-	});
+	const devcontainers = useAgentContainers(agent);
 
 	// This is used to show the parent apps of the devcontainer.
 	const [showParentApps, setShowParentApps] = useState(false);
 
+	const anyRunningOrStartingDevcontainers =
+		devcontainers?.find(
+			(dc) => dc.status === "running" || dc.status === "starting",
+		) !== undefined;
+
+	// We only want to hide the parent apps by default when there are dev
+	// containers that are either starting or running. If they are all in
+	// the stopped state, it doesn't make sense to hide the parent apps.
 	let shouldDisplayAppsSection = shouldDisplayAgentApps;
-	if (devcontainers && devcontainers.length > 0 && !showParentApps) {
+	if (anyRunningOrStartingDevcontainers && !showParentApps) {
 		shouldDisplayAppsSection = false;
 	}
+
+	// Check if any devcontainers have errors to gray out agent border
+	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
+
+	const hasSubdomainApps = agent.apps?.some((app) => app.subdomain);
+	const shouldShowWildcardWarning =
+		hasSubdomainApps && !proxy.proxy?.wildcard_hostname;
 
 	return (
 		<Stack
@@ -165,6 +152,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 				styles.agentRow,
 				styles[`agentRow-${agent.status}`],
 				styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
+				(hasDevcontainerErrors || shouldShowWildcardWarning) &&
+					styles.agentRowWithErrors,
 			]}
 		>
 			<header css={styles.header}>
@@ -188,7 +177,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				</div>
 
 				<div className="flex items-center gap-2">
-					{devcontainers && devcontainers.length > 0 && (
+					{anyRunningOrStartingDevcontainers && (
 						<Button
 							variant="outline"
 							size="sm"
@@ -226,6 +215,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
+				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
+
 				{shouldDisplayAppsSection && (
 					<section css={styles.apps}>
 						{shouldDisplayAgentApps && (
@@ -260,7 +251,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{agent.status === "connecting" && (
+				{agent.status === "connecting" && !isExternalAgent && (
 					<section css={styles.apps}>
 						<Skeleton
 							width={80}
@@ -295,6 +286,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
+				{isExternalAgent &&
+					(agent.status === "timeout" || agent.status === "connecting") &&
+					workspace_external_agent && (
+						<AgentExternal agent={agent} workspace={workspace} />
+					)}
+
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
@@ -314,7 +311,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									logs={startupLogs.map((l) => ({
+									overflowed={agent.logs_overflowed}
+									logs={agentLogs.map((l) => ({
 										id: l.id,
 										level: l.level,
 										output: l.output,
@@ -337,7 +335,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							Logs
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />
-						<DownloadAgentLogsButton workspaceId={workspace.id} agent={agent} />
+						<DownloadAgentLogsButton agent={agent} />
 					</Stack>
 				</section>
 			)}
@@ -527,7 +525,7 @@ const styles = {
 	},
 
 	startupLogs: (theme) => ({
-		maxHeight: 256,
+		maxHeight: 420,
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		backgroundColor: theme.palette.background.paper,
 		paddingTop: 16,
@@ -536,5 +534,9 @@ const styles = {
 		"& > div": {
 			position: "relative",
 		},
+	}),
+
+	agentRowWithErrors: (theme) => ({
+		borderColor: theme.palette.divider,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

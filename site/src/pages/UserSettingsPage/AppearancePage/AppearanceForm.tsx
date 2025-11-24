@@ -1,10 +1,3 @@
-import type { Interpolation } from "@emotion/react";
-import CircularProgress from "@mui/material/CircularProgress";
-import FormControl from "@mui/material/FormControl";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
-import { visuallyHidden } from "@mui/utils";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -12,15 +5,17 @@ import {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { PreviewBadge } from "components/Badges/Badges";
-import { Stack } from "components/Stack/Stack";
-import { ThemeOverride } from "contexts/ThemeProvider";
+import { Label } from "components/Label/Label";
+import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
+import { Spinner } from "components/Spinner/Spinner";
 import type { FC } from "react";
-import themes, { DEFAULT_THEME, type Theme } from "theme";
+import { DEFAULT_THEME } from "theme";
 import {
 	DEFAULT_TERMINAL_FONT,
 	terminalFontLabels,
 	terminalFonts,
 } from "theme/constants";
+import { cn } from "utils/cn";
 import { Section } from "../Section";
 
 interface AppearanceFormProps {
@@ -66,67 +61,65 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 
 			<Section
 				title={
-					<Stack direction="row" alignItems="center">
+					<div className="flex flex-row items-center gap-2">
 						<span>Theme</span>
-						{isUpdating && <CircularProgress size={16} />}
-					</Stack>
+						<Spinner loading={isUpdating} size="sm" />
+					</div>
 				}
 				layout="fluid"
+				className="mb-12"
 			>
-				<Stack direction="row" wrap="wrap">
+				<div className="flex flex-row flex-wrap gap-4">
 					<AutoThemePreviewButton
 						displayName="Auto"
 						active={currentTheme === "auto"}
-						themes={[themes.dark, themes.light]}
+						themes={["dark", "light"]}
 						onSelect={() => onChangeTheme("auto")}
 					/>
 					<ThemePreviewButton
 						displayName="Dark"
 						active={currentTheme === "dark"}
-						theme={themes.dark}
+						theme="dark"
 						onSelect={() => onChangeTheme("dark")}
 					/>
 					<ThemePreviewButton
 						displayName="Light"
 						active={currentTheme === "light"}
-						theme={themes.light}
+						theme="light"
 						onSelect={() => onChangeTheme("light")}
 					/>
-				</Stack>
+				</div>
 			</Section>
-			<div css={{ marginBottom: 48 }}></div>
 			<Section
 				title={
-					<Stack direction="row" alignItems="center">
-						<span>Terminal Font</span>
-						{isUpdating && <CircularProgress size={16} />}
-					</Stack>
+					<div className="flex flex-row items-center gap-2">
+						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
+						<Spinner loading={isUpdating} size="sm" />
+					</div>
 				}
 				layout="fluid"
 			>
-				<FormControl>
-					<RadioGroup
-						aria-labelledby="fonts-radio-buttons-group-label"
-						defaultValue={currentTerminalFont}
-						name="fonts-radio-buttons-group"
-						onChange={(_, value) =>
-							onChangeTerminalFont(toTerminalFontName(value))
-						}
-					>
-						{TerminalFontNames.filter((name) => name !== "").map((name) => (
-							<FormControlLabel
-								key={name}
-								value={name}
-								control={<Radio />}
-								label={
-									<div css={{ fontFamily: terminalFonts[name] }}>
-										{terminalFontLabels[name]}
-									</div>
-								}
-							/>
-						))}
-					</RadioGroup>
-				</FormControl>
+				<RadioGroup
+					aria-labelledby="fonts-radio-buttons-group-label"
+					defaultValue={currentTerminalFont}
+					name="fonts-radio-buttons-group"
+					onValueChange={(value) =>
+						onChangeTerminalFont(toTerminalFontName(value))
+					}
+				>
+					{TerminalFontNames.filter((name) => name !== "").map((name) => (
+						<div key={name} className="flex items-center space-x-2">
+							<RadioGroupItem value={name} id={name} />
+							<Label
+								htmlFor={name}
+								className="cursor-pointer font-normal"
+								style={{ fontFamily: terminalFonts[name] }}
+							>
+								{terminalFontLabels[name]}
+							</Label>
+						</div>
+					))}
+				</RadioGroup>
 			</Section>
 		</form>
 	);
@@ -138,8 +131,10 @@ function toTerminalFontName(value: string): TerminalFontName {
 		: "";
 }
 
+type ThemeMode = "dark" | "light";
+
 interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
-	themes: [Theme, Theme];
+	themes: [ThemeMode, ThemeMode];
 	onSelect?: () => void;
 }
 
@@ -162,13 +157,15 @@ const AutoThemePreviewButton: FC<AutoThemePreviewButtonProps> = ({
 				value={displayName}
 				checked={active}
 				onChange={onSelect}
-				css={{ ...visuallyHidden }}
+				className="sr-only"
 			/>
-			<label htmlFor={displayName} className={className}>
+			<label
+				htmlFor={displayName}
+				className={cn("relative cursor-pointer", className)}
+			>
 				<ThemePreview
-					css={{
-						// This half is absolute to not advance the layout (which would offset the second half)
-						position: "absolute",
+					className="absolute"
+					style={{
 						// Slightly past the bounding box to avoid cutting off the outline
 						clipPath: "polygon(-5% -5%, 50% -5%, 50% 105%, -5% 105%)",
 					}}
@@ -209,9 +206,9 @@ const ThemePreviewButton: FC<ThemePreviewButtonProps> = ({
 				value={displayName}
 				checked={active}
 				onChange={onSelect}
-				css={{ ...visuallyHidden }}
+				className="sr-only"
 			/>
-			<label htmlFor={displayName} className={className}>
+			<label htmlFor={displayName} className={cn("cursor-pointer", className)}>
 				<ThemePreview
 					active={active}
 					preview={preview}
@@ -227,152 +224,65 @@ interface ThemePreviewProps {
 	active?: boolean;
 	preview?: boolean;
 	className?: string;
+	style?: React.CSSProperties;
 	displayName: string;
-	theme: Theme;
+	theme: ThemeMode;
 }
 
 const ThemePreview: FC<ThemePreviewProps> = ({
 	active,
 	preview,
 	className,
+	style,
 	displayName,
 	theme,
 }) => {
 	return (
-		<ThemeOverride theme={theme}>
+		<div className={theme}>
 			<div
-				css={[styles.container, active && styles.containerActive]}
-				className={className}
+				className={cn(
+					"w-56 overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",
+					active && "outline outline-2 outline-content-link",
+					className,
+				)}
+				style={style}
 			>
-				<div css={styles.page}>
-					<div css={styles.header}>
-						<div css={styles.headerLinks}>
-							<div css={[styles.headerLink, styles.activeHeaderLink]} />
-							<div css={styles.headerLink} />
-							<div css={styles.headerLink} />
+				<div className="bg-surface-primary text-content-primary">
+					<div className="bg-surface-secondary flex items-center justify-between px-2.5 py-1.5 mb-2 border-0 border-b border-border border-solid">
+						<div className="flex items-center gap-1.5">
+							<div className="bg-content-primary h-1.5 w-5 rounded" />
+							<div className="bg-content-secondary h-1.5 w-5 rounded" />
+							<div className="bg-content-secondary h-1.5 w-5 rounded" />
 						</div>
-						<div css={styles.headerLinks}>
-							<div css={styles.proxy} />
-							<div css={styles.user} />
+						<div className="flex items-center gap-1.5">
+							<div className="bg-green-400 h-1.5 w-3 rounded" />
+							<div className="bg-content-primary h-2 w-2 rounded-full" />
 						</div>
 					</div>
-					<div css={styles.body}>
-						<div css={styles.title} />
-						<div css={styles.table}>
-							<div css={styles.tableHeader} />
-							<div css={styles.workspace} />
-							<div css={styles.workspace} />
-							<div css={styles.workspace} />
-							<div css={styles.workspace} />
+					<div className="w-32 mx-auto">
+						<div className="bg-content-primary h-2 w-11 rounded mb-1.5" />
+						<div className="border border-solid rounded-t overflow-clip">
+							<div className="bg-surface-secondary h-2.5 -m-px" />
+							<div className="h-4 border-0 border-t border-border border-solid">
+								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
+							</div>
+							<div className="h-4 border-0 border-t border-border border-solid">
+								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
+							</div>
+							<div className="h-4 border-0 border-t border-border border-solid">
+								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
+							</div>
+							<div className="h-4 border-0 border-t border-border border-solid">
+								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
+							</div>
 						</div>
 					</div>
 				</div>
-				<div css={styles.label}>
+				<div className="flex items-center justify-between border-0 border-t border-border border-solid px-3 py-1 text-sm">
 					<span>{displayName}</span>
 					{preview && <PreviewBadge />}
 				</div>
 			</div>
-		</ThemeOverride>
+		</div>
 	);
 };
-
-const styles = {
-	container: (theme) => ({
-		backgroundColor: theme.palette.background.default,
-		border: `1px solid ${theme.palette.divider}`,
-		width: 220,
-		color: theme.palette.text.primary,
-		borderRadius: 6,
-		overflow: "clip",
-		userSelect: "none",
-	}),
-	containerActive: (theme) => ({
-		outline: `2px solid ${theme.roles.active.outline}`,
-	}),
-	page: (theme) => ({
-		backgroundColor: theme.palette.background.default,
-		color: theme.palette.text.primary,
-	}),
-	header: (theme) => ({
-		backgroundColor: theme.palette.background.paper,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		padding: "6px 10px",
-		marginBottom: 8,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-	}),
-	headerLinks: {
-		display: "flex",
-		alignItems: "center",
-		gap: 6,
-	},
-	headerLink: (theme) => ({
-		backgroundColor: theme.palette.text.secondary,
-		height: 6,
-		width: 20,
-		borderRadius: 3,
-	}),
-	activeHeaderLink: (theme) => ({
-		backgroundColor: theme.palette.text.primary,
-	}),
-	proxy: (theme) => ({
-		backgroundColor: theme.palette.success.light,
-		height: 6,
-		width: 12,
-		borderRadius: 3,
-	}),
-	user: (theme) => ({
-		backgroundColor: theme.palette.text.primary,
-		height: 8,
-		width: 8,
-		borderRadius: 4,
-		float: "right",
-	}),
-	body: {
-		width: 120,
-		margin: "auto",
-	},
-	title: (theme) => ({
-		backgroundColor: theme.palette.text.primary,
-		height: 8,
-		width: 45,
-		borderRadius: 4,
-		marginBottom: 6,
-	}),
-	table: (theme) => ({
-		border: `1px solid ${theme.palette.divider}`,
-		borderBottom: "none",
-		borderTopLeftRadius: 3,
-		borderTopRightRadius: 3,
-		overflow: "clip",
-	}),
-	tableHeader: (theme) => ({
-		backgroundColor: theme.palette.background.paper,
-		height: 10,
-		margin: -1,
-	}),
-	label: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		borderTop: `1px solid ${theme.palette.divider}`,
-		padding: "4px 12px",
-		fontSize: 14,
-	}),
-	workspace: (theme) => ({
-		borderTop: `1px solid ${theme.palette.divider}`,
-		height: 15,
-
-		"&::after": {
-			content: '""',
-			display: "block",
-			marginTop: 4,
-			marginLeft: 4,
-			backgroundColor: theme.palette.text.disabled,
-			height: 6,
-			width: 30,
-			borderRadius: 3,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

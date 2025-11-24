@@ -4,13 +4,13 @@ import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import {
+	CORSBehaviors,
 	type Template,
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -26,6 +26,7 @@ import {
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
 import { type FormikTouched, useFormik } from "formik";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
@@ -53,6 +54,7 @@ export const validationSchema = Yup.object({
 	use_classic_parameter_flow: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
+	cors_behavior: Yup.string().oneOf(Object.values(CORSBehaviors)),
 });
 
 export interface TemplateSettingsForm {
@@ -94,12 +96,15 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			disable_everyone_group_access: false,
 			max_port_share_level: template.max_port_share_level,
 			use_classic_parameter_flow: template.use_classic_parameter_flow,
+			cors_behavior: template.cors_behavior,
+			use_terraform_workspace_cache: template.use_terraform_workspace_cache,
 		},
 		validationSchema,
 		onSubmit,
 		initialTouched,
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
+	const { experiments } = useDashboard();
 
 	return (
 		<HorizontalForm
@@ -246,20 +251,20 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label={
 							<StackLabel>
 								<span className="flex flex-row gap-2">
-									Enable dynamic parameters for workspace creation
-									<FeatureStageBadge contentType={"beta"} size="sm" />
+									Enable dynamic parameters for workspace creation (recommended)
 								</span>
 								<StackLabelHelperText>
 									<div>
-										The new workspace form allows you to design your template
-										with new form types and identity-aware conditional
-										parameters. The form will only present options that are
-										compatible and available.
+										The dynamic workspace form allows you to design your
+										template with additional form types and identity-aware
+										conditional parameters. This is the default option for new
+										templates. The classic workspace creation flow will be
+										deprecated in a future release.
 									</div>
 									<Link
 										className="text-xs"
 										href={docs(
-											"/admin/templates/extending-templates/parameters#dynamic-parameters-beta",
+											"/admin/templates/extending-templates/dynamic-parameters",
 										)}
 									>
 										Learn more
@@ -268,6 +273,39 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
+					{experiments.includes("terraform-directory-reuse") && (
+						<FormControlLabel
+							control={
+								<Checkbox
+									size="small"
+									id="use_terraform_workspace_cache"
+									name="use_terraform_workspace_cache"
+									checked={form.values.use_terraform_workspace_cache}
+									onChange={form.handleChange}
+									disabled={false}
+								/>
+							}
+							label={
+								<StackLabel>
+									<span className="flex flex-row gap-2">
+										Enable Terraform directory caching on provisioners
+									</span>
+									<StackLabelHelperText>
+										<div>
+											When enabled, the provisioner reuses the .terraform
+											directory for all workspace builds using the active
+											version. This significantly reduces Terraform init time by
+											caching module and provider downloads.{" "}
+											<strong>
+												Unpinned modules may cause inconsistent builds between
+												provisioners.
+											</strong>
+										</div>
+									</StackLabelHelperText>
+								</StackLabel>
+							}
+						/>
+					)}
 				</FormFields>
 			</FormSection>
 
@@ -336,6 +374,28 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</FormHelperText>
 						</Stack>
 					)}
+				</FormFields>
+			</FormSection>
+
+			<FormSection
+				title="CORS Behavior"
+				description="Control how Cross-Origin Resource Sharing (CORS) requests are handled for all shared ports."
+			>
+				<FormFields>
+					<TextField
+						{...getFieldHelpers("cors_behavior", {
+							helperText:
+								"Use Passthru to bypass Coder's built-in CORS protection.",
+						})}
+						disabled={isSubmitting}
+						fullWidth
+						select
+						value={form.values.cors_behavior}
+						label="CORS Behavior"
+					>
+						<MenuItem value="simple">Simple (recommended)</MenuItem>
+						<MenuItem value="passthru">Passthru</MenuItem>
+					</TextField>
 				</FormFields>
 			</FormSection>
 

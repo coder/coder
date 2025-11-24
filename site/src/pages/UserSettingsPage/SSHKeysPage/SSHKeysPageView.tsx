@@ -1,8 +1,8 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import type { GitSSHKey } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -63,7 +63,11 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 					</p>
 					<CodeExample secret={false} code={sshKey.public_key.trim()} />
 					<div>
-						<Button onClick={onRegenerateClick} data-testid="regenerate">
+						<Button
+							onClick={onRegenerateClick}
+							data-testid="regenerate"
+							variant="outline"
+						>
 							Regenerate&hellip;
 						</Button>
 					</div>

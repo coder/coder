@@ -7,6 +7,7 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import dayjs from "dayjs";
@@ -17,22 +18,22 @@ import {
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
 } from "./formToRequest";
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
 	({
 		updateWorkspace: {
 			object: {
 				resource_type: "workspace",
-				resourceId: workspace.id,
+				resource_id: workspace.id,
 				owner_id: workspace.owner_id,
 			},
 			action: "update",
@@ -76,9 +77,8 @@ const WorkspaceSchedulePage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(workspaceName, "Schedule")}</title>
-			</Helmet>
+			<title>{pageTitle(workspaceName, "Schedule")}</title>
+
 			<PageHeader css={{ paddingTop: 0 }}>
 				<PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
 			</PageHeader>
@@ -94,42 +94,62 @@ const WorkspaceSchedulePage: FC = () => {
 				</Alert>
 			)}
 
-			{template && (
-				<WorkspaceScheduleForm
-					template={template}
-					error={submitScheduleMutation.error}
-					initialValues={{
-						...getAutostart(workspace),
-						...getAutostop(workspace),
-					}}
-					isLoading={submitScheduleMutation.isPending}
-					defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
-					onCancel={() => {
-						navigate(`/@${username}/${workspaceName}`);
-					}}
-					onSubmit={async (values) => {
-						const data = {
-							workspace,
-							autostart: formValuesToAutostartRequest(values),
-							ttl: formValuesToTTLRequest(values),
-							autostartChanged: scheduleChanged(
-								getAutostart(workspace),
-								values,
-							),
-							autostopChanged: scheduleChanged(getAutostop(workspace), values),
-						};
+			{template &&
+				(workspace.is_prebuild ? (
+					<Alert severity="info">
+						Prebuilt workspaces ignore workspace-level scheduling until they are
+						claimed. For prebuilt workspace specific scheduling refer to the{" "}
+						<Link
+							title="Prebuilt Workspaces Scheduling"
+							href={docs(
+								"/admin/templates/extending-templates/prebuilt-workspaces#scheduling",
+							)}
+							target="_blank"
+							rel="noreferrer"
+						>
+							Prebuilt Workspaces Scheduling
+						</Link>
+						documentation page.
+					</Alert>
+				) : (
+					<WorkspaceScheduleForm
+						template={template}
+						error={submitScheduleMutation.error}
+						initialValues={{
+							...getAutostart(workspace),
+							...getAutostop(workspace),
+						}}
+						isLoading={submitScheduleMutation.isPending}
+						defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
+						onCancel={() => {
+							navigate(`/@${username}/${workspaceName}`);
+						}}
+						onSubmit={async (values) => {
+							const data = {
+								workspace,
+								autostart: formValuesToAutostartRequest(values),
+								ttl: formValuesToTTLRequest(values),
+								autostartChanged: scheduleChanged(
+									getAutostart(workspace),
+									values,
+								),
+								autostopChanged: scheduleChanged(
+									getAutostop(workspace),
+									values,
+								),
+							};
 
-						await submitScheduleMutation.mutateAsync(data);
+							await submitScheduleMutation.mutateAsync(data);
 
-						if (
-							data.autostopChanged &&
-							getAutostop(workspace).autostopEnabled
-						) {
-							setIsConfirmingApply(true);
-						}
-					}}
-				/>
-			)}
+							if (
+								data.autostopChanged &&
+								getAutostop(workspace).autostopEnabled
+							) {
+								setIsConfirmingApply(true);
+							}
+						}}
+					/>
+				))}
 
 			<ConfirmDialog
 				open={isConfirmingApply}

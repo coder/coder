@@ -11,14 +11,20 @@ import {
 	CommandItem,
 	CommandList,
 } from "components/Command/Command";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useDebouncedValue } from "hooks/debounce";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Info, X } from "lucide-react";
 import {
 	type ComponentProps,
 	type ComponentPropsWithoutRef,
+	forwardRef,
 	type KeyboardEvent,
 	type ReactNode,
-	forwardRef,
 	useCallback,
 	useEffect,
 	useImperativeHandle,
@@ -33,6 +39,7 @@ export interface Option {
 	label: string;
 	icon?: string;
 	disable?: boolean;
+	description?: string;
 	/** fixed option that can't be removed. */
 	fixed?: boolean;
 	/** Group the options by providing key. */
@@ -97,6 +104,8 @@ interface MultiSelectComboboxProps {
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
+	/** Test ID for testing purposes */
+	"data-testid"?: string;
 }
 
 interface MultiSelectComboboxRef {
@@ -198,6 +207,7 @@ export const MultiSelectCombobox = forwardRef<
 			commandProps,
 			inputProps,
 			hideClearAllButton = false,
+			"data-testid": dataTestId,
 		}: MultiSelectComboboxProps,
 		ref,
 	) => {
@@ -206,6 +216,7 @@ export const MultiSelectCombobox = forwardRef<
 		const [onScrollbar, setOnScrollbar] = useState(false);
 		const [isLoading, setIsLoading] = useState(false);
 		const dropdownRef = useRef<HTMLDivElement>(null);
+		const listRef = useRef<HTMLDivElement>(null);
 
 		const [selected, setSelected] = useState<Option[]>(
 			arrayDefaultOptions ?? [],
@@ -354,6 +365,15 @@ export const MultiSelectCombobox = forwardRef<
 			void exec();
 		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
 
+		// Scroll dropdown into view on open
+		useEffect(() => {
+			if (!open || !listRef.current) {
+				return;
+			}
+
+			listRef.current.scrollIntoView({ behavior: "smooth" });
+		}, [open]);
+
 		const CreatableItem = () => {
 			if (!creatable) {
 				return undefined;
@@ -447,6 +467,7 @@ export const MultiSelectCombobox = forwardRef<
 			<Command
 				ref={dropdownRef}
 				{...commandProps}
+				data-testid={dataTestId}
 				onKeyDown={(e) => {
 					handleKeyDown(e);
 					commandProps?.onKeyDown?.(e);
@@ -485,7 +506,7 @@ export const MultiSelectCombobox = forwardRef<
 									<Badge
 										key={option.value}
 										className={cn(
-											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiarydata-[disabled]:hover:bg-content-disabled",
+											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiary data-[disabled]:hover:bg-content-disabled",
 											"data-[fixed]:bg-content-disabled data-[fixed]:text-surface-tertiary data-[fixed]:hover:bg-surface-secondary",
 											badgeClassName,
 										)}
@@ -592,7 +613,7 @@ export const MultiSelectCombobox = forwardRef<
 						</div>
 					</div>
 				</div>
-				<div className="relative">
+				<div className="relative" ref={listRef}>
 					{open && (
 						<CommandList
 							className={`absolute top-1 z-10 w-full rounded-md
@@ -610,7 +631,7 @@ export const MultiSelectCombobox = forwardRef<
 							}}
 						>
 							{isLoading ? (
-								<>{loadingIndicator}</>
+								loadingIndicator
 							) : (
 								<>
 									{EmptyItem()}
@@ -662,6 +683,23 @@ export const MultiSelectCombobox = forwardRef<
 																	/>
 																)}
 																{option.label}
+																{option.description && (
+																	<TooltipProvider delayDuration={100}>
+																		<Tooltip>
+																			<TooltipTrigger asChild>
+																				<span className="flex items-center pointer-events-auto">
+																					<Info className="!w-3.5 !h-3.5 text-content-secondary" />
+																				</span>
+																			</TooltipTrigger>
+																			<TooltipContent
+																				side="right"
+																				sideOffset={10}
+																			>
+																				{option.description}
+																			</TooltipContent>
+																		</Tooltip>
+																	</TooltipProvider>
+																)}
 															</div>
 														</CommandItem>
 													);
@@ -678,3 +716,5 @@ export const MultiSelectCombobox = forwardRef<
 		);
 	},
 );
+
+MultiSelectCombobox.displayName = "MultiSelectCombobox";

@@ -16,10 +16,12 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
+	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
@@ -87,6 +89,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		o := &coderd.Options{
 			Options:                   options,
 			AuditLogging:              true,
+			ConnectionLogging:         true,
 			BrowserOnly:               options.DeploymentValues.BrowserOnly.Value(),
 			SCIMAPIKey:                []byte(options.DeploymentValues.SCIMAPIKey.Value()),
 			RBAC:                      true,
@@ -115,15 +118,78 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			o.ExternalTokenEncryption = cs
 		}
 
+		if o.LicenseKeys == nil {
+			o.LicenseKeys = coderd.Keys
+		}
+
+		closers := &multiCloser{}
+
+		// Create the enterprise API.
 		api, err := coderd.New(ctx, o)
 		if err != nil {
 			return nil, nil, err
 		}
-		return api.AGPL, api, nil
+		closers.Add(api)
+
+		// Start the enterprise usage publisher routine. This won't do anything
+		// unless the deployment is licensed and one of the licenses has usage
+		// publishing enabled.
+		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys,
+			usage.PublisherWithHTTPClient(api.HTTPClient),
+		)
+		err = publisher.Start()
+		if err != nil {
+			_ = closers.Close()
+			return nil, nil, xerrors.Errorf("start usage publisher: %w", err)
+		}
+		closers.Add(publisher)
+
+		// In-memory aibridge daemon.
+		// TODO(@deansheather): the lifecycle of the aibridged server is
+		// probably better managed by the enterprise API type itself. Managing
+		// it in the API type means we can avoid starting it up when the license
+		// is not entitled to the feature.
+		var aibridgeDaemon *aibridged.Server
+		if options.DeploymentValues.AI.BridgeConfig.Enabled {
+			aibridgeDaemon, err = newAIBridgeDaemon(api)
+			if err != nil {
+				return nil, nil, xerrors.Errorf("create aibridged: %w", err)
+			}
+
+			api.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+
+			// When running as an in-memory daemon, the HTTP handler is wired into the
+			// coderd API and therefore is subject to its context. Calling Close() on
+			// aibridged will NOT affect in-flight requests but those will be closed once
+			// the API server is itself shutdown.
+			closers.Add(aibridgeDaemon)
+		}
+
+		return api.AGPL, closers, nil
 	})
 
 	cmd.AddSubcommands(
 		r.dbcryptCmd(),
 	)
 	return cmd
+}
+
+type multiCloser struct {
+	closers []io.Closer
+}
+
+var _ io.Closer = &multiCloser{}
+
+func (m *multiCloser) Add(closer io.Closer) {
+	m.closers = append(m.closers, closer)
+}
+
+func (m *multiCloser) Close() error {
+	var errs []error
+	for _, closer := range m.closers {
+		if err := closer.Close(); err != nil {
+			errs = append(errs, xerrors.Errorf("close %T: %w", closer, err))
+		}
+	}
+	return errors.Join(errs...)
 }

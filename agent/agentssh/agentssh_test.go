@@ -8,7 +8,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -401,6 +403,92 @@ func TestNewServer_Signal(t *testing.T) {
 		}
 		require.Equal(t, wantCode, exitErr.ExitStatus())
 	})
+}
+
+func TestSSHServer_ClosesStdin(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("bash doesn't exist on Windows")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := testutil.Logger(t)
+	s, err := agentssh.NewServer(ctx, logger.Named("ssh-server"), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
+	require.NoError(t, err)
+	logger = logger.Named("test")
+	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		err := s.Serve(ln)
+		assert.Error(t, err) // Server is closed.
+	}()
+	defer func() {
+		err := s.Close()
+		require.NoError(t, err)
+		<-done
+	}()
+
+	c := sshClient(t, ln.Addr().String())
+
+	sess, err := c.NewSession()
+	require.NoError(t, err)
+	stdout, err := sess.StdoutPipe()
+	require.NoError(t, err)
+	stdin, err := sess.StdinPipe()
+	require.NoError(t, err)
+	defer stdin.Close()
+
+	dir := t.TempDir()
+	err = os.MkdirAll(dir, 0o755)
+	require.NoError(t, err)
+	filePath := filepath.Join(dir, "result.txt")
+
+	// the shell command `read` will block until data is written to stdin, or closed. It will return
+	// exit code 1 if it hits EOF, which is what we want to test.
+	cmdErrCh := make(chan error, 1)
+	go func() {
+		cmdErrCh <- sess.Start(fmt.Sprintf(`echo started; echo "read exit code: $(read && echo 0 || echo 1)" > %s`, filePath))
+	}()
+
+	cmdErr := testutil.RequireReceive(ctx, t, cmdErrCh)
+	require.NoError(t, cmdErr)
+
+	readCh := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 8)
+		_, err := stdout.Read(buf)
+		assert.Equal(t, "started\n", string(buf))
+		readCh <- err
+	}()
+	err = testutil.RequireReceive(ctx, t, readCh)
+	require.NoError(t, err)
+
+	err = sess.Close()
+	require.NoError(t, err)
+
+	var content []byte
+	expected := []byte("read exit code: 1\n")
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		content, err = os.ReadFile(filePath)
+		if err != nil {
+			logger.Debug(ctx, "failed to read file; will retry", slog.Error(err))
+			return false
+		}
+		if len(content) != len(expected) {
+			logger.Debug(ctx, "file is partially written", slog.F("content", content))
+			return false
+		}
+		return true
+	}, testutil.IntervalFast)
+	require.NoError(t, err)
+	require.Equal(t, string(expected), string(content))
 }
 
 func sshClient(t *testing.T, addr string) *ssh.Client {

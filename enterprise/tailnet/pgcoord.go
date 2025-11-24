@@ -106,8 +106,8 @@ var pgCoordSubject = rbac.Subject{
 			Site: rbac.Permissions(map[string][]policy.Action{
 				rbac.ResourceTailnetCoordinator.Type: {policy.WildcardSymbol},
 			}),
-			Org:  map[string][]rbac.Permission{},
-			User: []rbac.Permission{},
+			User:    []rbac.Permission{},
+			ByOrgID: map[string]rbac.OrgPermissions{},
 		},
 	}),
 	Scope: rbac.ScopeAll,
@@ -693,8 +693,9 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil && !xerrors.Is(err, context.Canceled) {
-			m.logger.Error(m.ctx, "failed to enqueue node update", slog.Error(err))
+		if err := m.c.Enqueue(update); err != nil {
+			// lots of reasons this could happen, most usually, the peer has disconnected.
+			m.logger.Debug(m.ctx, "failed to enqueue node update", slog.Error(err))
 		}
 	}
 }
@@ -872,9 +873,11 @@ func (q *querier) handleIncoming() {
 			return
 
 		case c := <-q.newConnections:
+			q.logger.Debug(q.ctx, "new connection received", slog.F("peer_id", c.UniqueID()))
 			q.newConn(c)
 
 		case c := <-q.closeConnections:
+			q.logger.Debug(q.ctx, "connection close request", slog.F("peer_id", c.UniqueID()))
 			q.cleanupConn(c)
 		}
 	}
@@ -901,7 +904,8 @@ func (q *querier) newConn(c *connIO) {
 	mk := mKey(c.UniqueID())
 	dup, ok := q.mappers[mk]
 	if ok {
-		// duplicate, overwrite and close the old one
+		q.logger.Debug(q.ctx, "duplicate mapper found; closing old connection", slog.F("peer_id", dup.c.UniqueID()))
+		// overwrite and close the old one
 		atomic.StoreInt64(&c.overwrites, dup.c.Overwrites()+1)
 		err := dup.c.CoordinatorClose()
 		if err != nil {
@@ -912,6 +916,7 @@ func (q *querier) newConn(c *connIO) {
 	q.workQ.enqueue(querierWorkKey{
 		mappingQuery: mk,
 	})
+	q.logger.Debug(q.ctx, "added new mapper", slog.F("peer_id", c.UniqueID()))
 }
 
 func (q *querier) isHealthy() bool {
@@ -939,11 +944,12 @@ func (q *querier) cleanupConn(c *connIO) {
 		logger.Error(q.ctx, "failed to close connIO", slog.Error(err))
 	}
 	delete(q.mappers, mk)
-	q.logger.Debug(q.ctx, "removed mapper")
+	q.logger.Debug(q.ctx, "removed mapper", slog.F("peer_id", c.UniqueID()))
 }
 
 func (q *querier) worker() {
 	defer q.wg.Done()
+	defer q.logger.Debug(q.ctx, "worker exited")
 	eb := backoff.NewExponentialBackOff()
 	eb.MaxElapsedTime = 0 // retry indefinitely
 	eb.MaxInterval = dbMaxBackoff
@@ -1018,7 +1024,7 @@ func (q *querier) mappingQuery(peer mKey) error {
 		return nil
 	}
 	logger.Debug(q.ctx, "sending mappings", slog.F("mapping_len", len(mappings)))
-	return agpl.SendCtx(q.ctx, mpr.mappings, mappings)
+	return agpl.SendCtx(mpr.ctx, mpr.mappings, mappings)
 }
 
 func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsRow) ([]mapping, error) {

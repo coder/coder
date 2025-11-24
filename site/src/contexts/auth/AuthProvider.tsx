@@ -12,9 +12,9 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type Permissions, permissionChecks } from "modules/permissions";
 import {
+	createContext,
 	type FC,
 	type PropsWithChildren,
-	createContext,
 	useCallback,
 	useContext,
 } from "react";

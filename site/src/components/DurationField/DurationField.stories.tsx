@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import { DurationField } from "./DurationField";
 
 const meta: Meta<typeof DurationField> = {
@@ -64,16 +64,27 @@ export const ChangeUnit: Story = {
 	},
 };
 
-export const CantConvertToDays: Story = {
+export const ConvertSmallHoursToDays: Story = {
 	args: {
-		valueMs: hoursToMs(2),
+		valueMs: hoursToMs(2), // 2 hours should convert to 1 day when switching units (rounded up)
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+
+		// Initially should show 2 hours
+		const input = canvas.getByLabelText("Duration");
+		await expect(input).toHaveValue("2");
+
+		// Switch to days by clicking the dropdown
 		const unitDropdown = canvas.getByLabelText("Time unit");
 		await userEvent.click(unitDropdown);
+
+		// Find and click the Days option - this should now work (no longer disabled)
 		const daysOption = within(document.body).getByText("Days");
-		await expect(daysOption).toHaveAttribute("aria-disabled", "true");
+		await userEvent.click(daysOption);
+
+		// After switching to days, should show 1 day (2 hours rounded up to nearest day)
+		await expect(input).toHaveValue("1");
 	},
 };
 

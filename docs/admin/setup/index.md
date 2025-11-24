@@ -38,6 +38,9 @@ coder server
 
 ## Wildcard access URL
 
+> [!TIP]
+> Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
+
 `CODER_WILDCARD_ACCESS_URL` is necessary for
 [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard
 or running [coder_apps](../templates/index.md) on an absolute path. Set this to
@@ -59,6 +62,8 @@ If you are providing TLS certificates directly to the Coder server, either
    [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line
    options (these both take a comma separated list of files; list certificates
    and their respective keys in the same order).
+
+After you enable the wildcard access URL, you should [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps) for security.
 
 ## TLS & Reverse Proxy
 

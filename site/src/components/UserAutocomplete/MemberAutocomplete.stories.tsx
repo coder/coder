@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockOrganizationMember } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MemberAutocomplete } from "./UserAutocomplete";
 
 const meta: Meta<typeof MemberAutocomplete> = {

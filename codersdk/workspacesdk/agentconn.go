@@ -1,6 +1,7 @@
 package workspacesdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -20,18 +21,22 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/websocket"
 )
 
 // NewAgentConn creates a new WorkspaceAgentConn. `conn` may be unique
 // to the WorkspaceAgentConn, or it may be shared in the case of coderd. If the
 // conn is shared and closing it is undesirable, you may return ErrNoClose from
 // opts.CloseFunc. This will ensure the underlying conn is not closed.
-func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) *AgentConn {
-	return &AgentConn{
+func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
+	return &agentConn{
 		Conn: conn,
 		opts: opts,
 	}
@@ -39,9 +44,44 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) *AgentConn {
 
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
-type AgentConn struct {
+type AgentConn interface {
+	TailnetConn() *tailnet.Conn
+
+	AwaitReachable(ctx context.Context) bool
+	Close() error
+	DebugLogs(ctx context.Context) ([]byte, error)
+	DebugMagicsock(ctx context.Context) ([]byte, error)
+	DebugManifest(ctx context.Context) ([]byte, error)
+	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
+	GetPeerDiagnostics() tailnet.PeerDiagnostics
+	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
+	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
+	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
+	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
+	PrometheusMetrics(ctx context.Context) ([]byte, error)
+	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
+	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
+	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
+	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
+	WriteFile(ctx context.Context, path string, reader io.Reader) error
+	EditFiles(ctx context.Context, edits FileEditRequest) error
+	SSH(ctx context.Context) (*gonet.TCPConn, error)
+	SSHClient(ctx context.Context) (*ssh.Client, error)
+	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
+	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
+	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
+	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
+}
+
+// AgentConn represents a connection to a workspace agent.
+// @typescript-ignore AgentConn
+type agentConn struct {
 	*tailnet.Conn
 	opts AgentConnOptions
+}
+
+func (c *agentConn) TailnetConn() *tailnet.Conn {
+	return c.Conn
 }
 
 // @typescript-ignore AgentConnOptions
@@ -50,12 +90,12 @@ type AgentConnOptions struct {
 	CloseFunc func() error
 }
 
-func (c *AgentConn) agentAddress() netip.Addr {
+func (c *agentConn) agentAddress() netip.Addr {
 	return tailnet.TailscaleServicePrefix.AddrFromUUID(c.opts.AgentID)
 }
 
 // AwaitReachable waits for the agent to be reachable.
-func (c *AgentConn) AwaitReachable(ctx context.Context) bool {
+func (c *agentConn) AwaitReachable(ctx context.Context) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -64,7 +104,7 @@ func (c *AgentConn) AwaitReachable(ctx context.Context) bool {
 
 // Ping pings the agent and returns the round-trip time.
 // The bool returns true if the ping was made P2P.
-func (c *AgentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error) {
+func (c *agentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -72,7 +112,7 @@ func (c *AgentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.Pi
 }
 
 // Close ends the connection to the workspace agent.
-func (c *AgentConn) Close() error {
+func (c *agentConn) Close() error {
 	var cerr error
 	if c.opts.CloseFunc != nil {
 		cerr = c.opts.CloseFunc()
@@ -127,7 +167,7 @@ type ReconnectingPTYRequest struct {
 // ReconnectingPTY spawns a new reconnecting terminal session.
 // `ReconnectingPTYRequest` should be JSON marshaled and written to the returned net.Conn.
 // Raw terminal output will be read from the returned net.Conn.
-func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error) {
+func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -167,13 +207,13 @@ func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 
 // SSH pipes the SSH protocol over the returned net.Conn.
 // This connects to the built-in SSH server in the workspace agent.
-func (c *AgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
+func (c *agentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	return c.SSHOnPort(ctx, AgentSSHPort)
 }
 
 // SSHOnPort pipes the SSH protocol over the returned net.Conn.
 // This connects to the built-in SSH server in the workspace agent on the specified port.
-func (c *AgentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error) {
+func (c *agentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -186,12 +226,12 @@ func (c *AgentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn,
 }
 
 // SSHClient calls SSH to create a client
-func (c *AgentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
+func (c *agentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
 	return c.SSHClientOnPort(ctx, AgentSSHPort)
 }
 
 // SSHClientOnPort calls SSH to create a client on a specific port
-func (c *AgentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error) {
+func (c *agentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -214,7 +254,7 @@ func (c *AgentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Clie
 }
 
 // Speedtest runs a speedtest against the workspace agent.
-func (c *AgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
+func (c *agentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -238,7 +278,7 @@ func (c *AgentConn) Speedtest(ctx context.Context, direction speedtest.Direction
 
 // DialContext dials the address provided in the workspace agent.
 // The network must be "tcp" or "udp".
-func (c *AgentConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (c *agentConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -261,7 +301,7 @@ func (c *AgentConn) DialContext(ctx context.Context, network string, addr string
 }
 
 // ListeningPorts lists the ports that are currently in use by the workspace.
-func (c *AgentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
+func (c *agentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
@@ -278,7 +318,7 @@ func (c *AgentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgent
 }
 
 // Netcheck returns a network check report from the workspace agent.
-func (c *AgentConn) Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error) {
+func (c *agentConn) Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/netcheck", nil)
@@ -295,7 +335,7 @@ func (c *AgentConn) Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport
 }
 
 // DebugMagicsock makes a request to the workspace agent's magicsock debug endpoint.
-func (c *AgentConn) DebugMagicsock(ctx context.Context) ([]byte, error) {
+func (c *agentConn) DebugMagicsock(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/magicsock", nil)
@@ -315,7 +355,7 @@ func (c *AgentConn) DebugMagicsock(ctx context.Context) ([]byte, error) {
 
 // DebugManifest returns the agent's in-memory manifest. Unfortunately this must
 // be returns as a []byte to avoid an import cycle.
-func (c *AgentConn) DebugManifest(ctx context.Context) ([]byte, error) {
+func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/manifest", nil)
@@ -334,7 +374,7 @@ func (c *AgentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 }
 
 // DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
-func (c *AgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
@@ -353,7 +393,7 @@ func (c *AgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 }
 
 // PrometheusMetrics returns a response from the agent's prometheus metrics endpoint
-func (c *AgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
+func (c *agentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/prometheus", nil)
@@ -372,7 +412,7 @@ func (c *AgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 }
 
 // ListContainers returns a response from the agent's containers endpoint
-func (c *AgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+func (c *agentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/containers", nil)
@@ -387,9 +427,43 @@ func (c *AgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgent
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
+
+	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPClient: c.apiClient(),
+
+		// We want `NoContextTakeover` compression to balance improving
+		// bandwidth cost/latency with minimal memory usage overhead.
+		CompressionMode: websocket.CompressionNoContextTakeover,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	// When a workspace has a few devcontainers running, or a single devcontainer
+	// has a large amount of apps, then each payload can easily exceed 32KiB.
+	// We up the limit to 4MiB to give us plenty of headroom for workspaces that
+	// have lots of dev containers with lots of apps.
+	conn.SetReadLimit(1 << 22) // 4MiB
+
+	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
+	return d.Chan(), d, nil
+}
+
 // RecreateDevcontainer recreates a devcontainer with the given container.
 // This is a blocking call and will wait for the container to be recreated.
-func (c *AgentConn) RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error) {
+func (c *agentConn) RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/containers/devcontainers/"+devcontainerID+"/recreate", nil)
@@ -407,15 +481,169 @@ func (c *AgentConn) RecreateDevcontainer(ctx context.Context, devcontainerID str
 	return m, nil
 }
 
+type LSRequest struct {
+	// e.g. [], ["repos", "coder"],
+	Path []string `json:"path"`
+	// Whether the supplied path is relative to the user's home directory,
+	// or the root directory.
+	Relativity LSRelativity `json:"relativity"`
+}
+
+type LSRelativity string
+
+const (
+	LSRelativityRoot LSRelativity = "root"
+	LSRelativityHome LSRelativity = "home"
+)
+
+type LSResponse struct {
+	AbsolutePath []string `json:"absolute_path"`
+	// Returned so clients can display the full path to the user, and
+	// copy it to configure file sync
+	// e.g. Windows: "C:\\Users\\coder"
+	//      Linux: "/home/coder"
+	AbsolutePathString string   `json:"absolute_path_string"`
+	Contents           []LSFile `json:"contents"`
+}
+
+type LSFile struct {
+	Name string `json:"name"`
+	// e.g. "C:\\Users\\coder\\hello.txt"
+	//      "/home/coder/hello.txt"
+	AbsolutePathString string `json:"absolute_path_string"`
+	IsDir              bool   `json:"is_dir"`
+}
+
+// LS lists a directory.
+func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/list-directory?path=%s", path), req)
+	if err != nil {
+		return LSResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return LSResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var m LSResponse
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return LSResponse{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
+}
+
+// ReadFile reads from a file from the workspace, returning a file reader and
+// the mime type.
+func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	//nolint:bodyclose // we want to return the body so the caller can stream.
+	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/read-file?path=%s&offset=%d&limit=%d", path, offset, limit), nil)
+	if err != nil {
+		return nil, "", xerrors.Errorf("do request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		// codersdk.ReadBodyAsError will close the body.
+		return nil, "", codersdk.ReadBodyAsError(res)
+	}
+
+	mimeType := res.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	return res.Body, mimeType, nil
+}
+
+// WriteFile writes to a file in the workspace.
+func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/write-file?path=%s", path), reader)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return xerrors.Errorf("decode response body: %w", err)
+	}
+	return nil
+}
+
+type FileEdit struct {
+	Search  string `json:"search"`
+	Replace string `json:"replace"`
+}
+
+type FileEdits struct {
+	Path  string     `json:"path"`
+	Edits []FileEdit `json:"edits"`
+}
+
+type FileEditRequest struct {
+	Files []FileEdits `json:"files"`
+}
+
+// EditFiles performs search and replace edits on one or more files.
+func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return xerrors.Errorf("decode response body: %w", err)
+	}
+	return nil
+}
+
 // apiRequest makes a request to the workspace agent's HTTP API server.
-func (c *AgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+func (c *agentConn) apiRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 	url := fmt.Sprintf("http://%s%s", host, path)
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	var r io.Reader
+	if body != nil {
+		switch data := body.(type) {
+		case io.Reader:
+			r = data
+		case []byte:
+			r = bytes.NewReader(data)
+		default:
+			// Assume JSON in all other cases.
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			err := enc.Encode(body)
+			if err != nil {
+				return nil, xerrors.Errorf("encode body: %w", err)
+			}
+			r = buf
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, r)
 	if err != nil {
 		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
 	}
@@ -425,7 +653,7 @@ func (c *AgentConn) apiRequest(ctx context.Context, method, path string, body io
 
 // apiClient returns an HTTP client that can be used to make
 // requests to the workspace agent's HTTP API server.
-func (c *AgentConn) apiClient() *http.Client {
+func (c *agentConn) apiClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			// Disable keep alives as we're usually only making a single
@@ -466,6 +694,6 @@ func (c *AgentConn) apiClient() *http.Client {
 	}
 }
 
-func (c *AgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
+func (c *agentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	return c.Conn.GetPeerDiagnostics(c.opts.AgentID)
 }

@@ -1,128 +1,162 @@
-# Coder Desktop (Beta)
+# Coder Desktop
 
-Use Coder Desktop to work on your workspaces as though they're on your LAN, no
-port-forwarding required.
+Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments—all without installing a CLI or configuring manual port forwarding.
 
-> [!NOTE]
-> Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
+## What You'll Need
 
-## Install Coder Desktop
+- A Coder deployment running `v2.20.0` or [later](https://github.com/coder/coder/releases/latest)
+- Administrator privileges on your local machine (for VPN extension installation)
+- Access to your Coder deployment URL
+
+## Quick Start
+
+1. Install: `brew install --cask coder/coder/coder-desktop` (macOS) or `winget install Coder.CoderDesktop` (Windows)
+1. Open Coder Desktop and approve any system prompts to complete the installation.
+1. Sign in with your deployment URL and session token
+1. Enable "Coder Connect" toggle
+1. Access workspaces at `workspace-name.coder`
+
+## How It Works
+
+**Coder Connect**, the primary component of Coder Desktop, creates a secure tunnel to your Coder deployment, allowing you to:
+
+- **Access workspaces directly**: Connect via `workspace-name.coder` hostnames
+- **Use any application**: SSH clients, browsers, IDEs work seamlessly
+- **Sync files**: Bidirectional sync between local and remote directories
+- **Work offline**: Edit files locally, sync when reconnected
+
+The VPN extension routes only Coder traffic—your other internet activity remains unchanged.
+
+## Installation
 
 <div class="tabs">
 
-You can install Coder Desktop on macOS or Windows.
-
 ### macOS
 
-1. Use [Homebrew](https://brew.sh/) to install Coder Desktop:
+<div class="tabs">
 
-   ```shell
-   brew install --cask coder/coder/coder-desktop
-   ```
+#### Homebrew (Recommended)
 
-   Alternatively, you can manually install Coder Desktop from the [releases page](https://github.com/coder/coder-desktop-macos/releases).
+```shell
+brew install --cask coder/coder/coder-desktop
+```
 
-1. Open **Coder Desktop** from the Applications directory.
+#### Manual Installation
 
-1. The application is treated as a system VPN. macOS will prompt you to confirm with:
-
-   **"Coder Desktop" would like to use a new network extension**
-
-   Select **Open System Settings**.
-
-1. In the **Network Extensions** system settings, enable the Coder Desktop extension.
-
-1. Continue to the [configuration section](#configure).
-
-> Do not install more than one copy of Coder Desktop.
->
-> To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
-
-### Windows
-
-If you use [WinGet](https://github.com/microsoft/winget-cli), run `winget install Coder.CoderDesktop`.
-
-To manually install Coder Desktop:
-
-1. Download the latest `CoderDesktop` installer executable (`.exe`) from the [coder-desktop-windows release page](https://github.com/coder/coder-desktop-windows/releases).
-
-   Choose the architecture that fits your Windows system, `x64` or `arm64`.
-
-1. Open the `.exe` file, acknowledge the license terms and conditions, and select **Install**.
-
-1. If a suitable .NET runtime is not already installed, the installation might prompt you with the **.NET Windows Desktop Runtime** installation.
-
-   In that installation window, select **Install**. Select **Close** when the runtime installation completes.
-
-1. When the Coder Desktop installation completes, select **Close**.
-
-1. Find and open **Coder Desktop** from your Start Menu.
-
-1. Some systems require an additional Windows App Runtime SDK.
-
-   Select **Yes** if you are prompted to install it.
-   This will open your default browser where you can download and install the latest stable release of the Windows App Runtime SDK.
-
-   Reopen Coder Desktop after you install the runtime.
-
-1. Coder Desktop starts minimized in the Windows System Tray.
-
-   You might need to select the **^** in your system tray to show more icons.
-
-1. Continue to the [configuration section](#configure).
+1. Download the latest release from [coder-desktop-macos releases](https://github.com/coder/coder-desktop-macos/releases)
+1. Run `Coder-Desktop.pkg` and follow the prompts to install
+1. `Coder Desktop.app` will be installed to your Applications folder
 
 </div>
 
-## Configure
+Coder Desktop requires VPN extension permissions:
 
-Before you can use Coder Desktop, you will need to sign in.
+1. When prompted with **"Coder Desktop" would like to use a new network extension**, select **Open System Settings**
+1. In **Network Extensions** settings, enable the Coder Desktop extension
+1. You may need to enter your password to authorize the extension
 
-1. Open the Desktop menu and select **Sign in**:
+✅ **Verify Installation**: Coder Desktop should appear in your menu bar
 
-   <div class="tabs">
+### Windows
 
-   ## macOS
+<div class="tabs">
 
-   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png)
+#### WinGet (Recommended)
 
-   ## Windows
+```shell
+winget install Coder.CoderDesktop
+```
 
-   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png)
+#### Manual Installation
 
-   </div>
+1. Download the latest `CoderDesktop` installer (`.exe`) from [coder-desktop-windows releases](https://github.com/coder/coder-desktop-windows/releases)
+1. Choose the correct architecture (`x64` or `arm64`) for your system
+1. Run the installer and accept the license terms
+1. If prompted, install the .NET Windows Desktop Runtime
+1. Install Windows App Runtime SDK if prompted
 
-1. In the **Sign In** window, enter your Coder deployment's URL and select **Next**:
+</div>
 
-   ![Coder Desktop sign in](../../images/user-guides/desktop/coder-desktop-sign-in.png)
+- [.NET Windows Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) (installed automatically if not present)
+- Windows App Runtime SDK (may require manual installation)
 
-1. macOS: Select the link to your deployment's `/cli-auth` page to generate a [session token](../../admin/users/sessions-tokens.md).
+✅ **Verify Installation**: Coder Desktop should appear in your system tray (you may need to click **^** to show hidden icons)
 
-   Windows: Select **Generate a token via the Web UI**.
+</div>
 
-1. In your web browser, you may be prompted to sign in to Coder with your credentials.
+## Testing Your Connection
 
-1. Copy the session token to the clipboard:
+Once connected, test access to your workspaces:
 
-   ![Copy session token](../../images/templates/coder-session-token.png)
+<div class="tabs">
 
-1. Paste the token in the **Session Token** field of the **Sign In** screen, then select **Sign In**:
+### SSH Connection
 
-   ![Paste the session token in to sign in](../../images/user-guides/desktop/coder-desktop-session-token.png)
+```shell
+ssh your-workspace.coder
+```
 
-1. macOS: Allow the VPN configuration for Coder Desktop if you are prompted:
+### Ping Test
 
-   ![Copy session token](../../images/user-guides/desktop/mac-allow-vpn.png)
+```shell
+# macOS
+ping6 -c 3 your-workspace.coder
 
-1. Select the Coder icon in the menu bar (macOS) or system tray (Windows), and click the **Coder Connect** toggle to enable the connection.
+# Windows
+ping -n 3 your-workspace.coder
+```
 
-   ![Coder Desktop on Windows - enable Coder Connect](../../images/user-guides/desktop/coder-desktop-win-enable-coder-connect.png)
+### Web Services
 
-   This may take a few moments, as Coder Desktop will download the necessary components from the Coder server if they have been updated.
+Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with the specific service port you want to access (e.g. 3000 for frontend, 8080 for API)
 
-1. macOS: You may be prompted to enter your password to allow Coder Connect to start.
+</div>
 
-1. Coder Connect is now running!
+## Troubleshooting
+
+### Connection Issues
+
+#### Can't connect to workspace
+
+- Verify Coder Connect is enabled (toggle should be ON)
+- Check that your deployment URL is correct
+- Ensure your session token hasn't expired
+- Try disconnecting and reconnecting Coder Connect
+
+#### VPN extension not working
+
+- Restart Coder Desktop
+- Check system permissions for network extensions
+- Ensure only one copy of Coder Desktop is installed
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+- **File an issue**: [macOS](https://github.com/coder/coder-desktop-macos/issues) | [Windows](https://github.com/coder/coder-desktop-windows/issues) | [General](https://github.com/coder/coder/issues)
+- **Community support**: [Discord](https://coder.com/chat)
+
+## Uninstalling
+
+<div class="tabs">
+
+### macOS
+
+1. **Disable Coder Connect** in the app menu
+2. **Quit Coder Desktop** completely
+3. **Remove VPN extension** from System Settings > Network Extensions
+4. **Delete the app** from Applications folder
+5. **Remove configuration** (optional): `rm -rf ~/Library/Application\ Support/Coder\ Desktop`
+
+### Windows
+
+1. **Disable Coder Connect** in the app menu
+2. **Quit Coder Desktop** from system tray
+3. **Uninstall** via Settings > Apps or Control Panel
+4. **Remove configuration** (optional): Delete `%APPDATA%\Coder Desktop`
+
+</div>
 
 ## Next Steps
 
-- [Connect to and work on your workspace](./desktop-connect-sync.md)
+- [Using Coder Connect and File Sync](./desktop-connect-sync.md)

@@ -287,7 +287,7 @@ func TestFilter(t *testing.T) {
 func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
 	defOrg := uuid.New()
-	unuseID := uuid.New()
+	unusedID := uuid.New()
 	allUsersGroup := "Everyone"
 
 	// orphanedUser has no organization
@@ -318,21 +318,21 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "UserACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
 				user.ID: ResourceWorkspace.AvailableActions(),
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
 				user.ID: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
 				user.ID: {policy.ActionRead, policy.ActionUpdate},
 			}),
 			actions: []policy.Action{policy.ActionCreate, policy.ActionDelete},
@@ -350,21 +350,21 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "GroupACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
 				allUsersGroup: ResourceWorkspace.AvailableActions(),
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
 				allUsersGroup: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
 				allUsersGroup: {policy.ActionRead, policy.ActionUpdate},
 			}),
 			actions: []policy.Action{policy.ActionCreate, policy.ActionDelete},
@@ -389,13 +389,14 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: false},
 
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		// No org + me
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + me
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + other user
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
@@ -403,8 +404,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + other us
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
 	})
@@ -435,8 +436,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + me
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + other user
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
@@ -444,8 +445,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + other use
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
 	})
@@ -455,6 +456,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -469,13 +471,14 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceExceptConnect, allow: true},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceConnect, allow: false},
 
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		// No org + me
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + me
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + other user
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: workspaceExceptConnect, allow: true},
@@ -483,9 +486,9 @@ func TestAuthorizeDomain(t *testing.T) {
 
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
-		// Other org + other use
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		// Other org + other user
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
 	})
@@ -512,8 +515,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		// Other org + me
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		// Other org + other user
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
@@ -521,8 +524,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		// Other org + other use
-		{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
-		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
 	})
@@ -546,13 +549,14 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true},
 			{resource: ResourceWorkspace.InOrg(defOrg), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner(user.ID), allow: true},
+			// No org + me
+			{resource: ResourceWorkspace.WithOwner(user.ID), allow: false},
 
 			{resource: ResourceWorkspace.All(), allow: false},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID), allow: false},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
 
 			// Other org + other user
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: false},
@@ -560,8 +564,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), allow: false},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
 
 			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
 		}),
@@ -580,8 +584,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.All()},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID)},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
 
 			// Other org + other user
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
@@ -589,8 +593,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me")},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
 
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 		}),
@@ -609,8 +613,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceTemplate.All()},
 
 			// Other org + me
-			{resource: ResourceTemplate.InOrg(unuseID).WithOwner(user.ID)},
-			{resource: ResourceTemplate.InOrg(unuseID)},
+			{resource: ResourceTemplate.InOrg(unusedID).WithOwner(user.ID)},
+			{resource: ResourceTemplate.InOrg(unusedID)},
 
 			// Other org + other user
 			{resource: ResourceTemplate.InOrg(defOrg).WithOwner("not-me")},
@@ -618,8 +622,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceTemplate.WithOwner("not-me")},
 
 			// Other org + other use
-			{resource: ResourceTemplate.InOrg(unuseID).WithOwner("not-me")},
-			{resource: ResourceTemplate.InOrg(unuseID)},
+			{resource: ResourceTemplate.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceTemplate.InOrg(unusedID)},
 
 			{resource: ResourceTemplate.WithOwner("not-me")},
 		}),
@@ -633,18 +637,21 @@ func TestAuthorizeDomain(t *testing.T) {
 			{
 				Identifier: RoleIdentifier{Name: "ReadOnlyOrgAndUser"},
 				Site:       []Permission{},
-				Org: map[string][]Permission{
-					defOrg.String(): {{
-						Negate:       false,
-						ResourceType: "*",
-						Action:       policy.ActionRead,
-					}},
-				},
 				User: []Permission{
 					{
 						Negate:       false,
 						ResourceType: "*",
 						Action:       policy.ActionRead,
+					},
+				},
+				ByOrgID: map[string]OrgPermissions{
+					defOrg.String(): {
+						Org: []Permission{{
+							Negate:       false,
+							ResourceType: "*",
+							Action:       policy.ActionRead,
+						}},
+						Member: []Permission{},
 					},
 				},
 			},
@@ -666,8 +673,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.All(), allow: false},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID), allow: false},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
 
 			// Other org + other user
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: true},
@@ -675,8 +682,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), allow: false},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
 
 			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
 		}),
@@ -697,8 +704,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.All()},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.ID)},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
 
 			// Other org + other user
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
@@ -706,8 +713,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me")},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
 
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 		}))
@@ -726,13 +733,16 @@ func TestAuthorizeLevels(t *testing.T) {
 			must(RoleByName(RoleOwner())),
 			{
 				Identifier: RoleIdentifier{Name: "org-deny:", OrganizationID: defOrg},
-				Org: map[string][]Permission{
+				ByOrgID: map[string]OrgPermissions{
 					defOrg.String(): {
-						{
-							Negate:       true,
-							ResourceType: "*",
-							Action:       "*",
+						Org: []Permission{
+							{
+								Negate:       true,
+								ResourceType: "*",
+								Action:       "*",
+							},
 						},
+						Member: []Permission{},
 					},
 				},
 			},
@@ -926,10 +936,10 @@ func TestAuthorizeScope(t *testing.T) {
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {policy.ActionRead},
 				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
+				User:    []Permission{},
+				ByOrgID: map[string]OrgPermissions{},
 			},
-			AllowIDList: []string{workspaceID.String()},
+			AllowIDList: []AllowListElement{{Type: ResourceWorkspace.Type, ID: workspaceID.String()}},
 		},
 	}
 
@@ -1015,11 +1025,13 @@ func TestAuthorizeScope(t *testing.T) {
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {policy.ActionCreate},
 				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
+				User:    []Permission{},
+				ByOrgID: map[string]OrgPermissions{},
 			},
 			// Empty string allow_list is allowed for actions like 'create'
-			AllowIDList: []string{""},
+			AllowIDList: []AllowListElement{{
+				Type: ResourceWorkspace.Type, ID: "",
+			}},
 		},
 	}
 
@@ -1110,6 +1122,185 @@ func TestAuthorizeScope(t *testing.T) {
 			{resource: ResourceOrganization.WithID(defOrg)},
 		}),
 	)
+
+	// Test setting a scope on the org and the user level
+	// This is a bit of a contrived example that would not exist in practice.
+	// It combines a specific organization scope with a user scope to verify
+	// that both are applied.
+	// The test uses the `Owner` role, so by default the user can do everything.
+	user = Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleOwner())),
+			// TODO: There is a __bug__ in the policy.rego. If the user is not a
+			//  member of the organization, the org_scope fails. This happens because
+			//  the org_allow_set uses "org_members".
+			//  This is odd behavior, as without this membership role, the test for
+			//  the workspace fails. Maybe scopes should just assume the user
+			//  is a member.
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{
+					Name:           "org-and-user-scope",
+					OrganizationID: defOrg,
+				},
+				DisplayName: "OrgAndUserScope",
+				Site:        nil,
+				User: Permissions(map[string][]policy.Action{
+					ResourceUser.Type: {policy.ActionRead},
+				}),
+				ByOrgID: map[string]OrgPermissions{
+					defOrg.String(): {
+						Org: Permissions(map[string][]policy.Action{
+							ResourceWorkspace.Type: {policy.ActionRead},
+						}),
+						Member: []Permission{},
+					},
+				},
+			},
+			AllowIDList: []AllowListElement{AllowListAll()},
+		},
+	}
+
+	testAuthorize(t, "OrgAndUserScope", user,
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true, actions: []policy.Action{policy.ActionRead}},
+			{resource: ResourceUser.WithOwner(user.ID), allow: true, actions: []policy.Action{policy.ActionRead}},
+		},
+		// Not allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: false, actions: []policy.Action{policy.ActionCreate}},
+			{resource: ResourceUser.WithOwner(user.ID), allow: false, actions: []policy.Action{policy.ActionUpdate}},
+		},
+	)
+}
+
+func TestScopeAllowList(t *testing.T) {
+	t.Parallel()
+
+	defOrg := uuid.New()
+
+	// Some IDs to use
+	wid := uuid.New()
+	gid := uuid.New()
+
+	user := Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleOwner())),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{
+					Name:           "AllowList",
+					OrganizationID: defOrg,
+				},
+				DisplayName: "AllowList",
+				// Allow almost everything
+				Site: allPermsExcept(ResourceUser),
+			},
+			AllowIDList: []AllowListElement{
+				{Type: ResourceWorkspace.Type, ID: wid.String()},
+				{Type: ResourceWorkspace.Type, ID: ""}, // Allow to create
+				{Type: ResourceTemplate.Type, ID: policy.WildcardSymbol},
+				{Type: ResourceGroup.Type, ID: gid.String()},
+
+				// This scope allows all users, but the permissions do not.
+				{Type: ResourceUser.Type, ID: policy.WildcardSymbol},
+			},
+		},
+	}
+
+	testAuthorize(t, "AllowList", user,
+		// Allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = true
+			return c
+		},
+			[]authTestCase{
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+				// matching on empty id
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}},
+
+				// Template has wildcard ID, so any uuid is allowed, including the empty
+				{resource: ResourceTemplate.InOrg(defOrg).WithID(uuid.New()), actions: AllActions()},
+				{resource: ResourceTemplate.InOrg(defOrg).WithID(uuid.New()), actions: AllActions()},
+				{resource: ResourceTemplate.InOrg(defOrg), actions: AllActions()},
+
+				// Group
+				{resource: ResourceGroup.InOrg(defOrg).WithID(gid), actions: []policy.Action{policy.ActionRead}},
+			},
+		),
+
+		// Not allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = false
+			return c
+		},
+			[]authTestCase{
+				// Has the scope and allow list, but not the permission
+				{resource: ResourceUser.WithOwner(user.ID), actions: []policy.Action{policy.ActionRead}},
+
+				// `wid` matches on the uuid, but not the type
+				{resource: ResourceGroup.WithID(wid), actions: []policy.Action{policy.ActionRead}},
+
+				// no empty id for the create action
+				{resource: ResourceGroup.InOrg(defOrg), actions: []policy.Action{policy.ActionCreate}},
+			},
+		),
+	)
+
+	// Wildcard type
+	user = Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleOwner())),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{
+					Name:           "WildcardType",
+					OrganizationID: defOrg,
+				},
+				DisplayName: "WildcardType",
+				// Allow almost everything
+				Site: allPermsExcept(ResourceUser),
+			},
+			AllowIDList: []AllowListElement{
+				{Type: policy.WildcardSymbol, ID: wid.String()},
+			},
+		},
+	}
+
+	testAuthorize(t, "WildcardType", user,
+		// Allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = true
+			return c
+		},
+			[]authTestCase{
+				// anything with the id is ok
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+				{resource: ResourceGroup.InOrg(defOrg).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+				{resource: ResourceTemplate.InOrg(defOrg).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+			},
+		),
+
+		// Not allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = false
+			return c
+		},
+			[]authTestCase{
+				// Anything without the id is not allowed
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}},
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(uuid.New()), actions: []policy.Action{policy.ActionRead}},
+			},
+		),
+	)
 }
 
 // cases applies a given function to all test cases. This makes generalities easier to create.
@@ -1132,9 +1323,9 @@ type authTestCase struct {
 func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTestCase) {
 	t.Helper()
 	authorizer := NewAuthorizer(prometheus.NewRegistry())
-	for _, cases := range sets {
-		for i, c := range cases {
-			caseName := fmt.Sprintf("%s/%d", name, i)
+	for i, cases := range sets {
+		for j, c := range cases {
+			caseName := fmt.Sprintf("%s/Set%d/Case%d", name, i, j)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {

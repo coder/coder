@@ -8,7 +8,8 @@
 @tailwind utilities;
 
 @layer base {
-	:root {
+	:root,
+	.light {
 		--content-primary: 240 10% 4%;
 		--content-secondary: 240 5% 34%;
 		--content-link: 221 83% 53%;
@@ -32,9 +33,10 @@
 		--surface-purple: 251 91% 95%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
+		--border-sky: 203 90% 40%;
+		--border-green: 138 82% 82%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 84% 60%;
-		--border-warning: 27 96% 61%;
 		--border-hover: 240 5% 34%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
@@ -76,7 +78,8 @@
 		--border-success: 142 76% 36%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 91% 71%;
-		--border-warning: 31 97% 72%;
+		--border-sky: 194 90% 62%;
+		--border-green: 143 77% 87%;
 		--border-hover: 240, 5%, 34%;
 		--overlay-default: 240 10% 4% / 80%;
 		--highlight-purple: 252 95% 85%;
@@ -104,8 +107,8 @@
 	https://github.com/radix-ui/primitives/issues/3251
 	 */
 	html body[data-scroll-locked] {
-		--removed-body-scroll-bar-size: 0 !important;
-		margin-right: 0 !important;
+		--removed-body-scroll-bar-size: 0;
+		margin-right: 0;
 	}
 
 	/* Prevent layout shift when modals open by maintaining scrollbar width */
@@ -123,6 +126,6 @@
 	  is likely to have set both overflow:hidden and padding-right.
 	*/
 	body[style*="overflow: hidden"][style*="padding-right"] {
-		padding-right: 0px !important;
+		padding-right: 0px;
 	}
 }

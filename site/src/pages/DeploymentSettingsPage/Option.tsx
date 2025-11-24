@@ -1,28 +1,19 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
-	return <span css={{ display: "block" }}>{children}</span>;
-};
-
-export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
-
 	return (
-		<span
-			css={{
-				display: "block",
-				color: theme.palette.text.secondary,
-				fontSize: 14,
-				marginTop: 4,
-			}}
-		>
+		<span className="block text-sm font-medium text-content-primary">
 			{children}
 		</span>
 	);
+};
+
+export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
+	return <span className="text-sm font-normal">{children}</span>;
 };
 
 interface OptionValueProps {
@@ -90,16 +81,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 									alignItems: "center",
 								}}
 							>
-								{isEnabled && (
-									<BuildCircleOutlinedIcon
-										css={(theme) => ({
-											width: 16,
-											height: 16,
-											color: theme.palette.mode,
-											margin: "0 8px",
-										})}
-									/>
-								)}
+								{isEnabled && <WrenchIcon className="size-4 mx-2" />}
 								{option}
 							</div>
 						</li>

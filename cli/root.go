@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -54,14 +55,13 @@ var (
 	// ErrSilent is a sentinel error that tells the command handler to just exit with a non-zero error, but not print
 	// anything.
 	ErrSilent = xerrors.New("silent error")
+
+	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; remove the --use-keyring flag to use file-based storage")
 )
 
 const (
 	varURL                     = "url"
 	varToken                   = "token"
-	varAgentToken              = "agent-token"
-	varAgentTokenFile          = "agent-token-file"
-	varAgentURL                = "agent-url"
 	varHeader                  = "header"
 	varHeaderCommand           = "header-command"
 	varNoOpen                  = "no-open"
@@ -71,17 +71,20 @@ const (
 	varVerbose                 = "verbose"
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
+	varUseKeyring              = "use-keyring"
 
 	notLoggedInMessage = "You are not logged in. Try logging in using '%s login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
 	envSessionToken     = "CODER_SESSION_TOKEN"
+	envUseKeyring       = "CODER_USE_KEYRING"
 	//nolint:gosec
 	envAgentToken = "CODER_AGENT_TOKEN"
 	//nolint:gosec
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
+	envAgentAuth      = "CODER_AGENT_AUTH"
 	envURL            = "CODER_URL"
 )
 
@@ -90,7 +93,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	return []*serpent.Command{
 		r.completion(),
 		r.dotfiles(),
-		r.externalAuth(),
+		externalAuth(),
 		r.login(),
 		r.logout(),
 		r.netcheck(),
@@ -99,6 +102,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
+		r.sharing(),
 		r.state(),
 		r.templates(),
 		r.tokens(),
@@ -108,7 +112,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		// Workspace Commands
 		r.autoupdate(),
 		r.configSSH(),
-		r.create(),
+		r.Create(CreateOptions{}),
 		r.deleteWorkspace(),
 		r.favorite(),
 		r.list(),
@@ -129,22 +133,52 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 
 		// Hidden
 		r.connectCmd(),
-		r.expCmd(),
-		r.gitssh(),
+		gitssh(),
 		r.support(),
 		r.vpnDaemon(),
 		r.vscodeSSH(),
-		r.workspaceAgent(),
+		workspaceAgent(),
 	}
 }
 
+// AGPLExperimental returns all AGPL experimental subcommands.
+func (r *RootCmd) AGPLExperimental() []*serpent.Command {
+	return []*serpent.Command{
+		r.scaletestCmd(),
+		r.errorExample(),
+		r.mcpCommand(),
+		r.promptExample(),
+		r.rptyCommand(),
+		r.tasksCommand(),
+		r.boundary(),
+	}
+}
+
+// AGPL returns all AGPL commands including any non-core commands that are
+// duplicated in the Enterprise CLI.
 func (r *RootCmd) AGPL() []*serpent.Command {
 	all := append(
 		r.CoreSubcommands(),
 		r.Server( /* Do not import coderd here. */ nil),
 		r.Provisioners(),
+		ExperimentalCommand(r.AGPLExperimental()),
 	)
 	return all
+}
+
+// ExperimentalCommand creates an experimental command that is hidden and has
+// the given subcommands.
+func ExperimentalCommand(subcommands []*serpent.Command) *serpent.Command {
+	cmd := &serpent.Command{
+		Use:   "exp",
+		Short: "Internal commands for testing and experimentation. These are prone to breaking changes with no notice.",
+		Handler: func(i *serpent.Invocation) error {
+			return i.Command.HelpHandler(i)
+		},
+		Hidden:   true,
+		Children: subcommands,
+	}
+	return cmd
 }
 
 // RunWithSubcommands runs the root command with the given subcommands.
@@ -198,6 +232,7 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
+	hiddenAgentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use: "coder [global-flags] <subcommand>",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + FormatExamples(
@@ -220,7 +255,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			// with a `gitaskpass` subcommand, we override the entrypoint
 			// to check if the command was invoked.
 			if gitauth.CheckCommand(i.Args, i.Environ.ToOS()) {
-				return r.gitAskpass().Handler(i)
+				return gitAskpass(hiddenAgentAuth).Handler(i)
 			}
 			return i.Command.HelpHandler(i)
 		},
@@ -349,9 +384,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
-	if r.agentURL == nil {
-		r.agentURL = new(url.URL)
-	}
 	if r.clientURL == nil {
 		r.clientURL = new(url.URL)
 	}
@@ -379,30 +411,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Env:         envSessionToken,
 			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
 			Value:       serpent.StringOf(&r.token),
-			Group:       globalGroup,
-		},
-		{
-			Flag:        varAgentToken,
-			Env:         envAgentToken,
-			Description: "An agent authentication token.",
-			Value:       serpent.StringOf(&r.agentToken),
-			Hidden:      true,
-			Group:       globalGroup,
-		},
-		{
-			Flag:        varAgentTokenFile,
-			Env:         envAgentTokenFile,
-			Description: "A file containing an agent authentication token.",
-			Value:       serpent.StringOf(&r.agentTokenFile),
-			Hidden:      true,
-			Group:       globalGroup,
-		},
-		{
-			Flag:        varAgentURL,
-			Env:         envAgentURL,
-			Description: "URL for an agent to access your deployment.",
-			Value:       serpent.URLOf(r.agentURL),
-			Hidden:      true,
 			Group:       globalGroup,
 		},
 		{
@@ -472,6 +480,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag: varUseKeyring,
+			Env:  envUseKeyring,
+			Description: "Store and retrieve session tokens using the operating system " +
+				"keyring. Currently only supported on Windows. By default, tokens are " +
+				"stored in plain text files.",
+			Value: serpent.BoolOf(&r.useKeyring),
+			Group: globalGroup,
+		},
+		{
 			Flag:        "debug-http",
 			Description: "Debug codersdk HTTP requests.",
 			Value:       serpent.BoolOf(&r.debugHTTP),
@@ -496,136 +513,162 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Hidden:      true,
 		},
 	}
+	hiddenAgentAuth.AttachOptions(cmd, true)
 
 	return cmd, nil
 }
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL      *url.URL
-	token          string
-	globalConfig   string
-	header         []string
-	headerCommand  string
-	agentToken     string
-	agentTokenFile string
-	agentURL       *url.URL
-	forceTTY       bool
-	noOpen         bool
-	verbose        bool
-	versionFlag    bool
-	disableDirect  bool
-	debugHTTP      bool
+	clientURL     *url.URL
+	token         string
+	tokenBackend  sessionstore.Backend
+	globalConfig  string
+	header        []string
+	headerCommand string
+
+	forceTTY      bool
+	noOpen        bool
+	verbose       bool
+	versionFlag   bool
+	disableDirect bool
+	debugHTTP     bool
 
 	disableNetworkTelemetry bool
 	noVersionCheck          bool
 	noFeatureWarning        bool
+	useKeyring              bool
 }
 
-// InitClient authenticates the client with files from disk
-// and injects header middlewares for telemetry, authentication,
+// InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
-func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			conf := r.createConfig()
-			var err error
-			// Read the client URL stored on disk.
-			if r.clientURL == nil || r.clientURL.String() == "" {
-				rawURL, err := conf.URL().Read()
-				// If the configuration files are absent, the user is logged out
-				if os.IsNotExist(err) {
-					binPath, err := os.Executable()
-					if err != nil {
-						binPath = "coder"
-					}
-					return xerrors.Errorf(notLoggedInMessage, binPath)
-				}
-				if err != nil {
-					return err
-				}
-
-				r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-				if err != nil {
-					return err
-				}
-			}
-			// Read the token stored on disk.
-			if r.token == "" {
-				r.token, err = conf.Session().Read()
-				// Even if there isn't a token, we don't care.
-				// Some API routes can be unauthenticated.
-				if err != nil && !os.IsNotExist(err) {
-					return err
-				}
-			}
-
-			err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
+	conf := r.createConfig()
+	var err error
+	// Read the client URL stored on disk.
+	if r.clientURL == nil || r.clientURL.String() == "" {
+		rawURL, err := conf.URL().Read()
+		// If the configuration files are absent, the user is logged out
+		if os.IsNotExist(err) {
+			binPath, err := os.Executable()
 			if err != nil {
-				return err
+				binPath = "coder"
 			}
-			client.SetSessionToken(r.token)
+			return nil, xerrors.Errorf(notLoggedInMessage, binPath)
+		}
+		if err != nil {
+			return nil, err
+		}
 
-			if r.debugHTTP {
-				client.PlainLogger = os.Stderr
-				client.SetLogBodies(true)
-			}
-			client.DisableDirectConnections = r.disableDirect
-			return next(inv)
+		r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+		if err != nil {
+			return nil, err
 		}
 	}
+	if r.token == "" {
+		tok, err := r.ensureTokenBackend().Read(r.clientURL)
+		// Even if there isn't a token, we don't care.
+		// Some API routes can be unauthenticated.
+		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
+			if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+				return nil, errKeyringNotSupported
+			}
+			return nil, err
+		}
+		if tok != "" {
+			r.token = tok
+		}
+	}
+
+	// Configure HTTP client with transport wrappers
+	httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
+	if err != nil {
+		return nil, err
+	}
+
+	clientOpts := []codersdk.ClientOption{
+		codersdk.WithSessionToken(r.token),
+		codersdk.WithHTTPClient(httpClient),
+	}
+
+	if r.disableDirect {
+		clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+	}
+
+	if r.debugHTTP {
+		clientOpts = append(clientOpts,
+			codersdk.WithPlainLogger(os.Stderr),
+			codersdk.WithLogBodies(),
+		)
+	}
+
+	return codersdk.New(r.clientURL, clientOpts...), nil
 }
 
 // TryInitClient is similar to InitClient but doesn't error when credentials are missing.
 // This allows commands to run without requiring authentication, but still use auth if available.
-func (r *RootCmd) TryInitClient(client *codersdk.Client) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			conf := r.createConfig()
-			var err error
-			// Read the client URL stored on disk.
-			if r.clientURL == nil || r.clientURL.String() == "" {
-				rawURL, err := conf.URL().Read()
-				// If the configuration files are absent, just continue without URL
-				if err != nil {
-					// Continue with a nil or empty URL
-					if !os.IsNotExist(err) {
-						return err
-					}
-				} else {
-					r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-					if err != nil {
-						return err
-					}
-				}
+func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
+	conf := r.createConfig()
+	// Read the client URL stored on disk.
+	if r.clientURL == nil || r.clientURL.String() == "" {
+		rawURL, err := conf.URL().Read()
+		// If the configuration files are absent, just continue without URL
+		if err != nil {
+			// Continue with a nil or empty URL
+			if !os.IsNotExist(err) {
+				return nil, err
 			}
-			// Read the token stored on disk.
-			if r.token == "" {
-				r.token, err = conf.Session().Read()
-				// Even if there isn't a token, we don't care.
-				// Some API routes can be unauthenticated.
-				if err != nil && !os.IsNotExist(err) {
-					return err
-				}
+		} else {
+			r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+			if err != nil {
+				return nil, err
 			}
-
-			// Only configure the client if we have a URL
-			if r.clientURL != nil && r.clientURL.String() != "" {
-				err = r.configureClient(inv.Context(), client, r.clientURL, inv)
-				if err != nil {
-					return err
-				}
-				client.SetSessionToken(r.token)
-
-				if r.debugHTTP {
-					client.PlainLogger = os.Stderr
-					client.SetLogBodies(true)
-				}
-				client.DisableDirectConnections = r.disableDirect
-			}
-			return next(inv)
 		}
 	}
+	if r.token == "" {
+		tok, err := r.ensureTokenBackend().Read(r.clientURL)
+		// Even if there isn't a token, we don't care.
+		// Some API routes can be unauthenticated.
+		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
+			if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+				return nil, errKeyringNotSupported
+			}
+			return nil, err
+		}
+		if tok != "" {
+			r.token = tok
+		}
+	}
+
+	// Only configure the client if we have a URL
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		// Configure HTTP client with transport wrappers
+		httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
+		if err != nil {
+			return nil, err
+		}
+
+		clientOpts := []codersdk.ClientOption{
+			codersdk.WithSessionToken(r.token),
+			codersdk.WithHTTPClient(httpClient),
+		}
+
+		if r.disableDirect {
+			clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+		}
+
+		if r.debugHTTP {
+			clientOpts = append(clientOpts,
+				codersdk.WithPlainLogger(os.Stderr),
+				codersdk.WithLogBodies(),
+			)
+		}
+
+		return codersdk.New(r.clientURL, clientOpts...), nil
+	}
+
+	// Return a minimal client if no URL is available
+	return &codersdk.Client{}, nil
 }
 
 // HeaderTransport creates a new transport that executes `--header-command`
@@ -634,7 +677,7 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 	return headerTransport(ctx, serverURL, r.header, r.headerCommand)
 }
 
-func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
+func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
 	transport := http.DefaultTransport
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	if !r.noVersionCheck {
@@ -650,57 +693,119 @@ func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, 
 	}
 	headerTransport, err := r.HeaderTransport(ctx, serverURL)
 	if err != nil {
-		return xerrors.Errorf("create header transport: %w", err)
+		return nil, xerrors.Errorf("create header transport: %w", err)
 	}
 	// The header transport has to come last.
 	// codersdk checks for the header transport to get headers
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
-	client.HTTPClient = &http.Client{
+	return &http.Client{
 		Transport: headerTransport,
-	}
-	client.URL = serverURL
-	return nil
+	}, nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
-	var client codersdk.Client
-	err := r.configureClient(ctx, &client, serverURL, inv)
-	return &client, err
+	httpClient, err := r.createHTTPClient(ctx, serverURL, inv)
+	if err != nil {
+		return nil, err
+	}
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(httpClient))
+	return client, nil
 }
 
-// createAgentClient returns a new client from the command context.  It works
+// ensureTokenBackend returns the session token storage backend, creating it if necessary.
+// This must be called after flags are parsed so we can respect the value of the --use-keyring
+// flag.
+func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
+	if r.tokenBackend == nil {
+		if r.useKeyring {
+			r.tokenBackend = sessionstore.NewKeyring()
+		} else {
+			r.tokenBackend = sessionstore.NewFile(r.createConfig)
+		}
+	}
+	return r.tokenBackend
+}
+
+func (r *RootCmd) WithSessionStorageBackend(backend sessionstore.Backend) {
+	r.tokenBackend = backend
+}
+
+type AgentAuth struct {
+	// Agent Client config
+	agentToken     string
+	agentTokenFile string
+	agentURL       url.URL
+	agentAuth      string
+}
+
+func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
+	cmd.Options = append(cmd.Options, serpent.Option{
+		Name:        "Agent Token",
+		Description: "An agent authentication token.",
+		Flag:        "agent-token",
+		Env:         envAgentToken,
+		Value:       serpent.StringOf(&a.agentToken),
+		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Token File",
+		Description: "A file containing an agent authentication token.",
+		Flag:        "agent-token-file",
+		Env:         envAgentTokenFile,
+		Value:       serpent.StringOf(&a.agentTokenFile),
+		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent URL",
+		Description: "URL for an agent to access your deployment.",
+		Flag:        "agent-url",
+		Env:         envAgentURL,
+		Value:       serpent.URLOf(&a.agentURL),
+		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Auth",
+		Description: "Specify the authentication type to use for the agent.",
+		Flag:        "auth",
+		Env:         envAgentAuth,
+		Default:     "token",
+		Value:       serpent.StringOf(&a.agentAuth),
+		Hidden:      hidden,
+	})
+}
+
+// CreateClient returns a new agent client from the command context.  It works
 // just like InitClient, but uses the agent token and URL instead.
-func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
-	agentURL := r.agentURL
-	if agentURL == nil || agentURL.String() == "" {
+func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
+	agentURL := a.agentURL
+	if agentURL.String() == "" {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
 	}
-	token := r.agentToken
-	if token == "" {
-		if r.agentTokenFile == "" {
-			return nil, xerrors.Errorf("Either %s or %s must be set", envAgentToken, envAgentTokenFile)
-		}
-		tokenBytes, err := os.ReadFile(r.agentTokenFile)
-		if err != nil {
-			return nil, xerrors.Errorf("read token file %q: %w", r.agentTokenFile, err)
-		}
-		token = strings.TrimSpace(string(tokenBytes))
-	}
-	client := agentsdk.New(agentURL)
-	client.SetSessionToken(token)
-	return client, nil
-}
 
-// tryCreateAgentClient returns a new client from the command context.  It works
-// just like tryCreateAgentClient, but does not error.
-func (r *RootCmd) tryCreateAgentClient() (*agentsdk.Client, error) {
-	// TODO: Why does this not actually return any errors despite the function
-	// signature?  Could we just use createAgentClient instead, or is it expected
-	// that we return a client in some cases even without a valid URL or token?
-	client := agentsdk.New(r.agentURL)
-	client.SetSessionToken(r.agentToken)
-	return client, nil
+	switch a.agentAuth {
+	case "token":
+		token := a.agentToken
+		if token == "" {
+			if a.agentTokenFile == "" {
+				return nil, xerrors.Errorf("Either %s or %s must be set", envAgentToken, envAgentTokenFile)
+			}
+			tokenBytes, err := os.ReadFile(a.agentTokenFile)
+			if err != nil {
+				return nil, xerrors.Errorf("read token file %q: %w", a.agentTokenFile, err)
+			}
+			token = strings.TrimSpace(string(tokenBytes))
+		}
+		if token == "" {
+			return nil, xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+		}
+		return agentsdk.New(&a.agentURL, agentsdk.WithFixedToken(token)), nil
+	case "google-instance-identity":
+		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil)), nil
+	case "aws-instance-identity":
+		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity()), nil
+	case "azure-instance-identity":
+		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity()), nil
+	default:
+		return nil, xerrors.Errorf("unknown agent auth type: %s", a.agentAuth)
+	}
 }
 
 type OrganizationContext struct {
@@ -799,17 +904,13 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
 }
 
-func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfig) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			cfg, _ := client.Appearance(inv.Context())
-			if cfg.DocsURL == "" {
-				cfg.DocsURL = codersdk.DefaultDocsURL()
-			}
-			*outConfig = cfg
-			return next(inv)
-		}
+func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {
+	// best effort
+	cfg, _ := client.Appearance(ctx)
+	if cfg.DocsURL == "" {
+		cfg.DocsURL = codersdk.DefaultDocsURL()
 	}
+	return cfg
 }
 
 // createConfig consumes the global configuration flag to produce a config root.

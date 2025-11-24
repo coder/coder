@@ -46,7 +46,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 `
-	scheduleExtendDescriptionLong = `
+	scheduleExtendDescriptionLong = `Extends the workspace deadline.
   * The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
@@ -90,16 +90,18 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	client := new(codersdk.Client)
 	showCmd := &serpent.Command{
 		Use:   "show <workspace | --search <query> | --all>",
 		Short: "Show workspace schedules",
 		Long:  scheduleShowDescriptionLong,
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			// To preserve existing behavior, if an argument is passed we will
 			// only show the schedule for that workspace.
 			// This will clobber the search query if one is passed.
@@ -117,7 +119,7 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 					f.FilterQuery = fmt.Sprintf("owner:me name:%s", inv.Args[0])
 				}
 			}
-			res, err := queryConvertWorkspaces(inv.Context(), client, f, scheduleListRowFromWorkspace)
+			res, err := QueryConvertWorkspaces(inv.Context(), client, f, scheduleListRowFromWorkspace)
 			if err != nil {
 				return err
 			}
@@ -137,7 +139,6 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 }
 
 func (r *RootCmd) scheduleStart() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Long: scheduleStartDescriptionLong + "\n" + FormatExamples(
@@ -149,12 +150,22 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 		Short: "Edit workspace start schedule",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(2, 4),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
+			}
+
+			// Autostart configuration is not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("autostart configuration is not supported for prebuilt workspaces")
 			}
 
 			var schedStr *string
@@ -165,6 +176,22 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 				}
 
 				schedStr = ptr.Ref(sched.String())
+
+				// Check if the template has autostart requirements that may conflict
+				// with the user's schedule.
+				template, err := client.Template(inv.Context(), workspace.TemplateID)
+				if err != nil {
+					return xerrors.Errorf("get template: %w", err)
+				}
+
+				if len(template.AutostartRequirement.DaysOfWeek) > 0 {
+					_, _ = fmt.Fprintf(
+						inv.Stderr,
+						"Warning: your workspace template restricts autostart to the following days: %s.\n"+
+							"Your workspace may only autostart on these days.\n",
+						strings.Join(template.AutostartRequirement.DaysOfWeek, ", "),
+					)
+				}
 			}
 
 			err = client.UpdateWorkspaceAutostart(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
@@ -186,7 +213,6 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 }
 
 func (r *RootCmd) scheduleStop() *serpent.Command {
-	client := new(codersdk.Client)
 	return &serpent.Command{
 		Use: "stop <workspace-name> { <duration> | manual }",
 		Long: scheduleStopDescriptionLong + "\n" + FormatExamples(
@@ -197,12 +223,22 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 		Short: "Edit workspace stop schedule",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
+			}
+
+			// Autostop configuration is not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("autostop configuration is not supported for prebuilt workspaces")
 			}
 
 			var durMillis *int64
@@ -230,7 +266,6 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 }
 
 func (r *RootCmd) scheduleExtend() *serpent.Command {
-	client := new(codersdk.Client)
 	extendCmd := &serpent.Command{
 		Use:     "extend <workspace-name> <duration from now>",
 		Aliases: []string{"override-stop"},
@@ -242,9 +277,12 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			extendDuration, err := parseDuration(inv.Args[1])
 			if err != nil {
 				return err
@@ -253,6 +291,13 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
+			}
+
+			// Deadline extensions are not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with TTL behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("extend configuration is not supported for prebuilt workspaces")
 			}
 
 			loc, err := tz.TimezoneIANA()
@@ -286,7 +331,7 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 }
 
 func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
-	rows := []workspaceListRow{workspaceListRowFromWorkspace(time.Now(), ws)}
+	rows := []WorkspaceListRow{WorkspaceListRowFromWorkspace(time.Now(), ws)}
 	rendered, err := cliui.DisplayTable(rows, "workspace", []string{
 		"workspace", "starts at", "starts next", "stops after", "stops next",
 	})

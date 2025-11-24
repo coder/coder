@@ -23,12 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - uses: tj-actions/changed-files@666c9d29007687c52e3c7aa2aac6c0ffcadeadc3 # v45.0.7
+      - uses: tj-actions/changed-files@70069877f29101175ed2b055d210fe8b1d54d7d7 # v45.0.7
         id: changed-files
         with:
           files: |
@@ -39,10 +41,16 @@ jobs:
       - name: lint
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          pnpm exec markdownlint-cli2 ${{ steps.changed-files.outputs.all_changed_files }}
+          # shellcheck disable=SC2086
+          pnpm exec markdownlint-cli2 $ALL_CHANGED_FILES
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
 
       - name: fmt
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           # markdown-table-formatter requires a space separated list of files
-          echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+          # shellcheck disable=SC2086
+          echo $ALL_CHANGED_FILES | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}

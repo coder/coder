@@ -10,17 +10,15 @@ import {
 import { organizationRoles } from "api/queries/roles";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
@@ -75,33 +73,31 @@ const IdpSyncPage: FC = () => {
 		enabled: !!field,
 	});
 
-	if (!organization) {
-		return <EmptyState message="Organization not found" />;
-	}
-
-	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle("IdP Sync", organization.display_name || organization.name)}
-			</title>
-		</Helmet>
-	);
-
-	if (!organizationPermissions?.viewIdpSyncSettings) {
-		return (
-			<>
-				{helmet}
-				<RequirePermission isFeatureVisible={false} />
-			</>
-		);
-	}
-
 	const patchGroupSyncSettingsMutation = useMutation(
 		patchGroupSyncSettings(organizationName, queryClient),
 	);
 	const patchRoleSyncSettingsMutation = useMutation(
 		patchRoleSyncSettings(organizationName, queryClient),
 	);
+
+	if (!organization) {
+		return <EmptyState message="Organization not found" />;
+	}
+
+	const title = (
+		<title>
+			{pageTitle("IdP Sync", organization.display_name || organization.name)}
+		</title>
+	);
+
+	if (!organizationPermissions?.viewIdpSyncSettings) {
+		return (
+			<>
+				{title}
+				<RequirePermission isFeatureVisible={false} />
+			</>
+		);
+	}
 
 	const error =
 		patchGroupSyncSettingsMutation.error ||
@@ -118,8 +114,8 @@ const IdpSyncPage: FC = () => {
 	}
 
 	return (
-		<>
-			{helmet}
+		<div className="w-full max-w-screen-2xl pb-10">
+			{title}
 
 			<div className="flex flex-col gap-12">
 				<header className="flex flex-row items-baseline justify-between">
@@ -136,7 +132,7 @@ const IdpSyncPage: FC = () => {
 					<Cond condition={!isIdpSyncEnabled}>
 						<Paywall
 							message="IdP Sync"
-							description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
+							description="Configure group and role mappings to manage permissions outside of Coder. You need a Premium license to use this feature."
 							documentationLink={docs("/admin/users/idp-sync")}
 						/>
 					</Cond>
@@ -183,7 +179,7 @@ const IdpSyncPage: FC = () => {
 					</Cond>
 				</ChooseOne>
 			</div>
-		</>
+		</div>
 	);
 };
 

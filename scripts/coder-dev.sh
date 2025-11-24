@@ -8,8 +8,15 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck disable=SC1091,SC1090
 source "${SCRIPT_DIR}/lib.sh"
 
+# Ensure that extant environment variables do not override
+# the config dir we use to override auth for dev.coder.com.
+unset CODER_SESSION_TOKEN
+unset CODER_URL
+
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
+CODER_AGENT_URL="${CODER_AGENT_URL:-}"
+DEVELOP_IN_CODER="${DEVELOP_IN_CODER:-0}"
 DEBUG_DELVE="${DEBUG_DELVE:-0}"
 BINARY_TYPE=coder-slim
 if [[ ${1:-} == server ]]; then
@@ -35,6 +42,10 @@ CODER_DEV_DIR="$(realpath ./.coderv2)"
 CODER_DELVE_DEBUG_BIN=$(realpath "./build/coder_debug_${GOOS}_${GOARCH}")
 popd
 
+if [ -n "${CODER_AGENT_URL}" ]; then
+	DEVELOP_IN_CODER=1
+fi
+
 case $BINARY_TYPE in
 coder-slim)
 	# Ensure the coder slim binary is always up-to-date with local
@@ -42,9 +53,9 @@ coder-slim)
 	# NOTE: we send all output of `make` to /dev/null so that we do not break
 	# scripts that read the output of this command.
 	if [[ -t 1 ]]; then
-		make -j "${RELATIVE_BINARY_PATH}"
+		DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}"
 	else
-		make -j "${RELATIVE_BINARY_PATH}" >/dev/null 2>&1
+		DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}" >/dev/null 2>&1
 	fi
 	;;
 coder)

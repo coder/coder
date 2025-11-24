@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -158,9 +160,29 @@ func TestExternalAuthManagement(t *testing.T) {
 		t.Parallel()
 		const githubID = "fake-github"
 		const gitlabID = "fake-gitlab"
+		const slackID = "fake-slack"
+		const azureID = "fake-azure"
+		ghRevokeCalled := false
+		slRevokeCalled := false
+		azRevokeCalled := false
 
-		github := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		ghRevoke := func() (int, error) {
+			ghRevokeCalled = true
+			return http.StatusNoContent, nil
+		}
+		slRevoke := func() (int, error) {
+			slRevokeCalled = true
+			return http.StatusOK, nil
+		}
+		azRevoke := func() (int, error) {
+			azRevokeCalled = true
+			return http.StatusForbidden, xerrors.New("some error")
+		}
+
+		github := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithRevokeTokenGitHub(ghRevoke))
 		gitlab := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		slack := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithRevokeTokenRFC(slRevoke))
+		azure := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithRevokeTokenRFC(azRevoke))
 
 		owner := coderdtest.New(t, &coderdtest.Options{
 			ExternalAuthConfigs: []*externalauth.Config{
@@ -169,6 +191,13 @@ func TestExternalAuthManagement(t *testing.T) {
 				}),
 				gitlab.ExternalAuthConfig(t, gitlabID, nil, func(cfg *externalauth.Config) {
 					cfg.Type = codersdk.EnhancedExternalAuthProviderGitLab.String()
+				}),
+				slack.ExternalAuthConfig(t, slackID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderSlack.String()
+					cfg.RevokeURL = ""
+				}),
+				azure.ExternalAuthConfig(t, azureID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String()
 				}),
 			},
 		})
@@ -180,25 +209,47 @@ func TestExternalAuthManagement(t *testing.T) {
 		// List auths without any links.
 		list, err := client.ListExternalAuths(ctx)
 		require.NoError(t, err)
-		require.Len(t, list.Providers, 2)
+		require.Len(t, list.Providers, 4)
 		require.Len(t, list.Links, 0)
 
-		// Log into github
+		// Log into github and slack
 		github.ExternalLogin(t, client)
+		slack.ExternalLogin(t, client)
+		azure.ExternalLogin(t, client)
 
 		list, err = client.ListExternalAuths(ctx)
 		require.NoError(t, err)
-		require.Len(t, list.Providers, 2)
-		require.Len(t, list.Links, 1)
-		require.Equal(t, list.Links[0].ProviderID, githubID)
+		require.Len(t, list.Providers, 4)
+		require.Len(t, list.Links, 3)
+		require.True(t, slices.ContainsFunc(list.Links, func(l codersdk.ExternalAuthLink) bool { return l.ProviderID == githubID }))
+		require.True(t, slices.ContainsFunc(list.Links, func(l codersdk.ExternalAuthLink) bool { return l.ProviderID == slackID }))
+		require.True(t, slices.ContainsFunc(list.Links, func(l codersdk.ExternalAuthLink) bool { return l.ProviderID == azureID }))
+		require.False(t, ghRevokeCalled)
+		require.False(t, slRevokeCalled)
+		require.False(t, azRevokeCalled)
 
 		// Unlink
-		err = client.UnlinkExternalAuthByID(ctx, githubID)
+		r, err := client.UnlinkExternalAuthByID(ctx, githubID)
 		require.NoError(t, err)
+		require.True(t, r.TokenRevoked)
+		require.Empty(t, r.TokenRevocationError)
+		require.True(t, ghRevokeCalled)
+
+		r, err = client.UnlinkExternalAuthByID(ctx, slackID)
+		require.NoError(t, err)
+		require.False(t, r.TokenRevoked)
+		require.Empty(t, r.TokenRevocationError)
+		require.False(t, slRevokeCalled)
+
+		r, err = client.UnlinkExternalAuthByID(ctx, azureID)
+		require.NoError(t, err)
+		require.False(t, r.TokenRevoked)
+		require.Contains(t, r.TokenRevocationError, "some error")
+		require.True(t, azRevokeCalled)
 
 		list, err = client.ListExternalAuths(ctx)
 		require.NoError(t, err)
-		require.Len(t, list.Providers, 2)
+		require.Len(t, list.Providers, 4)
 		require.Len(t, list.Links, 0)
 	})
 	t.Run("RefreshAllProviders", func(t *testing.T) {
@@ -432,8 +483,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 		_, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com",
 		})
@@ -464,8 +514,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com/asd/asd",
 		})
@@ -565,8 +614,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -627,8 +675,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com/asd/asd",
@@ -674,8 +721,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com/asd/asd",
@@ -740,8 +786,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-				agentClient := agentsdk.New(client.URL)
-				agentClient.SetSessionToken(authToken)
+				agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 				token, err := agentClient.ExternalAuth(t.Context(), agentsdk.ExternalAuthRequest{
 					Match: "github.com/asd/asd",

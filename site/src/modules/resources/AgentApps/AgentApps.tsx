@@ -1,5 +1,8 @@
-import type { WorkspaceApp } from "api/typesGenerated";
-import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceApp,
+} from "api/typesGenerated";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -39,11 +42,9 @@ export const AgentApps: FC<AgentAppsProps> = ({
 			</DropdownMenuContent>
 		</DropdownMenu>
 	) : (
-		<>
-			{section.apps.map((app) => (
-				<AppLink key={app.slug} app={app} agent={agent} workspace={workspace} />
-			))}
-		</>
+		section.apps.map((app) => (
+			<AppLink key={app.slug} app={app} agent={agent} workspace={workspace} />
+		))
 	);
 };
 
@@ -68,7 +69,7 @@ type AgentAppSection = {
 export function organizeAgentApps(
 	apps: readonly WorkspaceApp[],
 ): AgentAppSection[] {
-	let currentSection: AgentAppSection | undefined = undefined;
+	let currentSection: AgentAppSection | undefined;
 	const appGroups: AgentAppSection[] = [];
 	const groupsByName = new Map<string, AgentAppSection>();
 

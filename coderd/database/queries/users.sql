@@ -25,6 +25,26 @@ WHERE
 LIMIT
 	1;
 
+-- name: ValidateUserIDs :one
+WITH input AS (
+	SELECT
+		unnest(@user_ids::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_user_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (users) row for each
+	-- right (input) row...
+	users
+	RIGHT JOIN input ON users.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing user...
+	users.id IS NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true;
+
 -- name: GetUsersByIDs :many
 -- This shouldn't check for deleted, because it's frequently used
 -- to look up references to actions. eg. a user could build a workspace

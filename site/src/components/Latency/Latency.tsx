@@ -1,22 +1,24 @@
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
-import { visuallyHidden } from "@mui/utils";
 import { Abbr } from "components/Abbr/Abbr";
 import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 
 interface LatencyProps {
 	latency?: number;
 	isLoading?: boolean;
-	size?: number;
+	className?: string;
+	iconClassName?: string;
 }
 
 export const Latency: FC<LatencyProps> = ({
 	latency,
 	isLoading,
-	size = 14,
+	className,
+	iconClassName,
 }) => {
 	const theme = useTheme();
 	// Always use the no latency color for loading.
@@ -24,10 +26,9 @@ export const Latency: FC<LatencyProps> = ({
 
 	if (isLoading) {
 		return (
-			<Tooltip title="Loading latency...">
+			<Tooltip title="Loading latency..." className={className}>
 				<CircularProgress
-					size={size}
-					css={{ marginLeft: "auto" }}
+					className={cn("!size-icon-xs", iconClassName)}
 					style={{ color }}
 				/>
 			</Tooltip>
@@ -35,29 +36,21 @@ export const Latency: FC<LatencyProps> = ({
 	}
 
 	if (!latency) {
-		const notAvailableText = "Latency not available";
 		return (
-			<Tooltip title={notAvailableText}>
-				<>
-					<span css={{ ...visuallyHidden }}>{notAvailableText}</span>
-
-					<CircleHelpIcon
-						className="size-icon-sm"
-						css={{
-							marginLeft: "auto",
-						}}
-						style={{ color }}
-					/>
-				</>
+			<Tooltip title="Latency not available" className={className}>
+				<CircleHelpIcon
+					className={cn("!size-icon-sm", iconClassName)}
+					style={{ color }}
+				/>
 			</Tooltip>
 		);
 	}
 
 	return (
-		<p css={{ fontSize: 13, margin: "0 0 0 auto" }} style={{ color }}>
-			<span css={{ ...visuallyHidden }}>Latency: </span>
+		<div className={cn("text-sm", className)} style={{ color }}>
+			<span className="sr-only">Latency: </span>
 			{latency.toFixed(0)}
 			<Abbr title="milliseconds">ms</Abbr>
-		</p>
+		</div>
 	);
 };

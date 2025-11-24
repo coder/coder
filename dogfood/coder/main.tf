@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 2.5"
+      version = ">= 2.13.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -31,7 +31,6 @@ locals {
     // actually in Germany now.
     "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
     "ap-sydney"   = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
-    "sa-saopaulo" = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
     "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
@@ -41,7 +40,9 @@ locals {
 }
 
 data "coder_workspace_preset" "cpt" {
-  name = "Cape Town"
+  name        = "Cape Town"
+  description = "Development workspace hosted in South Africa with 1 prebuild instance"
+  icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "za-cpt"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
@@ -56,7 +57,9 @@ data "coder_workspace_preset" "cpt" {
 }
 
 data "coder_workspace_preset" "pittsburgh" {
-  name = "Pittsburgh"
+  name        = "Pittsburgh"
+  description = "Development workspace hosted in United States with 2 prebuild instances"
+  icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "us-pittsburgh"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
@@ -71,7 +74,9 @@ data "coder_workspace_preset" "pittsburgh" {
 }
 
 data "coder_workspace_preset" "falkenstein" {
-  name = "Falkenstein"
+  name        = "Falkenstein"
+  description = "Development workspace hosted in Europe with 1 prebuild instance"
+  icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "eu-helsinki"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
@@ -86,24 +91,11 @@ data "coder_workspace_preset" "falkenstein" {
 }
 
 data "coder_workspace_preset" "sydney" {
-  name = "Sydney"
+  name        = "Sydney"
+  description = "Development workspace hosted in Australia with 1 prebuild instance"
+  icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "ap-sydney"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
-  }
-  prebuilds {
-    instances = 1
-  }
-}
-
-data "coder_workspace_preset" "saopaulo" {
-  name = "São Paulo"
-  parameters = {
-    (data.coder_parameter.region.name)                   = "sa-saopaulo"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
@@ -146,7 +138,6 @@ locals {
     "north-america" : "us-pittsburgh"
     "europe" : "eu-helsinki"
     "australia" : "ap-sydney"
-    "south-america" : "sa-saopaulo"
     "africa" : "za-cpt"
   }
 
@@ -156,7 +147,6 @@ locals {
     local.default_regions[g] if contains(keys(local.default_regions), g)
   ], ["us-pittsburgh"])[0]
 }
-
 
 data "coder_parameter" "region" {
   type    = "string"
@@ -179,11 +169,6 @@ data "coder_parameter" "region" {
     icon  = "/emojis/1f1e6-1f1fa.png"
     name  = "Sydney"
     value = "ap-sydney"
-  }
-  option {
-    icon  = "/emojis/1f1e7-1f1f7.png"
-    name  = "São Paulo"
-    value = "sa-saopaulo"
   }
   option {
     icon  = "/emojis/1f1ff-1f1e6.png"
@@ -232,6 +217,24 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
+data "coder_parameter" "use_ai_bridge" {
+  type        = "bool"
+  name        = "Use AI Bridge"
+  default     = true
+  description = "If enabled, AI requests will be sent via AI Bridge."
+  mutable     = true
+}
+
+# Only used if AI Bridge is disabled.
+# dogfood/main.tf injects this value from a GH Actions secret;
+# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY`.
+variable "anthropic_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
+  default     = ""
+  sensitive   = true
+}
+
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -244,6 +247,7 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -251,10 +255,90 @@ data "coder_workspace_tags" "tags" {
   }
 }
 
+data "coder_workspace_tags" "prebuild" {
+  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+  tags = {
+    "is_prebuild" = "true"
+  }
+}
+
+data "coder_parameter" "ide_choices" {
+  type        = "list(string)"
+  name        = "Select IDEs"
+  form_type   = "multi-select"
+  mutable     = true
+  description = "Choose one or more IDEs to enable in your workspace"
+  default     = jsonencode(["vscode", "code-server", "cursor", "mux"])
+  option {
+    name  = "VS Code Desktop"
+    value = "vscode"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "mux"
+    value = "mux"
+    icon  = "/icon/mux.svg"
+  }
+  option {
+    name  = "code-server"
+    value = "code-server"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "VS Code Web"
+    value = "vscode-web"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "JetBrains IDEs"
+    value = "jetbrains"
+    icon  = "/icon/jetbrains.svg"
+  }
+  option {
+    name  = "JetBrains Fleet"
+    value = "fleet"
+    icon  = "/icon/fleet.svg"
+  }
+  option {
+    name  = "Cursor"
+    value = "cursor"
+    icon  = "/icon/cursor.svg"
+  }
+  option {
+    name  = "Windsurf"
+    value = "windsurf"
+    icon  = "/icon/windsurf.svg"
+  }
+  option {
+    name  = "Zed"
+    value = "zed"
+    icon  = "/icon/zed.svg"
+  }
+}
+
+data "coder_parameter" "vscode_channel" {
+  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? 1 : 0
+  type        = "string"
+  name        = "VS Code Desktop channel"
+  description = "Choose the VS Code Desktop channel"
+  mutable     = true
+  default     = "stable"
+  option {
+    value = "stable"
+    name  = "Stable"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    value = "insiders"
+    name  = "Insiders"
+    icon  = "/icon/code-insiders.svg"
+  }
+}
+
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
-  version          = "1.0.2"
+  version          = "1.0.31"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
@@ -262,14 +346,23 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.0.29"
+  version  = "1.2.1"
   agent_id = coder_agent.dev.id
+}
+
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/git-config/coder"
+  version  = "1.0.31"
+  agent_id = coder_agent.dev.id
+  # If you prefer to commit with a different email, this allows you to do so.
+  allow_email_change = true
 }
 
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.0.18"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -278,14 +371,22 @@ module "git-clone" {
 module "personalize" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.2"
+  version  = "1.0.31"
   agent_id = coder_agent.dev.id
 }
 
+module "mux" {
+  count     = contains(jsondecode(data.coder_parameter.ide_choices.value), "mux") ? data.coder_workspace.me.start_count : 0
+  source    = "registry.coder.com/coder/mux/coder"
+  version   = "1.0.1"
+  agent_id  = coder_agent.dev.id
+  subdomain = true
+}
+
 module "code-server" {
-  count                   = data.coder_workspace.me.start_count
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.3.0"
+  version                 = "1.4.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -293,9 +394,9 @@ module "code-server" {
 }
 
 module "vscode-web" {
-  count                   = data.coder_workspace.me.start_count
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.2.0"
+  version                 = "1.4.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -305,17 +406,20 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count         = data.coder_workspace.me.start_count
-  source        = "git::https://github.com/coder/registry.git//registry/coder/modules/jetbrains?ref=jetbrains"
+  count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
+  source        = "dev.registry.coder.com/coder/jetbrains/coder"
+  version       = "1.2.0"
   agent_id      = coder_agent.dev.id
+  agent_name    = "dev"
   folder        = local.repo_dir
   major_version = "latest"
+  tooltip       = "You need to [install JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) to use this app."
 }
 
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.0.31"
+  version    = "1.1.2"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -323,29 +427,39 @@ module "filebrowser" {
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.15"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
-  count    = data.coder_workspace.me.start_count
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.1.0"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
 
 module "windsurf" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/windsurf/coder"
-  version  = "1.0.0"
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
+  source   = "dev.registry.coder.com/coder/windsurf/coder"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
 
 module "zed" {
-  count      = data.coder_workspace.me.start_count
-  source     = "./zed"
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
+  source     = "dev.registry.coder.com/coder/zed/coder"
+  version    = "1.1.1"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
+  folder     = local.repo_dir
+}
+
+module "jetbrains-fleet" {
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "fleet") ? data.coder_workspace.me.start_count : 0
+  source     = "registry.coder.com/coder/jetbrains-fleet/coder"
+  version    = "1.0.1"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -362,10 +476,21 @@ resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
   dir  = local.repo_dir
-  env = {
-    OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
-  }
+  env = merge(
+    {
+      OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+    },
+    data.coder_parameter.use_ai_bridge.value ? {
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+      ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
+    } : {}
+  )
   startup_script_behavior = "blocking"
+
+  display_apps {
+    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "stable"
+    vscode_insiders = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "insiders"
+  }
 
   # The following metadata blocks are optional. They are used to display
   # information about your workspace in the dashboard. You can remove them
@@ -496,6 +621,10 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
+    # Clean up the Go build cache to prevent the home volume from
+    # accumulating waste and growing too large.
+    go clean -cache
+
     # Clean up the unused resources to keep storage usage low.
     #
     # WARNING! This will remove:
@@ -603,6 +732,8 @@ resource "docker_container" "workspace" {
       name,
       hostname,
       labels,
+      env,
+      entrypoint
     ]
   }
   count = data.coder_workspace.me.start_count
@@ -683,5 +814,124 @@ resource "coder_metadata" "container_info" {
   item {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
+  }
+  item {
+    key   = "ai_task"
+    value = data.coder_task.me.enabled ? "yes" : "no"
+  }
+}
+
+locals {
+  claude_system_prompt = <<-EOT
+    -- Framing --
+    You are a helpful Coding assistant. Aim to autonomously investigate
+    and solve issues the user gives you and test your work, whenever possible.
+
+    Avoid shortcuts like mocking tests. When you get stuck, you can ask the user
+    but opt for autonomy.
+
+    -- Tool Selection --
+    - playwright: previewing your changes after you made them
+      to confirm it worked as expected
+    -	Built-in tools - use for everything else:
+      (file operations, git commands, builds & installs, one-off shell commands)
+
+    -- Context --
+    There is an existing application in the current directory.
+    Be sure to read CLAUDE.md before making any changes.
+
+    This is a real-world production application. As such, make sure to think carefully, use TODO lists, and plan carefully before making changes.
+  EOT
+}
+
+resource "coder_script" "boundary_config_setup" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Boundary Setup Configuration"
+  run_on_start = true
+
+  script = <<-EOF
+    #!/bin/sh
+    mkdir -p ~/.config/coder_boundary
+    echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
+    chmod 600 ~/.config/coder_boundary/config.yaml
+  EOF
+}
+
+module "claude-code" {
+  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  source              = "dev.registry.coder.com/coder/claude-code/coder"
+  version             = "4.2.1"
+  enable_boundary     = true
+  boundary_version    = "v0.2.0"
+  agent_id            = coder_agent.dev.id
+  workdir             = local.repo_dir
+  claude_code_version = "latest"
+  order               = 999
+  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
+  agentapi_version    = "latest"
+
+  system_prompt       = local.claude_system_prompt
+  ai_prompt           = data.coder_task.me.prompt
+  post_install_script = <<-EOT
+    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
+  EOT
+}
+
+resource "coder_ai_task" "task" {
+  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  app_id = module.claude-code[count.index].task_app_id
+}
+
+resource "coder_app" "develop_sh" {
+  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  agent_id     = coder_agent.dev.id
+  slug         = "develop-sh"
+  display_name = "develop.sh"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
+  command      = "screen -x develop_sh"
+  share        = "authenticated"
+  subdomain    = true
+  open_in      = "tab"
+  order        = 0
+}
+
+resource "coder_script" "develop_sh" {
+  count              = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  display_name       = "develop.sh"
+  agent_id           = coder_agent.dev.id
+  run_on_start       = true
+  start_blocks_login = false
+  icon               = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+
+    # Wait for the agent startup script to finish.
+    for attempt in {1..60}; do
+      if [[ -f /tmp/.coder-startup-script.done ]]; then
+        break
+      fi
+      echo "Waiting for agent startup script to finish... ($attempt/60)"
+      sleep 10
+    done
+    cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
+  EOT
+}
+
+resource "coder_app" "preview" {
+  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  agent_id     = coder_agent.dev.id
+  slug         = "preview"
+  display_name = "Preview"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f50e.png" // 🔎
+  url          = "http://localhost:8080"
+  share        = "authenticated"
+  subdomain    = true
+  open_in      = "tab"
+  order        = 1
+  healthcheck {
+    url       = "http://localhost:8080/healthz"
+    interval  = 5
+    threshold = 15
   }
 }

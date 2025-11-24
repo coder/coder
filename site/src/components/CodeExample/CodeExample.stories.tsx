@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CodeExample } from "./CodeExample";
 
 const meta: Meta<typeof CodeExample> = {
@@ -29,5 +29,14 @@ export const LongCode: Story = {
 	args: {
 		secret: false,
 		code: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnKzATuWwmmt5+CKTPuRGN0R1PBemA+6/SStpLiyX+L",
+	},
+};
+
+export const Redact: Story = {
+	args: {
+		secret: false,
+		redactPattern: /CODER_AGENT_TOKEN="([^"]+)"/g,
+		redactReplacement: `CODER_AGENT_TOKEN="********"`,
+		showRevealButton: true,
 	},
 };

@@ -4,9 +4,8 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationProvisionerKeysPageView } from "./OrganizationProvisionerKeysPageView";
 
@@ -26,21 +25,19 @@ const OrganizationProvisionerKeysPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle(
-					"Provisioner Keys",
-					organization.display_name || organization.name,
-				)}
-			</title>
-		</Helmet>
+	const title = (
+		<title>
+			{pageTitle(
+				"Provisioner Keys",
+				organization.display_name || organization.name,
+			)}
+		</title>
 	);
 
 	if (!organizationPermissions?.viewProvisioners) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -48,7 +45,7 @@ const OrganizationProvisionerKeysPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 			<OrganizationProvisionerKeysPageView
 				showPaywall={!entitlements.features.multiple_organizations.enabled}
 				provisionerKeyDaemons={provisionerKeyDaemonsQuery.data}

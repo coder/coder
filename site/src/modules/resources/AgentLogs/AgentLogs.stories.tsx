@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogLine";
 import { AgentLogs } from "./AgentLogs";
 import { MockLogs, MockSources } from "./mocks";
@@ -10,6 +10,7 @@ const meta: Meta<typeof AgentLogs> = {
 		sources: MockSources,
 		logs: MockLogs,
 		height: MockLogs.length * AGENT_LOG_LINE_HEIGHT,
+		overflowed: false,
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -19,6 +20,11 @@ const meta: Meta<typeof AgentLogs> = {
 export default meta;
 type Story = StoryObj<typeof AgentLogs>;
 
-const Default: Story = {};
+export const Default: Story = {};
 
-export { Default as AgentLogs };
+export const Overflowed: Story = {
+	args: {
+		className: "max-h-[420px]",
+		overflowed: true,
+	},
+};

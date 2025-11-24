@@ -34,16 +34,11 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "sidebar_app": [
-              {
-                "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-              }
-            ]
+            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "sidebar_app": []
           },
           "sensitive_values": {
-            "sidebar_app": [
-              {}
-            ]
+            "sidebar_app": []
           }
         }
       ]
@@ -70,7 +65,9 @@
           ]
         },
         "after_unknown": {
+          "app_id": true,
           "id": true,
+          "prompt": true,
           "sidebar_app": [
             {}
           ]
@@ -96,23 +93,17 @@
         ],
         "before": null,
         "after": {
-          "sidebar_app": [
-            {
-              "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-            }
-          ]
+          "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+          "sidebar_app": []
         },
         "after_unknown": {
           "id": true,
-          "sidebar_app": [
-            {}
-          ]
+          "prompt": true,
+          "sidebar_app": []
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "sidebar_app": [
-            {}
-          ]
+          "sidebar_app": []
         }
       }
     }
@@ -123,35 +114,6 @@
     "values": {
       "root_module": {
         "resources": [
-          {
-            "address": "data.coder_parameter.prompt",
-            "mode": "data",
-            "type": "coder_parameter",
-            "name": "prompt",
-            "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
-            "values": {
-              "default": null,
-              "description": null,
-              "display_name": null,
-              "ephemeral": false,
-              "form_type": "input",
-              "icon": null,
-              "id": "f9502ef2-226e-49a6-8831-99a74f8415e7",
-              "mutable": false,
-              "name": "AI Prompt",
-              "option": null,
-              "optional": false,
-              "order": null,
-              "styling": "{}",
-              "type": "string",
-              "validation": [],
-              "value": ""
-            },
-            "sensitive_values": {
-              "validation": []
-            }
-          },
           {
             "address": "data.coder_provisioner.me",
             "mode": "data",
@@ -256,34 +218,14 @@
           "name": "b",
           "provider_config_key": "coder",
           "expressions": {
-            "sidebar_app": [
-              {
-                "id": {
-                  "constant_value": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-                }
-              }
-            ]
+            "app_id": {
+              "constant_value": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
+            }
           },
           "schema_version": 1,
           "count_expression": {
             "constant_value": 1
           }
-        },
-        {
-          "address": "data.coder_parameter.prompt",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "prompt",
-          "provider_config_key": "coder",
-          "expressions": {
-            "name": {
-              "constant_value": "AI Prompt"
-            },
-            "type": {
-              "constant_value": "string"
-            }
-          },
-          "schema_version": 1
         },
         {
           "address": "data.coder_provisioner.me",

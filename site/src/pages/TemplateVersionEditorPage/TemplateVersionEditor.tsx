@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { getErrorDetail, getErrorMessage } from "api/errors";
@@ -12,6 +11,7 @@ import type {
 	WorkspaceResource,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import {
 	Topbar,
@@ -21,17 +21,25 @@ import {
 	TopbarDivider,
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { TriangleAlertIcon } from "lucide-react";
-import { ChevronLeftIcon } from "lucide-react";
-import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ExternalLinkIcon,
+	PlayIcon,
+	PlusIcon,
+	TriangleAlertIcon,
+	XIcon,
+} from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
-import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
+import {
+	AlertVariant,
+	ProvisionerAlert,
+} from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
+import { WildcardHostnameWarning } from "modules/resources/WildcardHostnameWarning";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
@@ -39,12 +47,12 @@ import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
 	Link as RouterLink,
 	unstable_usePrompt as usePrompt,
-} from "react-router-dom";
+} from "react-router";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
-	type FileTree,
 	createFile,
 	existsFile,
+	type FileTree,
 	getFileText,
 	isFolder,
 	moveFile,
@@ -166,7 +174,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	}, [triggerPreview]);
 
 	// Automatically switch to the template preview tab when the build succeeds.
-	const previousVersion = useRef<TemplateVersion>();
+	const previousVersion = useRef<TemplateVersion>(undefined);
 	useEffect(() => {
 		if (!previousVersion.current) {
 			previousVersion.current = templateVersion;
@@ -178,6 +186,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			templateVersion.job.status === "succeeded"
 		) {
 			setDirty(false);
+			displaySuccess(
+				`Template version "${previousVersion.current.name}" built successfully.`,
+			);
 		}
 		previousVersion.current = templateVersion;
 	}, [templateVersion]);
@@ -185,15 +196,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const editorValue = activePath ? getFileText(activePath, fileTree) : "";
 	const isEditorValueBinary =
 		typeof editorValue === "string" ? isBinaryData(editorValue) : false;
-
-	// Auto scroll
-	const logsContentRef = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useEffect(() => {
-		if (logsContentRef.current) {
-			logsContentRef.current.scrollTop = logsContentRef.current.scrollHeight;
-		}
-	}, [buildLogs]);
 
 	useLeaveSiteWarning(dirty);
 
@@ -255,6 +257,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							paddingRight: 16,
 						}}
 					>
+						<span className="mr-2">
+							<Button asChild size="sm" variant="outline">
+								<a
+									href="https://registry.coder.com"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="flex items-center"
+								>
+									Browse the Coder Registry
+									<ExternalLinkIcon className="size-icon-sm ml-1" />
+								</a>
+							</Button>
+						</span>
+
 						<TemplateVersionStatusBadge version={templateVersion} />
 
 						<div className="flex gap-1 items-center">
@@ -312,8 +328,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								dismissible
 								actions={
 									<Button
-										variant="text"
-										size="small"
+										variant="subtle"
+										size="sm"
 										onClick={onCreateWorkspace}
 									>
 										Create a workspace
@@ -571,10 +587,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							</div>
 
 							{selectedTab === "logs" && (
-								<div
-									css={[styles.logs, styles.tabContent]}
-									ref={logsContentRef}
-								>
+								<div css={[styles.logs, styles.tabContent]}>
 									{templateVersion.job.error ? (
 										<div>
 											<ProvisionerAlert
@@ -605,6 +618,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											hideTimestamps
 											logs={buildLogs}
 										/>
+									)}
+
+									{resources && (
+										<WildcardHostnameWarning resources={resources} />
 									)}
 								</div>
 							)}

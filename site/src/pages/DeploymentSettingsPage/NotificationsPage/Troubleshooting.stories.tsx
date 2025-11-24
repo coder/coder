@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import { Troubleshooting } from "./Troubleshooting";
+import { spyOn, userEvent, within } from "storybook/test";
 import { baseMeta } from "./storybookUtils";
+import { Troubleshooting } from "./Troubleshooting";
 
 const meta: Meta<typeof Troubleshooting> = {
 	title: "pages/DeploymentSettingsPage/NotificationsPage/Troubleshooting",

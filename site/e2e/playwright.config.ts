@@ -1,8 +1,8 @@
 import * as path from "node:path";
 import { defineConfig } from "@playwright/test";
 import {
-	coderPort,
 	coderdPProfPort,
+	coderPort,
 	e2eFakeExperiment1,
 	e2eFakeExperiment2,
 	gitAuth,
@@ -47,7 +47,7 @@ export default defineConfig({
 			timeout: 30_000,
 		},
 	],
-	reporter: [["./reporter.ts"]],
+	reporter: [["list"], ["./reporter.ts"]],
 	use: {
 		actionTimeout: 5000,
 		baseURL: `http://localhost:${coderPort}`,
@@ -72,7 +72,7 @@ export default defineConfig({
 			"--global-config $(mktemp -d -t e2e-XXXXXXXXXX)",
 			`--access-url=http://localhost:${coderPort}`,
 			`--http-address=0.0.0.0:${coderPort}`,
-			"--in-memory",
+			"--ephemeral",
 			"--telemetry=false",
 			"--dangerous-disable-rate-limits",
 			"--provisioner-daemons 10",
@@ -81,9 +81,12 @@ export default defineConfig({
 			"--provisioner-daemons=10",
 			"--web-terminal-renderer=dom",
 			"--pprof-enable",
+			"--log-filter=.*",
+			`--log-human=${path.join(__dirname, "test-results/debug.log")}`,
 		]
 			.filter(Boolean)
 			.join(" "),
+		stdout: "pipe",
 		env: {
 			...process.env,
 			// Otherwise, the runner fails on Mac with: could not determine kind of name for C.uuid_string_t

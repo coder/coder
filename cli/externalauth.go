@@ -2,19 +2,16 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
-
-	"golang.org/x/xerrors"
 
 	"github.com/tidwall/gjson"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) externalAuth() *serpent.Command {
+func externalAuth() *serpent.Command {
 	return &serpent.Command{
 		Use:   "external-auth",
 		Short: "Manage external authentication",
@@ -23,14 +20,15 @@ func (r *RootCmd) externalAuth() *serpent.Command {
 			return i.Command.HelpHandler(i)
 		},
 		Children: []*serpent.Command{
-			r.externalAuthAccessToken(),
+			externalAuthAccessToken(),
 		},
 	}
 }
 
-func (r *RootCmd) externalAuthAccessToken() *serpent.Command {
+func externalAuthAccessToken() *serpent.Command {
 	var extra string
-	return &serpent.Command{
+	agentAuth := &AgentAuth{}
+	cmd := &serpent.Command{
 		Use:   "access-token <provider>",
 		Short: "Print auth for an external provider",
 		Long: "Print an access-token for an external auth provider. " +
@@ -70,12 +68,7 @@ fi
 			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
 
-			if r.agentToken == "" {
-				_, _ = fmt.Fprint(inv.Stderr, pretty.Sprintf(headLineStyle(), "No agent token found, this command must be run from inside a running workspace.\n"))
-				return xerrors.Errorf("agent token not found")
-			}
-
-			client, err := r.tryCreateAgentClient()
+			client, err := agentAuth.CreateClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
@@ -115,4 +108,6 @@ fi
 			return nil
 		},
 	}
+	agentAuth.AttachOptions(cmd, false)
+	return cmd
 }

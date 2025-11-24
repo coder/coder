@@ -68,8 +68,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 				},
 			).Do()
 
-			ac := agentsdk.New(client.URL)
-			ac.SetSessionToken(r.AgentToken)
+			ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 			conn, err := ac.ConnectRPC(context.Background())
 			require.NoError(t, err)
 			defer func() {
@@ -155,8 +154,7 @@ func TestAgentAPI_LargeManifest(t *testing.T) {
 				agents[0].ApiKeyScope = string(tc.apiKeyScope)
 				return agents
 			}).Do()
-			ac := agentsdk.New(client.URL)
-			ac.SetSessionToken(r.AgentToken)
+			ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 			conn, err := ac.ConnectRPC(ctx)
 			defer func() {
 				_ = conn.Close()

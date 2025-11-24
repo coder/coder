@@ -31,7 +31,6 @@ func TestProvisioners_Golden(t *testing.T) {
 	// Replace UUIDs with predictable values for golden files.
 	replace := make(map[string]string)
 	updateReplaceUUIDs := func(coderdAPI *coderd.API) {
-		//nolint:gocritic // This is a test.
 		systemCtx := dbauthz.AsSystemRestricted(context.Background())
 		provisioners, err := coderdAPI.Database.GetProvisionerDaemons(systemCtx)
 		require.NoError(t, err)
@@ -189,6 +188,74 @@ func TestProvisioners_Golden(t *testing.T) {
 			"provisioners",
 			"list",
 			"--column", "id,created at,last seen at,name,version,tags,key name,status,current job id,current job status,previous job id,previous job status,organization",
+		)
+		inv.Stdout = &got
+		clitest.SetupConfig(t, templateAdminClient, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, t.Name(), got.Bytes(), replace)
+	})
+
+	t.Run("list with offline provisioner daemons", func(t *testing.T) {
+		t.Parallel()
+
+		var got bytes.Buffer
+		inv, root := clitest.New(t,
+			"provisioners",
+			"list",
+			"--show-offline",
+		)
+		inv.Stdout = &got
+		clitest.SetupConfig(t, templateAdminClient, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, t.Name(), got.Bytes(), replace)
+	})
+
+	t.Run("list provisioner daemons by status", func(t *testing.T) {
+		t.Parallel()
+
+		var got bytes.Buffer
+		inv, root := clitest.New(t,
+			"provisioners",
+			"list",
+			"--status=idle,offline,busy",
+		)
+		inv.Stdout = &got
+		clitest.SetupConfig(t, templateAdminClient, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, t.Name(), got.Bytes(), replace)
+	})
+
+	t.Run("list provisioner daemons without offline", func(t *testing.T) {
+		t.Parallel()
+
+		var got bytes.Buffer
+		inv, root := clitest.New(t,
+			"provisioners",
+			"list",
+			"--status=idle,busy",
+		)
+		inv.Stdout = &got
+		clitest.SetupConfig(t, templateAdminClient, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, t.Name(), got.Bytes(), replace)
+	})
+
+	t.Run("list provisioner daemons by max age", func(t *testing.T) {
+		t.Parallel()
+
+		var got bytes.Buffer
+		inv, root := clitest.New(t,
+			"provisioners",
+			"list",
+			"--max-age=1h",
 		)
 		inv.Stdout = &got
 		clitest.SetupConfig(t, templateAdminClient, root)

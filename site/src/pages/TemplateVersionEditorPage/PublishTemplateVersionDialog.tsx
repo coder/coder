@@ -13,11 +13,11 @@ import * as Yup from "yup";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "../../components/HelpTooltip/HelpTooltip";
 import { docs } from "../../utils/docs";
 
@@ -121,9 +121,13 @@ export const PublishTemplateVersionDialog: FC<
 								/>
 
 								<HelpTooltip>
-									<HelpTooltipTrigger />
+									<HelpTooltipIconTrigger />
 
-									<HelpTooltipContent>
+									{/**
+									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
+									 * this prop may not need to be set when we switch away from MuiDialog
+									 */}
+									<HelpTooltipContent disablePortal>
 										<HelpTooltipTitle>
 											{Language.activeVersionHelpTitle}
 										</HelpTooltipTitle>

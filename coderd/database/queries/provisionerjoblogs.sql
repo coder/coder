@@ -19,3 +19,19 @@ SELECT
 	unnest(@level :: log_level [ ]) AS LEVEL,
 	unnest(@stage :: VARCHAR(128) [ ]) AS stage,
 	unnest(@output :: VARCHAR(1024) [ ]) AS output RETURNING *;
+
+-- name: UpdateProvisionerJobLogsOverflowed :exec
+UPDATE
+	provisioner_jobs
+SET
+	logs_overflowed = $2
+WHERE
+	id = $1;
+
+-- name: UpdateProvisionerJobLogsLength :exec
+UPDATE
+	provisioner_jobs
+SET
+	logs_length = logs_length + $2
+WHERE
+	id = $1;

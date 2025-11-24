@@ -2,8 +2,10 @@ package database
 
 import (
 	"encoding/hex"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -117,14 +119,162 @@ func (w AuditLog) RBACObject() rbac.Object {
 	return obj
 }
 
+func (w GetConnectionLogsOffsetRow) RBACObject() rbac.Object {
+	return w.ConnectionLog.RBACObject()
+}
+
+func (w ConnectionLog) RBACObject() rbac.Object {
+	obj := rbac.ResourceConnectionLog.WithID(w.ID)
+	if w.OrganizationID != uuid.Nil {
+		obj = obj.InOrg(w.OrganizationID)
+	}
+
+	return obj
+}
+
+func (t Task) RBACObject() rbac.Object {
+	return rbac.ResourceTask.
+		WithID(t.ID).
+		WithOwner(t.OwnerID.String()).
+		InOrg(t.OrganizationID)
+}
+
+func (t TaskTable) RBACObject() rbac.Object {
+	return rbac.ResourceTask.
+		WithID(t.ID).
+		WithOwner(t.OwnerID.String()).
+		InOrg(t.OrganizationID)
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
-	case APIKeyScopeAll:
+	case ApiKeyScopeCoderAll:
 		return rbac.ScopeAll
-	case APIKeyScopeApplicationConnect:
+	case ApiKeyScopeCoderApplicationConnect:
 		return rbac.ScopeApplicationConnect
 	default:
-		panic("developer error: unknown scope type " + string(s))
+		// Allow low-level resource:action scopes to flow through to RBAC for
+		// expansion via rbac.ExpandScope.
+		return rbac.ScopeName(s)
+	}
+}
+
+// APIKeyScopes represents a collection of individual API key scope names as
+// stored in the database. Helper methods on this type are used to derive the
+// RBAC scope that should be authorized for the key.
+type APIKeyScopes []APIKeyScope
+
+// WithAllowList wraps the scopes with a database allow list, producing an
+// ExpandableScope that always enforces the allow list overlay when expanded.
+func (s APIKeyScopes) WithAllowList(list AllowList) APIKeyScopeSet {
+	return APIKeyScopeSet{Scopes: s, AllowList: list}
+}
+
+// Has returns true if the slice contains the provided scope.
+func (s APIKeyScopes) Has(target APIKeyScope) bool {
+	return slices.Contains(s, target)
+}
+
+// expandRBACScope merges the permissions of all scopes in the list into a
+// single RBAC scope. If the list is empty, it defaults to rbac.ScopeAll for
+// backward compatibility. This method is internal; use ScopeSet() to combine
+// scopes with the API key's allow list for authorization.
+func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
+	// Default to ScopeAll for backward compatibility when no scopes provided.
+	if len(s) == 0 {
+		return rbac.Scope{}, xerrors.New("no scopes provided")
+	}
+
+	var merged rbac.Scope
+	merged.Role = rbac.Role{
+		// Identifier is informational; not used in policy evaluation.
+		Identifier: rbac.RoleIdentifier{Name: "Scope_Multiple"},
+		Site:       nil,
+		User:       nil,
+		ByOrgID:    map[string]rbac.OrgPermissions{},
+	}
+
+	// Collect allow lists for a union after expanding all scopes.
+	allowLists := make([][]rbac.AllowListElement, 0, len(s))
+
+	for _, s := range s {
+		expanded, err := s.ToRBAC().Expand()
+		if err != nil {
+			return rbac.Scope{}, err
+		}
+
+		// Merge role permissions: union by simple concatenation.
+		merged.Site = append(merged.Site, expanded.Site...)
+		for orgID, perms := range expanded.ByOrgID {
+			orgPerms := merged.ByOrgID[orgID]
+			orgPerms.Org = append(orgPerms.Org, perms.Org...)
+			orgPerms.Member = append(orgPerms.Member, perms.Member...)
+			merged.ByOrgID[orgID] = orgPerms
+		}
+		merged.User = append(merged.User, expanded.User...)
+
+		allowLists = append(allowLists, expanded.AllowIDList)
+	}
+
+	// De-duplicate permissions across Site/Org/User
+	merged.Site = rbac.DeduplicatePermissions(merged.Site)
+	merged.User = rbac.DeduplicatePermissions(merged.User)
+	for orgID, perms := range merged.ByOrgID {
+		perms.Org = rbac.DeduplicatePermissions(perms.Org)
+		perms.Member = rbac.DeduplicatePermissions(perms.Member)
+		merged.ByOrgID[orgID] = perms
+	}
+
+	union, err := rbac.UnionAllowLists(allowLists...)
+	if err != nil {
+		return rbac.Scope{}, err
+	}
+	merged.AllowIDList = union
+
+	return merged, nil
+}
+
+// Name returns a human-friendly identifier for tracing/logging.
+func (s APIKeyScopes) Name() rbac.RoleIdentifier {
+	if len(s) == 0 {
+		// Return all for backward compatibility.
+		return rbac.RoleIdentifier{Name: string(ApiKeyScopeCoderAll)}
+	}
+	names := make([]string, 0, len(s))
+	for _, s := range s {
+		names = append(names, string(s))
+	}
+	return rbac.RoleIdentifier{Name: "scopes[" + strings.Join(names, "+") + "]"}
+}
+
+// APIKeyScopeSet merges expanded scopes with the API key's DB allow_list. If
+// the DB allow_list is a wildcard or empty, the merged scope's allow list is
+// unchanged. Otherwise, the DB allow_list overrides the merged AllowIDList to
+// enforce the token's resource scoping consistently across all permissions.
+type APIKeyScopeSet struct {
+	Scopes    APIKeyScopes
+	AllowList AllowList
+}
+
+var _ rbac.ExpandableScope = APIKeyScopeSet{}
+
+func (s APIKeyScopeSet) Name() rbac.RoleIdentifier { return s.Scopes.Name() }
+
+func (s APIKeyScopeSet) Expand() (rbac.Scope, error) {
+	merged, err := s.Scopes.expandRBACScope()
+	if err != nil {
+		return rbac.Scope{}, err
+	}
+	merged.AllowIDList = rbac.IntersectAllowLists(merged.AllowIDList, s.AllowList)
+	return merged, nil
+}
+
+// ScopeSet returns the scopes combined with the database allow list. It is the
+// canonical way to expose an API key's effective scope for authorization.
+func (k APIKey) ScopeSet() APIKeyScopeSet {
+	return APIKeyScopeSet{
+		Scopes:    k.Scopes,
+		AllowList: k.AllowList,
 	}
 }
 
@@ -229,6 +379,8 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 		AutomaticUpdates:  w.AutomaticUpdates,
 		Favorite:          w.Favorite,
 		NextStartAt:       w.NextStartAt,
+		GroupACL:          w.GroupACL,
+		UserACL:           w.UserACL,
 	}
 }
 
@@ -261,7 +413,9 @@ func (w WorkspaceTable) RBACObject() rbac.Object {
 
 	return rbac.ResourceWorkspace.WithID(w.ID).
 		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
+		WithOwner(w.OwnerID.String()).
+		WithGroupACL(w.GroupACL.RBACACL()).
+		WithACLUserList(w.UserACL.RBACACL())
 }
 
 func (w WorkspaceTable) DormantRBAC() rbac.Object {
@@ -381,6 +535,10 @@ func (l License) RBACObject() rbac.Object {
 
 func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.String())
+}
+
+func (t OAuth2ProviderAppToken) RBACObject() rbac.Object {
+	return rbac.ResourceOauth2AppCodeToken.WithOwner(t.UserID.String()).WithID(t.ID)
 }
 
 func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
@@ -504,6 +662,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			TemplateIcon:            r.TemplateIcon,
 			TemplateDescription:     r.TemplateDescription,
 			NextStartAt:             r.NextStartAt,
+			TaskID:                  r.TaskID,
 		}
 	}
 
@@ -610,4 +769,12 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 	}
 
 	return m.DebouncedUntil, false
+}
+
+func (s UserSecret) RBACObject() rbac.Object {
+	return rbac.ResourceUserSecret.WithID(s.ID).WithOwner(s.UserID.String())
+}
+
+func (s AIBridgeInterception) RBACObject() rbac.Object {
+	return rbac.ResourceAibridgeInterception.WithOwner(s.InitiatorID.String())
 }

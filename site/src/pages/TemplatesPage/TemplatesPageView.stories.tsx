@@ -1,14 +1,28 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { getDefaultFilterProps } from "components/Filter/storyHelpers";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateExample2,
+	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "components/Filter/storyHelpers";
+import type { TemplateFilterState } from "./TemplatesPage";
 import { TemplatesPageView } from "./TemplatesPageView";
+
+const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
+	menus: {
+		organizations: MockMenu,
+	},
+	values: {
+		author: MockUserOwner.username,
+	},
+});
 
 const meta: Meta<typeof TemplatesPageView> = {
 	title: "pages/TemplatesPage",
@@ -16,11 +30,7 @@ const meta: Meta<typeof TemplatesPageView> = {
 	parameters: { chromatic: chromaticWithTablet },
 	component: TemplatesPageView,
 	args: {
-		...getDefaultFilterProps({
-			query: "deprecated:false",
-			menus: {},
-			values: {},
-		}),
+		filterState: defaultFilterProps,
 	},
 };
 
@@ -104,12 +114,32 @@ export const WithFilteredAllTemplates: Story = {
 	args: {
 		...WithTemplates.args,
 		templates: [],
-		...getDefaultFilterProps({
-			query: "deprecated:false searchnotfound",
-			menus: {},
-			values: {},
-			used: true,
-		}),
+		filterState: {
+			filter: {
+				...defaultFilterProps.filter,
+				query: "searchnotfound",
+				values: {},
+				used: true,
+			},
+			menus: defaultFilterProps.menus,
+		},
+	},
+};
+
+export const WithUserDropdown: Story = {
+	args: {
+		...WithTemplates.args,
+		filterState: {
+			...defaultFilterProps,
+			menus: {
+				user: MockMenu,
+			},
+			filter: {
+				...defaultFilterProps.filter,
+				query: "author:me",
+				values: { author: "me" },
+			},
+		},
 	},
 };
 

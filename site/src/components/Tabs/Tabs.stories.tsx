@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TabLink, Tabs, TabsList } from "./Tabs";
 
 const meta: Meta<typeof Tabs> = {

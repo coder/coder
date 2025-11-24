@@ -1,23 +1,38 @@
 import { API } from "api/api";
 import type { Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
+import {
+	Filter,
+	MenuSkeleton,
+	type UseFilterResult,
+} from "components/Filter/Filter";
+import { useFilterMenu } from "components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import { useFilterMenu } from "components/Filter/menu";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "../../components/Filter/UserFilter";
 
 interface TemplatesFilterProps {
-	filter: ReturnType<typeof useFilter>;
+	filter: UseFilterResult;
 	error?: unknown;
+
+	userMenu?: UserFilterMenu;
 }
 
 export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 	filter,
 	error,
+	userMenu,
 }) => {
+	const { showOrganizations } = useDashboard();
+	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	const organizationMenu = useFilterMenu({
 		onChange: (option) =>
 			filter.update({ ...filter.values, organization: option?.value }),
@@ -41,6 +56,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 		<Filter
 			presets={[
 				{ query: "", name: "All templates" },
+				{ query: "author:me", name: "Templates you authored" },
 				{ query: "deprecated:true", name: "Deprecated templates" },
 			]}
 			// TODO: Add docs for this
@@ -49,15 +65,23 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 			filter={filter}
 			error={error}
 			options={
-				<SelectFilter
-					placeholder="All organizations"
-					label="Select an organization"
-					options={organizationMenu.searchOptions}
-					selectedOption={organizationMenu.selectedOption ?? undefined}
-					onSelect={organizationMenu.selectOption}
-				/>
+				<>
+					{userMenu && <UserMenu width={width} menu={userMenu} />}
+					<SelectFilter
+						placeholder="All organizations"
+						label="Select an organization"
+						options={organizationMenu.searchOptions}
+						selectedOption={organizationMenu.selectedOption ?? undefined}
+						onSelect={organizationMenu.selectOption}
+					/>
+				</>
 			}
-			optionsSkeleton={<MenuSkeleton />}
+			optionsSkeleton={
+				<>
+					{userMenu && <MenuSkeleton />}
+					<MenuSkeleton />
+				</>
+			}
 		/>
 	);
 };

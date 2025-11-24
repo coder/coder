@@ -22,9 +22,11 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
-import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
+import { OneWayWebSocket } from "../utils/OneWayWebSocket";
+import { type FieldError, isApiError } from "./errors";
 import type {
+	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
 } from "./typesGenerated";
@@ -107,6 +109,13 @@ const getMissingParameters = (
 };
 
 /**
+ * Originally from codersdk/client.go.
+ * The below declaration is required to stop Knip from complaining.
+ * @public
+ */
+export const SessionTokenCookie = "coder_session_token";
+
+/**
  * @param agentId
  * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
@@ -126,6 +135,14 @@ export const watchWorkspace = (
 ): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
 		apiRoute: `/api/v2/workspaces/${workspaceId}/watch-ws`,
+	});
+};
+
+export const watchAgentContainers = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch`,
 	});
 };
 
@@ -382,6 +399,15 @@ export class MissingBuildParameters extends Error {
 	}
 }
 
+export class ParameterValidationError extends Error {
+	constructor(
+		public readonly versionId: string,
+		public readonly validations: FieldError[],
+	) {
+		super("Parameters are not valid for new template version");
+	}
+}
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -395,6 +421,8 @@ export type GetProvisionerDaemonsParams = {
 	// Stringified JSON Object
 	tags?: string;
 	limit?: number;
+	// Include offline provisioner daemons?
+	offline?: boolean;
 };
 
 /**
@@ -1162,9 +1190,9 @@ class ApiMethods {
 	};
 
 	getWorkspaces = async (
-		options: TypesGen.WorkspacesRequest,
+		req: TypesGen.WorkspacesRequest,
 	): Promise<TypesGen.WorkspacesResponse> => {
-		const url = getURLWithSearchParams("/api/v2/workspaces", options);
+		const url = getURLWithSearchParams("/api/v2/workspaces", req);
 		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
 		return response.data;
 	};
@@ -1197,7 +1225,7 @@ class ApiMethods {
 	waitForBuild = (build: TypesGen.WorkspaceBuild) => {
 		return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
 			void (async () => {
-				let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined;
+				let latestJobInfo: TypesGen.ProvisionerJob | undefined;
 
 				while (
 					!["succeeded", "canceled"].some((status) =>
@@ -1231,13 +1259,12 @@ class ApiMethods {
 			`/api/v2/workspaces/${workspaceId}/builds`,
 			data,
 		);
-
 		return response.data;
 	};
 
 	getTemplateVersionPresets = async (
 		templateVersionId: string,
-	): Promise<TypesGen.Preset[]> => {
+	): Promise<TypesGen.Preset[] | null> => {
 		const response = await this.axios.get<TypesGen.Preset[]>(
 			`/api/v2/templateversions/${templateVersionId}/presets`,
 		);
@@ -1255,6 +1282,7 @@ class ApiMethods {
 			template_version_id: templateVersionId,
 			log_level: logLevel,
 			rich_parameter_values: buildParameters,
+			reason: "dashboard",
 		});
 	};
 
@@ -1277,9 +1305,12 @@ class ApiMethods {
 
 	cancelWorkspaceBuild = async (
 		workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+		params?: TypesGen.CancelWorkspaceBuildParams,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
 			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+			null,
+			{ params },
 		);
 
 		return response.data;
@@ -1692,7 +1723,9 @@ class ApiMethods {
 			return resp.data;
 		};
 
-	unlinkExternalAuthProvider = async (provider: string): Promise<string> => {
+	unlinkExternalAuthProvider = async (
+		provider: string,
+	): Promise<DeleteExternalAuthByIDResponse> => {
 		const resp = await this.axios.delete(`/api/v2/external-auth/${provider}`);
 		return resp.data;
 	};
@@ -1802,6 +1835,14 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getConnectionLogs = async (
+		options: TypesGen.ConnectionLogsRequest,
+	): Promise<TypesGen.ConnectionLogResponse> => {
+		const url = getURLWithSearchParams("/api/v2/connectionlog", options);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
 	getTemplateDAUs = async (
 		templateId: string,
 	): Promise<TypesGen.DAUsResponse> => {
@@ -1858,6 +1899,13 @@ class ApiMethods {
 		);
 
 		return response.data;
+	};
+
+	updateWorkspaceACL = async (
+		workspaceId: string,
+		data: TypesGen.UpdateWorkspaceACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/workspaces/${workspaceId}/acl`, data);
 	};
 
 	getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
@@ -1975,6 +2023,16 @@ class ApiMethods {
 	): Promise<TypesGen.WorkspaceAgentPortShares> => {
 		const response = await this.axios.get(
 			`/api/v2/workspaces/${workspaceID}/port-share`,
+		);
+		return response.data;
+	};
+
+	getWorkspaceAgentCredentials = async (
+		workspaceID: string,
+		agentName: string,
+	): Promise<TypesGen.ExternalAgentCredentials> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaces/${workspaceID}/external-agent/${agentName}/credentials`,
 		);
 		return response.data;
 	};
@@ -2249,18 +2307,33 @@ class ApiMethods {
 
 		const activeVersionId = template.active_version_id;
 
-		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
-
 		if (isDynamicParametersEnabled) {
-			templateParameters = await this.getDynamicParameters(
-				activeVersionId,
-				workspace.owner_id,
-				oldBuildParameters,
-			);
-		} else {
-			templateParameters =
-				await this.getTemplateVersionRichParameters(activeVersionId);
+			try {
+				return await this.postWorkspaceBuild(workspace.id, {
+					transition: "start",
+					template_version_id: activeVersionId,
+					rich_parameter_values: newBuildParameters,
+				});
+			} catch (error) {
+				// If the build failed because of a parameter validation error, then we
+				// throw a special sentinel error that can be caught by the caller.
+				if (
+					isApiError(error) &&
+					error.response.status === 400 &&
+					error.response.data.validations &&
+					error.response.data.validations.length > 0
+				) {
+					throw new ParameterValidationError(
+						activeVersionId,
+						error.response.data.validations,
+					);
+				}
+				throw error;
+			}
 		}
+
+		const templateParameters =
+			await this.getTemplateVersionRichParameters(activeVersionId);
 
 		const missingParameters = getMissingParameters(
 			oldBuildParameters,
@@ -2310,19 +2383,6 @@ class ApiMethods {
 		);
 
 		return response.data;
-	};
-
-	getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
-		const latestBuild = workspace.latest_build;
-		const [templateVersionRichParameters, buildParameters] = await Promise.all([
-			this.getTemplateVersionRichParameters(latestBuild.template_version_id),
-			this.getWorkspaceBuildParameters(latestBuild.id),
-		]);
-
-		return {
-			templateVersionRichParameters,
-			buildParameters,
-		};
 	};
 
 	getInsightsUserLatency = async (
@@ -2437,6 +2497,13 @@ class ApiMethods {
 	getSystemNotificationTemplates = async () => {
 		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
 			"/api/v2/notifications/templates/system",
+		);
+		return res.data;
+	};
+
+	getCustomNotificationTemplates = async () => {
+		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
+			"/api/v2/notifications/templates/custom",
 		);
 		return res.data;
 	};
@@ -2584,27 +2651,79 @@ class ApiMethods {
 //
 // All methods must be defined with arrow function syntax. See the docstring
 // above the ApiMethods class for a full explanation.
+
+export type TaskFeedbackRating = "good" | "okay" | "bad";
+
+export type CreateTaskFeedbackRequest = {
+	rate: TaskFeedbackRating;
+	comment?: string;
+};
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
-	getAITasksPrompts = async (
-		buildIds: TypesGen.WorkspaceBuild["id"][],
-	): Promise<TypesGen.AITasksPromptsResponse> => {
-		if (buildIds.length === 0) {
-			return {
-				prompts: {},
-			};
+	createTask = async (
+		user: string,
+		req: TypesGen.CreateTaskRequest,
+	): Promise<TypesGen.Task> => {
+		const response = await this.axios.post<TypesGen.Task>(
+			`/api/experimental/tasks/${user}`,
+			req,
+		);
+
+		return response.data;
+	};
+
+	getTasks = async (
+		filter: TypesGen.TasksFilter,
+	): Promise<readonly TypesGen.Task[]> => {
+		const query: string[] = [];
+		if (filter.owner) {
+			query.push(`owner:${filter.owner}`);
+		}
+		if (filter.status) {
+			query.push(`status:${filter.status}`);
 		}
 
-		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
-			"/api/experimental/aitasks/prompts",
+		const res = await this.axios.get<TypesGen.TasksListResponse>(
+			"/api/experimental/tasks",
 			{
 				params: {
-					build_ids: buildIds.join(","),
+					q: query.join(", "),
 				},
 			},
 		);
 
+		return res.data.tasks;
+	};
+
+	getTask = async (user: string, id: string): Promise<TypesGen.Task> => {
+		const response = await this.axios.get<TypesGen.Task>(
+			`/api/experimental/tasks/${user}/${id}`,
+		);
+
+		return response.data;
+	};
+
+	deleteTask = async (user: string, id: string): Promise<void> => {
+		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
+	};
+
+	createTaskFeedback = async (
+		_taskId: string,
+		_req: CreateTaskFeedbackRequest,
+	) => {
+		return new Promise<void>((res) => {
+			setTimeout(() => res(), 500);
+		});
+	};
+
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/aibridge/interceptions",
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
 		return response.data;
 	};
 }
@@ -2650,7 +2769,7 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		}
 	} else {
 		// Do not write error logs if we are in a FE unit test.
-		if (process.env.JEST_WORKER_ID === undefined) {
+		if (!process.env.JEST_WORKER_ID && !process.env.VITEST) {
 			console.error("CSRF token not found");
 		}
 	}

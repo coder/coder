@@ -76,6 +76,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 // @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
+// @Param initiator query string false "Filter results by initiator" format(uuid)
 // @Success 200 {array} codersdk.ProvisionerJob
 // @Router /organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
@@ -110,6 +111,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 		ids = p.UUIDs(qp, nil, "ids")
 	}
 	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
+	initiatorID := p.UUID(qp, uuid.Nil, "initiator")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -125,6 +127,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
 		IDs:            ids,
 		Tags:           tags,
+		InitiatorID:    initiatorID,
 	})
 	if err != nil {
 		if httpapi.Is404Error(err) {
@@ -355,6 +358,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	job := codersdk.ProvisionerJob{
 		ID:             provisionerJob.ID,
 		OrganizationID: provisionerJob.OrganizationID,
+		InitiatorID:    provisionerJob.InitiatorID,
 		CreatedAt:      provisionerJob.CreatedAt,
 		Type:           codersdk.ProvisionerJobType(provisionerJob.Type),
 		Error:          provisionerJob.Error.String,
@@ -363,6 +367,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		Tags:           provisionerJob.Tags,
 		QueuePosition:  int(pj.QueuePosition),
 		QueueSize:      int(pj.QueueSize),
+		LogsOverflowed: provisionerJob.LogsOverflowed,
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {

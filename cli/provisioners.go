@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -33,13 +35,15 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		OrganizationName           string `json:"organization_name" table:"organization"`
 	}
 	var (
-		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
 			cliui.TableFormat([]provisionerDaemonRow{}, []string{"created at", "last seen at", "key name", "name", "version", "status", "tags"}),
 			cliui.JSONFormat(),
 		)
-		limit int64
+		limit   int64
+		offline bool
+		status  []string
+		maxAge  time.Duration
 	)
 
 	cmd := &serpent.Command{
@@ -48,18 +52,23 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
 			daemons, err := client.OrganizationProvisionerDaemons(ctx, org.ID, &codersdk.OrganizationProvisionerDaemonsOptions{
-				Limit: int(limit),
+				Limit:   int(limit),
+				Offline: offline,
+				Status:  slice.StringEnums[codersdk.ProvisionerDaemonStatus](status),
+				MaxAge:  maxAge,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner daemons: %w", err)
@@ -97,6 +106,27 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			Description:   "Limit the number of provisioners returned.",
 			Default:       "50",
 			Value:         serpent.Int64Of(&limit),
+		},
+		{
+			Flag:          "show-offline",
+			FlagShorthand: "f",
+			Env:           "CODER_PROVISIONER_SHOW_OFFLINE",
+			Description:   "Show offline provisioners.",
+			Value:         serpent.BoolOf(&offline),
+		},
+		{
+			Flag:          "status",
+			FlagShorthand: "s",
+			Env:           "CODER_PROVISIONER_LIST_STATUS",
+			Description:   "Filter by provisioner status.",
+			Value:         serpent.EnumArrayOf(&status, slice.ToStrings(codersdk.ProvisionerDaemonStatusEnums())...),
+		},
+		{
+			Flag:          "max-age",
+			FlagShorthand: "m",
+			Env:           "CODER_PROVISIONER_LIST_MAX_AGE",
+			Description:   "Filter provisioners by maximum age.",
+			Value:         serpent.DurationOf(&maxAge),
 		},
 	}...)
 

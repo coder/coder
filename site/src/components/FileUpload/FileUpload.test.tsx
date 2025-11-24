@@ -1,9 +1,9 @@
-import { fireEvent, screen } from "@testing-library/react";
 import { renderComponent } from "testHelpers/renderHelpers";
+import { fireEvent, screen } from "@testing-library/react";
 import { FileUpload } from "./FileUpload";
 
 test("accepts files with the correct extension", async () => {
-	const onUpload = jest.fn();
+	const onUpload = vi.fn();
 
 	renderComponent(
 		<FileUpload
@@ -21,14 +21,14 @@ test("accepts files with the correct extension", async () => {
 	fireEvent.drop(dropZone, {
 		dataTransfer: { files: [tarFile] },
 	});
-	expect(onUpload).toBeCalledWith(tarFile);
+	expect(onUpload).toHaveBeenCalledWith(tarFile);
 	onUpload.mockClear();
 
 	const zipFile = new File([""], "file.zip");
 	fireEvent.drop(dropZone, {
 		dataTransfer: { files: [zipFile] },
 	});
-	expect(onUpload).toBeCalledWith(zipFile);
+	expect(onUpload).toHaveBeenCalledWith(zipFile);
 	onUpload.mockClear();
 
 	const unsupportedFile = new File([""], "file.mp4");

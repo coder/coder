@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -297,6 +298,77 @@ func (m selectModel) filteredOptions() []string {
 		}
 	}
 	return options
+}
+
+type RichMultiSelectOptions struct {
+	Message           string
+	Options           []codersdk.TemplateVersionParameterOption
+	Defaults          []string
+	EnableCustomInput bool
+}
+
+func RichMultiSelect(inv *serpent.Invocation, richOptions RichMultiSelectOptions) ([]string, error) {
+	var opts []string
+	var defaultOpts []string
+
+	asLine := func(option codersdk.TemplateVersionParameterOption) string {
+		line := option.Name
+		if len(option.Description) > 0 {
+			line += ": " + option.Description
+		}
+		return line
+	}
+
+	var predefinedOpts []string
+	for i, option := range richOptions.Options {
+		opts = append(opts, asLine(option)) // Some options may have description defined.
+
+		// Check if option is selected by default
+		if slices.Contains(richOptions.Defaults, option.Value) {
+			defaultOpts = append(defaultOpts, opts[i])
+			predefinedOpts = append(predefinedOpts, option.Value)
+		}
+	}
+
+	// Check if "defaults" contains extra/custom options, user could select them.
+	for _, def := range richOptions.Defaults {
+		if !slices.Contains(predefinedOpts, def) {
+			opts = append(opts, def)
+			defaultOpts = append(defaultOpts, def)
+		}
+	}
+
+	selected, err := MultiSelect(inv, MultiSelectOptions{
+		Message:           richOptions.Message,
+		Options:           opts,
+		Defaults:          defaultOpts,
+		EnableCustomInput: richOptions.EnableCustomInput,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Check selected option, convert descriptions (line) to values
+	//
+	// The function must return an initialized empty array, since it is later marshaled
+	// into JSON. Otherwise, `var results []string` would be marshaled to "null".
+	// See: https://github.com/golang/go/issues/27589
+	results := []string{}
+	for _, sel := range selected {
+		custom := true
+		for i, option := range richOptions.Options {
+			if asLine(option) == sel {
+				results = append(results, richOptions.Options[i].Value)
+				custom = false
+				break
+			}
+		}
+
+		if custom {
+			results = append(results, sel)
+		}
+	}
+	return results, nil
 }
 
 type MultiSelectOptions struct {

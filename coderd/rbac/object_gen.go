@@ -15,6 +15,15 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAibridgeInterception
+	// Valid Actions
+	//  - "ActionCreate" :: create aibridge interceptions & related records
+	//  - "ActionRead" :: read aibridge interceptions & related records
+	//  - "ActionUpdate" :: update aibridge interceptions & related records
+	ResourceAibridgeInterception = Object{
+		Type: "aibridge_interception",
+	}
+
 	// ResourceApiKey
 	// Valid Actions
 	//  - "ActionCreate" :: create an api key
@@ -52,6 +61,14 @@ var (
 	//  - "ActionRead" :: read audit logs
 	ResourceAuditLog = Object{
 		Type: "audit_log",
+	}
+
+	// ResourceConnectionLog
+	// Valid Actions
+	//  - "ActionRead" :: read connection logs
+	//  - "ActionUpdate" :: upsert connection log entries
+	ResourceConnectionLog = Object{
+		Type: "connection_log",
 	}
 
 	// ResourceCryptoKey
@@ -269,6 +286,16 @@ var (
 		Type: "tailnet_coordinator",
 	}
 
+	// ResourceTask
+	// Valid Actions
+	//  - "ActionCreate" :: create a new task
+	//  - "ActionDelete" :: delete task
+	//  - "ActionRead" :: read task data or output to view on the UI or CLI
+	//  - "ActionUpdate" :: edit task settings or send input to an existing task
+	ResourceTask = Object{
+		Type: "task",
+	}
+
 	// ResourceTemplate
 	// Valid Actions
 	//  - "ActionCreate" :: create a template
@@ -281,6 +308,15 @@ var (
 		Type: "template",
 	}
 
+	// ResourceUsageEvent
+	// Valid Actions
+	//  - "ActionCreate" :: create a usage event
+	//  - "ActionRead" :: read usage events
+	//  - "ActionUpdate" :: update usage events
+	ResourceUsageEvent = Object{
+		Type: "usage_event",
+	}
+
 	// ResourceUser
 	// Valid Actions
 	//  - "ActionCreate" :: create a new user
@@ -291,6 +327,16 @@ var (
 	//  - "ActionUpdatePersonal" :: update personal data
 	ResourceUser = Object{
 		Type: "user",
+	}
+
+	// ResourceUserSecret
+	// Valid Actions
+	//  - "ActionCreate" :: create a user secret
+	//  - "ActionDelete" :: delete a user secret
+	//  - "ActionRead" :: read user secret metadata and value
+	//  - "ActionUpdate" :: update user secret metadata and value
+	ResourceUserSecret = Object{
+		Type: "user_secret",
 	}
 
 	// ResourceWebpushSubscription
@@ -310,6 +356,7 @@ var (
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
@@ -342,6 +389,7 @@ var (
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
@@ -364,10 +412,12 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAibridgeInterception,
 		ResourceApiKey,
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,
@@ -392,8 +442,11 @@ func AllResources() []Objecter {
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,
+		ResourceTask,
 		ResourceTemplate,
+		ResourceUsageEvent,
 		ResourceUser,
+		ResourceUserSecret,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,
@@ -414,6 +467,7 @@ func AllActions() []policy.Action {
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionSSH,
+		policy.ActionShare,
 		policy.ActionUnassign,
 		policy.ActionUpdate,
 		policy.ActionUpdatePersonal,

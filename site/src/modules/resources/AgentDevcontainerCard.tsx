@@ -6,6 +6,7 @@ import type {
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
+
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
@@ -23,11 +24,12 @@ import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
 import { useEffect } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { cn } from "utils/cn";
 import { portForwardURL } from "utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
 import { AgentLatency } from "./AgentLatency";
-import { SubAgentStatus } from "./AgentStatus";
+import { DevcontainerStatus } from "./AgentStatus";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
@@ -128,12 +130,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 			return { previousData };
 		},
-		onSuccess: async () => {
-			// Invalidate the containers query to refetch updated data.
-			await queryClient.invalidateQueries({
-				queryKey: ["agents", parentAgent.id, "containers"],
-			});
-		},
 		onError: (error, _, context) => {
 			// If the mutation fails, use the context returned from
 			// onMutate to roll back.
@@ -190,7 +186,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			key={devcontainer.id}
 			direction="column"
 			spacing={0}
-			className="relative py-4 border border-dashed border-border rounded"
+			className={cn(
+				"relative py-4 border border-dashed border-border rounded",
+				devcontainer.error && "border-content-destructive border-solid",
+			)}
 		>
 			<div
 				className="absolute -top-2 left-5
@@ -208,14 +207,19 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			>
 				<div className="flex items-center gap-6 text-xs text-content-secondary">
 					<div className="flex items-center gap-4 md:w-full">
-						<SubAgentStatus agent={subAgent} />
+						<DevcontainerStatus
+							devcontainer={devcontainer}
+							parentAgent={parentAgent}
+							agent={subAgent}
+						/>
 						<span
 							className="max-w-xs shrink-0
 							overflow-hidden text-ellipsis whitespace-nowrap
 							text-sm font-semibold text-content-primary
 							md:overflow-visible"
 						>
-							{subAgent?.name ?? devcontainer.name}
+							{subAgent?.name ??
+								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
 								<span className="text-content-tertiary">
 									{" "}
@@ -250,7 +254,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={devcontainer.status === "starting"}
 					>
 						<Spinner loading={devcontainer.status === "starting"} />
-						Rebuild
+
+						{devcontainer.container === undefined ? "Start" : "Rebuild"}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
@@ -273,6 +278,12 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				</div>
 			</header>
 
+			{devcontainer.error && (
+				<div className="px-8 pt-2 text-xs text-content-destructive">
+					{devcontainer.error}
+				</div>
+			)}
+
 			{(showSubAgentApps || showSubAgentAppsPlaceholders) && (
 				<div className="flex flex-col gap-8 px-8 pt-4">
 					{subAgent &&
@@ -285,26 +296,26 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 					{showSubAgentApps && (
 						<section className={appsClasses}>
-							<>
-								{showVSCode && (
-									<VSCodeDevContainerButton
-										userName={workspace.owner_name}
-										workspaceName={workspace.name}
-										devContainerName={devcontainer.container.name}
-										devContainerFolder={subAgent?.directory ?? ""}
-										displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
-										agentName={parentAgent.name}
-									/>
-								)}
-								{appSections.map((section, i) => (
-									<AgentApps
-										key={section.group ?? i}
-										section={section}
-										agent={subAgent}
-										workspace={workspace}
-									/>
-								))}
-							</>
+							{showVSCode && (
+								<VSCodeDevContainerButton
+									userName={workspace.owner_name}
+									workspaceName={workspace.name}
+									devContainerName={devcontainer.container.name}
+									devContainerFolder={subAgent?.directory ?? ""}
+									localWorkspaceFolder={devcontainer.workspace_folder}
+									localConfigFile={devcontainer.config_path || ""}
+									displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
+									agentName={parentAgent.name}
+								/>
+							)}
+							{appSections.map((section, i) => (
+								<AgentApps
+									key={section.group ?? i}
+									section={section}
+									agent={subAgent}
+									workspace={workspace}
+								/>
+							))}
 
 							{displayApps.includes("web_terminal") && (
 								<TerminalLink
@@ -316,7 +327,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 							{wildcardHostname !== "" &&
 								devcontainer.container?.ports.map((port) => {
-									const portLabel = `${port.port}/${port.network.toUpperCase()}`;
+									const portLabel = `${
+										port.port
+									}/${port.network.toUpperCase()}`;
 									const hasHostBind =
 										port.host_port !== undefined && port.host_ip !== undefined;
 									const helperText = hasHostBind

@@ -5,8 +5,7 @@ import {
 	deleteOrganization,
 	setupApiCalls,
 } from "../../api";
-import { randomName, requiresLicense } from "../../helpers";
-import { login } from "../../helpers";
+import { login, randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {

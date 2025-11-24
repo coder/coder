@@ -4,7 +4,7 @@ import { Button } from "components/Button/Button";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Loader } from "components/Loader/Loader";
 import { type FC, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation } from "react-router";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
@@ -68,10 +68,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 					</div>
 					<div>{buildInfo?.version}</div>
 					{tosAccepted && (
-						<TermsOfServiceLink
-							url={authMethods?.terms_of_service_url}
-							css={{ fontSize: 12 }}
-						/>
+						<TermsOfServiceLink url={authMethods?.terms_of_service_url} />
 					)}
 				</footer>
 			</div>

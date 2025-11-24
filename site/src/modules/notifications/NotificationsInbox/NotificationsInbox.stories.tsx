@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import { MockNotifications, mockApiError } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { NotificationsInbox } from "./NotificationsInbox";
 
 const meta: Meta<typeof NotificationsInbox> = {
@@ -123,6 +123,8 @@ export const MarkAllAsReadFailure: Story = {
 			name: /mark all as read/i,
 		});
 		await userEvent.click(markAllAsReadButton);
+		// There have been some flakes here, with the socket erroring with
+		// "Unable to retrieve latest inbox notifications. Please try refreshing the browser."
 		await body.findByText("Failed to mark all notifications as read");
 	},
 };

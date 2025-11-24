@@ -283,7 +283,7 @@
 {
   "groups": [
     {
-      "avatar_url": "string",
+      "avatar_url": "http://example.com",
       "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "members": [
@@ -335,10 +335,412 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.AIBridgeAnthropicConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeBedrockConfig
+
+```json
+{
+  "access_key": "string",
+  "access_key_secret": "string",
+  "model": "string",
+  "region": "string",
+  "small_fast_model": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+|---------------------|--------|----------|--------------|-------------|
+| `access_key`        | string | false    |              |             |
+| `access_key_secret` | string | false    |              |             |
+| `model`             | string | false    |              |             |
+| `region`            | string | false    |              |             |
+| `small_fast_model`  | string | false    |              |             |
+
+## codersdk.AIBridgeConfig
+
+```json
+{
+  "anthropic": {
+    "base_url": "string",
+    "key": "string"
+  },
+  "bedrock": {
+    "access_key": "string",
+    "access_key_secret": "string",
+    "model": "string",
+    "region": "string",
+    "small_fast_model": "string"
+  },
+  "enabled": true,
+  "inject_coder_mcp_tools": true,
+  "openai": {
+    "base_url": "string",
+    "key": "string"
+  },
+  "retention": 0
+}
+```
+
+### Properties
+
+| Name                     | Type                                                                 | Required | Restrictions | Description |
+|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
+| `enabled`                | boolean                                                              | false    |              |             |
+| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
+| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| `retention`              | integer                                                              | false    |              |             |
+
+## codersdk.AIBridgeInterception
+
+```json
+{
+  "api_key_id": "string",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "model": "string",
+  "provider": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "token_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "output_tokens": 0,
+      "provider_response_id": "string"
+    }
+  ],
+  "tool_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "injected": true,
+      "input": "string",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "invocation_error": "string",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "provider_response_id": "string",
+      "server_url": "string",
+      "tool": "string"
+    }
+  ],
+  "user_prompts": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "prompt": "string",
+      "provider_response_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name               | Type                                                                | Required | Restrictions | Description |
+|--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `api_key_id`       | string                                                              | false    |              |             |
+| `ended_at`         | string                                                              | false    |              |             |
+| `id`               | string                                                              | false    |              |             |
+| `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
+| `metadata`         | object                                                              | false    |              |             |
+| » `[any property]` | any                                                                 | false    |              |             |
+| `model`            | string                                                              | false    |              |             |
+| `provider`         | string                                                              | false    |              |             |
+| `started_at`       | string                                                              | false    |              |             |
+| `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
+| `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
+| `user_prompts`     | array of [codersdk.AIBridgeUserPrompt](#codersdkaibridgeuserprompt) | false    |              |             |
+
+## codersdk.AIBridgeListInterceptionsResponse
+
+```json
+{
+  "count": 0,
+  "results": [
+    {
+      "api_key_id": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "model": "string",
+      "provider": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "token_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "input_tokens": 0,
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "output_tokens": 0,
+          "provider_response_id": "string"
+        }
+      ],
+      "tool_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "injected": true,
+          "input": "string",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "invocation_error": "string",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "provider_response_id": "string",
+          "server_url": "string",
+          "tool": "string"
+        }
+      ],
+      "user_prompts": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "prompt": "string",
+          "provider_response_id": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                    | Required | Restrictions | Description |
+|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `count`   | integer                                                                 | false    |              |             |
+| `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+
+## codersdk.AIBridgeOpenAIConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeTokenUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_tokens": 0,
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "output_tokens": 0,
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `input_tokens`         | integer | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `output_tokens`        | integer | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+
+## codersdk.AIBridgeToolUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "injected": true,
+  "input": "string",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "invocation_error": "string",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "provider_response_id": "string",
+  "server_url": "string",
+  "tool": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `injected`             | boolean | false    |              |             |
+| `input`                | string  | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `invocation_error`     | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+| `server_url`           | string  | false    |              |             |
+| `tool`                 | string  | false    |              |             |
+
+## codersdk.AIBridgeUserPrompt
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "prompt": "string",
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description |
+|------------------------|--------|----------|--------------|-------------|
+| `created_at`           | string | false    |              |             |
+| `id`                   | string | false    |              |             |
+| `interception_id`      | string | false    |              |             |
+| `metadata`             | object | false    |              |             |
+| » `[any property]`     | any    | false    |              |             |
+| `prompt`               | string | false    |              |             |
+| `provider_response_id` | string | false    |              |             |
+
+## codersdk.AIConfig
+
+```json
+{
+  "bridge": {
+    "anthropic": {
+      "base_url": "string",
+      "key": "string"
+    },
+    "bedrock": {
+      "access_key": "string",
+      "access_key_secret": "string",
+      "model": "string",
+      "region": "string",
+      "small_fast_model": "string"
+    },
+    "enabled": true,
+    "inject_coder_mcp_tools": true,
+    "openai": {
+      "base_url": "string",
+      "key": "string"
+    },
+    "retention": 0
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                               | Required | Restrictions | Description |
+|----------|----------------------------------------------------|----------|--------------|-------------|
+| `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
+
+## codersdk.APIAllowListTarget
+
+```json
+{
+  "id": "string",
+  "type": "*"
+}
+```
+
+### Properties
+
+| Name   | Type                                           | Required | Restrictions | Description |
+|--------|------------------------------------------------|----------|--------------|-------------|
+| `id`   | string                                         | false    |              |             |
+| `type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "created_at": "2019-08-24T14:15:22Z",
   "expires_at": "2019-08-24T14:15:22Z",
   "id": "string",
@@ -346,6 +748,9 @@
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -354,18 +759,20 @@
 
 ### Properties
 
-| Name               | Type                                         | Required | Restrictions | Description |
-|--------------------|----------------------------------------------|----------|--------------|-------------|
-| `created_at`       | string                                       | true     |              |             |
-| `expires_at`       | string                                       | true     |              |             |
-| `id`               | string                                       | true     |              |             |
-| `last_used`        | string                                       | true     |              |             |
-| `lifetime_seconds` | integer                                      | true     |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
-| `token_name`       | string                                       | true     |              |             |
-| `updated_at`       | string                                       | true     |              |             |
-| `user_id`          | string                                       | true     |              |             |
+| Name               | Type                                                                | Required | Restrictions | Description                     |
+|--------------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list`       | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `created_at`       | string                                                              | true     |              |                                 |
+| `expires_at`       | string                                                              | true     |              |                                 |
+| `id`               | string                                                              | true     |              |                                 |
+| `last_used`        | string                                                              | true     |              |                                 |
+| `lifetime_seconds` | integer                                                             | true     |              |                                 |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)                            | true     |              |                                 |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name`       | string                                                              | true     |              |                                 |
+| `updated_at`       | string                                                              | true     |              |                                 |
+| `user_id`          | string                                                              | true     |              |                                 |
 
 #### Enumerated Values
 
@@ -388,10 +795,204 @@
 
 #### Enumerated Values
 
-| Value                 |
-|-----------------------|
-| `all`                 |
-| `application_connect` |
+| Value                                     |
+|-------------------------------------------|
+| `all`                                     |
+| `application_connect`                     |
+| `aibridge_interception:*`                 |
+| `aibridge_interception:create`            |
+| `aibridge_interception:read`              |
+| `aibridge_interception:update`            |
+| `api_key:*`                               |
+| `api_key:create`                          |
+| `api_key:delete`                          |
+| `api_key:read`                            |
+| `api_key:update`                          |
+| `assign_org_role:*`                       |
+| `assign_org_role:assign`                  |
+| `assign_org_role:create`                  |
+| `assign_org_role:delete`                  |
+| `assign_org_role:read`                    |
+| `assign_org_role:unassign`                |
+| `assign_org_role:update`                  |
+| `assign_role:*`                           |
+| `assign_role:assign`                      |
+| `assign_role:read`                        |
+| `assign_role:unassign`                    |
+| `audit_log:*`                             |
+| `audit_log:create`                        |
+| `audit_log:read`                          |
+| `coder:all`                               |
+| `coder:apikeys.manage_self`               |
+| `coder:application_connect`               |
+| `coder:templates.author`                  |
+| `coder:templates.build`                   |
+| `coder:workspaces.access`                 |
+| `coder:workspaces.create`                 |
+| `coder:workspaces.delete`                 |
+| `coder:workspaces.operate`                |
+| `connection_log:*`                        |
+| `connection_log:read`                     |
+| `connection_log:update`                   |
+| `crypto_key:*`                            |
+| `crypto_key:create`                       |
+| `crypto_key:delete`                       |
+| `crypto_key:read`                         |
+| `crypto_key:update`                       |
+| `debug_info:*`                            |
+| `debug_info:read`                         |
+| `deployment_config:*`                     |
+| `deployment_config:read`                  |
+| `deployment_config:update`                |
+| `deployment_stats:*`                      |
+| `deployment_stats:read`                   |
+| `file:*`                                  |
+| `file:create`                             |
+| `file:read`                               |
+| `group:*`                                 |
+| `group:create`                            |
+| `group:delete`                            |
+| `group:read`                              |
+| `group:update`                            |
+| `group_member:*`                          |
+| `group_member:read`                       |
+| `idpsync_settings:*`                      |
+| `idpsync_settings:read`                   |
+| `idpsync_settings:update`                 |
+| `inbox_notification:*`                    |
+| `inbox_notification:create`               |
+| `inbox_notification:read`                 |
+| `inbox_notification:update`               |
+| `license:*`                               |
+| `license:create`                          |
+| `license:delete`                          |
+| `license:read`                            |
+| `notification_message:*`                  |
+| `notification_message:create`             |
+| `notification_message:delete`             |
+| `notification_message:read`               |
+| `notification_message:update`             |
+| `notification_preference:*`               |
+| `notification_preference:read`            |
+| `notification_preference:update`          |
+| `notification_template:*`                 |
+| `notification_template:read`              |
+| `notification_template:update`            |
+| `oauth2_app:*`                            |
+| `oauth2_app:create`                       |
+| `oauth2_app:delete`                       |
+| `oauth2_app:read`                         |
+| `oauth2_app:update`                       |
+| `oauth2_app_code_token:*`                 |
+| `oauth2_app_code_token:create`            |
+| `oauth2_app_code_token:delete`            |
+| `oauth2_app_code_token:read`              |
+| `oauth2_app_secret:*`                     |
+| `oauth2_app_secret:create`                |
+| `oauth2_app_secret:delete`                |
+| `oauth2_app_secret:read`                  |
+| `oauth2_app_secret:update`                |
+| `organization:*`                          |
+| `organization:create`                     |
+| `organization:delete`                     |
+| `organization:read`                       |
+| `organization:update`                     |
+| `organization_member:*`                   |
+| `organization_member:create`              |
+| `organization_member:delete`              |
+| `organization_member:read`                |
+| `organization_member:update`              |
+| `prebuilt_workspace:*`                    |
+| `prebuilt_workspace:delete`               |
+| `prebuilt_workspace:update`               |
+| `provisioner_daemon:*`                    |
+| `provisioner_daemon:create`               |
+| `provisioner_daemon:delete`               |
+| `provisioner_daemon:read`                 |
+| `provisioner_daemon:update`               |
+| `provisioner_jobs:*`                      |
+| `provisioner_jobs:create`                 |
+| `provisioner_jobs:read`                   |
+| `provisioner_jobs:update`                 |
+| `replicas:*`                              |
+| `replicas:read`                           |
+| `system:*`                                |
+| `system:create`                           |
+| `system:delete`                           |
+| `system:read`                             |
+| `system:update`                           |
+| `tailnet_coordinator:*`                   |
+| `tailnet_coordinator:create`              |
+| `tailnet_coordinator:delete`              |
+| `tailnet_coordinator:read`                |
+| `tailnet_coordinator:update`              |
+| `task:*`                                  |
+| `task:create`                             |
+| `task:delete`                             |
+| `task:read`                               |
+| `task:update`                             |
+| `template:*`                              |
+| `template:create`                         |
+| `template:delete`                         |
+| `template:read`                           |
+| `template:update`                         |
+| `template:use`                            |
+| `template:view_insights`                  |
+| `usage_event:*`                           |
+| `usage_event:create`                      |
+| `usage_event:read`                        |
+| `usage_event:update`                      |
+| `user:*`                                  |
+| `user:create`                             |
+| `user:delete`                             |
+| `user:read`                               |
+| `user:read_personal`                      |
+| `user:update`                             |
+| `user:update_personal`                    |
+| `user_secret:*`                           |
+| `user_secret:create`                      |
+| `user_secret:delete`                      |
+| `user_secret:read`                        |
+| `user_secret:update`                      |
+| `webpush_subscription:*`                  |
+| `webpush_subscription:create`             |
+| `webpush_subscription:delete`             |
+| `webpush_subscription:read`               |
+| `workspace:*`                             |
+| `workspace:application_connect`           |
+| `workspace:create`                        |
+| `workspace:create_agent`                  |
+| `workspace:delete`                        |
+| `workspace:delete_agent`                  |
+| `workspace:read`                          |
+| `workspace:share`                         |
+| `workspace:ssh`                           |
+| `workspace:start`                         |
+| `workspace:stop`                          |
+| `workspace:update`                        |
+| `workspace_agent_devcontainers:*`         |
+| `workspace_agent_devcontainers:create`    |
+| `workspace_agent_resource_monitor:*`      |
+| `workspace_agent_resource_monitor:create` |
+| `workspace_agent_resource_monitor:read`   |
+| `workspace_agent_resource_monitor:update` |
+| `workspace_dormant:*`                     |
+| `workspace_dormant:application_connect`   |
+| `workspace_dormant:create`                |
+| `workspace_dormant:create_agent`          |
+| `workspace_dormant:delete`                |
+| `workspace_dormant:delete_agent`          |
+| `workspace_dormant:read`                  |
+| `workspace_dormant:share`                 |
+| `workspace_dormant:ssh`                   |
+| `workspace_dormant:start`                 |
+| `workspace_dormant:stop`                  |
+| `workspace_dormant:update`                |
+| `workspace_proxy:*`                       |
+| `workspace_proxy:create`                  |
+| `workspace_proxy:delete`                  |
+| `workspace_proxy:read`                    |
+| `workspace_proxy:update`                  |
 
 ## codersdk.AddLicenseRequest
 
@@ -509,6 +1110,7 @@
   "support_links": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }
@@ -550,6 +1152,13 @@
   "display_name": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -576,16 +1185,17 @@
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
-|----------------------------|-----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `assignable`               | boolean                                             | false    |              |                                                                                                 |
-| `built_in`                 | boolean                                             | false    |              | Built in roles are immutable                                                                    |
-| `display_name`             | string                                              | false    |              |                                                                                                 |
-| `name`                     | string                                              | false    |              |                                                                                                 |
-| `organization_id`          | string                                              | false    |              |                                                                                                 |
-| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| Name                              | Type                                                | Required | Restrictions | Description                                                                                            |
+|-----------------------------------|-----------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `assignable`                      | boolean                                             | false    |              |                                                                                                        |
+| `built_in`                        | boolean                                             | false    |              | Built in roles are immutable                                                                           |
+| `display_name`                    | string                                              | false    |              |                                                                                                        |
+| `name`                            | string                                              | false    |              |                                                                                                        |
+| `organization_id`                 | string                                              | false    |              |                                                                                                        |
+| `organization_member_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `organization_permissions`        | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `site_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
+| `user_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
 
 ## codersdk.AuditAction
 
@@ -1044,11 +1654,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value       |
-|-------------|
-| `initiator` |
-| `autostart` |
-| `autostop`  |
+| Value                  |
+|------------------------|
+| `initiator`            |
+| `autostart`            |
+| `autostop`             |
+| `dormancy`             |
+| `dashboard`            |
+| `cli`                  |
+| `ssh_connection`       |
+| `vscode_connection`    |
+| `jetbrains_connection` |
+
+## codersdk.CORSBehavior
+
+```json
+"simple"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+|------------|
+| `simple`   |
+| `passthru` |
 
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
@@ -1083,6 +1714,228 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------|--------|----------|--------------|-------------|
 | `p50` | number | false    |              |             |
 | `p95` | number | false    |              |             |
+
+## codersdk.ConnectionLog
+
+```json
+{
+  "agent_name": "string",
+  "connect_time": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "ip": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
+  "ssh_info": {
+    "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+    "disconnect_reason": "string",
+    "disconnect_time": "2019-08-24T14:15:22Z",
+    "exit_code": 0
+  },
+  "type": "ssh",
+  "web_info": {
+    "slug_or_port": "string",
+    "status_code": 0,
+    "user": {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "organization_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    },
+    "user_agent": "string"
+  },
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_username": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                           | Required | Restrictions | Description                                                                                                                                              |
+|----------------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`               | string                                                         | false    |              |                                                                                                                                                          |
+| `connect_time`             | string                                                         | false    |              |                                                                                                                                                          |
+| `id`                       | string                                                         | false    |              |                                                                                                                                                          |
+| `ip`                       | string                                                         | false    |              |                                                                                                                                                          |
+| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                                          |
+| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
+| `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                                          |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp`                                              |
+| `workspace_id`             | string                                                         | false    |              |                                                                                                                                                          |
+| `workspace_name`           | string                                                         | false    |              |                                                                                                                                                          |
+| `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                          |
+| `workspace_owner_username` | string                                                         | false    |              |                                                                                                                                                          |
+
+## codersdk.ConnectionLogResponse
+
+```json
+{
+  "connection_logs": [
+    {
+      "agent_name": "string",
+      "connect_time": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "ip": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "ssh_info": {
+        "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+        "disconnect_reason": "string",
+        "disconnect_time": "2019-08-24T14:15:22Z",
+        "exit_code": 0
+      },
+      "type": "ssh",
+      "web_info": {
+        "slug_or_port": "string",
+        "status_code": 0,
+        "user": {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "organization_ids": [
+            "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+          ],
+          "roles": [
+            {
+              "display_name": "string",
+              "name": "string",
+              "organization_id": "string"
+            }
+          ],
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        },
+        "user_agent": "string"
+      },
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string",
+      "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+      "workspace_owner_username": "string"
+    }
+  ],
+  "count": 0
+}
+```
+
+### Properties
+
+| Name              | Type                                                      | Required | Restrictions | Description |
+|-------------------|-----------------------------------------------------------|----------|--------------|-------------|
+| `connection_logs` | array of [codersdk.ConnectionLog](#codersdkconnectionlog) | false    |              |             |
+| `count`           | integer                                                   | false    |              |             |
+
+## codersdk.ConnectionLogSSHInfo
+
+```json
+{
+  "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+  "disconnect_reason": "string",
+  "disconnect_time": "2019-08-24T14:15:22Z",
+  "exit_code": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                           |
+|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `connection_id`     | string  | false    |              |                                                                                                                                       |
+| `disconnect_reason` | string  | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                 |
+| `disconnect_time`   | string  | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                   |
+| `exit_code`         | integer | false    |              | Exit code is the exit code of the SSH session. It is omitted if a disconnect event with the same connection ID has not yet been seen. |
+
+## codersdk.ConnectionLogWebInfo
+
+```json
+{
+  "slug_or_port": "string",
+  "status_code": 0,
+  "user": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "user@example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "",
+    "name": "string",
+    "organization_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string",
+        "organization_id": "string"
+      }
+    ],
+    "status": "active",
+    "theme_preference": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "username": "string"
+  },
+  "user_agent": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                           | Required | Restrictions | Description                                                               |
+|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `slug_or_port` | string                         | false    |              |                                                                           |
+| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
+| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
+| `user_agent`   | string                         | false    |              |                                                                           |
+
+## codersdk.ConnectionType
+
+```json
+"ssh"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value              |
+|--------------------|
+| `ssh`              |
+| `vscode`           |
+| `jetbrains`        |
+| `reconnecting_pty` |
+| `workspace_app`    |
+| `port_forwarding`  |
 
 ## codersdk.ConvertLoginRequest
 
@@ -1228,6 +2081,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
+## codersdk.CreateTaskRequest
+
+```json
+{
+  "input": "string",
+  "name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1"
+}
+```
+
+### Properties
+
+| Name                         | Type   | Required | Restrictions | Description |
+|------------------------------|--------|----------|--------------|-------------|
+| `input`                      | string | false    |              |             |
+| `name`                       | string | false    |              |             |
+| `template_version_id`        | string | false    |              |             |
+| `template_version_preset_id` | string | false    |              |             |
+
 ## codersdk.CreateTemplateRequest
 
 ```json
@@ -1247,6 +2120,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "weeks": 0
   },
+  "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
   "description": "string",
@@ -1258,31 +2132,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
 ### Properties
 
-| Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
-|------------------------------------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `activity_bump_ms`                 | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                             |
-| `allow_user_autostart`             | boolean                                                                        | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
-| `allow_user_autostop`              | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
-| `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
-| `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
-| `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
-| `default_ttl_ms`                   | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
-| `delete_ttl_ms`                    | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
-| `description`                      | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
-| `disable_everyone_group_access`    | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
-| `display_name`                     | string                                                                         | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
-| `dormant_ttl_ms`                   | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
-| `failure_ttl_ms`                   | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
-| `icon`                             | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
-| `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              | Max port share level allows optionally specifying the maximum port share level for workspaces created from the template.                                                                                                                                                                                            |
-| `name`                             | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
-| `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
+| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
+|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `activity_bump_ms`                    | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                             |
+| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
+| `allow_user_autostop`                 | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
+| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
+| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
+| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              | Cors behavior allows optionally specifying the CORS behavior for all shared ports.                                                                                                                                                                                                                                  |
+| `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
+| `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
+| `description`                         | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
+| `disable_everyone_group_access`       | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
+| `display_name`                        | string                                                                         | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
+| `dormant_ttl_ms`                      | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
+| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
+| `icon`                                | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              | Max port share level allows optionally specifying the maximum port share level for workspaces created from the template.                                                                                                                                                                                            |
+| `name`                                | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
+| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
+| `template_use_classic_parameter_flow` | boolean                                                                        | false    |              | Template use classic parameter flow allows optionally specifying whether the template should use the classic parameter flow. The default if unset is true, and is why `*bool` is used here. When dynamic parameters becomes the default, this will default to false.                                                |
 |`template_version_id`|string|true||Template version ID is an in-progress or completed job to use as an initial version of the template.
 This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users.|
 
@@ -1364,37 +2241,81 @@ This is required on creation to enable a user-flow of validating a template work
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
-{}
+{
+  "action": "create",
+  "additional_fields": [
+    0
+  ],
+  "build_reason": "autostart",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "resource_type": "template",
+  "time": "2019-08-24T14:15:22Z"
+}
 ```
 
 ### Properties
 
-None
+| Name                | Type                                           | Required | Restrictions | Description |
+|---------------------|------------------------------------------------|----------|--------------|-------------|
+| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
+| `additional_fields` | array of integer                               | false    |              |             |
+| `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
+| `organization_id`   | string                                         | false    |              |             |
+| `request_id`        | string                                         | false    |              |             |
+| `resource_id`       | string                                         | false    |              |             |
+| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
+| `time`              | string                                         | false    |              |             |
+
+#### Enumerated Values
+
+| Property        | Value              |
+|-----------------|--------------------|
+| `action`        | `create`           |
+| `action`        | `write`            |
+| `action`        | `delete`           |
+| `action`        | `start`            |
+| `action`        | `stop`             |
+| `build_reason`  | `autostart`        |
+| `build_reason`  | `autostop`         |
+| `build_reason`  | `initiator`        |
+| `resource_type` | `template`         |
+| `resource_type` | `template_version` |
+| `resource_type` | `user`             |
+| `resource_type` | `workspace`        |
+| `resource_type` | `workspace_build`  |
+| `resource_type` | `git_ssh_key`      |
+| `resource_type` | `auditable_group`  |
 
 ## codersdk.CreateTokenRequest
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "lifetime": 0,
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                         | Required | Restrictions | Description |
-|--------------|----------------------------------------------|----------|--------------|-------------|
-| `lifetime`   | integer                                      | false    |              |             |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
-| `token_name` | string                                       | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value                 |
-|----------|-----------------------|
-| `scope`  | `all`                 |
-| `scope`  | `application_connect` |
+| Name         | Type                                                                | Required | Restrictions | Description                     |
+|--------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list` | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `lifetime`   | integer                                                             | false    |              |                                 |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name` | string                                                              | false    |              |                                 |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -1424,6 +2345,24 @@ None
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
 
+## codersdk.CreateWorkspaceBuildReason
+
+```json
+"dashboard"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                  |
+|------------------------|
+| `dashboard`            |
+| `cli`                  |
+| `ssh_connection`       |
+| `vscode_connection`    |
+| `jetbrains_connection` |
+
 ## codersdk.CreateWorkspaceBuildRequest
 
 ```json
@@ -1431,6 +2370,7 @@ None
   "dry_run": true,
   "log_level": "debug",
   "orphan": true,
+  "reason": "dashboard",
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1453,6 +2393,7 @@ None
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
+| `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)    | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
 | `state`                      | array of integer                                                              | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                        | false    |              |                                                                                                                                                                                                               |
@@ -1461,12 +2402,17 @@ None
 
 #### Enumerated Values
 
-| Property     | Value    |
-|--------------|----------|
-| `log_level`  | `debug`  |
-| `transition` | `start`  |
-| `transition` | `stop`   |
-| `transition` | `delete` |
+| Property     | Value                  |
+|--------------|------------------------|
+| `log_level`  | `debug`                |
+| `reason`     | `dashboard`            |
+| `reason`     | `cli`                  |
+| `reason`     | `ssh_connection`       |
+| `reason`     | `vscode_connection`    |
+| `reason`     | `jetbrains_connection` |
+| `transition` | `start`                |
+| `transition` | `stop`                 |
+| `transition` | `delete`               |
 
 ## codersdk.CreateWorkspaceProxyRequest
 
@@ -1560,12 +2506,52 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oidc_convert`           |
 | `tailnet_resume`         |
 
+## codersdk.CustomNotificationContent
+
+```json
+{
+  "message": "string",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `message` | string | false    |              |             |
+| `title`   | string | false    |              |             |
+
+## codersdk.CustomNotificationRequest
+
+```json
+{
+  "content": {
+    "message": "string",
+    "title": "string"
+  }
+}
+```
+
+### Properties
+
+| Name      | Type                                                                     | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `content` | [codersdk.CustomNotificationContent](#codersdkcustomnotificationcontent) | false    |              |             |
+
 ## codersdk.CustomRoleRequest
 
 ```json
 {
   "display_name": "string",
   "name": "string",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -1592,13 +2578,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                                                                    |
-|----------------------------|-----------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
-| `display_name`             | string                                              | false    |              |                                                                                |
-| `name`                     | string                                              | false    |              |                                                                                |
-| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to. |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
+| Name                              | Type                                                | Required | Restrictions | Description                                                                           |
+|-----------------------------------|-----------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------|
+| `display_name`                    | string                                              | false    |              |                                                                                       |
+| `name`                            | string                                              | false    |              |                                                                                       |
+| `organization_member_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization member permissions are specific to the organization the role belongs to. |
+| `organization_permissions`        | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to.        |
+| `site_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                       |
+| `user_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                       |
 
 ## codersdk.DAUEntry
 
@@ -1771,6 +2758,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DeleteExternalAuthByIDResponse
+
+```json
+{
+  "token_revocation_error": "string",
+  "token_revoked": true
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description                                                                    |
+|--------------------------|---------|----------|--------------|--------------------------------------------------------------------------------|
+| `token_revocation_error` | string  | false    |              |                                                                                |
+| `token_revoked`          | boolean | false    |              | Token revoked set to true if token revocation was attempted and was successful |
+
 ## codersdk.DeleteWebpushSubscription
 
 ```json
@@ -1840,6 +2843,28 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "bridge": {
+        "anthropic": {
+          "base_url": "string",
+          "key": "string"
+        },
+        "bedrock": {
+          "access_key": "string",
+          "access_key_secret": "string",
+          "model": "string",
+          "region": "string",
+          "small_fast_model": "string"
+        },
+        "enabled": true,
+        "inject_coder_mcp_tools": true,
+        "openai": {
+          "base_url": "string",
+          "key": "string"
+        },
+        "retention": 0
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -1903,6 +2928,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
     "experiments": [
@@ -1920,8 +2946,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "mcp_tool_allow_regex": "string",
+          "mcp_tool_deny_regex": "string",
+          "mcp_url": "string",
           "no_refresh": true,
           "regex": "string",
+          "revoke_url": "string",
           "scopes": [
             "string"
           ],
@@ -1944,7 +2974,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "same_site": "string",
       "secure_auth_cookie": true
     },
-    "in_memory_database": true,
     "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
@@ -2122,7 +3151,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
       "max_admin_token_lifetime": 0,
-      "max_token_lifetime": 0
+      "max_token_lifetime": 0,
+      "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
@@ -2134,6 +3164,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": [
           {
             "icon": "bug",
+            "location": "navbar",
             "name": "string",
             "target": "string"
           }
@@ -2328,6 +3359,28 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
+  "ai": {
+    "bridge": {
+      "anthropic": {
+        "base_url": "string",
+        "key": "string"
+      },
+      "bedrock": {
+        "access_key": "string",
+        "access_key_secret": "string",
+        "model": "string",
+        "region": "string",
+        "small_fast_model": "string"
+      },
+      "enabled": true,
+      "inject_coder_mcp_tools": true,
+      "openai": {
+        "base_url": "string",
+        "key": "string"
+      },
+      "retention": 0
+    }
+  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -2391,6 +3444,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
   "experiments": [
@@ -2408,8 +3462,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "display_icon": "string",
         "display_name": "string",
         "id": "string",
+        "mcp_tool_allow_regex": "string",
+        "mcp_tool_deny_regex": "string",
+        "mcp_url": "string",
         "no_refresh": true,
         "regex": "string",
+        "revoke_url": "string",
         "scopes": [
           "string"
         ],
@@ -2432,7 +3490,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "same_site": "string",
     "secure_auth_cookie": true
   },
-  "in_memory_database": true,
   "job_hang_detector_interval": 0,
   "logging": {
     "human": "string",
@@ -2610,7 +3667,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "default_token_lifetime": 0,
     "disable_expiry_refresh": true,
     "max_admin_token_lifetime": 0,
-    "max_token_lifetime": 0
+    "max_token_lifetime": 0,
+    "refresh_default_duration": 0
   },
   "ssh_keygen_algorithm": "string",
   "strict_transport_security": 0,
@@ -2622,6 +3680,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "value": [
         {
           "icon": "bug",
+          "location": "navbar",
           "name": "string",
           "target": "string"
         }
@@ -2707,6 +3766,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
+| `ai`                                 | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -2720,6 +3780,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
@@ -2729,7 +3790,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `hide_ai_tasks`                      | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
-| `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
 | `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
 | `metrics_cache_refresh_interval`     | integer                                                                                              | false    |              |                                                                    |
@@ -2890,6 +3950,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "styling": {
         "disabled": true,
         "label": "string",
+        "mask_input": true,
         "placeholder": "string"
       },
       "type": "string",
@@ -2947,13 +4008,25 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     },
     "property2": {
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     }
   },
   "has_license": true,
@@ -2989,13 +4062,49 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                  |
-|------------------------|
-| `example`              |
-| `auto-fill-parameters` |
-| `notifications`        |
-| `workspace-usage`      |
-| `web-push`             |
+| Value                       |
+|-----------------------------|
+| `example`                   |
+| `auto-fill-parameters`      |
+| `notifications`             |
+| `workspace-usage`           |
+| `web-push`                  |
+| `oauth2`                    |
+| `mcp-server-http`           |
+| `workspace-sharing`         |
+| `terraform-directory-reuse` |
+
+## codersdk.ExternalAPIKeyScopes
+
+```json
+{
+  "external": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                  | Required | Restrictions | Description |
+|------------|-------------------------------------------------------|----------|--------------|-------------|
+| `external` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+
+## codersdk.ExternalAgentCredentials
+
+```json
+{
+  "agent_token": "string",
+  "command": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `agent_token` | string | false    |              |             |
+| `command`     | string | false    |              |             |
 
 ## codersdk.ExternalAuth
 
@@ -3019,6 +4128,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "id": 0
     }
   ],
+  "supports_revocation": true,
   "user": {
     "avatar_url": "string",
     "id": 0,
@@ -3031,15 +4141,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name              | Type                                                                                  | Required | Restrictions | Description                                                             |
-|-------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `app_install_url` | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
-| `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
-| `authenticated`   | boolean                                                                               | false    |              |                                                                         |
-| `device`          | boolean                                                                               | false    |              |                                                                         |
-| `display_name`    | string                                                                                | false    |              |                                                                         |
-| `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+| Name                  | Type                                                                                  | Required | Restrictions | Description                                                             |
+|-----------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `app_install_url`     | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
+| `app_installable`     | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
+| `authenticated`       | boolean                                                                               | false    |              |                                                                         |
+| `device`              | boolean                                                                               | false    |              |                                                                         |
+| `display_name`        | string                                                                                | false    |              |                                                                         |
+| `installations`       | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
+| `supports_revocation` | boolean                                                                               | false    |              |                                                                         |
+| `user`                | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
 
 ## codersdk.ExternalAuthAppInstallation
 
@@ -3078,8 +4189,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
+  "mcp_tool_allow_regex": "string",
+  "mcp_tool_deny_regex": "string",
+  "mcp_url": "string",
   "no_refresh": true,
   "regex": "string",
+  "revoke_url": "string",
   "scopes": [
     "string"
   ],
@@ -3102,9 +4217,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `display_icon`          | string  | false    |              | Display icon is a URL to an icon to display in the UI.                                  |
 | `display_name`          | string  | false    |              | Display name is shown in the UI to identify the auth config.                            |
 | `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
+| `mcp_tool_allow_regex`  | string  | false    |              |                                                                                         |
+| `mcp_tool_deny_regex`   | string  | false    |              |                                                                                         |
+| `mcp_url`               | string  | false    |              |                                                                                         |
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+|`revoke_url`|string|false|||
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
 |`type`|string|false||Type is the type of external auth config.|
@@ -3187,18 +4306,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "actual": 0,
   "enabled": true,
   "entitlement": "entitled",
-  "limit": 0
+  "limit": 0,
+  "soft_limit": 0,
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  }
 }
 ```
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description |
-|---------------|----------------------------------------------|----------|--------------|-------------|
-| `actual`      | integer                                      | false    |              |             |
-| `enabled`     | boolean                                      | false    |              |             |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
-| `limit`       | integer                                      | false    |              |             |
+| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                                  |
+|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`      | integer                                      | false    |              |                                                                                                                                                                              |
+| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                              |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                              |
+| `limit`       | integer                                      | false    |              |                                                                                                                                                                              |
+| `soft_limit`  | integer                                      | false    |              | Soft limit is the soft limit of the feature, and is only used for showing included limits in the dashboard. No license validation or warnings are generated from this value. |
+|`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
+These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
+Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ## codersdk.FriendlyDiagnostic
 
@@ -3378,7 +4507,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -3591,6 +4720,44 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `day`  |
 | `week` |
 
+## codersdk.InvalidatePresetsResponse
+
+```json
+{
+  "invalidated": [
+    {
+      "preset_name": "string",
+      "template_name": "string",
+      "template_version_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                              | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `invalidated` | array of [codersdk.InvalidatedPreset](#codersdkinvalidatedpreset) | false    |              |             |
+
+## codersdk.InvalidatedPreset
+
+```json
+{
+  "preset_name": "string",
+  "template_name": "string",
+  "template_version_name": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type   | Required | Restrictions | Description |
+|-------------------------|--------|----------|--------------|-------------|
+| `preset_name`           | string | false    |              |             |
+| `template_name`         | string | false    |              |             |
+| `template_version_name` | string | false    |              |             |
+
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
 ```json
@@ -3660,6 +4827,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "icon": "bug",
+  "location": "navbar",
   "name": "string",
   "target": "string"
 }
@@ -3667,19 +4835,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name     | Type   | Required | Restrictions | Description |
-|----------|--------|----------|--------------|-------------|
-| `icon`   | string | false    |              |             |
-| `name`   | string | false    |              |             |
-| `target` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `icon`     | string | false    |              |             |
+| `location` | string | false    |              |             |
+| `name`     | string | false    |              |             |
+| `target`   | string | false    |              |             |
 
 #### Enumerated Values
 
-| Property | Value  |
-|----------|--------|
-| `icon`   | `bug`  |
-| `icon`   | `chat` |
-| `icon`   | `docs` |
+| Property   | Value      |
+|------------|------------|
+| `icon`     | `bug`      |
+| `icon`     | `chat`     |
+| `icon`     | `docs`     |
+| `icon`     | `star`     |
+| `location` | `navbar`   |
+| `location` | `dropdown` |
 
 ## codersdk.ListInboxNotificationsResponse
 
@@ -3865,6 +5037,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "avatar_url": "http://example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
   "username": "string"
 }
 ```
@@ -3875,6 +5048,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |--------------|--------|----------|--------------|-------------|
 | `avatar_url` | string | false    |              |             |
 | `id`         | string | true     |              |             |
+| `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
 
 ## codersdk.NotificationMethodsResponse
@@ -4170,7 +5344,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "authorization": "string",
   "device_authorization": "string",
-  "token": "string"
+  "token": "string",
+  "token_revoke": "string"
 }
 ```
 
@@ -4181,6 +5356,225 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `authorization`        | string | false    |              |                                   |
 | `device_authorization` | string | false    |              | Device authorization is optional. |
 | `token`                | string | false    |              |                                   |
+| `token_revoke`         | string | false    |              |                                   |
+
+## codersdk.OAuth2AuthorizationServerMetadata
+
+```json
+{
+  "authorization_endpoint": "string",
+  "code_challenge_methods_supported": [
+    "string"
+  ],
+  "grant_types_supported": [
+    "string"
+  ],
+  "issuer": "string",
+  "registration_endpoint": "string",
+  "response_types_supported": [
+    "string"
+  ],
+  "revocation_endpoint": "string",
+  "scopes_supported": [
+    "string"
+  ],
+  "token_endpoint": "string",
+  "token_endpoint_auth_methods_supported": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                                    | Type            | Required | Restrictions | Description |
+|-----------------------------------------|-----------------|----------|--------------|-------------|
+| `authorization_endpoint`                | string          | false    |              |             |
+| `code_challenge_methods_supported`      | array of string | false    |              |             |
+| `grant_types_supported`                 | array of string | false    |              |             |
+| `issuer`                                | string          | false    |              |             |
+| `registration_endpoint`                 | string          | false    |              |             |
+| `response_types_supported`              | array of string | false    |              |             |
+| `revocation_endpoint`                   | string          | false    |              |             |
+| `scopes_supported`                      | array of string | false    |              |             |
+| `token_endpoint`                        | string          | false    |              |             |
+| `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
+
+## codersdk.OAuth2ClientConfiguration
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": [
+    0
+  ],
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type             | Required | Restrictions | Description |
+|------------------------------|------------------|----------|--------------|-------------|
+| `client_id`                  | string           | false    |              |             |
+| `client_id_issued_at`        | integer          | false    |              |             |
+| `client_name`                | string           | false    |              |             |
+| `client_secret_expires_at`   | integer          | false    |              |             |
+| `client_uri`                 | string           | false    |              |             |
+| `contacts`                   | array of string  | false    |              |             |
+| `grant_types`                | array of string  | false    |              |             |
+| `jwks`                       | object           | false    |              |             |
+| `jwks_uri`                   | string           | false    |              |             |
+| `logo_uri`                   | string           | false    |              |             |
+| `policy_uri`                 | string           | false    |              |             |
+| `redirect_uris`              | array of string  | false    |              |             |
+| `registration_access_token`  | array of integer | false    |              |             |
+| `registration_client_uri`    | string           | false    |              |             |
+| `response_types`             | array of string  | false    |              |             |
+| `scope`                      | string           | false    |              |             |
+| `software_id`                | string           | false    |              |             |
+| `software_version`           | string           | false    |              |             |
+| `token_endpoint_auth_method` | string           | false    |              |             |
+| `tos_uri`                    | string           | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationRequest
+
+```json
+{
+  "client_name": "string",
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_statement": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_name`                | string          | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_statement`         | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationResponse
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_id`                  | string          | false    |              |             |
+| `client_id_issued_at`        | integer         | false    |              |             |
+| `client_name`                | string          | false    |              |             |
+| `client_secret`              | string          | false    |              |             |
+| `client_secret_expires_at`   | integer         | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `registration_access_token`  | string          | false    |              |             |
+| `registration_client_uri`    | string          | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
 
 ## codersdk.OAuth2Config
 
@@ -4244,6 +5638,32 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `device_flow`             | boolean         | false    |              |             |
 | `enterprise_base_url`     | string          | false    |              |             |
 
+## codersdk.OAuth2ProtectedResourceMetadata
+
+```json
+{
+  "authorization_servers": [
+    "string"
+  ],
+  "bearer_methods_supported": [
+    "string"
+  ],
+  "resource": "string",
+  "scopes_supported": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                       | Type            | Required | Restrictions | Description |
+|----------------------------|-----------------|----------|--------------|-------------|
+| `authorization_servers`    | array of string | false    |              |             |
+| `bearer_methods_supported` | array of string | false    |              |             |
+| `resource`                 | string          | false    |              |             |
+| `scopes_supported`         | array of string | false    |              |             |
+
 ## codersdk.OAuth2ProviderApp
 
 ```json
@@ -4252,7 +5672,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
-    "token": "string"
+    "token": "string",
+    "token_revoke": "string"
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -4937,11 +6358,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy.                                                                                                                                   |
 | `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                                                                                                                                                     |
 
+## codersdk.PrebuildsSettings
+
+```json
+{
+  "reconciliation_paused": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `reconciliation_paused` | boolean | false    |              |             |
+
 ## codersdk.Preset
 
 ```json
 {
   "default": true,
+  "description": "string",
+  "desiredPrebuildInstances": 0,
+  "icon": "string",
   "id": "string",
   "name": "string",
   "parameters": [
@@ -4955,12 +6393,15 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name         | Type                                                          | Required | Restrictions | Description |
-|--------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `default`    | boolean                                                       | false    |              |             |
-| `id`         | string                                                        | false    |              |             |
-| `name`       | string                                                        | false    |              |             |
-| `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+| Name                       | Type                                                          | Required | Restrictions | Description |
+|----------------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `default`                  | boolean                                                       | false    |              |             |
+| `description`              | string                                                        | false    |              |             |
+| `desiredPrebuildInstances` | integer                                                       | false    |              |             |
+| `icon`                     | string                                                        | false    |              |             |
+| `id`                       | string                                                        | false    |              |             |
+| `name`                     | string                                                        | false    |              |             |
+| `parameters`               | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
 
 ## codersdk.PresetParameter
 
@@ -5019,6 +6460,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "styling": {
     "disabled": true,
     "label": "string",
+    "mask_input": true,
     "placeholder": "string"
   },
   "type": "string",
@@ -5088,6 +6530,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "disabled": true,
   "label": "string",
+  "mask_input": true,
   "placeholder": "string"
 }
 ```
@@ -5098,6 +6541,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|---------|----------|--------------|-------------|
 | `disabled`    | boolean | false    |              |             |
 | `label`       | string  | false    |              |             |
+| `mask_input`  | boolean | false    |              |             |
 | `placeholder` | string  | false    |              |             |
 
 ## codersdk.PreviewParameterValidation
@@ -5304,11 +6748,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
+  "logs_overflowed": true,
   "metadata": {
     "template_display_name": "string",
     "template_icon": "string",
@@ -5345,7 +6791,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
 | `file_id`           | string                                                             | false    |              |             |
 | `id`                | string                                                             | false    |              |             |
+| `initiator_id`      | string                                                             | false    |              |             |
 | `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
+| `logs_overflowed`   | boolean                                                            | false    |              |             |
 | `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
 | `organization_id`   | string                                                             | false    |              |             |
 | `queue_position`    | integer                                                            | false    |              |             |
@@ -5727,6 +7175,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
+| `share`               |
 | `unassign`            |
 | `update`              |
 | `update_personal`     |
@@ -5748,10 +7197,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value                              |
 |------------------------------------|
 | `*`                                |
+| `aibridge_interception`            |
 | `api_key`                          |
 | `assign_org_role`                  |
 | `assign_role`                      |
 | `audit_log`                        |
+| `connection_log`                   |
 | `crypto_key`                       |
 | `debug_info`                       |
 | `deployment_config`                |
@@ -5776,8 +7227,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
+| `task`                             |
 | `template`                         |
+| `usage_event`                      |
 | `user`                             |
+| `user_secret`                      |
 | `webpush_subscription`             |
 | `workspace`                        |
 | `workspace_agent_devcontainers`    |
@@ -6012,6 +7466,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `convert_login`                  |
 | `health_settings`                |
 | `notifications_settings`         |
+| `prebuilds_settings`             |
 | `workspace_proxy`                |
 | `organization`                   |
 | `oauth2_provider_app`            |
@@ -6024,6 +7479,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `idp_sync_settings_role`         |
 | `workspace_agent`                |
 | `workspace_app`                  |
+| `task`                           |
 
 ## codersdk.Response
 
@@ -6055,6 +7511,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "display_name": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -6081,14 +7544,15 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
-|----------------------------|-----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `display_name`             | string                                              | false    |              |                                                                                                 |
-| `name`                     | string                                              | false    |              |                                                                                                 |
-| `organization_id`          | string                                              | false    |              |                                                                                                 |
-| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| Name                              | Type                                                | Required | Restrictions | Description                                                                                            |
+|-----------------------------------|-----------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `display_name`                    | string                                              | false    |              |                                                                                                        |
+| `name`                            | string                                              | false    |              |                                                                                                        |
+| `organization_id`                 | string                                              | false    |              |                                                                                                        |
+| `organization_member_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `organization_permissions`        | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `site_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
+| `user_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
 
 ## codersdk.RoleSyncSettings
 
@@ -6214,19 +7678,21 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "default_token_lifetime": 0,
   "disable_expiry_refresh": true,
   "max_admin_token_lifetime": 0,
-  "max_token_lifetime": 0
+  "max_token_lifetime": 0,
+  "refresh_default_duration": 0
 }
 ```
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                        |
-|----------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
-| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                    |
-| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
-| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                    |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                            |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                                |
+| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                        |
+| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key.     |
+| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                        |
+| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
+| `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
 
 ## codersdk.SlimRole
 
@@ -6254,6 +7720,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "value": [
       {
         "icon": "bug",
+        "location": "navbar",
         "name": "string",
         "target": "string"
       }
@@ -6327,6 +7794,290 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `redirect_http`          | boolean                              | false    |              |             |
 | `supported_ciphers`      | array of string                      | false    |              |             |
 
+## codersdk.Task
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "current_state": {
+    "message": "string",
+    "state": "working",
+    "timestamp": "2019-08-24T14:15:22Z",
+    "uri": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initial_prompt": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "string",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_agent_health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
+  "workspace_agent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_agent_lifecycle": "created",
+  "workspace_app_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_build_number": 0,
+  "workspace_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_name": "string",
+  "workspace_status": "pending"
+}
+```
+
+### Properties
+
+| Name                        | Type                                                                 | Required | Restrictions | Description |
+|-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`                | string                                                               | false    |              |             |
+| `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
+| `id`                        | string                                                               | false    |              |             |
+| `initial_prompt`            | string                                                               | false    |              |             |
+| `name`                      | string                                                               | false    |              |             |
+| `organization_id`           | string                                                               | false    |              |             |
+| `owner_avatar_url`          | string                                                               | false    |              |             |
+| `owner_id`                  | string                                                               | false    |              |             |
+| `owner_name`                | string                                                               | false    |              |             |
+| `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
+| `template_display_name`     | string                                                               | false    |              |             |
+| `template_icon`             | string                                                               | false    |              |             |
+| `template_id`               | string                                                               | false    |              |             |
+| `template_name`             | string                                                               | false    |              |             |
+| `template_version_id`       | string                                                               | false    |              |             |
+| `updated_at`                | string                                                               | false    |              |             |
+| `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
+| `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+| `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_build_number`    | integer                                                              | false    |              |             |
+| `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_name`            | string                                                               | false    |              |             |
+| `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
+
+#### Enumerated Values
+
+| Property           | Value          |
+|--------------------|----------------|
+| `status`           | `pending`      |
+| `status`           | `initializing` |
+| `status`           | `active`       |
+| `status`           | `paused`       |
+| `status`           | `unknown`      |
+| `status`           | `error`        |
+| `workspace_status` | `pending`      |
+| `workspace_status` | `starting`     |
+| `workspace_status` | `running`      |
+| `workspace_status` | `stopping`     |
+| `workspace_status` | `stopped`      |
+| `workspace_status` | `failed`       |
+| `workspace_status` | `canceling`    |
+| `workspace_status` | `canceled`     |
+| `workspace_status` | `deleting`     |
+| `workspace_status` | `deleted`      |
+
+## codersdk.TaskLogEntry
+
+```json
+{
+  "content": "string",
+  "id": 0,
+  "time": "2019-08-24T14:15:22Z",
+  "type": "input"
+}
+```
+
+### Properties
+
+| Name      | Type                                         | Required | Restrictions | Description |
+|-----------|----------------------------------------------|----------|--------------|-------------|
+| `content` | string                                       | false    |              |             |
+| `id`      | integer                                      | false    |              |             |
+| `time`    | string                                       | false    |              |             |
+| `type`    | [codersdk.TaskLogType](#codersdktasklogtype) | false    |              |             |
+
+## codersdk.TaskLogType
+
+```json
+"input"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value    |
+|----------|
+| `input`  |
+| `output` |
+
+## codersdk.TaskLogsResponse
+
+```json
+{
+  "logs": [
+    {
+      "content": "string",
+      "id": 0,
+      "time": "2019-08-24T14:15:22Z",
+      "type": "input"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name   | Type                                                    | Required | Restrictions | Description |
+|--------|---------------------------------------------------------|----------|--------------|-------------|
+| `logs` | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
+
+## codersdk.TaskSendRequest
+
+```json
+{
+  "input": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `input` | string | false    |              |             |
+
+## codersdk.TaskState
+
+```json
+"working"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+|------------|
+| `working`  |
+| `idle`     |
+| `complete` |
+| `failed`   |
+
+## codersdk.TaskStateEntry
+
+```json
+{
+  "message": "string",
+  "state": "working",
+  "timestamp": "2019-08-24T14:15:22Z",
+  "uri": "string"
+}
+```
+
+### Properties
+
+| Name        | Type                                     | Required | Restrictions | Description |
+|-------------|------------------------------------------|----------|--------------|-------------|
+| `message`   | string                                   | false    |              |             |
+| `state`     | [codersdk.TaskState](#codersdktaskstate) | false    |              |             |
+| `timestamp` | string                                   | false    |              |             |
+| `uri`       | string                                   | false    |              |             |
+
+## codersdk.TaskStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `pending`      |
+| `initializing` |
+| `active`       |
+| `paused`       |
+| `unknown`      |
+| `error`        |
+
+## codersdk.TasksListResponse
+
+```json
+{
+  "count": 0,
+  "tasks": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "current_state": {
+        "message": "string",
+        "state": "working",
+        "timestamp": "2019-08-24T14:15:22Z",
+        "uri": "string"
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initial_prompt": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "string",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "workspace_agent_health": {
+        "healthy": false,
+        "reason": "agent has lost connection"
+      },
+      "workspace_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
+      "workspace_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_name": "string",
+      "workspace_status": "pending"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                    | Required | Restrictions | Description |
+|---------|-----------------------------------------|----------|--------------|-------------|
+| `count` | integer                                 | false    |              |             |
+| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
+
 ## codersdk.TelemetryConfig
 
 ```json
@@ -6388,6 +8139,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -6410,7 +8162,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true
+  "use_classic_parameter_flow": true,
+  "use_terraform_workspace_cache": true
 }
 ```
 
@@ -6427,6 +8180,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                 |
 | `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.                      |
 | `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                 |
+| `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                 |
 | `created_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -6450,12 +8204,83 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
+| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 
 #### Enumerated Values
 
 | Property      | Value       |
 |---------------|-------------|
 | `provisioner` | `terraform` |
+
+## codersdk.TemplateACL
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "organization_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "role": "admin",
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------|----------|--------------|-------------|
+| `group` | array of [codersdk.TemplateGroup](#codersdktemplategroup) | false    |              |             |
+| `users` | array of [codersdk.TemplateUser](#codersdktemplateuser)   | false    |              |             |
 
 ## codersdk.TemplateAppUsage
 
@@ -6583,6 +8408,63 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `name`        | string          | false    |              |             |
 | `tags`        | array of string | false    |              |             |
 | `url`         | string          | false    |              |             |
+
+## codersdk.TemplateGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "admin",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.TemplateRole](#codersdktemplaterole)        | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
 
 ## codersdk.TemplateInsightsIntervalReport
 
@@ -6879,8 +8761,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -6893,11 +8777,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -6944,6 +8830,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `archived`             | boolean                                                                     | false    |              |             |
 | `created_at`           | string                                                                      | false    |              |             |
 | `created_by`           | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
+| `has_external_agent`   | boolean                                                                     | false    |              |             |
 | `id`                   | string                                                                      | false    |              |             |
 | `job`                  | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
 | `matched_provisioners` | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)                | false    |              |             |
@@ -7317,23 +9204,90 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "group_perms": {
     "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-    "<user_id>>": "admin"
+    "<group_id>": "admin"
   },
   "user_perms": {
     "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-    "<group_id>": "admin"
+    "<user_id>": "admin"
   }
 }
 ```
 
 ### Properties
 
-| Name               | Type                                           | Required | Restrictions | Description                                                                                                                   |
-|--------------------|------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `group_perms`      | object                                         | false    |              | Group perms should be a mapping of group ID to role.                                                                          |
-| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
-| `user_perms`       | object                                         | false    |              | User perms should be a mapping of user ID to role. The user ID must be the uuid of the user, not a username or email address. |
-| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
+| Name               | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                       |
+|--------------------|------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group_perms`      | object                                         | false    |              | Group perms is a mapping from valid group UUIDs to the template role they should be granted. To remove a group from the template, use "" as the role (available as a constant named codersdk.TemplateRoleDeleted) |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                                                                                                                   |
+| `user_perms`       | object                                         | false    |              | User perms is a mapping from valid user UUIDs to the template role they should be granted. To remove a user from the template, use "" as the role (available as a constant named codersdk.TemplateRoleDeleted)    |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                                                                                                                   |
+
+## codersdk.UpdateTemplateMeta
+
+```json
+{
+  "activity_bump_ms": 0,
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
+  "allow_user_cancel_workspace_jobs": true,
+  "autostart_requirement": {
+    "days_of_week": [
+      "monday"
+    ]
+  },
+  "autostop_requirement": {
+    "days_of_week": [
+      "monday"
+    ],
+    "weeks": 0
+  },
+  "cors_behavior": "simple",
+  "default_ttl_ms": 0,
+  "deprecation_message": "string",
+  "description": "string",
+  "disable_everyone_group_access": true,
+  "display_name": "string",
+  "failure_ttl_ms": 0,
+  "icon": "string",
+  "max_port_share_level": "owner",
+  "name": "string",
+  "require_active_version": true,
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
+  "update_workspace_dormant_at": true,
+  "update_workspace_last_used_at": true,
+  "use_classic_parameter_flow": true,
+  "use_terraform_workspace_cache": true
+}
+```
+
+### Properties
+
+| Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                        |
+|------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `activity_bump_ms`                 | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                                                                                            |
+| `allow_user_autostart`             | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement can only be set if your license includes the advanced template scheduling feature. If you attempt to set this value while unlicensed, it will be ignored.                                                                                                                                                                            |
+| `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `deprecation_message`              | string                                                                         | false    |              | Deprecation message if set, will mark the template as deprecated and block any new workspaces from using this template. If passed an empty string, will remove the deprecated message, making the template usable for new workspaces again.                                                                                                                                        |
+| `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `disable_everyone_group_access`    | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template.                                                                |
+| `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `failure_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates workspaces built using this template use the active version of the template. This option has no effect on template admins.                                                                                                                                                                                                                         |
+| `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |
+| `update_workspace_last_used_at`    | boolean                                                                        | false    |              | Update workspace last used at updates the last_used_at field of workspaces spawned from the template. This is useful for preventing workspaces being immediately locked when updating the inactivity_ttl field to a new, shorter value.                                                                                                                                            |
+| `use_classic_parameter_flow`       | boolean                                                                        | false    |              | Use classic parameter flow is a flag that switches the default behavior to use the classic parameter flow when creating a workspace. This only affects deployments with the experiment "dynamic-parameters" enabled. This setting will live for a period after the experiment is made the default. An "opt-out" is present in case the new feature breaks some existing templates. |
+| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              | Use terraform workspace cache allows optionally specifying whether to use cached terraform directories for workspaces created from this template. This field only applies when the correct experiment is enabled. This field is subject to being removed in the future.                                                                                                            |
 
 ## codersdk.UpdateUserAppearanceSettingsRequest
 
@@ -7416,6 +9370,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`schedule`|string|true||Schedule is a cron expression that defines when the user's quiet hours window is. Schedule must not be empty. For new users, the schedule is set to 2am in their browser or computer's timezone. The schedule denotes the beginning of a 4 hour window where the workspace is allowed to automatically stop or restart due to maintenance or template schedule.
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
+
+## codersdk.UpdateWorkspaceACL
+
+```json
+{
+  "group_roles": {
+    "property1": "admin",
+    "property2": "admin"
+  },
+  "user_roles": {
+    "property1": "admin",
+    "property2": "admin"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                          |
+|--------------------|--------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group_roles`      | object                                           | false    |              | Group roles is a mapping from valid group UUIDs to the workspace role they should be granted. To remove a group from the workspace, use "" as the role (available as a constant named codersdk.WorkspaceRoleDeleted) |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                                                                                      |
+| `user_roles`       | object                                           | false    |              | User roles is a mapping from valid user UUIDs to the workspace role they should be granted. To remove a user from the workspace, use "" as the role (available as a constant named codersdk.WorkspaceRoleDeleted)    |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                                                                                      |
 
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 
@@ -7548,6 +9526,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `jetbrains`        |
 | `reconnecting-pty` |
 | `ssh`              |
+
+## codersdk.UsagePeriod
+
+```json
+{
+  "end": "2019-08-24T14:15:22Z",
+  "issued_at": "2019-08-24T14:15:22Z",
+  "start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `end`       | string | false    |              |             |
+| `issued_at` | string | false    |              |             |
+| `start`     | string | false    |              |             |
 
 ## codersdk.User
 
@@ -8016,6 +10012,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": false
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_prebuild": true,
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -8030,12 +10027,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
-    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -8050,11 +10047,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "logs_overflowed": true,
       "metadata": {
         "template_display_name": "string",
         "template_icon": "string",
@@ -8123,6 +10122,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -8240,6 +10240,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -8255,38 +10259,40 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                                        | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                           |
-|---------------------------------------------|------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_renames`                             | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
-| `automatic_updates`                         | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)     | false    |              |                                                                                                                                                                                                                                                       |
-| `autostart_schedule`                        | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `created_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `deleting_at`                               | string                                                     | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template. |
-| `dormant_at`                                | string                                                     | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time_til_ field on its template.                          |
-| `favorite`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
-| `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)       | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                   |
-| `id`                                        | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `last_used_at`                              | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `latest_app_status`                         | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus) | false    |              |                                                                                                                                                                                                                                                       |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)         | false    |              |                                                                                                                                                                                                                                                       |
-| `name`                                      | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `next_start_at`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `organization_id`                           | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `organization_name`                         | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `outdated`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
-| `owner_avatar_url`                          | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `owner_id`                                  | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `owner_name`                                | string                                                     | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                             |
-| `template_active_version_id`                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
-| `template_display_name`                     | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `template_icon`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `template_id`                               | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `template_name`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
-| `template_require_active_version`           | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
-| `template_use_classic_parameter_flow`       | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
-| `ttl_ms`                                    | integer                                                    | false    |              |                                                                                                                                                                                                                                                       |
-| `updated_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
+| Name                                        | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                 |
+|---------------------------------------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_renames`                             | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `automatic_updates`                         | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `autostart_schedule`                        | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `created_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `deleting_at`                               | string                                                     | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template.                                                                                       |
+| `dormant_at`                                | string                                                     | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time_til_ field on its template.                                                                                                                |
+| `favorite`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)       | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                                                                                                         |
+| `id`                                        | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `is_prebuild`                               | boolean                                                    | false    |              | Is prebuild indicates whether the workspace is a prebuilt workspace. Prebuilt workspaces are owned by the prebuilds system user and have specific behavior, such as being managed differently from regular workspaces. Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace, and IsPrebuild returns false. |
+| `last_used_at`                              | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `latest_app_status`                         | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus) | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)         | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `name`                                      | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `next_start_at`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `organization_id`                           | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `organization_name`                         | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `outdated`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `owner_avatar_url`                          | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `owner_id`                                  | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `owner_name`                                | string                                                     | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                                                                                                                   |
+| `task_id`                                   | [uuid.NullUUID](#uuidnulluuid)                             | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
+| `template_active_version_id`                | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_display_name`                     | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_icon`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_id`                               | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_name`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_require_active_version`           | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_use_classic_parameter_flow`       | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `ttl_ms`                                    | integer                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `updated_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 
 #### Enumerated Values
 
@@ -8294,6 +10300,59 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------------------|----------|
 | `automatic_updates` | `always` |
 | `automatic_updates` | `never`  |
+
+## codersdk.WorkspaceACL
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "admin",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                        | Required | Restrictions | Description |
+|---------|-------------------------------------------------------------|----------|--------------|-------------|
+| `group` | array of [codersdk.WorkspaceGroup](#codersdkworkspacegroup) | false    |              |             |
+| `users` | array of [codersdk.WorkspaceUser](#codersdkworkspaceuser)   | false    |              |             |
 
 ## codersdk.WorkspaceAgent
 
@@ -8334,6 +10393,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "subdomain": true,
       "subdomain_name": "string",
+      "tooltip": "string",
       "url": "string"
     }
   ],
@@ -8554,6 +10614,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   },
   "dirty": true,
+  "error": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": "running",
@@ -8569,6 +10630,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `config_path`      | string                                                                                 | false    |              |                            |
 | `container`        | [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)                   | false    |              |                            |
 | `dirty`            | boolean                                                                                | false    |              |                            |
+| `error`            | string                                                                                 | false    |              |                            |
 | `id`               | string                                                                                 | false    |              |                            |
 | `name`             | string                                                                                 | false    |              |                            |
 | `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
@@ -8710,6 +10772,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         }
       },
       "dirty": true,
+      "error": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
@@ -8999,6 +11062,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "subdomain": true,
   "subdomain_name": "string",
+  "tooltip": "string",
   "url": "string"
 }
 ```
@@ -9022,6 +11086,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `statuses`       | array of [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)    | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
 | `subdomain`      | boolean                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `tooltip`        | string                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `url`            | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 
 #### Enumerated Values
@@ -9135,12 +11200,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
   "has_ai_task": true,
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -9155,11 +11220,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -9228,6 +11295,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               ],
               "subdomain": true,
               "subdomain_name": "string",
+              "tooltip": "string",
               "url": "string"
             }
           ],
@@ -9341,33 +11409,33 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
-| `build_number`               | integer                                                           | false    |              |                                                                     |
-| `created_at`                 | string                                                            | false    |              |                                                                     |
-| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
-| `deadline`                   | string                                                            | false    |              |                                                                     |
-| `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
-| `id`                         | string                                                            | false    |              |                                                                     |
-| `initiator_id`               | string                                                            | false    |              |                                                                     |
-| `initiator_name`             | string                                                            | false    |              |                                                                     |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
-| `max_deadline`               | string                                                            | false    |              |                                                                     |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
-| `template_version_id`        | string                                                            | false    |              |                                                                     |
-| `template_version_name`      | string                                                            | false    |              |                                                                     |
-| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
-| `updated_at`                 | string                                                            | false    |              |                                                                     |
-| `workspace_id`               | string                                                            | false    |              |                                                                     |
-| `workspace_name`             | string                                                            | false    |              |                                                                     |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
-| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
-| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
+| Name                         | Type                                                              | Required | Restrictions | Description                                                              |
+|------------------------------|-------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------|
+| `build_number`               | integer                                                           | false    |              |                                                                          |
+| `created_at`                 | string                                                            | false    |              |                                                                          |
+| `daily_cost`                 | integer                                                           | false    |              |                                                                          |
+| `deadline`                   | string                                                            | false    |              |                                                                          |
+| `has_ai_task`                | boolean                                                           | false    |              | Deprecated: This field has been deprecated in favor of Task WorkspaceID. |
+| `has_external_agent`         | boolean                                                           | false    |              |                                                                          |
+| `id`                         | string                                                            | false    |              |                                                                          |
+| `initiator_id`               | string                                                            | false    |              |                                                                          |
+| `initiator_name`             | string                                                            | false    |              |                                                                          |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                          |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                          |
+| `max_deadline`               | string                                                            | false    |              |                                                                          |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                          |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                          |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                          |
+| `template_version_id`        | string                                                            | false    |              |                                                                          |
+| `template_version_name`      | string                                                            | false    |              |                                                                          |
+| `template_version_preset_id` | string                                                            | false    |              |                                                                          |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                          |
+| `updated_at`                 | string                                                            | false    |              |                                                                          |
+| `workspace_id`               | string                                                            | false    |              |                                                                          |
+| `workspace_name`             | string                                                            | false    |              |                                                                          |
+| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                          |
+| `workspace_owner_id`         | string                                                            | false    |              |                                                                          |
+| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace.      |
 
 #### Enumerated Values
 
@@ -9499,6 +11567,63 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `rx_bytes`              | integer                                                                        | false    |              |             |
 | `stopped`               | integer                                                                        | false    |              |             |
 | `tx_bytes`              | integer                                                                        | false    |              |             |
+
+## codersdk.WorkspaceGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "admin",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.WorkspaceRole](#codersdkworkspacerole)      | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
 
 ## codersdk.WorkspaceHealth
 
@@ -9651,6 +11776,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "subdomain": true,
           "subdomain_name": "string",
+          "tooltip": "string",
           "url": "string"
         }
       ],
@@ -9791,6 +11917,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `sensitive` | boolean | false    |              |             |
 | `value`     | string  | false    |              |             |
 
+## codersdk.WorkspaceRole
+
+```json
+"admin"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+|---------|
+| `admin` |
+| `use`   |
+| ``      |
+
 ## codersdk.WorkspaceStatus
 
 ```json
@@ -9830,6 +11972,35 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `stop`   |
 | `delete` |
 
+## codersdk.WorkspaceUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "admin",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                             | Required | Restrictions | Description |
+|--------------|--------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                           | false    |              |             |
+| `id`         | string                                           | true     |              |             |
+| `name`       | string                                           | false    |              |             |
+| `role`       | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |             |
+| `username`   | string                                           | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
+
 ## codersdk.WorkspacesResponse
 
 ```json
@@ -9851,6 +12022,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "healthy": false
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_prebuild": true,
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_app_status": {
         "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -9865,12 +12037,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
-        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
         "has_ai_task": true,
+        "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -9885,11 +12057,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
           "input": {
             "error": "string",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
           },
+          "logs_overflowed": true,
           "metadata": {
             "template_display_name": "string",
             "template_icon": "string",
@@ -9941,6 +12115,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
+                    "tooltip": "string",
                     "url": "string"
                   }
                 ],
@@ -10058,6 +12233,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "task_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -11496,7 +13675,7 @@ None
 | `access_token` | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
 | `expires_in`   | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
 |`expiry`|string|false||Expiry is the optional expiration time of the access token.
-If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used.|
+If zero, [TokenSource] implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used.|
 |`refresh_token`|string|false||Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.|
 |`token_type`|string|false||Token type is the type of token. The Type method returns either this or "Bearer", the default.|
 
@@ -11674,8 +13853,12 @@ None
       "display_icon": "string",
       "display_name": "string",
       "id": "string",
+      "mcp_tool_allow_regex": "string",
+      "mcp_tool_deny_regex": "string",
+      "mcp_url": "string",
       "no_refresh": true,
       "regex": "string",
+      "revoke_url": "string",
       "scopes": [
         "string"
       ],
@@ -11700,6 +13883,7 @@ None
   "value": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }

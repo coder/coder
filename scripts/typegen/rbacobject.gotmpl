@@ -14,7 +14,7 @@ var (
 		// Resource{{ $Name }}
 		// Valid Actions
 		{{- range $action, $value := .Actions }}
-		//  - "{{ actionEnum $action }}" :: {{ $value.Description }}
+		//  - "{{ actionEnum $action }}" :: {{ $value }}
 		{{- end }}
 		{{- .Comment }}
 		Resource{{ $Name }} = Object {

@@ -12,13 +12,12 @@ runs:
       run: |
         set -e
 
-        owner=${{ github.repository_owner	 }}
-        echo "owner: $owner"
-        if [[  $owner != "coder" ]]; then
+        echo "owner: $REPO_OWNER"
+        if [[ "$REPO_OWNER" != "coder" ]]; then
           echo "Not a pull request from the main repo, skipping..."
           exit 0
         fi
-        if [[ -z "${{ inputs.api-key }}" ]]; then
+        if [[ -z "${DATADOG_API_KEY}" ]]; then
           # This can happen for dependabot.
           echo "No API key provided, skipping..."
           exit 0
@@ -31,37 +30,38 @@ runs:
 
         TMP_DIR=$(mktemp -d)
 
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
           BINARY_PATH="${TMP_DIR}/datadog-ci.exe"
           BINARY_URL="https://github.com/DataDog/datadog-ci/releases/download/${BINARY_VERSION}/datadog-ci_win-x64"
-        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+        elif [[ "${RUNNER_OS}" == "macOS" ]]; then
           BINARY_PATH="${TMP_DIR}/datadog-ci"
           BINARY_URL="https://github.com/DataDog/datadog-ci/releases/download/${BINARY_VERSION}/datadog-ci_darwin-arm64"
-        elif [[ "${{ runner.os }}" == "Linux" ]]; then
+        elif [[ "${RUNNER_OS}" == "Linux" ]]; then
           BINARY_PATH="${TMP_DIR}/datadog-ci"
           BINARY_URL="https://github.com/DataDog/datadog-ci/releases/download/${BINARY_VERSION}/datadog-ci_linux-x64"
         else
-          echo "Unsupported OS: ${{ runner.os }}"
+          echo "Unsupported OS: $RUNNER_OS"
           exit 1
         fi
 
-        echo "Downloading DataDog CI binary version ${BINARY_VERSION} for ${{ runner.os }}..."
+        echo "Downloading DataDog CI binary version ${BINARY_VERSION} for $RUNNER_OS..."
         curl -sSL "$BINARY_URL" -o "$BINARY_PATH"
 
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
           echo "$BINARY_HASH_WINDOWS  $BINARY_PATH" | sha256sum --check
-        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+        elif [[ "${RUNNER_OS}" == "macOS" ]]; then
           echo "$BINARY_HASH_MACOS  $BINARY_PATH" | shasum -a 256 --check
-        elif [[ "${{ runner.os }}" == "Linux" ]]; then
+        elif [[ "${RUNNER_OS}" == "Linux" ]]; then
           echo "$BINARY_HASH_LINUX  $BINARY_PATH" | sha256sum --check
         fi
 
         # Make binary executable (not needed for Windows)
-        if [[ "${{ runner.os }}" != "Windows" ]]; then
+        if [[ "${RUNNER_OS}" != "Windows" ]]; then
           chmod +x "$BINARY_PATH"
         fi
 
         "$BINARY_PATH" junit upload --service coder ./gotests.xml \
-          --tags os:${{runner.os}} --tags runner_name:${{runner.name}}
+          --tags "os:${RUNNER_OS}" --tags "runner_name:${RUNNER_NAME}"
       env:
+        REPO_OWNER: ${{ github.repository_owner }}
         DATADOG_API_KEY: ${{ inputs.api-key }}
