@@ -137,6 +137,9 @@ jobs:
           ### ✨ No Changes Needed
           [Reason: Already documented in PR | Internal changes only | Test-only | No user-facing impact]
 
+          ---
+          *I'm a Bot*
+
           DOCS STRUCTURE:
             - docs/reference/api/ - REST API endpoints
             - docs/reference/cli/ - CLI commands
