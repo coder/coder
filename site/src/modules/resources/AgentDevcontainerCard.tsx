@@ -14,7 +14,6 @@ import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
@@ -346,19 +345,17 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 											)
 										: "";
 									return (
-										<TooltipProvider key={portLabel}>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<AgentButton disabled={!hasHostBind} asChild>
-														<a href={linkDest}>
-															<ExternalLinkIcon />
-															{portLabel}
-														</a>
-													</AgentButton>
-												</TooltipTrigger>
-												<TooltipContent>{helperText}</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
+										<Tooltip key={portLabel}>
+											<TooltipTrigger asChild>
+												<AgentButton disabled={!hasHostBind} asChild>
+													<a href={linkDest}>
+														<ExternalLinkIcon />
+														{portLabel}
+													</a>
+												</AgentButton>
+											</TooltipTrigger>
+											<TooltipContent>{helperText}</TooltipContent>
+										</Tooltip>
 									);
 								})}
 						</section>
