@@ -3355,7 +3355,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "aibridge-retention",
 			Env:         "CODER_AIBRIDGE_RETENTION",
 			Value:       &c.AI.BridgeConfig.Retention,
-			Default:     "1440h", // 60 days.
+			Default:     "60d",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "retention",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
