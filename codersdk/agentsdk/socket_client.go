@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -38,7 +37,7 @@ func NewSocketClient(ctx context.Context, config SocketConfig) (*SocketClient, e
 		}
 	}
 
-	dialer := net.Dialer{Timeout: 10 * time.Second}
+	dialer := net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "unix", path)
 	if err != nil {
 		return nil, xerrors.Errorf("connect to socket: %w", err)

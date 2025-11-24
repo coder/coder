@@ -3,7 +3,6 @@
 package agentsocket
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"net"
@@ -12,9 +11,6 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
-	"storj.io/drpc/drpcconn"
-
-	"github.com/coder/coder/v2/agent/agentsocket/proto"
 )
 
 // createSocket creates a Unix domain socket listener
@@ -84,20 +80,4 @@ func isSocketAvailable(path string) bool {
 	_ = conn.Close()
 	// Socket is in use
 	return false
-}
-
-// NewClient creates a DRPC client for the agent socket at the given path.
-func NewClient(ctx context.Context, path string) (*Client, error) {
-	dialer := net.Dialer{Timeout: 10 * time.Second}
-	conn, err := dialer.DialContext(ctx, "unix", path)
-	if err != nil {
-		return nil, xerrors.Errorf("dial unix socket: %w", err)
-	}
-
-	drpcConn := drpcconn.New(conn)
-	client := proto.NewDRPCAgentSocketClient(drpcConn)
-	return &Client{
-		DRPCAgentSocketClient: client,
-		conn:                  conn,
-	}, nil
 }

@@ -50,12 +50,12 @@ func newSocketClient(t *testing.T, socketPath string) *agentsdk.SocketClient {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	client, err := agentsdk.NewSocketClient(ctx, agentsdk.SocketConfig{Path: socketPath})
-	require.NoError(t, err)
-
 	t.Cleanup(func() {
 		cancel()
 		_ = client.Close()
 	})
+	require.NoError(t, err)
+
 	return client
 }
 
