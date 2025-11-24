@@ -1,0 +1,79 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "9c8368da-924c-4df4-a049-940a9a035051",
+          "name": "dev",
+          "operating_system": "windows",
+          "architecture": "arm64",
+          "Auth": {
+            "Token": "e09a4d7d-8341-4adf-b93b-21f3724d76d7"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [
+    {
+      "name": "number_example",
+      "type": "number",
+      "mutable": true,
+      "default_value": "4",
+      "ephemeral": true,
+      "form_type": 4
+    },
+    {
+      "name": "number_example_max",
+      "type": "number",
+      "default_value": "4",
+      "validation_max": 6,
+      "form_type": 4
+    },
+    {
+      "name": "number_example_max_zero",
+      "type": "number",
+      "default_value": "-3",
+      "validation_max": 0,
+      "form_type": 4
+    },
+    {
+      "name": "number_example_min",
+      "type": "number",
+      "default_value": "4",
+      "validation_min": 3,
+      "form_type": 4
+    },
+    {
+      "name": "number_example_min_max",
+      "type": "number",
+      "default_value": "4",
+      "validation_min": 3,
+      "validation_max": 6,
+      "form_type": 4
+    },
+    {
+      "name": "number_example_min_zero",
+      "type": "number",
+      "default_value": "4",
+      "validation_min": 0,
+      "form_type": 4
+    }
+  ],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

@@ -4654,6 +4654,12 @@ func (s *MethodTestSuite) TestAIBridge() {
 		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), params).Return(intc, nil).AnyTimes()
 		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
 	}))
+
+	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t := dbtime.Now()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
+		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
+	}))
 }
 
 func (s *MethodTestSuite) TestTelemetry() {

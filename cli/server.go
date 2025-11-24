@@ -1029,7 +1029,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, quartz.NewReal())
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, quartz.NewReal())
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -2143,21 +2143,33 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 
-	// If the port is not defined, an available port will be found dynamically.
+	// If the port is not defined, an available port will be found dynamically. This has
+	// implications in CI because here is no way to tell Postgres to use an ephemeral
+	// port, so to avoid flaky tests in CI we need to retry EmbeddedPostgres.Start in
+	// case of a race condition where the port we quickly listen on and close in
+	// embeddedPostgresURL() is not free by the time the embedded postgres starts up.
+	// The maximum retry attempts _should_ cover most cases where port conflicts occur
+	// in CI and cause flaky tests.
 	maxAttempts := 1
 	_, err = cfg.PostgresPort().Read()
+	// Important: if retryPortDiscovery is changed to not include testing.Testing(),
+	// the retry logic below also needs to be updated to ensure we don't delete an
+	// existing database
 	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
 	if retryPortDiscovery {
-		// There is no way to tell Postgres to use an ephemeral port, so in order to avoid
-		// flaky tests in CI we need to retry EmbeddedPostgres.Start in case of a race
-		// condition where the port we quickly listen on and close in embeddedPostgresURL()
-		// is not free by the time the embedded postgres starts up. This maximum_should
-		// cover most cases where port conflicts occur in CI and cause flaky tests.
 		maxAttempts = 3
 	}
 
 	var startErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if retryPortDiscovery && attempt > 0 {
+			// Clean up the data and runtime directories and the port file from the
+			// previous failed attempt to ensure a clean slate for the next attempt.
+			_ = os.RemoveAll(filepath.Join(cfg.PostgresPath(), "data"))
+			_ = os.RemoveAll(filepath.Join(cfg.PostgresPath(), "runtime"))
+			_ = cfg.PostgresPort().Delete()
+		}
+
 		// Ensure a password and port have been generated.
 		connectionURL, err := embeddedPostgresURL(cfg)
 		if err != nil {
@@ -2204,11 +2216,6 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			slog.F("port", pgPort),
 			slog.Error(startErr),
 		)
-
-		if retryPortDiscovery {
-			// Since a retry is needed, we wipe the port stored here at the beginning of the loop.
-			_ = cfg.PostgresPort().Delete()
-		}
 	}
 
 	return "", nil, xerrors.Errorf("failed to start built-in PostgreSQL after %d attempts. "+
