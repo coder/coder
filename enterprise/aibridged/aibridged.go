@@ -10,10 +10,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"cdr.dev/slog"
-	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -34,7 +31,6 @@ type Server struct {
 
 	// A pool of [aibridge.RequestBridge] instances, which service incoming requests.
 	requestBridgePool Pooler
-	metrics           *aibridge.Metrics
 
 	logger slog.Logger
 	wg     sync.WaitGroup
@@ -52,7 +48,7 @@ type Server struct {
 	shutdownOnce sync.Once
 }
 
-func New(ctx context.Context, pool Pooler, rpcDialer Dialer, reg prometheus.Registerer, logger slog.Logger) (*Server, error) {
+func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -67,7 +63,6 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, reg prometheus.Regi
 		initConnectionCh: make(chan struct{}),
 
 		requestBridgePool: pool,
-		metrics:           aibridge.NewMetrics(reg),
 	}
 
 	daemon.wg.Add(1)
@@ -148,7 +143,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return nil, xerrors.New("nil requestBridgePool")
 	}
 
-	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.Client), s.metrics)
+	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.Client))
 	if err != nil {
 		return nil, xerrors.Errorf("acquire request bridge: %w", err)
 	}

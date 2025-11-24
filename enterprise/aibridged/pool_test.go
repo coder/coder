@@ -30,7 +30,7 @@ func TestPool(t *testing.T) {
 	mcpProxy := mcpmock.NewMockServerProxier(ctrl)
 
 	opts := aibridged.PoolOptions{MaxItems: 1, TTL: time.Second}
-	pool, err := aibridged.NewCachedBridgePool(opts, nil, logger)
+	pool, err := aibridged.NewCachedBridgePool(opts, nil, nil, logger)
 	require.NoError(t, err)
 	t.Cleanup(func() { pool.Shutdown(context.Background()) })
 
@@ -51,7 +51,7 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id,
 		APIKeyID:    apiKeyID1.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy), nil)
+	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 
 	// ...and it will return it when acquired again.
@@ -59,15 +59,15 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id,
 		APIKeyID:    apiKeyID1.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy), nil)
+	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 	require.Same(t, inst, instB)
 
-	metrics := pool.Metrics()
-	require.EqualValues(t, 1, metrics.KeysAdded())
-	require.EqualValues(t, 0, metrics.KeysEvicted())
-	require.EqualValues(t, 1, metrics.Hits())
-	require.EqualValues(t, 1, metrics.Misses())
+	cacheMetrics := pool.CacheMetrics()
+	require.EqualValues(t, 1, cacheMetrics.KeysAdded())
+	require.EqualValues(t, 0, cacheMetrics.KeysEvicted())
+	require.EqualValues(t, 1, cacheMetrics.Hits())
+	require.EqualValues(t, 1, cacheMetrics.Misses())
 
 	// This will get called again because a new instance will be created.
 	mcpProxy.EXPECT().Init(gomock.Any()).Times(1).Return(nil)
@@ -77,15 +77,15 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id2,
 		APIKeyID:    apiKeyID1.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy), nil)
+	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 	require.NotSame(t, inst, inst2)
 
-	metrics = pool.Metrics()
-	require.EqualValues(t, 2, metrics.KeysAdded())
-	require.EqualValues(t, 1, metrics.KeysEvicted())
-	require.EqualValues(t, 1, metrics.Hits())
-	require.EqualValues(t, 2, metrics.Misses())
+	cacheMetrics = pool.CacheMetrics()
+	require.EqualValues(t, 2, cacheMetrics.KeysAdded())
+	require.EqualValues(t, 1, cacheMetrics.KeysEvicted())
+	require.EqualValues(t, 1, cacheMetrics.Hits())
+	require.EqualValues(t, 2, cacheMetrics.Misses())
 
 	// This will get called again because a new instance will be created.
 	mcpProxy.EXPECT().Init(gomock.Any()).Times(1).Return(nil)
@@ -95,15 +95,15 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id2,
 		APIKeyID:    apiKeyID2.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy), nil)
+	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance 2B")
 	require.NotSame(t, inst2, inst2B)
 
-	metrics = pool.Metrics()
-	require.EqualValues(t, 3, metrics.KeysAdded())
-	require.EqualValues(t, 2, metrics.KeysEvicted())
-	require.EqualValues(t, 1, metrics.Hits())
-	require.EqualValues(t, 3, metrics.Misses())
+	cacheMetrics = pool.CacheMetrics()
+	require.EqualValues(t, 3, cacheMetrics.KeysAdded())
+	require.EqualValues(t, 2, cacheMetrics.KeysEvicted())
+	require.EqualValues(t, 1, cacheMetrics.Hits())
+	require.EqualValues(t, 3, cacheMetrics.Misses())
 
 	// TODO: add test for expiry.
 	// This requires Go 1.25's [synctest](https://pkg.go.dev/testing/synctest) since the

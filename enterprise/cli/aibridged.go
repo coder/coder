@@ -33,8 +33,11 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 		}, getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
 	}
 
+	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
+	metrics := aibridge.NewMetrics(reg)
+
 	// Create pool for reusable stateful [aibridge.RequestBridge] instances (one per user).
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool")) // TODO: configurable.
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, metrics, logger.Named("pool")) // TODO: configurable size.
 	if err != nil {
 		return nil, xerrors.Errorf("create request pool: %w", err)
 	}
@@ -42,7 +45,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	// Create daemon.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry), logger)
+	}, logger)
 	if err != nil {
 		return nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}

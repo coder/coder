@@ -166,13 +166,13 @@ func TestIntegration(t *testing.T) {
 
 	logger := testutil.Logger(t)
 	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger)
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, nil, logger)
 	require.NoError(t, err)
 
 	// Given: aibridged is started.
 	srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, nil, logger)
+	}, logger)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)

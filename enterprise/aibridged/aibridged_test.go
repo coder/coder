@@ -41,8 +41,7 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 		pool,
 		func(ctx context.Context) (aibridged.DRPCClient, error) {
 			return client, nil
-		},
-		nil, logger)
+		}, logger)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
@@ -123,7 +122,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				// Should pass authorization.
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 				// But fail when acquiring a pool instance.
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
 			},
 			expectedErr:    aibridged.ErrAcquireRequestHandler,
 			expectedStatus: http.StatusInternalServerError,
@@ -291,7 +290,7 @@ func TestRouting(t *testing.T) {
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL}),
 				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
 			}
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger)
+			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, nil, logger)
 			require.NoError(t, err)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
@@ -310,7 +309,7 @@ func TestRouting(t *testing.T) {
 			// Given: aibridged is started.
 			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 				return client, nil
-			}, nil, logger)
+			}, logger)
 			require.NoError(t, err, "create new aibridged")
 			t.Cleanup(func() {
 				_ = srv.Shutdown(testutil.Context(t, testutil.WaitShort))

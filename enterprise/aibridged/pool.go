@@ -23,7 +23,7 @@ const (
 // Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
-	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder, metrics *aibridge.Metrics) (http.Handler, error)
+	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
 	Shutdown(ctx context.Context) error
 }
 
@@ -51,11 +51,13 @@ type CachedBridgePool struct {
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
+	metrics *aibridge.Metrics
+
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
 }
 
-func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger) (*CachedBridgePool, error) {
+func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, metrics *aibridge.Metrics, logger slog.Logger) (*CachedBridgePool, error) {
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
 		NumCounters:        options.MaxItems * 10,        // Docs suggest setting this 10x number of keys.
 		MaxCost:            options.MaxItems * cacheCost, // Up to n instances.
@@ -88,6 +90,8 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
+		metrics: metrics,
+
 		shuttingDownCh: make(chan struct{}),
 	}, nil
 }
@@ -96,7 +100,7 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 //
 // Each returned [*aibridge.RequestBridge] is safe for concurrent use.
 // Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder, metrics *aibridge.Metrics) (http.Handler, error) {
+func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder) (http.Handler, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
@@ -154,7 +158,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, recorder, mcpServers, metrics, p.logger)
+		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, recorder, mcpServers, p.metrics, p.logger)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
@@ -167,7 +171,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	return instance, err
 }
 
-func (p *CachedBridgePool) Metrics() PoolMetrics {
+func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 	if p.cache == nil {
 		return nil
 	}
