@@ -753,5 +753,5 @@ aibridge:
   inject_coder_mcp_tools: false
   # Length of time to retain data such as interceptions and all related records
   # (token, prompt, tool use).
-  # (default: 1440h, type: duration)
+  # (default: 60d, type: duration)
   retention: 1440h0m0s
