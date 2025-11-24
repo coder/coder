@@ -40,8 +40,8 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_EVENT_USER_ID: ${{ github.event.pull_request.user.id }}
-          GITHUB_EVENT_USER_LOGIN: ${{ github.event.pull_request.user.login }}
+          GITHUB_EVENT_SENDER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_SENDER_LOGIN: ${{ github.event.sender.login }}
           INPUTS_PR_URL: ${{ inputs.pr_url }}
           INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
           GH_TOKEN: ${{ github.token }}
@@ -69,10 +69,10 @@ jobs:
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            GITHUB_USER_ID=${GITHUB_EVENT_USER_ID}
-            echo "Using PR author: ${GITHUB_EVENT_USER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
+            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
             echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
-            echo "github_username=${GITHUB_EVENT_USER_LOGIN}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
 
             echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
             # Convert /pull/ to /issues/ for create-task-action compatibility
@@ -94,45 +94,39 @@ jobs:
         run: |
           echo "Analyzing PR #${PR_NUMBER}"
 
-          # Build task prompt
-          TASK_PROMPT=$(cat <<'EOF'
-          Review ${PR_URL} and determine if documentation needs updating or creating.
+          # Build task prompt - using unquoted heredoc so variables expand
+          TASK_PROMPT=$(cat <<EOF
+          Review PR #${PR_NUMBER} and determine if documentation needs updating or creating.
+
+          PR URL: ${PR_URL}
 
           WORKFLOW:
-            1. Setup
-               git clone https://github.com/coder/coder.git ~/coder && cd ~/coder
-               gh pr view ${PR_URL} --json title,body,files
-               gh pr diff ${PR_URL} > /tmp/pr.diff
+            1. Setup (repo is pre-cloned at ~/coder)
+               cd ~/coder
+               git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+               git checkout pr-${PR_NUMBER}
 
-            2. Understand Changes
+            2. Get PR info
+               Use GitHub MCP tools to get PR title, body, and diff
+               Or use: git diff main...pr-${PR_NUMBER}
+
+            3. Understand Changes
                Read the diff and identify what changed
-               For large PRs (20+ files), focus on user-facing changes first
                Ask: Is this user-facing? Does it change behavior? Is it a new feature?
 
-            3. Search for Related Docs (search thoroughly)
-               # Understand doc structure
+            4. Search for Related Docs
                cat ~/coder/docs/manifest.json | jq '.routes[] | {title, path}' | head -50
-
-               # Search broadly and intelligently
                grep -ri "relevant_term" ~/coder/docs/ --include="*.md"
-               find ~/coder/docs -name "*.md" -exec grep -li "term" {} \;
 
-               # Check specific sections based on what changed
-               grep -r "term" ~/coder/docs/reference/api/ --include="*.md"
-               grep -r "term" ~/coder/docs/admin/ --include="*.md"
-
-            4. Decide (check these in order)
-               FIRST: Did this PR already update docs? If yes and complete, say "No Changes Needed"
-
+            5. Decide
                NEEDS DOCS if: New feature, API change, CLI change, behavior change, user-visible
                NO DOCS if: Internal refactor, test-only, already documented, non-user-facing, dependency updates
+               FIRST check: Did this PR already update docs? If yes and complete, say "No Changes Needed"
 
-            5. Comment using this format
+            6. Comment on the PR using this format
 
           COMMENT FORMAT:
           ## 📚 Documentation Check
-
-          [Pick appropriate section(s)]
 
           ### ✅ Updates Needed
           - **[docs/path/file.md](github_link)** - Brief what needs changing
@@ -145,11 +139,9 @@ jobs:
 
           DOCS STRUCTURE:
             - docs/reference/api/ - REST API endpoints
-            - docs/reference/cli/ - CLI commands  
+            - docs/reference/cli/ - CLI commands
             - docs/admin/ - Deployment and administration
             - docs/user-guides/ - End-user features and tutorials
-
-          NOTE: Search thoroughly - better to over-check than miss something.
 
           EOF
           )
