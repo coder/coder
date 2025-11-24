@@ -485,7 +485,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
-		err = reconciler.ReconcileAll(ctx)
+		_, err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
 
 		// Check that the metric shows reconciliation is not paused
@@ -514,7 +514,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
-		err = reconciler.ReconcileAll(ctx)
+		_, err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
 
 		// Check that the metric shows reconciliation is paused
@@ -543,7 +543,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
-		err = reconciler.ReconcileAll(ctx)
+		_, err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
 
 		// Check that the metric shows reconciliation is not paused

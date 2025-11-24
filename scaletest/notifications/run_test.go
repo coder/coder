@@ -212,6 +212,8 @@ func TestRunWithSMTP(t *testing.T) {
 	smtpTrap := mClock.Trap().TickerFunc("smtp")
 	defer smtpTrap.Close()
 
+	httpClient := &http.Client{}
+
 	// Start receiving runners who will receive notifications
 	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
 	for i := range numReceivingUsers {
@@ -228,6 +230,8 @@ func TestRunWithSMTP(t *testing.T) {
 			ReceivingWatchBarrier:    receivingWatchBarrier,
 			ExpectedNotificationsIDs: expectedNotificationsIDs,
 			SMTPApiURL:               smtpAPIServer.URL,
+			SMTPRequestTimeout:       testutil.WaitLong,
+			SMTPHttpClient:           httpClient,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)

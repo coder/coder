@@ -2654,6 +2654,7 @@ func convertWorkspace(
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
+		TaskID:           workspace.TaskID,
 	}, nil
 }
 

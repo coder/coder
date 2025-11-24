@@ -714,8 +714,7 @@ workspace_prebuilds:
   # (default: 3, type: int)
   failure_hard_limit: 3
 aibridge:
-  # Whether to start an in-memory aibridged instance ("aibridge" experiment must be
-  # enabled, too).
+  # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)
   enabled: false
   # The base URL of the OpenAI API.
@@ -726,7 +725,33 @@ aibridge:
   openai_key: ""
   # The base URL of the Anthropic API.
   # (default: https://api.anthropic.com/, type: string)
-  base_url: https://api.anthropic.com/
+  anthropic_base_url: https://api.anthropic.com/
   # The key to authenticate against the Anthropic API.
   # (default: <unset>, type: string)
-  key: ""
+  anthropic_key: ""
+  # The AWS Bedrock API region.
+  # (default: <unset>, type: string)
+  bedrock_region: ""
+  # The access key to authenticate against the AWS Bedrock API.
+  # (default: <unset>, type: string)
+  bedrock_access_key: ""
+  # The access key secret to use with the access key to authenticate against the AWS
+  # Bedrock API.
+  # (default: <unset>, type: string)
+  bedrock_access_key_secret: ""
+  # The model to use when making requests to the AWS Bedrock API.
+  # (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0, type: string)
+  bedrock_model: global.anthropic.claude-sonnet-4-5-20250929-v1:0
+  # The small fast model to use when making requests to the AWS Bedrock API. Claude
+  # Code uses Haiku-class models to perform background tasks. See
+  # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+  # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
+  bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+  # Whether to inject Coder's MCP tools into intercepted AI Bridge requests
+  # (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
+  # (default: false, type: bool)
+  inject_coder_mcp_tools: false
+  # Length of time to retain data such as interceptions and all related records
+  # (token, prompt, tool use).
+  # (default: 60d, type: duration)
+  retention: 1440h0m0s

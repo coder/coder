@@ -85,7 +85,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/aibridge/interceptions": {
+        "/aibridge/interceptions": {
             "get": {
                 "security": [
                     {
@@ -96,10 +96,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "AIBridge"
+                    "AI Bridge"
                 ],
-                "summary": "List AIBridge interceptions",
-                "operationId": "list-aibridge-interceptions",
+                "summary": "List AI Bridge interceptions",
+                "operationId": "list-ai-bridge-interceptions",
                 "parameters": [
                     {
                         "type": "string",
@@ -6002,6 +6002,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/prebuilds/invalidate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Invalidate presets for template",
+                "operationId": "invalidate-presets-for-template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.InvalidatePresetsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/versions": {
             "get": {
                 "security": [
@@ -11668,23 +11703,59 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeBedrockConfig": {
+            "type": "object",
+            "properties": {
+                "access_key": {
+                    "type": "string"
+                },
+                "access_key_secret": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "small_fast_model": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
                 "anthropic": {
                     "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
                 },
+                "bedrock": {
+                    "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
+                },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "inject_coder_mcp_tools": {
                     "type": "boolean"
                 },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                },
+                "retention": {
+                    "type": "integer"
                 }
             }
         },
         "codersdk.AIBridgeInterception": {
             "type": "object",
             "properties": {
+                "api_key_id": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -12495,6 +12566,13 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
@@ -13719,6 +13797,13 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific to the organization the role belongs to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific to the organization the role belongs to.",
                     "type": "array",
@@ -14276,15 +14361,15 @@ const docTemplate = `{
                 "oauth2",
                 "mcp-server-http",
                 "workspace-sharing",
-                "aibridge"
+                "terraform-directory-reuse"
             ],
             "x-enum-comments": {
-                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
+                "ExperimentTerraformWorkspace": "Enables reuse of existing terraform directory for builds",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -14298,7 +14383,7 @@ const docTemplate = `{
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceSharing",
-                "ExperimentAIBridge"
+                "ExperimentTerraformWorkspace"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -14841,6 +14926,31 @@ const docTemplate = `{
                 "InsightsReportIntervalDay",
                 "InsightsReportIntervalWeek"
             ]
+        },
+        "codersdk.InvalidatePresetsResponse": {
+            "type": "object",
+            "properties": {
+                "invalidated": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InvalidatedPreset"
+                    }
+                }
+            }
+        },
+        "codersdk.InvalidatedPreset": {
+            "type": "object",
+            "properties": {
+                "preset_name": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
+                },
+                "template_version_name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.IssueReconnectingPTYSignedTokenRequest": {
             "type": "object",
@@ -15396,6 +15506,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "revocation_endpoint": {
+                    "type": "string"
                 },
                 "scopes_supported": {
                     "type": "array",
@@ -17486,6 +17599,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
                     "type": "array",
@@ -18080,6 +18200,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "use_classic_parameter_flow": {
+                    "type": "boolean"
+                },
+                "use_terraform_workspace_cache": {
                     "type": "boolean"
                 }
             }
@@ -19009,6 +19132,10 @@ const docTemplate = `{
                 "use_classic_parameter_flow": {
                     "description": "UseClassicParameterFlow is a flag that switches the default behavior to use the classic\nparameter flow when creating a workspace. This only affects deployments with the experiment\n\"dynamic-parameters\" enabled. This setting will live for a period after the experiment is\nmade the default.\nAn \"opt-out\" is present in case the new feature breaks some existing templates.",
                     "type": "boolean"
+                },
+                "use_terraform_workspace_cache": {
+                    "description": "UseTerraformWorkspaceCache allows optionally specifying whether to use cached\nterraform directories for workspaces created from this template. This field\nonly applies when the correct experiment is enabled. This field is subject to\nbeing removed in the future.",
+                    "type": "boolean"
                 }
             }
         },
@@ -19666,6 +19793,14 @@ const docTemplate = `{
                 "owner_name": {
                     "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
+                },
+                "task_id": {
+                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -20473,11 +20608,6 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
-                "ai_task_sidebar_app_id": {
-                    "description": "Deprecated: This field has been replaced with ` + "`" + `TaskAppID` + "`" + `",
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "build_number": {
                     "type": "integer"
                 },
@@ -20493,6 +20623,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "has_ai_task": {
+                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
                     "type": "boolean"
                 },
                 "has_external_agent": {
@@ -20555,10 +20686,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceStatus"
                         }
                     ]
-                },
-                "task_app_id": {
-                    "type": "string",
-                    "format": "uuid"
                 },
                 "template_version_id": {
                     "type": "string",

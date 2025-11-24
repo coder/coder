@@ -53,7 +53,6 @@ func Test_Tasks(t *testing.T) {
 		taskName     = strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
 	)
 
-	//nolint:paralleltest // The sub-tests of this test must be run sequentially.
 	for _, tc := range []struct {
 		name     string
 		cmdArgs  []string
@@ -135,16 +134,15 @@ func Test_Tasks(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var stdout strings.Builder
-			inv, root := clitest.New(t, tc.cmdArgs...)
-			inv.Stdout = &stdout
-			clitest.SetupConfig(t, userClient, root)
-			require.NoError(t, inv.WithContext(ctx).Run())
-			if tc.assertFn != nil {
-				tc.assertFn(stdout.String(), userClient)
-			}
-		})
+		t.Logf("test case: %q", tc.name)
+		var stdout strings.Builder
+		inv, root := clitest.New(t, tc.cmdArgs...)
+		inv.Stdout = &stdout
+		clitest.SetupConfig(t, userClient, root)
+		require.NoError(t, inv.WithContext(ctx).Run(), tc.name)
+		if tc.assertFn != nil {
+			tc.assertFn(stdout.String(), userClient)
+		}
 	}
 }
 
@@ -293,7 +291,6 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 			{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
 						HasAiTasks: true,
 					},
 				},
@@ -328,9 +325,7 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 						},
 						AiTasks: []*proto.AITask{
 							{
-								SidebarApp: &proto.AITaskSidebarApp{
-									Id: taskAppID.String(),
-								},
+								AppId: taskAppID.String(),
 							},
 						},
 					},

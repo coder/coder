@@ -18,6 +18,7 @@ type WorkspaceAgentScopeParams struct {
 	OwnerID       uuid.UUID
 	TemplateID    uuid.UUID
 	VersionID     uuid.UUID
+	TaskID        uuid.NullUUID
 	BlockUserData bool
 }
 
@@ -42,6 +43,15 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		panic("failed to expand scope, this should never happen")
 	}
 
+	// Include task in the allow list if the workspace has an associated task.
+	var extraAllowList []AllowListElement
+	if params.TaskID.Valid {
+		extraAllowList = append(extraAllowList, AllowListElement{
+			Type: ResourceTask.Type,
+			ID:   params.TaskID.UUID.String(),
+		})
+	}
+
 	return Scope{
 		// TODO: We want to limit the role too to be extra safe.
 		// Even though the allowlist blocks anything else, it is still good
@@ -52,12 +62,12 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		// Limit the agent to only be able to access the singular workspace and
 		// the template/version it was created from. Add additional resources here
 		// as needed, but do not add more workspace or template resource ids.
-		AllowIDList: []AllowListElement{
+		AllowIDList: append([]AllowListElement{
 			{Type: ResourceWorkspace.Type, ID: params.WorkspaceID.String()},
 			{Type: ResourceTemplate.Type, ID: params.TemplateID.String()},
 			{Type: ResourceTemplate.Type, ID: params.VersionID.String()},
 			{Type: ResourceUser.Type, ID: params.OwnerID.String()},
-		},
+		}, extraAllowList...),
 	}
 }
 

@@ -317,13 +317,14 @@ type GetWorkspaceArgs struct {
 var GetWorkspace = Tool[GetWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetWorkspace,
-		Description: `Get a workspace by ID.
+		Description: `Get a workspace by name or ID.
 
 This returns more data than list_workspaces to reduce token usage.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
-					"type": "string",
+					"type":        "string",
+					"description": workspaceDescription,
 				},
 			},
 			Required: []string{"workspace_id"},
@@ -332,7 +333,7 @@ This returns more data than list_workspaces to reduce token usage.`,
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
 		wsID, err := uuid.Parse(args.WorkspaceID)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.New("workspace_id must be a valid UUID")
+			return namedWorkspace(ctx, deps.coderClient, NormalizeWorkspaceInput(args.WorkspaceID))
 		}
 		return deps.coderClient.Workspace(ctx, wsID)
 	},
@@ -353,6 +354,18 @@ var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 If a user is asking to "test a template", they are typically referring
 to creating a workspace from a template to ensure the infrastructure
 is provisioned correctly and the agent can connect to the control plane.
+
+Before creating a workspace, always confirm the template choice with the user by:
+
+	1. Listing the available templates that match their request.
+	2. Recommending the most relevant option.
+	2. Asking the user to confirm which template to use.
+
+It is important to not create a workspace without confirming the template
+choice with the user.
+
+After creating a workspace, watch the build logs and wait for the workspace to
+be ready before trying to use or connect to the workspace.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -530,8 +543,13 @@ type CreateWorkspaceBuildArgs struct {
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameCreateWorkspaceBuild,
-		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
+		Name: ToolNameCreateWorkspaceBuild,
+		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
+
+After creating a workspace build, watch the build logs and wait for the
+workspace build to complete before trying to start another build or use or
+connect to the workspace.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
@@ -1415,7 +1433,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1472,7 +1490,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1531,13 +1549,25 @@ type WorkspaceWriteFileArgs struct {
 
 var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceWriteFile,
-		Description: `Write a file in a workspace.`,
+		Name: ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.
+
+If a file write fails due to syntax errors or encoding issues, do NOT switch
+to using bash commands as a workaround. Instead:
+
+	1. Read the error message carefully to identify the issue
+	2. Fix the content encoding/syntax
+	3. Retry with this tool
+
+The content parameter expects base64-encoded bytes. Ensure your source content
+is correct before encoding it. If you encounter errors, decode and verify the
+content you are trying to write, then re-encode it properly.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1585,7 +1615,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1652,7 +1682,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"files": map[string]any{
 					"type":        "array",
@@ -1726,7 +1756,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"port": map[string]any{
 					"type":        "number",
@@ -1783,7 +1813,7 @@ var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 			},
 			Required: []string{"workspace"},
@@ -2170,7 +2200,9 @@ func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string
 	return conn, nil
 }
 
-const workspaceDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
+const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."
+
+const workspaceAgentDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
 
 func taskIDDescription(action string) string {
 	return fmt.Sprintf("ID or workspace identifier in the format [owner/]workspace[.agent] for the task to %s. If an owner is not specified, the authenticated user is used.", action)

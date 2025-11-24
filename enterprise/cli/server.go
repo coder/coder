@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"net/url"
 
@@ -16,8 +15,8 @@ import (
 	"tailscale.com/types/key"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -25,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -146,8 +144,6 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		}
 		closers.Add(publisher)
 
-		experiments := agplcoderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-
 		// In-memory aibridge daemon.
 		// TODO(@deansheather): the lifecycle of the aibridged server is
 		// probably better managed by the enterprise API type itself. Managing
@@ -155,26 +151,18 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// is not entitled to the feature.
 		var aibridgeDaemon *aibridged.Server
 		if options.DeploymentValues.AI.BridgeConfig.Enabled {
-			if experiments.Enabled(codersdk.ExperimentAIBridge) {
-				aibridgeDaemon, err = newAIBridgeDaemon(api)
-				if err != nil {
-					return nil, nil, xerrors.Errorf("create aibridged: %w", err)
-				}
-
-				api.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
-
-				// When running as an in-memory daemon, the HTTP handler is wired into the
-				// coderd API and therefore is subject to its context. Calling Close() on
-				// aibridged will NOT affect in-flight requests but those will be closed once
-				// the API server is itself shutdown.
-				closers.Add(aibridgeDaemon)
-			} else {
-				api.Logger.Warn(ctx, fmt.Sprintf("CODER_AIBRIDGE_ENABLED=true but experiment %q not enabled", codersdk.ExperimentAIBridge))
+			aibridgeDaemon, err = newAIBridgeDaemon(api)
+			if err != nil {
+				return nil, nil, xerrors.Errorf("create aibridged: %w", err)
 			}
-		} else {
-			if experiments.Enabled(codersdk.ExperimentAIBridge) {
-				api.Logger.Warn(ctx, "aibridge experiment enabled but CODER_AIBRIDGE_ENABLED=false")
-			}
+
+			api.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+
+			// When running as an in-memory daemon, the HTTP handler is wired into the
+			// coderd API and therefore is subject to its context. Calling Close() on
+			// aibridged will NOT affect in-flight requests but those will be closed once
+			// the API server is itself shutdown.
+			closers.Add(aibridgeDaemon)
 		}
 
 		return api.AGPL, closers, nil

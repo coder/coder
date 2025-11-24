@@ -6,11 +6,19 @@ USAGE:
   Create a token
 
 OPTIONS:
+      --allow allow-list
+          Repeatable allow-list entry (<type>:<uuid>, e.g. workspace:1234-...).
+
       --lifetime string, $CODER_TOKEN_LIFETIME
-          Specify a duration for the lifetime of the token.
+          Duration for the token lifetime. Supports standard Go duration units
+          (ns, us, ms, s, m, h) plus d (days) and y (years). Examples: 8h, 30d,
+          1y, 1d12h30m.
 
   -n, --name string, $CODER_TOKEN_NAME
           Specify a human-readable name.
+
+      --scope string-array
+          Repeatable scope to attach to the token (e.g. workspace:read).
 
   -u, --user string, $CODER_TOKEN_USER
           Specify the user to create the token for (Only works if logged in user

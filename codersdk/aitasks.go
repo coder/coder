@@ -17,45 +17,15 @@ import (
 // AITaskPromptParameterName is the name of the parameter used to pass prompts
 // to AI tasks.
 //
-// Experimental: This value is experimental and may change in the future.
+// Deprecated: This constant is deprecated and maintained only for backwards
+// compatibility with older templates. Task prompts are now stored directly
+// in the tasks.prompt database column. New code should access prompts via
+// the Task.InitialPrompt field returned from task endpoints.
+//
+// This constant will be removed in a future major version. Templates should
+// not rely on this parameter name, as the backend will continue to create it
+// automatically for compatibility but reads from tasks.prompt.
 const AITaskPromptParameterName = provider.TaskPromptParameterName
-
-// AITasksPromptsResponse represents the response from the AITaskPrompts method.
-//
-// Experimental: This method is experimental and may change in the future.
-type AITasksPromptsResponse struct {
-	// Prompts is a map of workspace build IDs to prompts.
-	Prompts map[string]string `json:"prompts"`
-}
-
-// AITaskPrompts returns prompts for multiple workspace builds by their IDs.
-//
-// Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.UUID) (AITasksPromptsResponse, error) {
-	if len(buildIDs) == 0 {
-		return AITasksPromptsResponse{
-			Prompts: make(map[string]string),
-		}, nil
-	}
-
-	// Convert UUIDs to strings and join them
-	buildIDStrings := make([]string, len(buildIDs))
-	for i, id := range buildIDs {
-		buildIDStrings[i] = id.String()
-	}
-	buildIDsParam := strings.Join(buildIDStrings, ",")
-
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/aitasks/prompts", nil, WithQueryParam("build_ids", buildIDsParam))
-	if err != nil {
-		return AITasksPromptsResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AITasksPromptsResponse{}, ReadBodyAsError(res)
-	}
-	var prompts AITasksPromptsResponse
-	return prompts, json.NewDecoder(res.Body).Decode(&prompts)
-}
 
 // CreateTaskRequest represents the request to create a new task.
 //
@@ -261,10 +231,35 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 }
 
 // TaskByID fetches a single experimental task by its ID.
+// Only tasks owned by codersdk.Me are supported.
 //
 // Experimental: This method is experimental and may change in the future.
 func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s/%s", "me", id.String()), nil)
+	if err != nil {
+		return Task{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Task{}, ReadBodyAsError(res)
+	}
+
+	var task Task
+	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+		return Task{}, err
+	}
+
+	return task, nil
+}
+
+// TaskByOwnerAndName fetches a single experimental task by its owner and name.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) TaskByOwnerAndName(ctx context.Context, owner, ident string) (Task, error) {
+	if owner == "" {
+		owner = Me
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s/%s", owner, ident), nil)
 	if err != nil {
 		return Task{}, err
 	}
@@ -317,34 +312,7 @@ func (c *ExperimentalClient) TaskByIdentifier(ctx context.Context, identifier st
 		return Task{}, err
 	}
 
-	tasks, err := c.Tasks(ctx, &TasksFilter{
-		Owner: owner,
-	})
-	if err != nil {
-		return Task{}, xerrors.Errorf("list tasks for owner %q: %w", owner, err)
-	}
-
-	if taskID, err := uuid.Parse(taskName); err == nil {
-		// Find task by ID.
-		for _, task := range tasks {
-			if task.ID == taskID {
-				return task, nil
-			}
-		}
-	} else {
-		// Find task by name.
-		for _, task := range tasks {
-			if task.Name == taskName {
-				return task, nil
-			}
-		}
-	}
-
-	// Mimic resource not found from API.
-	var notFoundErr error = &Error{
-		Response: Response{Message: "Resource not found or you do not have access to this resource"},
-	}
-	return Task{}, xerrors.Errorf("task %q not found for owner %q: %w", taskName, owner, notFoundErr)
+	return c.TaskByOwnerAndName(ctx, owner, taskName)
 }
 
 // DeleteTask deletes a task by its ID.

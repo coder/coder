@@ -1056,7 +1056,8 @@ CREATE TABLE aibridge_interceptions (
     model text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     metadata jsonb,
-    ended_at timestamp with time zone
+    ended_at timestamp with time zone,
+    api_key_id text
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1828,6 +1829,15 @@ CREATE TABLE tasks (
     deleted_at timestamp with time zone
 );
 
+CREATE VIEW visible_users AS
+ SELECT users.id,
+    users.username,
+    users.name,
+    users.avatar_url
+   FROM users;
+
+COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
+
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1939,9 +1949,7 @@ CREATE TABLE workspace_builds (
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     template_version_preset_id uuid,
     has_ai_task boolean,
-    ai_task_sidebar_app_id uuid,
     has_external_agent boolean,
-    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL)))),
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
 
@@ -1957,29 +1965,26 @@ CREATE VIEW tasks_with_status AS
     tasks.created_at,
     tasks.deleted_at,
         CASE
-            WHEN ((tasks.workspace_id IS NULL) OR (latest_build.job_status IS NULL)) THEN 'pending'::task_status
-            WHEN (latest_build.job_status = 'failed'::provisioner_job_status) THEN 'error'::task_status
-            WHEN ((latest_build.transition = ANY (ARRAY['stop'::workspace_transition, 'delete'::workspace_transition])) AND (latest_build.job_status = 'succeeded'::provisioner_job_status)) THEN 'paused'::task_status
-            WHEN ((latest_build.transition = 'start'::workspace_transition) AND (latest_build.job_status = 'pending'::provisioner_job_status)) THEN 'initializing'::task_status
-            WHEN ((latest_build.transition = 'start'::workspace_transition) AND (latest_build.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN
-            CASE
-                WHEN agent_status."none" THEN 'initializing'::task_status
-                WHEN agent_status.connecting THEN 'initializing'::task_status
-                WHEN agent_status.connected THEN
-                CASE
-                    WHEN app_status.any_unhealthy THEN 'error'::task_status
-                    WHEN app_status.any_initializing THEN 'initializing'::task_status
-                    WHEN app_status.all_healthy_or_disabled THEN 'active'::task_status
-                    ELSE 'unknown'::task_status
-                END
-                ELSE 'unknown'::task_status
-            END
-            ELSE 'unknown'::task_status
+            WHEN (tasks.workspace_id IS NULL) THEN 'pending'::task_status
+            WHEN (build_status.status <> 'active'::task_status) THEN build_status.status
+            WHEN (agent_status.status <> 'active'::task_status) THEN agent_status.status
+            ELSE app_status.status
         END AS status,
+    jsonb_build_object('build', jsonb_build_object('transition', latest_build_raw.transition, 'job_status', latest_build_raw.job_status, 'computed', build_status.status), 'agent', jsonb_build_object('lifecycle_state', agent_raw.lifecycle_state, 'computed', agent_status.status), 'app', jsonb_build_object('health', app_raw.health, 'computed', app_status.status)) AS status_debug,
     task_app.workspace_build_number,
     task_app.workspace_agent_id,
-    task_app.workspace_app_id
-   FROM ((((tasks
+    task_app.workspace_app_id,
+    agent_raw.lifecycle_state AS workspace_agent_lifecycle_state,
+    app_raw.health AS workspace_app_health,
+    task_owner.owner_username,
+    task_owner.owner_name,
+    task_owner.owner_avatar_url
+   FROM ((((((((tasks
+     CROSS JOIN LATERAL ( SELECT vu.username AS owner_username,
+            vu.name AS owner_name,
+            vu.avatar_url AS owner_avatar_url
+           FROM visible_users vu
+          WHERE (vu.id = tasks.owner_id)) task_owner)
      LEFT JOIN LATERAL ( SELECT task_app_1.workspace_build_number,
             task_app_1.workspace_agent_id,
             task_app_1.workspace_app_id
@@ -1992,17 +1997,36 @@ CREATE VIEW tasks_with_status AS
             workspace_build.job_id
            FROM (workspace_builds workspace_build
              JOIN provisioner_jobs provisioner_job ON ((provisioner_job.id = workspace_build.job_id)))
-          WHERE ((workspace_build.workspace_id = tasks.workspace_id) AND (workspace_build.build_number = task_app.workspace_build_number))) latest_build ON (true))
-     CROSS JOIN LATERAL ( SELECT (count(*) = 0) AS "none",
-            bool_or((workspace_agent.lifecycle_state = ANY (ARRAY['created'::workspace_agent_lifecycle_state, 'starting'::workspace_agent_lifecycle_state]))) AS connecting,
-            bool_and((workspace_agent.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)) AS connected
+          WHERE ((workspace_build.workspace_id = tasks.workspace_id) AND (workspace_build.build_number = task_app.workspace_build_number))) latest_build_raw ON (true))
+     LEFT JOIN LATERAL ( SELECT workspace_agent.lifecycle_state
            FROM workspace_agents workspace_agent
-          WHERE (workspace_agent.id = task_app.workspace_agent_id)) agent_status)
-     CROSS JOIN LATERAL ( SELECT bool_or((workspace_app.health = 'unhealthy'::workspace_app_health)) AS any_unhealthy,
-            bool_or((workspace_app.health = 'initializing'::workspace_app_health)) AS any_initializing,
-            bool_and((workspace_app.health = ANY (ARRAY['healthy'::workspace_app_health, 'disabled'::workspace_app_health]))) AS all_healthy_or_disabled
+          WHERE (workspace_agent.id = task_app.workspace_agent_id)) agent_raw ON (true))
+     LEFT JOIN LATERAL ( SELECT workspace_app.health
            FROM workspace_apps workspace_app
-          WHERE (workspace_app.id = task_app.workspace_app_id)) app_status)
+          WHERE (workspace_app.id = task_app.workspace_app_id)) app_raw ON (true))
+     CROSS JOIN LATERAL ( SELECT
+                CASE
+                    WHEN (latest_build_raw.job_status IS NULL) THEN 'pending'::task_status
+                    WHEN (latest_build_raw.job_status = ANY (ARRAY['failed'::provisioner_job_status, 'canceling'::provisioner_job_status, 'canceled'::provisioner_job_status])) THEN 'error'::task_status
+                    WHEN ((latest_build_raw.transition = ANY (ARRAY['stop'::workspace_transition, 'delete'::workspace_transition])) AND (latest_build_raw.job_status = 'succeeded'::provisioner_job_status)) THEN 'paused'::task_status
+                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = 'pending'::provisioner_job_status)) THEN 'initializing'::task_status
+                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN 'active'::task_status
+                    ELSE 'unknown'::task_status
+                END AS status) build_status)
+     CROSS JOIN LATERAL ( SELECT
+                CASE
+                    WHEN ((agent_raw.lifecycle_state IS NULL) OR (agent_raw.lifecycle_state = ANY (ARRAY['created'::workspace_agent_lifecycle_state, 'starting'::workspace_agent_lifecycle_state]))) THEN 'initializing'::task_status
+                    WHEN (agent_raw.lifecycle_state = ANY (ARRAY['ready'::workspace_agent_lifecycle_state, 'start_timeout'::workspace_agent_lifecycle_state, 'start_error'::workspace_agent_lifecycle_state])) THEN 'active'::task_status
+                    WHEN (agent_raw.lifecycle_state <> ALL (ARRAY['created'::workspace_agent_lifecycle_state, 'starting'::workspace_agent_lifecycle_state, 'ready'::workspace_agent_lifecycle_state, 'start_timeout'::workspace_agent_lifecycle_state, 'start_error'::workspace_agent_lifecycle_state])) THEN 'unknown'::task_status
+                    ELSE 'unknown'::task_status
+                END AS status) agent_status)
+     CROSS JOIN LATERAL ( SELECT
+                CASE
+                    WHEN (app_raw.health = 'initializing'::workspace_app_health) THEN 'initializing'::task_status
+                    WHEN (app_raw.health = 'unhealthy'::workspace_app_health) THEN 'error'::task_status
+                    WHEN (app_raw.health = ANY (ARRAY['healthy'::workspace_app_health, 'disabled'::workspace_app_health])) THEN 'active'::task_status
+                    ELSE 'unknown'::task_status
+                END AS status) app_status)
   WHERE (tasks.deleted_at IS NULL);
 
 CREATE TABLE telemetry_items (
@@ -2011,6 +2035,18 @@ CREATE TABLE telemetry_items (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+CREATE TABLE telemetry_locks (
+    event_type text NOT NULL,
+    period_ending_at timestamp with time zone NOT NULL,
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+);
+
+COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
+
+COMMENT ON COLUMN telemetry_locks.event_type IS 'The type of event that was sent.';
+
+COMMENT ON COLUMN telemetry_locks.period_ending_at IS 'The heartbeat period end timestamp.';
 
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
@@ -2134,7 +2170,8 @@ CREATE TABLE template_version_presets (
     scheduling_timezone text DEFAULT ''::text NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
     description character varying(128) DEFAULT ''::character varying NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    last_invalidated_at timestamp with time zone
 );
 
 COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';
@@ -2198,15 +2235,6 @@ COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External 
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
 
-CREATE VIEW visible_users AS
- SELECT users.id,
-    users.username,
-    users.name,
-    users.avatar_url
-   FROM users;
-
-COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
-
 CREATE VIEW template_version_with_user AS
  SELECT template_versions.id,
     template_versions.template_id,
@@ -2267,7 +2295,8 @@ CREATE TABLE templates (
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     use_classic_parameter_flow boolean DEFAULT false NOT NULL,
-    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
+    use_terraform_workspace_cache boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -2289,6 +2318,8 @@ COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of
 COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
 
 COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.';
+
+COMMENT ON COLUMN templates.use_terraform_workspace_cache IS 'Determines whether to keep terraform directories cached between runs for workspaces created from this template. When enabled, this can significantly speed up the `terraform init` step at the cost of increased disk usage. This is an opt-in experience, as it prevents modules from being updated, and therefore is a behavioral difference from the default.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -2321,6 +2352,7 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
     templates.cors_behavior,
+    templates.use_terraform_workspace_cache,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -2683,7 +2715,6 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
     workspace_builds.has_ai_task,
-    workspace_builds.ai_task_sidebar_app_id,
     workspace_builds.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
@@ -2902,11 +2933,13 @@ CREATE VIEW workspaces_expanded AS
     templates.name AS template_name,
     templates.display_name AS template_display_name,
     templates.icon AS template_icon,
-    templates.description AS template_description
-   FROM (((workspaces
+    templates.description AS template_description,
+    tasks.id AS task_id
+   FROM ((((workspaces
      JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
-     JOIN templates ON ((workspaces.template_id = templates.id)));
+     JOIN templates ON ((workspaces.template_id = templates.id)))
+     LEFT JOIN tasks ON ((workspaces.id = tasks.workspace_id)));
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
@@ -3089,6 +3122,9 @@ ALTER TABLE ONLY tasks
 
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
+
+ALTER TABLE ONLY telemetry_locks
+    ADD CONSTRAINT telemetry_locks_pkey PRIMARY KEY (event_type, period_ending_at);
 
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
@@ -3314,6 +3350,8 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
+
+CREATE INDEX idx_telemetry_locks_period_ending_at ON telemetry_locks USING btree (period_ending_at);
 
 CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
 
@@ -3776,9 +3814,6 @@ ALTER TABLE ONLY workspace_apps
 
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_fkey FOREIGN KEY (ai_task_sidebar_app_id) REFERENCES workspace_apps(id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

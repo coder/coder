@@ -17,21 +17,35 @@ export interface AIBridgeAnthropicConfig {
 }
 
 // From codersdk/deployment.go
+export interface AIBridgeBedrockConfig {
+	readonly region: string;
+	readonly access_key: string;
+	readonly access_key_secret: string;
+	readonly model: string;
+	readonly small_fast_model: string;
+}
+
+// From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
+	readonly bedrock: AIBridgeBedrockConfig;
+	readonly inject_coder_mcp_tools: boolean;
+	readonly retention: number;
 }
 
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
+	readonly api_key_id: string | null;
 	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
+	readonly ended_at: string | null;
 	readonly token_usages: readonly AIBridgeTokenUsage[];
 	readonly user_prompts: readonly AIBridgeUserPrompt[];
 	readonly tool_usages: readonly AIBridgeToolUsage[];
@@ -97,22 +111,16 @@ export interface AIConfig {
  * AITaskPromptParameterName is the name of the parameter used to pass prompts
  * to AI tasks.
  *
- * Experimental: This value is experimental and may change in the future.
+ * Deprecated: This constant is deprecated and maintained only for backwards
+ * compatibility with older templates. Task prompts are now stored directly
+ * in the tasks.prompt database column. New code should access prompts via
+ * the Task.InitialPrompt field returned from task endpoints.
+ *
+ * This constant will be removed in a future major version. Templates should
+ * not rely on this parameter name, as the backend will continue to create it
+ * automatically for compatibility but reads from tasks.prompt.
  */
 export const AITaskPromptParameterName = "AI Prompt";
-
-// From codersdk/aitasks.go
-/**
- * AITasksPromptsResponse represents the response from the AITaskPrompts method.
- *
- * Experimental: This method is experimental and may change in the future.
- */
-export interface AITasksPromptsResponse {
-	/**
-	 * Prompts is a map of workspace build IDs to prompts.
-	 */
-	readonly prompts: Record<string, string>;
-}
 
 // From codersdk/allowlist.go
 /**
@@ -1519,11 +1527,15 @@ export interface CustomRoleRequest {
 	readonly name: string;
 	readonly display_name: string;
 	readonly site_permissions: readonly Permission[];
+	readonly user_permissions: readonly Permission[];
 	/**
 	 * OrganizationPermissions are specific to the organization the role belongs to.
 	 */
 	readonly organization_permissions: readonly Permission[];
-	readonly user_permissions: readonly Permission[];
+	/**
+	 * OrganizationMemberPermissions are specific to the organization the role belongs to.
+	 */
+	readonly organization_member_permissions: readonly Permission[];
 }
 
 // From codersdk/deployment.go
@@ -1879,23 +1891,23 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "aibridge"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
+	| "terraform-directory-reuse"
 	| "web-push"
 	| "workspace-sharing"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"aibridge",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
+	"terraform-directory-reuse",
 	"web-push",
 	"workspace-sharing",
 	"workspace-usage",
@@ -2470,6 +2482,18 @@ export const InsightsReportIntervals: InsightsReportInterval[] = [
 	"week",
 ];
 
+// From codersdk/templates.go
+export interface InvalidatePresetsResponse {
+	readonly invalidated: readonly InvalidatedPreset[];
+}
+
+// From codersdk/templates.go
+export interface InvalidatedPreset {
+	readonly template_name: string;
+	readonly template_version_name: string;
+	readonly preset_name: string;
+}
+
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
 	/**
@@ -2906,6 +2930,7 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly authorization_endpoint: string;
 	readonly token_endpoint: string;
 	readonly registration_endpoint?: string;
+	readonly revocation_endpoint?: string;
 	readonly response_types_supported: readonly string[];
 	readonly grant_types_supported: readonly string[];
 	readonly code_challenge_methods_supported: readonly string[];
@@ -4139,11 +4164,15 @@ export interface Role {
 	readonly organization_id?: string;
 	readonly display_name: string;
 	readonly site_permissions: readonly Permission[];
+	readonly user_permissions: readonly Permission[];
 	/**
 	 * OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
 	 */
 	readonly organization_permissions: readonly Permission[];
-	readonly user_permissions: readonly Permission[];
+	/**
+	 * OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.
+	 */
+	readonly organization_member_permissions: readonly Permission[];
 }
 
 // From codersdk/rbacroles.go
@@ -4906,6 +4935,7 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
+	readonly use_terraform_workspace_cache: boolean;
 }
 
 // From codersdk/templates.go
@@ -5427,6 +5457,13 @@ export interface UpdateTemplateMeta {
 	 * An "opt-out" is present in case the new feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
+	/**
+	 * UseTerraformWorkspaceCache allows optionally specifying whether to use cached
+	 * terraform directories for workspaces created from this template. This field
+	 * only applies when the correct experiment is enabled. This field is subject to
+	 * being removed in the future.
+	 */
+	readonly use_terraform_workspace_cache?: boolean;
 }
 
 // From codersdk/users.go
@@ -5858,6 +5895,10 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
+	/**
+	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
+	 */
+	readonly task_id?: string;
 }
 
 // From codersdk/workspaces.go
@@ -6376,12 +6417,10 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
-	readonly has_ai_task?: boolean;
 	/**
-	 * Deprecated: This field has been replaced with `TaskAppID`
+	 * Deprecated: This field has been deprecated in favor of Task WorkspaceID.
 	 */
-	readonly ai_task_sidebar_app_id?: string;
-	readonly task_app_id?: string;
+	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
 }
 

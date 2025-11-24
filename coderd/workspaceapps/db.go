@@ -35,6 +35,7 @@ import (
 // by querying the database if the request is missing a valid token.
 type DBTokenProvider struct {
 	Logger slog.Logger
+	ctx    context.Context
 
 	// DashboardURL is the main dashboard access URL for error pages.
 	DashboardURL                    *url.URL
@@ -50,7 +51,8 @@ type DBTokenProvider struct {
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger,
+func NewDBTokenProvider(ctx context.Context,
+	log slog.Logger,
 	accessURL *url.URL,
 	authz rbac.Authorizer,
 	connectionLogger *atomic.Pointer[connectionlog.ConnectionLogger],
@@ -70,6 +72,7 @@ func NewDBTokenProvider(log slog.Logger,
 
 	return &DBTokenProvider{
 		Logger:                          log,
+		ctx:                             ctx,
 		DashboardURL:                    accessURL,
 		Authorizer:                      authz,
 		ConnectionLogger:                connectionLogger,
@@ -94,7 +97,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-	aReq, commitAudit := p.connLogInitRequest(ctx, rw, r)
+	aReq, commitAudit := p.connLogInitRequest(rw, r)
 	defer commitAudit()
 
 	appReq := issueReq.AppRequest.Normalize()
@@ -324,11 +327,19 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// rbacResourceOwned is for the level "authenticated". We still need to
 		// make sure the API key has permissions to connect to the actor's own
 		// workspace. Scopes would prevent this.
-		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID)
+		// TODO: This is an odd repercussion of the org_member permission level.
+		// This Object used to not specify an org restriction, and `InOrg` would
+		// actually have a significantly different meaning (only sharing with
+		// other authenticated users in the same org, whereas the existing behavior
+		// is to share with any authenticated user). Because workspaces are always
+		// jointly owned by an organization, there _must_ be an org restriction on
+		// the object to check the proper permissions. AnyOrg is almost the same,
+		// but technically excludes users who are not in any organization. This is
+		// the closest we can get though without more significant refactoring.
+		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
 	)
 	if dbReq.AccessMethod == AccessMethodTerminal {
 		rbacAction = policy.ActionSSH
-		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID)
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
@@ -398,7 +409,7 @@ type connLogRequest struct {
 //
 // A session is unique to the agent, app, user and users IP. If any of these
 // values change, a new session and connect log is created.
-func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) (aReq *connLogRequest, commit func()) {
+func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Request) (aReq *connLogRequest, commit func()) {
 	// Get the status writer from the request context so we can figure
 	// out the HTTP status and autocommit the audit log.
 	sw, ok := w.(*tracing.StatusWriter)
@@ -414,6 +425,9 @@ func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.Respons
 	// this ensures that the status and response body are available.
 	var committed bool
 	return aReq, func() {
+		// We want to log/audit the connection attempt even if the request context has expired.
+		ctx, cancel := context.WithCancel(p.ctx)
+		defer cancel()
 		if committed {
 			return
 		}

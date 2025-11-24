@@ -1,14 +1,10 @@
 package provisionersdk
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,19 +13,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
+	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
 
 	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
-)
-
-const (
-	// ReadmeFile is the location we look for to extract documentation from template versions.
-	ReadmeFile = "README.md"
-
-	sessionDirPrefix      = "Session"
-	staleSessionRetention = 7 * 24 * time.Hour
 )
 
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.
@@ -46,36 +37,12 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		server: p.server,
 	}
 
-	err := CleanStaleSessions(s.Context(), p.opts.WorkDirectory, afero.NewOsFs(), time.Now(), s.Logger)
-	if err != nil {
-		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.WorkDirectory, err)
-	}
+	s.Files = tfpath.Session(p.opts.WorkDirectory, sessID)
 
-	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
-	err = os.MkdirAll(s.WorkDirectory, 0o700)
-	if err != nil {
-		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
-	}
 	defer func() {
-		var err error
-		// Cleanup the work directory after execution.
-		for attempt := 0; attempt < 5; attempt++ {
-			err = os.RemoveAll(s.WorkDirectory)
-			if err != nil {
-				// On Windows, open files cannot be removed.
-				// When the provisioner daemon is shutting down,
-				// it may take a few milliseconds for processes to exit.
-				// See: https://github.com/golang/go/issues/50510
-				s.Logger.Debug(s.Context(), "failed to clean work directory; trying again", slog.Error(err))
-				time.Sleep(250 * time.Millisecond)
-				continue
-			}
-			s.Logger.Debug(s.Context(), "cleaned up work directory")
-			return
-		}
-		s.Logger.Error(s.Context(), "failed to clean up work directory after multiple attempts",
-			slog.F("path", s.WorkDirectory), slog.Error(err))
+		s.Files.Cleanup(s.Context(), s.Logger, afero.NewOsFs())
 	}()
+
 	req, err := stream.Recv()
 	if err != nil {
 		return xerrors.Errorf("receive config: %w", err)
@@ -89,7 +56,17 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
 
-	err = s.extractArchive()
+	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
+		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
+	}
+
+	// Cleanup any previously left stale sessions.
+	err = s.Files.CleanStaleSessions(s.Context(), s.Logger, afero.NewOsFs(), time.Now())
+	if err != nil {
+		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.Files, err)
+	}
+
+	err = s.Files.ExtractArchive(s.Context(), s.Logger, afero.NewOsFs(), s.Config)
 	if err != nil {
 		return xerrors.Errorf("extract archive: %w", err)
 	}
@@ -144,7 +121,7 @@ func (s *Session) handleRequests() error {
 				return err
 			}
 			// Handle README centrally, so that individual provisioners don't need to mess with it.
-			readme, err := os.ReadFile(filepath.Join(s.WorkDirectory, ReadmeFile))
+			readme, err := os.ReadFile(s.Files.ReadmeFilePath())
 			if err == nil {
 				complete.Readme = readme
 			} else {
@@ -220,9 +197,9 @@ func (s *Session) handleRequests() error {
 }
 
 type Session struct {
-	Logger        slog.Logger
-	WorkDirectory string
-	Config        *proto.Config
+	Logger slog.Logger
+	Files  tfpath.Layouter
+	Config *proto.Config
 
 	server   Server
 	stream   proto.DRPCProvisioner_SessionStream
@@ -231,92 +208,6 @@ type Session struct {
 
 func (s *Session) Context() context.Context {
 	return s.stream.Context()
-}
-
-func (s *Session) extractArchive() error {
-	ctx := s.Context()
-
-	s.Logger.Info(ctx, "unpacking template source archive",
-		slog.F("size_bytes", len(s.Config.TemplateSourceArchive)),
-	)
-
-	reader := tar.NewReader(bytes.NewBuffer(s.Config.TemplateSourceArchive))
-	// for safety, nil out the reference on Config, since the reader now owns it.
-	s.Config.TemplateSourceArchive = nil
-	for {
-		header, err := reader.Next()
-		if err != nil {
-			if xerrors.Is(err, io.EOF) {
-				break
-			}
-			return xerrors.Errorf("read template source archive: %w", err)
-		}
-		s.Logger.Debug(context.Background(), "read archive entry",
-			slog.F("name", header.Name),
-			slog.F("mod_time", header.ModTime),
-			slog.F("size", header.Size))
-
-		// Security: don't untar absolute or relative paths, as this can allow a malicious tar to overwrite
-		// files outside the workdir.
-		if !filepath.IsLocal(header.Name) {
-			return xerrors.Errorf("refusing to extract to non-local path")
-		}
-		// nolint: gosec
-		headerPath := filepath.Join(s.WorkDirectory, header.Name)
-		if !strings.HasPrefix(headerPath, filepath.Clean(s.WorkDirectory)) {
-			return xerrors.New("tar attempts to target relative upper directory")
-		}
-		mode := header.FileInfo().Mode()
-		if mode == 0 {
-			mode = 0o600
-		}
-
-		// Always check for context cancellation before reading the next header.
-		// This is mainly important for unit tests, since a canceled context means
-		// the underlying directory is going to be deleted. There still exists
-		// the small race condition that the context is canceled after this, and
-		// before the disk write.
-		if ctx.Err() != nil {
-			return xerrors.Errorf("context canceled: %w", ctx.Err())
-		}
-		switch header.Typeflag {
-		case tar.TypeDir:
-			err = os.MkdirAll(headerPath, mode)
-			if err != nil {
-				return xerrors.Errorf("mkdir %q: %w", headerPath, err)
-			}
-			s.Logger.Debug(context.Background(), "extracted directory",
-				slog.F("path", headerPath),
-				slog.F("mode", fmt.Sprintf("%O", mode)))
-		case tar.TypeReg:
-			file, err := os.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
-			if err != nil {
-				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
-			}
-
-			hash := crc32.NewIEEE()
-			hashReader := io.TeeReader(reader, hash)
-			// Max file size of 10MiB.
-			size, err := io.CopyN(file, hashReader, 10<<20)
-			if xerrors.Is(err, io.EOF) {
-				err = nil
-			}
-			if err != nil {
-				_ = file.Close()
-				return xerrors.Errorf("copy file %q: %w", headerPath, err)
-			}
-			err = file.Close()
-			if err != nil {
-				return xerrors.Errorf("close file %q: %s", headerPath, err)
-			}
-			s.Logger.Debug(context.Background(), "extracted file",
-				slog.F("size_bytes", size),
-				slog.F("path", headerPath),
-				slog.F("mode", mode),
-				slog.F("checksum", fmt.Sprintf("%x", hash.Sum(nil))))
-		}
-	}
-	return nil
 }
 
 func (s *Session) ProvisionLog(level proto.LogLevel, output string) {
@@ -378,9 +269,4 @@ func (r *request[R, C]) do() (C, error) {
 		close(canceledOrComplete)
 		return c, nil
 	}
-}
-
-// SessionDir returns the directory name with mandatory prefix.
-func SessionDir(sessID string) string {
-	return sessionDirPrefix + sessID
 }

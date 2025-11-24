@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -106,8 +107,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			return agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+			return agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 				AppSlug: "some-agent-app",
 				Message: args.Summary,
 				URI:     args.Link,
@@ -126,12 +128,32 @@ func TestTools(t *testing.T) {
 	t.Run("GetWorkspace", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
-		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
-			WorkspaceID: r.Workspace.ID.String(),
-		})
 
-		require.NoError(t, err)
-		require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+		tests := []struct {
+			name      string
+			workspace string
+		}{
+			{
+				name:      "ByID",
+				workspace: r.Workspace.ID.String(),
+			},
+			{
+				name:      "ByName",
+				workspace: r.Workspace.Name,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+					WorkspaceID: tt.workspace,
+				})
+				require.NoError(t, err)
+				require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+			})
+		}
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
@@ -851,7 +873,7 @@ func TestTools(t *testing.T) {
 					TemplateVersionID: r.TemplateVersion.ID.String(),
 					Input:             "do yet another barrel roll",
 				},
-				error: "Template does not have required parameter \"AI Prompt\"",
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
 			},
 			{
 				name: "WithPreset",
@@ -860,7 +882,7 @@ func TestTools(t *testing.T) {
 					TemplateVersionPresetID: presetID.String(),
 					Input:                   "not enough barrel rolls",
 				},
-				error: "Template does not have required parameter \"AI Prompt\"",
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
 			},
 		}
 
@@ -895,37 +917,27 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		ws1Table := dbgen.Workspace(t, store, database.WorkspaceTable{
+		build1 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "delete-task-workspace-1",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task1 := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              ws1Table.Name,
-			WorkspaceID:       uuid.NullUUID{UUID: ws1Table.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "delete task 1",
-		})
-		_ = dbfake.WorkspaceBuild(t, store, ws1Table).WithTask(nil).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "delete-task-1",
+			Prompt: "delete task 1",
+		}, nil).Do()
+		task1 := build1.Task
 
-		ws2Table := dbgen.Workspace(t, store, database.WorkspaceTable{
+		build2 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "delete-task-workspace-2",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task2 := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              ws2Table.Name,
-			WorkspaceID:       uuid.NullUUID{UUID: ws2Table.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "delete task 2",
-		})
-		_ = dbfake.WorkspaceBuild(t, store, ws2Table).WithTask(nil).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "delete-task-2",
+			Prompt: "delete task 2",
+		}, nil).Do()
+		task2 := build2.Task
 
 		tests := []struct {
 			name  string
@@ -1113,21 +1125,16 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		ws1Table := dbgen.Workspace(t, store, database.WorkspaceTable{
+		build := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "get-task-workspace-1",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              "get-task-1",
-			WorkspaceID:       uuid.NullUUID{UUID: ws1Table.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "get task",
-		})
-		_ = dbfake.WorkspaceBuild(t, store, ws1Table).WithTask(nil).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "get-task-1",
+			Prompt: "get task",
+		}, nil).Do()
+		task := build.Task
 
 		tests := []struct {
 			name     string
@@ -1376,24 +1383,29 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		wsTable := dbgen.Workspace(t, store, database.WorkspaceTable{
+		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "send-task-input-ws",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              "send-task-input",
-			WorkspaceID:       uuid.NullUUID{UUID: wsTable.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "send task input",
-		})
-		ws := dbfake.WorkspaceBuild(t, store, wsTable).WithTask(&proto.App{Url: srv.URL}).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "send-task-input",
+			Prompt: "send task input",
+		}, &proto.App{Url: srv.URL}).Do()
+		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to send task input).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
 
 		tests := []struct {
 			name  string
@@ -1454,8 +1466,6 @@ func TestTools(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				tb, err := toolsdk.NewDeps(memberClient)
 				require.NoError(t, err)
 
@@ -1513,24 +1523,29 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		wsTable := dbgen.Workspace(t, store, database.WorkspaceTable{
+		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "get-task-logs-ws",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              "get-task-logs",
-			WorkspaceID:       uuid.NullUUID{UUID: wsTable.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "get task logs",
-		})
-		ws := dbfake.WorkspaceBuild(t, store, wsTable).WithTask(&proto.App{Url: srv.URL}).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "get-task-logs",
+			Prompt: "get task logs",
+		}, &proto.App{Url: srv.URL}).Do()
+		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to read task logs).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
 
 		tests := []struct {
 			name     string
@@ -1582,8 +1597,6 @@ func TestTools(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				tb, err := toolsdk.NewDeps(memberClient)
 				require.NoError(t, err)
 

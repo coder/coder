@@ -1609,9 +1609,13 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var matchedProvisioners codersdk.MatchedProvisioners
 	err = api.Database.InTx(func(tx database.Store) error {
 		jobID := uuid.New()
-
 		templateVersionID := uuid.New()
+
 		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+			TemplateID: uuid.NullUUID{
+				UUID:  req.TemplateID,
+				Valid: req.TemplateID != uuid.Nil,
+			},
 			TemplateVersionID:  templateVersionID,
 			UserVariableValues: req.UserVariableValues,
 		})

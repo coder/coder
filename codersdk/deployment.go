@@ -1174,7 +1174,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:   "inbox",
 		}
 		deploymentGroupAIBridge = serpent.Group{
-			Name: "AIBridge",
+			Name: "AI Bridge",
 			YAML: "aibridge",
 		}
 	)
@@ -3238,20 +3238,19 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hideAITasks",
 		},
 
-		// AIBridge Options
+		// AI Bridge Options
 		{
-			Name:        "AIBridge Enabled",
-			Description: fmt.Sprintf("Whether to start an in-memory aibridged instance (%q experiment must be enabled, too).", ExperimentAIBridge),
+			Name:        "AI Bridge Enabled",
+			Description: "Whether to start an in-memory aibridged instance.",
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "enabled",
-			Hidden:      true,
 		},
 		{
-			Name:        "AIBridge OpenAI Base URL",
+			Name:        "AI Bridge OpenAI Base URL",
 			Description: "The base URL of the OpenAI API.",
 			Flag:        "aibridge-openai-base-url",
 			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
@@ -3259,10 +3258,9 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "https://api.openai.com/v1/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_base_url",
-			Hidden:      true,
 		},
 		{
-			Name:        "AIBridge OpenAI Key",
+			Name:        "AI Bridge OpenAI Key",
 			Description: "The key to authenticate against the OpenAI API.",
 			Flag:        "aibridge-openai-key",
 			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
@@ -3270,29 +3268,97 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_key",
-			Hidden:      true,
 		},
 		{
-			Name:        "AIBridge Anthropic Base URL",
+			Name:        "AI Bridge Anthropic Base URL",
 			Description: "The base URL of the Anthropic API.",
 			Flag:        "aibridge-anthropic-base-url",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
 			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "base_url",
-			Hidden:      true,
+			YAML:        "anthropic_base_url",
 		},
 		{
-			Name:        "AIBridge Anthropic KEY",
+			Name:        "AI Bridge Anthropic Key",
 			Description: "The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "key",
-			Hidden:      true,
+			YAML:        "anthropic_key",
+		},
+		{
+			Name:        "AI Bridge Bedrock Region",
+			Description: "The AWS Bedrock API region.",
+			Flag:        "aibridge-bedrock-region",
+			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:       &c.AI.BridgeConfig.Bedrock.Region,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_region",
+		},
+		{
+			Name:        "AI Bridge Bedrock Access Key",
+			Description: "The access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key",
+		},
+		{
+			Name:        "AI Bridge Bedrock Access Key Secret",
+			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key-secret",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key_secret",
+		},
+		{
+			Name:        "AI Bridge Bedrock Model",
+			Description: "The model to use when making requests to the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-model",
+			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.Model,
+			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_model",
+		},
+		{
+			Name:        "AI Bridge Bedrock Small Fast Model",
+			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
+			Flag:        "aibridge-bedrock-small-fastmodel",
+			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.SmallFastModel,
+			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_small_fast_model",
+		},
+		{
+			Name:        "AI Bridge Inject Coder MCP tools",
+			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Flag:        "aibridge-inject-coder-mcp-tools",
+			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
+			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "inject_coder_mcp_tools",
+		},
+		{
+			Name:        "AI Bridge Data Retention Duration",
+			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Flag:        "aibridge-retention",
+			Env:         "CODER_AIBRIDGE_RETENTION",
+			Value:       &c.AI.BridgeConfig.Retention,
+			Default:     "60d",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "retention",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name: "Enable Authorization Recordings",
@@ -3313,9 +3379,12 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3326,6 +3395,14 @@ type AIBridgeOpenAIConfig struct {
 type AIBridgeAnthropicConfig struct {
 	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
 	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIBridgeBedrockConfig struct {
+	Region          serpent.String `json:"region" typescript:",notnull"`
+	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
+	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
+	Model           serpent.String `json:"model" typescript:",notnull"`
+	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
 type AIConfig struct {
@@ -3581,7 +3658,8 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
+	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
+	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
 
 func (e Experiment) DisplayName() string {
@@ -3602,8 +3680,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
-	case ExperimentAIBridge:
-		return "AI Bridge"
+	case ExperimentTerraformWorkspace:
+		return "Terraform Directory Reuse"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3622,7 +3700,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
-	ExperimentAIBridge,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

@@ -24,7 +24,6 @@ locals {
     // actually in Germany now.
     "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
     "ap-sydney"   = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
-    "sa-saopaulo" = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
     "za-jnb"      = "tcp://greenhill-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
@@ -71,11 +70,6 @@ data "coder_parameter" "region" {
     icon  = "/emojis/1f1e6-1f1fa.png"
     name  = "Sydney"
     value = "ap-sydney"
-  }
-  option {
-    icon  = "/emojis/1f1e7-1f1f7.png"
-    name  = "São Paulo"
-    value = "sa-saopaulo"
   }
   option {
     icon  = "/emojis/1f1ff-1f1e6.png"
@@ -129,7 +123,7 @@ module "personalize" {
 
 module "code-server" {
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.3.1"
+  version                 = "1.4.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true

@@ -451,7 +451,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	buildID := takeFirst(orig.ID, uuid.New())
 	jobID := takeFirst(orig.JobID, uuid.New())
 	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
-	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
 	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -491,7 +490,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				ID:               buildID,
 				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
-				SidebarAppID:     sidebarAppID,
 				UpdatedAt:        dbtime.Now(),
 			}))
 		}
@@ -1430,6 +1428,7 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		IsDefault:           seed.IsDefault,
 		Description:         seed.Description,
 		Icon:                seed.Icon,
+		LastInvalidatedAt:   seed.LastInvalidatedAt,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset
@@ -1495,15 +1494,23 @@ func ClaimPrebuild(
 	return claimedWorkspace
 }
 
-func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams) database.AIBridgeInterception {
+func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
+		APIKeyID:    seed.APIKeyID,
 		InitiatorID: takeFirst(seed.InitiatorID, uuid.New()),
 		Provider:    takeFirst(seed.Provider, "provider"),
 		Model:       takeFirst(seed.Model, "model"),
 		Metadata:    takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		StartedAt:   takeFirst(seed.StartedAt, dbtime.Now()),
 	})
+	if endedAt != nil {
+		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      interception.ID,
+			EndedAt: *endedAt,
+		})
+		require.NoError(t, err, "insert aibridge interception")
+	}
 	require.NoError(t, err, "insert aibridge interception")
 	return interception
 }
@@ -1569,6 +1576,7 @@ func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Tas
 	}
 
 	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
+		ID:                 takeFirst(orig.ID, uuid.New()),
 		OrganizationID:     orig.OrganizationID,
 		OwnerID:            orig.OwnerID,
 		Name:               takeFirst(orig.Name, taskname.GenerateFallback()),

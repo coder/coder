@@ -51,6 +51,7 @@ SELECT
 		tvp.scheduling_timezone,
 		tvp.invalidate_after_secs   AS ttl,
 		tvp.prebuild_status,
+		tvp.last_invalidated_at,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
 FROM templates t
@@ -300,12 +301,8 @@ GROUP BY wpb.template_version_preset_id;
 -- Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
 -- inactive template version.
 -- This is an optimization to clean up stale pending jobs.
-UPDATE provisioner_jobs
-SET
-	canceled_at = @now::timestamptz,
-	completed_at = @now::timestamptz
-WHERE id IN (
-	SELECT pj.id
+WITH jobs_to_cancel AS (
+	SELECT pj.id, w.id AS workspace_id, w.template_id, wpb.template_version_preset_id
 	FROM provisioner_jobs pj
 	INNER JOIN workspace_prebuild_builds wpb ON wpb.job_id = pj.id
 	INNER JOIN workspaces w ON w.id = wpb.workspace_id
@@ -324,4 +321,54 @@ WHERE id IN (
 		AND pj.canceled_at IS NULL
 		AND pj.completed_at IS NULL
 )
-RETURNING id;
+UPDATE provisioner_jobs
+SET
+	canceled_at = @now::timestamptz,
+	completed_at = @now::timestamptz
+FROM jobs_to_cancel
+WHERE provisioner_jobs.id = jobs_to_cancel.id
+RETURNING jobs_to_cancel.id, jobs_to_cancel.workspace_id, jobs_to_cancel.template_id, jobs_to_cancel.template_version_preset_id;
+
+-- name: GetOrganizationsWithPrebuildStatus :many
+-- GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
+-- membership status for the prebuilds system user (org membership, group existence, group membership).
+WITH orgs_with_prebuilds AS (
+	-- Get unique organizations that have presets with prebuilds configured
+	SELECT DISTINCT o.id, o.name
+	FROM organizations o
+	INNER JOIN templates t ON t.organization_id = o.id
+	INNER JOIN template_versions tv ON tv.template_id = t.id
+	INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
+	WHERE tvp.desired_instances IS NOT NULL
+),
+prebuild_user_membership AS (
+	-- Check if the user is a member of the organizations
+	SELECT om.organization_id
+	FROM organization_members om
+	INNER JOIN orgs_with_prebuilds owp ON owp.id = om.organization_id
+	WHERE om.user_id = @user_id::uuid
+),
+prebuild_groups AS (
+	-- Check if the organizations have the prebuilds group
+	SELECT g.organization_id, g.id as group_id
+	FROM groups g
+	INNER JOIN orgs_with_prebuilds owp ON owp.id = g.organization_id
+	WHERE g.name = @group_name::text
+),
+prebuild_group_membership AS (
+	-- Check if the user is in the prebuilds group
+	SELECT pg.organization_id
+	FROM prebuild_groups pg
+	INNER JOIN group_members gm ON gm.group_id = pg.group_id
+	WHERE gm.user_id = @user_id::uuid
+)
+SELECT
+	owp.id AS organization_id,
+	owp.name AS organization_name,
+	(pum.organization_id IS NOT NULL)::boolean AS has_prebuild_user,
+	pg.group_id AS prebuilds_group_id,
+	(pgm.organization_id IS NOT NULL)::boolean AS has_prebuild_user_in_group
+FROM orgs_with_prebuilds owp
+LEFT JOIN prebuild_groups pg ON pg.organization_id = owp.id
+LEFT JOIN prebuild_user_membership pum ON pum.organization_id = owp.id
+LEFT JOIN prebuild_group_membership pgm ON pgm.organization_id = owp.id;

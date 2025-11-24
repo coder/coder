@@ -2385,19 +2385,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
-		const latestBuild = workspace.latest_build;
-		const [templateVersionRichParameters, buildParameters] = await Promise.all([
-			this.getTemplateVersionRichParameters(latestBuild.template_version_id),
-			this.getWorkspaceBuildParameters(latestBuild.id),
-		]);
-
-		return {
-			templateVersionRichParameters,
-			buildParameters,
-		};
-	};
-
 	getInsightsUserLatency = async (
 		filters: InsightsParams,
 	): Promise<TypesGen.UserLatencyInsightsResponse> => {
@@ -2674,27 +2661,6 @@ export type CreateTaskFeedbackRequest = {
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
-	getAITasksPrompts = async (
-		buildIds: TypesGen.WorkspaceBuild["id"][],
-	): Promise<TypesGen.AITasksPromptsResponse> => {
-		if (buildIds.length === 0) {
-			return {
-				prompts: {},
-			};
-		}
-
-		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
-			"/api/experimental/aitasks/prompts",
-			{
-				params: {
-					build_ids: buildIds.join(","),
-				},
-			},
-		);
-
-		return response.data;
-	};
-
 	createTask = async (
 		user: string,
 		req: TypesGen.CreateTaskRequest,
@@ -2750,6 +2716,16 @@ class ExperimentalApiMethods {
 			setTimeout(() => res(), 500);
 		});
 	};
+
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/aibridge/interceptions",
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
@@ -2793,7 +2769,7 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		}
 	} else {
 		// Do not write error logs if we are in a FE unit test.
-		if (process.env.JEST_WORKER_ID === undefined) {
+		if (!process.env.JEST_WORKER_ID && !process.env.VITEST) {
 			console.error("CSRF token not found");
 		}
 	}

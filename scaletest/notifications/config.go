@@ -1,6 +1,7 @@
 package notifications
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
@@ -37,6 +38,12 @@ type Config struct {
 
 	// SMTPApiUrl is the URL of the SMTP mock HTTP API
 	SMTPApiURL string `json:"smtp_api_url"`
+
+	// SMTPRequestTimeout is the timeout for SMTP requests.
+	SMTPRequestTimeout time.Duration `json:"smtp_request_timeout"`
+
+	// SMTPHttpClient is the HTTP client for SMTP requests.
+	SMTPHttpClient *http.Client `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -59,6 +66,14 @@ func (c Config) Validate() error {
 
 	if c.NotificationTimeout <= 0 {
 		return xerrors.New("notification_timeout must be greater than 0")
+	}
+
+	if c.SMTPApiURL != "" && c.SMTPRequestTimeout <= 0 {
+		return xerrors.New("smtp_request_timeout must be set if smtp_api_url is set")
+	}
+
+	if c.SMTPApiURL != "" && c.SMTPHttpClient == nil {
+		return xerrors.New("smtp_http_client must be set if smtp_api_url is set")
 	}
 
 	if c.DialTimeout <= 0 {

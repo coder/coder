@@ -53,8 +53,16 @@ If the command times out, all output captured up to that point is returned with 
 For background commands (background: true), output is captured until the timeout is reached, then the command
 continues running in the background. The captured output is returned as the result.
 
+For file operations (list, write, edit), always prefer the dedicated file tools.
+Do not use bash commands (ls, cat, echo, heredoc, etc.) to list, write, or read
+files when the file tools are available. The bash tool should be used for:
+
+	- Running commands and scripts
+	- Installing packages
+	- Starting services
+	- Executing programs
+
 Examples:
-- workspace: "my-workspace", command: "ls -la"
 - workspace: "john/dev-env", command: "git status", timeout_ms: 30000
 - workspace: "my-workspace", command: "npm run dev", background: true, timeout_ms: 10000
 - workspace: "my-workspace.main", command: "docker ps"`,

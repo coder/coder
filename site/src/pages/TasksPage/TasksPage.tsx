@@ -68,52 +68,54 @@ const TasksPage: FC = () => {
 						error={aiTemplatesQuery.error}
 						onRetry={aiTemplatesQuery.refetch}
 					/>
-					{aiTemplatesQuery.isSuccess && (
-						<section>
-							{permissions.viewDeploymentConfig && (
-								<section
-									className="mt-6 flex justify-between"
-									aria-label="Controls"
-								>
-									<div className="flex items-center bg-surface-secondary rounded p-1">
-										<PillButton
-											active={tab.value === "all"}
-											onClick={() => tab.setValue("all")}
-										>
-											All tasks
-										</PillButton>
-										<PillButton
-											disabled={!idleTasks || idleTasks.length === 0}
-											active={tab.value === "waiting-for-input"}
-											onClick={() => tab.setValue("waiting-for-input")}
-										>
-											Waiting for input
-											{idleTasks && idleTasks.length > 0 && (
-												<Badge className="-mr-0.5" size="xs" variant="info">
-													{idleTasks.length}
-												</Badge>
-											)}
-										</PillButton>
-									</div>
+					{aiTemplatesQuery.isSuccess &&
+						aiTemplatesQuery.data &&
+						aiTemplatesQuery.data.length > 0 && (
+							<section className="py-8">
+								{permissions.viewDeploymentConfig && (
+									<section
+										className="mt-6 flex justify-between"
+										aria-label="Controls"
+									>
+										<div className="flex items-center bg-surface-secondary rounded p-1">
+											<PillButton
+												active={tab.value === "all"}
+												onClick={() => tab.setValue("all")}
+											>
+												All tasks
+											</PillButton>
+											<PillButton
+												disabled={!idleTasks || idleTasks.length === 0}
+												active={tab.value === "waiting-for-input"}
+												onClick={() => tab.setValue("waiting-for-input")}
+											>
+												Waiting for input
+												{idleTasks && idleTasks.length > 0 && (
+													<Badge className="-mr-0.5" size="xs" variant="info">
+														{idleTasks.length}
+													</Badge>
+												)}
+											</PillButton>
+										</div>
 
-									<UsersCombobox
-										value={ownerFilter.value}
-										onValueChange={(username) => {
-											ownerFilter.setValue(
-												username === ownerFilter.value ? "" : username,
-											);
-										}}
-									/>
-								</section>
-							)}
+										<UsersCombobox
+											value={ownerFilter.value}
+											onValueChange={(username) => {
+												ownerFilter.setValue(
+													username === ownerFilter.value ? "" : username,
+												);
+											}}
+										/>
+									</section>
+								)}
 
-							<TasksTable
-								tasks={displayedTasks}
-								error={tasksQuery.error}
-								onRetry={tasksQuery.refetch}
-							/>
-						</section>
-					)}
+								<TasksTable
+									tasks={displayedTasks}
+									error={tasksQuery.error}
+									onRetry={tasksQuery.refetch}
+								/>
+							</section>
+						)}
 				</main>
 			</Margins>
 		</>

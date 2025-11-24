@@ -2,7 +2,7 @@
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
 VALUES
-	(gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: UpdateTaskWorkspaceID :one
@@ -40,6 +40,13 @@ SELECT * FROM tasks_with_status WHERE id = @id::uuid;
 
 -- name: GetTaskByWorkspaceID :one
 SELECT * FROM tasks_with_status WHERE workspace_id = @workspace_id::uuid;
+
+-- name: GetTaskByOwnerIDAndName :one
+SELECT * FROM tasks_with_status
+WHERE
+	owner_id = @owner_id::uuid
+	AND deleted_at IS NULL
+	AND LOWER(name) = LOWER(@name::text);
 
 -- name: ListTasks :many
 SELECT * FROM tasks_with_status tws

@@ -1,6 +1,7 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
 import { template as templateQueryOptions } from "api/queries/templates";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import {
 	startWorkspace,
 	workspaceByOwnerAndName,
@@ -148,7 +149,7 @@ const TaskPage = () => {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
 		const chatApp = getAllAppsWithAgent(workspace).find(
-			(app) => app.id === workspace.latest_build.task_app_id,
+			(app) => app.id === task.workspace_app_id,
 		);
 		content = (
 			<PanelGroup autoSaveId="task" direction="horizontal">
@@ -173,7 +174,7 @@ const TaskPage = () => {
 					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
 				</PanelResizeHandle>
 				<Panel className="[&>*]:h-full">
-					<TaskApps workspace={workspace} />
+					<TaskApps task={task} workspace={workspace} />
 				</Panel>
 			</PanelGroup>
 		);
@@ -198,10 +199,9 @@ type WorkspaceNotRunningProps = {
 const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 	const queryClient = useQueryClient();
 
-	const { data: parameters } = useQuery({
-		queryKey: ["workspace", workspace.id, "parameters"],
-		queryFn: () => API.getWorkspaceParameters(workspace),
-	});
+	const { data: buildParameters } = useQuery(
+		workspaceBuildParameters(workspace.latest_build.id),
+	);
 
 	const mutateStartWorkspace = useMutation({
 		...startWorkspace(workspace, queryClient),
@@ -221,7 +221,27 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 		? mutateStartWorkspace.error
 		: undefined;
 
-	return (
+	const deleted = workspace.latest_build?.transition === ("delete" as const);
+
+	return deleted ? (
+		<Margins>
+			<div className="w-full min-h-80 flex items-center justify-center">
+				<div className="flex flex-col items-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Task workspace was deleted.
+					</h3>
+					<span className="text-content-secondary text-sm">
+						This task cannot be resumed. Delete this task and create a new one.
+					</span>
+					<Button size="sm" variant="outline" asChild className="mt-4">
+						<RouterLink to="/tasks" data-testid="task-create-new">
+							Create a new task
+						</RouterLink>
+					</Button>
+				</div>
+			</div>
+		</Margins>
+	) : (
 		<Margins>
 			<div className="w-full min-h-80 flex items-center justify-center">
 				<div className="flex flex-col items-center">
@@ -237,7 +257,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 							disabled={isWaitingForStart}
 							onClick={() => {
 								mutateStartWorkspace.mutate({
-									buildParameters: parameters?.buildParameters,
+									buildParameters,
 								});
 							}}
 						>

@@ -295,15 +295,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
-		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
+		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
-				// Reduced permission set on dormant workspaces. No build, ssh, or exec
-				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
-				// Can read their own organization member record
-				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
@@ -431,6 +427,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 							ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 						})...),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -454,6 +451,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// Can read available roles.
 							ResourceAssignOrgRole.Type: {policy.ActionRead},
 						}),
+						Member: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
+							Permissions(map[string][]policy.Action{
+								// Reduced permission set on dormant workspaces. No build, ssh, or exec
+								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+								// Can read their own organization member record
+								ResourceOrganizationMember.Type: {policy.ActionRead},
+								// Users can create provisioner daemons scoped to themselves.
+								ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+							})...,
+						),
 					},
 				},
 			}
@@ -476,6 +483,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
 						}),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -502,6 +510,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceGroupMember.Type:        ResourceGroupMember.AvailableActions(),
 							ResourceIdpsyncSettings.Type:    {policy.ActionRead, policy.ActionUpdate},
 						}),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -531,6 +540,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 							ResourceProvisionerJobs.Type:   {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 						}),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -568,6 +578,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								Action:       policy.ActionDeleteAgent,
 							},
 						},
+						Member: []Permission{},
 					},
 				},
 			}
@@ -680,9 +691,10 @@ func (perm Permission) Valid() error {
 }
 
 // Role is a set of permissions at multiple levels:
-// - Site level permissions apply EVERYWHERE
-// - Org level permissions apply to EVERYTHING in a given ORG
-// - User level permissions are the lowest
+// - Site permissions apply EVERYWHERE
+// - Org permissions apply to EVERYTHING in a given ORG
+// - User permissions apply to all resources the user owns
+// - OrgMember permissions apply to resources in the given org that the user owns
 // This is the type passed into the rego as a json payload.
 // Users of this package should instead **only** use the role names, and
 // this package will expand the role names into their json payloads.
@@ -703,7 +715,8 @@ type Role struct {
 }
 
 type OrgPermissions struct {
-	Org []Permission `json:"org"`
+	Org    []Permission `json:"org"`
+	Member []Permission `json:"member"`
 }
 
 // Valid will check all it's permissions and ensure they are all correct
@@ -720,7 +733,12 @@ func (role Role) Valid() error {
 	for orgID, orgPermissions := range role.ByOrgID {
 		for _, perm := range orgPermissions.Org {
 			if err := perm.Valid(); err != nil {
-				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+				errs = append(errs, xerrors.Errorf("org=%q: org %w", orgID, err))
+			}
+		}
+		for _, perm := range orgPermissions.Member {
+			if err := perm.Valid(); err != nil {
+				errs = append(errs, xerrors.Errorf("org=%q: member: %w", orgID, err))
 			}
 		}
 	}

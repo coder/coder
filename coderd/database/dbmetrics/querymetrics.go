@@ -158,6 +158,13 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySummaryParams) (database.CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("CalculateAIBridgeInterceptionsTelemetrySummary").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -382,6 +389,13 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldAIBridgeRecords(ctx, beforeTime)
+	m.queryLatencies.WithLabelValues("DeleteOldAIBridgeRecords").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
@@ -400,6 +414,13 @@ func (m queryMetricsStore) DeleteOldProvisionerDaemons(ctx context.Context) erro
 	start := time.Now()
 	r0 := m.s.DeleteOldProvisionerDaemons(ctx)
 	m.queryLatencies.WithLabelValues("DeleteOldProvisionerDaemons").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteOldTelemetryLocks(ctx context.Context, periodEndingAtBefore time.Time) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldTelemetryLocks(ctx, periodEndingAtBefore)
+	m.queryLatencies.WithLabelValues("DeleteOldTelemetryLocks").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -1229,6 +1250,13 @@ func (m queryMetricsStore) GetOrganizationsByUserID(ctx context.Context, userID 
 	return organizations, err
 }
 
+func (m queryMetricsStore) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg database.GetOrganizationsWithPrebuildStatusParams) ([]database.GetOrganizationsWithPrebuildStatusRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationsWithPrebuildStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationsWithPrebuildStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	start := time.Now()
 	schemas, err := m.s.GetParameterSchemasByJobID(ctx, jobID)
@@ -1506,6 +1534,13 @@ func (m queryMetricsStore) GetTaskByID(ctx context.Context, id uuid.UUID) (datab
 	start := time.Now()
 	r0, r1 := m.s.GetTaskByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetTaskByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetTaskByOwnerIDAndNameParams) (database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskByOwnerIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTaskByOwnerIDAndName").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2517,6 +2552,13 @@ func (m queryMetricsStore) InsertTelemetryItemIfNotExists(ctx context.Context, a
 	return r0
 }
 
+func (m queryMetricsStore) InsertTelemetryLock(ctx context.Context, arg database.InsertTelemetryLockParams) error {
+	start := time.Now()
+	r0 := m.s.InsertTelemetryLock(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTelemetryLock").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
 	start := time.Now()
 	err := m.s.InsertTemplate(ctx, arg)
@@ -2734,6 +2776,13 @@ func (m queryMetricsStore) ListAIBridgeInterceptions(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySummariesParams) ([]database.ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeInterceptionsTelemetrySummaries(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeInterceptionsTelemetrySummaries").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, interceptionIds)
@@ -2888,6 +2937,13 @@ func (m queryMetricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUI
 	return r0
 }
 
+func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, id database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIBridgeInterceptionEnded(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEnded").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateAPIKeyByID(ctx, arg)
@@ -3007,7 +3063,7 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	return r0
 }
 
-func (m queryMetricsStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+func (m queryMetricsStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]database.UpdatePrebuildProvisionerJobWithCancelRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdatePrebuildProvisionerJobWithCancel").Observe(time.Since(start).Seconds())
@@ -3019,6 +3075,13 @@ func (m queryMetricsStore) UpdatePresetPrebuildStatus(ctx context.Context, arg d
 	r0 := m.s.UpdatePresetPrebuildStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdatePresetPrebuildStatus").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.UpdatePresetsLastInvalidatedAtRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdatePresetsLastInvalidatedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdatePresetsLastInvalidatedAt").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

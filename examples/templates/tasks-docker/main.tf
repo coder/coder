@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
+      version = ">= 2.13"
     }
     docker = {
       source = "kreuzwerker/docker"
@@ -12,22 +13,32 @@ terraform {
 # This template requires a valid Docker socket
 # However, you can reference our Kubernetes/VM
 # example templates and adapt the Claude Code module
-# 
-# see: https://registry.coder.com/templates 
+#
+# See: https://registry.coder.com/templates
 provider "docker" {}
+
+# A `coder_ai_task` resource enables Tasks and associates
+# the task with the coder_app that will act as an AI agent.
+resource "coder_ai_task" "task" {
+  count  = data.coder_workspace.me.start_count
+  app_id = module.claude-code[count.index].task_app_id
+}
+
+# You can read the task prompt from the `coder_task` data source.
+data "coder_task" "me" {}
 
 # The Claude Code module does the automatic task reporting
 # Other agent modules: https://registry.coder.com/modules?search=agent
-# Or use a custom agent:  
+# Or use a custom agent:
 module "claude-code" {
   count               = data.coder_workspace.me.start_count
   source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "3.1.1"
+  version             = "4.2.1"
   agent_id            = coder_agent.main.id
   workdir             = "/home/coder/projects"
   order               = 999
   claude_api_key      = ""
-  ai_prompt           = data.coder_parameter.ai_prompt.value
+  ai_prompt           = data.coder_task.me.prompt
   system_prompt       = data.coder_parameter.system_prompt.value
   model               = "sonnet"
   permission_mode     = "plan"
@@ -51,13 +62,13 @@ data "coder_workspace_preset" "default" {
         (servers, dev watchers, GUI apps).
       -	Built-in tools - use for everything else:
        (file operations, git commands, builds & installs, one-off shell commands)
-	    
+
       Remember this decision rule:
       - Stays running? → desktop-commander
       - Finishes immediately? → built-in tools
-      
+
       -- Context --
-      There is an existing app and tmux dev server running on port 8000. Be sure to read it's CLAUDE.md (./realworld-django-rest-framework-angular/CLAUDE.md) to learn more about it. 
+      There is an existing app and tmux dev server running on port 8000. Be sure to read it's CLAUDE.md (./realworld-django-rest-framework-angular/CLAUDE.md) to learn more about it.
 
       Since this app is for demo purposes and the user is previewing the homepage and subsequent pages, aim to make the first visual change/prototype very quickly so the user can preview it, then focus on backend or logic which can be a more involved, long-running architecture plan.
 
@@ -107,7 +118,7 @@ data "coder_workspace_preset" "default" {
 
   # Pre-builds is a Coder Premium
   # feature to speed up workspace creation
-  # 
+  #
   # see https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces
   # prebuilds {
   #   instances = 1
@@ -125,13 +136,6 @@ data "coder_parameter" "system_prompt" {
   form_type    = "textarea"
   description  = "System prompt for the agent with generalized instructions"
   mutable      = false
-}
-data "coder_parameter" "ai_prompt" {
-  type        = "string"
-  name        = "AI Prompt"
-  default     = ""
-  description = "Write a prompt for Claude Code"
-  mutable     = true
 }
 data "coder_parameter" "setup_script" {
   name         = "setup_script"

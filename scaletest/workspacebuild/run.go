@@ -33,8 +33,13 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	}
 }
 
+type SlimWorkspace struct {
+	ID   uuid.UUID
+	Name string
+}
+
 // Run implements Runnable.
-func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.Writer) (codersdk.Workspace, error) {
+func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.Writer) (SlimWorkspace, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -47,14 +52,14 @@ func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.W
 	if req.Name == "" {
 		randName, err := loadtestutil.GenerateWorkspaceName(id)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.Errorf("generate random name for workspace: %w", err)
+			return SlimWorkspace{}, xerrors.Errorf("generate random name for workspace: %w", err)
 		}
 		req.Name = randName
 	}
 
 	workspace, err := r.client.CreateWorkspace(ctx, r.cfg.OrganizationID, r.cfg.UserID, req)
 	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("create workspace: %w", err)
+		return SlimWorkspace{}, xerrors.Errorf("create workspace: %w", err)
 	}
 	r.workspaceID = workspace.ID
 
@@ -72,7 +77,7 @@ func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.W
 					TemplateVersionID:   req.TemplateVersionID,
 				})
 				if err != nil {
-					return codersdk.Workspace{}, xerrors.Errorf("create workspace build: %w", err)
+					return SlimWorkspace{}, xerrors.Errorf("create workspace build: %w", err)
 				}
 				err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
 				if err == nil {
@@ -80,7 +85,7 @@ func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.W
 				}
 			}
 			if err != nil {
-				return codersdk.Workspace{}, xerrors.Errorf("wait for build: %w", err)
+				return SlimWorkspace{}, xerrors.Errorf("wait for build: %w", err)
 			}
 		}
 	}
@@ -91,16 +96,13 @@ func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.W
 		_, _ = fmt.Fprintln(logs, "")
 		err = waitForAgents(ctx, logs, r.client, workspace.ID)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.Errorf("wait for agent: %w", err)
+			return SlimWorkspace{}, xerrors.Errorf("wait for agent: %w", err)
 		}
 	}
 
-	workspace, err = r.client.Workspace(ctx, workspace.ID)
-	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("get workspace %q: %w", workspace.ID.String(), err)
-	}
-
-	return workspace, nil
+	// Some users of this runner might not need the full workspace, and
+	// want to avoid querying the workspace.
+	return SlimWorkspace{ID: workspace.ID, Name: workspace.Name}, nil
 }
 
 // CleanupRunner is a runner that deletes a workspace in the Run phase.
@@ -145,12 +147,12 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 	if err == nil && build.Job.Status.Active() {
 		// mark the build as canceled
 		logger.Info(ctx, "canceling workspace build", slog.F("build_id", build.ID), slog.F("workspace_id", r.workspaceID))
-		if err = r.client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{}); err == nil {
-			// Wait for the job to cancel before we delete it
-			_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
-		} else {
-			logger.Warn(ctx, "failed to cancel workspace build, attempting to delete anyway", slog.Error(err))
+		if err = r.client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{}); err != nil {
+			logger.Warn(ctx, "failed to cancel workspace build", slog.Error(err))
 		}
+		// Wait for either the build or the cancellation to finish
+		// either is necessary or we'll fail at the delete step.
+		_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
 	} else {
 		logger.Warn(ctx, "unable to lookup latest workspace build, attempting to delete anyway", slog.Error(err))
 	}

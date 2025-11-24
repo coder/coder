@@ -116,6 +116,10 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
 		workspaceBuildConfig.UserID = newUser.ID.String()
 		workspaceBuildConfig.Request.Name = workspaceName
+		// We'll watch for completion ourselves via the tailnet workspace
+		// updates stream.
+		workspaceBuildConfig.NoWaitForAgents = true
+		workspaceBuildConfig.NoWaitForBuild = true
 
 		runner := workspacebuild.NewRunner(newUserClient, workspaceBuildConfig)
 		r.workspacebuildRunners = append(r.workspacebuildRunners, runner)

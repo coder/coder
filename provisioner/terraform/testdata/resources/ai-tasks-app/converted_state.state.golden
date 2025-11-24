@@ -1,0 +1,22 @@
+{
+  "Resources": [
+    {
+      "name": "a",
+      "type": "coder_ai_task"
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [
+    {
+      "id": "c4f032b8-97e4-42b0-aa2f-30a9e698f8d4",
+      "sidebar_app": {
+        "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
+      },
+      "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
+    }
+  ],
+  "HasAITasks": true,
+  "HasExternalAgents": false
+}

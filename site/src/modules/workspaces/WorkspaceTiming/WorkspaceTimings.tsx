@@ -17,7 +17,11 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
-import { isCoderResource, ResourcesChart } from "./ResourcesChart";
+import {
+	isCoderResource,
+	isStageBoundary,
+	ResourcesChart,
+} from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import {
 	agentStages,
@@ -69,8 +73,10 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	// filled in different moments.
 	const isLoading = [
 		provisionerTimings,
-		agentScriptTimings,
 		agentConnectionTimings,
+		// agentScriptTimings might be an empty array if there are no scripts to run.
+		// Only provisionerTimings and agentConnectionTimings are guaranteed to have
+		// at least one entry.
 	].some((t) => t.length === 0);
 
 	// Each agent connection timing is a stage in the timeline to make it easier
@@ -138,6 +144,13 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 									// user and would add noise.
 									const visibleResources = stageTimings.filter((t) => {
 										const isProvisionerTiming = "resource" in t;
+
+										// StageBoundaries are being drawn on the total timeline.
+										// Do not show them as discrete resources inside the stage view.
+										if (isProvisionerTiming && isStageBoundary(t.resource)) {
+											return false;
+										}
+
 										return isProvisionerTiming
 											? !isCoderResource(t.resource)
 											: true;

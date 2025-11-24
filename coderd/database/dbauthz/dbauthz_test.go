@@ -646,10 +646,13 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			PresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			Now:      dbtime.Now(),
 		}
-		jobIDs := []uuid.UUID{uuid.New(), uuid.New()}
+		canceledJobs := []database.UpdatePrebuildProvisionerJobWithCancelRow{
+			{ID: uuid.New(), WorkspaceID: uuid.New(), TemplateID: uuid.New(), TemplateVersionPresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+			{ID: uuid.New(), WorkspaceID: uuid.New(), TemplateID: uuid.New(), TemplateVersionPresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+		}
 
-		dbm.EXPECT().UpdatePrebuildProvisionerJobWithCancel(gomock.Any(), arg).Return(jobIDs, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourcePrebuiltWorkspace, policy.ActionUpdate).Returns(jobIDs)
+		dbm.EXPECT().UpdatePrebuildProvisionerJobWithCancel(gomock.Any(), arg).Return(canceledJobs, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourcePrebuiltWorkspace, policy.ActionUpdate).Returns(canceledJobs)
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
@@ -1311,6 +1314,13 @@ func (s *MethodTestSuite) TestTemplate() {
 	s.Run("UpsertTemplateUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any()).Return(nil).AnyTimes()
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("UpdatePresetsLastInvalidatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdatePresetsLastInvalidatedAtParams{LastInvalidatedAt: sql.NullTime{Valid: true, Time: dbtime.Now()}, TemplateID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdatePresetsLastInvalidatedAt(gomock.Any(), arg).Return([]database.UpdatePresetsLastInvalidatedAtRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
 }
 
@@ -2158,7 +2168,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		})
 		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{JobID: b.JobID})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{ResourceID: res.ID})
-		app := testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
+		_ = testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
 
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
@@ -2167,7 +2177,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID:               b.ID,
 			HasAITask:        sql.NullBool{Bool: true, Valid: true},
 			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
-			SidebarAppID:     uuid.NullUUID{UUID: app.ID, Valid: true},
 			UpdatedAt:        b.UpdatedAt,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
@@ -2371,6 +2380,17 @@ func (s *MethodTestSuite) TestTasks() {
 		task := testutil.Fake(s.T(), faker, database.Task{})
 		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
 		check.Args(task.ID).Asserts(task, policy.ActionRead).Returns(task)
+	}))
+	s.Run("GetTaskByOwnerIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		dbm.EXPECT().GetTaskByOwnerIDAndName(gomock.Any(), database.GetTaskByOwnerIDAndNameParams{
+			OwnerID: task.OwnerID,
+			Name:    task.Name,
+		}).Return(task, nil).AnyTimes()
+		check.Args(database.GetTaskByOwnerIDAndNameParams{
+			OwnerID: task.OwnerID,
+			Name:    task.Name,
+		}).Asserts(task, policy.ActionRead).Returns(task)
 	}))
 	s.Run("DeleteTask", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		task := testutil.Fake(s.T(), faker, database.Task{})
@@ -3756,6 +3776,14 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		dbm.EXPECT().GetPrebuildMetrics(gomock.Any()).Return([]database.GetPrebuildMetricsRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
+	s.Run("GetOrganizationsWithPrebuildStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetOrganizationsWithPrebuildStatusParams{
+			UserID:    uuid.New(),
+			GroupName: "test",
+		}
+		dbm.EXPECT().GetOrganizationsWithPrebuildStatus(gomock.Any(), arg).Return([]database.GetOrganizationsWithPrebuildStatusRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganization.All(), policy.ActionRead)
+	}))
 	s.Run("GetPrebuildsSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetPrebuildsSettings(gomock.Any()).Return("{}", nil).AnyTimes()
 		check.Args().Asserts()
@@ -4616,5 +4644,42 @@ func (s *MethodTestSuite) TestAIBridge() {
 		ids := []uuid.UUID{{1}}
 		db.EXPECT().ListAIBridgeToolUsagesByInterceptionIDs(gomock.Any(), ids).Return([]database.AIBridgeToolUsage{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.AIBridgeToolUsage{})
+	}))
+
+	s.Run("UpdateAIBridgeInterceptionEnded", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intcID := uuid.UUID{1}
+		params := database.UpdateAIBridgeInterceptionEndedParams{ID: intcID}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intcID})
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intcID).Return(intc, nil).AnyTimes() // Validation.
+		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), params).Return(intc, nil).AnyTimes()
+		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
+	}))
+
+	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t := dbtime.Now()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
+		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
+	}))
+}
+
+func (s *MethodTestSuite) TestTelemetry() {
+	s.Run("InsertTelemetryLock", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().InsertTelemetryLock(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.InsertTelemetryLockParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+
+	s.Run("DeleteOldTelemetryLocks", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(time.Time{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+
+	s.Run("ListAIBridgeInterceptionsTelemetrySummaries", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().ListAIBridgeInterceptionsTelemetrySummaries(gomock.Any(), gomock.Any()).Return([]database.ListAIBridgeInterceptionsTelemetrySummariesRow{}, nil).AnyTimes()
+		check.Args(database.ListAIBridgeInterceptionsTelemetrySummariesParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
+	}))
+
+	s.Run("CalculateAIBridgeInterceptionsTelemetrySummary", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().CalculateAIBridgeInterceptionsTelemetrySummary(gomock.Any(), gomock.Any()).Return(database.CalculateAIBridgeInterceptionsTelemetrySummaryRow{}, nil).AnyTimes()
+		check.Args(database.CalculateAIBridgeInterceptionsTelemetrySummaryParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
 	}))
 }

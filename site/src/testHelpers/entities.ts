@@ -281,45 +281,50 @@ export const MockOwnerRole: TypesGen.Role = {
 	name: "owner",
 	display_name: "Owner",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
 	name: "user_admin",
 	display_name: "User Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
 	name: "template_admin",
 	display_name: "Template Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockAuditorRole: TypesGen.Role = {
 	name: "auditor",
 	display_name: "Auditor",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockWorkspaceCreationBanRole: TypesGen.Role = {
 	name: "organization-workspace-creation-ban",
 	display_name: "Organization Workspace Creation Ban",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockMemberRole: TypesGen.SlimRole = {
@@ -331,27 +336,30 @@ export const MockOrganizationAdminRole: TypesGen.Role = {
 	name: "organization-admin",
 	display_name: "Organization Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationUserAdminRole: TypesGen.Role = {
 	name: "organization-user-admin",
 	display_name: "Organization User Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	name: "organization-template-admin",
 	display_name: "Organization Template Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
@@ -360,18 +368,20 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	assignable: true,
 	built_in: false,
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
-	organization_id: MockOrganization.id,
 	assignable: true,
 	built_in: false,
 	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
 	organization_permissions: [
 		{
 			negate: false,
@@ -454,14 +464,15 @@ export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 			action: "create",
 		},
 	],
-	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockRole2WithOrgPermissions: TypesGen.Role = {
 	name: "my-role-1",
 	display_name: "My Role 1",
-	organization_id: MockOrganization.id,
 	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
 	organization_permissions: [
 		{
 			negate: false,
@@ -469,7 +480,7 @@ export const MockRole2WithOrgPermissions: TypesGen.Role = {
 			action: "create",
 		},
 	],
-	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
@@ -495,10 +506,6 @@ export const MockAssignableSiteRoles = [
 	assignableRole(MockAuditorRole, true),
 	assignableRole(MockWorkspaceCreationBanRole, true),
 ];
-
-export const MockMemberPermissions = {
-	viewAuditLog: false,
-};
 
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
@@ -848,6 +855,7 @@ export const MockTemplate: TypesGen.Template = {
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
+	use_terraform_workspace_cache: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3094,6 +3102,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3122,6 +3131,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -5016,6 +5026,11 @@ export const MockTask = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 } satisfies TypesGen.Task;
 
+export const MockTaskWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	task_id: MockTask.id,
+};
+
 export const MockTasks = [
 	MockTask,
 	{
@@ -5039,3 +5054,99 @@ export const MockTasks = [
 		},
 	},
 ] satisfies TypesGen.Task[];
+
+export const MockInitializingTasks = [
+	{
+		...MockTask,
+		id: "task-1",
+		name: "task-workspace-pending",
+		initial_prompt: "Task Workspace Pending",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is pending",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-2",
+		name: "task-workspace-starting",
+		initial_prompt: "Task Workspace Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is starting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-3",
+		name: "task-agent-connecting",
+		initial_prompt: "Task Agent Connecting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is connecting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-4",
+		name: "task-agent-starting",
+		initial_prompt: "Task Agent Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is starting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-5",
+		name: "task-app-initializing",
+		initial_prompt: "Task App Initializing",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "App is initializing",
+			uri: "",
+		},
+	},
+] satisfies TypesGen.Task[];
+
+export const MockInterception: TypesGen.AIBridgeInterception = {
+	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+	initiator: {
+		id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
+		username: "testuser",
+		avatar_url: "https://example.com/avatar.png",
+	},
+	provider: "openai",
+	model: "gpt-4o",
+	started_at: "2022-05-17T17:39:01.382927298Z",
+	ended_at: "2022-05-17T17:39:01.382927298Z",
+	token_usages: [
+		{
+			id: "32e7fd17-24be-46b9-b867-2f0adfd42aff",
+			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+			provider_response_id: "res_1234567890",
+			input_tokens: 5,
+			output_tokens: 1,
+			metadata: {},
+			created_at: "2022-05-17T17:39:01.382927298Z",
+		},
+	],
+	metadata: {},
+	user_prompts: [],
+	tool_usages: [],
+	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+};

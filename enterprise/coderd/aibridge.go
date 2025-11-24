@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -23,20 +25,52 @@ const (
 	defaultListInterceptionsLimit = 100
 )
 
-// aiBridgeListInterceptions returns all AIBridge interceptions a user can read.
+// aibridgeHandler handles all aibridged-related endpoints.
+func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return func(r chi.Router) {
+		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
+		r.Group(func(r chi.Router) {
+			r.Use(middlewares...)
+			r.Get("/interceptions", api.aiBridgeListInterceptions)
+		})
+
+		// This is a bit funky but since aibridge only exposes a HTTP
+		// handler, this is how it has to be.
+		r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+			if api.aibridgedHandler == nil {
+				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+					Message: "aibridged handler not mounted",
+				})
+				return
+			}
+
+			// Strip either the experimental or stable prefix.
+			// TODO: experimental route is deprecated and must be removed with Beta.
+			prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
+			for _, prefix := range prefixes {
+				if strings.Contains(r.URL.String(), prefix) {
+					http.StripPrefix(prefix, api.aibridgedHandler).ServeHTTP(rw, r)
+					break
+				}
+			}
+		})
+	}
+}
+
+// aiBridgeListInterceptions returns all AI Bridge interceptions a user can read.
 // Optional filters with query params
 //
-// @Summary List AIBridge interceptions
-// @ID list-aibridge-interceptions
+// @Summary List AI Bridge interceptions
+// @ID list-ai-bridge-interceptions
 // @Security CoderSessionToken
 // @Produce json
-// @Tags AIBridge
+// @Tags AI Bridge
 // @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
-// @Router /api/experimental/aibridge/interceptions [get]
+// @Router /aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -110,7 +144,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting AIBridge interceptions.",
+			Message: "Internal error getting AI Bridge interceptions.",
 			Detail:  err.Error(),
 		})
 		return
@@ -138,7 +172,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		ids[i] = row.AIBridgeInterception.ID
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
 	tokenUsagesRows, err := db.ListAIBridgeTokenUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge token usages from database: %w", err)
@@ -148,7 +182,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		tokenUsagesMap[row.InterceptionID] = append(tokenUsagesMap[row.InterceptionID], row)
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
 	userPromptRows, err := db.ListAIBridgeUserPromptsByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge user prompts from database: %w", err)
@@ -158,7 +192,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		userPromptsMap[row.InterceptionID] = append(userPromptsMap[row.InterceptionID], row)
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
 	toolUsagesRows, err := db.ListAIBridgeToolUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge tool usages from database: %w", err)

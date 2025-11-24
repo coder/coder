@@ -23,8 +23,8 @@ describe("DeleteDialog", () => {
 		renderComponent(
 			<DeleteDialog
 				isOpen
-				onConfirm={jest.fn()}
-				onCancel={jest.fn()}
+				onConfirm={vi.fn()}
+				onCancel={vi.fn()}
 				entity="template"
 				name="MyTemplate"
 			/>,
@@ -38,8 +38,8 @@ describe("DeleteDialog", () => {
 		renderComponent(
 			<DeleteDialog
 				isOpen
-				onConfirm={jest.fn()}
-				onCancel={jest.fn()}
+				onConfirm={vi.fn()}
+				onCancel={vi.fn()}
 				entity="template"
 				name="MyTemplate"
 			/>,
@@ -56,8 +56,8 @@ describe("DeleteDialog", () => {
 		renderComponent(
 			<DeleteDialog
 				isOpen
-				onConfirm={jest.fn()}
-				onCancel={jest.fn()}
+				onConfirm={vi.fn()}
+				onCancel={vi.fn()}
 				entity="template"
 				name="MyTemplate"
 			/>,

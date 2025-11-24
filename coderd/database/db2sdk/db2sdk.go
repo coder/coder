@@ -714,12 +714,13 @@ func RBACRole(role rbac.Role) codersdk.Role {
 
 	orgPerms := role.ByOrgID[slim.OrganizationID]
 	return codersdk.Role{
-		Name:                    slim.Name,
-		OrganizationID:          slim.OrganizationID,
-		DisplayName:             slim.DisplayName,
-		SitePermissions:         List(role.Site, RBACPermission),
-		OrganizationPermissions: List(orgPerms.Org, RBACPermission),
-		UserPermissions:         List(role.User, RBACPermission),
+		Name:                          slim.Name,
+		OrganizationID:                slim.OrganizationID,
+		DisplayName:                   slim.DisplayName,
+		SitePermissions:               List(role.Site, RBACPermission),
+		UserPermissions:               List(role.User, RBACPermission),
+		OrganizationPermissions:       List(orgPerms.Org, RBACPermission),
+		OrganizationMemberPermissions: List(orgPerms.Member, RBACPermission),
 	}
 }
 
@@ -734,8 +735,8 @@ func Role(role database.CustomRole) codersdk.Role {
 		OrganizationID:          orgID,
 		DisplayName:             role.DisplayName,
 		SitePermissions:         List(role.SitePermissions, Permission),
-		OrganizationPermissions: List(role.OrgPermissions, Permission),
 		UserPermissions:         List(role.UserPermissions, Permission),
+		OrganizationPermissions: List(role.OrgPermissions, Permission),
 	}
 }
 
@@ -962,7 +963,7 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		// created_at ASC
 		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
 	})
-	return codersdk.AIBridgeInterception{
+	intc := codersdk.AIBridgeInterception{
 		ID:          interception.ID,
 		Initiator:   MinimalUserFromVisibleUser(initiator),
 		Provider:    interception.Provider,
@@ -973,6 +974,13 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		UserPrompts: sdkUserPrompts,
 		ToolUsages:  sdkToolUsages,
 	}
+	if interception.APIKeyID.Valid {
+		intc.APIKeyID = &interception.APIKeyID.String
+	}
+	if interception.EndedAt.Valid {
+		intc.EndedAt = &interception.EndedAt.Time
+	}
+	return intc
 }
 
 func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
@@ -1011,6 +1019,18 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 		Metadata:           jsonOrEmptyMap(usage.Metadata),
 		CreatedAt:          usage.CreatedAt,
 	}
+}
+
+func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
+	var presets []codersdk.InvalidatedPreset
+	for _, p := range invalidatedPresets {
+		presets = append(presets, codersdk.InvalidatedPreset{
+			TemplateName:        p.TemplateName,
+			TemplateVersionName: p.TemplateVersionName,
+			PresetName:          p.TemplateVersionPresetName,
+		})
+	}
+	return presets
 }
 
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {

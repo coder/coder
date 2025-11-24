@@ -298,15 +298,16 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 	receivedNotifications := make(map[uuid.UUID]struct{})
 
 	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiURL, user.Email)
-	httpClient := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+	httpClient := r.cfg.SMTPHttpClient
 
 	const smtpPollInterval = 2 * time.Second
 	done := xerrors.New("done")
 
 	tkr := r.clock.TickerFunc(ctx, smtpPollInterval, func() error {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+		reqCtx, cancel := context.WithTimeout(ctx, r.cfg.SMTPRequestTimeout)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, apiURL, nil)
 		if err != nil {
 			logger.Error(ctx, "create SMTP API request", slog.Error(err))
 			r.cfg.Metrics.AddError("smtp_create_request")
@@ -317,14 +318,16 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 		if err != nil {
 			logger.Error(ctx, "poll smtp api for notifications", slog.Error(err))
 			r.cfg.Metrics.AddError("smtp_poll")
-			return xerrors.Errorf("poll smtp api: %w", err)
+			return nil
 		}
 
 		if resp.StatusCode != http.StatusOK {
+			// discard the response to allow reusing of the connection
+			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 			logger.Error(ctx, "smtp api returned non-200 status", slog.F("status", resp.StatusCode))
 			r.cfg.Metrics.AddError("smtp_bad_status")
-			return xerrors.Errorf("smtp api returned status %d", resp.StatusCode)
+			return nil
 		}
 
 		var summaries []smtpmock.EmailSummary

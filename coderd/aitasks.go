@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -24,61 +24,12 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 
 	aiagentapi "github.com/coder/agentapi-sdk-go"
 )
-
-// This endpoint is experimental and not guaranteed to be stable, so we're not
-// generating public-facing documentation for it.
-func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	buildIDsParam := r.URL.Query().Get("build_ids")
-	if buildIDsParam == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "build_ids query parameter is required",
-		})
-		return
-	}
-
-	// Parse build IDs
-	buildIDStrings := strings.Split(buildIDsParam, ",")
-	buildIDs := make([]uuid.UUID, 0, len(buildIDStrings))
-	for _, idStr := range buildIDStrings {
-		id, err := uuid.Parse(strings.TrimSpace(idStr))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Invalid build ID format: %s", idStr),
-				Detail:  err.Error(),
-			})
-			return
-		}
-		buildIDs = append(buildIDs, id)
-	}
-
-	parameters, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, buildIDs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	promptsByBuildID := make(map[string]string, len(parameters))
-	for _, param := range parameters {
-		if param.Name != codersdk.AITaskPromptParameterName {
-			continue
-		}
-		buildID := param.WorkspaceBuildID.String()
-		promptsByBuildID[buildID] = param.Value
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AITasksPromptsResponse{
-		Prompts: promptsByBuildID,
-	})
-}
 
 // @Summary Create a new AI task
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
@@ -143,7 +94,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 
 	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(`Template does not have required parameter %q`, codersdk.AITaskPromptParameterName),
+			Message: `Template does not have a valid "coder_ai_task" resource.`,
 		})
 		return
 	}
@@ -174,13 +125,31 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check if the template defines the AI Prompt parameter.
+	templateParams, err := api.Database.GetTemplateVersionParameters(ctx, req.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var richParams []codersdk.WorkspaceBuildParameter
+	if _, hasAIPromptParam := slice.Find(templateParams, func(param database.TemplateVersionParameter) bool {
+		return param.Name == codersdk.AITaskPromptParameterName
+	}); hasAIPromptParam {
+		// Only add the AI Prompt parameter if the template defines it.
+		richParams = []codersdk.WorkspaceBuildParameter{
+			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
+		}
+	}
+
 	createReq := codersdk.CreateWorkspaceRequest{
 		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
-		RichParameterValues: []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
-		},
+		RichParameterValues:     richParams,
 	}
 
 	var owner workspaceOwner
@@ -241,6 +210,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 			// Create task record in the database before creating the workspace so that
 			// we can request that the workspace be linked to it after creation.
 			dbTaskTable, err = tx.InsertTask(ctx, database.InsertTaskParams{
+				ID:                 uuid.New(),
 				OrganizationID:     templateVersion.OrganizationID,
 				OwnerID:            owner.ID,
 				Name:               taskName,
@@ -302,15 +272,21 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) codersdk.Task {
 	var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
 	var taskAgentHealth *codersdk.WorkspaceAgentHealth
+	var taskAppHealth *codersdk.WorkspaceAppHealth
 
-	// If we have an agent ID from the task, find the agent details in the
-	// workspace.
+	if dbTask.WorkspaceAgentLifecycleState.Valid {
+		taskAgentLifecycle = ptr.Ref(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
+	}
+	if dbTask.WorkspaceAppHealth.Valid {
+		taskAppHealth = ptr.Ref(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
+	}
+
+	// If we have an agent ID from the task, find the agent health info
 	if dbTask.WorkspaceAgentID.Valid {
 	findTaskAgentLoop:
 		for _, resource := range ws.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.ID == dbTask.WorkspaceAgentID.UUID {
-					taskAgentLifecycle = &agent.LifecycleState
 					taskAgentHealth = &agent.Health
 					break findTaskAgentLoop
 				}
@@ -318,28 +294,14 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		}
 	}
 
-	// Ignore 'latest app status' if it is older than the latest build and the
-	// latest build is a 'start' transition. This ensures that you don't show a
-	// stale app status from a previous build. For stop transitions, there is
-	// still value in showing the latest app status.
-	var currentState *codersdk.TaskStateEntry
-	if ws.LatestAppStatus != nil {
-		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
-			currentState = &codersdk.TaskStateEntry{
-				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
-				Message:   ws.LatestAppStatus.Message,
-				URI:       ws.LatestAppStatus.URI,
-			}
-		}
-	}
+	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle, taskAppHealth)
 
 	return codersdk.Task{
 		ID:                      dbTask.ID,
 		OrganizationID:          dbTask.OrganizationID,
 		OwnerID:                 dbTask.OwnerID,
-		OwnerName:               ws.OwnerName,
-		OwnerAvatarURL:          ws.OwnerAvatarURL,
+		OwnerName:               dbTask.OwnerUsername,
+		OwnerAvatarURL:          dbTask.OwnerAvatarUrl,
 		Name:                    dbTask.Name,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,
@@ -360,6 +322,73 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		CreatedAt:               dbTask.CreatedAt,
 		UpdatedAt:               ws.UpdatedAt,
 	}
+}
+
+// deriveTaskCurrentState determines the current state of a task based on the
+// workspace's latest app status and initialization phase.
+// Returns nil if no valid state can be determined.
+func deriveTaskCurrentState(
+	dbTask database.Task,
+	ws codersdk.Workspace,
+	taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle,
+	taskAppHealth *codersdk.WorkspaceAppHealth,
+) *codersdk.TaskStateEntry {
+	var currentState *codersdk.TaskStateEntry
+
+	// Ignore 'latest app status' if it is older than the latest build and the
+	// latest build is a 'start' transition. This ensures that you don't show a
+	// stale app status from a previous build. For stop transitions, there is
+	// still value in showing the latest app status.
+	if ws.LatestAppStatus != nil {
+		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			currentState = &codersdk.TaskStateEntry{
+				Timestamp: ws.LatestAppStatus.CreatedAt,
+				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				Message:   ws.LatestAppStatus.Message,
+				URI:       ws.LatestAppStatus.URI,
+			}
+		}
+	}
+
+	// If no valid agent state was found for the current build and the task is initializing,
+	// provide a descriptive initialization message.
+	if currentState == nil && dbTask.Status == database.TaskStatusInitializing {
+		message := "Initializing workspace"
+
+		switch {
+		case ws.LatestBuild.Status == codersdk.WorkspaceStatusPending ||
+			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
+			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
+		case taskAgentLifecycle != nil:
+			switch {
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
+				message = "Agent is connecting"
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
+				message = "Agent is starting"
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
+					message = "App is initializing"
+				} else {
+					// In case the workspace app is not initializing,
+					// the overall task status should be updated accordingly
+					message = "Initializing workspace applications"
+				}
+			default:
+				// In case the workspace agent is not initializing,
+				// the overall task status should be updated accordingly
+				message = "Initializing workspace agent"
+			}
+		}
+
+		currentState = &codersdk.TaskStateEntry{
+			Timestamp: ws.LatestBuild.CreatedAt,
+			State:     codersdk.TaskStateWorking,
+			Message:   message,
+			URI:       "",
+		}
+	}
+
+	return currentState
 }
 
 // @Summary List AI tasks

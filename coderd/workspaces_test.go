@@ -4700,11 +4700,16 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Helper function to create workspace with AI task configuration
-	createWorkspaceWithAIConfig := func(hasAITask sql.NullBool, jobCompleted bool, aiTaskPrompt *string) database.WorkspaceTable {
+	// Helper function to create workspace with optional task.
+	createWorkspace := func(jobCompleted, createTask bool, prompt string) uuid.UUID {
+		// TODO(mafredri): The bellow comment is based on deprecated logic and
+		// kept only present to test that the old observable behavior works as
+		// intended.
+		//
 		// When a provisioner job uses these tags, no provisioner will match it.
-		// We do this so jobs will always be stuck in "pending", allowing us to exercise the intermediary state when
-		// has_ai_task is nil and we compensate by looking at pending provisioning jobs.
+		// We do this so jobs will always be stuck in "pending", allowing us to
+		// exercise the intermediary state when has_ai_task is nil and we
+		// compensate by looking at pending provisioning jobs.
 		// See GetWorkspaces clauses.
 		unpickableTags := database.StringMap{"custom": "true"}
 
@@ -4723,102 +4728,128 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 			jobConfig.CompletedAt = sql.NullTime{Time: time.Now(), Valid: true}
 		}
 		job := dbgen.ProvisionerJob(t, db, pubsub, jobConfig)
-
 		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
 		agnt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-
-		var sidebarAppID uuid.UUID
-		if hasAITask.Bool {
-			sidebarApp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agnt.ID})
-			sidebarAppID = sidebarApp.ID
-		}
-
+		taskApp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agnt.ID})
 		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:        ws.ID,
-			TemplateVersionID:  version.ID,
-			InitiatorID:        user.UserID,
-			JobID:              job.ID,
-			BuildNumber:        1,
-			HasAITask:          hasAITask,
-			AITaskSidebarAppID: uuid.NullUUID{UUID: sidebarAppID, Valid: sidebarAppID != uuid.Nil},
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: version.ID,
+			InitiatorID:       user.UserID,
+			JobID:             job.ID,
+			BuildNumber:       1,
 		})
 
-		if aiTaskPrompt != nil {
-			err := db.InsertWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceBuildParametersParams{
-				WorkspaceBuildID: build.ID,
-				Name:             []string{provider.TaskPromptParameterName},
-				Value:            []string{*aiTaskPrompt},
+		if createTask {
+			task := dbgen.Task(t, db, database.TaskTable{
+				WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+				OrganizationID:    user.OrganizationID,
+				OwnerID:           user.UserID,
+				TemplateVersionID: version.ID,
+				Prompt:            prompt,
 			})
-			require.NoError(t, err)
+			dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
+				TaskID:               task.ID,
+				WorkspaceBuildNumber: build.BuildNumber,
+				WorkspaceAgentID:     uuid.NullUUID{UUID: agnt.ID, Valid: true},
+				WorkspaceAppID:       uuid.NullUUID{UUID: taskApp.ID, Valid: true},
+			})
 		}
 
-		return ws
+		return ws.ID
 	}
 
-	// Create test workspaces with different AI task configurations
-	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, true, nil)
-	wsWithoutAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: false, Valid: true}, false, nil)
+	// Create workspaces with tasks.
+	wsWithTask1 := createWorkspace(true, true, "Build me a web app")
+	wsWithTask2 := createWorkspace(false, true, "Another task")
 
-	aiTaskPrompt := "Build me a web app"
-	wsWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &aiTaskPrompt)
-
-	anotherTaskPrompt := "Another task"
-	wsCompletedWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, true, &anotherTaskPrompt)
-
-	emptyPrompt := ""
-	wsWithEmptyAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &emptyPrompt)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Debug: Check all workspaces without filter first
-	allRes, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err)
-	t.Logf("Total workspaces created: %d", len(allRes.Workspaces))
-	for i, ws := range allRes.Workspaces {
-		t.Logf("All Workspace %d: ID=%s, Name=%s, Build ID=%s, Job ID=%s", i, ws.ID, ws.Name, ws.LatestBuild.ID, ws.LatestBuild.Job.ID)
-	}
+	// Create workspaces without tasks
+	wsWithoutTask1 := createWorkspace(true, false, "")
+	wsWithoutTask2 := createWorkspace(false, false, "")
 
 	// Test filtering for workspaces with AI tasks
-	// Should include: wsWithAITask (has_ai_task=true) and wsWithAITaskParam (null + incomplete + param)
+	// Should include: wsWithTask1 and wsWithTask2
 	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		FilterQuery: "has-ai-task:true",
 	})
 	require.NoError(t, err)
-	t.Logf("Expected 2 workspaces for has-ai-task:true, got %d", len(res.Workspaces))
-	t.Logf("Expected workspaces: %s, %s", wsWithAITask.ID, wsWithAITaskParam.ID)
-	for i, ws := range res.Workspaces {
-		t.Logf("AI Task True Workspace %d: ID=%s, Name=%s", i, ws.ID, ws.Name)
-	}
 	require.Len(t, res.Workspaces, 2)
 	workspaceIDs := []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID}
-	require.Contains(t, workspaceIDs, wsWithAITask.ID)
-	require.Contains(t, workspaceIDs, wsWithAITaskParam.ID)
+	require.Contains(t, workspaceIDs, wsWithTask1)
+	require.Contains(t, workspaceIDs, wsWithTask2)
 
 	// Test filtering for workspaces without AI tasks
-	// Should include: wsWithoutAITask, wsCompletedWithAITaskParam, wsWithEmptyAITaskParam
+	// Should include: wsWithoutTask1, wsWithoutTask2, wsWithoutTask3
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		FilterQuery: "has-ai-task:false",
 	})
 	require.NoError(t, err)
-
-	// Debug: print what we got
-	t.Logf("Expected 3 workspaces for has-ai-task:false, got %d", len(res.Workspaces))
-	for i, ws := range res.Workspaces {
-		t.Logf("Workspace %d: ID=%s, Name=%s", i, ws.ID, ws.Name)
-	}
-	t.Logf("Expected IDs: %s, %s, %s", wsWithoutAITask.ID, wsCompletedWithAITaskParam.ID, wsWithEmptyAITaskParam.ID)
-
-	require.Len(t, res.Workspaces, 3)
-	workspaceIDs = []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID, res.Workspaces[2].ID}
-	require.Contains(t, workspaceIDs, wsWithoutAITask.ID)
-	require.Contains(t, workspaceIDs, wsCompletedWithAITaskParam.ID)
-	require.Contains(t, workspaceIDs, wsWithEmptyAITaskParam.ID)
+	require.Len(t, res.Workspaces, 2)
+	workspaceIDs = []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID}
+	require.Contains(t, workspaceIDs, wsWithoutTask1)
+	require.Contains(t, workspaceIDs, wsWithoutTask2)
 
 	// Test no filter returns all
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, res.Workspaces, 5)
+	require.Len(t, res.Workspaces, 4)
+}
+
+func TestWorkspaceListTasks(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionPlan: []*proto.Response{
+			{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+				HasAiTasks: true,
+			}}},
+		},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Given: a regular user workspace
+	workspaceWithoutTask, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		TemplateID: template.ID,
+		Name:       "user-workspace",
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceWithoutTask.LatestBuild.ID)
+
+	// Given: a workspace associated with a task
+	task, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+		TemplateVersionID: template.ActiveVersionID,
+		Input:             "Some task prompt",
+	})
+	require.NoError(t, err)
+	assert.True(t, task.WorkspaceID.Valid)
+	workspaceWithTask, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceWithTask.LatestBuild.ID)
+	assert.NotEmpty(t, task.Name)
+	assert.Equal(t, template.ID, task.TemplateID)
+
+	// When: listing the workspaces
+	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+
+	assert.Equal(t, workspaces.Count, 2)
+
+	// Then: verify TaskID is only set for task workspaces
+	for _, workspace := range workspaces.Workspaces {
+		if workspace.ID == workspaceWithoutTask.ID {
+			assert.False(t, workspace.TaskID.Valid)
+		} else if workspace.ID == workspaceWithTask.ID {
+			assert.True(t, workspace.TaskID.Valid)
+			assert.Equal(t, task.ID, workspace.TaskID.UUID)
+		}
+	}
 }
 
 func TestWorkspaceAppUpsertRestart(t *testing.T) {

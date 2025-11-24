@@ -8,8 +8,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/coderd"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
 )
 
 func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
@@ -20,14 +21,14 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 
 	// Setup supported providers.
 	providers := []aibridge.Provider{
-		aibridge.NewOpenAIProvider(aibridge.ProviderConfig{
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
 			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
 		}),
-		aibridge.NewAnthropicProvider(aibridge.ProviderConfig{
+		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
 			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
-		}),
+		}, getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
 	}
 
 	// Create pool for reusable stateful [aibridge.RequestBridge] instances (one per user).
@@ -44,4 +45,18 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 		return nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}
 	return srv, nil
+}
+
+func getBedrockConfig(cfg codersdk.AIBridgeBedrockConfig) *aibridge.AWSBedrockConfig {
+	if cfg.Region.String() == "" && cfg.AccessKey.String() == "" && cfg.AccessKeySecret.String() == "" {
+		return nil
+	}
+
+	return &aibridge.AWSBedrockConfig{
+		Region:          cfg.Region.String(),
+		AccessKey:       cfg.AccessKey.String(),
+		AccessKeySecret: cfg.AccessKeySecret.String(),
+		Model:           cfg.Model.String(),
+		SmallFastModel:  cfg.SmallFastModel.String(),
+	}
 }

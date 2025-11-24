@@ -208,6 +208,7 @@ func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
 		for orgID, perms := range expanded.ByOrgID {
 			orgPerms := merged.ByOrgID[orgID]
 			orgPerms.Org = append(orgPerms.Org, perms.Org...)
+			orgPerms.Member = append(orgPerms.Member, perms.Member...)
 			merged.ByOrgID[orgID] = orgPerms
 		}
 		merged.User = append(merged.User, expanded.User...)
@@ -220,6 +221,7 @@ func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
 	merged.User = rbac.DeduplicatePermissions(merged.User)
 	for orgID, perms := range merged.ByOrgID {
 		perms.Org = rbac.DeduplicatePermissions(perms.Org)
+		perms.Member = rbac.DeduplicatePermissions(perms.Member)
 		merged.ByOrgID[orgID] = perms
 	}
 
@@ -660,6 +662,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			TemplateIcon:            r.TemplateIcon,
 			TemplateDescription:     r.TemplateDescription,
 			NextStartAt:             r.NextStartAt,
+			TaskID:                  r.TaskID,
 		}
 	}
 

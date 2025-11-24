@@ -27,7 +27,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ```json
 {
-  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
@@ -222,7 +221,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -269,7 +267,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 
 ```json
 {
-  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
@@ -464,7 +461,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1002,7 +998,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 ```json
 {
-  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
@@ -1197,7 +1192,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1317,7 +1311,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 ```json
 [
   {
-    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
@@ -1512,7 +1505,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       }
     ],
     "status": "pending",
-    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1540,12 +1532,11 @@ Status Code **200**
 | Name                             | Type                                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
 |----------------------------------|--------------------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                   | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
-| `» ai_task_sidebar_app_id`       | string(uuid)                                                                                           | false    |              | Deprecated: This field has been replaced with `TaskAppID`                                                                                                                                                                                      |
 | `» build_number`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» created_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `» daily_cost`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» deadline`                     | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `» has_ai_task`                  | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `» has_ai_task`                  | boolean                                                                                                | false    |              | Deprecated: This field has been deprecated in favor of Task WorkspaceID.                                                                                                                                                                       |
 | `» has_external_agent`           | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» id`                           | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» initiator_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1691,7 +1682,6 @@ Status Code **200**
 | `»» type`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» workspace_transition`        | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» status`                       | [codersdk.WorkspaceStatus](schemas.md#codersdkworkspacestatus)                                         | false    |              |                                                                                                                                                                                                                                                |
-| `» task_app_id`                  | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_id`          | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_name`        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_preset_id`   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1818,7 +1808,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ```json
 {
-  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
@@ -2013,7 +2002,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
