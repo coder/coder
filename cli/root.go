@@ -540,6 +540,7 @@ type RootCmd struct {
 	noVersionCheck          bool
 	noFeatureWarning        bool
 	useKeyring              bool
+	keyringServiceName      string
 }
 
 // InitClient creates and configures a new client with authentication, telemetry,
@@ -720,8 +721,13 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 // flag.
 func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	if r.tokenBackend == nil {
-		if r.useKeyring {
-			r.tokenBackend = sessionstore.NewKeyring()
+		keyringSupported := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+		if r.useKeyring && keyringSupported {
+			serviceName := sessionstore.DefaultServiceName
+			if r.keyringServiceName != "" {
+				serviceName = r.keyringServiceName
+			}
+			r.tokenBackend = sessionstore.NewKeyringWithService(serviceName)
 		} else {
 			r.tokenBackend = sessionstore.NewFile(r.createConfig)
 		}
@@ -729,8 +735,11 @@ func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	return r.tokenBackend
 }
 
-func (r *RootCmd) WithSessionStorageBackend(backend sessionstore.Backend) {
-	r.tokenBackend = backend
+// WithKeyringServiceName sets a custom keyring service name for testing purposes.
+// This allows tests to use isolated keyring storage while still exercising the
+// genuine storage backend selection logic in ensureTokenBackend().
+func (r *RootCmd) WithKeyringServiceName(serviceName string) {
+	r.keyringServiceName = serviceName
 }
 
 type AgentAuth struct {
