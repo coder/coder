@@ -3,9 +3,7 @@ name: Documentation Check
 on:
   pull_request:
     types:
-      - opened
-      - synchronize
-      - reopened
+      - labeled
   workflow_dispatch:
     inputs:
       pr_url:
