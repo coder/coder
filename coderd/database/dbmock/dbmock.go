@@ -554,6 +554,21 @@ func (mr *MockStoreMockRecorder) DeleteCustomRole(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCustomRole", reflect.TypeOf((*MockStore)(nil).DeleteCustomRole), ctx, arg)
 }
 
+// DeleteExpiredAPIKeys mocks base method.
+func (m *MockStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredAPIKeys", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteExpiredAPIKeys indicates an expected call of DeleteExpiredAPIKeys.
+func (mr *MockStoreMockRecorder) DeleteExpiredAPIKeys(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAPIKeys", reflect.TypeOf((*MockStore)(nil).DeleteExpiredAPIKeys), ctx, arg)
+}
+
 // DeleteExternalAuthLink mocks base method.
 func (m *MockStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	m.ctrl.T.Helper()
