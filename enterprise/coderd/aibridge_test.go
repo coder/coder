@@ -301,6 +301,55 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}
 	})
 
+	t.Run("InflightInterceptions", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user1, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		user1Visible := database.VisibleUser{
+			ID:        user1.ID,
+			Username:  user1.Username,
+			Name:      user1.Name,
+			AvatarURL: user1.AvatarURL,
+		}
+
+		now := dbtime.Now()
+		i1EndedAt := now.Add(time.Minute)
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+		}, &i1EndedAt)
+		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-time.Hour),
+		}, nil)
+
+		// Convert to SDK types for response comparison.
+		i1SDK := db2sdk.AIBridgeInterception(i1, user1Visible, nil, nil, nil)
+
+		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Results, 1)
+		require.Equal(t, i1SDK.ID, res.Results[0].ID)
+
+		for _, result := range res.Results {
+			require.NotEqual(t, i2.ID, result.ID, "inflight interception should not be returned")
+		}
+	})
+
 	t.Run("Authorized", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
