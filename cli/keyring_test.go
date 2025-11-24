@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -35,29 +36,36 @@ func keyringTestServiceName(t *testing.T) string {
 	return fmt.Sprintf("%s_%v_%d", t.Name(), time.Now().UnixNano(), n)
 }
 
-// instrumentKeyring sets up the CLI invocation to use the actual OS keyring
-// with a unique test service name to allow test parallelization. It returns
-// the backend and URL for verification of keyring contents in tests.
-func instrumentKeyring(t *testing.T, inv *serpent.Invocation, serverURL string) (sessionstore.Backend, *url.URL) {
+type keyringTestEnv struct {
+	serviceName string
+	keyring     sessionstore.Keyring
+	inv         *serpent.Invocation
+	cfg         config.Root
+	clientURL   *url.URL
+}
+
+func setupKeyringTestEnv(t *testing.T, clientURL string, args ...string) keyringTestEnv {
 	t.Helper()
 
-	serviceName := keyringTestServiceName(t)
-	backend := sessionstore.NewKeyringWithService(serviceName)
-
-	srvURL, err := url.Parse(serverURL)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_ = backend.Delete(srvURL)
-	})
-
 	var root cli.RootCmd
+
 	cmd, err := root.Command(root.AGPL())
 	require.NoError(t, err)
-	root.WithSessionStorageBackend(backend)
-	inv.Command = cmd
 
-	return backend, srvURL
+	serviceName := keyringTestServiceName(t)
+	root.WithKeyringServiceName(serviceName)
+
+	inv, cfg := clitest.NewWithDefaultKeyringCommand(t, cmd, args...)
+
+	parsedURL, err := url.Parse(clientURL)
+	require.NoError(t, err)
+
+	backend := sessionstore.NewKeyringWithService(serviceName)
+	t.Cleanup(func() {
+		_ = backend.Delete(parsedURL)
+	})
+
+	return keyringTestEnv{serviceName, backend, inv, cfg, parsedURL}
 }
 
 func TestUseKeyring(t *testing.T) {
@@ -80,16 +88,14 @@ func TestUseKeyring(t *testing.T) {
 		pty := ptytest.New(t)
 
 		// Create CLI invocation which defaults to using the keyring
-		inv, cfg := clitest.New(t,
+		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
 			"--force-tty",
 			"--no-open",
-			client.URL.String(),
-		)
+			client.URL.String())
+		inv := env.inv
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
-
-		backend, srvURL := instrumentKeyring(t, inv, client.URL.String())
 
 		// Run login in background
 		doneChan := make(chan struct{})
@@ -106,12 +112,12 @@ func TestUseKeyring(t *testing.T) {
 		<-doneChan
 
 		// Verify that session file was NOT created (using keyring instead)
-		sessionFile := path.Join(string(cfg), "session")
+		sessionFile := path.Join(string(env.cfg), "session")
 		_, err := os.Stat(sessionFile)
 		require.True(t, os.IsNotExist(err), "session file should not exist when using keyring")
 
 		// Verify that the credential IS stored in OS keyring
-		cred, err := backend.Read(srvURL)
+		cred, err := env.keyring.Read(env.clientURL)
 		require.NoError(t, err, "credential should be stored in OS keyring")
 		require.Equal(t, client.SessionToken(), cred, "stored token should match login token")
 	})
@@ -131,16 +137,15 @@ func TestUseKeyring(t *testing.T) {
 		pty := ptytest.New(t)
 
 		// First, login with the keyring (default)
-		loginInv, cfg := clitest.New(t,
+		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
 			"--force-tty",
 			"--no-open",
 			client.URL.String(),
 		)
+		loginInv := env.inv
 		loginInv.Stdin = pty.Input()
 		loginInv.Stdout = pty.Output()
-
-		backend, srvURL := instrumentKeyring(t, loginInv, client.URL.String())
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -155,23 +160,21 @@ func TestUseKeyring(t *testing.T) {
 		<-doneChan
 
 		// Verify credential exists in OS keyring
-		cred, err := backend.Read(srvURL)
+		cred, err := env.keyring.Read(env.clientURL)
 		require.NoError(t, err, "read credential should succeed before logout")
 		require.NotEmpty(t, cred, "credential should exist before logout")
 
-		// Now logout
-		logoutInv, _ := clitest.New(t,
-			"logout",
-			"--yes",
-			"--global-config", string(cfg),
-		)
-
-		// Instrument logout with the same backend
+		// Now logout using the same keyring service name
 		var logoutRoot cli.RootCmd
 		logoutCmd, err := logoutRoot.Command(logoutRoot.AGPL())
 		require.NoError(t, err)
-		logoutRoot.WithSessionStorageBackend(backend)
-		logoutInv.Command = logoutCmd
+		logoutRoot.WithKeyringServiceName(env.serviceName)
+
+		logoutInv, _ := clitest.NewWithDefaultKeyringCommand(t, logoutCmd,
+			"logout",
+			"--yes",
+			"--global-config", string(env.cfg),
+		)
 
 		var logoutOut bytes.Buffer
 		logoutInv.Stdout = &logoutOut
@@ -180,7 +183,7 @@ func TestUseKeyring(t *testing.T) {
 		require.NoError(t, err, "logout should succeed")
 
 		// Verify the credential was deleted from OS keyring
-		_, err = backend.Read(srvURL)
+		_, err = env.keyring.Read(env.clientURL)
 		require.ErrorIs(t, err, os.ErrNotExist, "credential should be deleted from keyring after logout")
 	})
 
@@ -198,12 +201,13 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		inv, cfg := clitest.New(t,
+		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
 			"--force-tty",
 			"--no-open",
 			client.URL.String(),
 		)
+		inv := env.inv
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
 
@@ -220,7 +224,7 @@ func TestUseKeyring(t *testing.T) {
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
-		sessionFile := path.Join(string(cfg), "session")
+		sessionFile := path.Join(string(env.cfg), "session")
 		_, err := os.Stat(sessionFile)
 		require.NoError(t, err, "session file should exist when NOT using --use-keyring on Linux")
 
@@ -242,12 +246,13 @@ func TestUseKeyring(t *testing.T) {
 
 		// Login using CODER_USE_KEYRING environment variable set to disable keyring usage,
 		// which should have the same behavior on all platforms.
-		inv, cfg := clitest.New(t,
+		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
 			"--force-tty",
 			"--no-open",
 			client.URL.String(),
 		)
+		inv := env.inv
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
 		inv.Environ.Set("CODER_USE_KEYRING", "false")
@@ -265,7 +270,7 @@ func TestUseKeyring(t *testing.T) {
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
-		sessionFile := path.Join(string(cfg), "session")
+		sessionFile := path.Join(string(env.cfg), "session")
 		_, err := os.Stat(sessionFile)
 		require.NoError(t, err, "session file should exist when CODER_USE_KEYRING set to false")
 
@@ -284,13 +289,14 @@ func TestUseKeyring(t *testing.T) {
 
 		// Login with --use-keyring=false to explicitly disable keyring usage, which
 		// should have the same behavior on all platforms.
-		inv, cfg := clitest.New(t,
+		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
 			"--use-keyring=false",
 			"--force-tty",
 			"--no-open",
 			client.URL.String(),
 		)
+		inv := env.inv
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
 
@@ -307,7 +313,7 @@ func TestUseKeyring(t *testing.T) {
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
-		sessionFile := path.Join(string(cfg), "session")
+		sessionFile := path.Join(string(env.cfg), "session")
 		_, err := os.Stat(sessionFile)
 		require.NoError(t, err, "session file should exist when --use-keyring=false is specified")
 
@@ -319,8 +325,8 @@ func TestUseKeyring(t *testing.T) {
 }
 
 func TestUseKeyringUnsupportedOS(t *testing.T) {
-	// Verify that trying to use --use-keyring on an unsupported operating system produces
-	// a helpful error message.
+	// Verify that on unsupported operating systems, file-based storage is used
+	// automatically even when --use-keyring is set to true (the default).
 	t.Parallel()
 
 	// Only run this on an unsupported OS.
@@ -328,43 +334,60 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 		t.Skipf("Skipping unsupported OS test on %s where keyring is supported", runtime.GOOS)
 	}
 
-	const expMessage = "keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage"
-
-	t.Run("LoginWithUnsupportedKeyring", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-
-		// Try to login with --use-keyring on an unsupported OS
-		inv, _ := clitest.New(t,
-			"login",
-			"--use-keyring",
-			client.URL.String(),
-		)
-
-		// The error should occur immediately, before any prompts
-		loginErr := inv.Run()
-
-		// Verify we got an error about unsupported OS
-		require.Error(t, loginErr)
-		require.Contains(t, loginErr.Error(), expMessage)
-	})
-
-	t.Run("LogoutWithUnsupportedKeyring", func(t *testing.T) {
+	t.Run("LoginWithDefaultKeyring", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		pty := ptytest.New(t)
 
-		// First login without keyring to create a session (default behavior)
-		loginInv, cfg := clitest.New(t,
+		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
 			"--force-tty",
 			"--no-open",
 			client.URL.String(),
 		)
+		inv := env.inv
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+
+		doneChan := make(chan struct{})
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+
+		// Verify that session file WAS created (automatic fallback to file storage)
+		sessionFile := path.Join(string(env.cfg), "session")
+		_, err := os.Stat(sessionFile)
+		require.NoError(t, err, "session file should exist due to automatic fallback to file storage")
+
+		content, err := os.ReadFile(sessionFile)
+		require.NoError(t, err, "should be able to read session file")
+		require.Equal(t, client.SessionToken(), string(content), "file should contain the session token")
+	})
+
+	t.Run("LogoutWithDefaultKeyring", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		pty := ptytest.New(t)
+
+		// First login to create a session (will use file storage due to automatic fallback)
+		env := setupKeyringTestEnv(t, client.URL.String(),
+			"login",
+			"--force-tty",
+			"--no-open",
+			client.URL.String(),
+		)
+		loginInv := env.inv
 		loginInv.Stdin = pty.Input()
 		loginInv.Stdout = pty.Output()
 
@@ -380,17 +403,22 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 
-		// Now try to logout with --use-keyring on an unsupported OS
-		logoutInv, _ := clitest.New(t,
+		// Verify session file exists
+		sessionFile := path.Join(string(env.cfg), "session")
+		_, err := os.Stat(sessionFile)
+		require.NoError(t, err, "session file should exist before logout")
+
+		// Now logout - should succeed and delete the file
+		logoutEnv := setupKeyringTestEnv(t, client.URL.String(),
 			"logout",
-			"--use-keyring",
 			"--yes",
-			"--global-config", string(cfg),
+			"--global-config", string(env.cfg),
 		)
 
-		err := logoutInv.Run()
-		// Verify we got an error about unsupported OS
-		require.Error(t, err)
-		require.Contains(t, err.Error(), expMessage)
+		err = logoutEnv.inv.Run()
+		require.NoError(t, err, "logout should succeed with automatic file storage fallback")
+
+		_, err = os.Stat(sessionFile)
+		require.True(t, os.IsNotExist(err), "session file should be deleted after logout")
 	})
 }
