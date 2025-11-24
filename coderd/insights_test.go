@@ -520,7 +520,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		return templates, users, testData
 	}
 
-	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) (*codersdk.Client, chan dbrollup.Event) {
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen, disableStorage bool) (*codersdk.Client, chan dbrollup.Event) {
 		logger := testutil.Logger(t)
 		db, ps := dbtestutil.NewDB(t)
 		events := make(chan dbrollup.Event)
@@ -706,22 +706,24 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		require.NoError(t, err)
 		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
 
-		for workspace, data := range testData {
-			for _, stat := range data.agentStats {
-				createdAt := stat.startedAt
-				connectionCount := int64(1)
-				if stat.noConnections {
-					connectionCount = 0
-				}
-				for createdAt.Before(stat.endedAt) {
-					batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
-						ConnectionCount:             connectionCount,
-						SessionCountVscode:          stat.sessionCountVSCode,
-						SessionCountJetbrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
-						SessionCountSsh:             stat.sessionCountSSH,
-					}, false)
-					createdAt = createdAt.Add(30 * time.Second)
+		if !disableStorage {
+			for workspace, data := range testData {
+				for _, stat := range data.agentStats {
+					createdAt := stat.startedAt
+					connectionCount := int64(1)
+					if stat.noConnections {
+						connectionCount = 0
+					}
+					for createdAt.Before(stat.endedAt) {
+						batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
+							ConnectionCount:             connectionCount,
+							SessionCountVscode:          stat.sessionCountVSCode,
+							SessionCountJetbrains:       stat.sessionCountJetBrains,
+							SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+							SessionCountSsh:             stat.sessionCountSSH,
+						}, false)
+						createdAt = createdAt.Add(30 * time.Second)
+					}
 				}
 			}
 		}
@@ -750,8 +752,9 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			}
 		}
 		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
-			Database:         db,
-			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+			Database:               db,
+			AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
+			DisableDatabaseStorage: disableStorage,
 		})
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
@@ -1057,10 +1060,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		ignoreTimes bool
 	}
 	tests := []struct {
-		name         string
-		makeFixture  func() ([]*testTemplate, []*testUser)
-		makeTestData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen
-		requests     []testRequest
+		name           string
+		makeFixture    func() ([]*testTemplate, []*testUser)
+		makeTestData   func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen
+		disableStorage bool
+		requests       []testRequest
 	}{
 		{
 			name:         "multiple users and workspaces",
@@ -1237,6 +1241,24 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:           "disabled",
+			makeFixture:    baseTemplateAndUserFixture,
+			makeTestData:   makeBaseTestData,
+			disableStorage: true,
+			requests: []testRequest{
+				{
+					name: "week deployment wide",
+					makeRequest: func(_ []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							StartTime: frozenWeekAgo,
+							EndTime:   frozenWeekAgo.AddDate(0, 0, 7),
+							Interval:  codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1246,7 +1268,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			require.NotNil(t, tt.makeFixture, "test bug: makeFixture must be set")
 			require.NotNil(t, tt.makeTestData, "test bug: makeTestData must be set")
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
-			client, events := prepare(t, templates, users, testData)
+			client, events := prepare(t, templates, users, testData, tt.disableStorage)
 
 			// Drain two events, the first one resumes rolluper
 			// operation and the second one waits for the rollup
@@ -1431,7 +1453,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		return templates, users, testData
 	}
 
-	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) (*codersdk.Client, chan dbrollup.Event) {
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen, disableStorage bool) (*codersdk.Client, chan dbrollup.Event) {
 		logger := testutil.Logger(t)
 		db, ps := dbtestutil.NewDB(t)
 		events := make(chan dbrollup.Event)
@@ -1595,22 +1617,24 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		require.NoError(t, err)
 		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
 
-		for workspace, data := range testData {
-			for _, stat := range data.agentStats {
-				createdAt := stat.startedAt
-				connectionCount := int64(1)
-				if stat.noConnections {
-					connectionCount = 0
-				}
-				for createdAt.Before(stat.endedAt) {
-					batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
-						ConnectionCount:             connectionCount,
-						SessionCountVscode:          stat.sessionCountVSCode,
-						SessionCountJetbrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
-						SessionCountSsh:             stat.sessionCountSSH,
-					}, false)
-					createdAt = createdAt.Add(30 * time.Second)
+		if !disableStorage {
+			for workspace, data := range testData {
+				for _, stat := range data.agentStats {
+					createdAt := stat.startedAt
+					connectionCount := int64(1)
+					if stat.noConnections {
+						connectionCount = 0
+					}
+					for createdAt.Before(stat.endedAt) {
+						batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
+							ConnectionCount:             connectionCount,
+							SessionCountVscode:          stat.sessionCountVSCode,
+							SessionCountJetbrains:       stat.sessionCountJetBrains,
+							SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+							SessionCountSsh:             stat.sessionCountSSH,
+						}, false)
+						createdAt = createdAt.Add(30 * time.Second)
+					}
 				}
 			}
 		}
@@ -1639,8 +1663,9 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			}
 		}
 		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
-			Database:         db,
-			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+			Database:               db,
+			AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
+			DisableDatabaseStorage: disableStorage,
 		})
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
@@ -1902,10 +1927,11 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		ignoreTimes bool
 	}
 	tests := []struct {
-		name         string
-		makeFixture  func() ([]*testTemplate, []*testUser)
-		makeTestData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen
-		requests     []testRequest
+		name           string
+		makeFixture    func() ([]*testTemplate, []*testUser)
+		makeTestData   func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen
+		disableStorage bool
+		requests       []testRequest
 	}{
 		{
 			name:         "multiple users and workspaces",
@@ -2013,6 +2039,23 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:           "disabled",
+			makeFixture:    baseTemplateAndUserFixture,
+			makeTestData:   makeBaseTestData,
+			disableStorage: true,
+			requests: []testRequest{
+				{
+					name: "week deployment wide",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							StartTime: frozenWeekAgo,
+							EndTime:   frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2022,7 +2065,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			require.NotNil(t, tt.makeFixture, "test bug: makeFixture must be set")
 			require.NotNil(t, tt.makeTestData, "test bug: makeTestData must be set")
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
-			client, events := prepare(t, templates, users, testData)
+			client, events := prepare(t, templates, users, testData, tt.disableStorage)
 
 			// Drain two events, the first one resumes rolluper
 			// operation and the second one waits for the rollup

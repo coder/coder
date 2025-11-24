@@ -14130,6 +14130,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_template_insights": {
+                    "type": "boolean"
+                },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
