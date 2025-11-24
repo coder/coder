@@ -1022,7 +1022,7 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 }
 
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
-	var presets []codersdk.InvalidatedPreset
+	presets := []codersdk.InvalidatedPreset{} // need an empty [] instead null
 	for _, p := range invalidatedPresets {
 		presets = append(presets, codersdk.InvalidatedPreset{
 			TemplateName:        p.TemplateName,
