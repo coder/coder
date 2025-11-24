@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
 )
 
-// SocketClient provides a client for communicating with the agent socket
+// SocketClient provides a client for communicating with the workspace agentsocket API
 type SocketClient struct {
 	client proto.DRPCAgentSocketClient
 	conn   drpc.Conn
