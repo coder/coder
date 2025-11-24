@@ -198,7 +198,11 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 			if c.reconciliationDuration != nil {
 				c.reconciliationDuration.Observe(stats.Elapsed.Seconds())
 			}
-			c.logger.Debug(ctx, "reconciliation stats", slog.F("elapsed", stats.Elapsed))
+			c.logger.Info(ctx, "reconciliation stats",
+				slog.F("elapsed", stats.Elapsed),
+				slog.F("presets_total", stats.PresetsTotal),
+				slog.F("presets_reconciled", stats.PresetsReconciled),
+			)
 		case <-ctx.Done():
 			// nolint:gocritic // it's okay to use slog.F() for an error in this case
 			// because we want to differentiate two different types of errors: ctx.Err() and context.Cause()
@@ -341,6 +345,15 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 		}
 
 		var eg errgroup.Group
+		// Limit concurrent goroutines to avoid exhausting the database connection pool.
+		// Each preset reconciliation may perform multiple sequential database operations
+		// (creates/deletes), and with a pool limit of 10 connections, allowing unlimited
+		// concurrency would cause connection contention and thrashing. A limit of 5 ensures
+		// we stay below the pool limit while maintaining reasonable parallelism.
+		eg.SetLimit(5)
+
+		presetsReconciled := 0
+
 		// Reconcile presets in parallel. Each preset in its own goroutine.
 		for _, preset := range snapshot.Presets {
 			ps, err := snapshot.FilterByPreset(preset.ID)
@@ -348,6 +361,17 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 				logger.Warn(ctx, "failed to find preset snapshot", slog.Error(err), slog.F("preset_id", preset.ID.String()))
 				continue
 			}
+
+			// Performance optimization: Skip presets that won't need any database operations.
+			// Presets from inactive template versions with no running workspaces, pending jobs,
+			// or in-progress builds will result in no reconciliation actions (no creates/deletes).
+			// By skipping them here, we avoid holding a slot in the errgroup limiter, which
+			// reserves capacity for presets that actually need database connections.
+			if ps.CanSkipReconciliation() {
+				continue
+			}
+
+			presetsReconciled++
 
 			eg.Go(func() error {
 				// Pass outer context.
@@ -364,6 +388,9 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 				return nil
 			})
 		}
+
+		stats.PresetsTotal = len(snapshot.Presets)
+		stats.PresetsReconciled = presetsReconciled
 
 		// Release lock only when all preset reconciliation goroutines are finished.
 		return eg.Wait()
