@@ -22,6 +22,21 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
+// TODO: There are currently two paths for reporting activity, both of which are
+// tied up with stat collection:
+//
+//  1. The workspace agent periodically POSTs stats to coderd.  On receiving
+//     this POST, if there is an active SSH or web terminal session, bump both
+//     the workspace's last_used_at and the deadline.
+//  2. The coderd app proxy and wsproxy will periodically report app status
+//     (coderd calls directly, wsproxy POSTs).  This only bumps the workspace's
+//     last_used_at, as only SSH and web terminal sessions count as activity.
+//
+// Ideally we would have a single code path for this and we may want to untangle
+// activity bumping from stat reporting so we can disable stats collection
+// entirely when template insights are disabled rather than having to still
+// collect stats but then drop them here.
+
 type ReporterOptions struct {
 	Database              database.Store
 	Logger                slog.Logger
@@ -30,6 +45,10 @@ type ReporterOptions struct {
 	StatsBatcher          Batcher
 	UsageTracker          *UsageTracker
 	UpdateAgentMetricsFn  func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
+
+	// DisableDatabaseStorage prevents storing stats in the database.  The
+	// reporter will still call UpdateAgentMetricsFn and bump workspace activity.
+	DisableDatabaseStorage bool
 
 	AppStatBatchSize int
 }
@@ -93,15 +112,12 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 			return nil
 		}
 
-		if err := tx.InsertWorkspaceAppStats(ctx, batch); err != nil {
-			return err
+		if !r.opts.DisableDatabaseStorage {
+			if err := tx.InsertWorkspaceAppStats(ctx, batch); err != nil {
+				return err
+			}
 		}
 
-		// TODO: We currently measure workspace usage based on when we get stats from it.
-		// There are currently two paths for this:
-		// 1) From SSH -> workspace agent stats POSTed from agent
-		// 2) From workspace apps / rpty -> workspace app stats (from coderd / wsproxy)
-		// Ideally we would have a single code path for this.
 		uniqueIDs := slice.Unique(batch.WorkspaceID)
 		if err := tx.BatchUpdateWorkspaceLastUsedAt(ctx, database.BatchUpdateWorkspaceLastUsedAtParams{
 			IDs:        uniqueIDs,
@@ -122,9 +138,11 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 // nolint:revive // usage is a control flag while we have the experiment
 func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.WorkspaceIdentity, workspaceAgent database.WorkspaceAgent, stats *agentproto.Stats, usage bool) error {
 	// update agent stats
-	r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
+	if !r.opts.DisableDatabaseStorage {
+		r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
+	}
 
-	// update prometheus metrics
+	// update prometheus metrics (even if template insights are disabled)
 	if r.opts.UpdateAgentMetricsFn != nil {
 		r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
 			Username:      workspace.OwnerUsername,
@@ -135,7 +153,10 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 	}
 
 	// workspace activity: if no sessions we do not bump activity
-	if usage && stats.SessionCountVscode == 0 && stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 {
+	if usage && stats.SessionCountVscode == 0 &&
+		stats.SessionCountJetbrains == 0 &&
+		stats.SessionCountReconnectingPty == 0 &&
+		stats.SessionCountSsh == 0 {
 		return nil
 	}
 

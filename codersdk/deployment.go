@@ -511,6 +511,7 @@ type DeploymentValues struct {
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
+	DisableTemplateInsights         serpent.Bool                         `json:"disable_template_insights,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1700,6 +1701,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.DERP.Config.Path,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "configPath",
+		},
+		{
+			Name:        "Disable Template Insights",
+			Description: "Disable storage and display of template insights.",
+			Flag:        "disable-template-insights",
+			Env:         "CODER_DISABLE_TEMPLATE_INSIGHTS",
+			Default:     "false",
+			Value:       &c.DisableTemplateInsights,
+			Group:       &deploymentGroupIntrospection,
+			YAML:        "disableTemplateInsights",
 		},
 		// TODO: support Git Auth settings.
 		// Prometheus settings

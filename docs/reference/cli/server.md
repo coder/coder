@@ -269,6 +269,17 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+### --disable-template-insights
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>bool</code>                                  |
+| Environment | <code>$CODER_DISABLE_TEMPLATE_INSIGHTS</code>      |
+| YAML        | <code>introspection.disableTemplateInsights</code> |
+| Default     | <code>false</code>                                 |
+
+Disable storage and display of template insights.
+
 ### --prometheus-enable
 
 |             |                                              |

@@ -768,14 +768,15 @@ func New(options *Options) *API {
 	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
-		Database:              options.Database,
-		Logger:                options.Logger.Named("workspacestats"),
-		Pubsub:                options.Pubsub,
-		TemplateScheduleStore: options.TemplateScheduleStore,
-		StatsBatcher:          options.StatsBatcher,
-		UsageTracker:          options.WorkspaceUsageTracker,
-		UpdateAgentMetricsFn:  options.UpdateAgentMetrics,
-		AppStatBatchSize:      workspaceapps.DefaultStatsDBReporterBatchSize,
+		Database:               options.Database,
+		Logger:                 options.Logger.Named("workspacestats"),
+		Pubsub:                 options.Pubsub,
+		TemplateScheduleStore:  options.TemplateScheduleStore,
+		StatsBatcher:           options.StatsBatcher,
+		UsageTracker:           options.WorkspaceUsageTracker,
+		UpdateAgentMetricsFn:   options.UpdateAgentMetrics,
+		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
+		DisableDatabaseStorage: options.DeploymentValues.DisableTemplateInsights.Value(),
 	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {

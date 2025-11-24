@@ -223,6 +223,12 @@ Configure TLS for your SMTP server target.
       --email-tls-starttls bool, $CODER_EMAIL_TLS_STARTTLS
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
+INTROSPECTION OPTIONS: 
+Configure logging, tracing, and metrics exporting.
+
+      --disable-template-insights bool, $CODER_DISABLE_TEMPLATE_INSIGHTS (default: false)
+          Disable storage and display of template insights.
+
 INTROSPECTION / HEALTH CHECK OPTIONS: 
       --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
           Refresh interval for healthchecks.
