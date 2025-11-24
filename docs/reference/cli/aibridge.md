@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # aibridge
 
-Manage AIBridge.
+Manage AI Bridge.
 
 ## Usage
 
@@ -11,6 +11,6 @@ coder aibridge
 
 ## Subcommands
 
-| Name                                                      | Purpose                        |
-|-----------------------------------------------------------|--------------------------------|
-| [<code>interceptions</code>](./aibridge_interceptions.md) | Manage AIBridge interceptions. |
+| Name                                                      | Purpose                         |
+|-----------------------------------------------------------|---------------------------------|
+| [<code>interceptions</code>](./aibridge_interceptions.md) | Manage AI Bridge interceptions. |
