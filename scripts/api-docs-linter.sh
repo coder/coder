@@ -104,7 +104,7 @@ echo "Missing files: ${#MISSING_FILES[@]}"
 echo ""
 
 if [[ $ERROR_COUNT -gt 0 ]]; then
-	echo -e "${RED}Linter found $ERROR_COUNT issue(s)${NC}"
+	echo -e "${RED}Linter found ${ERROR_COUNT} issue(s)${NC}"
 	exit 1
 else
 	echo -e "${GREEN}✓ All checks passed!${NC}"
