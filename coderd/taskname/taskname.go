@@ -147,9 +147,13 @@ func generateFromPrompt(prompt string) (TaskName, error) {
 
 	// Generate task name from truncated prompt
 	name := strings.ToLower(truncatedForName)
+	// Replace whitespace (\t \r \n and spaces) sequences with hyphens
 	name = regexp.MustCompile(`\s+`).ReplaceAllString(name, "-")
+	// Remove all characters except lowercase letters, numbers, and hyphens
 	name = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(name, "")
+	// Collapse multiple consecutive hyphens into a single hyphen
 	name = regexp.MustCompile(`-+`).ReplaceAllString(name, "-")
+	// Remove leading and trailing hyphens
 	name = strings.Trim(name, "-")
 
 	if len(name) == 0 {
