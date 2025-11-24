@@ -198,20 +198,26 @@ func writeDocs(sections [][]byte) error {
 	}
 
 	for i, r := range m.Routes {
-		if r.Title != "API" {
+		if r.Title != "Reference" {
 			continue
 		}
-
-		var children []route
-		for _, mdf := range mdFiles {
-			docRoute := route{
-				Title: mdf.title,
-				Path:  mdf.path,
+		for j, child := range r.Children {
+			if child.Title != "REST API" {
+				continue
 			}
-			children = append(children, docRoute)
-		}
 
-		m.Routes[i].Children = children
+			var children []route
+			for _, mdf := range mdFiles {
+				docRoute := route{
+					Title: mdf.title,
+					Path:  mdf.path,
+				}
+				children = append(children, docRoute)
+			}
+
+			m.Routes[i].Children[j].Children = children
+			break
+		}
 		break
 	}
 
