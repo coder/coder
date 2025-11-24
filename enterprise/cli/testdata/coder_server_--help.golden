@@ -121,7 +121,7 @@ AI BRIDGE OPTIONS:
           records (token, prompt, tool use).
 
       --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS (default: false)
-          Whether to inject Coder's MCP tools into intercepted AIBridge requests
+          Whether to inject Coder's MCP tools into intercepted AI Bridge requests
           (requires the "oauth2" and "mcp-server-http" experiments to be
           enabled).
 
