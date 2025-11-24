@@ -52,16 +52,18 @@ func TestUpdateStates(t *testing.T) {
 			ID:   uuid.New(),
 			Name: "abc",
 		}
-		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{
-			ID:                workspace.ID,
-			OwnerID:           workspace.OwnerID,
-			OwnerUsername:     workspace.OwnerUsername,
-			TemplateID:        workspace.TemplateID,
-			Name:              workspace.Name,
-			TemplateName:      workspace.TemplateName,
-			AutostartSchedule: workspace.AutostartSchedule,
-		}
+		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
 	)
+
+	workspaceAsCacheFields.UpdateValues(database.Workspace{
+		ID:                workspace.ID,
+		OwnerID:           workspace.OwnerID,
+		OwnerUsername:     workspace.OwnerUsername,
+		TemplateID:        workspace.TemplateID,
+		Name:              workspace.Name,
+		TemplateName:      workspace.TemplateName,
+		AutostartSchedule: workspace.AutostartSchedule,
+	})
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -342,7 +344,7 @@ func TestUpdateStates(t *testing.T) {
 		// need to overwrite the cached fields for this test, but the struct has a lock
 		ws := agentapi.CachedWorkspaceFields{}
 		ws.UpdateValues(workspace)
-		ws.AutostartSchedule = workspace.AutostartSchedule
+		// ws.AutostartSchedule = workspace.AutostartSchedule
 
 		api := agentapi.StatsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {

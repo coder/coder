@@ -344,9 +344,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				return agent, nil
 			},
 			Workspace: &agentapi.CachedWorkspaceFields{
-				ID:             workspaceID,
-				OwnerID:        ownerID,
-				OrganizationID: orgID,
 			},
 			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:   pub,
@@ -355,6 +352,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				return now
 			},
 		}
+
+		api.Workspace.UpdateValues(database.Workspace{
+			ID:             workspaceID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		})
 
 		// Create context with system actor so authorization passes
 		ctx := dbauthz.AsSystemRestricted(context.Background())
@@ -425,12 +428,9 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			// Create an invalid RBAC object with nil UUIDs for owner/org
-			// This will fail dbauthz fast path validation and trigger GetWorkspaceByAgentID
+
 			Workspace: &agentapi.CachedWorkspaceFields{
-				ID:             uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-				OwnerID:        uuid.Nil, // Invalid: fails dbauthz fast path validation
-				OrganizationID: uuid.Nil, // Invalid: fails dbauthz fast path validation
+				
 			},
 			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:   pub,
@@ -439,6 +439,14 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				return now
 			},
 		}
+
+		// Create an invalid RBAC object with nil UUIDs for owner/org
+		// This will fail dbauthz fast path validation and trigger GetWorkspaceByAgentID
+		api.Workspace.UpdateValues(database.Workspace{
+			ID:             uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+			OwnerID:        uuid.Nil, // Invalid: fails dbauthz fast path validation
+			OrganizationID: uuid.Nil, // Invalid: fails dbauthz fast path validation
+		})
 
 		// Create context with system actor so authorization passes
 		ctx := dbauthz.AsSystemRestricted(context.Background())
@@ -598,11 +606,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				// Return agent directly without DB call
 				return agent, nil
 			},
-			Workspace: &agentapi.CachedWorkspaceFields{
-				ID:             workspaceID,
-				OwnerID:        prebuildOwnerID, // STALE! Still has prebuild owner
-				OrganizationID: orgID,
-			},
+			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:   pub,
 			Log:      testutil.Logger(t),
@@ -610,6 +614,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				return now
 			},
 		}
+
+		api.Workspace.UpdateValues(database.Workspace{
+				ID:             workspaceID,
+				OwnerID:        prebuildOwnerID, // STALE! Still has prebuild owner
+				OrganizationID: orgID,
+		})
 
 		// Call metadata update as the REAL OWNER
 		// Fast path will try to authorize with stale prebuild owner

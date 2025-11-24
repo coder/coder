@@ -312,9 +312,9 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	_ = ticker.Wait()
 
 	a.opts.Log.Debug(ctx, "cache refresh loop exited, invalidating the workspace cache on agent API",
-		slog.F("workspace_id", a.cachedWorkspaceFields.ID),
-		slog.F("owner_id", a.cachedWorkspaceFields.OwnerUsername),
-		slog.F("name", a.cachedWorkspaceFields.Name))
+		slog.F("workspace_id", a.cachedWorkspaceFields.identity.ID),
+		slog.F("owner_id", a.cachedWorkspaceFields.identity.OwnerUsername),
+		slog.F("name", a.cachedWorkspaceFields.identity.Name))
 	a.cachedWorkspaceFields.Clear()
 }
 

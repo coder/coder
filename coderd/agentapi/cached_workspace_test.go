@@ -30,15 +30,18 @@ func TestCacheClear(t *testing.T) {
 			Name:          "xyz",
 			TemplateName:  template.Name,
 		}
-		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{
-			ID:                workspace.ID,
-			OwnerID:           workspace.OwnerID,
-			OwnerUsername:     workspace.OwnerUsername,
-			TemplateID:        workspace.TemplateID,
-			Name:              workspace.Name,
-			TemplateName:      workspace.TemplateName,
-			AutostartSchedule: workspace.AutostartSchedule,
-		}
+		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
+	)
+
+	workspaceAsCacheFields.UpdateValues(database.Workspace{
+		ID:                workspace.ID,
+		OwnerID:           workspace.OwnerID,
+		OwnerUsername:     workspace.OwnerUsername,
+		TemplateID:        workspace.TemplateID,
+		Name:              workspace.Name,
+		TemplateName:      workspace.TemplateName,
+		AutostartSchedule: workspace.AutostartSchedule,
+		},
 	)
 
 	emptyCws := agentapi.CachedWorkspaceFields{}
@@ -66,15 +69,18 @@ func TestCacheUpdate(t *testing.T) {
 			Name:          "xyz",
 			TemplateName:  template.Name,
 		}
-		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{
-			ID:                workspace.ID,
-			OwnerID:           workspace.OwnerID,
-			OwnerUsername:     workspace.OwnerUsername,
-			TemplateID:        workspace.TemplateID,
-			Name:              workspace.Name,
-			TemplateName:      workspace.TemplateName,
-			AutostartSchedule: workspace.AutostartSchedule,
-		}
+		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
+	)
+
+	workspaceAsCacheFields.UpdateValues(database.Workspace{
+		ID:                workspace.ID,
+		OwnerID:           workspace.OwnerID,
+		OwnerUsername:     workspace.OwnerUsername,
+		TemplateID:        workspace.TemplateID,
+		Name:              workspace.Name,
+		TemplateName:      workspace.TemplateName,
+		AutostartSchedule: workspace.AutostartSchedule,
+		},
 	)
 
 	cws := agentapi.CachedWorkspaceFields{}

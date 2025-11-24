@@ -1,10 +1,10 @@
 package agentapi
 
 import (
-	"database/sql"
+	// "database/sql"
 	"sync"
 
-	"github.com/google/uuid"
+	// "github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -21,19 +21,7 @@ import (
 type CachedWorkspaceFields struct {
 	lock sync.RWMutex
 
-	// Identity fields
-	ID             uuid.UUID
-	OwnerID        uuid.UUID
-	OrganizationID uuid.UUID
-	TemplateID     uuid.UUID
-
-	// Display fields for logging/metrics
-	Name          string
-	OwnerUsername string
-	TemplateName  string
-
-	// Lifecycle fields needed for stats reporting
-	AutostartSchedule sql.NullString
+	identity database.WorkspaceIdentity
 }
 
 func (cws *CachedWorkspaceFields) Equal(cws2 *CachedWorkspaceFields) bool {
@@ -42,53 +30,38 @@ func (cws *CachedWorkspaceFields) Equal(cws2 *CachedWorkspaceFields) bool {
 	cws2.lock.RLock()
 	defer cws2.lock.RUnlock()
 
-	return cws.ID == cws2.ID && cws.OwnerID == cws2.OwnerID && cws.OrganizationID == cws2.OrganizationID &&
-		cws.TemplateID == cws2.TemplateID && cws.Name == cws2.Name && cws.OwnerUsername == cws2.OwnerUsername &&
-		cws.TemplateName == cws2.TemplateName && cws.AutostartSchedule == cws2.AutostartSchedule
+	return cws.identity.ID == cws2.identity.ID && cws.identity.OwnerID == cws2.identity.OwnerID && 
+		cws.identity.OrganizationID == cws2.identity.OrganizationID && cws.identity.TemplateID == cws2.identity.TemplateID && 
+		cws.identity.Name == cws2.identity.Name && cws.identity.OwnerUsername == cws2.identity.OwnerUsername &&
+		cws.identity.TemplateName == cws2.identity.TemplateName && cws.identity.AutostartSchedule == cws2.identity.AutostartSchedule
 }
 
 func (cws *CachedWorkspaceFields) Clear() {
 	cws.lock.Lock()
 	defer cws.lock.Unlock()
-	cws.ID = uuid.UUID{}
-	cws.OwnerID = uuid.UUID{}
-	cws.OrganizationID = uuid.UUID{}
-	cws.TemplateID = uuid.UUID{}
-	cws.Name = ""
-	cws.OwnerUsername = ""
-	cws.TemplateName = ""
-	cws.AutostartSchedule = sql.NullString{}
+	cws.identity = database.WorkspaceIdentity{}
 }
 
 func (cws *CachedWorkspaceFields) UpdateValues(ws database.Workspace) {
 	cws.lock.Lock()
 	defer cws.lock.Unlock()
-	cws.ID = ws.ID
-	cws.OwnerID = ws.OwnerID
-	cws.OrganizationID = ws.OrganizationID
-	cws.TemplateID = ws.TemplateID
-	cws.Name = ws.Name
-	cws.OwnerUsername = ws.OwnerUsername
-	cws.TemplateName = ws.TemplateName
-	cws.AutostartSchedule = ws.AutostartSchedule
+	cws.identity.ID = ws.ID
+	cws.identity.OwnerID = ws.OwnerID
+	cws.identity.OrganizationID = ws.OrganizationID
+	cws.identity.TemplateID = ws.TemplateID
+	cws.identity.Name = ws.Name
+	cws.identity.OwnerUsername = ws.OwnerUsername
+	cws.identity.TemplateName = ws.TemplateName
+	cws.identity.AutostartSchedule = ws.AutostartSchedule
 }
 
 // Returns the Workspace, true, unless the workspace has not been cached (nuked or was a prebuild).
-func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() (database.Workspace, bool) {
+func (cws *CachedWorkspaceFields) AsWorkspaceIdentity() (database.WorkspaceIdentity, bool) {
 	cws.lock.RLock()
 	defer cws.lock.RUnlock()
 	// Should we be more explicit about all fields being set to be valid?
 	if cws.Equal(&CachedWorkspaceFields{}) {
-		return database.Workspace{}, false
+		return database.WorkspaceIdentity{}, false
 	}
-	return database.Workspace{
-		ID:                cws.ID,
-		OwnerID:           cws.OwnerID,
-		OrganizationID:    cws.OrganizationID,
-		TemplateID:        cws.TemplateID,
-		Name:              cws.Name,
-		OwnerUsername:     cws.OwnerUsername,
-		TemplateName:      cws.TemplateName,
-		AutostartSchedule: cws.AutostartSchedule,
-	}, true
+	return cws.identity, true
 }
