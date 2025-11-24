@@ -16,7 +16,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
@@ -67,31 +66,29 @@ export const AppearanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			<Badges>
-				<TooltipProvider>
-					<Tooltip delayDuration={0}>
-						{isEntitled && !isPremium ? (
-							<EnterpriseBadge />
-						) : (
-							<TooltipTrigger asChild>
-								<span>
-									<PremiumBadge />
-								</span>
-							</TooltipTrigger>
-						)}
+				<Tooltip>
+					{isEntitled && !isPremium ? (
+						<EnterpriseBadge />
+					) : (
+						<TooltipTrigger asChild>
+							<span>
+								<PremiumBadge />
+							</span>
+						</TooltipTrigger>
+					)}
 
-						<TooltipContent
-							sideOffset={-28}
-							collisionPadding={16}
-							className="p-0"
-						>
-							<PopoverPaywall
-								message="Appearance"
-								description="With a Premium license, you can customize the appearance and branding of your deployment."
-								documentationLink="https://coder.com/docs/admin/appearance"
-							/>
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+					<TooltipContent
+						sideOffset={-28}
+						collisionPadding={16}
+						className="p-0"
+					>
+						<PopoverPaywall
+							message="Appearance"
+							description="With a Premium license, you can customize the appearance and branding of your deployment."
+							documentationLink="https://coder.com/docs/admin/appearance"
+						/>
+					</TooltipContent>
+				</Tooltip>
 			</Badges>
 
 			<Fieldset
