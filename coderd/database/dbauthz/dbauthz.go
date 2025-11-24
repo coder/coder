@@ -1641,6 +1641,15 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
+func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
+	// Requires DELETE across all API keys.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
+		return 0, err
+	}
+
+	return q.db.DeleteExpiredAPIKeys(ctx, arg)
+}
+
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		//nolint:gosimple
