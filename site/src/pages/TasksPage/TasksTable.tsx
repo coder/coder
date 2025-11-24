@@ -1,3 +1,4 @@
+import Checkbox from "@mui/material/Checkbox";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -29,38 +30,97 @@ import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialo
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
 import { type FC, type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
+import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
 	tasks: readonly Task[] | undefined;
 	error: unknown;
 	onRetry: () => void;
+	checkedTaskIds?: Set<string>;
+	onCheckChange?: (checkedTaskIds: Set<string>) => void;
+	canCheckTasks?: boolean;
 };
 
-export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
+export const TasksTable: FC<TasksTableProps> = ({
+	tasks,
+	error,
+	onRetry,
+	checkedTaskIds = new Set(),
+	onCheckChange,
+	canCheckTasks = false,
+}) => {
 	let body: ReactNode = null;
 
 	if (error) {
 		body = <TasksErrorBody error={error} onRetry={onRetry} />;
 	} else if (!tasks) {
-		body = <TasksSkeleton />;
+		body = <TasksSkeleton canCheckTasks={canCheckTasks} />;
 	} else if (tasks.length === 0) {
 		body = <TasksEmpty />;
 	} else {
-		body = tasks.map((task) => <TaskRow key={task.id} task={task} />);
+		body = tasks.map((task) => {
+			const checked = checkedTaskIds.has(task.id);
+			return (
+				<TaskRow
+					key={task.id}
+					task={task}
+					checked={checked}
+					onCheckChange={(taskId, checked) => {
+						if (!onCheckChange) return;
+						const newIds = new Set(checkedTaskIds);
+						if (checked) {
+							newIds.add(taskId);
+						} else {
+							newIds.delete(taskId);
+						}
+						onCheckChange(newIds);
+					}}
+					canCheck={canCheckTasks}
+				/>
+			);
+		});
 	}
 
 	return (
-		<Table className="mt-4">
+		<Table>
 			<TableHeader>
 				<TableRow>
-					<TableHead>Task</TableHead>
+					<TableHead className="w-1/3">
+						<div className="flex items-center gap-2">
+							{canCheckTasks && (
+								<Checkbox
+									className="-my-[9px]"
+									disabled={!tasks || tasks.length === 0}
+									checked={
+										tasks &&
+										tasks.length > 0 &&
+										checkedTaskIds.size === tasks.length
+									}
+									size="xsmall"
+									onChange={(_, checked) => {
+										if (!tasks || !onCheckChange) {
+											return;
+										}
+
+										if (!checked) {
+											onCheckChange(new Set());
+										} else {
+											onCheckChange(new Set(tasks.map((t) => t.id)));
+										}
+									}}
+									aria-label="Select all tasks"
+								/>
+							)}
+							Task
+						</div>
+					</TableHead>
 					<TableHead>Status</TableHead>
 					<TableHead>Created by</TableHead>
 					<TableHead />
 				</TableRow>
 			</TableHeader>
-			<TableBody>{body}</TableBody>
+			<TableBody className="[&_td]:h-[72px]">{body}</TableBody>
 		</Table>
 	);
 };
@@ -96,7 +156,7 @@ const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 const TasksEmpty: FC = () => {
 	return (
 		<TableRow>
-			<TableCell colSpan={999} className="text-center">
+			<TableCell colSpan={4} className="text-center">
 				<div className="w-full min-h-80 p-4 flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
@@ -112,9 +172,19 @@ const TasksEmpty: FC = () => {
 	);
 };
 
-type TaskRowProps = { task: Task };
+type TaskRowProps = {
+	task: Task;
+	checked: boolean;
+	onCheckChange: (taskId: string, checked: boolean) => void;
+	canCheck: boolean;
+};
 
-const TaskRow: FC<TaskRowProps> = ({ task }) => {
+const TaskRow: FC<TaskRowProps> = ({
+	task,
+	checked,
+	onCheckChange,
+	canCheck,
+}) => {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
@@ -131,24 +201,41 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 				key={task.id}
 				data-testid={`task-${task.id}`}
 				{...clickableRowProps}
+				className={cn(checked && "bg-surface-secondary")}
 			>
 				<TableCell>
-					<AvatarData
-						title={
-							<span className="block max-w-[520px] truncate">
-								{task.display_name}
-							</span>
-						}
-						subtitle={templateDisplayName}
-						avatar={
-							<Avatar
-								size="lg"
-								variant="icon"
-								src={task.template_icon}
-								fallback={templateDisplayName}
+					<div className="flex items-center gap-2">
+						{canCheck && (
+							<Checkbox
+								data-testid={`checkbox-${task.id}`}
+								size="xsmall"
+								checked={checked}
+								onClick={(e) => {
+									e.stopPropagation();
+								}}
+								onChange={(e) => {
+									onCheckChange(task.id, e.currentTarget.checked);
+								}}
+								aria-label={`Select task ${task.initial_prompt}`}
 							/>
-						}
-					/>
+						)}
+						<AvatarData
+							title={
+								<span className="block max-w-[520px] truncate">
+									{task.display_name}
+								</span>
+							}
+							subtitle={templateDisplayName}
+							avatar={
+								<Avatar
+									size="lg"
+									variant="icon"
+									src={task.template_icon}
+									fallback={templateDisplayName}
+								/>
+							}
+						/>
+					</div>
 				</TableCell>
 				<TableCell>
 					<TaskStatus
@@ -201,12 +288,19 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 	);
 };
 
-const TasksSkeleton: FC = () => {
+type TasksSkeletonProps = {
+	canCheckTasks: boolean;
+};
+
+const TasksSkeleton: FC<TasksSkeletonProps> = ({ canCheckTasks }) => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<AvatarDataSkeleton />
+					<div className="flex items-center gap-2">
+						{canCheckTasks && <Checkbox size="small" disabled />}
+						<AvatarDataSkeleton />
+					</div>
 				</TableCell>
 				<TableCell>
 					<Skeleton className="w-[100px] h-6" />

@@ -6,7 +6,11 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
-import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
@@ -17,7 +21,7 @@ import TasksPage from "./TasksPage";
 const meta: Meta<typeof TasksPage> = {
 	title: "pages/TasksPage",
 	component: TasksPage,
-	decorators: [withAuthProvider, withProxyProvider()],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		user: MockUserOwner,
 		permissions: {
