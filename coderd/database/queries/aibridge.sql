@@ -89,8 +89,10 @@ SELECT
 FROM
 	aibridge_interceptions
 WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
 	-- Filter by time frame
-	CASE
+	AND CASE
 		WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
 		ELSE true
 	END
@@ -126,8 +128,10 @@ FROM
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
 	-- Filter by time frame
-	CASE
+	AND CASE
 		WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
 		ELSE true
 	END
