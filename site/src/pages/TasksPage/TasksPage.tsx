@@ -21,6 +21,7 @@ import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ChevronDownIcon, TrashIcon } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
@@ -87,7 +88,8 @@ const TasksPage: FC = () => {
 		await batchActions.delete(checkedTasks);
 	};
 
-	const canCheckTasks = permissions.viewDeploymentConfig;
+	const { entitlements } = useDashboard();
+	const canCheckTasks = entitlements.features.task_batch_actions.enabled;
 
 	// Workspaces are fetched lazily only when dialog opens because tasks
 	// don't always have associated workspaces and we need full resource data
