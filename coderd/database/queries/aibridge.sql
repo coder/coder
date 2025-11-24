@@ -128,7 +128,7 @@ FROM
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
-	-- Remove inflight interceptions that lack an ended_at value.
+	-- Remove inflight interceptions (ones which lack an ended_at value).
 	aibridge_interceptions.ended_at IS NOT NULL
 	-- Filter by time frame
 	AND CASE
