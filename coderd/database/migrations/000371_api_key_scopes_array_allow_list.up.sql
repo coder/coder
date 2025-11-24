@@ -146,20 +146,18 @@ ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_proxy:update';
 -- https://github.com/coder/coder/blob/main/coderd/database/dbpurge/dbpurge.go#L85
 DELETE FROM api_keys WHERE expires_at < NOW() - INTERVAL '7 days';
 
---
 -- Add new columns without defaults; backfill; then enforce NOT NULL
---
-ALTER TABLE api_keys
-    ADD COLUMN scopes api_key_scope[],
-    ADD COLUMN allow_list text[];
+ALTER TABLE api_keys ADD COLUMN scopes api_key_scope[];
+ALTER TABLE api_keys ADD COLUMN allow_list text[];
 
 -- Backfill existing rows for compatibility
 UPDATE api_keys SET
     scopes = ARRAY[scope::api_key_scope],
     allow_list = ARRAY['*:*'];
 
--- Enforce NOT NULL and drop legacy single-scope column
-ALTER TABLE api_keys
-    ALTER COLUMN scopes SET NOT NULL,
-    ALTER COLUMN allow_list SET NOT NULL,
-    DROP COLUMN scope;
+-- Enforce NOT NULL
+ALTER TABLE api_keys ALTER COLUMN scopes SET NOT NULL;
+ALTER TABLE api_keys ALTER COLUMN allow_list SET NOT NULL;
+
+-- Drop legacy single-scope column
+ALTER TABLE api_keys DROP COLUMN scope;
