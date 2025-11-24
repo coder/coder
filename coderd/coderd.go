@@ -610,6 +610,7 @@ func New(options *Options) *API {
 		dbRolluper: options.DatabaseRolluper,
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
+		ctx,
 		options.Logger.Named("workspaceapps"),
 		options.AccessURL,
 		options.Authorizer,
@@ -1999,6 +2000,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		api.NotificationsEnqueuer,
 		&api.PrebuildsReconciler,
 		api.ProvisionerdServerMetrics,
+		api.Experiments,
 	)
 	if err != nil {
 		return nil, err

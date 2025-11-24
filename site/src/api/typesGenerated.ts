@@ -31,6 +31,8 @@ export interface AIBridgeConfig {
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
 	readonly bedrock: AIBridgeBedrockConfig;
+	readonly inject_coder_mcp_tools: boolean;
+	readonly retention: number;
 }
 
 // From codersdk/aibridge.go
@@ -1894,6 +1896,7 @@ export type Experiment =
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
+	| "terraform-directory-reuse"
 	| "web-push"
 	| "workspace-sharing"
 	| "workspace-usage";
@@ -1904,6 +1907,7 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
+	"terraform-directory-reuse",
 	"web-push",
 	"workspace-sharing",
 	"workspace-usage",
@@ -2477,6 +2481,18 @@ export const InsightsReportIntervals: InsightsReportInterval[] = [
 	"day",
 	"week",
 ];
+
+// From codersdk/templates.go
+export interface InvalidatePresetsResponse {
+	readonly invalidated: readonly InvalidatedPreset[];
+}
+
+// From codersdk/templates.go
+export interface InvalidatedPreset {
+	readonly template_name: string;
+	readonly template_version_name: string;
+	readonly preset_name: string;
+}
 
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
@@ -4919,6 +4935,7 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
+	readonly use_terraform_workspace_cache: boolean;
 }
 
 // From codersdk/templates.go
@@ -5440,6 +5457,13 @@ export interface UpdateTemplateMeta {
 	 * An "opt-out" is present in case the new feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
+	/**
+	 * UseTerraformWorkspaceCache allows optionally specifying whether to use cached
+	 * terraform directories for workspaces created from this template. This field
+	 * only applies when the correct experiment is enabled. This field is subject to
+	 * being removed in the future.
+	 */
+	readonly use_terraform_workspace_cache?: boolean;
 }
 
 // From codersdk/users.go
@@ -6393,6 +6417,9 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
+	/**
+	 * Deprecated: This field has been deprecated in favor of Task WorkspaceID.
+	 */
 	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
 }

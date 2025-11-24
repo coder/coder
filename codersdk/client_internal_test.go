@@ -162,6 +162,45 @@ func Test_Client(t *testing.T) {
 	require.Contains(t, logStr, strings.ReplaceAll(resBody, `"`, `\"`))
 }
 
+func Test_Client_LogBodiesFalse(t *testing.T) {
+	t.Parallel()
+
+	const method = http.MethodPost
+	const path = "/ok"
+	const reqBody = `{"msg": "request body"}`
+	const resBody = `{"status": "ok"}`
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", jsonCT)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, resBody)
+	}))
+
+	u, err := url.Parse(s.URL)
+	require.NoError(t, err)
+	client := New(u)
+
+	logBuf := bytes.NewBuffer(nil)
+	client.SetLogger(slog.Make(sloghuman.Sink(logBuf)).Leveled(slog.LevelDebug))
+	client.SetLogBodies(false)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	resp, err := client.Request(ctx, method, path, []byte(reqBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, resBody, string(body))
+
+	logStr := logBuf.String()
+	require.Contains(t, logStr, "sdk request")
+	require.Contains(t, logStr, "sdk response")
+	require.NotContains(t, logStr, "body")
+}
+
 func Test_readBodyAsError(t *testing.T) {
 	t.Parallel()
 

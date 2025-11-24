@@ -1,4 +1,5 @@
 import {
+	MockInitializingTasks,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
@@ -9,6 +10,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, within } from "storybook/test";
+import { getTemplatesQueryKey } from "../../api/queries/templates";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -48,6 +50,21 @@ export const LoadingTemplates: Story = {
 		spyOn(API, "getTemplates").mockImplementation(
 			() => new Promise(() => 1000 * 60 * 60),
 		);
+	},
+};
+
+export const EmptyTemplates: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["templates", { q: "has-ai-task:true" }],
+				data: [],
+			},
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [],
+			},
+		],
 	},
 };
 
@@ -165,5 +182,20 @@ export const OpenDeleteDialog: Story = {
 			name: /delete task/i,
 		});
 		await userEvent.click(deleteButtons[0]);
+	},
+};
+
+export const InitializingTasks: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockInitializingTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
 	},
 };

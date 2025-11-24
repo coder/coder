@@ -2,7 +2,9 @@ package testutil
 
 import (
 	"context"
+	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/yamux"
@@ -50,4 +52,32 @@ func isQueryCanceledError(err error) bool {
 		return true
 	}
 	return false
+}
+
+type testLogWriter struct {
+	t        testing.TB
+	mu       sync.Mutex
+	testOver bool
+}
+
+func NewTestLogWriter(t testing.TB) io.Writer {
+	w := &testLogWriter{t: t}
+	t.Cleanup(func() {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		w.testOver = true
+	})
+	return w
+}
+
+func (w *testLogWriter) Write(p []byte) (n int, err error) {
+	n = len(p)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.testOver {
+		return n, nil
+	}
+	w.t.Logf("%q", string(p))
+
+	return n, nil
 }

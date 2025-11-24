@@ -268,16 +268,16 @@ data "coder_parameter" "ide_choices" {
   form_type   = "multi-select"
   mutable     = true
   description = "Choose one or more IDEs to enable in your workspace"
-  default     = jsonencode(["vscode", "code-server", "cursor", "cmux"])
+  default     = jsonencode(["vscode", "code-server", "cursor", "mux"])
   option {
     name  = "VS Code Desktop"
     value = "vscode"
     icon  = "/icon/code.svg"
   }
   option {
-    name  = "cmux"
-    value = "cmux"
-    icon  = "/icon/cmux.svg"
+    name  = "mux"
+    value = "mux"
+    icon  = "/icon/mux.svg"
   }
   option {
     name  = "code-server"
@@ -375,10 +375,10 @@ module "personalize" {
   agent_id = coder_agent.dev.id
 }
 
-module "cmux" {
-  count     = contains(jsondecode(data.coder_parameter.ide_choices.value), "cmux") ? data.coder_workspace.me.start_count : 0
-  source    = "registry.coder.com/coder/cmux/coder"
-  version   = "1.0.0"
+module "mux" {
+  count     = contains(jsondecode(data.coder_parameter.ide_choices.value), "mux") ? data.coder_workspace.me.start_count : 0
+  source    = "registry.coder.com/coder/mux/coder"
+  version   = "1.0.1"
   agent_id  = coder_agent.dev.id
   subdomain = true
 }
@@ -386,7 +386,7 @@ module "cmux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.3.1"
+  version                 = "1.4.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -408,7 +408,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.1.1"
+  version       = "1.2.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -844,10 +844,25 @@ locals {
   EOT
 }
 
+resource "coder_script" "boundary_config_setup" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Boundary Setup Configuration"
+  run_on_start = true
+
+  script = <<-EOF
+    #!/bin/sh
+    mkdir -p ~/.config/coder_boundary
+    echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
+    chmod 600 ~/.config/coder_boundary/config.yaml
+  EOF
+}
+
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.0.0"
+  version             = "4.2.1"
+  enable_boundary     = true
+  boundary_version    = "v0.2.0"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"

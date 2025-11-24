@@ -855,6 +855,7 @@ export const MockTemplate: TypesGen.Template = {
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
+	use_terraform_workspace_cache: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3101,6 +3102,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3129,6 +3131,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -5051,3 +5054,99 @@ export const MockTasks = [
 		},
 	},
 ] satisfies TypesGen.Task[];
+
+export const MockInitializingTasks = [
+	{
+		...MockTask,
+		id: "task-1",
+		name: "task-workspace-pending",
+		initial_prompt: "Task Workspace Pending",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is pending",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-2",
+		name: "task-workspace-starting",
+		initial_prompt: "Task Workspace Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is starting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-3",
+		name: "task-agent-connecting",
+		initial_prompt: "Task Agent Connecting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is connecting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-4",
+		name: "task-agent-starting",
+		initial_prompt: "Task Agent Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is starting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-5",
+		name: "task-app-initializing",
+		initial_prompt: "Task App Initializing",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "App is initializing",
+			uri: "",
+		},
+	},
+] satisfies TypesGen.Task[];
+
+export const MockInterception: TypesGen.AIBridgeInterception = {
+	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+	initiator: {
+		id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
+		username: "testuser",
+		avatar_url: "https://example.com/avatar.png",
+	},
+	provider: "openai",
+	model: "gpt-4o",
+	started_at: "2022-05-17T17:39:01.382927298Z",
+	ended_at: "2022-05-17T17:39:01.382927298Z",
+	token_usages: [
+		{
+			id: "32e7fd17-24be-46b9-b867-2f0adfd42aff",
+			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+			provider_response_id: "res_1234567890",
+			input_tokens: 5,
+			output_tokens: 1,
+			metadata: {},
+			created_at: "2022-05-17T17:39:01.382927298Z",
+		},
+	],
+	metadata: {},
+	user_prompts: [],
+	tool_usages: [],
+	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+};

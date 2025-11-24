@@ -6,6 +6,11 @@ USAGE:
   Run a provisioner daemon
 
 OPTIONS:
+      --experiments string-array, $CODER_EXPERIMENTS
+          Enable one or more experiments. These are not ready for production.
+          Separate multiple experiments with commas, or enter '*' to opt-in to
+          all available experiments.
+
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
