@@ -1,4 +1,10 @@
-name: Documentation Check
+# This workflow checks if a PR requires documentation updates.
+# It creates a Coder Task that uses AI to analyze the PR changes,
+# search existing docs, and comment with recommendations.
+#
+# Triggered by: Adding the "doc-check" label to a PR, or manual dispatch.
+
+name: AI Documentation Check
 
 on:
   pull_request:
