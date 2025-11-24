@@ -76,11 +76,12 @@ func TestTaskTableConvert(t *testing.T) {
 		},
 	}
 
-	// This feels a bit janky, but it works.
-	// If you use 'PopulateStruct' to create 2 workspaces, using the same
+	// Copies the approach taken by TestWorkspaceTableConvert.
+	//
+	// If you use 'PopulateStruct' to create 2 tasks, using the same
 	// "random" values for each type. Then they should be identical.
 	//
-	// So if 'workspace.WorkspaceTable()' was missing any fields in its
+	// So if 'task.TaskTable()' was missing any fields in its
 	// conversion, the comparison would fail.
 
 	var task Task
