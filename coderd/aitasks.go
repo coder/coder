@@ -122,7 +122,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 
 	// Generate task name and display name if either is not provided
 	if taskName == "" || taskDisplayName == "" {
-		generatedTaskName := taskname.Generate(ctx, req.Input)
+		generatedTaskName := taskname.Generate(ctx, api.Logger, req.Input)
 
 		if taskName == "" {
 			taskName = generatedTaskName.Name

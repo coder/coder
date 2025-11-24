@@ -22,7 +22,7 @@ func TestGenerate(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		taskName := taskname.Generate(ctx, "Create a finance planning app")
+		taskName := taskname.Generate(ctx, testutil.Logger(t), "Create a finance planning app")
 
 		// Should succeed via prompt sanitization
 		require.NoError(t, codersdk.NameValid(taskName.Name))
@@ -42,7 +42,7 @@ func TestGenerate(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		taskName := taskname.Generate(ctx, "Create a finance planning app")
+		taskName := taskname.Generate(ctx, testutil.Logger(t), "Create a finance planning app")
 
 		// Should succeed with Claude-generated names
 		require.NoError(t, codersdk.NameValid(taskName.Name))
@@ -56,7 +56,7 @@ func TestGenerate(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Use a prompt that can't be sanitized (only special chars)
-		taskName := taskname.Generate(ctx, "!@#$%^&*()")
+		taskName := taskname.Generate(ctx, testutil.Logger(t), "!@#$%^&*()")
 
 		// Should fall back to random name
 		require.NoError(t, codersdk.NameValid(taskName.Name))

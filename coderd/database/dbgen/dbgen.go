@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -1575,7 +1577,7 @@ func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Tas
 		parameters = json.RawMessage([]byte("{}"))
 	}
 
-	taskName := taskname.Generate(genCtx, orig.Prompt)
+	taskName := taskname.Generate(genCtx, slog.Make(), orig.Prompt)
 	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
 		ID:                 takeFirst(orig.ID, uuid.New()),
 		OrganizationID:     orig.OrganizationID,

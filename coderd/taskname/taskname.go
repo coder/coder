@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 
+	"cdr.dev/slog"
+
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -271,13 +273,14 @@ func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, mo
 //
 // A suffix is always appended to task names to reduce collision risk.
 // This function always succeeds and returns a valid TaskName.
-func Generate(ctx context.Context, prompt string) TaskName {
+func Generate(ctx context.Context, logger slog.Logger, prompt string) TaskName {
 	if anthropicAPIKey := getAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
 		taskName, err := generateFromAnthropic(ctx, prompt, anthropicAPIKey, getAnthropicModelFromEnv())
 		if err == nil {
 			return taskName
 		}
 		// Anthropic failed, fall through to next fallback
+		logger.Error(ctx, "unable to generate task name and display name from Anthropic", slog.Error(err))
 	}
 
 	// Try generating from prompt
@@ -285,6 +288,7 @@ func Generate(ctx context.Context, prompt string) TaskName {
 	if err == nil {
 		return taskName
 	}
+	logger.Warn(ctx, "unable to generate task name and display name from prompt", slog.Error(err))
 
 	// Final fallback
 	return generateFallback()
