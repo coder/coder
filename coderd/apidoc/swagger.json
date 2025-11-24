@@ -73,9 +73,9 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["AIBridge"],
-				"summary": "List AIBridge interceptions",
-				"operationId": "list-aibridge-interceptions",
+				"tags": ["AI Bridge"],
+				"summary": "List AI Bridge interceptions",
+				"operationId": "list-ai-bridge-interceptions",
 				"parameters": [
 					{
 						"type": "string",
@@ -10432,6 +10432,9 @@
 				},
 				"openai": {
 					"$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+				},
+				"retention": {
+					"type": "integer"
 				}
 			}
 		},

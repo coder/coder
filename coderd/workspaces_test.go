@@ -4794,6 +4794,64 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 	require.Len(t, res.Workspaces, 4)
 }
 
+func TestWorkspaceListTasks(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionPlan: []*proto.Response{
+			{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+				HasAiTasks: true,
+			}}},
+		},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Given: a regular user workspace
+	workspaceWithoutTask, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		TemplateID: template.ID,
+		Name:       "user-workspace",
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceWithoutTask.LatestBuild.ID)
+
+	// Given: a workspace associated with a task
+	task, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+		TemplateVersionID: template.ActiveVersionID,
+		Input:             "Some task prompt",
+	})
+	require.NoError(t, err)
+	assert.True(t, task.WorkspaceID.Valid)
+	workspaceWithTask, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceWithTask.LatestBuild.ID)
+	assert.NotEmpty(t, task.Name)
+	assert.Equal(t, template.ID, task.TemplateID)
+
+	// When: listing the workspaces
+	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+
+	assert.Equal(t, workspaces.Count, 2)
+
+	// Then: verify TaskID is only set for task workspaces
+	for _, workspace := range workspaces.Workspaces {
+		if workspace.ID == workspaceWithoutTask.ID {
+			assert.False(t, workspace.TaskID.Valid)
+		} else if workspace.ID == workspaceWithTask.ID {
+			assert.True(t, workspace.TaskID.Valid)
+			assert.Equal(t, task.ID, workspace.TaskID.UUID)
+		}
+	}
+}
+
 func TestWorkspaceAppUpsertRestart(t *testing.T) {
 	t.Parallel()
 

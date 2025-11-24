@@ -2,6 +2,7 @@ package terraform_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
@@ -1668,4 +1670,19 @@ func sortExternalAuthProviders(providers []*proto.ExternalAuthProviderResource) 
 	sort.Slice(providers, func(i, j int) bool {
 		return strings.Compare(providers[i].Id, providers[j].Id) == -1
 	})
+}
+
+// deterministicAppIDs handles setting agent app ids to something deterministic.
+// In plan files, ids are not present. In state files, they are.
+// It is simpler for comparisons if we just set it to something deterministic.
+func deterministicAppIDs(resources []*proto.Resource) {
+	for _, resource := range resources {
+		for _, agent := range resource.Agents {
+			for _, app := range agent.Apps {
+				data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
+				id, _ := uuid.FromBytes(data[:16])
+				app.Id = id.String()
+			}
+		}
+	}
 }

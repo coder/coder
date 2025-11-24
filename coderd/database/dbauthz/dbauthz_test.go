@@ -216,6 +216,14 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().DeleteAPIKeyByID(gomock.Any(), key.ID).Return(nil).AnyTimes()
 		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns()
 	}))
+	s.Run("DeleteExpiredAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		args := database.DeleteExpiredAPIKeysParams{
+			Before:     time.Date(2025, 11, 21, 0, 0, 0, 0, time.UTC),
+			LimitCount: 1000,
+		}
+		dbm.EXPECT().DeleteExpiredAPIKeys(gomock.Any(), args).Return(int64(0), nil).AnyTimes()
+		check.Args(args).Asserts(rbac.ResourceApiKey, policy.ActionDelete).Returns(int64(0))
+	}))
 	s.Run("GetAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
 		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
@@ -4653,6 +4661,12 @@ func (s *MethodTestSuite) TestAIBridge() {
 		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intcID).Return(intc, nil).AnyTimes() // Validation.
 		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), params).Return(intc, nil).AnyTimes()
 		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
+	}))
+
+	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t := dbtime.Now()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
+		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
 	}))
 }
 

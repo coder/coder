@@ -324,6 +324,49 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 	return count, err
 }
 
+const deleteOldAIBridgeRecords = `-- name: DeleteOldAIBridgeRecords :one
+WITH
+  -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
+  to_delete AS (
+    SELECT id FROM aibridge_interceptions
+    WHERE started_at < $1::timestamp with time zone
+  ),
+  -- CTEs are executed in order.
+  tool_usages AS (
+    DELETE FROM aibridge_tool_usages
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
+  token_usages AS (
+    DELETE FROM aibridge_token_usages
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
+  user_prompts AS (
+    DELETE FROM aibridge_user_prompts
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
+  interceptions AS (
+    DELETE FROM aibridge_interceptions
+    WHERE id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  )
+SELECT
+  (SELECT COUNT(*) FROM tool_usages) +
+  (SELECT COUNT(*) FROM token_usages) +
+  (SELECT COUNT(*) FROM user_prompts) +
+  (SELECT COUNT(*) FROM interceptions) as total_deleted
+`
+
+// Cumulative count.
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
+	var total_deleted int32
+	err := row.Scan(&total_deleted)
+	return total_deleted, err
+}
+
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
 	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id
@@ -837,7 +880,7 @@ type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
 	Client   string `db:"client" json:"client"`
 }
 
-// Finds all unique AIBridge interception telemetry summaries combinations
+// Finds all unique AI Bridge interception telemetry summaries combinations
 // (provider, model, client) in the given timeframe for telemetry reporting.
 func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.EndedAtAfter, arg.EndedAtBefore)
@@ -1058,6 +1101,38 @@ WHERE
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteApplicationConnectAPIKeysByUserID, userID)
 	return err
+}
+
+const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :one
+WITH expired_keys AS (
+	SELECT id
+	FROM api_keys
+	-- expired keys only
+	WHERE expires_at < $1::timestamptz
+	LIMIT $2
+),
+deleted_rows AS (
+	 DELETE FROM
+		 api_keys
+	 USING
+		 expired_keys
+	 WHERE
+		 api_keys.id = expired_keys.id
+	 RETURNING api_keys.id
+ )
+SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows
+`
+
+type DeleteExpiredAPIKeysParams struct {
+	Before     time.Time `db:"before" json:"before"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
+	var deleted_count int64
+	err := row.Scan(&deleted_count)
+	return deleted_count, err
 }
 
 const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec

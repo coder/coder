@@ -1,0 +1,38 @@
+{
+  "Resources": [
+    {
+      "name": "first",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "e78db244-3076-4c04-8ac3-5a55dae032e7",
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "c0a7e7f5-2616-429e-ac69-a8c3d9bbbb5d"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "second",
+      "type": "null_resource"
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}
