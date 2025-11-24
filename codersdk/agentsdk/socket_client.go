@@ -6,14 +6,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/xerrors"
 
-	"github.com/hashicorp/yamux"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
 // SocketClient provides a client for communicating with the agent socket
@@ -28,7 +28,7 @@ type SocketConfig struct {
 }
 
 // NewSocketClient creates a new socket client
-func NewSocketClient(config SocketConfig) (*SocketClient, error) {
+func NewSocketClient(ctx context.Context, config SocketConfig) (*SocketClient, error) {
 	path := config.Path
 	if path == "" {
 		var err error
@@ -38,22 +38,14 @@ func NewSocketClient(config SocketConfig) (*SocketClient, error) {
 		}
 	}
 
-	conn, err := net.Dial("unix", path)
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.DialContext(ctx, "unix", path)
 	if err != nil {
 		return nil, xerrors.Errorf("connect to socket: %w", err)
 	}
 
-	// Create yamux session for multiplexing
-	configYamux := yamux.DefaultConfig()
-	configYamux.Logger = nil // Disable yamux logging
-	session, err := yamux.Client(conn, configYamux)
-	if err != nil {
-		_ = conn.Close()
-		return nil, xerrors.Errorf("create yamux client: %w", err)
-	}
-
 	// Create drpc connection using the multiplexed connection
-	drpcConn := drpcsdk.MultiplexedConn(session)
+	drpcConn := drpcconn.New(conn)
 
 	// Create drpc client
 	client := proto.NewDRPCAgentSocketClient(drpcConn)
@@ -117,29 +109,24 @@ func (c *SocketClient) SyncComplete(ctx context.Context, unitName string) error 
 }
 
 // SyncReady requests whether a unit is ready to be started. That is, all dependencies are satisfied.
-func (c *SocketClient) SyncReady(ctx context.Context, unitName string) error {
-	_, err := c.client.SyncReady(ctx, &proto.SyncReadyRequest{
+func (c *SocketClient) SyncReady(ctx context.Context, unitName string) (bool, error) {
+	resp, err := c.client.SyncReady(ctx, &proto.SyncReadyRequest{
 		Unit: unitName,
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	return resp.Ready, nil
 }
 
 // SyncStatus gets the status of a unit and its dependencies
-func (c *SocketClient) SyncStatus(ctx context.Context, unitName string, recursive bool) (*SyncStatusResponse, error) {
+func (c *SocketClient) SyncStatus(ctx context.Context, unitName string) (*SyncStatusResponse, error) {
 	resp, err := c.client.SyncStatus(ctx, &proto.SyncStatusRequest{
-		Unit:      unitName,
-		Recursive: recursive,
+		Unit: unitName,
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	if !resp.Success {
-		return nil, xerrors.Errorf("sync status failed: %s", resp.Message)
 	}
 
 	// Convert dependencies
@@ -154,13 +141,9 @@ func (c *SocketClient) SyncStatus(ctx context.Context, unitName string, recursiv
 	}
 
 	return &SyncStatusResponse{
-		Success:      resp.Success,
-		Message:      resp.Message,
-		Unit:         resp.Unit,
 		Status:       resp.Status,
 		IsReady:      resp.IsReady,
 		Dependencies: dependencies,
-		DOT:          resp.Dot,
 	}, nil
 }
 
