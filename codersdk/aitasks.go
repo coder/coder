@@ -352,11 +352,11 @@ func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.
 	return nil
 }
 
-// UpdateTaskInputRequest is used to update a task's prompt.
+// UpdateTaskInputRequest is used to update a task's input.
 //
 // Experimental: This type is experimental and may change in the future.
 type UpdateTaskInputRequest struct {
-	Input string `json:"prompt"`
+	Input string `json:"input"`
 }
 
 // UpdateTaskInput updates the task's input.
