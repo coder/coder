@@ -44,7 +44,7 @@ CODER_OIDC_ICON_URL=/icon/microsoft.svg
 
 ```env
 # Keep standard scopes
-CODER_OIDC_SCOPES=openid,profile,email
+CODER_OIDC_SCOPES=openid,profile,email,offline_access
 ```
 
 After changing settings, users must log out and back in once to obtain refresh tokens

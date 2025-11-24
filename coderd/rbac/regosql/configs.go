@@ -81,7 +81,7 @@ func ConnectionLogConverter() *sqltypes.VariableConverter {
 func AIBridgeInterceptionConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		// AIBridge interceptions are not tied to any organization.
+		// AI Bridge interceptions are not tied to any organization.
 		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
 		sqltypes.StringVarMatcher("initiator_id :: text", []string{"input", "object", "owner"}),
 	)

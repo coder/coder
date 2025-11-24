@@ -1,6 +1,6 @@
-# AIBridge
+# AI Bridge
 
-## List AIBridge interceptions
+## List AI Bridge interceptions
 
 ### Code samples
 

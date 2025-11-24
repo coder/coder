@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # aibridge interceptions list
 
-List AIBridge interceptions as JSON.
+List AI Bridge interceptions as JSON.
 
 ## Usage
 
