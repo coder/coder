@@ -160,14 +160,14 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
-          path: ./create-task-action
+          path: ./.github/actions/create-task-action
           persist-credentials: false
           ref: main
           repository: coder/create-task-action
 
       - name: Create Coder Task for Documentation Check
         id: create_task
-        uses: ./create-task-action
+        uses: ./.github/actions/create-task-action
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
