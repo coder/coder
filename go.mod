@@ -165,9 +165,9 @@ require (
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.7
 	github.com/prometheus-community/pro-bing v0.7.0
-	github.com/prometheus/client_golang v1.23.0
+	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.65.0
+	github.com/prometheus/common v0.66.1
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.25.5
@@ -476,7 +476,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.18.0
 	github.com/brianvoe/gofakeit/v7 v7.9.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v0.1.7
+	github.com/coder/aibridge v0.2.0
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v1.0.1-0.20250925154134-55a44f2a7945
 	github.com/coder/preview v1.0.4

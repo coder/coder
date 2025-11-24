@@ -64,7 +64,7 @@ func readMetrics() ([]*dto.MetricFamily, error) {
 
 	var metrics []*dto.MetricFamily
 
-	decoder := expfmt.NewDecoder(f, expfmt.NewFormat(expfmt.TypeProtoText))
+	decoder := expfmt.NewDecoder(f, expfmt.NewFormat(expfmt.TypeTextPlain))
 	for {
 		var m dto.MetricFamily
 		err = decoder.Decode(&m)
