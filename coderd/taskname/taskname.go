@@ -22,56 +22,57 @@ import (
 
 const (
 	defaultModel = anthropic.ModelClaude3_5HaikuLatest
-	systemPrompt = `Generate a short task name and display name from this AI task prompt.
+	systemPrompt = `Generate a short task display name and name from this AI task prompt.
 Identify the main task (the core action and subject) and base both names on it.
-The task name and display name should be as similar as possible so a human can easily associate them.
+The task display name and name should be as similar as possible so a human can easily associate them.
+
+Requirements for task display name (generate this first):
+- Human-readable description
+- Maximum 64 characters total
+- Should concisely describe the main task
 
 Requirements for task name:
+- Should be derived from the display name
 - Only lowercase letters, numbers, and hyphens
 - No spaces or underscores
 - Maximum 27 characters total
 - Should concisely describe the main task
 
-Requirements for display name:
-- Human-readable description
-- Maximum 64 characters total
-- Should concisely describe the main task
-
 Output format (must be valid JSON):
 {
-  "task_name": "<task_name>",
-  "display_name": "<display_name>"
+	"display_name": "<display_name>",
+	"task_name": "<task_name>"
 }
 
 Examples:
 Prompt: "Help me debug a Python script" →
 {
-  "task_name": "python-debug",
-  "display_name": "Debug Python script"
+	"display_name": "Debug Python script",
+	"task_name": "python-debug"
 }
 
 Prompt: "Create a React dashboard component" →
 {
-  "task_name": "react-dashboard",
-  "display_name": "React dashboard component"
+	"display_name": "React dashboard component",
+	"task_name": "react-dashboard"
 }
 
 Prompt: "Analyze sales data from Q3" →
 {
-  "task_name": "analyze-q3-sales",
-  "display_name": "Analyze Q3 sales data"
+	"display_name": "Analyze Q3 sales data",
+	"task_name": "analyze-q3-sales"
 }
 
 Prompt: "Set up CI/CD pipeline" →
 {
-  "task_name": "setup-cicd",
-  "display_name": "CI/CD pipeline setup"
+	"display_name": "CI/CD pipeline setup",
+	"task_name": "setup-cicd"
 }
 
 If a suitable name cannot be created, output exactly:
 {
-  "task_name": "task-unnamed",
-  "display_name": "Task Unnamed"
+	"display_name": "Task Unnamed",
+	"task_name": "task-unnamed"
 }
 
 Do not include any additional keys, explanations, or text outside the JSON.`

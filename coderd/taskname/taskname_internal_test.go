@@ -148,12 +148,17 @@ func TestGenerateFromAnthropic(t *testing.T) {
 			taskName, err := generateFromAnthropic(ctx, tc.prompt, apiKey, getAnthropicModelFromEnv())
 			require.NoError(t, err)
 
+			t.Log("Task name:", taskName.Name)
+			t.Log("Task display name:", taskName.DisplayName)
+
 			// Validate task name
 			require.NotEmpty(t, taskName.DisplayName)
 			require.NoError(t, codersdk.NameValid(taskName.Name))
 
 			// Validate display name
 			require.NotEmpty(t, taskName.DisplayName)
+			require.NotEqual(t, "task-unnamed", taskName.Name)
+			require.NotEqual(t, "Task Unnamed", taskName.DisplayName)
 		})
 	}
 }
