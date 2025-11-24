@@ -144,7 +144,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting AIBridge interceptions.",
+			Message: "Internal error getting AI Bridge interceptions.",
 			Detail:  err.Error(),
 		})
 		return
@@ -172,7 +172,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		ids[i] = row.AIBridgeInterception.ID
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
 	tokenUsagesRows, err := db.ListAIBridgeTokenUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge token usages from database: %w", err)
@@ -182,7 +182,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		tokenUsagesMap[row.InterceptionID] = append(tokenUsagesMap[row.InterceptionID], row)
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
 	userPromptRows, err := db.ListAIBridgeUserPromptsByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge user prompts from database: %w", err)
@@ -192,7 +192,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		userPromptsMap[row.InterceptionID] = append(userPromptsMap[row.InterceptionID], row)
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
 	toolUsagesRows, err := db.ListAIBridgeToolUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge tool usages from database: %w", err)

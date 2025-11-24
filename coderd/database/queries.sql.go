@@ -837,7 +837,7 @@ type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
 	Client   string `db:"client" json:"client"`
 }
 
-// Finds all unique AIBridge interception telemetry summaries combinations
+// Finds all unique AI Bridge interception telemetry summaries combinations
 // (provider, model, client) in the given timeframe for telemetry reporting.
 func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.EndedAtAfter, arg.EndedAtBefore)

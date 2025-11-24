@@ -751,7 +751,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		summaries, err := r.generateAIBridgeInterceptionsSummaries(ctx)
 		if err != nil {
-			return xerrors.Errorf("generate AIBridge interceptions telemetry summaries: %w", err)
+			return xerrors.Errorf("generate AI Bridge interceptions telemetry summaries: %w", err)
 		}
 		snapshot.AIBridgeInterceptionsSummaries = summaries
 		return nil
@@ -785,7 +785,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		return nil, nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("insert AIBridge interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
+		return nil, xerrors.Errorf("insert AI Bridge interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
 	}
 
 	// List the summary categories that need to be calculated.
@@ -794,7 +794,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		EndedAtBefore: endedAtBefore, // exclusive
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("list AIBridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
+		return nil, xerrors.Errorf("list AI Bridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
 	}
 
 	// Calculate and convert the summaries for all categories.
@@ -813,7 +813,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 				EndedAtBefore: endedAtBefore,
 			})
 			if err != nil {
-				return xerrors.Errorf("calculate AIBridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
+				return xerrors.Errorf("calculate AI Bridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
 			}
 
 			// Double check that at least one interception was found in the

@@ -209,7 +209,7 @@ ORDER BY
 	id ASC;
 
 -- name: ListAIBridgeInterceptionsTelemetrySummaries :many
--- Finds all unique AIBridge interception telemetry summaries combinations
+-- Finds all unique AI Bridge interception telemetry summaries combinations
 -- (provider, model, client) in the given timeframe for telemetry reporting.
 SELECT
     DISTINCT ON (provider, model, client)
