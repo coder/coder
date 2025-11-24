@@ -561,4 +561,4 @@ require (
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
 
-replace github.com/coder/aibridge v0.1.7 => github.com/coder/aibridge v0.1.8-0.20251121143551-31ecc584e664
+replace github.com/coder/aibridge v0.1.7 => github.com/coder/aibridge v0.1.8-0.20251124075415-3fae3347a268

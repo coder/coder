@@ -878,82 +878,40 @@ promhttp_metric_handler_requests_in_flight 1
 promhttp_metric_handler_requests_total{code="200"} 2
 promhttp_metric_handler_requests_total{code="500"} 0
 promhttp_metric_handler_requests_total{code="503"} 0
-# HELP coder_aibridged_injected_tool_usage_total The number of times an injected MCP tool was invoked by aibridge.
-# TYPE coder_aibridged_injected_tool_usage_total counter
-coder_aibridged_injected_tool_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",name="coder_list_templates",provider="openai",server="https://xxx.pit-1.try.coder.app/api/experimental/mcp/http"} 1
-# HELP coder_aibridged_interceptions_duration The total duration of intercepted requests. The majority of this time will be the upstream processing of the request. aibridge has no control over upstream processing time, so it's just an illustrative metric.
-# TYPE coder_aibridged_interceptions_duration histogram
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="0.5"} 0
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="2"} 6
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="5"} 8
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="15"} 8
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="30"} 8
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="60"} 8
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="120"} 8
-coder_aibridged_interceptions_duration_bucket{model="claude-haiku-4-5-20251001",provider="anthropic",le="+Inf"} 8
-coder_aibridged_interceptions_duration_sum{model="claude-haiku-4-5-20251001",provider="anthropic"} 14.954304709
-coder_aibridged_interceptions_duration_count{model="claude-haiku-4-5-20251001",provider="anthropic"} 8
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="0.5"} 0
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="2"} 0
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="5"} 0
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="15"} 2
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="30"} 2
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="60"} 2
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="120"} 2
-coder_aibridged_interceptions_duration_bucket{model="claude-sonnet-4-5-20250929",provider="anthropic",le="+Inf"} 2
-coder_aibridged_interceptions_duration_sum{model="claude-sonnet-4-5-20250929",provider="anthropic"} 12.970155195
-coder_aibridged_interceptions_duration_count{model="claude-sonnet-4-5-20250929",provider="anthropic"} 2
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="0.5"} 1
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="2"} 1
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="5"} 3
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="15"} 4
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="30"} 4
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="60"} 4
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="120"} 4
-coder_aibridged_interceptions_duration_bucket{model="gpt-5-nano",provider="openai",le="+Inf"} 4
-coder_aibridged_interceptions_duration_sum{model="gpt-5-nano",provider="openai"} 14.039039029000001
-coder_aibridged_interceptions_duration_count{model="gpt-5-nano",provider="openai"} 4
+# HELP coder_aibridged_injected_tool_invocations_total The number of times an injected MCP tool was invoked by aibridge.
+# TYPE coder_aibridged_injected_tool_invocations_total counter
+coder_aibridged_injected_tool_invocations_total{model="gpt-5-nano",name="coder_list_templates",provider="openai",server="https://xxx.pit-1.try.coder.app/api/experimental/mcp/http"} 1
+# HELP coder_aibridged_interceptions_duration_seconds The total duration of intercepted requests, in seconds. The majority of this time will be the upstream processing of the request. aibridge has no control over upstream processing time, so it's just an illustrative metric.
+# TYPE coder_aibridged_interceptions_duration_seconds histogram
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="0.5"} 0
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="2"} 0
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="5"} 3
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="15"} 6
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="30"} 6
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="60"} 6
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="120"} 6
+coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="+Inf"} 6
+coder_aibridged_interceptions_duration_seconds_sum{model="gpt-5-nano",provider="openai"} 34.120188692
+coder_aibridged_interceptions_duration_seconds_count{model="gpt-5-nano",provider="openai"} 6
 # HELP coder_aibridged_interceptions_inflight The number of intercepted requests which are being processed.
 # TYPE coder_aibridged_interceptions_inflight gauge
-coder_aibridged_interceptions_inflight{model="claude-haiku-4-5-20251001",provider="anthropic",route="/v1/messages"} 0
-coder_aibridged_interceptions_inflight{model="claude-sonnet-4-5-20250929",provider="anthropic",route="/v1/messages"} 0
-coder_aibridged_interceptions_inflight{model="gpt-5-nano",provider="openai",route="/v1/chat/completions"} 1
+coder_aibridged_interceptions_inflight{model="gpt-5-nano",provider="openai",route="/v1/chat/completions"} 0
 # HELP coder_aibridged_interceptions_total The count of intercepted requests.
 # TYPE coder_aibridged_interceptions_total counter
-coder_aibridged_interceptions_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",method="POST",model="claude-haiku-4-5-20251001",provider="anthropic",route="/v1/messages",status="completed"} 8
-coder_aibridged_interceptions_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",method="POST",model="claude-sonnet-4-5-20250929",provider="anthropic",route="/v1/messages",status="completed"} 2
-coder_aibridged_interceptions_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",method="POST",model="gpt-5-nano",provider="openai",route="/v1/chat/completions",status="completed"} 4
-# HELP coder_aibridged_non_injected_tool_usage_total The number of times an AI model determined a tool must be invoked by the client.
-# TYPE coder_aibridged_non_injected_tool_usage_total counter
-coder_aibridged_non_injected_tool_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",name="read_file",provider="openai"} 1
-# HELP coder_aibridged_passthrough_total The count of requests which were not intercepted but passed through to the upstream.
-# TYPE coder_aibridged_passthrough_total counter
-coder_aibridged_passthrough_total{method="POST",provider="anthropic",route="/v1/messages/count_tokens"} 28
+coder_aibridged_interceptions_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",method="POST",model="gpt-5-nano",provider="openai",route="/v1/chat/completions",status="completed"} 6
+# HELP coder_aibridged_non_injected_tool_selections_total The number of times an AI model selected a tool to be invoked by the client.
+# TYPE coder_aibridged_non_injected_tool_selections_total counter
+coder_aibridged_non_injected_tool_selections_total{model="gpt-5-nano",name="read_file",provider="openai"} 2
 # HELP coder_aibridged_prompts_total The number of prompts issued by users (initiators).
 # TYPE coder_aibridged_prompts_total counter
-coder_aibridged_prompts_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic"} 2
-coder_aibridged_prompts_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai"} 4
-# HELP coder_aibridged_token_usage_total The number of tokens used by intercepted requests.
-# TYPE coder_aibridged_token_usage_total counter
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-haiku-4-5-20251001",provider="anthropic",type="cache_creation_input"} 12616
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-haiku-4-5-20251001",provider="anthropic",type="cache_ephemeral_1h_input"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-haiku-4-5-20251001",provider="anthropic",type="cache_ephemeral_5m_input"} 12616
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-haiku-4-5-20251001",provider="anthropic",type="cache_read_input"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-haiku-4-5-20251001",provider="anthropic",type="input"} 2275
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-haiku-4-5-20251001",provider="anthropic",type="output"} 365
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-haiku-4-5-20251001",provider="anthropic",type="web_search_requests"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic",type="cache_creation_input"} 61389
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic",type="cache_ephemeral_1h_input"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic",type="cache_ephemeral_5m_input"} 61389
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic",type="cache_read_input"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic",type="input"} 13
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic",type="output"} 243
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="claude-sonnet-4-5-20250929",provider="anthropic",type="web_search_requests"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="completion_accepted_prediction"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="completion_audio"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="completion_reasoning"} 1088
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="completion_rejected_prediction"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="input"} 13500
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="output"} 1254
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="prompt_audio"} 0
-coder_aibridged_token_usage_total{initiator_id="9e859d7c-13b5-4fdd-b886-f41f3a29a192",model="gpt-5-nano",provider="openai",type="prompt_cached"} 12544
+coder_aibridged_prompts_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai"} 4
+# HELP coder_aibridged_tokens_total The number of tokens used by intercepted requests.
+# TYPE coder_aibridged_tokens_total counter
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_accepted_prediction"} 0
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_audio"} 0
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_reasoning"} 1664
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_rejected_prediction"} 0
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="input"} 13823
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="output"} 2014
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_audio"} 0
+coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_cached"} 31872
