@@ -2085,6 +2085,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "display_name": "string",
   "input": "string",
   "name": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -2096,6 +2097,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                         | Type   | Required | Restrictions | Description |
 |------------------------------|--------|----------|--------------|-------------|
+| `display_name`               | string | false    |              |             |
 | `input`                      | string | false    |              |             |
 | `name`                       | string | false    |              |             |
 | `template_version_id`        | string | false    |              |             |

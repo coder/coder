@@ -844,14 +844,17 @@ func TestTasksCreate(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name               string
-			taskName           string
-			expectFallbackName bool
-			expectError        string
+			name                      string
+			taskName                  string
+			taskDisplayName           string
+			expectFallbackName        bool
+			expectFallbackDisplayName bool
+			expectError               string
 		}{
 			{
-				name:     "ValidName",
-				taskName: "a-valid-task-name",
+				name:                      "ValidName",
+				taskName:                  "a-valid-task-name",
+				expectFallbackDisplayName: true,
 			},
 			{
 				name:        "NotValidName",
@@ -861,7 +864,36 @@ func TestTasksCreate(t *testing.T) {
 			{
 				name:               "NoNameProvided",
 				taskName:           "",
+				taskDisplayName:    "A valid task display name",
 				expectFallbackName: true,
+			},
+			{
+				name:               "ValidDisplayName",
+				taskDisplayName:    "A valid task display name",
+				expectFallbackName: true,
+			},
+			{
+				name:            "NotValidDisplayName",
+				taskDisplayName: "This is a task display name with a length greater than 64 characters.",
+				expectError:     "Display name must be 64 characters or less.",
+			},
+			{
+				name:                      "NoDisplayNameProvided",
+				taskName:                  "a-valid-task-name",
+				taskDisplayName:           "",
+				expectFallbackDisplayName: true,
+			},
+			{
+				name:            "ValidNameAndDisplayName",
+				taskName:        "a-valid-task-name",
+				taskDisplayName: "A valid task display name",
+			},
+			{
+				name:                      "NoNameAndDisplayNameProvided",
+				taskName:                  "",
+				taskDisplayName:           "",
+				expectFallbackName:        true,
+				expectFallbackDisplayName: true,
 			},
 		}
 
@@ -893,6 +925,7 @@ func TestTasksCreate(t *testing.T) {
 					TemplateVersionID: template.ActiveVersionID,
 					Input:             "Some prompt",
 					Name:              tt.taskName,
+					DisplayName:       tt.taskDisplayName,
 				})
 				if tt.expectError == "" {
 					require.NoError(t, err)
@@ -906,8 +939,17 @@ func TestTasksCreate(t *testing.T) {
 					if !tt.expectFallbackName {
 						require.Equal(t, tt.taskName, task.Name)
 					}
+
+					// Then: We expect the correct display name to have been picked.
+					require.NotEmpty(t, task.DisplayName)
+					if !tt.expectFallbackDisplayName {
+						require.Equal(t, tt.taskDisplayName, task.DisplayName)
+					}
 				} else {
-					require.ErrorContains(t, err, tt.expectError)
+					var apiErr *codersdk.Error
+					require.ErrorAs(t, err, &apiErr)
+					require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+					require.Equal(t, apiErr.Message, tt.expectError)
 				}
 			})
 		}

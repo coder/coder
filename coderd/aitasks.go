@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/taskname"
 
 	aiagentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -22,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
-	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	strutil "github.com/coder/coder/v2/coderd/util/strings"
@@ -108,11 +110,26 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	displayName := ""
-	if taskName == "" {
+	taskDisplayName := strings.TrimSpace(req.DisplayName)
+	if taskDisplayName != "" {
+		if len(taskDisplayName) > 64 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Display name must be 64 characters or less.",
+			})
+			return
+		}
+	}
+
+	// Generate task name and display name if either is not provided
+	if taskName == "" || taskDisplayName == "" {
 		generatedTaskName := taskname.Generate(ctx, req.Input)
-		taskName = generatedTaskName.Name
-		displayName = generatedTaskName.DisplayName
+
+		if taskName == "" {
+			taskName = generatedTaskName.Name
+		}
+		if taskDisplayName == "" {
+			taskDisplayName = generatedTaskName.DisplayName
+		}
 	}
 
 	// Check if the template defines the AI Prompt parameter.
@@ -204,7 +221,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 				OrganizationID:     templateVersion.OrganizationID,
 				OwnerID:            owner.ID,
 				Name:               taskName,
-				DisplayName:        displayName,
+				DisplayName:        taskDisplayName,
 				WorkspaceID:        uuid.NullUUID{}, // Will be set after workspace creation.
 				TemplateVersionID:  templateVersion.ID,
 				TemplateParameters: []byte("{}"),

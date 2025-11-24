@@ -1203,6 +1203,7 @@ export interface CreateTaskRequest {
 	readonly template_version_preset_id?: string;
 	readonly input: string;
 	readonly name?: string;
+	readonly display_name?: string;
 }
 
 // From codersdk/organizations.go

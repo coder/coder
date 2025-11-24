@@ -13237,6 +13237,9 @@ const docTemplate = `{
         "codersdk.CreateTaskRequest": {
             "type": "object",
             "properties": {
+                "display_name": {
+                    "type": "string"
+                },
                 "input": {
                     "type": "string"
                 },

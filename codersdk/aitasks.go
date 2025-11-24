@@ -35,6 +35,7 @@ type CreateTaskRequest struct {
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	Input                   string    `json:"input"`
 	Name                    string    `json:"name,omitempty"`
+	DisplayName             string    `json:"display_name,omitempty"`
 }
 
 // CreateTask creates a new task.
