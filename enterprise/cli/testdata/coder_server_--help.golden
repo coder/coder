@@ -107,7 +107,7 @@ AIBRIDGE OPTIONS:
           See
           https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
-      --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 1440h)
+      --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 60d)
           Length of time to retain data such as interceptions and all related
           records (token, prompt, tool use).
 

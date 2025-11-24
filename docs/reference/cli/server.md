@@ -1771,6 +1771,6 @@ Whether to inject Coder's MCP tools into intercepted AIBridge requests (requires
 | Type        | <code>duration</code>                  |
 | Environment | <code>$CODER_AIBRIDGE_RETENTION</code> |
 | YAML        | <code>aibridge.retention</code>        |
-| Default     | <code>1440h</code>                     |
+| Default     | <code>60d</code>                       |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
