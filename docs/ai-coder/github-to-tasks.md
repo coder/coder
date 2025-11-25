@@ -11,7 +11,7 @@ Coder Tasks provides a method for automating these repeatable workflows. With a 
 1. Focus on other higher-priority needs, while the agent addresses the issue
 1. Get notified that the issue has been addressed, and you can review the proposed solution
 
-This guide walks you through how to configure GitHub and Coder together so that you can tag Coder in a GitHub issue comment, and securely delegate work to coding agents in a Coder Task. 
+This guide walks you through how to configure GitHub and Coder together so that you can tag Coder in a GitHub issue comment, and securely delegate work to coding agents in a Coder Task.
 
 ## Implementing the GHA
 
@@ -23,13 +23,12 @@ The below steps outline how to use the Coder [Create Task Action GHA](https://gi
 - Check the [Requirements section of the GHA](https://github.com/coder/create-task-action?tab=readme-ov-file#requirements) for specific version requirements for your Coder deployment and the following
   - GitHub OAuth is configured in your Coder Deployment
   - Users have linked their GitHub account to Coder via `/settings/external-auth`
-  
 
 This guide can be followed for other use cases beyond bugs like updating documentation or implementing a small feature, but may require minor changes to file names and the prompts provided to the Coder Task.
 
 ### Step 1: Create a GitHub Workflow file
 
-In your repository, create a new file in the `./.github/workflows/` directory named `triage-bug.yaml`. Within that file, add the following code: 
+In your repository, create a new file in the `./.github/workflows/` directory named `triage-bug.yaml`. Within that file, add the following code:
 
 ```yaml
 name: Start Coder Task
@@ -65,8 +64,8 @@ jobs:
 This code will perform the following actions:
 
 - Create a Coder Task when you apply the `coder` label to an existing GitHub issue
-- Pass as a prompt to the Coder Task
-    
+- Pass as a prompt to the Coder Task:
+
     1. Use the GitHub CLI to access and read the content of the linked GitHub issue
     1. Generate an initial implementation plan to solve the bug
     1. Write that plan to a `PLAN.md` file
@@ -78,7 +77,7 @@ The prompt text can be modified to not wait for additional human input, but cont
 
 ### Step 2: Setup the Required Secrets & Inputs
 
-The GHA has multiple required inputs that require configuring before the workflow can successfully operate. 
+The GHA has multiple required inputs that require configuring before the workflow can successfully operate.
 
 You must set the following inputs as secrets within your repository:
 
@@ -125,10 +124,10 @@ Note that tokens passed as environment variables represent a snapshot at task cr
 Because of this, we recommend to:
 
 - Keep tasks under 8 hours to avoid token expiration issues
-- For longer workflows, break work into multiple sequential tasks 
+- For longer workflows, break work into multiple sequential tasks
 - If authentication fails mid-task, users must re-authenticate at /settings/external-auth and restart the task
 
-For more information, see our [External Authentication documentation](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app). 
+For more information, see our [External Authentication documentation](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app).
 
 ### Step 3: Test Your Setup
 
@@ -200,7 +199,7 @@ This guide shows you how to automatically delegate routine engineering work to A
 
 **Cause:** The user who triggered the workflow hasn't linked their GitHub account to Coder.
 
-**Solution:** 
+**Solution:**
 
 1. Ensure GitHub OAuth is configured in your Coder deployment (see [External Authentication docs](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app))
 1. Have the user visit `https://your-coder-url/settings/external-auth` and link their GitHub account
@@ -235,7 +234,7 @@ Generate a new token with these permissions at `https://your-coder-url/deploymen
 - After some time passes, `gh` CLI commands fail with:
 
   - `authentication failed`
-  - `Bad credentials` 
+  - `Bad credentials`
   - `HTTP 401 Unauthorized`
   - `error getting credentials` from git operations
 
