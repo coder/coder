@@ -16,13 +16,13 @@ func (r *Runner) plan(ctx context.Context, stage string, req *sdkproto.PlanReque
 
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Plan{Plan: req}})
 	if err != nil {
-		return nil, r.failedJobf("send init request: %v", err)
+		return nil, r.failedJobf("send plan request: %v", err)
 	}
 
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
-			return nil, r.failedJobf("receive init response: %v", err)
+			return nil, r.failedJobf("receive plan response: %v", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
@@ -41,7 +41,7 @@ func (r *Runner) plan(ctx context.Context, stage string, req *sdkproto.PlanReque
 		case *sdkproto.Response_Plan:
 			return msgType.Plan, nil
 		default:
-			return nil, r.failedJobf("unexpected init response type %T", msg.Type)
+			return nil, r.failedJobf("unexpected plan response type %T", msg.Type)
 		}
 	}
 }

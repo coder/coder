@@ -553,11 +553,6 @@ func (e *executor) apply(
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
 
-	// `terraform show` & `terraform graph`
-	state, err := e.stateResources(ctx, killCtx)
-	if err != nil {
-		return nil, err
-	}
 	statefilePath := e.files.StateFilePath()
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
@@ -566,12 +561,8 @@ func (e *executor) apply(
 
 	agg := e.timings.aggregate()
 	return &proto.ApplyComplete{
-		Parameters:            state.Parameters,
-		Resources:             state.Resources,
-		ExternalAuthProviders: state.ExternalAuthProviders,
-		State:                 stateContent,
-		Timings:               agg,
-		AiTasks:               state.AITasks,
+		State:   stateContent,
+		Timings: agg,
 	}, nil
 }
 

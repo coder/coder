@@ -39,6 +39,7 @@ type Server interface {
 	Parse(s *Session, r *proto.ParseRequest, canceledOrComplete <-chan struct{}) *proto.ParseComplete
 	Plan(s *Session, r *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete
 	Apply(s *Session, r *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete
+	Graph(s *Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete
 }
 
 // Serve starts a dRPC connection for the provisioner and transport provided.

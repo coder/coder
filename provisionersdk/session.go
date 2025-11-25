@@ -164,6 +164,23 @@ func (s *Session) handleRequests() error {
 			}
 			resp.Type = &proto.Response_Apply{Apply: complete}
 		}
+		if graph := req.GetGraph(); graph != nil {
+			if s.initialized == nil {
+				return xerrors.New("cannot graph before successful init")
+			}
+
+			r := &request[*proto.GraphRequest, *proto.GraphComplete]{
+				req:      graph,
+				session:  s,
+				serverFn: s.server.Graph,
+				cancels:  requests,
+			}
+			complete, err := r.do()
+			if err != nil {
+				return err
+			}
+			resp.Type = &proto.Response_Graph{Graph: complete}
+		}
 		err := s.stream.Send(resp)
 		if err != nil {
 			return xerrors.Errorf("send response: %w", err)
