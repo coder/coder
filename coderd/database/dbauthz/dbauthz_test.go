@@ -2457,6 +2457,22 @@ func (s *MethodTestSuite) TestTasks() {
 
 		check.Args(arg).Asserts(task, policy.ActionUpdate, ws, policy.ActionUpdate).Returns(database.TaskTable{})
 	}))
+	s.Run("UpdateTaskPrompt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		arg := database.UpdateTaskPromptParams{
+			ID:     task.ID,
+			Prompt: "Updated prompt text",
+		}
+
+		// Create a copy of the task with the updated prompt
+		updatedTask := task
+		updatedTask.Prompt = arg.Prompt
+
+		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
+		dbm.EXPECT().UpdateTaskPrompt(gomock.Any(), arg).Return(updatedTask.TaskTable(), nil).AnyTimes()
+
+		check.Args(arg).Asserts(task, policy.ActionUpdate).Returns(updatedTask.TaskTable())
+	}))
 	s.Run("GetTaskByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		task := testutil.Fake(s.T(), faker, database.Task{})
 		task.WorkspaceID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
