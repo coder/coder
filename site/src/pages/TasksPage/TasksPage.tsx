@@ -3,7 +3,6 @@ import { templates } from "api/queries/templates";
 import type { TasksFilter } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button, type ButtonProps } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
@@ -55,10 +54,7 @@ const TasksPage: FC = () => {
 			<title>{pageTitle("AI Tasks")}</title>
 			<Margins>
 				<PageHeader>
-					<span className="flex flex-row gap-2">
-						<PageHeaderTitle>Tasks</PageHeaderTitle>
-						<FeatureStageBadge contentType={"beta"} size="md" />
-					</span>
+					<PageHeaderTitle>Tasks</PageHeaderTitle>
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
