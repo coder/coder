@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"time"
 
@@ -22,6 +23,7 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 		return nil, r.failedJobf("send init request: %v", err)
 	}
 
+	var moduleFilesUpload *sdkproto.DataBuilder
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
@@ -29,10 +31,10 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "terraform initialization",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
+				//slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
 			)
 
 			r.queueLog(ctx, &proto.Log{
@@ -43,10 +45,49 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 				Stage:     "Initializing Terraform Directory",
 			})
 		case *sdkproto.Response_DataUpload:
-			continue // Only for template imports
+			if omitModules {
+				return nil, r.failedJobf("received unexpected module files data upload when omitModules is true")
+			}
+			c := msgType.DataUpload
+			if c.UploadType != sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES {
+				return nil, r.failedJobf("invalid data upload type: %q", c.UploadType)
+			}
+
+			if moduleFilesUpload != nil {
+				return nil, r.failedJobf("multiple module data uploads received, only expect 1")
+			}
+
+			moduleFilesUpload, err = sdkproto.NewDataBuilder(c)
+			if err != nil {
+				return nil, r.failedJobf("create data builder: %w", err)
+			}
 		case *sdkproto.Response_ChunkPiece:
-			continue // Only for template imports
+			if omitModules {
+				return nil, r.failedJobf("received unexpected module files data upload when omitModules is true")
+			}
+			c := msgType.ChunkPiece
+			if moduleFilesUpload == nil {
+				return nil, r.failedJobf("received chunk piece before module files data upload")
+			}
+
+			_, err := moduleFilesUpload.Add(c)
+			if err != nil {
+				return nil, r.failedJobf("module files, add chunk piece: %w", err)
+			}
 		case *sdkproto.Response_Init:
+			if moduleFilesUpload != nil {
+				// If files were uploaded in multiple chunks, put them back together.
+				moduleFilesData, err := moduleFilesUpload.Complete()
+				if err != nil {
+					return nil, r.failedJobf("complete module files data upload: %w", err)
+				}
+
+				if !bytes.Equal(msgType.Init.ModuleFilesHash, moduleFilesUpload.Hash) {
+					return nil, r.failedJobf("module files hash mismatch, uploaded: %x, expected: %x", moduleFilesUpload.Hash, msgType.Init.ModuleFilesHash)
+				}
+				msgType.Init.ModuleFiles = moduleFilesData
+			}
+
 			return msgType.Init, nil
 		default:
 			return nil, r.failedJobf("unexpected init response type %T", msg.Type)

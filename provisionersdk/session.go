@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
+	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
 
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -56,7 +57,7 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	}
 
 	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
-		//s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
+		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
 	}
 
 	// Cleanup any previously left stale sessions.
