@@ -20,6 +20,15 @@ coder server dbcrypt decrypt [flags]
 
 The connection URL for the Postgres database.
 
+### --postgres-url-file
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PG_CONNECTION_URL_FILE</code> |
+
+Path to a file containing the connection URL for the Postgres database.
+
 ### --postgres-connection-auth
 
 |             |                                        |

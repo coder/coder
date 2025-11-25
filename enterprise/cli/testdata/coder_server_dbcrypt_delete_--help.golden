@@ -14,6 +14,10 @@ OPTIONS:
       --postgres-url string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL
           The connection URL for the Postgres database.
 
+      --postgres-url-file string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL_FILE
+          Path to a file containing the connection URL for the Postgres
+          database.
+
   -y, --yes bool
           Bypass prompts.
 

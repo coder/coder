@@ -19,6 +19,10 @@ OPTIONS:
       --postgres-url string, $CODER_PG_CONNECTION_URL
           The connection URL for the Postgres database.
 
+      --postgres-url-file string, $CODER_PG_CONNECTION_URL_FILE
+          Path to a file containing the connection URL for the Postgres
+          database.
+
   -y, --yes bool
           Bypass prompts.
 

@@ -993,6 +993,15 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 
 URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
 
+### --postgres-url-file
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PG_CONNECTION_URL_FILE</code> |
+
+Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.
+
 ### --postgres-auth
 
 |             |                                  |

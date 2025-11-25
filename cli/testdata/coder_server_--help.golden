@@ -65,6 +65,12 @@ OPTIONS:
           server postgres-builtin-url". Note that any special characters in the
           URL must be URL-encoded.
 
+      --postgres-url-file string, $CODER_PG_CONNECTION_URL_FILE
+          Path to a file containing the URL of a PostgreSQL database. The file
+          contents will be read and used as the connection URL. This is an
+          alternative to --postgres-url for cases where the URL is stored in a
+          file, such as a Docker or Kubernetes secret.
+
       --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".

@@ -24,6 +24,15 @@ coder server dbcrypt delete [flags]
 
 The connection URL for the Postgres database.
 
+### --postgres-url-file
+
+|             |                                                                 |
+|-------------|-----------------------------------------------------------------|
+| Type        | <code>string</code>                                             |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL_FILE</code> |
+
+Path to a file containing the connection URL for the Postgres database.
+
 ### --postgres-connection-auth
 
 |             |                                        |
