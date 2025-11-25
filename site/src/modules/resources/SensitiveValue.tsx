@@ -28,13 +28,7 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 	);
 
 	return (
-		<div
-			css={{
-				display: "flex",
-				alignItems: "center",
-				gap: 4,
-			}}
-		>
+		<div className="flex items-center gap-1">
 			<CopyableValue
 				value={value}
 				className="w-[calc(100%-22px)] overflow-hidden whitespace-nowrap text-ellipsis"
