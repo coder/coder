@@ -11,21 +11,6 @@ import (
 // Client provides a client for communicating with the workspace agentsocket API.
 type Client struct{}
 
-// Option represents a configuration option for NewClient.
-type Option func(*clientOptions)
-
-type clientOptions struct {
-	path string
-}
-
-// WithPath sets the socket path. If not provided or empty, the client will
-// auto-discover the default socket path.
-func WithPath(path string) Option {
-	return func(opts *clientOptions) {
-		opts.path = path
-	}
-}
-
 // NewClient returns an error indicating that agentsocket is not supported on Windows.
 func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 	return nil, xerrors.New("agentsocket is not supported on Windows")
@@ -64,19 +49,4 @@ func (c *Client) SyncReady(ctx context.Context, unitName string) (bool, error) {
 // SyncStatus gets the status of a unit and its dependencies.
 func (c *Client) SyncStatus(ctx context.Context, unitName string) (SyncStatusResponse, error) {
 	return SyncStatusResponse{}, xerrors.New("agentsocket is not supported on Windows")
-}
-
-// SyncStatusResponse contains the status information for a unit.
-type SyncStatusResponse struct {
-	Status       string           `json:"status"`
-	IsReady      bool             `json:"is_ready"`
-	Dependencies []DependencyInfo `json:"dependencies"`
-}
-
-// DependencyInfo contains information about a unit dependency.
-type DependencyInfo struct {
-	DependsOn      string `json:"depends_on"`
-	RequiredStatus string `json:"required_status"`
-	CurrentStatus  string `json:"current_status"`
-	IsSatisfied    bool   `json:"is_satisfied"`
 }
