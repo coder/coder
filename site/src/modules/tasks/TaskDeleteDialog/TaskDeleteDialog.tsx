@@ -20,7 +20,7 @@ export const TaskDeleteDialog: FC<TaskDeleteDialogProps> = ({
 }) => {
 	const queryClient = new QueryClient();
 	const deleteTaskMutation = useMutation({
-		mutationFn: () => API.experimental.deleteTask(task.owner_name, task.id),
+		mutationFn: () => API.tasks.deleteTask(task.owner_name, task.id),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
 		},

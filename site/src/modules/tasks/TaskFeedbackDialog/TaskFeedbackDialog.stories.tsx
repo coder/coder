@@ -21,7 +21,7 @@ export const Idle: Story = {};
 
 export const Submitting: Story = {
 	beforeEach: async () => {
-		spyOn(API.experimental, "createTaskFeedback").mockImplementation(() => {
+		spyOn(API.tasks, "createTaskFeedback").mockImplementation(() => {
 			return new Promise(() => {});
 		});
 	},
@@ -53,7 +53,7 @@ export const Success: Story = {
 	},
 	decorators: [withGlobalSnackbar],
 	beforeEach: async () => {
-		spyOn(API.experimental, "createTaskFeedback").mockResolvedValue();
+		spyOn(API.tasks, "createTaskFeedback").mockResolvedValue();
 	},
 	play: async ({ canvasElement, step }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -77,7 +77,7 @@ export const Success: Story = {
 
 		step("submitted successfully", async () => {
 			await body.findByText("Feedback submitted successfully");
-			expect(API.experimental.createTaskFeedback).toHaveBeenCalledWith(
+			expect(API.tasks.createTaskFeedback).toHaveBeenCalledWith(
 				MockTask.id,
 				{
 					rate: "regular",
@@ -90,7 +90,7 @@ export const Success: Story = {
 
 export const Failure: Story = {
 	beforeEach: async () => {
-		spyOn(API.experimental, "createTaskFeedback").mockRejectedValue(
+		spyOn(API.tasks, "createTaskFeedback").mockRejectedValue(
 			mockApiError({
 				message: "Failed to submit feedback",
 				detail: "Server is down",

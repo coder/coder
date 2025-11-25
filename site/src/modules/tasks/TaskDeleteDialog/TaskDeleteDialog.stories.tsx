@@ -27,7 +27,7 @@ export const DeleteTaskSuccess: Story = {
 		},
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "deleteTask").mockResolvedValue();
+		spyOn(API.tasks, "deleteTask").mockResolvedValue();
 	},
 	play: async ({ canvasElement, step }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -39,7 +39,7 @@ export const DeleteTaskSuccess: Story = {
 			await userEvent.click(confirmButton);
 			await step("Confirm delete", async () => {
 				await waitFor(() => {
-					expect(API.experimental.deleteTask).toHaveBeenCalledWith(
+					expect(API.tasks.deleteTask).toHaveBeenCalledWith(
 						MockTask.owner_name,
 						MockTask.id,
 					);

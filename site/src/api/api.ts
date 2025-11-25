@@ -440,9 +440,11 @@ export type GetProvisionerDaemonsParams = {
  */
 class ApiMethods {
 	experimental: ExperimentalApiMethods;
+	tasks: TasksApiMethods;
 
 	constructor(protected readonly axios: AxiosInstance) {
 		this.experimental = new ExperimentalApiMethods(this.axios);
+		this.tasks = new TasksApiMethods(this.axios);
 	}
 
 	login = async (
@@ -2646,8 +2648,7 @@ class ApiMethods {
 	};
 }
 
-// Experimental API methods call endpoints under the /api/experimental/ prefix.
-// These endpoints are not stable and may change or be removed at any time.
+// Tasks API methods call endpoints under the /api/v2/tasks prefix.
 //
 // All methods must be defined with arrow function syntax. See the docstring
 // above the ApiMethods class for a full explanation.
@@ -2658,7 +2659,8 @@ export type CreateTaskFeedbackRequest = {
 	rate: TaskFeedbackRating;
 	comment?: string;
 };
-class ExperimentalApiMethods {
+
+class TasksApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
 	createTask = async (
@@ -2716,6 +2718,15 @@ class ExperimentalApiMethods {
 			setTimeout(() => res(), 500);
 		});
 	};
+}
+
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
 
 	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(
