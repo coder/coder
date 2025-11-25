@@ -156,6 +156,7 @@ const TerminalPage: FC = () => {
 		// Create terminal - ghostty-web and xterm.js have compatible APIs
 		const terminal = useGhosttyWeb
 			? new GhosttyTerminal({
+					wasmPath: "/ghostty-vt.wasm",
 					...terminalOptions,
 					cursorBlink: true,
 				})
