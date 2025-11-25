@@ -747,7 +747,8 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	}
 
 	graphComplete, failed := r.graph(ctx, &sdkproto.GraphRequest{
-		Source: sdkproto.GraphSource_SOURCE_PLAN,
+		Metadata: metadata,
+		Source:   sdkproto.GraphSource_SOURCE_PLAN,
 	})
 	if failed != nil {
 		return nil, xerrors.Errorf("graph during template import provision: %w", failed)
@@ -1069,7 +1070,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 
 	// Run Terraform Graph
 	graphComplete, failed := r.graph(ctx, &sdkproto.GraphRequest{
-		Source: sdkproto.GraphSource_SOURCE_STATE,
+		Metadata: r.job.GetWorkspaceBuild().Metadata,
+		Source:   sdkproto.GraphSource_SOURCE_STATE,
 	})
 	if failed != nil {
 		return nil, failed

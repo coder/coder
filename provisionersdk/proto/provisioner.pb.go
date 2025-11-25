@@ -3719,7 +3719,8 @@ func (x *ApplyComplete) GetTimings() []*Timing {
 
 type GraphRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Source        GraphSource            `protobuf:"varint,1,opt,name=source,proto3,enum=provisioner.GraphSource" json:"source,omitempty"`
+	Metadata      *Metadata              `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Source        GraphSource            `protobuf:"varint,2,opt,name=source,proto3,enum=provisioner.GraphSource" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3752,6 +3753,13 @@ func (x *GraphRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GraphRequest.ProtoReflect.Descriptor instead.
 func (*GraphRequest) Descriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *GraphRequest) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 func (x *GraphRequest) GetSource() GraphSource {
@@ -4925,9 +4933,10 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\rApplyComplete\x12\x14\n" +
 	"\x05state\x18\x01 \x01(\fR\x05state\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12-\n" +
-	"\atimings\x18\x03 \x03(\v2\x13.provisioner.TimingR\atimings\"@\n" +
-	"\fGraphRequest\x120\n" +
-	"\x06source\x18\x01 \x01(\x0e2\x18.provisioner.GraphSourceR\x06source\"\xd9\x03\n" +
+	"\atimings\x18\x03 \x03(\v2\x13.provisioner.TimingR\atimings\"s\n" +
+	"\fGraphRequest\x121\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x15.provisioner.MetadataR\bmetadata\x120\n" +
+	"\x06source\x18\x02 \x01(\x0e2\x18.provisioner.GraphSourceR\x06source\"\xd9\x03\n" +
 	"\rGraphComplete\x12\x14\n" +
 	"\x05error\x18\x01 \x01(\tR\x05error\x12-\n" +
 	"\atimings\x18\x02 \x03(\v2\x13.provisioner.TimingR\atimings\x123\n" +
@@ -5162,39 +5171,40 @@ var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
 	20, // 38: provisioner.PlanComplete.resource_replacements:type_name -> provisioner.ResourceReplacement
 	42, // 39: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
 	54, // 40: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
-	6,  // 41: provisioner.GraphRequest.source:type_name -> provisioner.GraphSource
-	54, // 42: provisioner.GraphComplete.timings:type_name -> provisioner.Timing
-	36, // 43: provisioner.GraphComplete.resources:type_name -> provisioner.Resource
-	12, // 44: provisioner.GraphComplete.parameters:type_name -> provisioner.RichParameter
-	24, // 45: provisioner.GraphComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	18, // 46: provisioner.GraphComplete.presets:type_name -> provisioner.Preset
-	41, // 47: provisioner.GraphComplete.ai_tasks:type_name -> provisioner.AITask
-	64, // 48: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
-	64, // 49: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
-	7,  // 50: provisioner.Timing.state:type_name -> provisioner.TimingState
-	43, // 51: provisioner.Request.config:type_name -> provisioner.Config
-	44, // 52: provisioner.Request.parse:type_name -> provisioner.ParseRequest
-	46, // 53: provisioner.Request.init:type_name -> provisioner.InitRequest
-	48, // 54: provisioner.Request.plan:type_name -> provisioner.PlanRequest
-	50, // 55: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
-	52, // 56: provisioner.Request.graph:type_name -> provisioner.GraphRequest
-	55, // 57: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
-	22, // 58: provisioner.Response.log:type_name -> provisioner.Log
-	45, // 59: provisioner.Response.parse:type_name -> provisioner.ParseComplete
-	47, // 60: provisioner.Response.init:type_name -> provisioner.InitComplete
-	49, // 61: provisioner.Response.plan:type_name -> provisioner.PlanComplete
-	51, // 62: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
-	53, // 63: provisioner.Response.graph:type_name -> provisioner.GraphComplete
-	58, // 64: provisioner.Response.data_upload:type_name -> provisioner.DataUpload
-	59, // 65: provisioner.Response.chunk_piece:type_name -> provisioner.ChunkPiece
-	8,  // 66: provisioner.DataUpload.upload_type:type_name -> provisioner.DataUploadType
-	56, // 67: provisioner.Provisioner.Session:input_type -> provisioner.Request
-	57, // 68: provisioner.Provisioner.Session:output_type -> provisioner.Response
-	68, // [68:69] is the sub-list for method output_type
-	67, // [67:68] is the sub-list for method input_type
-	67, // [67:67] is the sub-list for extension type_name
-	67, // [67:67] is the sub-list for extension extendee
-	0,  // [0:67] is the sub-list for field type_name
+	42, // 41: provisioner.GraphRequest.metadata:type_name -> provisioner.Metadata
+	6,  // 42: provisioner.GraphRequest.source:type_name -> provisioner.GraphSource
+	54, // 43: provisioner.GraphComplete.timings:type_name -> provisioner.Timing
+	36, // 44: provisioner.GraphComplete.resources:type_name -> provisioner.Resource
+	12, // 45: provisioner.GraphComplete.parameters:type_name -> provisioner.RichParameter
+	24, // 46: provisioner.GraphComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	18, // 47: provisioner.GraphComplete.presets:type_name -> provisioner.Preset
+	41, // 48: provisioner.GraphComplete.ai_tasks:type_name -> provisioner.AITask
+	64, // 49: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
+	64, // 50: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
+	7,  // 51: provisioner.Timing.state:type_name -> provisioner.TimingState
+	43, // 52: provisioner.Request.config:type_name -> provisioner.Config
+	44, // 53: provisioner.Request.parse:type_name -> provisioner.ParseRequest
+	46, // 54: provisioner.Request.init:type_name -> provisioner.InitRequest
+	48, // 55: provisioner.Request.plan:type_name -> provisioner.PlanRequest
+	50, // 56: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
+	52, // 57: provisioner.Request.graph:type_name -> provisioner.GraphRequest
+	55, // 58: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
+	22, // 59: provisioner.Response.log:type_name -> provisioner.Log
+	45, // 60: provisioner.Response.parse:type_name -> provisioner.ParseComplete
+	47, // 61: provisioner.Response.init:type_name -> provisioner.InitComplete
+	49, // 62: provisioner.Response.plan:type_name -> provisioner.PlanComplete
+	51, // 63: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
+	53, // 64: provisioner.Response.graph:type_name -> provisioner.GraphComplete
+	58, // 65: provisioner.Response.data_upload:type_name -> provisioner.DataUpload
+	59, // 66: provisioner.Response.chunk_piece:type_name -> provisioner.ChunkPiece
+	8,  // 67: provisioner.DataUpload.upload_type:type_name -> provisioner.DataUploadType
+	56, // 68: provisioner.Provisioner.Session:input_type -> provisioner.Request
+	57, // 69: provisioner.Provisioner.Session:output_type -> provisioner.Response
+	69, // [69:70] is the sub-list for method output_type
+	68, // [68:69] is the sub-list for method input_type
+	68, // [68:68] is the sub-list for extension type_name
+	68, // [68:68] is the sub-list for extension extendee
+	0,  // [0:68] is the sub-list for field type_name
 }
 
 func init() { file_provisionersdk_proto_provisioner_proto_init() }

@@ -284,8 +284,8 @@ func templateWithPresets(presets []*proto.Preset) *echo.Responses {
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Presets: presets,
 					},
 				},

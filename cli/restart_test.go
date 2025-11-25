@@ -308,8 +308,8 @@ func TestRestartWithParameters(t *testing.T) {
 			Parse: echo.ParseComplete,
 			ProvisionPlan: []*proto.Response{
 				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Parameters: []*proto.RichParameter{
 								{
 									Name:        immutableParameterName,

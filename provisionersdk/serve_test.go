@@ -44,6 +44,11 @@ func TestProvisionerSDK(t *testing.T) {
 		err = s.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{}}})
 		require.NoError(t, err)
 
+		err = s.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{}}})
+		require.NoError(t, err)
+		_, err = s.Recv()
+		require.NoError(t, err)
+
 		err = s.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})
 		require.NoError(t, err)
 		msg, err := s.Recv()
@@ -102,6 +107,11 @@ func TestProvisionerSDK(t *testing.T) {
 		err = s.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{}}})
 		require.NoError(t, err)
 
+		err = s.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{}}})
+		require.NoError(t, err)
+		_, err = s.Recv()
+		require.NoError(t, err)
+
 		err = s.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})
 		require.NoError(t, err)
 		msg, err := s.Recv()
@@ -135,7 +145,17 @@ func TestProvisionerSDK(t *testing.T) {
 	})
 }
 
+var _ provisionersdk.Server = unimplementedServer{}
+
 type unimplementedServer struct{}
+
+func (s2 unimplementedServer) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+	return &proto.InitComplete{}
+}
+
+func (s2 unimplementedServer) Graph(s *provisionersdk.Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
+	return &proto.GraphComplete{Error: "unimplemented"}
+}
 
 func (unimplementedServer) Parse(_ *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
 	return &proto.ParseComplete{Error: "unimplemented"}
