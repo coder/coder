@@ -29,7 +29,6 @@ func (r *Runner) graph(ctx context.Context, req *sdkproto.GraphRequest) (*sdkpro
 			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "terraform graphing",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				//slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
 			)
 
 			r.queueLog(ctx, &proto.Log{

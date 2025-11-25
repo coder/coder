@@ -34,7 +34,6 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "terraform initialization",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				//slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
 			)
 
 			r.queueLog(ctx, &proto.Log{

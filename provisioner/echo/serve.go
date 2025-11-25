@@ -201,12 +201,12 @@ func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan
 }
 
 func (e *echo) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (e *echo) Graph(s *provisionersdk.Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -336,13 +336,14 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 				continue
 			}
 			responses.ProvisionInit = append(responses.ProvisionInit, &proto.Response{
-				Type: &proto.Response_Init{Init: &proto.InitComplete{
-					Error:           resp.GetGraph().GetError(),
-					Timings:         nil,
-					Modules:         nil,
-					ModuleFiles:     nil,
-					ModuleFilesHash: nil,
-				},
+				Type: &proto.Response_Init{
+					Init: &proto.InitComplete{
+						Error:           resp.GetGraph().GetError(),
+						Timings:         nil,
+						Modules:         nil,
+						ModuleFiles:     nil,
+						ModuleFilesHash: nil,
+					},
 				},
 			},
 			)
