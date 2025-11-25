@@ -43,10 +43,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			InitiatorID: member.ID,
 			StartedAt:   now.Add(-time.Hour),
 		}, &now)
+		interception2EndedAt := now.Add(time.Minute)
 		interception2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now,
-		}, nil)
+		}, &interception2EndedAt)
 		// Should not be returned because the user can't see it.
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: owner.UserID,
@@ -91,12 +92,13 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		now := dbtime.Now()
 
 		// This interception should be returned since it matches all filters.
+		goodInterceptionEndedAt := now.Add(time.Minute)
 		goodInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			Provider:    "real-provider",
 			Model:       "real-model",
 			StartedAt:   now,
-		}, nil)
+		}, &goodInterceptionEndedAt)
 
 		// These interceptions should not be returned since they don't match the
 		// filters.
@@ -173,10 +175,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		now := dbtime.Now()
+		firstInterceptionEndedAt := now.Add(time.Minute)
 		firstInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now,
-		}, nil)
+		}, &firstInterceptionEndedAt)
 		returnedInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now.Add(-time.Hour),

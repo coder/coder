@@ -6,7 +6,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
@@ -137,20 +136,18 @@ export const AppLink: FC<AppLinkProps> = ({
 
 	if (primaryTooltip || app.tooltip) {
 		return (
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>{button}</TooltipTrigger>
-					<TooltipContent>
-						{primaryTooltip ? (
-							primaryTooltip
-						) : app.tooltip ? (
-							<Markdown className="text-content-secondary prose-sm font-medium wrap-anywhere">
-								{app.tooltip}
-							</Markdown>
-						) : null}
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>{button}</TooltipTrigger>
+				<TooltipContent>
+					{primaryTooltip ? (
+						primaryTooltip
+					) : app.tooltip ? (
+						<Markdown className="text-content-secondary prose-sm font-medium wrap-anywhere">
+							{app.tooltip}
+						</Markdown>
+					) : null}
+				</TooltipContent>
+			</Tooltip>
 		);
 	}
 
