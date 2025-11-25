@@ -19005,7 +19005,7 @@ const docTemplate = `{
         "codersdk.UpdateTaskInputRequest": {
             "type": "object",
             "properties": {
-                "prompt": {
+                "input": {
                     "type": "string"
                 }
             }

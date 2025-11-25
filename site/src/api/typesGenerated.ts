@@ -5360,12 +5360,12 @@ export interface UpdateRoles {
 
 // From codersdk/aitasks.go
 /**
- * UpdateTaskInputRequest is used to update a task's prompt.
+ * UpdateTaskInputRequest is used to update a task's input.
  *
  * Experimental: This type is experimental and may change in the future.
  */
 export interface UpdateTaskInputRequest {
-	readonly prompt: string;
+	readonly input: string;
 }
 
 // From codersdk/templates.go

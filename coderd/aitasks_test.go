@@ -785,12 +785,12 @@ func TestTasks(t *testing.T) {
 				wantErrStatusCode: http.StatusBadRequest,
 			},
 			{
-				name:               "TaskDeleted",
-				disableProvisioner: true,
-				deleteTask:         true,
-				taskInput:          "Valid prompt",
-				wantErr:            httpapi.ResourceNotFoundResponse.Message,
-				wantErrStatusCode:  http.StatusNotFound,
+				name:              "TaskDeleted",
+				transition:        database.WorkspaceTransitionStop,
+				deleteTask:        true,
+				taskInput:         "Valid prompt",
+				wantErr:           httpapi.ResourceNotFoundResponse.Message,
+				wantErrStatusCode: http.StatusNotFound,
 			},
 		}
 
@@ -834,6 +834,7 @@ func TestTasks(t *testing.T) {
 
 						// Then: We expect it to be canceled
 						build, err = client.WorkspaceBuild(ctx, build.ID)
+						require.NoError(t, err)
 						require.Equal(t, codersdk.WorkspaceStatusCanceled, build.Status)
 					} else {
 						coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
@@ -860,7 +861,7 @@ func TestTasks(t *testing.T) {
 					if tt.wantErrStatusCode != 0 {
 						var apiErr *codersdk.Error
 						require.ErrorAs(t, err, &apiErr)
-						require.Equal(t, tt.wantStatus, apiErr.StatusCode())
+						require.Equal(t, tt.wantErrStatusCode, apiErr.StatusCode())
 					}
 
 					// Then: We expect the input to **not** be updated

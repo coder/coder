@@ -9159,15 +9159,15 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "prompt": "string"
+  "input": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type   | Required | Restrictions | Description |
-|----------|--------|----------|--------------|-------------|
-| `prompt` | string | false    |              |             |
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `input` | string | false    |              |             |
 
 ## codersdk.UpdateTemplateACL
 
