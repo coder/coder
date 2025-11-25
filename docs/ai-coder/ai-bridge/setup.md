@@ -33,6 +33,10 @@ Set the following when routing [OpenAI-compatible](https://coder.com/docs/refere
 
 The default base URL (`https://api.openai.com/v1/`) works for the native OpenAI service. Point the base URL at your preferred OpenAI-compatible endpoint (for example, a hosted proxy or LiteLLM deployment) when needed.
 
+If you'd like to create an [OpenAI key](https://platform.openai.com/api-keys) with minimal privileges, this is the minimum required set:
+
+![List Models scope should be set to "Read", Model Capabilities set to "Request"](../../images/aibridge/openai_key_scope.png)
+
 ### Anthropic
 
 Set the following when routing [Anthropic-compatible](https://coder.com/docs/reference/cli/server#--aibridge-anthropic-key) traffic through AI Bridge:
@@ -41,6 +45,8 @@ Set the following when routing [Anthropic-compatible](https://coder.com/docs/ref
 - `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`
 
 The default base URL (`https://api.anthropic.com/`) targets Anthropic's public API. Override it for Anthropic-compatible brokers.
+
+Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys) to have restricted permissions at the time of writing (Nov 2025).
 
 ### Amazon Bedrock
 
