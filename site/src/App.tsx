@@ -10,7 +10,6 @@ import {
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { TooltipProvider } from "./components/Tooltip/Tooltip";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { router } from "./router";
@@ -54,10 +53,8 @@ export const AppProviders: FC<AppProvidersProps> = ({
 		<QueryClientProvider client={queryClient}>
 			<AuthProvider>
 				<ThemeProvider>
-					<TooltipProvider>
-						{children}
-						<GlobalSnackbar />
-					</TooltipProvider>
+					{children}
+					<GlobalSnackbar />
 				</ThemeProvider>
 			</AuthProvider>
 			{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
