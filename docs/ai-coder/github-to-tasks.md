@@ -7,7 +7,7 @@ Most software engineering organizations track and manage their codebase through 
 Coder Tasks provides a method for automating these repeatable workflows. With a Task, you can direct an agent like Claude Code to update your documentation or even diagnose and address a bug. By connecting GitHub to Coder Tasks, you can build out a GitHub workflow that will for example:
 
 1. Trigger an automation to take a pre-existing issue
-1. Automatically spin up a Coder Task with context from that issue and direct an agent to work on it
+1. Automatically spin up a Coder Task with the context from that issue and direct an agent to work on it
 1. Focus on other higher-priority needs, while the agent addresses the issue
 1. Get notified that the issue has been addressed, and you can review the proposed solution
 
