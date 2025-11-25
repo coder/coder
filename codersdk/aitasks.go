@@ -28,8 +28,6 @@ import (
 const AITaskPromptParameterName = provider.TaskPromptParameterName
 
 // CreateTaskRequest represents the request to create a new task.
-//
-// Experimental: This type is experimental and may change in the future.
 type CreateTaskRequest struct {
 	TemplateVersionID       uuid.UUID `json:"template_version_id" format:"uuid"`
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
@@ -39,8 +37,6 @@ type CreateTaskRequest struct {
 }
 
 // CreateTask creates a new task.
-//
-// Experimental: This method is experimental and may change in the future.
 func (c *Client) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Task, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/tasks/%s", user), request)
 	if err != nil {
@@ -61,8 +57,6 @@ func (c *Client) CreateTask(ctx context.Context, user string, request CreateTask
 }
 
 // TaskStatus represents the status of a task.
-//
-// Experimental: This type is experimental and may change in the future.
 type TaskStatus string
 
 const (
@@ -99,8 +93,6 @@ func AllTaskStatuses() []TaskStatus {
 }
 
 // TaskState represents the high-level lifecycle of a task.
-//
-// Experimental: This type is experimental and may change in the future.
 type TaskState string
 
 // TaskState enums.
@@ -120,8 +112,6 @@ const (
 )
 
 // Task represents a task.
-//
-// Experimental: This type is experimental and may change in the future.
 type Task struct {
 	ID                      uuid.UUID                `json:"id" format:"uuid" table:"id"`
 	OrganizationID          uuid.UUID                `json:"organization_id" format:"uuid" table:"organization id"`
@@ -151,8 +141,6 @@ type Task struct {
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
-//
-// Experimental: This type is experimental and may change in the future.
 type TaskStateEntry struct {
 	Timestamp time.Time `json:"timestamp" format:"date-time" table:"-"`
 	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"state"`
@@ -161,8 +149,6 @@ type TaskStateEntry struct {
 }
 
 // TasksFilter filters the list of tasks.
-//
-// Experimental: This type is experimental and may change in the future.
 type TasksFilter struct {
 	// Owner can be a username, UUID, or "me".
 	Owner string `json:"owner,omitempty"`
@@ -175,8 +161,6 @@ type TasksFilter struct {
 }
 
 // TaskListResponse is the response shape for tasks list.
-//
-// Experimental response shape for tasks list (server returns []Task).
 type TasksListResponse struct {
 	Tasks []Task `json:"tasks"`
 	Count int    `json:"count"`
@@ -208,8 +192,6 @@ func (f TasksFilter) asRequestOption() RequestOption {
 }
 
 // Tasks lists all tasks belonging to the user or specified owner.
-//
-// Experimental: This method is experimental and may change in the future.
 func (c *Client) Tasks(ctx context.Context, filter *TasksFilter) ([]Task, error) {
 	if filter == nil {
 		filter = &TasksFilter{}
@@ -232,10 +214,8 @@ func (c *Client) Tasks(ctx context.Context, filter *TasksFilter) ([]Task, error)
 	return tres.Tasks, nil
 }
 
-// TaskByID fetches a single experimental task by its ID.
+// TaskByID fetches a single task by its ID.
 // Only tasks owned by codersdk.Me are supported.
-//
-// Experimental: This method is experimental and may change in the future.
 func (c *Client) TaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/tasks/%s/%s", "me", id.String()), nil)
 	if err != nil {
@@ -254,9 +234,7 @@ func (c *Client) TaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
 	return task, nil
 }
 
-// TaskByOwnerAndName fetches a single experimental task by its owner and name.
-//
-// Experimental: This method is experimental and may change in the future.
+// TaskByOwnerAndName fetches a single task by its owner and name.
 func (c *Client) TaskByOwnerAndName(ctx context.Context, owner, ident string) (Task, error) {
 	if owner == "" {
 		owner = Me
@@ -318,8 +296,6 @@ func (c *Client) TaskByIdentifier(ctx context.Context, identifier string) (Task,
 }
 
 // DeleteTask deletes a task by its ID.
-//
-// Experimental: This method is experimental and may change in the future.
 func (c *Client) DeleteTask(ctx context.Context, user string, id uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/tasks/%s/%s", user, id.String()), nil)
 	if err != nil {
@@ -333,15 +309,11 @@ func (c *Client) DeleteTask(ctx context.Context, user string, id uuid.UUID) erro
 }
 
 // TaskSendRequest is used to send task input to the tasks sidebar app.
-//
-// Experimental: This type is experimental and may change in the future.
 type TaskSendRequest struct {
 	Input string `json:"input"`
 }
 
 // TaskSend submits task input to the tasks sidebar app.
-//
-// Experimental: This method is experimental and may change in the future.
 func (c *Client) TaskSend(ctx context.Context, user string, id uuid.UUID, req TaskSendRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/tasks/%s/%s/send", user, id.String()), req)
 	if err != nil {
@@ -355,15 +327,11 @@ func (c *Client) TaskSend(ctx context.Context, user string, id uuid.UUID, req Ta
 }
 
 // UpdateTaskInputRequest is used to update a task's input.
-//
-// Experimental: This type is experimental and may change in the future.
 type UpdateTaskInputRequest struct {
 	Input string `json:"input"`
 }
 
 // UpdateTaskInput updates the task's input.
-//
-// Experimental: This method is experimental and may change in the future.
 func (c *Client) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID, req UpdateTaskInputRequest) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/tasks/%s/%s/input", user, id.String()), req)
 	if err != nil {
@@ -377,8 +345,6 @@ func (c *Client) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID,
 }
 
 // TaskLogType indicates the source of a task log entry.
-//
-// Experimental: This type is experimental and may change in the future.
 type TaskLogType string
 
 // TaskLogType enums.
@@ -388,8 +354,6 @@ const (
 )
 
 // TaskLogEntry represents a single log entry for a task.
-//
-// Experimental: This type is experimental and may change in the future.
 type TaskLogEntry struct {
 	ID      int         `json:"id" table:"id"`
 	Content string      `json:"content" table:"content"`
@@ -398,15 +362,11 @@ type TaskLogEntry struct {
 }
 
 // TaskLogsResponse contains the logs for a task.
-//
-// Experimental: This type is experimental and may change in the future.
 type TaskLogsResponse struct {
 	Logs []TaskLogEntry `json:"logs"`
 }
 
-// TaskLogs retrieves logs from the task's sidebar app via the experimental API.
-//
-// Experimental: This method is experimental and may change in the future.
+// TaskLogs retrieves logs from the task app.
 func (c *Client) TaskLogs(ctx context.Context, user string, id uuid.UUID) (TaskLogsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/tasks/%s/%s/logs", user, id.String()), nil)
 	if err != nil {
