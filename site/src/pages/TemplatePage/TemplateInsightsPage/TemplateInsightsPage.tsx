@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { entitlements } from "api/queries/entitlements";
 import {
 	insightsTemplate,
@@ -33,6 +32,12 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipArrow,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	CircleCheck as CircleCheckIcon,
@@ -495,24 +500,26 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											{usage.display_name}
 										</div>
 									</div>
-									<Tooltip
-										title={`${Math.floor(percentage)}%`}
-										placement="top"
-										arrow
-									>
-										<LinearProgress
-											value={percentage}
-											variant="determinate"
-											css={{
-												width: "100%",
-												height: 8,
-												backgroundColor: theme.palette.divider,
-												"& .MuiLinearProgress-bar": {
-													backgroundColor: usageColors[i],
-													borderRadius: 999,
-												},
-											}}
-										/>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<LinearProgress
+												value={percentage}
+												variant="determinate"
+												css={{
+													width: "100%",
+													height: 8,
+													backgroundColor: theme.palette.divider,
+													"& .MuiLinearProgress-bar": {
+														backgroundColor: usageColors[i],
+														borderRadius: 999,
+													},
+												}}
+											/>
+										</TooltipTrigger>
+										<TooltipContent>
+											{Math.floor(percentage)}%
+											<TooltipArrow className="fill-border" />
+										</TooltipContent>
 									</Tooltip>
 									<Stack
 										spacing={0}
@@ -612,11 +619,13 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 										}}
 									>
 										<div>Value</div>
-										<Tooltip
-											title="The number of workspaces using this value"
-											placement="top"
-										>
-											<div>Count</div>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<div>Count</div>
+											</TooltipTrigger>
+											<TooltipContent>
+												The number of workspaces using this value
+											</TooltipContent>
 										</Tooltip>
 									</ParameterUsageRow>
 									{[...parameter.values]
