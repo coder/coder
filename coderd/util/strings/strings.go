@@ -94,6 +94,17 @@ func Truncate(s string, n int, opts ...TruncateOption) string {
 
 var bmPolicy = bluemonday.StrictPolicy()
 
+// ContainsAny returns true if s contains any of the substrings in the list.
+// The search is case-sensitive.
+func ContainsAny(s string, substrings []string) bool {
+	for _, substr := range substrings {
+		if strings.Contains(s, substr) {
+			return true
+		}
+	}
+	return false
+}
+
 // UISanitize sanitizes a string for display in the UI.
 // The following transformations are applied, in order:
 // - HTML tags are removed using bluemonday's strict policy.
