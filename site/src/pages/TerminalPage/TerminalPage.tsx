@@ -143,54 +143,47 @@ const TerminalPage: FC = () => {
 			return;
 		}
 
-		let terminal: Terminal | GhosttyTerminal;
+		// Common terminal options shared by both xterm.js and ghostty-web
+		const terminalOptions = {
+			fontFamily: terminalFonts[currentTerminalFont],
+			fontSize: 16,
+			disableStdin: false,
+			theme: {
+				background: theme.palette.background.default,
+			},
+		};
 
-		if (useGhosttyWeb) {
-			// ====== GHOSTTY-WEB PATH ======
-			// ghostty-web now has xterm.js-compatible API including:
-			// - Synchronous open() (WASM loads in constructor)
-			// - attachCustomKeyEventHandler()
-			// - disableStdin option
-			terminal = new GhosttyTerminal({
-				fontFamily: terminalFonts[currentTerminalFont],
-				fontSize: 16,
-				cursorBlink: true,
-				disableStdin: false,
-				theme: {
-					background: theme.palette.background.default,
-				},
-			});
+		// Create terminal - ghostty-web and xterm.js have compatible APIs
+		const terminal = useGhosttyWeb
+			? new GhosttyTerminal({
+					...terminalOptions,
+					cursorBlink: true,
+				})
+			: new Terminal({
+					...terminalOptions,
+					allowProposedApi: true,
+					allowTransparency: true,
+				});
 
-			const fitAddon = new GhosttyFitAddon();
-			fitAddonRef.current = fitAddon;
-			terminal.loadAddon(fitAddon);
+		// Load FitAddon - both implementations are API-compatible
+		const fitAddon = useGhosttyWeb ? new GhosttyFitAddon() : new FitAddon();
+		fitAddonRef.current = fitAddon;
+		terminal.loadAddon(fitAddon);
 
-			// Note: ghostty-web has built-in link detection via OSC 8
-		} else {
-			// ====== XTERM.JS PATH (existing code) ======
-			terminal = new Terminal({
-				allowProposedApi: true,
-				allowTransparency: true,
-				disableStdin: false,
-				fontFamily: terminalFonts[currentTerminalFont],
-				fontSize: 16,
-				theme: {
-					background: theme.palette.background.default,
-				},
-			});
-
-			// Apply renderer config (only for xterm.js)
+		// xterm.js-specific addons (ghostty-web has built-in equivalents)
+		if (!useGhosttyWeb) {
+			// Renderer addon
 			if (renderer === "webgl") {
 				terminal.loadAddon(new WebglAddon());
 			} else if (renderer === "canvas") {
 				terminal.loadAddon(new CanvasAddon());
 			}
 
-			const fitAddon = new FitAddon();
-			fitAddonRef.current = fitAddon;
-			terminal.loadAddon(fitAddon);
+			// Unicode support
 			terminal.loadAddon(new Unicode11Addon());
-			terminal.unicode.activeVersion = "11";
+			(terminal as Terminal).unicode.activeVersion = "11";
+
+			// Web links (ghostty-web has built-in OSC 8 link detection)
 			terminal.loadAddon(
 				new WebLinksAddon((_, uri) => {
 					handleWebLinkRef.current(uri);
@@ -208,7 +201,6 @@ const TerminalPage: FC = () => {
 		};
 
 		// Custom key event handler - works for both xterm.js and ghostty-web
-		// ghostty-web now supports attachCustomKeyEventHandler with the same API
 		// There is no way to remove this handler, so we must attach it once and
 		// rely on a ref to send it to the current socket.
 		const escapedCarriageReturn = "\x1b\r";
