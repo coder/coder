@@ -393,6 +393,13 @@ message ParseComplete {
   map<string, string> workspace_tags = 4;
 }
 
+message InitRequest {
+}
+
+message InitResponse {
+  string error = 1;
+}
+
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
 message PlanRequest {
   Metadata metadata = 1;
