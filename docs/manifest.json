@@ -915,6 +915,12 @@
 							"title": "Security \u0026 Boundaries",
 							"description": "Learn about security and boundaries when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
+						},
+						{
+							"title": "Create a GitHub to Coder Tasks Workflow",
+							"description": "How to setup Coder Tasks to run in GitHub",
+							"path": "./ai-coder/github-to-tasks.md",
+							"state": ["beta"]
 						}
 					]
 				},
