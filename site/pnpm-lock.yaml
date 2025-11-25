@@ -176,8 +176,8 @@ importers:
         specifier: 4.0.2
         version: 4.0.2
       ghostty-web:
-        specifier: ^0.2.1
-        version: 0.2.1
+        specifier: 0.2.1-next.4.g1680deb
+        version: 0.2.1-next.4.g1680deb
       humanize-duration:
         specifier: 3.32.2
         version: 3.32.2
@@ -4190,8 +4190,9 @@ packages:
     resolution: {integrity: sha512-ts6Wi+2j3jQjqi70w5AlN8DFnkSwC+MqmxEzdEALB2qXZYV3X/b1CTfgPLGJNMeAWxdPfU8FO1ms3NUfaHCPYg==, tarball: https://registry.npmjs.org/get-stream/-/get-stream-6.0.1.tgz}
     engines: {node: '>=10'}
 
-  ghostty-web@0.2.1:
-    resolution: {integrity: sha512-wrovbPlHcl+nIkp7S7fY7vOTsmBjwMFihZEe2PJe/M6G4/EwuyJnwaWTTzNfuY7RcM/lVlN+PvGWqJIhKSB5hw==, tarball: https://registry.npmjs.org/ghostty-web/-/ghostty-web-0.2.1.tgz}
+  ghostty-web@0.2.1-next.4.g1680deb:
+    resolution: {integrity: sha512-GPpYcmoaXLpTiKM0AMBHqXafGOcst4Y47LeKyB6EfU7LH+fWAqed+NSoaY7RWhMPsX86VRjnHn1WCIQQ92TUMw==, tarball: https://registry.npmjs.org/ghostty-web/-/ghostty-web-0.2.1-next.4.g1680deb.tgz}
+    hasBin: true
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==, tarball: https://registry.npmjs.org/glob-parent/-/glob-parent-5.1.2.tgz}
@@ -10413,7 +10414,7 @@ snapshots:
 
   get-stream@6.0.1: {}
 
-  ghostty-web@0.2.1: {}
+  ghostty-web@0.2.1-next.4.g1680deb: {}
 
   glob-parent@5.1.2:
     dependencies:

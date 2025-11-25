@@ -147,10 +147,15 @@ const TerminalPage: FC = () => {
 
 		if (useGhosttyWeb) {
 			// ====== GHOSTTY-WEB PATH ======
+			// ghostty-web now has xterm.js-compatible API including:
+			// - Synchronous open() (WASM loads in constructor)
+			// - attachCustomKeyEventHandler()
+			// - disableStdin option
 			terminal = new GhosttyTerminal({
 				fontFamily: terminalFonts[currentTerminalFont],
 				fontSize: 16,
 				cursorBlink: true,
+				disableStdin: false,
 				theme: {
 					background: theme.palette.background.default,
 				},
@@ -161,8 +166,6 @@ const TerminalPage: FC = () => {
 			terminal.loadAddon(fitAddon);
 
 			// Note: ghostty-web has built-in link detection via OSC 8
-			// We'll rely on browser's default link behavior or could override with
-			// DOM event listeners on the canvas after mount if needed
 		} else {
 			// ====== XTERM.JS PATH (existing code) ======
 			terminal = new Terminal({
@@ -204,38 +207,36 @@ const TerminalPage: FC = () => {
 			}
 		};
 
-		// Custom key event handler (only for xterm.js)
-		// ghostty-web handles key events differently
-		if (terminal instanceof Terminal) {
-			// There is no way to remove this handler, so we must attach it once and
-			// rely on a ref to send it to the current socket.
-			const escapedCarriageReturn = "\x1b\r";
-			terminal.attachCustomKeyEventHandler((ev) => {
-				// Make shift+enter send ^[^M (escaped carriage return).  Applications
-				// typically take this to mean to insert a literal newline.
-				if (ev.shiftKey && ev.key === "Enter") {
-					if (ev.type === "keydown") {
-						websocketRef.current?.send(
-							new TextEncoder().encode(
-								JSON.stringify({ data: escapedCarriageReturn }),
-							),
-						);
-					}
-					return false;
+		// Custom key event handler - works for both xterm.js and ghostty-web
+		// ghostty-web now supports attachCustomKeyEventHandler with the same API
+		// There is no way to remove this handler, so we must attach it once and
+		// rely on a ref to send it to the current socket.
+		const escapedCarriageReturn = "\x1b\r";
+		terminal.attachCustomKeyEventHandler((ev) => {
+			// Make shift+enter send ^[^M (escaped carriage return).  Applications
+			// typically take this to mean to insert a literal newline.
+			if (ev.shiftKey && ev.key === "Enter") {
+				if (ev.type === "keydown") {
+					websocketRef.current?.send(
+						new TextEncoder().encode(
+							JSON.stringify({ data: escapedCarriageReturn }),
+						),
+					);
 				}
-				// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
-				// By default this usually launches the browser dev tools, but users
-				// expect this keybinding to copy when in the context of the web terminal.
-				if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.shiftKey && ev.key === "C") {
-					ev.preventDefault();
-					if (ev.type === "keydown") {
-						copySelection();
-					}
-					return false;
+				return false;
+			}
+			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
+			// By default this usually launches the browser dev tools, but users
+			// expect this keybinding to copy when in the context of the web terminal.
+			if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.shiftKey && ev.key === "C") {
+				ev.preventDefault();
+				if (ev.type === "keydown") {
+					copySelection();
 				}
-				return true;
-			});
-		}
+				return false;
+			}
+			return true;
+		});
 
 		// Copy using the clipboard API on selection.  This selected text will go
 		// into the clipboard, not the primary selection, as the browser does not
@@ -254,57 +255,19 @@ const TerminalPage: FC = () => {
 			copySelection();
 		});
 
-		// Open terminal (async for ghostty-web, sync for xterm.js)
-		const openTerminal = async () => {
-			if (useGhosttyWeb) {
-				await (terminal as GhosttyTerminal).open(terminalWrapperRef.current!);
+		// Open terminal - both xterm.js and ghostty-web have synchronous open()
+		// For ghostty-web, WASM loading happens in constructor, and open() returns void.
+		// The terminal becomes fully ready after onReady fires (FitAddon handles this internally).
+		terminal.open(terminalWrapperRef.current);
 
-				const escapedCarriageReturn = "\x1b\r";
-				const canvas = terminalWrapperRef.current?.querySelector("canvas");
-				if (canvas) {
-					// Handle special key combinations for ghostty-web via DOM events
-					canvas.addEventListener("keydown", (event: KeyboardEvent) => {
-						// Make shift+enter send ^[^M (escaped carriage return)
-						if (event.shiftKey && event.key === "Enter") {
-							event.preventDefault();
-							websocketRef.current?.send(
-								new TextEncoder().encode(
-									JSON.stringify({ data: escapedCarriageReturn }),
-								),
-							);
-						}
-						// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text
-						else if ((isMac ? event.metaKey : event.ctrlKey) && event.shiftKey && event.key === "C") {
-							event.preventDefault();
-							copySelection();
-						}
-					});
+		// We have to fit twice here. It's unknown why, but the first fit will
+		// overflow slightly in some scenarios. Applying a second fit resolves this.
+		// For ghostty-web, FitAddon subscribes to onReady internally and will fit when ready.
+		fitAddonRef.current?.fit();
+		fitAddonRef.current?.fit();
 
-					// Intercept link clicks for port-forwarding
-					canvas.addEventListener("click", (event: MouseEvent) => {
-						const target = event.target as HTMLElement;
-						const computedStyle = window.getComputedStyle(target);
-						if (computedStyle.cursor === "pointer") {
-							event.preventDefault();
-							// ghostty-web handles most link clicks internally
-						}
-					});
-				}
-			} else {
-				(terminal as Terminal).open(terminalWrapperRef.current!);
-			}
-
-			// We have to fit twice here. It's unknown why, but the first fit will
-			// overflow slightly in some scenarios. Applying a second fit resolves this.
-			fitAddonRef.current?.fit();
-			fitAddonRef.current?.fit();
-
-			// Terminal is correctly sized and is ready to be used.
-			setTerminal(terminal);
-		};
-
-		// Use void to explicitly mark async function call
-		void openTerminal();
+		// Terminal is correctly sized and is ready to be used.
+		setTerminal(terminal);
 
 		// This will trigger a resize event on the terminal.
 		const listener = () => fitAddonRef.current?.fit();
@@ -354,10 +317,9 @@ const TerminalPage: FC = () => {
 		// typing immediately.
 		terminal.focus();
 
-		// Disable input while we connect (only for xterm.js).
-		if (terminal instanceof Terminal) {
-			terminal.options.disableStdin = true;
-		}
+		// Disable input while we connect.
+		// Both xterm.js and ghostty-web support disableStdin option.
+		terminal.options.disableStdin = true;
 
 		// Show a message if we failed to find the workspace or agent.
 		if (workspace.isLoading) {
@@ -425,12 +387,13 @@ const TerminalPage: FC = () => {
 				websocket.binaryType = "arraybuffer";
 				websocketRef.current = websocket;
 				websocket.addEventListener(WebsocketEvent.open, () => {
-					// Now that we are connected, allow user input (only for xterm.js).
+					// Now that we are connected, allow user input.
+					// Both xterm.js and ghostty-web support disableStdin option.
+					terminal.options.disableStdin = false;
+					// windowsMode is xterm.js-specific, only set it for xterm.js
 					if (terminal instanceof Terminal) {
-						terminal.options = {
-							disableStdin: false,
-							windowsMode: workspaceAgent?.operating_system === "windows",
-						};
+						terminal.options.windowsMode =
+							workspaceAgent?.operating_system === "windows";
 					}
 					// Send the initial size.
 					websocket?.send(
@@ -445,15 +408,13 @@ const TerminalPage: FC = () => {
 				});
 				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
 					console.error("WebSocket error:", event);
-					if (terminal instanceof Terminal) {
-						terminal.options.disableStdin = true;
-					}
+					// Disable input on error - both terminals support this
+					terminal.options.disableStdin = true;
 					setConnectionStatus("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.close, () => {
-					if (terminal instanceof Terminal) {
-						terminal.options.disableStdin = true;
-					}
+					// Disable input on close - both terminals support this
+					terminal.options.disableStdin = true;
 					setConnectionStatus("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
