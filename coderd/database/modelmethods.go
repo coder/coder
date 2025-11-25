@@ -143,6 +143,7 @@ func (t Task) TaskTable() TaskTable {
 		OrganizationID:     t.OrganizationID,
 		OwnerID:            t.OwnerID,
 		Name:               t.Name,
+		DisplayName:        t.DisplayName,
 		WorkspaceID:        t.WorkspaceID,
 		TemplateVersionID:  t.TemplateVersionID,
 		TemplateParameters: t.TemplateParameters,
