@@ -4996,8 +4996,8 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 
 export const MockTask = {
 	id: "test-task",
-	name: "task-wild-test-123",
-	display_name: "Task wild test 123",
+	name: "wild-test-123",
+	display_name: "Task wild test",
 	organization_id: MockOrganization.id,
 	owner_id: MockUserOwner.id,
 	owner_name: MockUserOwner.username,
@@ -5038,6 +5038,7 @@ export const MockTasks = [
 		...MockTask,
 		id: "task-2",
 		name: "fix-avatar-size",
+		display_name: "Fix avatar size",
 		current_state: {
 			...MockTask.current_state,
 			message: "Avatar size fixed!",
@@ -5048,6 +5049,7 @@ export const MockTasks = [
 		...MockTask,
 		id: "task-3",
 		name: "fix-accessibility-issues",
+		display_name: "Fix accessibility issues",
 		current_state: {
 			...MockTask.current_state,
 			message: "Accessibility issues fixed!",
@@ -5060,7 +5062,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-1",
-		name: "task-workspace-pending",
+		name: "workspace-pending",
+		display_name: "Workspace pending",
 		initial_prompt: "Task Workspace Pending",
 		status: "initializing",
 		current_state: {
@@ -5073,7 +5076,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-2",
-		name: "task-workspace-starting",
+		name: "workspace-starting",
+		display_name: "Workspace starting",
 		initial_prompt: "Task Workspace Starting",
 		status: "initializing",
 		current_state: {
@@ -5086,7 +5090,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-3",
-		name: "task-agent-connecting",
+		name: "agent-connecting",
+		display_name: "Agent connecting",
 		initial_prompt: "Task Agent Connecting",
 		status: "initializing",
 		current_state: {
@@ -5099,7 +5104,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-4",
-		name: "task-agent-starting",
+		name: "agent-starting",
+		display_name: "Agent Starting",
 		initial_prompt: "Task Agent Starting",
 		status: "initializing",
 		current_state: {
@@ -5112,7 +5118,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-5",
-		name: "task-app-initializing",
+		name: "app-initializing",
+		display_name: "App Initializing",
 		initial_prompt: "Task App Initializing",
 		status: "initializing",
 		current_state: {
@@ -5120,6 +5127,38 @@ export const MockInitializingTasks = [
 			state: "working",
 			message: "App is initializing",
 			uri: "",
+		},
+	},
+] satisfies TypesGen.Task[];
+
+export const MockDisplayNameTasks = [
+	{
+		...MockTask,
+	},
+	{
+		...MockTask,
+		id: "task-4",
+		name: "validate-email-regex",
+		// Display name with 64 characters with ellipsis
+		display_name:
+			"Write a function to validate email addresses using regular expr…",
+		current_state: {
+			...MockTask.current_state,
+			message: "Email validation complete!",
+			state: "complete",
+		},
+	},
+	{
+		...MockTask,
+		id: "payment-api-tests",
+		name: "payment-api-tests",
+		// Display name with 81 characters
+		display_name:
+			"Create a comprehensive test suite for the new payment processing microservice API",
+		current_state: {
+			...MockTask.current_state,
+			message: "Test suite created!",
+			state: "complete",
 		},
 	},
 ] satisfies TypesGen.Task[];

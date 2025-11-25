@@ -1,4 +1,9 @@
-import { MockTasks, MockUserOwner, mockApiError } from "testHelpers/entities";
+import {
+	MockDisplayNameTasks,
+	MockTasks,
+	MockUserOwner,
+	mockApiError,
+} from "testHelpers/entities";
 import { withAuthProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -61,6 +66,17 @@ export const Failed: Story = {
 export const Loaded: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+};
+
+export const DisplayName: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockDisplayNameTasks,
+			},
+		],
 	},
 };
 
