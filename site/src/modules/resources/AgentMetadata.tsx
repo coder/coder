@@ -187,7 +187,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 		status === "loading" ? (
 			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
 		) : status === "stale" ? (
-			<Tooltip delayDuration={0}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					<StaticWidth className="text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-disabled cursor-pointer">
 						{item.result.value}

@@ -39,7 +39,7 @@ const ReadyLifecycle: FC = () => {
 
 const StartingLifecycle: FC = () => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
@@ -117,7 +117,7 @@ const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 
 const ShuttingDownLifecycle: FC = () => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
@@ -180,7 +180,7 @@ const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 
 const OffLifecycle: FC = () => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
@@ -231,7 +231,7 @@ const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
 
 const DisconnectedStatus: FC = () => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
@@ -246,7 +246,7 @@ const DisconnectedStatus: FC = () => {
 
 const ConnectingStatus: FC = () => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"

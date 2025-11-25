@@ -49,7 +49,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 					</span>
 					{!systemBuildReasons.includes(build.reason) &&
 						build.transition === "start" && (
-							<Tooltip delayDuration={0}>
+							<Tooltip>
 								<TooltipTrigger asChild>
 									<InfoIcon
 										css={(theme) => ({

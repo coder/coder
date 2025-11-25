@@ -42,7 +42,7 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 			>
 				{displayValue}
 			</CopyableValue>
-			<Tooltip delayDuration={0}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					<IconButton
 						css={styles.button}

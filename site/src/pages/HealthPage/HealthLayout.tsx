@@ -80,7 +80,7 @@ export const HealthLayout: FC = () => {
 								<div className="flex items-center justify-between">
 									<HealthIcon size={32} severity={healthStatus.severity} />
 
-									<Tooltip delayDuration={0}>
+									<Tooltip>
 										<TooltipTrigger asChild>
 											<IconButton
 												size="small"

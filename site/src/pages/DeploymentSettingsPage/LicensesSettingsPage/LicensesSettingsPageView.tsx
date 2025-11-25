@@ -84,7 +84,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 							Add a license
 						</Link>
 					</Button>
-					<Tooltip delayDuration={0}>
+					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
 								disabled={isRefreshing}

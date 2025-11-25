@@ -49,7 +49,7 @@ const WebsocketPage = () => {
 				})}
 
 				<section>
-					<Tooltip delayDuration={0}>
+					<Tooltip>
 						<TooltipTrigger asChild>
 							<Pill icon={<CodeIcon className="size-icon-sm" />}>
 								{websocket.code}

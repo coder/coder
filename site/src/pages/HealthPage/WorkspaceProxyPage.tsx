@@ -110,7 +110,7 @@ const WorkspaceProxyPage: FC = () => {
 
 								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 									{region.wildcard_hostname && (
-										<Tooltip delayDuration={0}>
+										<Tooltip>
 											<TooltipTrigger asChild>
 												<Pill icon={<GlobeIcon />}>
 													{region.wildcard_hostname}
@@ -122,7 +122,7 @@ const WorkspaceProxyPage: FC = () => {
 										</Tooltip>
 									)}
 									{region.version && (
-										<Tooltip delayDuration={0}>
+										<Tooltip>
 											<TooltipTrigger asChild>
 												<Pill icon={<HashIcon className="size-icon-sm" />}>
 													{region.version}

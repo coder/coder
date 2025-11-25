@@ -89,7 +89,7 @@ const DERPRegionPage: FC = () => {
 
 				<section>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-						<Tooltip delayDuration={0}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<Pill icon={<HashIcon className="size-icon-sm" />}>
 									{region!.RegionID}
@@ -97,7 +97,7 @@ const DERPRegionPage: FC = () => {
 							</TooltipTrigger>
 							<TooltipContent side="bottom">Region ID</TooltipContent>
 						</Tooltip>
-						<Tooltip delayDuration={0}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<Pill icon={<CodeIcon className="size-icon-sm" />}>
 									{region!.RegionCode}
@@ -137,7 +137,7 @@ const DERPRegionPage: FC = () => {
 								</div>
 
 								<div css={reportStyles.pills}>
-									<Tooltip delayDuration={0}>
+									<Tooltip>
 										<TooltipTrigger asChild>
 											<Pill
 												css={{ color: latencyColor }}

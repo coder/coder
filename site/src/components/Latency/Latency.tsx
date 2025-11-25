@@ -28,7 +28,7 @@ export const Latency: FC<LatencyProps> = ({
 
 	if (isLoading) {
 		return (
-			<Tooltip delayDuration={0}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					{/**
 					 * Spinning progress icon must be placed inside a fixed-size container,
@@ -50,7 +50,7 @@ export const Latency: FC<LatencyProps> = ({
 
 	if (!latency) {
 		return (
-			<Tooltip delayDuration={0}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					<CircleHelpIcon
 						aria-label="Latency not available"

@@ -86,7 +86,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							return;
 						}
 						return (
-							<Tooltip delayDuration={0} key={install.id}>
+							<Tooltip key={install.id}>
 								<TooltipTrigger asChild>
 									<Link
 										href={install.account.profile_url}

@@ -190,7 +190,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 				const Icon = methodIcons[method];
 				const label = methodLabels[method];
 				return (
-					<Tooltip delayDuration={0} key={method}>
+					<Tooltip key={method}>
 						<TooltipTrigger asChild>
 							<ToggleButton
 								value={method}

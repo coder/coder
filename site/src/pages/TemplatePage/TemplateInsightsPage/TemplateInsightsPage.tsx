@@ -500,7 +500,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											{usage.display_name}
 										</div>
 									</div>
-									<Tooltip delayDuration={0}>
+									<Tooltip>
 										<TooltipTrigger asChild>
 											<LinearProgress
 												value={percentage}
@@ -619,7 +619,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 										}}
 									>
 										<div>Value</div>
-										<Tooltip delayDuration={0}>
+										<Tooltip>
 											<TooltipTrigger asChild>
 												<div>Count</div>
 											</TooltipTrigger>

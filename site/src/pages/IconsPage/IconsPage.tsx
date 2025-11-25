@@ -79,7 +79,7 @@ const IconsPage: FC = () => {
 			<Margins>
 				<PageHeader
 					actions={
-						<Tooltip delayDuration={0}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
 									Suggest an icon
@@ -124,7 +124,7 @@ const IconsPage: FC = () => {
 						),
 						endAdornment: searchInputText && (
 							<InputAdornment position="end">
-								<Tooltip delayDuration={0}>
+								<Tooltip>
 									<TooltipTrigger asChild>
 										<IconButton
 											size="small"

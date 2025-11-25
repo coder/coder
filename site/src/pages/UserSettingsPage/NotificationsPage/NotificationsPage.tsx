@@ -203,7 +203,7 @@ const NotificationsPage: FC = () => {
 															css={styles.listItemEndIcon}
 															aria-label="Delivery method"
 														>
-															<Tooltip delayDuration={0}>
+															<Tooltip>
 																<TooltipTrigger asChild>
 																	<Icon aria-label={label} />
 																</TooltipTrigger>

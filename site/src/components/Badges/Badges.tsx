@@ -73,7 +73,7 @@ export const NotHealthyBadge: FC = () => {
 
 export const NotRegisteredBadge: FC = () => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
 			</TooltipTrigger>
@@ -86,7 +86,7 @@ export const NotRegisteredBadge: FC = () => {
 
 export const NotReachableBadge: FC = () => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
 			</TooltipTrigger>

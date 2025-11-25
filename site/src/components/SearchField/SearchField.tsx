@@ -52,7 +52,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 				),
 				endAdornment: value !== "" && (
 					<InputAdornment position="end">
-						<Tooltip delayDuration={0}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<IconButton
 									size="small"

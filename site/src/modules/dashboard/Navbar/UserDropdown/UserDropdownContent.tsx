@@ -106,7 +106,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Divider css={{ marginBottom: "0 !important" }} />
 
 			<Stack css={styles.info} spacing={0}>
-				<Tooltip delayDuration={0}>
+				<Tooltip>
 					<TooltipTrigger asChild>
 						<a
 							css={[styles.footerText, styles.buildInfo]}
@@ -122,7 +122,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 				{buildInfo?.deployment_id && (
 					<div className="flex items-center text-xs">
-						<Tooltip delayDuration={0}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<span className="whitespace-nowrap overflow-hidden text-ellipsis">
 									{buildInfo.deployment_id}

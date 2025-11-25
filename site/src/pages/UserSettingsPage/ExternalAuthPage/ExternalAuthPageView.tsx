@@ -140,7 +140,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 					 * attempt to authenticate when the token expires.
 					 */}
 					{link?.has_refresh_token && authenticated && (
-						<Tooltip delayDuration={0}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<RefreshCcwIcon className="size-3" />
 							</TooltipTrigger>

@@ -112,7 +112,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 	return (
 		<Topbar css={{ gridArea: "topbar" }}>
-			<Tooltip delayDuration={0}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					<TopbarIconButton component={RouterLink} to="/workspaces">
 						<ChevronLeftIcon className="size-icon-sm" />

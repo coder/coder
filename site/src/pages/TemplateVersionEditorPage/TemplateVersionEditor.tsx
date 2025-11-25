@@ -221,7 +221,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					data-testid="topbar"
 				>
 					<div>
-						<Tooltip delayDuration={0}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<TopbarIconButton component={RouterLink} to={templateLink}>
 									<ChevronLeftIcon className="size-icon-sm" />
@@ -376,7 +376,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									},
 								}}
 							>
-								<Tooltip delayDuration={0}>
+								<Tooltip>
 									<TooltipTrigger asChild>
 										<IconButton
 											aria-label="Create File"

@@ -34,7 +34,7 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 	requireActiveVersion,
 }) => {
 	return (
-		<Tooltip delayDuration={0}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<TopbarButton
 					data-testid="workspace-update-button"
@@ -94,7 +94,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 
 	if (tooltipText) {
 		mainButton = (
-			<Tooltip delayDuration={0}>
+			<Tooltip>
 				<TooltipTrigger asChild>{mainButton}</TooltipTrigger>
 				<TooltipContent side="bottom" className="max-w-xs">
 					{tooltipText}

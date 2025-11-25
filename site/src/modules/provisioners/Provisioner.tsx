@@ -78,7 +78,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 						justifyContent: "right",
 					}}
 				>
-					<Tooltip delayDuration={0}>
+					<Tooltip>
 						<TooltipTrigger asChild>
 							<Pill size="lg" icon={iconScope}>
 								<span

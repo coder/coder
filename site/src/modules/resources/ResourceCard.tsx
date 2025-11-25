@@ -166,7 +166,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 					})}
 				</div>
 				{mLength > 4 && (
-					<Tooltip delayDuration={0}>
+					<Tooltip>
 						<TooltipTrigger asChild>
 							<IconButton
 								onClick={() => {
