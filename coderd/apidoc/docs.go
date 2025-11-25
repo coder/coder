@@ -13277,6 +13277,9 @@ const docTemplate = `{
         "codersdk.CreateTaskRequest": {
             "type": "object",
             "properties": {
+                "display_name": {
+                    "type": "string"
+                },
                 "input": {
                     "type": "string"
                 },
@@ -17875,6 +17878,9 @@ const docTemplate = `{
                 },
                 "current_state": {
                     "$ref": "#/definitions/codersdk.TaskStateEntry"
+                },
+                "display_name": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string",

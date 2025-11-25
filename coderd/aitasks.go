@@ -13,8 +13,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/taskname"
 
+	aiagentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -24,12 +25,9 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
-	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
-
-	aiagentapi "github.com/coder/agentapi-sdk-go"
 )
 
 // @Summary Create a new AI task
@@ -111,18 +109,25 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if taskName == "" {
-		taskName = taskname.GenerateFallback()
+	taskDisplayName := strings.TrimSpace(req.DisplayName)
+	if taskDisplayName != "" {
+		if len(taskDisplayName) > 64 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Display name must be 64 characters or less.",
+			})
+			return
+		}
+	}
 
-		if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
-			anthropicModel := taskname.GetAnthropicModelFromEnv()
+	// Generate task name and display name if either is not provided
+	if taskName == "" || taskDisplayName == "" {
+		generatedTaskName := taskname.Generate(ctx, api.Logger, req.Input)
 
-			generatedName, err := taskname.Generate(ctx, req.Input, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
-			if err != nil {
-				api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
-			} else {
-				taskName = generatedName
-			}
+		if taskName == "" {
+			taskName = generatedTaskName.Name
+		}
+		if taskDisplayName == "" {
+			taskDisplayName = generatedTaskName.DisplayName
 		}
 	}
 
@@ -215,6 +220,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 				OrganizationID:     templateVersion.OrganizationID,
 				OwnerID:            owner.ID,
 				Name:               taskName,
+				DisplayName:        taskDisplayName,
 				WorkspaceID:        uuid.NullUUID{}, // Will be set after workspace creation.
 				TemplateVersionID:  templateVersion.ID,
 				TemplateParameters: []byte("{}"),
@@ -304,6 +310,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		OwnerName:               dbTask.OwnerUsername,
 		OwnerAvatarURL:          dbTask.OwnerAvatarUrl,
 		Name:                    dbTask.Name,
+		DisplayName:             dbTask.DisplayName,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,
 		TemplateName:            ws.TemplateName,
