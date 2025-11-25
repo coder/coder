@@ -759,7 +759,7 @@ func TestTasks(t *testing.T) {
 				disableProvisioner: true,
 				taskInput:          "Valid prompt",
 				wantStatus:         codersdk.TaskStatusInitializing,
-				wantErr:            "Cannot update input",
+				wantErr:            "Unable to update",
 				wantErrStatusCode:  http.StatusConflict,
 			},
 			{
@@ -769,11 +769,13 @@ func TestTasks(t *testing.T) {
 				wantStatus: codersdk.TaskStatusPaused,
 			},
 			{
-				name:             "TaskStatusError",
-				transition:       database.WorkspaceTransitionStart,
-				cancelTransition: true,
-				taskInput:        "Valid prompt",
-				wantStatus:       codersdk.TaskStatusError,
+				name:              "TaskStatusError",
+				transition:        database.WorkspaceTransitionStart,
+				cancelTransition:  true,
+				taskInput:         "Valid prompt",
+				wantStatus:        codersdk.TaskStatusError,
+				wantErr:           "Unable to update",
+				wantErrStatusCode: http.StatusConflict,
 			},
 			{
 				name:       "EmptyPrompt",
@@ -864,10 +866,12 @@ func TestTasks(t *testing.T) {
 						require.Equal(t, tt.wantErrStatusCode, apiErr.StatusCode())
 					}
 
-					// Then: We expect the input to **not** be updated
-					task, err = exp.TaskByID(ctx, task.ID)
-					require.NoError(t, err)
-					require.NotEqual(t, tt.taskInput, task.InitialPrompt)
+					if !tt.deleteTask {
+						// Then: We expect the input to **not** be updated
+						task, err = exp.TaskByID(ctx, task.ID)
+						require.NoError(t, err)
+						require.NotEqual(t, tt.taskInput, task.InitialPrompt)
+					}
 				} else {
 					require.NoError(t, err)
 

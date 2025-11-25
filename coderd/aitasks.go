@@ -701,9 +701,9 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		if task.Status == database.TaskStatusInitializing || task.Status == database.TaskStatusActive {
+		if task.Status != database.TaskStatusPaused {
 			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
-				Message: "Cannot update input while task is initializing or active.",
+				Message: "Unable to update task input, task must be paused.",
 				Detail:  "Please stop the task's workspace before updating the input.",
 			})
 		}
