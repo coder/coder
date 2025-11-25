@@ -91,10 +91,10 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description                                           |
-|--------|------|--------------|----------|-------------------------------------------------------|
-| `user` | path | string       | true     | Username, user ID, or 'me' for the authenticated user |
-| `task` | path | string(uuid) | true     | Task ID                                               |
+| Name   | In   | Type   | Required | Description                                           |
+|--------|------|--------|----------|-------------------------------------------------------|
+| `user` | path | string | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string | true     | Task ID, or task name                                 |
 
 ### Example responses
 
@@ -122,16 +122,53 @@ curl -X DELETE http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{ta
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description                                           |
-|--------|------|--------------|----------|-------------------------------------------------------|
-| `user` | path | string       | true     | Username, user ID, or 'me' for the authenticated user |
-| `task` | path | string(uuid) | true     | Task ID                                               |
+| Name   | In   | Type   | Required | Description                                           |
+|--------|------|--------|----------|-------------------------------------------------------|
+| `user` | path | string | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string | true     | Task ID, or task name                                 |
 
 ### Responses
 
 | Status | Meaning                                                       | Description             | Schema |
 |--------|---------------------------------------------------------------|-------------------------|--------|
 | 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Task deletion initiated |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update AI task input
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}/input \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/experimental/tasks/{user}/{task}/input`
+
+> Body parameter
+
+```json
+{
+  "input": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                         | Required | Description                                           |
+|--------|------|------------------------------------------------------------------------------|----------|-------------------------------------------------------|
+| `user` | path | string                                                                       | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string                                                                       | true     | Task ID, or task name                                 |
+| `body` | body | [codersdk.UpdateTaskInputRequest](schemas.md#codersdkupdatetaskinputrequest) | true     | Update task input request                             |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -150,10 +187,10 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description                                           |
-|--------|------|--------------|----------|-------------------------------------------------------|
-| `user` | path | string       | true     | Username, user ID, or 'me' for the authenticated user |
-| `task` | path | string(uuid) | true     | Task ID                                               |
+| Name   | In   | Type   | Required | Description                                           |
+|--------|------|--------|----------|-------------------------------------------------------|
+| `user` | path | string | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string | true     | Task ID, or task name                                 |
 
 ### Example responses
 
@@ -193,7 +230,7 @@ curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task
 | Name   | In   | Type                                                           | Required | Description                                           |
 |--------|------|----------------------------------------------------------------|----------|-------------------------------------------------------|
 | `user` | path | string                                                         | true     | Username, user ID, or 'me' for the authenticated user |
-| `task` | path | string(uuid)                                                   | true     | Task ID                                               |
+| `task` | path | string                                                         | true     | Task ID, or task name                                 |
 | `body` | body | [codersdk.TaskSendRequest](schemas.md#codersdktasksendrequest) | true     | Task input request                                    |
 
 ### Responses

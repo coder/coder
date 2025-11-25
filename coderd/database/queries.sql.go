@@ -275,8 +275,10 @@ SELECT
 FROM
 	aibridge_interceptions
 WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
 	-- Filter by time frame
-	CASE
+	AND CASE
 		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
 		ELSE true
 	END
@@ -744,8 +746,10 @@ FROM
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
 	-- Filter by time frame
-	CASE
+	AND CASE
 		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
 		ELSE true
 	END
@@ -13427,6 +13431,40 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTaskPrompt = `-- name: UpdateTaskPrompt :one
+UPDATE
+	tasks
+SET
+	prompt = $1::text
+WHERE
+	id = $2::uuid
+	AND deleted_at IS NULL
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type UpdateTaskPromptParams struct {
+	Prompt string    `db:"prompt" json:"prompt"`
+	ID     uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateTaskPrompt(ctx context.Context, arg UpdateTaskPromptParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskPrompt, arg.Prompt, arg.ID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const updateTaskWorkspaceID = `-- name: UpdateTaskWorkspaceID :one

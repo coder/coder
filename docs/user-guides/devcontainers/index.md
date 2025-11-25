@@ -1,81 +1,69 @@
 # Dev Containers Integration
 
-> [!NOTE]
->
-> The Coder dev containers integration is an [early access](../../install/releases/feature-stages.md) feature.
->
-> While functional for testing and feedback, it may change significantly before general availability.
-
-The dev containers integration is an early access feature that enables seamless
-creation and management of dev containers in Coder workspaces. This feature
-leverages the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and
+The Dev Containers integration enables seamless creation and management of Dev
+Containers in Coder workspaces. This feature leverages the
+[`@devcontainers/cli`](https://github.com/devcontainers/cli) and
 [Docker](https://www.docker.com) to provide a streamlined development
 experience.
 
 This implementation is different from the existing
-[Envbuilder-based dev containers](../../admin/templates/managing-templates/devcontainers/index.md)
+[Envbuilder-based Dev Containers](../../admin/templates/managing-templates/devcontainers/index.md)
 offering.
 
 ## Prerequisites
 
-- Coder version 2.22.0 or later
-- Coder CLI version 2.22.0 or later
+- Coder version 2.24.0 or later
+- Coder CLI version 2.24.0 or later
+- **Linux or macOS workspace**, Dev Containers are not supported on Windows
 - A template with:
-  - Dev containers integration enabled
+  - Dev Containers integration enabled
   - A Docker-compatible workspace image
 - Appropriate permissions to execute Docker commands inside your workspace
 
 ## How It Works
 
-The dev containers integration utilizes the `devcontainer` command from
-[`@devcontainers/cli`](https://github.com/devcontainers/cli) to manage dev
-containers within your Coder workspace.
-This command provides comprehensive functionality for creating, starting, and managing dev containers.
+The Dev Containers integration utilizes the `devcontainer` command from
+[`@devcontainers/cli`](https://github.com/devcontainers/cli) to manage Dev
+Containers within your Coder workspace.
+This command provides comprehensive functionality for creating, starting, and managing Dev Containers.
 
 Dev environments are configured through a standard `devcontainer.json` file,
 which allows for extensive customization of your development setup.
 
-When a workspace with the dev containers integration starts:
+When a workspace with the Dev Containers integration starts:
 
 1. The workspace initializes the Docker environment.
 1. The integration detects repositories with a `.devcontainer` directory or a
    `devcontainer.json` file.
-1. The integration builds and starts the dev container based on the
+1. The integration builds and starts the Dev Container based on the
    configuration.
-1. Your workspace automatically detects the running dev container.
+1. Your workspace automatically detects the running Dev Container.
 
 ## Features
 
 ### Available Now
 
-- Automatic dev container detection from repositories
-- Seamless dev container startup during workspace initialization
-- Integrated IDE experience in dev containers with VS Code
-- Direct service access in dev containers
-- Limited SSH access to dev containers
+- Automatic Dev Container detection from repositories
+- Seamless Dev Container startup during workspace initialization
+- Dev Container change detection and dirty state indicators
+- On-demand Dev Container recreation via rebuild button
+- Integrated IDE experience in Dev Containers with VS Code
+- Direct service access in Dev Containers
+- SSH access to Dev Containers
+- Automatic port detection for container ports
 
-### Coming Soon
+## Limitations
 
-- Dev container change detection
-- On-demand dev container recreation
-- Support for automatic port forwarding inside the container
-- Full native SSH support to dev containers
+The Dev Containers integration has the following limitations:
 
-## Limitations during Early Access
-
-During the early access phase, the dev containers integration has the following
-limitations:
-
+- **Not supported on Windows**
 - Changes to the `devcontainer.json` file require manual container recreation
-- Automatic port forwarding only works for ports specified in `appPort`
-- SSH access requires using the `--container` flag
-- Some devcontainer features may not work as expected
-
-These limitations will be addressed in future updates as the feature matures.
+  using the rebuild button
+- Some Dev Container features may not work as expected
 
 ## Comparison with Envbuilder-based Dev Containers
 
-| Feature        | Dev Containers (Early Access)          | Envbuilder Dev Containers                    |
+| Feature        | Dev Containers Integration             | Envbuilder Dev Containers                    |
 |----------------|----------------------------------------|----------------------------------------------|
 | Implementation | Direct `@devcontainers/cli` and Docker | Coder's Envbuilder                           |
 | Target users   | Individual developers                  | Platform teams and administrators            |
@@ -84,15 +72,15 @@ These limitations will be addressed in future updates as the feature matures.
 | Requirements   | Docker access in workspace             | Compatible with more restricted environments |
 
 Choose the appropriate solution based on your team's needs and infrastructure
-constraints. For additional details on Envbuilder's dev container support, see
+constraints. For additional details on Envbuilder's Dev Container support, see
 the
-[Envbuilder devcontainer spec support documentation](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md).
+[Envbuilder Dev Container spec support documentation](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md).
 
 ## Next Steps
 
-- Explore the [dev container specification](https://containers.dev/) to learn
+- Explore the [Dev Container specification](https://containers.dev/) to learn
   more about advanced configuration options
-- Read about [dev container features](https://containers.dev/features) to
+- Read about [Dev Container features](https://containers.dev/features) to
   enhance your development environment
 - Check the
   [VS Code dev containers documentation](https://code.visualstudio.com/docs/devcontainers/containers)

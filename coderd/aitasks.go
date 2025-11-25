@@ -508,7 +508,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.Task
 // @Router /api/experimental/tasks/{user}/{task} [get]
 //
@@ -586,7 +586,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 202 "Task deletion initiated"
 // @Router /api/experimental/tasks/{user}/{task} [delete]
 //
@@ -654,13 +654,96 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
+// @Summary Update AI task input
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID update-task-input
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID, or task name"
+// @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
+// @Success 204
+// @Router /api/experimental/tasks/{user}/{task}/input [patch]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// taskUpdateInput allows modifying a task's prompt before the agent executes it.
+func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx              = r.Context()
+		task             = httpmw.TaskParam(r)
+		auditor          = api.Auditor.Load()
+		taskResourceInfo = audit.AdditionalFields{}
+	)
+
+	aReq, commitAudit := audit.InitRequest[database.TaskTable](rw, &audit.RequestParams{
+		Audit:            *auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionWrite,
+		AdditionalFields: taskResourceInfo,
+	})
+	defer commitAudit()
+	aReq.Old = task.TaskTable()
+	aReq.UpdateOrganizationID(task.OrganizationID)
+
+	var req codersdk.UpdateTaskInputRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if strings.TrimSpace(req.Input) == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Task input is required.",
+		})
+		return
+	}
+
+	var updatedTask database.TaskTable
+	if err := api.Database.InTx(func(tx database.Store) error {
+		task, err := tx.GetTaskByID(ctx, task.ID)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to fetch task.",
+				Detail:  err.Error(),
+			})
+		}
+
+		if task.Status != database.TaskStatusPaused {
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: "Unable to update task input, task must be paused.",
+				Detail:  "Please stop the task's workspace before updating the input.",
+			})
+		}
+
+		updatedTask, err = tx.UpdateTaskPrompt(ctx, database.UpdateTaskPromptParams{
+			ID:     task.ID,
+			Prompt: req.Input,
+		})
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update task input.",
+				Detail:  err.Error(),
+			})
+		}
+
+		return nil
+	}, nil); err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	aReq.New = updatedTask
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // @Summary Send input to AI task
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID send-task-input
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
 // @Success 204 "Input sent successfully"
 // @Router /api/experimental/tasks/{user}/{task}/send [post]
@@ -734,7 +817,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.TaskLogsResponse
 // @Router /api/experimental/tasks/{user}/{task}/logs [get]
 //

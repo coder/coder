@@ -3,16 +3,23 @@
 package agent
 
 import (
+	"sync"
 	"time"
 
 	"github.com/cakturk/go-netstat/netstat"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentListeningPort, error) {
+type osListeningPortsGetter struct {
+	cacheDuration time.Duration
+	mut           sync.Mutex
+	ports         []codersdk.WorkspaceAgentListeningPort
+	mtime         time.Time
+}
+
+func (lp *osListeningPortsGetter) GetListeningPorts() ([]codersdk.WorkspaceAgentListeningPort, error) {
 	lp.mut.Lock()
 	defer lp.mut.Unlock()
 
@@ -33,12 +40,7 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentL
 	seen := make(map[uint16]struct{}, len(tabs))
 	ports := []codersdk.WorkspaceAgentListeningPort{}
 	for _, tab := range tabs {
-		if tab.LocalAddr == nil || tab.LocalAddr.Port < workspacesdk.AgentMinimumListeningPort {
-			continue
-		}
-
-		// Ignore ports that we've been told to ignore.
-		if _, ok := lp.ignorePorts[int(tab.LocalAddr.Port)]; ok {
+		if tab.LocalAddr == nil {
 			continue
 		}
 

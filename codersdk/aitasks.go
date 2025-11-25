@@ -354,6 +354,28 @@ func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.
 	return nil
 }
 
+// UpdateTaskInputRequest is used to update a task's input.
+//
+// Experimental: This type is experimental and may change in the future.
+type UpdateTaskInputRequest struct {
+	Input string `json:"input"`
+}
+
+// UpdateTaskInput updates the task's input.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID, req UpdateTaskInputRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/tasks/%s/%s/input", user, id.String()), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // TaskLogType indicates the source of a task log entry.
 //
 // Experimental: This type is experimental and may change in the future.
