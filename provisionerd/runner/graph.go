@@ -16,13 +16,13 @@ func (r *Runner) graph(ctx context.Context, req *sdkproto.GraphRequest) (*sdkpro
 
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Graph{Graph: req}})
 	if err != nil {
-		return nil, r.failedJobf("send init request: %v", err)
+		return nil, r.failedJobf("send graph request: %v", err)
 	}
 
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
-			return nil, r.failedJobf("receive init response: %v", err)
+			return nil, r.failedJobf("receive graph response: %v", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
@@ -42,7 +42,7 @@ func (r *Runner) graph(ctx context.Context, req *sdkproto.GraphRequest) (*sdkpro
 		case *sdkproto.Response_Graph:
 			return msgType.Graph, nil
 		default:
-			return nil, r.failedJobf("unexpected init response type %T", msg.Type)
+			return nil, r.failedJobf("unexpected graph response type %T", msg.Type)
 		}
 	}
 }

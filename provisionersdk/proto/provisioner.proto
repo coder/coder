@@ -446,11 +446,7 @@ message ApplyRequest {
 message ApplyComplete {
   bytes state = 1;
   string error = 2;
-  repeated Resource resources = 3;
-  repeated RichParameter parameters = 4;
-  repeated ExternalAuthProviderResource external_auth_providers = 5;
-  repeated Timing timings = 6;
-  repeated provisioner.AITask ai_tasks = 7;
+  repeated Timing timings = 3;
 }
 
 enum GraphSource {

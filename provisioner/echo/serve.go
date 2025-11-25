@@ -25,8 +25,8 @@ import (
 // "aws_instance" resource with an agent that has the given auth token.
 func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string) []*proto.Response {
 	return []*proto.Response{{
-		Type: &proto.Response_Apply{
-			Apply: &proto.ApplyComplete{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example_with_scope",
 					Type: "aws_instance",
@@ -48,8 +48,8 @@ func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string)
 // "aws_instance" resource with an agent that has the given auth token.
 func ProvisionApplyWithAgent(authToken string) []*proto.Response {
 	return []*proto.Response{{
-		Type: &proto.Response_Apply{
-			Apply: &proto.ApplyComplete{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "aws_instance",
@@ -205,6 +205,11 @@ func (e *echo) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrC
 	panic("implement me")
 }
 
+func (e *echo) Graph(s *provisionersdk.Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
+	//TODO implement me
+	panic("implement me")
+}
+
 // Plan reads requests from the provided directory to stream responses.
 func (*echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete {
 	responses, err := readResponses(
@@ -297,23 +302,18 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			ExtraFiles:        nil,
 		}
 	}
-	if responses.ProvisionInit == nil {
-		for _, resp := range responses.ProvisionApply {
+	// source apply from the graph if graph exists
+	if responses.ProvisionApply == nil && len(responses.ProvisionGraph) > 0 {
+		for _, resp := range responses.ProvisionGraph {
 			if resp.GetLog() != nil {
-				responses.ProvisionInit = append(responses.ProvisionInit, resp)
+				responses.ProvisionApply = append(responses.ProvisionApply, resp)
 				continue
 			}
-			responses.ProvisionInit = append(responses.ProvisionInit, &proto.Response{
-				Type: &proto.Response_Init{Init: &proto.InitComplete{
-					Error:           resp.GetApply().GetError(),
-					Timings:         nil,
-					Modules:         nil,
-					ModuleFiles:     nil,
-					ModuleFilesHash: nil,
-				},
-				},
-			},
-			)
+			responses.ProvisionApply = append(responses.ProvisionApply, &proto.Response{
+				Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{
+					Error: resp.GetGraph().GetError(),
+				}},
+			})
 		}
 	}
 	if responses.ProvisionGraph == nil {
@@ -324,29 +324,41 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 			responses.ProvisionGraph = append(responses.ProvisionGraph, &proto.Response{
 				Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-					Error:                 resp.GetApply().GetError(),
-					Timings:               nil,
-					Resources:             resp.GetApply().GetResources(),
-					Parameters:            resp.GetApply().GetParameters(),
-					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
-					HasAiTasks:            len(resp.GetApply().GetAiTasks()) > 0,
-					AiTasks:               resp.GetApply().GetAiTasks(),
-					HasExternalAgents:     false,
+					Error: resp.GetApply().GetError(),
 				}},
 			})
 		}
 	}
+	if responses.ProvisionInit == nil {
+		for _, resp := range responses.ProvisionGraph {
+			if resp.GetLog() != nil {
+				responses.ProvisionInit = append(responses.ProvisionInit, resp)
+				continue
+			}
+			responses.ProvisionInit = append(responses.ProvisionInit, &proto.Response{
+				Type: &proto.Response_Init{Init: &proto.InitComplete{
+					Error:           resp.GetGraph().GetError(),
+					Timings:         nil,
+					Modules:         nil,
+					ModuleFiles:     nil,
+					ModuleFilesHash: nil,
+				},
+				},
+			},
+			)
+		}
+	}
 	if responses.ProvisionPlan == nil {
-		for _, resp := range responses.ProvisionApply {
+		for _, resp := range responses.ProvisionGraph {
 			if resp.GetLog() != nil {
 				responses.ProvisionPlan = append(responses.ProvisionPlan, resp)
 				continue
 			}
 			responses.ProvisionPlan = append(responses.ProvisionPlan, &proto.Response{
 				Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Error:       resp.GetApply().GetError(),
+					Error:       resp.GetGraph().GetError(),
 					Plan:        []byte("{}"),
-					AiTaskCount: int32(len(resp.GetApply().GetAiTasks())),
+					AiTaskCount: int32(len(resp.GetGraph().GetAiTasks())),
 				}},
 			})
 		}
@@ -579,10 +591,9 @@ data "coder_parameter" "{{ .Name }}" {
 
 func WithResources(resources []*proto.Resource) *Responses {
 	return &Responses{
-		Parse: ParseComplete,
-		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{
-			Resources: resources,
-		}}}},
+		Parse:          ParseComplete,
+		ProvisionInit:  InitComplete,
+		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{}}}},
 		ProvisionGraph: []*proto.Response{{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 			Resources: resources,
 		}}}},
@@ -595,8 +606,10 @@ func WithResources(resources []*proto.Resource) *Responses {
 func WithExtraFiles(extraFiles map[string][]byte) *Responses {
 	return &Responses{
 		Parse:          ParseComplete,
+		ProvisionInit:  InitComplete,
 		ProvisionApply: ApplyComplete,
 		ProvisionPlan:  PlanComplete,
+		ProvisionGraph: GraphComplete,
 		ExtraFiles:     extraFiles,
 	}
 }
