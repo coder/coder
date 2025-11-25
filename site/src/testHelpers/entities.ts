@@ -4997,6 +4997,7 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 export const MockTask = {
 	id: "test-task",
 	name: "task-wild-test-123",
+	display_name: "Task wild test 123",
 	organization_id: MockOrganization.id,
 	owner_id: MockUserOwner.id,
 	owner_name: MockUserOwner.username,
