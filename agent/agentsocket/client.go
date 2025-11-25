@@ -1,3 +1,5 @@
+//go:build !windows
+
 package agentsocket
 
 import (
@@ -89,12 +91,12 @@ func (c *Client) SyncReady(ctx context.Context, unitName string) (bool, error) {
 }
 
 // SyncStatus gets the status of a unit and its dependencies.
-func (c *Client) SyncStatus(ctx context.Context, unitName string) (*SyncStatusResponse, error) {
+func (c *Client) SyncStatus(ctx context.Context, unitName string) (SyncStatusResponse, error) {
 	resp, err := c.client.SyncStatus(ctx, &proto.SyncStatusRequest{
 		Unit: unitName,
 	})
 	if err != nil {
-		return nil, err
+		return SyncStatusResponse{}, err
 	}
 
 	var dependencies []DependencyInfo
@@ -107,7 +109,7 @@ func (c *Client) SyncStatus(ctx context.Context, unitName string) (*SyncStatusRe
 		})
 	}
 
-	return &SyncStatusResponse{
+	return SyncStatusResponse{
 		Status:       resp.Status,
 		IsReady:      resp.IsReady,
 		Dependencies: dependencies,
