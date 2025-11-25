@@ -47,7 +47,7 @@ jobs:
     if: github.event.label.name == 'coder'
     steps:
       - name: Coder Create Task
-        uses: coder/create-coder-task@v0
+        uses: coder/create-task-action@v0
         with:
           coder-url: ${{ secrets.CODER_URL }}
           coder-token: ${{ secrets.CODER_TOKEN }}
