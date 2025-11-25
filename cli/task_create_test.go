@@ -69,7 +69,7 @@ func TestTaskCreate(t *testing.T) {
 						ActiveVersionID: templateVersionID,
 					},
 				})
-			case fmt.Sprintf("/api/experimental/tasks/%s", username):
+			case fmt.Sprintf("/api/v2/tasks/%s", username):
 				var req codersdk.CreateTaskRequest
 				if !httpapi.Read(ctx, w, r, &req) {
 					return
@@ -329,7 +329,7 @@ func TestTaskCreate(t *testing.T) {
 				ctx    = testutil.Context(t, testutil.WaitShort)
 				srv    = httptest.NewServer(tt.handler(t, ctx))
 				client = codersdk.New(testutil.MustURL(t, srv.URL))
-				args   = []string{"exp", "task", "create"}
+				args   = []string{"task", "create"}
 				sb     strings.Builder
 				err    error
 			)

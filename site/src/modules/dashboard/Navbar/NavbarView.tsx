@@ -207,7 +207,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 	};
 	const { data: idleCount } = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => API.experimental.getTasks(filter),
+		queryFn: () => API.getTasks(filter),
 		refetchInterval: 1_000 * 60,
 		enabled: canSeeTasks,
 		refetchOnWindowFocus: true,

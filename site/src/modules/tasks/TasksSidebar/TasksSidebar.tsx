@@ -135,7 +135,7 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ owner }) => {
 	const filter: TasksFilter = { owner };
 	const tasksQuery = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => API.experimental.getTasks(filter),
+		queryFn: () => API.getTasks(filter),
 		refetchInterval: 10_000,
 	});
 
@@ -203,7 +203,9 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 					}}
 				>
 					<TaskSidebarMenuItemStatus task={task} />
-					<span className="truncate">{task.name}</span>
+					<span className="block max-w-[220px] truncate">
+						{task.display_name}
+					</span>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button

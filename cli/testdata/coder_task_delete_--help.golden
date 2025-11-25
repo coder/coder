@@ -1,0 +1,27 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder task delete [flags] <task> [<task> ...]
+
+  Delete tasks
+
+  Aliases: rm
+
+    - Delete a single task.:
+  
+       $ $ coder task delete task1
+  
+    - Delete multiple tasks.:
+  
+       $ $ coder task delete task1 task2 task3
+  
+    - Delete a task without confirmation.:
+  
+       $ $ coder task delete task4 --yes
+
+OPTIONS:
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

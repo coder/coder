@@ -1195,14 +1195,13 @@ export interface CreateProvisionerKeyResponse {
 // From codersdk/aitasks.go
 /**
  * CreateTaskRequest represents the request to create a new task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface CreateTaskRequest {
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
 	readonly input: string;
 	readonly name?: string;
+	readonly display_name?: string;
 }
 
 // From codersdk/organizations.go
@@ -4722,8 +4721,6 @@ export interface TailDERPRegion {
 // From codersdk/aitasks.go
 /**
  * Task represents a task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface Task {
 	readonly id: string;
@@ -4732,6 +4729,7 @@ export interface Task {
 	readonly owner_name: string;
 	readonly owner_avatar_url?: string;
 	readonly name: string;
+	readonly display_name: string;
 	readonly template_id: string;
 	readonly template_version_id: string;
 	readonly template_name: string;
@@ -4755,8 +4753,6 @@ export interface Task {
 // From codersdk/aitasks.go
 /**
  * TaskLogEntry represents a single log entry for a task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskLogEntry {
 	readonly id: number;
@@ -4773,8 +4769,6 @@ export const TaskLogTypes: TaskLogType[] = ["input", "output"];
 // From codersdk/aitasks.go
 /**
  * TaskLogsResponse contains the logs for a task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskLogsResponse {
 	readonly logs: readonly TaskLogEntry[];
@@ -4783,8 +4777,6 @@ export interface TaskLogsResponse {
 // From codersdk/aitasks.go
 /**
  * TaskSendRequest is used to send task input to the tasks sidebar app.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskSendRequest {
 	readonly input: string;
@@ -4796,8 +4788,6 @@ export type TaskState = "complete" | "failed" | "idle" | "working";
 // From codersdk/aitasks.go
 /**
  * TaskStateEntry represents a single entry in the task's state history.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskStateEntry {
 	readonly timestamp: string;
@@ -4834,8 +4824,6 @@ export const TaskStatuses: TaskStatus[] = [
 // From codersdk/aitasks.go
 /**
  * TasksFilter filters the list of tasks.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TasksFilter {
 	/**
@@ -4859,8 +4847,6 @@ export interface TasksFilter {
 // From codersdk/aitasks.go
 /**
  * TaskListResponse is the response shape for tasks list.
- *
- * Experimental response shape for tasks list (server returns []Task).
  */
 export interface TasksListResponse {
 	readonly tasks: readonly Task[];
@@ -5369,6 +5355,14 @@ export interface UpdateOrganizationRequest {
 // From codersdk/users.go
 export interface UpdateRoles {
 	readonly roles: readonly string[];
+}
+
+// From codersdk/aitasks.go
+/**
+ * UpdateTaskInputRequest is used to update a task's input.
+ */
+export interface UpdateTaskInputRequest {
+	readonly input: string;
 }
 
 // From codersdk/templates.go

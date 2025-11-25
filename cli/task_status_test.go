@@ -36,7 +36,7 @@ func Test_TaskStatus(t *testing.T) {
 			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/doesnotexist":
+					case "/api/v2/tasks/me/doesnotexist":
 						httpapi.ResourceNotFound(w)
 						return
 					default:
@@ -52,7 +52,7 @@ func Test_TaskStatus(t *testing.T) {
 			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/exists":
+					case "/api/v2/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 							ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 							WorkspaceStatus: codersdk.WorkspaceStatusRunning,
@@ -88,7 +88,7 @@ func Test_TaskStatus(t *testing.T) {
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/exists":
+					case "/api/v2/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 							ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 							Name:            "exists",
@@ -103,7 +103,7 @@ func Test_TaskStatus(t *testing.T) {
 							Status:                  codersdk.TaskStatusPending,
 						})
 						return
-					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
+					case "/api/v2/tasks/me/11111111-1111-1111-1111-111111111111":
 						defer calls.Add(1)
 						switch calls.Load() {
 						case 0:
@@ -189,6 +189,7 @@ func Test_TaskStatus(t *testing.T) {
   "owner_id": "00000000-0000-0000-0000-000000000000",
   "owner_name": "me",
   "name": "exists",
+  "display_name": "Task exists",
   "template_id": "00000000-0000-0000-0000-000000000000",
   "template_version_id": "00000000-0000-0000-0000-000000000000",
   "template_name": "",
@@ -218,11 +219,12 @@ func Test_TaskStatus(t *testing.T) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/exists":
+					case "/api/v2/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-							ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-							Name:      "exists",
-							OwnerName: "me",
+							ID:          uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+							Name:        "exists",
+							DisplayName: "Task exists",
+							OwnerName:   "me",
 							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 								Healthy: true,
 							},
@@ -254,7 +256,7 @@ func Test_TaskStatus(t *testing.T) {
 				srv    = httptest.NewServer(http.HandlerFunc(tc.hf(ctx, now)))
 				client = codersdk.New(testutil.MustURL(t, srv.URL))
 				sb     = strings.Builder{}
-				args   = []string{"exp", "task", "status", "--watch-interval", testutil.IntervalFast.String()}
+				args   = []string{"task", "status", "--watch-interval", testutil.IntervalFast.String()}
 			)
 
 			t.Cleanup(srv.Close)
