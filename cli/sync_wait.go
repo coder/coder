@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	// PollInterval is the interval between dependency checks
 	PollInterval = 1 * time.Second
 )
 
@@ -33,17 +32,14 @@ func (r *RootCmd) syncWait() *serpent.Command {
 			}
 			unitName := i.Args[0]
 
-			// Set up context with timeout if specified
 			if timeout > 0 {
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithTimeout(ctx, timeout)
 				defer cancel()
 			}
 
-			// Show initial message
 			fmt.Printf("Waiting for dependencies of unit '%s' to be satisfied...\n", unitName)
 
-			// Connect to agent socket
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
 				Path: "/tmp/coder.sock",
 			})
@@ -52,7 +48,6 @@ func (r *RootCmd) syncWait() *serpent.Command {
 			}
 			defer client.Close()
 
-			// Poll until dependencies are satisfied
 			ticker := time.NewTicker(PollInterval)
 			defer ticker.Stop()
 
@@ -64,21 +59,16 @@ func (r *RootCmd) syncWait() *serpent.Command {
 					}
 					return ctx.Err()
 				case <-ticker.C:
-					// Check if dependencies are satisfied
 					err := client.SyncReady(ctx, unitName)
 					if err == nil {
-						// Dependencies are satisfied
 						fmt.Printf("Dependencies for unit '%s' are now satisfied\n", unitName)
 						return nil
 					}
 
-					// Check if it's a "not ready" error (expected while waiting)
 					if xerrors.Is(err, unit.ErrDependenciesNotSatisfied) {
-						// Still waiting, continue polling
 						continue
 					}
 
-					// Some other error occurred
 					return xerrors.Errorf("error checking dependencies: %w", err)
 				}
 			}

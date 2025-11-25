@@ -20,10 +20,8 @@ func (r *RootCmd) syncPing() *serpent.Command {
 		Handler: func(i *serpent.Invocation) error {
 			ctx := context.Background()
 
-			// Show initial message
 			fmt.Println("Pinging agent socket...")
 
-			// Connect to agent socket
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
 				Path: "/tmp/coder.sock",
 			})
@@ -32,7 +30,6 @@ func (r *RootCmd) syncPing() *serpent.Command {
 			}
 			defer client.Close()
 
-			// Measure round-trip time
 			start := time.Now()
 			resp, err := client.Ping(ctx)
 			duration := time.Since(start)
@@ -41,7 +38,6 @@ func (r *RootCmd) syncPing() *serpent.Command {
 				return xerrors.Errorf("ping failed: %w", err)
 			}
 
-			// Display results
 			fmt.Printf("Response: %s\n", resp.Message)
 			fmt.Printf("Timestamp: %s\n", resp.Timestamp.Format(time.RFC3339))
 			fmt.Printf("Round-trip time: %s\n", duration.Round(time.Microsecond))

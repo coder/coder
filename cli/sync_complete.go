@@ -24,10 +24,8 @@ func (r *RootCmd) syncComplete() *serpent.Command {
 			}
 			unit := i.Args[0]
 
-			// Show initial message
 			fmt.Printf("Completing unit '%s'...\n", unit)
 
-			// Connect to agent socket
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
 				Path: "/tmp/coder.sock",
 			})
@@ -36,12 +34,10 @@ func (r *RootCmd) syncComplete() *serpent.Command {
 			}
 			defer client.Close()
 
-			// Complete the unit
 			if err := client.SyncComplete(ctx, unit); err != nil {
 				return xerrors.Errorf("complete unit failed: %w", err)
 			}
 
-			// Display success message
 			fmt.Printf("Unit '%s' completed successfully\n", unit)
 
 			return nil

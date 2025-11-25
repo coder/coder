@@ -40,7 +40,6 @@ func (r *RootCmd) syncStatus() *serpent.Command {
 			}
 			unit := i.Args[0]
 
-			// Connect to agent socket
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
 				Path: "/tmp/coder.sock",
 			})
@@ -49,13 +48,11 @@ func (r *RootCmd) syncStatus() *serpent.Command {
 			}
 			defer client.Close()
 
-			// Get status information
 			statusResp, err := client.SyncStatus(ctx, unit, recursive)
 			if err != nil {
 				return xerrors.Errorf("get status failed: %w", err)
 			}
 
-			// Output based on format
 			switch outputFormat(output) {
 			case outputFormatJSON:
 				return outputJSON(statusResp)
@@ -100,13 +97,11 @@ func outputDOT(statusResp *agentsdk.SyncStatusResponse) error {
 }
 
 func outputHuman(statusResp *agentsdk.SyncStatusResponse) error {
-	// Unit status
 	fmt.Printf("Unit: %s\n", statusResp.Unit)
 	fmt.Printf("Status: %s\n", statusResp.Status)
 	fmt.Printf("Ready: %t\n", statusResp.IsReady)
 	fmt.Println()
 
-	// Dependencies
 	if len(statusResp.Dependencies) == 0 {
 		fmt.Println("No dependencies")
 		return nil

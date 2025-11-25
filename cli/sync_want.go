@@ -25,10 +25,8 @@ func (r *RootCmd) syncWant() *serpent.Command {
 			unit := i.Args[0]
 			dependsOn := i.Args[1]
 
-			// Show initial message
 			fmt.Printf("Declaring dependency: '%s' depends on '%s'...\n", unit, dependsOn)
 
-			// Connect to agent socket
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
 				Path: "/tmp/coder.sock",
 			})
@@ -37,12 +35,10 @@ func (r *RootCmd) syncWant() *serpent.Command {
 			}
 			defer client.Close()
 
-			// Declare the dependency
 			if err := client.SyncWant(ctx, unit, dependsOn); err != nil {
 				return xerrors.Errorf("declare dependency failed: %w", err)
 			}
 
-			// Display success message
 			fmt.Printf("Dependency declared: '%s' now depends on '%s'\n", unit, dependsOn)
 
 			return nil

@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	// SyncPollInterval is the interval between dependency checks for sync start
 	SyncPollInterval = 1 * time.Second
 )
 
@@ -33,17 +32,14 @@ func (r *RootCmd) syncStart() *serpent.Command {
 			}
 			unitName := i.Args[0]
 
-			// Set up context with timeout if specified
 			if timeout > 0 {
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithTimeout(ctx, timeout)
 				defer cancel()
 			}
 
-			// Show initial message
 			fmt.Printf("Starting unit '%s'...\n", unitName)
 
-			// Connect to agent socket
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
 				Path: "/tmp/coder.sock",
 			})
@@ -52,15 +48,11 @@ func (r *RootCmd) syncStart() *serpent.Command {
 			}
 			defer client.Close()
 
-			// Check if dependencies are satisfied first
 			err = client.SyncReady(ctx, unitName)
 			if err != nil {
-				// Check if it's a "not ready" error (expected if dependencies exist)
 				if xerrors.Is(err, unit.ErrDependenciesNotSatisfied) {
-					// Dependencies exist but aren't satisfied, start polling
 					fmt.Printf("Waiting for dependencies of unit '%s' to be satisfied...\n", unitName)
 
-					// Poll until dependencies are satisfied
 					ticker := time.NewTicker(SyncPollInterval)
 					defer ticker.Stop()
 
@@ -73,39 +65,30 @@ func (r *RootCmd) syncStart() *serpent.Command {
 							}
 							return ctx.Err()
 						case <-ticker.C:
-							// Check if dependencies are satisfied
 							err := client.SyncReady(ctx, unitName)
 							if err == nil {
-								// Dependencies are satisfied
 								fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)
 								break pollLoop
 							}
 
-							// Check if it's still a "not ready" error (expected while waiting)
 							if xerrors.Is(err, unit.ErrDependenciesNotSatisfied) {
-								// Still waiting, continue polling
 								continue
 							}
 
-							// Some other error occurred
 							return xerrors.Errorf("error checking dependencies: %w", err)
 						}
 					}
 				} else {
-					// Some other error occurred
 					return xerrors.Errorf("error checking dependencies: %w", err)
 				}
 			} else {
-				// No dependencies or already satisfied
 				fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)
 			}
 
-			// Start the unit
 			if err := client.SyncStart(ctx, unitName); err != nil {
 				return xerrors.Errorf("start unit failed: %w", err)
 			}
 
-			// Display success message
 			fmt.Printf("Unit '%s' started successfully\n", unitName)
 
 			return nil
