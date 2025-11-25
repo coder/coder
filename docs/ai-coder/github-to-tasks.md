@@ -106,7 +106,7 @@ If your prompt uses the GitHub CLI `gh`, your template must pass the user's GitH
 
 ```terraform
 data "coder_external_auth" "github" {
-  id = "github"
+  id = "github" # Must match your CODER_EXTERNAL_AUTH_0_ID
 }
 
 resource "coder_agent" "dev" {
@@ -122,13 +122,13 @@ Note that tokens passed as environment variables represent a snapshot at task cr
 - If your GitHub external auth is configured as a GitHub App with token expiration enabled (the default), tokens expire after 8 hours
 - If configured as a GitHub OAuth App or GitHub App with expiration disabled, tokens remain valid unless unused for 1 year
 
-Recommendations:
+Because of this, we recommend to:
 
 - Keep tasks under 8 hours to avoid token expiration issues
 - For longer workflows, break work into multiple sequential tasks 
 - If authentication fails mid-task, users must re-authenticate at /settings/external-auth and restart the task
 
-For more information, see our [External Authentcation documentation](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app). 
+For more information, see our [External Authentication documentation](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app). 
 
 ### Step 3: Test Your Setup
 
