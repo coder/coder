@@ -86,7 +86,7 @@ You must set the following inputs as secrets within your repository:
 
 You must also set `coder-template-name` as part of this. The GHA example has this listed as a secret, but the value doesn't need to be stored as a secret. The template name can be determined the following ways:
 
-- By viewing the URL of the template in the UI, e.g. `https://your-coder-url/templates/<org-name>/<template-name>`
+- By viewing the URL of the template in the UI, e.g. `https://<your-coder-url>/templates/<org-name>/<template-name>`
 - Using the Coder CLI:
 
 ```bash
