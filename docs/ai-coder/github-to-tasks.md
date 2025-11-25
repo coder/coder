@@ -201,15 +201,17 @@ This guide shows you how to automatically delegate routine engineering work to A
 **Cause:** The user who triggered the workflow hasn't linked their GitHub account to Coder.
 
 **Solution:** 
+
 1. Ensure GitHub OAuth is configured in your Coder deployment (see [External Authentication docs](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app))
-2. Have the user visit `https://your-coder-url/settings/external-auth` and link their GitHub account
-3. Retry the workflow by re-applying the `coder` label or however else the workflow is triggered
+1. Have the user visit `https://your-coder-url/settings/external-auth` and link their GitHub account
+1. Retry the workflow by re-applying the `coder` label or however else the workflow is triggered
 
 ### "Failed to create task: 403 Forbidden"
 
 **Cause:** The `coder-token` doesn't have the required permissions.
 
 **Solution:** The token must have:
+
 - Read users in organization
 - Create tasks for any user
 
@@ -220,15 +222,18 @@ Generate a new token with these permissions at `https://your-coder-url/deploymen
 **Cause:** The `coder-template-name` is incorrect or the template doesn't exist in the specified organization.
 
 **Solution:**
+
 1. Verify the template name using: `coder templates list --org your-org-name`
-2. Update the `coder-template-name` input in your workflow file to match exactly, or input secret or variable saved in GitHub
-3. Ensure the template exists in the organization specified by `coder-organization`
+1. Update the `coder-template-name` input in your workflow file to match exactly, or input secret or variable saved in GitHub
+1. Ensure the template exists in the organization specified by `coder-organization`
 
 ### Task fails with "authentication failed" or "Bad credentials" after running for hours
 
 **Symptoms:**
+
 - Task starts successfully and works initially
 - After some time passes, `gh` CLI commands fail with:
+
   - `authentication failed`
   - `Bad credentials` 
   - `HTTP 401 Unauthorized`
