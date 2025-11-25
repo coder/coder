@@ -266,8 +266,7 @@ type Session struct {
 	logLevel int32
 }
 
-type initialized struct {
-}
+type initialized struct{}
 
 func (s *Session) Context() context.Context {
 	return s.stream.Context()
