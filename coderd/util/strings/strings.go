@@ -10,10 +10,11 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 )
 
-// EmptyToNil returns a `nil` for an empty string, or a pointer to the string
-// otherwise. Useful when needing to treat zero values as nil in APIs.
+// EmptyToNil returns a `nil` for an empty string or whitespace-only string,
+// or a pointer to the string otherwise. Useful when needing to treat zero
+// values as nil in APIs.
 func EmptyToNil(s string) *string {
-	if s == "" {
+	if strings.TrimSpace(s) == "" {
 		return nil
 	}
 	return &s
@@ -93,17 +94,6 @@ func Truncate(s string, n int, opts ...TruncateOption) string {
 }
 
 var bmPolicy = bluemonday.StrictPolicy()
-
-// ContainsAny returns true if s contains any of the substrings in the list.
-// The search is case-sensitive.
-func ContainsAny(s string, substrings []string) bool {
-	for _, substr := range substrings {
-		if strings.Contains(s, substr) {
-			return true
-		}
-	}
-	return false
-}
 
 // UISanitize sanitizes a string for display in the UI.
 // The following transformations are applied, in order:
