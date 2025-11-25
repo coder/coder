@@ -155,7 +155,7 @@ We recommend that you further adapt this workflow to better match your process. 
 
 - Modify the prompt to implement the plan it came up with, and then create a PR once it has a solution
 - Update your GitHub issue template to automatically apply the `coder` label to attempt to solve bugs that have been logged
-- Modify the underlying use case to handle updating documentation, implementing a small feature, reviewing bug reports for completeness, or even writing unit test
+- Modify the underlying use case to handle updating documentation, implementing a small feature, reviewing bug reports for completeness, or even writing unit tests
 - Modify the workflow trigger for other scenarios such as:
 
 ```yml
