@@ -50,6 +50,7 @@ type Runner struct {
 	job                 *proto.AcquiredJob
 	sender              JobUpdater
 	quotaCommitter      QuotaCommitter
+	fileDownloader      FileDownloader
 	logger              slog.Logger
 	provisioner         sdkproto.DRPCProvisionerClient
 	lastUpdate          atomic.Pointer[time.Time]
@@ -100,6 +101,10 @@ type JobUpdater interface {
 }
 type QuotaCommitter interface {
 	CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
+}
+
+type FileDownloader interface {
+	DownloadFile(*proto.DownloadFileRequest, proto.DRPCProvisionerDaemon_DownloadFileStream) error
 }
 
 type Options struct {
@@ -1023,6 +1028,18 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	})
 	if failedJob != nil {
 		return nil, failedJob
+	}
+
+	if r.job.GetWorkspaceBuild().ModulesFilesUuid != nil &&
+		*r.job.GetWorkspaceBuild().ModulesFilesUuid != "" &&
+		*r.job.GetWorkspaceBuild().ModulesFilesUuid != uuid.Nil.String() {
+		// TODO: Download module files
+		//r.fileDownloader.DownloadFile(&proto.DownloadFileRequest{
+		//	FileUuid: *r.job.GetWorkspaceBuild().ModulesFilesUuid,
+		//})
+		//
+		//stream := NewStream
+		//r.provisioner
 	}
 
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{

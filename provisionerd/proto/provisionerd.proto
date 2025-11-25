@@ -27,6 +27,9 @@ message AcquiredJob {
     // for the first time.
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
     optional bool exp_reuse_terraform_workspace = 11;
+    // Templates before dynamic parameters and templates with module
+    // directories that are too large will not have module files.
+    optional string modules_files_uuid = 12;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;
@@ -158,11 +161,16 @@ message CommitQuotaResponse {
 
 message CancelAcquire {}
 
+// TODO: Can we safely rename this to just `UploadFile`?
 message UploadFileRequest {
   oneof type {
     provisioner.DataUpload data_upload = 1;
     provisioner.ChunkPiece chunk_piece = 2;
   }
+}
+
+message DownloadFileRequest {
+  string file_uuid = 1;
 }
 
 service ProvisionerDaemon {
@@ -196,4 +204,8 @@ service ProvisionerDaemon {
   // UploadFile streams files to be inserted into the database.
   // The file upload_type should be used to determine how to handle the file.
   rpc UploadFile(stream UploadFileRequest) returns (Empty);
+
+  // DownloadFile can download files from the database.
+  // Useful for retrieving large files such as terraform modules.
+  rpc DownloadFile(DownloadFileRequest) returns (stream UploadFileRequest);
 }

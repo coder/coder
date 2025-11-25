@@ -510,6 +510,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		terraformValues, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) { // Templates can exist without terraform values
+			return nil, failJob(fmt.Sprintf("get template version terraform values: %s", err))
+		}
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
 		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
 			if !xerrors.Is(err, sql.ErrNoRows) {
@@ -699,6 +703,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		var moduleFilesUUID *string
+		if terraformValues.CachedModuleFiles.Valid {
+			moduleFilesUUID = ptr.Ref(terraformValues.CachedModuleFiles.UUID.String())
+		}
+
 		activeVersion := template.ActiveVersionID == templateVersion.ID
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
@@ -709,6 +718,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),
 				ExternalAuthProviders:   externalAuthProviders,
+				ModulesFilesUuid:        moduleFilesUUID,
 				// If active and experiment is enabled, allow workspace reuse existing TF
 				// workspaces (directories) for a faster startup.
 				ExpReuseTerraformWorkspace: ptr.Ref(s.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) && // Experiment required
@@ -1524,6 +1534,16 @@ UploadFileStream:
 	)
 
 	return nil
+}
+
+func (s *server) DownloadFile(request *proto.DownloadFileRequest, stream proto.DRPCProvisionerDaemon_DownloadFileStream) error {
+	// Always terminate the stream with an empty response.
+	if request == nil || request.FileUuid == "" {
+		_ = stream.Close()
+		return xerrors.New("file request uuid is required")
+	}
+
+	return fmt.Errorf("not implemented")
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
