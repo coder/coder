@@ -13441,7 +13441,7 @@ SET
 WHERE
 	id = $2::uuid
 	AND deleted_at IS NULL
-RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name
 `
 
 type UpdateTaskPromptParams struct {
@@ -13463,6 +13463,7 @@ func (q *sqlQuerier) UpdateTaskPrompt(ctx context.Context, arg UpdateTaskPromptP
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
