@@ -28,7 +28,7 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 		Long: FormatExamples(
 			Example{
 				Description: "Show logs for a given task.",
-				Command:     "coder exp task logs task1",
+				Command:     "coder task logs task1",
 			}),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),

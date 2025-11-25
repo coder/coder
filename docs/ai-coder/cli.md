@@ -1,19 +1,19 @@
 # Tasks CLI
 
-The Coder CLI provides experimental commands for managing tasks programmatically. These are available under `coder exp task`:
+The Coder CLI provides commands for managing tasks programmatically. These are available under `coder task`:
 
 ```console
 USAGE:
-  coder exp task
+  coder task
 
-  Experimental task commands.
+  Manage tasks
 
   Aliases: tasks
 
 SUBCOMMANDS:
-    create    Create an experimental task
-    delete    Delete experimental tasks
-    list      List experimental tasks
+    create    Create a task
+    delete    Delete tasks
+    list      List tasks
     logs      Show a task's logs
     send      Send input to a task
     status    Show the status of a task.
@@ -23,29 +23,29 @@ SUBCOMMANDS:
 
 ```console
 USAGE:
-  coder exp task create [flags] [input]
+  coder task create [flags] [input]
 
-  Create an experimental task
+  Create a task
 
     - Create a task with direct input:
 
-        $ coder exp task create "Add authentication to the user service"
+        $ coder task create "Add authentication to the user service"
 
     - Create a task with stdin input:
 
-        $ echo "Add authentication to the user service" | coder exp task create
+        $ echo "Add authentication to the user service" | coder task create
 
     - Create a task with a specific name:
 
-        $ coder exp task create --name task1 "Add authentication to the user service"
+        $ coder task create --name task1 "Add authentication to the user service"
 
     - Create a task from a specific template / preset:
 
-        $ coder exp task create --template backend-dev --preset "My Preset" "Add authentication to the user service"
+        $ coder task create --template backend-dev --preset "My Preset" "Add authentication to the user service"
 
     - Create a task for another user (requires appropriate permissions):
 
-        $ coder exp task create --owner user@example.com "Add authentication to the user service"
+        $ coder task create --owner user@example.com "Add authentication to the user service"
 
 OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
@@ -72,23 +72,23 @@ OPTIONS:
 
 ```console
 USAGE:
-  coder exp task delete [flags] <task> [<task> ...]
+  coder task delete [flags] <task> [<task> ...]
 
-  Delete experimental tasks
+  Delete tasks
 
   Aliases: rm
 
     - Delete a single task.:
 
-        $ $ coder exp task delete task1
+        $ $ coder task delete task1
 
     - Delete multiple tasks.:
 
-        $ $ coder exp task delete task1 task2 task3
+        $ $ coder task delete task1 task2 task3
 
     - Delete a task without confirmation.:
 
-        $ $ coder exp task delete task4 --yes
+        $ $ coder task delete task4 --yes
 
 OPTIONS:
   -y, --yes bool
@@ -99,31 +99,31 @@ OPTIONS:
 
 ```console
 USAGE:
-  coder exp task list [flags]
+  coder task list [flags]
 
-  List experimental tasks
+  List tasks
 
   Aliases: ls
 
     - List tasks for the current user.:
 
-        $ coder exp task list
+        $ coder task list
 
     - List tasks for a specific user.:
 
-        $ coder exp task list --user someone-else
+        $ coder task list --user someone-else
 
     - List all tasks you can view.:
 
-        $ coder exp task list --all
+        $ coder task list --all
 
     - List all your running tasks.:
 
-        $ coder exp task list --status running
+        $ coder task list --status running
 
     - As above, but only show IDs.:
 
-        $ coder exp task list --status running --quiet
+        $ coder task list --status running --quiet
 
 OPTIONS:
   -a, --all bool (default: false)
@@ -149,13 +149,13 @@ OPTIONS:
 
 ```console
 USAGE:
-  coder exp task logs [flags] <task>
+  coder task logs [flags] <task>
 
   Show a task's logs
 
     - Show logs for a given task.:
 
-        $ coder exp task logs task1
+        $ coder task logs task1
 
 OPTIONS:
   -c, --column [id|content|type|time] (default: type,content)
@@ -169,17 +169,17 @@ OPTIONS:
 
 ```console
 USAGE:
-  coder exp task send [flags] <task> [<input> | --stdin]
+  coder task send [flags] <task> [<input> | --stdin]
 
   Send input to a task
 
     - Send direct input to a task.:
 
-        $ coder exp task send task1 "Please also add unit tests"
+        $ coder task send task1 "Please also add unit tests"
 
     - Send input from stdin to a task.:
 
-        $ echo "Please also add unit tests" | coder exp task send task1 --stdin
+        $ echo "Please also add unit tests" | coder task send task1 --stdin
 
 OPTIONS:
       --stdin bool
@@ -190,7 +190,7 @@ OPTIONS:
 
 ```console
 USAGE:
-  coder exp task status [flags]
+  coder task status [flags]
 
   Show the status of a task.
 
@@ -198,11 +198,11 @@ USAGE:
 
     - Show the status of a given task.:
 
-        $ coder exp task status task1
+        $ coder task status task1
 
     - Watch the status of a given task until it completes (idle or stopped).:
 
-        $ coder exp task status task1 --watch
+        $ coder task status task1 --watch
 
 OPTIONS:
   -c, --column [state changed|status|healthy|state|message] (default: state changed,status,healthy,state,message)

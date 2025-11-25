@@ -8,7 +8,7 @@ func (r *RootCmd) tasksCommand() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "task",
 		Aliases: []string{"tasks"},
-		Short:   "Experimental task commands.",
+		Short:   "Manage tasks",
 		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},
