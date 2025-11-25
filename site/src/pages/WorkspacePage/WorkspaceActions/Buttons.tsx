@@ -86,7 +86,11 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	tooltipText,
 }) => {
 	let mainButton = (
-		<TopbarButton onClick={() => handleAction()} disabled={disabled || loading}>
+		<TopbarButton
+			data-testid="workspace-start"
+			onClick={() => handleAction()}
+			disabled={disabled || loading}
+		>
 			<PlayIcon />
 			{loading ? <>Starting&hellip;</> : "Start"}
 		</TopbarButton>
