@@ -514,7 +514,6 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	defer span.End()
 
 	failedJob := r.configure(&sdkproto.Config{
-		//TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
 		TemplateId:                 strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
 		TemplateVersionId:          strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
 		ExpReuseTerraformWorkspace: ptr.Ref(false),
