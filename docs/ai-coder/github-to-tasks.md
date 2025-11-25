@@ -214,7 +214,7 @@ This guide shows you how to automatically delegate routine engineering work to A
 - Read users in organization
 - Create tasks for any user
 
-Generate a new token with these permissions at `https://your-coder-url/deployment/general`. See the [Coder Create Task GHA requirements](https://github.com/coder/create-task-action?tab=readme-ov-file#requirements) for more specific information.
+Generate a new token with these permissions at `https://<your-coder-url>/deployment/general`. See the [Coder Create Task GHA requirements](https://github.com/coder/create-task-action?tab=readme-ov-file#requirements) for more specific information.
 
 ### "Template 'my-template' not found"
 
