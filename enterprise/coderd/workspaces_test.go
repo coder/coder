@@ -2584,6 +2584,11 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 			Type: &proto.Response_Graph{
 				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{resource(withAgent)},
+					Presets: []*proto.Preset{{
+						Name:       "preset-test",
+						Parameters: []*proto.PresetParameter{{Name: "k1", Value: "v1"}},
+						Prebuild:   &proto.Prebuild{Instances: desiredInstances},
+					}},
 				},
 			},
 		}
@@ -2593,13 +2598,7 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 		Parse: echo.ParseComplete,
 		ProvisionGraph: []*proto.Response{{
 			Type: &proto.Response_Graph{
-				Graph: &proto.GraphComplete{
-					Presets: []*proto.Preset{{
-						Name:       "preset-test",
-						Parameters: []*proto.PresetParameter{{Name: "k1", Value: "v1"}},
-						Prebuild:   &proto.Prebuild{Instances: desiredInstances},
-					}},
-				},
+				Graph: &proto.GraphComplete{},
 			},
 		}},
 		ProvisionGraphMap: map[proto.WorkspaceTransition][]*proto.Response{
