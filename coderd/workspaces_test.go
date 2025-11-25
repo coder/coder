@@ -4800,7 +4800,6 @@ func TestWorkspaceListTasks(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	expClient := codersdk.NewExperimentalClient(client)
 
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
@@ -4823,7 +4822,7 @@ func TestWorkspaceListTasks(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceWithoutTask.LatestBuild.ID)
 
 	// Given: a workspace associated with a task
-	task, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+	task, err := client.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 		TemplateVersionID: template.ActiveVersionID,
 		Input:             "Some task prompt",
 	})

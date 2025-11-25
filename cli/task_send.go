@@ -17,10 +17,10 @@ func (r *RootCmd) taskSend() *serpent.Command {
 		Short: "Send input to a task",
 		Long: FormatExamples(Example{
 			Description: "Send direct input to a task.",
-			Command:     "coder exp task send task1 \"Please also add unit tests\"",
+			Command:     "coder task send task1 \"Please also add unit tests\"",
 		}, Example{
 			Description: "Send input from stdin to a task.",
-			Command:     "echo \"Please also add unit tests\" | coder exp task send task1 --stdin",
+			Command:     "echo \"Please also add unit tests\" | coder task send task1 --stdin",
 		}),
 		Middleware: serpent.RequireRangeArgs(1, 2),
 		Options: serpent.OptionSet{
@@ -39,7 +39,6 @@ func (r *RootCmd) taskSend() *serpent.Command {
 
 			var (
 				ctx        = inv.Context()
-				exp        = codersdk.NewExperimentalClient(client)
 				identifier = inv.Args[0]
 
 				taskInput string
@@ -60,12 +59,12 @@ func (r *RootCmd) taskSend() *serpent.Command {
 				taskInput = inv.Args[1]
 			}
 
-			task, err := exp.TaskByIdentifier(ctx, identifier)
+			task, err := client.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return xerrors.Errorf("resolve task: %w", err)
 			}
 
-			if err = exp.TaskSend(ctx, codersdk.Me, task.ID, codersdk.TaskSendRequest{Input: taskInput}); err != nil {
+			if err = client.TaskSend(ctx, codersdk.Me, task.ID, codersdk.TaskSendRequest{Input: taskInput}); err != nil {
 				return xerrors.Errorf("send input to task: %w", err)
 			}
 

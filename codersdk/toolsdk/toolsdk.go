@@ -1899,8 +1899,7 @@ var CreateTask = Tool[CreateTaskArgs, codersdk.Task]{
 			args.User = codersdk.Me
 		}
 
-		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		task, err := expClient.CreateTask(ctx, args.User, codersdk.CreateTaskRequest{
+		task, err := deps.coderClient.CreateTask(ctx, args.User, codersdk.CreateTaskRequest{
 			Input:                   args.Input,
 			TemplateVersionID:       tvID,
 			TemplateVersionPresetID: tvPresetID,
@@ -1937,14 +1936,12 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 			return codersdk.Response{}, xerrors.New("task_id is required")
 		}
 
-		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-
-		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
 		}
 
-		err = expClient.DeleteTask(ctx, task.OwnerName, task.ID)
+		err = deps.coderClient.DeleteTask(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("delete task: %w", err)
 		}
@@ -1988,8 +1985,7 @@ var ListTasks = Tool[ListTasksArgs, ListTasksResponse]{
 			args.User = codersdk.Me
 		}
 
-		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		tasks, err := expClient.Tasks(ctx, &codersdk.TasksFilter{
+		tasks, err := deps.coderClient.Tasks(ctx, &codersdk.TasksFilter{
 			Owner:  args.User,
 			Status: args.Status,
 		})
@@ -2032,9 +2028,7 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 			return GetTaskStatusResponse{}, xerrors.New("task_id is required")
 		}
 
-		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-
-		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
@@ -2079,14 +2073,12 @@ var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
 			return codersdk.Response{}, xerrors.New("input is required")
 		}
 
-		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-
-		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
 
-		err = expClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
+		err = deps.coderClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
 			Input: args.Input,
 		})
 		if err != nil {
@@ -2123,14 +2115,12 @@ var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
 			return codersdk.TaskLogsResponse{}, xerrors.New("task_id is required")
 		}
 
-		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-
-		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		task, err := deps.coderClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return codersdk.TaskLogsResponse{}, err
 		}
 
-		logs, err := expClient.TaskLogs(ctx, task.OwnerName, task.ID)
+		logs, err := deps.coderClient.TaskLogs(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
 		}

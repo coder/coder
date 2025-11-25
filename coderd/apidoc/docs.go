@@ -136,233 +136,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Experimental"
-                ],
-                "summary": "List AI tasks",
-                "operationId": "list-tasks",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
-                        "name": "q",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TasksListResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/experimental/tasks/{user}": {
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Experimental"
-                ],
-                "summary": "Create a new AI task",
-                "operationId": "create-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Create task request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTaskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Task"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/experimental/tasks/{user}/{task}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Experimental"
-                ],
-                "summary": "Get AI task by ID",
-                "operationId": "get-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Task"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Experimental"
-                ],
-                "summary": "Delete AI task by ID",
-                "operationId": "delete-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Task deletion initiated"
-                    }
-                }
-            }
-        },
-        "/api/experimental/tasks/{user}/{task}/logs": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Experimental"
-                ],
-                "summary": "Get AI task logs",
-                "operationId": "get-task-logs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TaskLogsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/experimental/tasks/{user}/{task}/send": {
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Experimental"
-                ],
-                "summary": "Send input to AI task",
-                "operationId": "send-task-input",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Task input request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TaskSendRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "Input sent successfully"
-                    }
-                }
-            }
-        },
         "/appearance": {
             "get": {
                 "security": [
@@ -5675,6 +5448,294 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/tasks": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "List AI tasks",
+                "operationId": "list-ai-tasks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TasksListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{user}": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Create a new AI task",
+                "operationId": "create-a-new-ai-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create task request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTaskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Task"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{user}/{task}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Get AI task by ID or name",
+                "operationId": "get-ai-task-by-id-or-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID, or task name",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Task"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Delete AI task",
+                "operationId": "delete-ai-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID, or task name",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    }
+                }
+            }
+        },
+        "/tasks/{user}/{task}/input": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Update AI task input",
+                "operationId": "update-ai-task-input",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID, or task name",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update task input request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateTaskInputRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/tasks/{user}/{task}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Get AI task logs",
+                "operationId": "get-ai-task-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID, or task name",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TaskLogsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{user}/{task}/send": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Send input to AI task",
+                "operationId": "send-input-to-ai-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID, or task name",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Task input request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TaskSendRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -13237,6 +13298,9 @@ const docTemplate = `{
         "codersdk.CreateTaskRequest": {
             "type": "object",
             "properties": {
+                "display_name": {
+                    "type": "string"
+                },
                 "input": {
                     "type": "string"
                 },
@@ -17836,6 +17900,9 @@ const docTemplate = `{
                 "current_state": {
                     "$ref": "#/definitions/codersdk.TaskStateEntry"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -19022,6 +19089,14 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.UpdateTaskInputRequest": {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string"
                 }
             }
         },
