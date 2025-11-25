@@ -25,7 +25,7 @@ This is the recommended approach for most use cases.
 
 ### Project Discovery
 
-Enable automatic discovery of Dev Containers in git repositories. Project discovery automatically scans git repositories for `.devcontainer/devcontainer.json` or `.devcontainer.json` files and surfaces them in the Coder UI. See the [Environment Variables](#environment-variables) section for detailed configuration options.
+Enable automatic discovery of Dev Containers in Git repositories. Project discovery automatically scans Git repositories for `.devcontainer/devcontainer.json` or `.devcontainer.json` files and surfaces them in the Coder UI. See the [Environment Variables](#environment-variables) section for detailed configuration options.
 
 ## Install the Dev Containers CLI
 
@@ -117,11 +117,11 @@ by setting this to `false`.
 
 **Default: `true`** • **Added in: v2.25.0**
 
-Enables automatic discovery of Dev Containers in git repositories.
+Enables automatic discovery of Dev Containers in Git repositories.
 
 When enabled, the agent will:
 
-- Scan the agent directory for git repositories
+- Scan the agent directory for Git repositories
 - Look for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
 - Surface discovered Dev Containers automatically in the Coder UI
 - Respect `.gitignore` patterns during discovery
