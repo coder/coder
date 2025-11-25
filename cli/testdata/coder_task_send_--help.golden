@@ -1,0 +1,21 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder task send [flags] <task> [<input> | --stdin]
+
+  Send input to a task
+
+    - Send direct input to a task.:
+  
+       $ coder task send task1 "Please also add unit tests"
+  
+    - Send input from stdin to a task.:
+  
+       $ echo "Please also add unit tests" | coder task send task1 --stdin
+
+OPTIONS:
+      --stdin bool
+          Reads the input from stdin.
+
+———
+Run `coder --help` for a list of global options.

@@ -30,7 +30,7 @@ func Test_TaskSend(t *testing.T) {
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", task.Name, "carry on with the task")
+		inv, root := clitest.New(t, "task", "send", task.Name, "carry on with the task")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -46,7 +46,7 @@ func Test_TaskSend(t *testing.T) {
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", task.ID.String(), "carry on with the task")
+		inv, root := clitest.New(t, "task", "send", task.ID.String(), "carry on with the task")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -62,7 +62,7 @@ func Test_TaskSend(t *testing.T) {
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", task.Name, "--stdin")
+		inv, root := clitest.New(t, "task", "send", task.Name, "--stdin")
 		inv.Stdout = &stdout
 		inv.Stdin = strings.NewReader("carry on with the task")
 		clitest.SetupConfig(t, userClient, root)
@@ -80,7 +80,7 @@ func Test_TaskSend(t *testing.T) {
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", "doesnotexist", "some task input")
+		inv, root := clitest.New(t, "task", "send", "doesnotexist", "some task input")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -98,7 +98,7 @@ func Test_TaskSend(t *testing.T) {
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", uuid.Nil.String(), "some task input")
+		inv, root := clitest.New(t, "task", "send", uuid.Nil.String(), "some task input")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -114,7 +114,7 @@ func Test_TaskSend(t *testing.T) {
 		userClient, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", task.Name, "some task input")
+		inv, root := clitest.New(t, "task", "send", task.Name, "some task input")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 

@@ -193,7 +193,7 @@ func TestExpTaskDelete(t *testing.T) {
 
 			client := codersdk.New(testutil.MustURL(t, srv.URL))
 
-			args := append([]string{"exp", "task", "delete"}, tc.args...)
+			args := append([]string{"task", "delete"}, tc.args...)
 			inv, root := clitest.New(t, args...)
 			inv = inv.WithContext(ctx)
 			clitest.SetupConfig(t, client, root)

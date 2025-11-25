@@ -1778,6 +1778,41 @@
 							"path": "reference/cli/support_bundle.md"
 						},
 						{
+							"title": "task",
+							"description": "Manage tasks",
+							"path": "reference/cli/task.md"
+						},
+						{
+							"title": "task create",
+							"description": "Create a task",
+							"path": "reference/cli/task_create.md"
+						},
+						{
+							"title": "task delete",
+							"description": "Delete tasks",
+							"path": "reference/cli/task_delete.md"
+						},
+						{
+							"title": "task list",
+							"description": "List tasks",
+							"path": "reference/cli/task_list.md"
+						},
+						{
+							"title": "task logs",
+							"description": "Show a task's logs",
+							"path": "reference/cli/task_logs.md"
+						},
+						{
+							"title": "task send",
+							"description": "Send input to a task",
+							"path": "reference/cli/task_send.md"
+						},
+						{
+							"title": "task status",
+							"description": "Show the status of a task.",
+							"path": "reference/cli/task_status.md"
+						},
+						{
 							"title": "templates",
 							"description": "Manage templates",
 							"path": "reference/cli/templates.md"

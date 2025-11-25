@@ -256,7 +256,7 @@ func Test_TaskStatus(t *testing.T) {
 				srv    = httptest.NewServer(http.HandlerFunc(tc.hf(ctx, now)))
 				client = codersdk.New(testutil.MustURL(t, srv.URL))
 				sb     = strings.Builder{}
-				args   = []string{"exp", "task", "status", "--watch-interval", testutil.IntervalFast.String()}
+				args   = []string{"task", "status", "--watch-interval", testutil.IntervalFast.String()}
 			)
 
 			t.Cleanup(srv.Close)
