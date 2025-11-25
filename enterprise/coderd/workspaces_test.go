@@ -2579,10 +2579,10 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 		return r
 	}
 
-	applyResponse := func(withAgent bool) *proto.Response {
+	graphResponse := func(withAgent bool) *proto.Response {
 		return &proto.Response{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{resource(withAgent)},
 				},
 			},
@@ -2591,9 +2591,9 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Presets: []*proto.Preset{{
 						Name:       "preset-test",
 						Parameters: []*proto.PresetParameter{{Name: "k1", Value: "v1"}},
@@ -2602,9 +2602,9 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 				},
 			},
 		}},
-		ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
-			proto.WorkspaceTransition_START: {applyResponse(true)},
-			proto.WorkspaceTransition_STOP:  {applyResponse(false)},
+		ProvisionGraphMap: map[proto.WorkspaceTransition][]*proto.Response{
+			proto.WorkspaceTransition_START: {graphResponse(true)},
+			proto.WorkspaceTransition_STOP:  {graphResponse(false)},
 		},
 	}
 }
@@ -2612,10 +2612,10 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 func templateWithFailedResponseAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Presets: []*proto.Preset{
 							{
 								Name: "preset-test",

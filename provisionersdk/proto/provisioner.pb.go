@@ -3104,17 +3104,13 @@ func (x *Metadata) GetTemplateVersionId() string {
 
 // Config represents execution configuration shared by all subsequent requests in the Session
 type Config struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// template_source_archive is a tar of the template source files
-	NoUseTemplateSourceArchive []byte `protobuf:"bytes,1,opt,name=no_use_template_source_archive,json=noUseTemplateSourceArchive,proto3" json:"no_use_template_source_archive,omitempty"`
-	// state is the provisioner state (if any)
-	NoUseState          []byte `protobuf:"bytes,2,opt,name=no_use_state,json=noUseState,proto3" json:"no_use_state,omitempty"`
-	ProvisionerLogLevel string `protobuf:"bytes,3,opt,name=provisioner_log_level,json=provisionerLogLevel,proto3" json:"provisioner_log_level,omitempty"`
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ProvisionerLogLevel string                 `protobuf:"bytes,1,opt,name=provisioner_log_level,json=provisionerLogLevel,proto3" json:"provisioner_log_level,omitempty"`
 	// Template imports can omit template id
-	TemplateId *string `protobuf:"bytes,4,opt,name=template_id,json=templateId,proto3,oneof" json:"template_id,omitempty"`
+	TemplateId *string `protobuf:"bytes,2,opt,name=template_id,json=templateId,proto3,oneof" json:"template_id,omitempty"`
 	// Dry runs omit version id
-	TemplateVersionId          *string `protobuf:"bytes,5,opt,name=template_version_id,json=templateVersionId,proto3,oneof" json:"template_version_id,omitempty"`
-	ExpReuseTerraformWorkspace *bool   `protobuf:"varint,6,opt,name=exp_reuse_terraform_workspace,json=expReuseTerraformWorkspace,proto3,oneof" json:"exp_reuse_terraform_workspace,omitempty"` // Whether to reuse existing terraform workspaces if they exist.
+	TemplateVersionId          *string `protobuf:"bytes,3,opt,name=template_version_id,json=templateVersionId,proto3,oneof" json:"template_version_id,omitempty"`
+	ExpReuseTerraformWorkspace *bool   `protobuf:"varint,4,opt,name=exp_reuse_terraform_workspace,json=expReuseTerraformWorkspace,proto3,oneof" json:"exp_reuse_terraform_workspace,omitempty"` // Whether to reuse existing terraform workspaces if they exist.
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -3147,20 +3143,6 @@ func (x *Config) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Config.ProtoReflect.Descriptor instead.
 func (*Config) Descriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{34}
-}
-
-func (x *Config) GetNoUseTemplateSourceArchive() []byte {
-	if x != nil {
-		return x.NoUseTemplateSourceArchive
-	}
-	return nil
-}
-
-func (x *Config) GetNoUseState() []byte {
-	if x != nil {
-		return x.NoUseState
-	}
-	return nil
 }
 
 func (x *Config) GetProvisionerLogLevel() string {
@@ -4882,16 +4864,13 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\atask_id\x18\x16 \x01(\tR\x06taskId\x12\x1f\n" +
 	"\vtask_prompt\x18\x17 \x01(\tR\n" +
 	"taskPrompt\x12.\n" +
-	"\x13template_version_id\x18\x18 \x01(\tR\x11templateVersionId\"\x8f\x03\n" +
-	"\x06Config\x12B\n" +
-	"\x1eno_use_template_source_archive\x18\x01 \x01(\fR\x1anoUseTemplateSourceArchive\x12 \n" +
-	"\fno_use_state\x18\x02 \x01(\fR\n" +
-	"noUseState\x122\n" +
-	"\x15provisioner_log_level\x18\x03 \x01(\tR\x13provisionerLogLevel\x12$\n" +
-	"\vtemplate_id\x18\x04 \x01(\tH\x00R\n" +
+	"\x13template_version_id\x18\x18 \x01(\tR\x11templateVersionId\"\xa9\x02\n" +
+	"\x06Config\x122\n" +
+	"\x15provisioner_log_level\x18\x01 \x01(\tR\x13provisionerLogLevel\x12$\n" +
+	"\vtemplate_id\x18\x02 \x01(\tH\x00R\n" +
 	"templateId\x88\x01\x01\x123\n" +
-	"\x13template_version_id\x18\x05 \x01(\tH\x01R\x11templateVersionId\x88\x01\x01\x12F\n" +
-	"\x1dexp_reuse_terraform_workspace\x18\x06 \x01(\bH\x02R\x1aexpReuseTerraformWorkspace\x88\x01\x01B\x0e\n" +
+	"\x13template_version_id\x18\x03 \x01(\tH\x01R\x11templateVersionId\x88\x01\x01\x12F\n" +
+	"\x1dexp_reuse_terraform_workspace\x18\x04 \x01(\bH\x02R\x1aexpReuseTerraformWorkspace\x88\x01\x01B\x0e\n" +
 	"\f_template_idB\x16\n" +
 	"\x14_template_version_idB \n" +
 	"\x1e_exp_reuse_terraform_workspace\"\x0e\n" +

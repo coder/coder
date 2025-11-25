@@ -1323,28 +1323,7 @@ func createEchoResponsesWithTemplateVariables(templateVariables []*proto.Templat
 func completeWithAgent() *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
-			{
-				Type: &proto.Response_Graph{
-					Graph: &proto.GraphComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
 				Type: &proto.Response_Graph{
 					Graph: &proto.GraphComplete{

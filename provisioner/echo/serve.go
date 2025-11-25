@@ -318,6 +318,59 @@ type Responses struct {
 	ExtraFiles map[string][]byte
 }
 
+func isType[T any](x any) bool {
+	_, ok := x.(T)
+	return ok
+}
+
+func (r *Responses) Valid() error {
+	isLog := isType[*proto.Response_Log]
+	isParse := isType[*proto.Response_Parse]
+	isInit := isType[*proto.Response_Init]
+	isDataUpload := isType[*proto.Response_DataUpload]
+	isChunkPiece := isType[*proto.Response_ChunkPiece]
+	isPlan := isType[*proto.Response_Plan]
+	isApply := isType[*proto.Response_Apply]
+	isGraph := isType[*proto.Response_Graph]
+
+	for _, parse := range r.Parse {
+		ty := parse.Type
+		if !(isParse(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid parse response type: %T", ty)
+		}
+	}
+
+	for _, init := range r.ProvisionInit {
+		ty := init.Type
+		if !(isInit(ty) || isLog(ty) || isChunkPiece(ty) || isDataUpload(ty)) {
+			return xerrors.Errorf("invalid init response type: %T", ty)
+		}
+	}
+
+	for _, plan := range r.ProvisionPlan {
+		ty := plan.Type
+		if !(isPlan(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid plan response type: %T", ty)
+		}
+	}
+
+	for _, apply := range r.ProvisionApply {
+		ty := apply.Type
+		if !(isApply(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid apply response type: %T", ty)
+		}
+	}
+
+	for _, graph := range r.ProvisionGraph {
+		ty := graph.Type
+		if !(isGraph(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid graph response type: %T", ty)
+		}
+	}
+
+	return nil
+}
+
 // Tar returns a tar archive of responses to provisioner operations.
 func Tar(responses *Responses) ([]byte, error) {
 	logger := slog.Make()
@@ -438,6 +491,13 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 		if err != nil {
 			return err
 		}
+
+		response := new(proto.Response)
+		err = protobuf.Unmarshal(data, response)
+		if err != nil {
+			return fmt.Errorf("you must have saved the wrong type, the proto cannot unmarshal: %w", err)
+		}
+
 		logger.Debug(context.Background(), "proto written", slog.F("name", name), slog.F("bytes_written", n))
 
 		return nil
@@ -497,9 +557,7 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 	}
 	for trans, m := range responses.ProvisionGraphMap {
 		for i, resp := range m {
-			graph := resp.GetGraph()
-
-			err := writeProto(fmt.Sprintf("%d.%s.graph.protobuf", i, strings.ToLower(trans.String())), graph)
+			err := writeProto(fmt.Sprintf("%d.%s.graph.protobuf", i, strings.ToLower(trans.String())), resp)
 			if err != nil {
 				return nil, err
 			}
@@ -585,6 +643,11 @@ terraform {
 	if err != nil {
 		return nil, err
 	}
+
+	if err := responses.Valid(); err != nil {
+		return nil, xerrors.Errorf("responses invalid: %w", err)
+	}
+
 	return buffer.Bytes(), nil
 }
 

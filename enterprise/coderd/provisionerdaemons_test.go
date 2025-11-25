@@ -256,9 +256,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*sdkproto.Response{{
-				Type: &sdkproto.Response_Plan{
-					Plan: &sdkproto.PlanComplete{
+			ProvisionGraph: []*sdkproto.Response{{
+				Type: &sdkproto.Response_Graph{
+					Graph: &sdkproto.GraphComplete{
 						Resources: []*sdkproto.Resource{{
 							Name: "example",
 							Type: "aws_instance",
@@ -446,9 +446,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*sdkproto.Response{{
-				Type: &sdkproto.Response_Apply{
-					Apply: &sdkproto.ApplyComplete{
+			ProvisionGraph: []*sdkproto.Response{{
+				Type: &sdkproto.Response_Graph{
+					Graph: &sdkproto.GraphComplete{
 						Resources: []*sdkproto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
