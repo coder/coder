@@ -5463,7 +5463,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Experimental"
+                    "Tasks"
                 ],
                 "summary": "List AI tasks",
                 "operationId": "list-ai-tasks",
@@ -5499,7 +5499,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Experimental"
+                    "Tasks"
                 ],
                 "summary": "Create a new AI task",
                 "operationId": "create-a-new-ai-task",
@@ -5542,7 +5542,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Experimental"
+                    "Tasks"
                 ],
                 "summary": "Get AI task by ID or name",
                 "operationId": "get-ai-task-by-id-or-name",
@@ -5578,7 +5578,7 @@ const docTemplate = `{
                     }
                 ],
                 "tags": [
-                    "Experimental"
+                    "Tasks"
                 ],
                 "summary": "Delete AI task",
                 "operationId": "delete-ai-task",
@@ -5616,7 +5616,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Experimental"
+                    "Tasks"
                 ],
                 "summary": "Update AI task input",
                 "operationId": "update-ai-task-input",
@@ -5663,7 +5663,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Experimental"
+                    "Tasks"
                 ],
                 "summary": "Get AI task logs",
                 "operationId": "get-ai-task-logs",
@@ -5704,7 +5704,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Experimental"
+                    "Tasks"
                 ],
                 "summary": "Send input to AI task",
                 "operationId": "send-input-to-ai-task",

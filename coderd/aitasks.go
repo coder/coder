@@ -35,7 +35,7 @@ import (
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Tags Experimental
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param request body codersdk.CreateTaskRequest true "Create task request"
 // @Success 201 {object} codersdk.Task
@@ -401,7 +401,7 @@ func deriveTaskCurrentState(
 // @ID list-ai-tasks
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Experimental
+// @Tags Tasks
 // @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
 // @Success 200 {object} codersdk.TasksListResponse
 // @Router /tasks [get]
@@ -501,7 +501,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 // @ID get-ai-task-by-id-or-name
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Experimental
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.Task
@@ -573,7 +573,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete AI task
 // @ID delete-ai-task
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 202
@@ -642,7 +642,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @ID update-ai-task-input
 // @Security CoderSessionToken
 // @Accept json
-// @Tags Experimental
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
@@ -722,7 +722,7 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 // @ID send-input-to-ai-task
 // @Security CoderSessionToken
 // @Accept json
-// @Tags Experimental
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
@@ -791,7 +791,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 // @ID get-ai-task-logs
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Experimental
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.TaskLogsResponse

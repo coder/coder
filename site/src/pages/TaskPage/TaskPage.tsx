@@ -62,7 +62,7 @@ const TaskPage = () => {
 	};
 	const { data: task, ...taskQuery } = useQuery({
 		queryKey: ["tasks", username, taskId],
-		queryFn: () => API.experimental.getTask(username, taskId),
+		queryFn: () => API.tasks.getTask(username, taskId),
 		refetchInterval: ({ state }) => {
 			return state.error ? false : 5_000;
 		},

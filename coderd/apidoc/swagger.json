@@ -4819,7 +4819,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Experimental"],
+				"tags": ["Tasks"],
 				"summary": "List AI tasks",
 				"operationId": "list-ai-tasks",
 				"parameters": [
@@ -4849,7 +4849,7 @@
 				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
-				"tags": ["Experimental"],
+				"tags": ["Tasks"],
 				"summary": "Create a new AI task",
 				"operationId": "create-a-new-ai-task",
 				"parameters": [
@@ -4888,7 +4888,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Experimental"],
+				"tags": ["Tasks"],
 				"summary": "Get AI task by ID or name",
 				"operationId": "get-ai-task-by-id-or-name",
 				"parameters": [
@@ -4922,7 +4922,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"tags": ["Experimental"],
+				"tags": ["Tasks"],
 				"summary": "Delete AI task",
 				"operationId": "delete-ai-task",
 				"parameters": [
@@ -4956,7 +4956,7 @@
 					}
 				],
 				"consumes": ["application/json"],
-				"tags": ["Experimental"],
+				"tags": ["Tasks"],
 				"summary": "Update AI task input",
 				"operationId": "update-ai-task-input",
 				"parameters": [
@@ -4999,7 +4999,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Experimental"],
+				"tags": ["Tasks"],
 				"summary": "Get AI task logs",
 				"operationId": "get-ai-task-logs",
 				"parameters": [
@@ -5036,7 +5036,7 @@
 					}
 				],
 				"consumes": ["application/json"],
-				"tags": ["Experimental"],
+				"tags": ["Tasks"],
 				"summary": "Send input to AI task",
 				"operationId": "send-input-to-ai-task",
 				"parameters": [
