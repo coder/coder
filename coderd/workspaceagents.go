@@ -493,7 +493,7 @@ func (api *API) enqueueAITaskStateNotification(
 	}
 
 	// Skip if the latest persisted state equals the new state (no new transition)
-	// Note: uuid.Nil check is valid here - if no previous status exists,
+	// Note: uuid.Nil check is valid here. If no previous status exists,
 	// GetLatestWorkspaceAppStatusByAppID returns sql.ErrNoRows and we get a zero-value struct.
 	if latestAppStatus.ID != uuid.Nil && latestAppStatus.State == database.WorkspaceAppStatusState(newAppStatus) {
 		return
