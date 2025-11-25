@@ -10,24 +10,23 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 )
 
-// EmptyToNil returns a `nil` for an empty string or whitespace-only string,
-// or a pointer to the string otherwise. Useful when needing to treat zero
-// values as nil in APIs.
+// EmptyToNil returns a `nil` for an empty string, or a pointer to the string
+// otherwise. Useful when needing to treat zero values as nil in APIs.
 func EmptyToNil(s string) *string {
-	if strings.TrimSpace(s) == "" {
+	if s == "" {
 		return nil
 	}
 	return &s
 }
 
 // JoinWithConjunction joins a slice of strings with commas except for the last
-// two which are joined with "and".
+// two which are joined with "or".
 func JoinWithConjunction(s []string) string {
 	last := len(s) - 1
 	if last == 0 {
 		return s[last]
 	}
-	return fmt.Sprintf("%s and %s",
+	return fmt.Sprintf("%s or %s",
 		strings.Join(s[:last], ", "),
 		s[last],
 	)
