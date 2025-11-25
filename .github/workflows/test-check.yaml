@@ -142,7 +142,7 @@ jobs:
                NEEDS UPDATES: Changes that make existing test assertions incorrect or incomplete
                NO CHANGES: Tests already sufficient, or changes don't affect testable behavior
 
-            6. Comment on the PR using this format
+            6. Comment on the PR using EXACTLY this format (no additional sections)
 
           COMMENT FORMAT:
           ## 🧪 Test Coverage Review
