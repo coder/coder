@@ -27,3 +27,5 @@ coderd/schedule/autostop.go @deansheather @DanielleMaywood
 # well as guidance from revenue.
 coderd/usage/ @deansheather @spikecurtis
 enterprise/coderd/usage/ @deansheather @spikecurtis
+
+.github/ 	@jdomeracki-coder
