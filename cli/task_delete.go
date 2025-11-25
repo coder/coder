@@ -44,11 +44,10 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			exp := codersdk.NewExperimentalClient(client)
 
 			var tasks []codersdk.Task
 			for _, identifier := range inv.Args {
-				task, err := exp.TaskByIdentifier(ctx, identifier)
+				task, err := client.TaskByIdentifier(ctx, identifier)
 				if err != nil {
 					return xerrors.Errorf("resolve task %q: %w", identifier, err)
 				}
@@ -71,7 +70,7 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 
 			for i, task := range tasks {
 				display := displayList[i]
-				if err := exp.DeleteTask(ctx, task.OwnerName, task.ID); err != nil {
+				if err := client.DeleteTask(ctx, task.OwnerName, task.ID); err != nil {
 					return xerrors.Errorf("delete task %q: %w", display, err)
 				}
 				_, _ = fmt.Fprintln(

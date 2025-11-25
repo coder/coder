@@ -36,7 +36,7 @@ func Test_TaskStatus(t *testing.T) {
 			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/doesnotexist":
+					case "/api/v2/tasks/me/doesnotexist":
 						httpapi.ResourceNotFound(w)
 						return
 					default:
@@ -52,7 +52,7 @@ func Test_TaskStatus(t *testing.T) {
 			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/exists":
+					case "/api/v2/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 							ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 							WorkspaceStatus: codersdk.WorkspaceStatusRunning,
@@ -88,7 +88,7 @@ func Test_TaskStatus(t *testing.T) {
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/exists":
+					case "/api/v2/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 							ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 							Name:            "exists",
@@ -103,7 +103,7 @@ func Test_TaskStatus(t *testing.T) {
 							Status:                  codersdk.TaskStatusPending,
 						})
 						return
-					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
+					case "/api/v2/tasks/me/11111111-1111-1111-1111-111111111111":
 						defer calls.Add(1)
 						switch calls.Load() {
 						case 0:
@@ -219,7 +219,7 @@ func Test_TaskStatus(t *testing.T) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks/me/exists":
+					case "/api/v2/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 							ID:          uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 							Name:        "exists",

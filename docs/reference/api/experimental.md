@@ -6,12 +6,12 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks \
-  -H 'Accept: */*' \
+curl -X GET http://coder-server:8080/api/v2/tasks \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/tasks`
+`GET /tasks`
 
 ### Parameters
 
@@ -22,6 +22,58 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks \
 ### Example responses
 
 > 200 Response
+
+```json
+{
+  "count": 0,
+  "tasks": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "current_state": {
+        "message": "string",
+        "state": "working",
+        "timestamp": "2019-08-24T14:15:22Z",
+        "uri": "string"
+      },
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initial_prompt": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "string",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "workspace_agent_health": {
+        "healthy": false,
+        "reason": "agent has lost connection"
+      },
+      "workspace_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
+      "workspace_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_name": "string",
+      "workspace_status": "pending"
+    }
+  ]
+}
+```
 
 ### Responses
 
@@ -37,13 +89,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user} \
+curl -X POST http://coder-server:8080/api/v2/tasks/{user} \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /api/experimental/tasks/{user}`
+`POST /tasks/{user}`
 
 > Body parameter
 
@@ -68,6 +120,53 @@ curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user} \
 
 > 201 Response
 
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "current_state": {
+    "message": "string",
+    "state": "working",
+    "timestamp": "2019-08-24T14:15:22Z",
+    "uri": "string"
+  },
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initial_prompt": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "string",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_agent_health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
+  "workspace_agent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_agent_lifecycle": "created",
+  "workspace_app_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_build_number": 0,
+  "workspace_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_name": "string",
+  "workspace_status": "pending"
+}
+```
+
 ### Responses
 
 | Status | Meaning                                                      | Description | Schema                                   |
@@ -76,18 +175,18 @@ curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get AI task by ID
+## Get AI task by ID or name
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task} \
-  -H 'Accept: */*' \
+curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task} \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/tasks/{user}/{task}`
+`GET /tasks/{user}/{task}`
 
 ### Parameters
 
@@ -100,6 +199,53 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}
 
 > 200 Response
 
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "current_state": {
+    "message": "string",
+    "state": "working",
+    "timestamp": "2019-08-24T14:15:22Z",
+    "uri": "string"
+  },
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initial_prompt": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "string",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_agent_health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
+  "workspace_agent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_agent_lifecycle": "created",
+  "workspace_app_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_build_number": 0,
+  "workspace_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_name": "string",
+  "workspace_status": "pending"
+}
+```
+
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                   |
@@ -108,17 +254,17 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Delete AI task by ID
+## Delete AI task
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task} \
+curl -X DELETE http://coder-server:8080/api/v2/tasks/{user}/{task} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /api/experimental/tasks/{user}/{task}`
+`DELETE /tasks/{user}/{task}`
 
 ### Parameters
 
@@ -129,9 +275,9 @@ curl -X DELETE http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{ta
 
 ### Responses
 
-| Status | Meaning                                                       | Description             | Schema |
-|--------|---------------------------------------------------------------|-------------------------|--------|
-| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Task deletion initiated |        |
+| Status | Meaning                                                       | Description | Schema |
+|--------|---------------------------------------------------------------|-------------|--------|
+| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -141,12 +287,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}/input \
+curl -X PATCH http://coder-server:8080/api/v2/tasks/{user}/{task}/input \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /api/experimental/tasks/{user}/{task}/input`
+`PATCH /tasks/{user}/{task}/input`
 
 > Body parameter
 
@@ -178,12 +324,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}/logs \
-  -H 'Accept: */*' \
+curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/tasks/{user}/{task}/logs`
+`GET /tasks/{user}/{task}/logs`
 
 ### Parameters
 
@@ -195,6 +341,19 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}
 ### Example responses
 
 > 200 Response
+
+```json
+{
+  "logs": [
+    {
+      "content": "string",
+      "id": 0,
+      "time": "2019-08-24T14:15:22Z",
+      "type": "input"
+    }
+  ]
+}
+```
 
 ### Responses
 
@@ -210,12 +369,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}/send \
+curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/send \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /api/experimental/tasks/{user}/{task}/send`
+`POST /tasks/{user}/{task}/send`
 
 > Body parameter
 
@@ -235,8 +394,8 @@ curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task
 
 ### Responses
 
-| Status | Meaning                                                         | Description             | Schema |
-|--------|-----------------------------------------------------------------|-------------------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | Input sent successfully |        |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

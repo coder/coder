@@ -41,8 +41,8 @@ type CreateTaskRequest struct {
 // CreateTask creates a new task.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Task, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s", user), request)
+func (c *Client) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Task, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/tasks/%s", user), request)
 	if err != nil {
 		return Task{}, err
 	}
@@ -210,12 +210,12 @@ func (f TasksFilter) asRequestOption() RequestOption {
 // Tasks lists all tasks belonging to the user or specified owner.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]Task, error) {
+func (c *Client) Tasks(ctx context.Context, filter *TasksFilter) ([]Task, error) {
 	if filter == nil {
 		filter = &TasksFilter{}
 	}
 
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, filter.asRequestOption())
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/tasks", nil, filter.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -236,8 +236,8 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 // Only tasks owned by codersdk.Me are supported.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s/%s", "me", id.String()), nil)
+func (c *Client) TaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/tasks/%s/%s", "me", id.String()), nil)
 	if err != nil {
 		return Task{}, err
 	}
@@ -257,11 +257,11 @@ func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, 
 // TaskByOwnerAndName fetches a single experimental task by its owner and name.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) TaskByOwnerAndName(ctx context.Context, owner, ident string) (Task, error) {
+func (c *Client) TaskByOwnerAndName(ctx context.Context, owner, ident string) (Task, error) {
 	if owner == "" {
 		owner = Me
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s/%s", owner, ident), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/tasks/%s/%s", owner, ident), nil)
 	if err != nil {
 		return Task{}, err
 	}
@@ -300,7 +300,7 @@ func splitTaskIdentifier(identifier string) (owner string, taskName string, err 
 //
 // Since there is no TaskByOwnerAndName endpoint yet, this function uses the
 // list endpoint with filtering when a name is provided.
-func (c *ExperimentalClient) TaskByIdentifier(ctx context.Context, identifier string) (Task, error) {
+func (c *Client) TaskByIdentifier(ctx context.Context, identifier string) (Task, error) {
 	identifier = strings.TrimSpace(identifier)
 
 	// Try parsing as UUID first.
@@ -320,8 +320,8 @@ func (c *ExperimentalClient) TaskByIdentifier(ctx context.Context, identifier st
 // DeleteTask deletes a task by its ID.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) DeleteTask(ctx context.Context, user string, id uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/tasks/%s/%s", user, id.String()), nil)
+func (c *Client) DeleteTask(ctx context.Context, user string, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/tasks/%s/%s", user, id.String()), nil)
 	if err != nil {
 		return err
 	}
@@ -342,8 +342,8 @@ type TaskSendRequest struct {
 // TaskSend submits task input to the tasks sidebar app.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.UUID, req TaskSendRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/send", user, id.String()), req)
+func (c *Client) TaskSend(ctx context.Context, user string, id uuid.UUID, req TaskSendRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/tasks/%s/%s/send", user, id.String()), req)
 	if err != nil {
 		return err
 	}
@@ -364,8 +364,8 @@ type UpdateTaskInputRequest struct {
 // UpdateTaskInput updates the task's input.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID, req UpdateTaskInputRequest) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/tasks/%s/%s/input", user, id.String()), req)
+func (c *Client) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID, req UpdateTaskInputRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/tasks/%s/%s/input", user, id.String()), req)
 	if err != nil {
 		return err
 	}
@@ -407,8 +407,8 @@ type TaskLogsResponse struct {
 // TaskLogs retrieves logs from the task's sidebar app via the experimental API.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) TaskLogs(ctx context.Context, user string, id uuid.UUID) (TaskLogsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s/%s/logs", user, id.String()), nil)
+func (c *Client) TaskLogs(ctx context.Context, user string, id uuid.UUID) (TaskLogsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/tasks/%s/%s/logs", user, id.String()), nil)
 	if err != nil {
 		return TaskLogsResponse{}, err
 	}

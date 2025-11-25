@@ -69,7 +69,7 @@ func TestTaskCreate(t *testing.T) {
 						ActiveVersionID: templateVersionID,
 					},
 				})
-			case fmt.Sprintf("/api/experimental/tasks/%s", username):
+			case fmt.Sprintf("/api/v2/tasks/%s", username):
 				var req codersdk.CreateTaskRequest
 				if !httpapi.Read(ctx, w, r, &req) {
 					return
