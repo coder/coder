@@ -202,7 +202,7 @@ This guide shows you how to automatically delegate routine engineering work to A
 **Solution:**
 
 1. Ensure GitHub OAuth is configured in your Coder deployment (see [External Authentication docs](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app))
-1. Have the user visit `https://your-coder-url/settings/external-auth` and link their GitHub account
+1. Have the user visit `https://<your-coder-url>/settings/external-auth` and link their GitHub account
 1. Retry the workflow by re-applying the `coder` label or however else the workflow is triggered
 
 ### "Failed to create task: 403 Forbidden"
