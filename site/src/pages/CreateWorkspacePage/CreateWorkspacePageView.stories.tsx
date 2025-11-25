@@ -2,12 +2,12 @@ import { chromatic } from "testHelpers/chromatic";
 import { MockTemplate, MockUserOwner } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DetailedError } from "api/errors";
-import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
-const meta: Meta<typeof CreateWorkspacePageViewExperimental> = {
-	title: "Pages/CreateWorkspacePageViewExperimental",
+const meta: Meta<typeof CreateWorkspacePageView> = {
+	title: "Pages/CreateWorkspacePageView",
 	parameters: { chromatic },
-	component: CreateWorkspacePageViewExperimental,
+	component: CreateWorkspacePageView,
 	args: {
 		autofillParameters: [],
 		diagnostics: [],
@@ -29,7 +29,7 @@ const meta: Meta<typeof CreateWorkspacePageViewExperimental> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof CreateWorkspacePageViewExperimental>;
+type Story = StoryObj<typeof CreateWorkspacePageView>;
 
 export const WebsocketError: Story = {
 	args: {

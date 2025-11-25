@@ -46,7 +46,7 @@ import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-interface CreateWorkspacePageViewExperimentalProps {
+interface CreateWorkspacePageViewProps {
 	autofillParameters: AutofillBuildParameter[];
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
@@ -76,9 +76,7 @@ interface CreateWorkspacePageViewExperimentalProps {
 	setOwner: (user: TypesGen.User) => void;
 }
 
-export const CreateWorkspacePageViewExperimental: FC<
-	CreateWorkspacePageViewExperimentalProps
-> = ({
+export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	autofillParameters,
 	canUpdateTemplate,
 	creatingWorkspace,

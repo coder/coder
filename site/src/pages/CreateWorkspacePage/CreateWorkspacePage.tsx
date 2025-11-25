@@ -30,7 +30,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
-import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
 	type CreateWorkspacePermissions,
 	createWorkspaceChecks,
@@ -40,7 +40,7 @@ const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
-const CreateWorkspacePageExperimental: FC = () => {
+const CreateWorkspacePage: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { user: me } = useAuthenticated();
@@ -288,7 +288,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 			{shouldShowLoader ? (
 				<Loader />
 			) : (
-				<CreateWorkspacePageViewExperimental
+				<CreateWorkspacePageView
 					mode={mode}
 					defaultName={defaultName}
 					diagnostics={latestResponse?.diagnostics ?? []}
@@ -401,7 +401,7 @@ const getAutofillParameters = (
 	return buildValues;
 };
 
-export default CreateWorkspacePageExperimental;
+export default CreateWorkspacePage;
 
 function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
 	const paramMode = params.get("mode");
