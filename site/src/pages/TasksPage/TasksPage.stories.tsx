@@ -1,4 +1,5 @@
 import {
+	MockDisplayNameTasks,
 	MockInitializingTasks,
 	MockTasks,
 	MockTemplate,
@@ -119,6 +120,21 @@ export const LoadedTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+};
+
+export const DisplayName: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockDisplayNameTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
 	},
 };
 
