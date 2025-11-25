@@ -1,11 +1,13 @@
-package coderd_test
+package insightsapi_test
 
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,9 +18,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -28,6 +33,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpauthz"
+	"github.com/coder/coder/v2/coderd/insightsapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -38,6 +45,13 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// updateGoldenFiles is a flag that can be set to update golden files.
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
 
 func TestDeploymentInsights(t *testing.T) {
 	t.Parallel()
@@ -140,6 +154,52 @@ func TestDeploymentInsights(t *testing.T) {
 		}
 		t.Logf("waiting for deployment daus to update: %+v", daus)
 	}
+}
+
+func TestDeploymentDAUs(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
+	tzOffset := 4
+	loc := time.FixedZone("", tzOffset*3600)
+
+	_, mDB, authDB, auth := coderdtest.MockedDatabaseWithAuthz(t, logger)
+	mDB.EXPECT().GetTemplateInsightsByInterval(gomock.Any(), gomock.Cond(func(arg database.GetTemplateInsightsByIntervalParams) bool {
+		return len(arg.TemplateIDs) == 0 &&
+			arg.IntervalDays == 1
+	})).
+		Times(1).
+		Return([]database.GetTemplateInsightsByIntervalRow{
+			{
+				StartTime:   time.Date(2025, 12, 1, 0, 0, 0, 0, loc),
+				EndTime:     time.Date(2025, 12, 1, 23, 59, 59, 0, loc),
+				ActiveUsers: 3,
+			},
+			{
+				StartTime:   time.Date(2025, 12, 2, 0, 0, 0, 0, loc),
+				EndTime:     time.Date(2025, 12, 2, 23, 59, 59, 0, loc),
+				ActiveUsers: 30,
+			},
+		}, nil)
+
+	uut := insightsapi.NewAPI(logger, authDB, &httpauthz.HTTPAuthorizer{
+		Authorizer: auth,
+		Logger:     logger.Named("httpauth"),
+	})
+
+	rw := httptest.NewRecorder()
+	reqCtx := dbauthz.As(ctx, coderdtest.OwnerSubject())
+	req := httptest.NewRequestWithContext(reqCtx, http.MethodGet, "/api/v2/insights/daus?tz_offset=4", nil)
+	uut.DeploymentDAUs(rw, req)
+	daus, err := codersdk.DecodeResponse[codersdk.DAUsResponse](rw.Result())
+	require.NoError(t, err)
+	require.Equal(t, codersdk.DAUsResponse{
+		Entries: []codersdk.DAUEntry{
+			{Date: "2025-12-01", Amount: 3},
+			{Date: "2025-12-02", Amount: 30},
+		},
+		TZHourOffset: 4,
+	}, daus)
 }
 
 func TestUserActivityInsights_SanityCheck(t *testing.T) {

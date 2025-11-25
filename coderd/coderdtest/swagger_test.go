@@ -16,7 +16,7 @@ import (
 func TestEndpointsDocumented(t *testing.T) {
 	t.Parallel()
 
-	swaggerComments, err := coderdtest.ParseSwaggerComments("..")
+	swaggerComments, err := coderdtest.ParseSwaggerComments("..", "../insightsapi")
 	require.NoError(t, err, "can't parse swagger comments")
 	require.NotEmpty(t, swaggerComments, "swagger comments must be present")
 

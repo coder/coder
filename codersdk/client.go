@@ -707,3 +707,12 @@ func WithDisableDirectConnections() ClientOption {
 		c.DisableDirectConnections = true
 	}
 }
+
+func DecodeResponse[T any](res *http.Response) (T, error) {
+	var result T
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return result, ReadBodyAsError(res)
+	}
+	return result, json.NewDecoder(res.Body).Decode(&result)
+}

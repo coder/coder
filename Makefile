@@ -679,7 +679,7 @@ gen/db: $(DB_GEN_FILES)
 gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
-	coderd/.gen-golden \
+	coderd/insightsapi/.gen-golden \
 	coderd/notifications/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
@@ -953,7 +953,7 @@ clean/golden-files:
 	find \
 		cli/testdata \
 		coderd/notifications/testdata \
-		coderd/testdata \
+		coderd/insightsapi/testdata \
 		enterprise/cli/testdata \
 		enterprise/tailnet/testdata \
 		helm/coder/tests/testdata \
@@ -991,8 +991,8 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 	TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
-coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
-	TZ=UTC go test ./coderd -run="Test.*Golden$$" -update
+coderd/insightsapi/.gen-golden: $(wildcard coderd/insightsapi/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/insightsapi/*_test.go)
+	TZ=UTC go test ./coderd/insightsapi -run="Test.*Golden$$" -update
 	touch "$@"
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)

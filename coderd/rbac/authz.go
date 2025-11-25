@@ -648,9 +648,9 @@ func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subjec
 	return pAuth, nil
 }
 
-// AuthorizeFilter is a compiled partial query that can be converted to SQL.
+// SQLAuthorizeFilter is a compiled partial query that can be converted to SQL.
 // This allows enforcing the policy on the database side in a WHERE clause.
-type AuthorizeFilter interface {
+type SQLAuthorizeFilter interface {
 	SQLString() string
 }
 
@@ -681,7 +681,7 @@ func ConfigWorkspaces() regosql.ConvertConfig {
 	}
 }
 
-func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter, error) {
+func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (SQLAuthorizeFilter, error) {
 	root, err := regosql.ConvertRegoAst(cfg, pa.partialQueries)
 	if err != nil {
 		return nil, xerrors.Errorf("convert rego ast: %w", err)

@@ -1,4 +1,4 @@
-package coderd
+package insightsapi
 
 import (
 	"context"
