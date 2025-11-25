@@ -2,7 +2,7 @@
 
 ## Background
 
-Most software engineering organizations track and manage their codebase through GitHub, and use project mnnagement tools like Asana, Jira, or even GitHub's Projects to coordinate work. Across these systems, engineers are frequently performing the same repetitive workflows: triaging and addressing bugs, updating documentation, or implementing well-defined changes for example.
+Most software engineering organizations track and manage their codebase through GitHub, and use project management tools like Asana, Jira, or even GitHub's Projects to coordinate work. Across these systems, engineers are frequently performing the same repetitive workflows: triaging and addressing bugs, updating documentation, or implementing well-defined changes for example.
 
 Coder Tasks provides a method for automating these repeatable workflows. With a Task, you can direct an agent like Claude Code to update your documentation or even diagnose and address a bug. By connecting GitHub to Coder Tasks, you can build out a GitHub workflow that will for example:
 
@@ -13,13 +13,9 @@ Coder Tasks provides a method for automating these repeatable workflows. With a 
 
 This guide walks you through how to configure GitHub and Coder together so that you can tag Coder in a GitHub issue comment, and securely delegate work to coding agents in a Coder Task. 
 
-### How Does This GHA Work
-
-TODO implement diagram
-
 ## Implementing the GHA
 
-The below steps outline how to use the Coder [Create Task Action GHA](https://github.com/coder/create-task-action) in a github workflow to solve a bug. The guide makes the following assumptions:
+The below steps outline how to use the Coder [Create Task Action GHA](https://github.com/coder/create-task-action) in a GitHub workflow to solve a bug. The guide makes the following assumptions:
 
 - You have access to a Coder Server that is running. If you don't have a Coder Server running, follow our [Quickstart Guide](https://coder.com/docs/tutorials/quickstart)
 - Your Coder Server is accessible from GitHub
@@ -29,7 +25,7 @@ The below steps outline how to use the Coder [Create Task Action GHA](https://gi
   - Users have linked their GitHub account to Coder via `/settings/external-auth`
   
 
-This guide can be followed for other usecases beyond bugs like updating documetantion or implementing a small feature, but may require minor changes to file names and the prompts provided to the Coder Task.
+This guide can be followed for other use cases beyond bugs like updating documentation or implementing a small feature, but may require minor changes to file names and the prompts provided to the Coder Task.
 
 ### Step 1: Create a GitHub Workflow file
 
@@ -106,7 +102,7 @@ You can also choose to modify the other [input parameters](https://github.com/co
 
 ### Step 3: Test Your Setup
 
-Create a new GitHub issue for a bug in your codebase. We recommend a basic bug, for this test, like “The sidebar color needs to be red” or “The text ‘Coder Tasks are Awesome’ needs to appear in the top left corner of the screen”. You should adapt the phrasing to be specific to your code base.
+Create a new GitHub issue for a bug in your codebase. We recommend a basic bug, for this test, like “The sidebar color needs to be red” or “The text ‘Coder Tasks are Awesome’ needs to appear in the top left corner of the screen”. You should adapt the phrasing to be specific to your codebase.
 
 Add the `coder` label to that GitHub issue. You should see the following things occur:
 
