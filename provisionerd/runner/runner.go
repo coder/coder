@@ -607,11 +607,13 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				RichParameters:             startProvision.Parameters,
 				ExternalAuthProvidersNames: externalAuthProviderNames,
 				ExternalAuthProviders:      startProvision.ExternalAuthProviders,
-				StartModules:               startProvision.Modules,
-				StopModules:                stopProvision.Modules,
-				Presets:                    startProvision.Presets,
-				Plan:                       startProvision.Plan,
-				ModuleFiles:                initResp.ModuleFiles,
+				// TODO: These are defined as different, but can they be?
+				//   Terraform downloads modules regardless of `count`, so this should be the same
+				StartModules: initResp.Modules,
+				StopModules:  initResp.Modules,
+				Presets:      startProvision.Presets,
+				Plan:         startProvision.Plan,
+				ModuleFiles:  initResp.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
 				ModuleFilesHash:   []byte{},
 				HasAiTasks:        startProvision.HasAITasks,
@@ -675,9 +677,9 @@ type templateImportProvision struct {
 	Resources             []*sdkproto.Resource
 	Parameters            []*sdkproto.RichParameter
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
-	Modules               []*sdkproto.Module
 	Presets               []*sdkproto.Preset
 	Plan                  json.RawMessage
+	DailyCost             int32
 	HasAITasks            bool
 	HasExternalAgents     bool
 }
@@ -707,18 +709,9 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	case sdkproto.WorkspaceTransition_STOP:
 		stage = "Detecting ephemeral resources"
 	}
+
 	// use the notStopped so that if we attempt to gracefully cancel, the stream will still be available for us
 	// to send the cancel to the provisioner
-	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Plan{Plan: &sdkproto.PlanRequest{
-		Metadata:            metadata,
-		RichParameterValues: richParameterValues,
-		// Template import has no previous values
-		PreviousParameterValues: make([]*sdkproto.RichParameterValue, 0),
-		VariableValues:          variableValues,
-	}}})
-	if err != nil {
-		return nil, xerrors.Errorf("start provision: %w", err)
-	}
 	nevermind := make(chan struct{})
 	defer close(nevermind)
 	go func() {
@@ -736,55 +729,45 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		}
 	}()
 
-	for {
-		msg, err := r.session.Recv()
-		if err != nil {
-			return nil, xerrors.Errorf("recv import provision: %w", err)
-		}
-
-		switch msgType := msg.Type.(type) {
-		case *sdkproto.Response_Log:
-			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "template import provision job logged",
-				slog.F("level", msgType.Log.Level),
-				slog.F("output", msgType.Log.Output),
-			)
-			r.queueLog(ctx, &proto.Log{
-				Source:    proto.LogSource_PROVISIONER,
-				Level:     msgType.Log.Level,
-				CreatedAt: time.Now().UnixMilli(),
-				Output:    msgType.Log.Output,
-				Stage:     stage,
-			})
-		case *sdkproto.Response_Plan:
-			c := msgType.Plan
-			if c.Error != "" {
-				r.logger.Info(context.Background(), "dry-run provision failure",
-					slog.F("error", c.Error),
-				)
-
-				return nil, xerrors.New(c.Error)
-			}
-
-			r.logger.Info(context.Background(), "parse dry-run provision successful",
-				slog.F("resource_count", len(c.Resources)),
-				slog.F("resources", resourceNames(c.Resources)),
-			)
-
-			return &templateImportProvision{
-				Resources:             c.Resources,
-				Parameters:            c.Parameters,
-				ExternalAuthProviders: c.ExternalAuthProviders,
-				Modules:               c.Modules,
-				Presets:               c.Presets,
-				Plan:                  c.Plan,
-				HasAITasks:            c.HasAiTasks,
-				HasExternalAgents:     c.HasExternalAgents,
-			}, nil
-		default:
-			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
-				reflect.TypeOf(msg.Type).String())
-		}
+	planComplete, failed := r.plan(ctx, stage, &sdkproto.PlanRequest{
+		Metadata:                metadata,
+		RichParameterValues:     richParameterValues,
+		VariableValues:          variableValues,
+		ExternalAuthProviders:   nil,
+		PreviousParameterValues: nil,
+		State:                   nil,
+	})
+	if failed != nil {
+		return nil, xerrors.Errorf("plan during template import provision: %w", failed)
 	}
+	if planComplete == nil {
+		return nil, xerrors.New("plan during template import provision returned nil response")
+	}
+	if planComplete.Error != "" {
+		return nil, xerrors.Errorf("plan during template import provision error: %s", planComplete.Error)
+	}
+
+	graphComplete, failed := r.graph(ctx, &sdkproto.GraphRequest{})
+	if failed != nil {
+		return nil, xerrors.Errorf("graph during template import provision: %w", failed)
+	}
+	if graphComplete == nil {
+		return nil, xerrors.New("graph during template import provision returned nil response")
+	}
+	if graphComplete.Error != "" {
+		return nil, xerrors.Errorf("graph during template import provision error: %s", graphComplete.Error)
+	}
+
+	return &templateImportProvision{
+		Resources:             graphComplete.Resources,
+		Parameters:            graphComplete.Parameters,
+		ExternalAuthProviders: graphComplete.ExternalAuthProviders,
+		Presets:               graphComplete.Presets,
+		Plan:                  planComplete.Plan,
+		DailyCost:             planComplete.DailyCost,
+		HasAITasks:            graphComplete.HasAiTasks,
+		HasExternalAgents:     graphComplete.GetHasAiTasks(),
+	}, nil
 }
 
 func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
@@ -819,13 +802,12 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		metadata.WorkspaceOwnerId = id.String()
 	}
 
-	failedJob := r.configure(&sdkproto.Config{
-		//TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
-	})
+	failedJob := r.configure(&sdkproto.Config{})
 	if failedJob != nil {
 		return nil, failedJob
 	}
 
+	// Initialize the Terraform working directory
 	initResp, failedJob := r.init(ctx, false, r.job.GetTemplateSourceArchive())
 	if failedJob != nil {
 		return nil, failedJob
@@ -852,7 +834,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		Type: &proto.CompletedJob_TemplateDryRun_{
 			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
 				Resources: provision.Resources,
-				Modules:   provision.Modules,
+				Modules:   initResp.Modules,
 			},
 		},
 	}, nil
@@ -915,10 +897,8 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 	}
 }
 
-func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
-	cost := sumDailyCost(resources)
+func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
 	r.logger.Debug(ctx, "committing quota",
-		slog.F("resources", resourceNames(resources)),
 		slog.F("cost", cost),
 	)
 	if cost == 0 {
@@ -989,8 +969,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	failedJob := r.configure(&sdkproto.Config{
-		//TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
-		//State:                      r.job.GetWorkspaceBuild().State,
 		ProvisionerLogLevel:        r.job.GetWorkspaceBuild().LogLevel,
 		TemplateId:                 strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
 		TemplateVersionId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
@@ -1000,6 +978,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		return nil, failedJob
 	}
 
+	// Initialize the Terraform working directory
 	initComplete, failedJob := r.init(ctx, true, r.job.GetTemplateSourceArchive())
 	if failedJob != nil {
 		return nil, failedJob
@@ -1021,24 +1000,20 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		}
 	}
 
-	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
-		Type: &sdkproto.Request_Plan{
-			Plan: &sdkproto.PlanRequest{
-				//OmitModuleFiles:         true, // Only useful for template imports
-				Metadata:                r.job.GetWorkspaceBuild().Metadata,
-				RichParameterValues:     r.job.GetWorkspaceBuild().RichParameterValues,
-				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
-				VariableValues:          r.job.GetWorkspaceBuild().VariableValues,
-				ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
-			},
-		},
+	// Run `terraform plan`
+	planComplete, failed := r.plan(ctx, "Planning Infrastructure", &sdkproto.PlanRequest{
+		Metadata:                r.job.GetWorkspaceBuild().Metadata,
+		RichParameterValues:     r.job.GetWorkspaceBuild().RichParameterValues,
+		VariableValues:          r.job.GetWorkspaceBuild().VariableValues,
+		ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
+		PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
+		State:                   r.job.GetWorkspaceBuild().State,
 	})
 	if failed != nil {
 		return nil, failed
 	}
-	planComplete := resp.GetPlan()
 	if planComplete == nil {
-		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
+		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during plan")
 	}
 	if planComplete.Error != "" {
 		r.logger.Warn(context.Background(), "plan request failed",
@@ -1053,23 +1028,22 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		}
 	}
-	if len(planComplete.AiTasks) > 1 {
-		return nil, r.failedWorkspaceBuildf("only one 'coder_ai_task' resource can be provisioned per template")
+
+	if planComplete.AiTaskCount > 1 {
+		return nil, r.failedWorkspaceBuildf("only one 'coder_ai_task' resource can be provisioned per template, found %d", planComplete.AiTaskCount)
 	}
 
-	r.logger.Info(context.Background(), "plan request successful",
-		slog.F("resource_count", len(planComplete.Resources)),
-		slog.F("resources", resourceNames(planComplete.Resources)),
-	)
+	r.logger.Info(context.Background(), "plan request successful")
 	r.flushQueuedLogs(ctx)
 	if commitQuota {
-		failed = r.commitQuota(ctx, planComplete.Resources)
+		failed = r.commitQuota(ctx, planComplete.GetDailyCost())
 		r.flushQueuedLogs(ctx)
 		if failed != nil {
 			return nil, failed
 		}
 	}
 
+	// Run Terraform Apply
 	r.queueLog(ctx, &proto.Log{
 		Source:    proto.LogSource_PROVISIONER_DAEMON,
 		Level:     sdkproto.LogLevel_INFO,
@@ -1077,7 +1051,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 
-	resp, failed = r.buildWorkspace(ctx, applyStage, &sdkproto.Request{
+	resp, failed := r.buildWorkspace(ctx, applyStage, &sdkproto.Request{
 		Type: &sdkproto.Request_Apply{
 			Apply: &sdkproto.ApplyRequest{
 				Metadata: r.job.GetWorkspaceBuild().Metadata,
@@ -1092,8 +1066,35 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
 	}
 
+	// Run Terraform Graph
+	graphComplete, failed := r.graph(ctx, &sdkproto.GraphRequest{})
+	if failed != nil {
+		return nil, failed
+	}
+	if graphComplete == nil {
+		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
+	}
+	if graphComplete.Error != "" {
+		r.logger.Warn(context.Background(), "graph request failed",
+			slog.F("error", planComplete.Error),
+		)
+
+		return nil, &proto.FailedJob{
+			JobId: r.job.JobId,
+			Error: graphComplete.Error,
+			Type: &proto.FailedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{},
+			},
+		}
+	}
+
 	// Prepend the plan timings (since they occurred first).
-	applyComplete.Timings = append(planComplete.Timings, applyComplete.Timings...)
+	// Build up the full timing list in chronological order.
+	timings := make([]*sdkproto.Timing, 0, len(initComplete.Timings)+len(planComplete.Timings)+len(applyComplete.Timings)+len(graphComplete.Timings))
+	timings = append(timings, initComplete.Timings...)
+	timings = append(timings, planComplete.Timings...)
+	timings = append(timings, applyComplete.Timings...)
+	timings = append(timings, graphComplete.Timings...)
 
 	if applyComplete.Error != "" {
 		r.logger.Warn(context.Background(), "apply failed; updating state",
@@ -1107,7 +1108,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
 					State:   applyComplete.State,
-					Timings: applyComplete.Timings,
+					Timings: timings,
 				},
 			},
 		}
@@ -1125,15 +1126,12 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		Type: &proto.CompletedJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
 				State:     applyComplete.State,
-				Resources: applyComplete.Resources,
-				Timings:   applyComplete.Timings,
-				// Modules are created on disk by `terraform init`, and that is only
-				// called by `plan`. `apply` does not modify them, so we can use the
-				// modules from the plan response.
-				Modules: planComplete.Modules,
+				Resources: graphComplete.Resources,
+				Timings:   timings,
+				Modules:   initComplete.Modules,
 				// Resource replacements are discovered at plan time, only.
 				ResourceReplacements: planComplete.ResourceReplacements,
-				AiTasks:              applyComplete.AiTasks,
+				AiTasks:              graphComplete.AiTasks,
 			},
 		},
 	}, nil

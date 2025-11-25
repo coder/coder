@@ -349,6 +349,55 @@ func (PrebuiltWorkspaceBuildStage) EnumDescriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5}
 }
 
+type GraphSource int32
+
+const (
+	GraphSource_SOURCE_UNKNOWN GraphSource = 0
+	GraphSource_SOURCE_PLAN    GraphSource = 1
+	GraphSource_SOURCE_STATE   GraphSource = 2
+)
+
+// Enum value maps for GraphSource.
+var (
+	GraphSource_name = map[int32]string{
+		0: "SOURCE_UNKNOWN",
+		1: "SOURCE_PLAN",
+		2: "SOURCE_STATE",
+	}
+	GraphSource_value = map[string]int32{
+		"SOURCE_UNKNOWN": 0,
+		"SOURCE_PLAN":    1,
+		"SOURCE_STATE":   2,
+	}
+)
+
+func (x GraphSource) Enum() *GraphSource {
+	p := new(GraphSource)
+	*p = x
+	return p
+}
+
+func (x GraphSource) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (GraphSource) Descriptor() protoreflect.EnumDescriptor {
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[6].Descriptor()
+}
+
+func (GraphSource) Type() protoreflect.EnumType {
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[6]
+}
+
+func (x GraphSource) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use GraphSource.Descriptor instead.
+func (GraphSource) EnumDescriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6}
+}
+
 type TimingState int32
 
 const (
@@ -382,11 +431,11 @@ func (x TimingState) String() string {
 }
 
 func (TimingState) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[6].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[7].Descriptor()
 }
 
 func (TimingState) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[6]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[7]
 }
 
 func (x TimingState) Number() protoreflect.EnumNumber {
@@ -395,7 +444,7 @@ func (x TimingState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TimingState.Descriptor instead.
 func (TimingState) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{7}
 }
 
 type DataUploadType int32
@@ -431,11 +480,11 @@ func (x DataUploadType) String() string {
 }
 
 func (DataUploadType) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[7].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[8].Descriptor()
 }
 
 func (DataUploadType) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[7]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[8]
 }
 
 func (x DataUploadType) Number() protoreflect.EnumNumber {
@@ -444,7 +493,7 @@ func (x DataUploadType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DataUploadType.Descriptor instead.
 func (DataUploadType) EnumDescriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{7}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{8}
 }
 
 // Empty indicates a successful request/response.
@@ -3308,9 +3357,10 @@ func (x *InitRequest) GetOmitModuleFiles() bool {
 type InitComplete struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Error           string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
-	Modules         []*Module              `protobuf:"bytes,2,rep,name=modules,proto3" json:"modules,omitempty"`
-	ModuleFiles     []byte                 `protobuf:"bytes,3,opt,name=module_files,json=moduleFiles,proto3" json:"module_files,omitempty"`
-	ModuleFilesHash []byte                 `protobuf:"bytes,4,opt,name=module_files_hash,json=moduleFilesHash,proto3" json:"module_files_hash,omitempty"`
+	Timings         []*Timing              `protobuf:"bytes,2,rep,name=timings,proto3" json:"timings,omitempty"`
+	Modules         []*Module              `protobuf:"bytes,3,rep,name=modules,proto3" json:"modules,omitempty"`
+	ModuleFiles     []byte                 `protobuf:"bytes,4,opt,name=module_files,json=moduleFiles,proto3" json:"module_files,omitempty"`
+	ModuleFilesHash []byte                 `protobuf:"bytes,5,opt,name=module_files_hash,json=moduleFilesHash,proto3" json:"module_files_hash,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -3350,6 +3400,13 @@ func (x *InitComplete) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *InitComplete) GetTimings() []*Timing {
+	if x != nil {
+		return x.Timings
+	}
+	return nil
 }
 
 func (x *InitComplete) GetModules() []*Module {
@@ -3461,28 +3518,15 @@ func (x *PlanRequest) GetState() []byte {
 
 // PlanComplete indicates a request to plan completed.
 type PlanComplete struct {
-	state                 protoimpl.MessageState          `protogen:"open.v1"`
-	Error                 string                          `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
-	Resources             []*Resource                     `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
-	Parameters            []*RichParameter                `protobuf:"bytes,3,rep,name=parameters,proto3" json:"parameters,omitempty"`
-	ExternalAuthProviders []*ExternalAuthProviderResource `protobuf:"bytes,4,rep,name=external_auth_providers,json=externalAuthProviders,proto3" json:"external_auth_providers,omitempty"`
-	Timings               []*Timing                       `protobuf:"bytes,6,rep,name=timings,proto3" json:"timings,omitempty"`
-	Modules               []*Module                       `protobuf:"bytes,7,rep,name=modules,proto3" json:"modules,omitempty"`
-	Presets               []*Preset                       `protobuf:"bytes,8,rep,name=presets,proto3" json:"presets,omitempty"`
-	Plan                  []byte                          `protobuf:"bytes,9,opt,name=plan,proto3" json:"plan,omitempty"`
-	ResourceReplacements  []*ResourceReplacement          `protobuf:"bytes,10,rep,name=resource_replacements,json=resourceReplacements,proto3" json:"resource_replacements,omitempty"`
-	ModuleFiles           []byte                          `protobuf:"bytes,11,opt,name=module_files,json=moduleFiles,proto3" json:"module_files,omitempty"`
-	ModuleFilesHash       []byte                          `protobuf:"bytes,12,opt,name=module_files_hash,json=moduleFilesHash,proto3" json:"module_files_hash,omitempty"`
-	// Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-	// During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-	// still need to know that such resources are defined.
-	//
-	// See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
-	HasAiTasks        bool      `protobuf:"varint,13,opt,name=has_ai_tasks,json=hasAiTasks,proto3" json:"has_ai_tasks,omitempty"`
-	AiTasks           []*AITask `protobuf:"bytes,14,rep,name=ai_tasks,json=aiTasks,proto3" json:"ai_tasks,omitempty"`
-	HasExternalAgents bool      `protobuf:"varint,15,opt,name=has_external_agents,json=hasExternalAgents,proto3" json:"has_external_agents,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Error                string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	Timings              []*Timing              `protobuf:"bytes,2,rep,name=timings,proto3" json:"timings,omitempty"`
+	Plan                 []byte                 `protobuf:"bytes,3,opt,name=plan,proto3" json:"plan,omitempty"`
+	DailyCost            int32                  `protobuf:"varint,4,opt,name=dailyCost,proto3" json:"dailyCost,omitempty"`
+	ResourceReplacements []*ResourceReplacement `protobuf:"bytes,5,rep,name=resource_replacements,json=resourceReplacements,proto3" json:"resource_replacements,omitempty"`
+	AiTaskCount          int32                  `protobuf:"varint,6,opt,name=ai_task_count,json=aiTaskCount,proto3" json:"ai_task_count,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *PlanComplete) Reset() {
@@ -3522,44 +3566,9 @@ func (x *PlanComplete) GetError() string {
 	return ""
 }
 
-func (x *PlanComplete) GetResources() []*Resource {
-	if x != nil {
-		return x.Resources
-	}
-	return nil
-}
-
-func (x *PlanComplete) GetParameters() []*RichParameter {
-	if x != nil {
-		return x.Parameters
-	}
-	return nil
-}
-
-func (x *PlanComplete) GetExternalAuthProviders() []*ExternalAuthProviderResource {
-	if x != nil {
-		return x.ExternalAuthProviders
-	}
-	return nil
-}
-
 func (x *PlanComplete) GetTimings() []*Timing {
 	if x != nil {
 		return x.Timings
-	}
-	return nil
-}
-
-func (x *PlanComplete) GetModules() []*Module {
-	if x != nil {
-		return x.Modules
-	}
-	return nil
-}
-
-func (x *PlanComplete) GetPresets() []*Preset {
-	if x != nil {
-		return x.Presets
 	}
 	return nil
 }
@@ -3571,6 +3580,13 @@ func (x *PlanComplete) GetPlan() []byte {
 	return nil
 }
 
+func (x *PlanComplete) GetDailyCost() int32 {
+	if x != nil {
+		return x.DailyCost
+	}
+	return 0
+}
+
 func (x *PlanComplete) GetResourceReplacements() []*ResourceReplacement {
 	if x != nil {
 		return x.ResourceReplacements
@@ -3578,39 +3594,11 @@ func (x *PlanComplete) GetResourceReplacements() []*ResourceReplacement {
 	return nil
 }
 
-func (x *PlanComplete) GetModuleFiles() []byte {
+func (x *PlanComplete) GetAiTaskCount() int32 {
 	if x != nil {
-		return x.ModuleFiles
+		return x.AiTaskCount
 	}
-	return nil
-}
-
-func (x *PlanComplete) GetModuleFilesHash() []byte {
-	if x != nil {
-		return x.ModuleFilesHash
-	}
-	return nil
-}
-
-func (x *PlanComplete) GetHasAiTasks() bool {
-	if x != nil {
-		return x.HasAiTasks
-	}
-	return false
-}
-
-func (x *PlanComplete) GetAiTasks() []*AITask {
-	if x != nil {
-		return x.AiTasks
-	}
-	return nil
-}
-
-func (x *PlanComplete) GetHasExternalAgents() bool {
-	if x != nil {
-		return x.HasExternalAgents
-	}
-	return false
+	return 0
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -3763,6 +3751,7 @@ func (x *ApplyComplete) GetAiTasks() []*AITask {
 
 type GraphRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        GraphSource            `protobuf:"varint,1,opt,name=source,proto3,enum=provisioner.GraphSource" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3797,11 +3786,31 @@ func (*GraphRequest) Descriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{43}
 }
 
+func (x *GraphRequest) GetSource() GraphSource {
+	if x != nil {
+		return x.Source
+	}
+	return GraphSource_SOURCE_UNKNOWN
+}
+
 type GraphComplete struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState          `protogen:"open.v1"`
+	Error                 string                          `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	Timings               []*Timing                       `protobuf:"bytes,2,rep,name=timings,proto3" json:"timings,omitempty"`
+	Resources             []*Resource                     `protobuf:"bytes,3,rep,name=resources,proto3" json:"resources,omitempty"`
+	Parameters            []*RichParameter                `protobuf:"bytes,4,rep,name=parameters,proto3" json:"parameters,omitempty"`
+	ExternalAuthProviders []*ExternalAuthProviderResource `protobuf:"bytes,5,rep,name=external_auth_providers,json=externalAuthProviders,proto3" json:"external_auth_providers,omitempty"`
+	Presets               []*Preset                       `protobuf:"bytes,6,rep,name=presets,proto3" json:"presets,omitempty"`
+	// Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+	// During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+	// still need to know that such resources are defined.
+	//
+	// See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+	HasAiTasks        bool      `protobuf:"varint,7,opt,name=has_ai_tasks,json=hasAiTasks,proto3" json:"has_ai_tasks,omitempty"`
+	AiTasks           []*AITask `protobuf:"bytes,8,rep,name=ai_tasks,json=aiTasks,proto3" json:"ai_tasks,omitempty"`
+	HasExternalAgents bool      `protobuf:"varint,9,opt,name=has_external_agents,json=hasExternalAgents,proto3" json:"has_external_agents,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GraphComplete) Reset() {
@@ -3839,6 +3848,62 @@ func (x *GraphComplete) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *GraphComplete) GetTimings() []*Timing {
+	if x != nil {
+		return x.Timings
+	}
+	return nil
+}
+
+func (x *GraphComplete) GetResources() []*Resource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *GraphComplete) GetParameters() []*RichParameter {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+func (x *GraphComplete) GetExternalAuthProviders() []*ExternalAuthProviderResource {
+	if x != nil {
+		return x.ExternalAuthProviders
+	}
+	return nil
+}
+
+func (x *GraphComplete) GetPresets() []*Preset {
+	if x != nil {
+		return x.Presets
+	}
+	return nil
+}
+
+func (x *GraphComplete) GetHasAiTasks() bool {
+	if x != nil {
+		return x.HasAiTasks
+	}
+	return false
+}
+
+func (x *GraphComplete) GetAiTasks() []*AITask {
+	if x != nil {
+		return x.AiTasks
+	}
+	return nil
+}
+
+func (x *GraphComplete) GetHasExternalAgents() bool {
+	if x != nil {
+		return x.HasExternalAgents
+	}
+	return false
 }
 
 type Timing struct {
@@ -4865,38 +4930,27 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"q\n" +
 	"\vInitRequest\x126\n" +
 	"\x17template_source_archive\x18\x01 \x01(\fR\x15templateSourceArchive\x12*\n" +
-	"\x11omit_module_files\x18\x03 \x01(\bR\x0fomitModuleFiles\"\xa2\x01\n" +
+	"\x11omit_module_files\x18\x03 \x01(\bR\x0fomitModuleFiles\"\xd1\x01\n" +
 	"\fInitComplete\x12\x14\n" +
 	"\x05error\x18\x01 \x01(\tR\x05error\x12-\n" +
-	"\amodules\x18\x02 \x03(\v2\x13.provisioner.ModuleR\amodules\x12!\n" +
-	"\fmodule_files\x18\x03 \x01(\fR\vmoduleFiles\x12*\n" +
-	"\x11module_files_hash\x18\x04 \x01(\fR\x0fmoduleFilesHash\"\xa8\x03\n" +
+	"\atimings\x18\x02 \x03(\v2\x13.provisioner.TimingR\atimings\x12-\n" +
+	"\amodules\x18\x03 \x03(\v2\x13.provisioner.ModuleR\amodules\x12!\n" +
+	"\fmodule_files\x18\x04 \x01(\fR\vmoduleFiles\x12*\n" +
+	"\x11module_files_hash\x18\x05 \x01(\fR\x0fmoduleFilesHash\"\xa8\x03\n" +
 	"\vPlanRequest\x121\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x15.provisioner.MetadataR\bmetadata\x12S\n" +
 	"\x15rich_parameter_values\x18\x02 \x03(\v2\x1f.provisioner.RichParameterValueR\x13richParameterValues\x12C\n" +
 	"\x0fvariable_values\x18\x03 \x03(\v2\x1a.provisioner.VariableValueR\x0evariableValues\x12Y\n" +
 	"\x17external_auth_providers\x18\x04 \x03(\v2!.provisioner.ExternalAuthProviderR\x15externalAuthProviders\x12[\n" +
 	"\x19previous_parameter_values\x18\x05 \x03(\v2\x1f.provisioner.RichParameterValueR\x17previousParameterValues\x12\x14\n" +
-	"\x05state\x18\x06 \x01(\fR\x05state\"\xc1\x05\n" +
+	"\x05state\x18\x06 \x01(\fR\x05state\"\x80\x02\n" +
 	"\fPlanComplete\x12\x14\n" +
-	"\x05error\x18\x01 \x01(\tR\x05error\x123\n" +
-	"\tresources\x18\x02 \x03(\v2\x15.provisioner.ResourceR\tresources\x12:\n" +
-	"\n" +
-	"parameters\x18\x03 \x03(\v2\x1a.provisioner.RichParameterR\n" +
-	"parameters\x12a\n" +
-	"\x17external_auth_providers\x18\x04 \x03(\v2).provisioner.ExternalAuthProviderResourceR\x15externalAuthProviders\x12-\n" +
-	"\atimings\x18\x06 \x03(\v2\x13.provisioner.TimingR\atimings\x12-\n" +
-	"\amodules\x18\a \x03(\v2\x13.provisioner.ModuleR\amodules\x12-\n" +
-	"\apresets\x18\b \x03(\v2\x13.provisioner.PresetR\apresets\x12\x12\n" +
-	"\x04plan\x18\t \x01(\fR\x04plan\x12U\n" +
-	"\x15resource_replacements\x18\n" +
-	" \x03(\v2 .provisioner.ResourceReplacementR\x14resourceReplacements\x12!\n" +
-	"\fmodule_files\x18\v \x01(\fR\vmoduleFiles\x12*\n" +
-	"\x11module_files_hash\x18\f \x01(\fR\x0fmoduleFilesHash\x12 \n" +
-	"\fhas_ai_tasks\x18\r \x01(\bR\n" +
-	"hasAiTasks\x12.\n" +
-	"\bai_tasks\x18\x0e \x03(\v2\x13.provisioner.AITaskR\aaiTasks\x12.\n" +
-	"\x13has_external_agents\x18\x0f \x01(\bR\x11hasExternalAgents\"W\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\x12-\n" +
+	"\atimings\x18\x02 \x03(\v2\x13.provisioner.TimingR\atimings\x12\x12\n" +
+	"\x04plan\x18\x03 \x01(\fR\x04plan\x12\x1c\n" +
+	"\tdailyCost\x18\x04 \x01(\x05R\tdailyCost\x12U\n" +
+	"\x15resource_replacements\x18\x05 \x03(\v2 .provisioner.ResourceReplacementR\x14resourceReplacements\x12\"\n" +
+	"\rai_task_count\x18\x06 \x01(\x05R\vaiTaskCount\"W\n" +
 	"\fApplyRequest\x121\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x15.provisioner.MetadataR\bmetadata\x12\x14\n" +
 	"\x05state\x18\x06 \x01(\fR\x05state\"\xee\x02\n" +
@@ -4909,10 +4963,22 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"parameters\x12a\n" +
 	"\x17external_auth_providers\x18\x05 \x03(\v2).provisioner.ExternalAuthProviderResourceR\x15externalAuthProviders\x12-\n" +
 	"\atimings\x18\x06 \x03(\v2\x13.provisioner.TimingR\atimings\x12.\n" +
-	"\bai_tasks\x18\a \x03(\v2\x13.provisioner.AITaskR\aaiTasks\"\x0e\n" +
-	"\fGraphRequest\"%\n" +
+	"\bai_tasks\x18\a \x03(\v2\x13.provisioner.AITaskR\aaiTasks\"@\n" +
+	"\fGraphRequest\x120\n" +
+	"\x06source\x18\x01 \x01(\x0e2\x18.provisioner.GraphSourceR\x06source\"\xd9\x03\n" +
 	"\rGraphComplete\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"\xfa\x01\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\x12-\n" +
+	"\atimings\x18\x02 \x03(\v2\x13.provisioner.TimingR\atimings\x123\n" +
+	"\tresources\x18\x03 \x03(\v2\x15.provisioner.ResourceR\tresources\x12:\n" +
+	"\n" +
+	"parameters\x18\x04 \x03(\v2\x1a.provisioner.RichParameterR\n" +
+	"parameters\x12a\n" +
+	"\x17external_auth_providers\x18\x05 \x03(\v2).provisioner.ExternalAuthProviderResourceR\x15externalAuthProviders\x12-\n" +
+	"\apresets\x18\x06 \x03(\v2\x13.provisioner.PresetR\apresets\x12 \n" +
+	"\fhas_ai_tasks\x18\a \x01(\bR\n" +
+	"hasAiTasks\x12.\n" +
+	"\bai_tasks\x18\b \x03(\v2\x13.provisioner.AITaskR\aaiTasks\x12.\n" +
+	"\x13has_external_agents\x18\t \x01(\bR\x11hasExternalAgents\"\xfa\x01\n" +
 	"\x06Timing\x120\n" +
 	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12,\n" +
 	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\x12\x16\n" +
@@ -4995,7 +5061,11 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\x04NONE\x10\x00\x12\n" +
 	"\n" +
 	"\x06CREATE\x10\x01\x12\t\n" +
-	"\x05CLAIM\x10\x02*5\n" +
+	"\x05CLAIM\x10\x02*D\n" +
+	"\vGraphSource\x12\x12\n" +
+	"\x0eSOURCE_UNKNOWN\x10\x00\x12\x0f\n" +
+	"\vSOURCE_PLAN\x10\x01\x12\x10\n" +
+	"\fSOURCE_STATE\x10\x02*5\n" +
 	"\vTimingState\x12\v\n" +
 	"\aSTARTED\x10\x00\x12\r\n" +
 	"\tCOMPLETED\x10\x01\x12\n" +
@@ -5019,7 +5089,7 @@ func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 	return file_provisionersdk_proto_provisioner_proto_rawDescData
 }
 
-var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
 var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_provisionersdk_proto_provisioner_proto_goTypes = []any{
 	(ParameterFormType)(0),               // 0: provisioner.ParameterFormType
@@ -5028,142 +5098,145 @@ var file_provisionersdk_proto_provisioner_proto_goTypes = []any{
 	(AppOpenIn)(0),                       // 3: provisioner.AppOpenIn
 	(WorkspaceTransition)(0),             // 4: provisioner.WorkspaceTransition
 	(PrebuiltWorkspaceBuildStage)(0),     // 5: provisioner.PrebuiltWorkspaceBuildStage
-	(TimingState)(0),                     // 6: provisioner.TimingState
-	(DataUploadType)(0),                  // 7: provisioner.DataUploadType
-	(*Empty)(nil),                        // 8: provisioner.Empty
-	(*TemplateVariable)(nil),             // 9: provisioner.TemplateVariable
-	(*RichParameterOption)(nil),          // 10: provisioner.RichParameterOption
-	(*RichParameter)(nil),                // 11: provisioner.RichParameter
-	(*RichParameterValue)(nil),           // 12: provisioner.RichParameterValue
-	(*ExpirationPolicy)(nil),             // 13: provisioner.ExpirationPolicy
-	(*Schedule)(nil),                     // 14: provisioner.Schedule
-	(*Scheduling)(nil),                   // 15: provisioner.Scheduling
-	(*Prebuild)(nil),                     // 16: provisioner.Prebuild
-	(*Preset)(nil),                       // 17: provisioner.Preset
-	(*PresetParameter)(nil),              // 18: provisioner.PresetParameter
-	(*ResourceReplacement)(nil),          // 19: provisioner.ResourceReplacement
-	(*VariableValue)(nil),                // 20: provisioner.VariableValue
-	(*Log)(nil),                          // 21: provisioner.Log
-	(*InstanceIdentityAuth)(nil),         // 22: provisioner.InstanceIdentityAuth
-	(*ExternalAuthProviderResource)(nil), // 23: provisioner.ExternalAuthProviderResource
-	(*ExternalAuthProvider)(nil),         // 24: provisioner.ExternalAuthProvider
-	(*Agent)(nil),                        // 25: provisioner.Agent
-	(*ResourcesMonitoring)(nil),          // 26: provisioner.ResourcesMonitoring
-	(*MemoryResourceMonitor)(nil),        // 27: provisioner.MemoryResourceMonitor
-	(*VolumeResourceMonitor)(nil),        // 28: provisioner.VolumeResourceMonitor
-	(*DisplayApps)(nil),                  // 29: provisioner.DisplayApps
-	(*Env)(nil),                          // 30: provisioner.Env
-	(*Script)(nil),                       // 31: provisioner.Script
-	(*Devcontainer)(nil),                 // 32: provisioner.Devcontainer
-	(*App)(nil),                          // 33: provisioner.App
-	(*Healthcheck)(nil),                  // 34: provisioner.Healthcheck
-	(*Resource)(nil),                     // 35: provisioner.Resource
-	(*Module)(nil),                       // 36: provisioner.Module
-	(*Role)(nil),                         // 37: provisioner.Role
-	(*RunningAgentAuthToken)(nil),        // 38: provisioner.RunningAgentAuthToken
-	(*AITaskSidebarApp)(nil),             // 39: provisioner.AITaskSidebarApp
-	(*AITask)(nil),                       // 40: provisioner.AITask
-	(*Metadata)(nil),                     // 41: provisioner.Metadata
-	(*Config)(nil),                       // 42: provisioner.Config
-	(*ParseRequest)(nil),                 // 43: provisioner.ParseRequest
-	(*ParseComplete)(nil),                // 44: provisioner.ParseComplete
-	(*InitRequest)(nil),                  // 45: provisioner.InitRequest
-	(*InitComplete)(nil),                 // 46: provisioner.InitComplete
-	(*PlanRequest)(nil),                  // 47: provisioner.PlanRequest
-	(*PlanComplete)(nil),                 // 48: provisioner.PlanComplete
-	(*ApplyRequest)(nil),                 // 49: provisioner.ApplyRequest
-	(*ApplyComplete)(nil),                // 50: provisioner.ApplyComplete
-	(*GraphRequest)(nil),                 // 51: provisioner.GraphRequest
-	(*GraphComplete)(nil),                // 52: provisioner.GraphComplete
-	(*Timing)(nil),                       // 53: provisioner.Timing
-	(*CancelRequest)(nil),                // 54: provisioner.CancelRequest
-	(*Request)(nil),                      // 55: provisioner.Request
-	(*Response)(nil),                     // 56: provisioner.Response
-	(*DataUpload)(nil),                   // 57: provisioner.DataUpload
-	(*ChunkPiece)(nil),                   // 58: provisioner.ChunkPiece
-	(*Agent_Metadata)(nil),               // 59: provisioner.Agent.Metadata
-	nil,                                  // 60: provisioner.Agent.EnvEntry
-	(*Resource_Metadata)(nil),            // 61: provisioner.Resource.Metadata
-	nil,                                  // 62: provisioner.ParseComplete.WorkspaceTagsEntry
-	(*timestamppb.Timestamp)(nil),        // 63: google.protobuf.Timestamp
+	(GraphSource)(0),                     // 6: provisioner.GraphSource
+	(TimingState)(0),                     // 7: provisioner.TimingState
+	(DataUploadType)(0),                  // 8: provisioner.DataUploadType
+	(*Empty)(nil),                        // 9: provisioner.Empty
+	(*TemplateVariable)(nil),             // 10: provisioner.TemplateVariable
+	(*RichParameterOption)(nil),          // 11: provisioner.RichParameterOption
+	(*RichParameter)(nil),                // 12: provisioner.RichParameter
+	(*RichParameterValue)(nil),           // 13: provisioner.RichParameterValue
+	(*ExpirationPolicy)(nil),             // 14: provisioner.ExpirationPolicy
+	(*Schedule)(nil),                     // 15: provisioner.Schedule
+	(*Scheduling)(nil),                   // 16: provisioner.Scheduling
+	(*Prebuild)(nil),                     // 17: provisioner.Prebuild
+	(*Preset)(nil),                       // 18: provisioner.Preset
+	(*PresetParameter)(nil),              // 19: provisioner.PresetParameter
+	(*ResourceReplacement)(nil),          // 20: provisioner.ResourceReplacement
+	(*VariableValue)(nil),                // 21: provisioner.VariableValue
+	(*Log)(nil),                          // 22: provisioner.Log
+	(*InstanceIdentityAuth)(nil),         // 23: provisioner.InstanceIdentityAuth
+	(*ExternalAuthProviderResource)(nil), // 24: provisioner.ExternalAuthProviderResource
+	(*ExternalAuthProvider)(nil),         // 25: provisioner.ExternalAuthProvider
+	(*Agent)(nil),                        // 26: provisioner.Agent
+	(*ResourcesMonitoring)(nil),          // 27: provisioner.ResourcesMonitoring
+	(*MemoryResourceMonitor)(nil),        // 28: provisioner.MemoryResourceMonitor
+	(*VolumeResourceMonitor)(nil),        // 29: provisioner.VolumeResourceMonitor
+	(*DisplayApps)(nil),                  // 30: provisioner.DisplayApps
+	(*Env)(nil),                          // 31: provisioner.Env
+	(*Script)(nil),                       // 32: provisioner.Script
+	(*Devcontainer)(nil),                 // 33: provisioner.Devcontainer
+	(*App)(nil),                          // 34: provisioner.App
+	(*Healthcheck)(nil),                  // 35: provisioner.Healthcheck
+	(*Resource)(nil),                     // 36: provisioner.Resource
+	(*Module)(nil),                       // 37: provisioner.Module
+	(*Role)(nil),                         // 38: provisioner.Role
+	(*RunningAgentAuthToken)(nil),        // 39: provisioner.RunningAgentAuthToken
+	(*AITaskSidebarApp)(nil),             // 40: provisioner.AITaskSidebarApp
+	(*AITask)(nil),                       // 41: provisioner.AITask
+	(*Metadata)(nil),                     // 42: provisioner.Metadata
+	(*Config)(nil),                       // 43: provisioner.Config
+	(*ParseRequest)(nil),                 // 44: provisioner.ParseRequest
+	(*ParseComplete)(nil),                // 45: provisioner.ParseComplete
+	(*InitRequest)(nil),                  // 46: provisioner.InitRequest
+	(*InitComplete)(nil),                 // 47: provisioner.InitComplete
+	(*PlanRequest)(nil),                  // 48: provisioner.PlanRequest
+	(*PlanComplete)(nil),                 // 49: provisioner.PlanComplete
+	(*ApplyRequest)(nil),                 // 50: provisioner.ApplyRequest
+	(*ApplyComplete)(nil),                // 51: provisioner.ApplyComplete
+	(*GraphRequest)(nil),                 // 52: provisioner.GraphRequest
+	(*GraphComplete)(nil),                // 53: provisioner.GraphComplete
+	(*Timing)(nil),                       // 54: provisioner.Timing
+	(*CancelRequest)(nil),                // 55: provisioner.CancelRequest
+	(*Request)(nil),                      // 56: provisioner.Request
+	(*Response)(nil),                     // 57: provisioner.Response
+	(*DataUpload)(nil),                   // 58: provisioner.DataUpload
+	(*ChunkPiece)(nil),                   // 59: provisioner.ChunkPiece
+	(*Agent_Metadata)(nil),               // 60: provisioner.Agent.Metadata
+	nil,                                  // 61: provisioner.Agent.EnvEntry
+	(*Resource_Metadata)(nil),            // 62: provisioner.Resource.Metadata
+	nil,                                  // 63: provisioner.ParseComplete.WorkspaceTagsEntry
+	(*timestamppb.Timestamp)(nil),        // 64: google.protobuf.Timestamp
 }
 var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
-	10, // 0: provisioner.RichParameter.options:type_name -> provisioner.RichParameterOption
+	11, // 0: provisioner.RichParameter.options:type_name -> provisioner.RichParameterOption
 	0,  // 1: provisioner.RichParameter.form_type:type_name -> provisioner.ParameterFormType
-	14, // 2: provisioner.Scheduling.schedule:type_name -> provisioner.Schedule
-	13, // 3: provisioner.Prebuild.expiration_policy:type_name -> provisioner.ExpirationPolicy
-	15, // 4: provisioner.Prebuild.scheduling:type_name -> provisioner.Scheduling
-	18, // 5: provisioner.Preset.parameters:type_name -> provisioner.PresetParameter
-	16, // 6: provisioner.Preset.prebuild:type_name -> provisioner.Prebuild
+	15, // 2: provisioner.Scheduling.schedule:type_name -> provisioner.Schedule
+	14, // 3: provisioner.Prebuild.expiration_policy:type_name -> provisioner.ExpirationPolicy
+	16, // 4: provisioner.Prebuild.scheduling:type_name -> provisioner.Scheduling
+	19, // 5: provisioner.Preset.parameters:type_name -> provisioner.PresetParameter
+	17, // 6: provisioner.Preset.prebuild:type_name -> provisioner.Prebuild
 	1,  // 7: provisioner.Log.level:type_name -> provisioner.LogLevel
-	60, // 8: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
-	33, // 9: provisioner.Agent.apps:type_name -> provisioner.App
-	59, // 10: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
-	29, // 11: provisioner.Agent.display_apps:type_name -> provisioner.DisplayApps
-	31, // 12: provisioner.Agent.scripts:type_name -> provisioner.Script
-	30, // 13: provisioner.Agent.extra_envs:type_name -> provisioner.Env
-	26, // 14: provisioner.Agent.resources_monitoring:type_name -> provisioner.ResourcesMonitoring
-	32, // 15: provisioner.Agent.devcontainers:type_name -> provisioner.Devcontainer
-	27, // 16: provisioner.ResourcesMonitoring.memory:type_name -> provisioner.MemoryResourceMonitor
-	28, // 17: provisioner.ResourcesMonitoring.volumes:type_name -> provisioner.VolumeResourceMonitor
-	34, // 18: provisioner.App.healthcheck:type_name -> provisioner.Healthcheck
+	61, // 8: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
+	34, // 9: provisioner.Agent.apps:type_name -> provisioner.App
+	60, // 10: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
+	30, // 11: provisioner.Agent.display_apps:type_name -> provisioner.DisplayApps
+	32, // 12: provisioner.Agent.scripts:type_name -> provisioner.Script
+	31, // 13: provisioner.Agent.extra_envs:type_name -> provisioner.Env
+	27, // 14: provisioner.Agent.resources_monitoring:type_name -> provisioner.ResourcesMonitoring
+	33, // 15: provisioner.Agent.devcontainers:type_name -> provisioner.Devcontainer
+	28, // 16: provisioner.ResourcesMonitoring.memory:type_name -> provisioner.MemoryResourceMonitor
+	29, // 17: provisioner.ResourcesMonitoring.volumes:type_name -> provisioner.VolumeResourceMonitor
+	35, // 18: provisioner.App.healthcheck:type_name -> provisioner.Healthcheck
 	2,  // 19: provisioner.App.sharing_level:type_name -> provisioner.AppSharingLevel
 	3,  // 20: provisioner.App.open_in:type_name -> provisioner.AppOpenIn
-	25, // 21: provisioner.Resource.agents:type_name -> provisioner.Agent
-	61, // 22: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
-	39, // 23: provisioner.AITask.sidebar_app:type_name -> provisioner.AITaskSidebarApp
+	26, // 21: provisioner.Resource.agents:type_name -> provisioner.Agent
+	62, // 22: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
+	40, // 23: provisioner.AITask.sidebar_app:type_name -> provisioner.AITaskSidebarApp
 	4,  // 24: provisioner.Metadata.workspace_transition:type_name -> provisioner.WorkspaceTransition
-	37, // 25: provisioner.Metadata.workspace_owner_rbac_roles:type_name -> provisioner.Role
+	38, // 25: provisioner.Metadata.workspace_owner_rbac_roles:type_name -> provisioner.Role
 	5,  // 26: provisioner.Metadata.prebuilt_workspace_build_stage:type_name -> provisioner.PrebuiltWorkspaceBuildStage
-	38, // 27: provisioner.Metadata.running_agent_auth_tokens:type_name -> provisioner.RunningAgentAuthToken
-	9,  // 28: provisioner.ParseComplete.template_variables:type_name -> provisioner.TemplateVariable
-	62, // 29: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
-	36, // 30: provisioner.InitComplete.modules:type_name -> provisioner.Module
-	41, // 31: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
-	12, // 32: provisioner.PlanRequest.rich_parameter_values:type_name -> provisioner.RichParameterValue
-	20, // 33: provisioner.PlanRequest.variable_values:type_name -> provisioner.VariableValue
-	24, // 34: provisioner.PlanRequest.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
-	12, // 35: provisioner.PlanRequest.previous_parameter_values:type_name -> provisioner.RichParameterValue
-	35, // 36: provisioner.PlanComplete.resources:type_name -> provisioner.Resource
-	11, // 37: provisioner.PlanComplete.parameters:type_name -> provisioner.RichParameter
-	23, // 38: provisioner.PlanComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	53, // 39: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
-	36, // 40: provisioner.PlanComplete.modules:type_name -> provisioner.Module
-	17, // 41: provisioner.PlanComplete.presets:type_name -> provisioner.Preset
-	19, // 42: provisioner.PlanComplete.resource_replacements:type_name -> provisioner.ResourceReplacement
-	40, // 43: provisioner.PlanComplete.ai_tasks:type_name -> provisioner.AITask
-	41, // 44: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
-	35, // 45: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
-	11, // 46: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
-	23, // 47: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	53, // 48: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
-	40, // 49: provisioner.ApplyComplete.ai_tasks:type_name -> provisioner.AITask
-	63, // 50: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
-	63, // 51: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
-	6,  // 52: provisioner.Timing.state:type_name -> provisioner.TimingState
-	42, // 53: provisioner.Request.config:type_name -> provisioner.Config
-	43, // 54: provisioner.Request.parse:type_name -> provisioner.ParseRequest
-	45, // 55: provisioner.Request.init:type_name -> provisioner.InitRequest
-	47, // 56: provisioner.Request.plan:type_name -> provisioner.PlanRequest
-	49, // 57: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
-	51, // 58: provisioner.Request.graph:type_name -> provisioner.GraphRequest
-	54, // 59: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
-	21, // 60: provisioner.Response.log:type_name -> provisioner.Log
-	44, // 61: provisioner.Response.parse:type_name -> provisioner.ParseComplete
-	46, // 62: provisioner.Response.init:type_name -> provisioner.InitComplete
-	48, // 63: provisioner.Response.plan:type_name -> provisioner.PlanComplete
-	50, // 64: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
-	52, // 65: provisioner.Response.graph:type_name -> provisioner.GraphComplete
-	57, // 66: provisioner.Response.data_upload:type_name -> provisioner.DataUpload
-	58, // 67: provisioner.Response.chunk_piece:type_name -> provisioner.ChunkPiece
-	7,  // 68: provisioner.DataUpload.upload_type:type_name -> provisioner.DataUploadType
-	55, // 69: provisioner.Provisioner.Session:input_type -> provisioner.Request
-	56, // 70: provisioner.Provisioner.Session:output_type -> provisioner.Response
-	70, // [70:71] is the sub-list for method output_type
-	69, // [69:70] is the sub-list for method input_type
-	69, // [69:69] is the sub-list for extension type_name
-	69, // [69:69] is the sub-list for extension extendee
-	0,  // [0:69] is the sub-list for field type_name
+	39, // 27: provisioner.Metadata.running_agent_auth_tokens:type_name -> provisioner.RunningAgentAuthToken
+	10, // 28: provisioner.ParseComplete.template_variables:type_name -> provisioner.TemplateVariable
+	63, // 29: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
+	54, // 30: provisioner.InitComplete.timings:type_name -> provisioner.Timing
+	37, // 31: provisioner.InitComplete.modules:type_name -> provisioner.Module
+	42, // 32: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
+	13, // 33: provisioner.PlanRequest.rich_parameter_values:type_name -> provisioner.RichParameterValue
+	21, // 34: provisioner.PlanRequest.variable_values:type_name -> provisioner.VariableValue
+	25, // 35: provisioner.PlanRequest.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
+	13, // 36: provisioner.PlanRequest.previous_parameter_values:type_name -> provisioner.RichParameterValue
+	54, // 37: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
+	20, // 38: provisioner.PlanComplete.resource_replacements:type_name -> provisioner.ResourceReplacement
+	42, // 39: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
+	36, // 40: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
+	12, // 41: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
+	24, // 42: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	54, // 43: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
+	41, // 44: provisioner.ApplyComplete.ai_tasks:type_name -> provisioner.AITask
+	6,  // 45: provisioner.GraphRequest.source:type_name -> provisioner.GraphSource
+	54, // 46: provisioner.GraphComplete.timings:type_name -> provisioner.Timing
+	36, // 47: provisioner.GraphComplete.resources:type_name -> provisioner.Resource
+	12, // 48: provisioner.GraphComplete.parameters:type_name -> provisioner.RichParameter
+	24, // 49: provisioner.GraphComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	18, // 50: provisioner.GraphComplete.presets:type_name -> provisioner.Preset
+	41, // 51: provisioner.GraphComplete.ai_tasks:type_name -> provisioner.AITask
+	64, // 52: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
+	64, // 53: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
+	7,  // 54: provisioner.Timing.state:type_name -> provisioner.TimingState
+	43, // 55: provisioner.Request.config:type_name -> provisioner.Config
+	44, // 56: provisioner.Request.parse:type_name -> provisioner.ParseRequest
+	46, // 57: provisioner.Request.init:type_name -> provisioner.InitRequest
+	48, // 58: provisioner.Request.plan:type_name -> provisioner.PlanRequest
+	50, // 59: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
+	52, // 60: provisioner.Request.graph:type_name -> provisioner.GraphRequest
+	55, // 61: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
+	22, // 62: provisioner.Response.log:type_name -> provisioner.Log
+	45, // 63: provisioner.Response.parse:type_name -> provisioner.ParseComplete
+	47, // 64: provisioner.Response.init:type_name -> provisioner.InitComplete
+	49, // 65: provisioner.Response.plan:type_name -> provisioner.PlanComplete
+	51, // 66: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
+	53, // 67: provisioner.Response.graph:type_name -> provisioner.GraphComplete
+	58, // 68: provisioner.Response.data_upload:type_name -> provisioner.DataUpload
+	59, // 69: provisioner.Response.chunk_piece:type_name -> provisioner.ChunkPiece
+	8,  // 70: provisioner.DataUpload.upload_type:type_name -> provisioner.DataUploadType
+	56, // 71: provisioner.Provisioner.Session:input_type -> provisioner.Request
+	57, // 72: provisioner.Provisioner.Session:output_type -> provisioner.Response
+	72, // [72:73] is the sub-list for method output_type
+	71, // [71:72] is the sub-list for method input_type
+	71, // [71:71] is the sub-list for extension type_name
+	71, // [71:71] is the sub-list for extension extendee
+	0,  // [0:71] is the sub-list for field type_name
 }
 
 func init() { file_provisionersdk_proto_provisioner_proto_init() }
@@ -5202,7 +5275,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_provisionersdk_proto_provisioner_proto_rawDesc), len(file_provisionersdk_proto_provisioner_proto_rawDesc)),
-			NumEnums:      8,
+			NumEnums:      9,
 			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,

@@ -126,26 +126,23 @@ func (s *Session) handleRequests() error {
 			resp.Type = &proto.Response_Parse{Parse: complete}
 		}
 		if init := req.GetInit(); init != nil {
-			r := &request[*proto.InitRequest, *proto.InitComplete]{
-				req:      init,
-				session:  s,
-				serverFn: s.server.Init,
-				cancels:  requests,
+			if s.initialized != nil {
+				return xerrors.New("cannot init more than once per session")
 			}
-			complete, err := r.do()
+			initResp, err := s.handleInitRequest(init, requests)
 			if err != nil {
 				return err
 			}
-			resp.Type = &proto.Response_Init{Init: complete}
-			if complete.Error == "" {
-				s.initialized = &initialized{}
-			}
+			resp.Type = &proto.Response_Init{Init: initResp}
 		}
 		if plan := req.GetPlan(); plan != nil {
 			if s.initialized == nil {
 				return xerrors.New("cannot plan before successful init")
 			}
-			planResp := s.handlePlanRequest(plan, requests)
+			planResp, err := s.handlePlanRequest(plan, requests)
+			if err != nil {
+				return err
+			}
 			if planResp.Error == "" {
 				planned = true
 			}
@@ -175,20 +172,24 @@ func (s *Session) handleRequests() error {
 	return nil
 }
 
-func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *proto.Request) *proto.PlanComplete {
-	r := &request[*proto.PlanRequest, *proto.PlanComplete]{
-		req:      plan,
+func (s *Session) handleInitRequest(init *proto.InitRequest, requests <-chan *proto.Request) (*proto.InitComplete, error) {
+	r := &request[*proto.InitRequest, *proto.InitComplete]{
+		req:      init,
 		session:  s,
-		serverFn: s.server.Plan,
+		serverFn: s.server.Init,
 		cancels:  requests,
 	}
 	complete, err := r.do()
 	if err != nil {
-		return complete
+		return nil, err
 	}
+	if complete.Error != "" {
+		return complete, nil
+	}
+	s.initialized = &initialized{}
 
 	// If the size of the complete message is too large, we need to stream the module files separately.
-	if protobuf.Size(&proto.Response{Type: &proto.Response_Plan{Plan: complete}}) > drpcsdk.MaxMessageSize {
+	if protobuf.Size(&proto.Response{Type: &proto.Response_Init{Init: complete}}) > drpcsdk.MaxMessageSize {
 		// It is likely the modules that is pushing the message size over the limit.
 		// Send the modules over a stream of messages instead.
 		s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
@@ -213,7 +214,25 @@ func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *pr
 		}
 	}
 
-	return complete
+	return complete, nil
+}
+
+func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *proto.Request) (*proto.PlanComplete, error) {
+	r := &request[*proto.PlanRequest, *proto.PlanComplete]{
+		req:      plan,
+		session:  s,
+		serverFn: s.server.Plan,
+		cancels:  requests,
+	}
+	complete, err := r.do()
+	if err != nil {
+		return nil, err
+	}
+	if complete.Error != "" {
+		return complete, nil
+	}
+
+	return complete, nil
 }
 
 type Session struct {

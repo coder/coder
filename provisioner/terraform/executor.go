@@ -332,21 +332,15 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
-	// Capture the duration of the call to `terraform graph`.
-	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
-
-	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
+	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
-		return nil, xerrors.Errorf("plan resources: %w", err)
+		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
+
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
-
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
 	// the point of prebuilding if the expensive resource is replaced once claimed!
@@ -374,17 +368,17 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		}
 	}
 
+	state, err := ConvertPlanState(ctx, e.server.logger, plan)
+	if err != nil {
+		return nil, xerrors.Errorf("convert plan state: %w", err)
+	}
+
 	msg := &proto.PlanComplete{
-		Parameters:            state.Parameters,
-		Resources:             state.Resources,
-		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
-		Presets:               state.Presets,
-		Plan:                  planJSON,
-		ResourceReplacements:  resReps,
-		HasAiTasks:            state.HasAITasks,
-		AiTasks:               state.AITasks,
-		HasExternalAgents:     state.HasExternalAgents,
+		Timings:              e.timings.aggregate(),
+		Plan:                 planJSON,
+		DailyCost:            state.DailyCost,
+		ResourceReplacements: resReps,
+		AiTaskCount:          state.AITaskCount,
 	}
 
 	return msg, nil
@@ -405,42 +399,6 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 		filtered.ChildModules = append(filtered.ChildModules, &filteredChild)
 	}
 	return filtered
-}
-
-// planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, *tfjson.Plan, error) {
-	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
-	defer span.End()
-
-	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
-	}
-
-	rawGraph, err := e.graph(ctx, killCtx)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("graph: %w", err)
-	}
-	modules := []*tfjson.StateModule{}
-	if plan.PriorState != nil {
-		// We need the data resources for rich parameters. For some reason, they
-		// only show up in the PriorState.
-		//
-		// We don't want all prior resources, because Quotas (and
-		// future features) would never know which resources are getting
-		// deleted by a stop.
-
-		filtered := onlyDataResources(*plan.PriorState.Values.RootModule)
-		modules = append(modules, &filtered)
-	}
-	modules = append(modules, plan.PlannedValues.RootModule)
-
-	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return state, plan, nil
 }
 
 // parsePlan must only be called while the lock is held.
@@ -530,9 +488,11 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 		// TODO: When the plan is present, we should probably use it?
 		// "-plan=" + e.files.PlanFilePath(),
 	}
+
 	if ver.GreaterThanOrEqual(version170) {
 		args = append(args, "-type=plan")
 	}
+
 	var out strings.Builder
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
 	cmd.Stdout = &out

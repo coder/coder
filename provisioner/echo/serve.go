@@ -73,12 +73,19 @@ var (
 			Parse: &proto.ParseComplete{},
 		},
 	}}
+	// InitComplete is a helper to indicate an empty init completion.
+	InitComplete = []*proto.Response{{
+		Type: &proto.Response_Init{
+			Init: &proto.InitComplete{
+				ModuleFiles: []byte{},
+			},
+		},
+	}}
 	// PlanComplete is a helper to indicate an empty provision completion.
 	PlanComplete = []*proto.Response{{
 		Type: &proto.Response_Plan{
 			Plan: &proto.PlanComplete{
-				Plan:        []byte("{}"),
-				ModuleFiles: []byte{},
+				Plan: []byte("{}"),
 			},
 		},
 	}}
@@ -88,7 +95,19 @@ var (
 			Apply: &proto.ApplyComplete{},
 		},
 	}}
+	GraphComplete = []*proto.Response{{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{},
+		},
+	}}
 
+	InitFailed = []*proto.Response{{
+		Type: &proto.Response_Init{
+			Init: &proto.InitComplete{
+				Error: "failed!",
+			},
+		},
+	}}
 	// PlanFailed is a helper to convey a failed plan operation
 	PlanFailed = []*proto.Response{{
 		Type: &proto.Response_Plan{
@@ -101,6 +120,13 @@ var (
 	ApplyFailed = []*proto.Response{{
 		Type: &proto.Response_Apply{
 			Apply: &proto.ApplyComplete{
+				Error: "failed!",
+			},
+		},
+	}}
+	GraphFailed = []*proto.Response{{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
 				Error: "failed!",
 			},
 		},
@@ -233,15 +259,17 @@ func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 type Responses struct {
 	Parse []*proto.Response
 
-	// ProvisionApply and ProvisionPlan are used to mock ALL responses of
-	// Apply and Plan, regardless of transition.
-	ProvisionApply []*proto.Response
+	// Used to mock ALL responses regardless of transition.
+	ProvisionInit  []*proto.Response
 	ProvisionPlan  []*proto.Response
+	ProvisionApply []*proto.Response
+	ProvisionGraph []*proto.Response
 
-	// ProvisionApplyMap and ProvisionPlanMap are used to mock specific
-	// transition responses. They are prioritized over the generic responses.
-	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
+	// Used to mock specific transition responses. They are prioritized over the generic responses.
+	ProvisionInitMap  map[proto.WorkspaceTransition][]*proto.Response
 	ProvisionPlanMap  map[proto.WorkspaceTransition][]*proto.Response
+	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
+	ProvisionGraphMap map[proto.WorkspaceTransition][]*proto.Response
 
 	ExtraFiles map[string][]byte
 }
@@ -260,11 +288,52 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 	if responses == nil {
 		responses = &Responses{
 			Parse:             ParseComplete,
-			ProvisionApply:    ApplyComplete,
+			ProvisionInit:     InitComplete,
 			ProvisionPlan:     PlanComplete,
+			ProvisionApply:    ApplyComplete,
+			ProvisionGraph:    GraphComplete,
 			ProvisionApplyMap: nil,
 			ProvisionPlanMap:  nil,
 			ExtraFiles:        nil,
+		}
+	}
+	if responses.ProvisionInit == nil {
+		for _, resp := range responses.ProvisionApply {
+			if resp.GetLog() != nil {
+				responses.ProvisionInit = append(responses.ProvisionInit, resp)
+				continue
+			}
+			responses.ProvisionInit = append(responses.ProvisionInit, &proto.Response{
+				Type: &proto.Response_Init{Init: &proto.InitComplete{
+					Error:           resp.GetApply().GetError(),
+					Timings:         nil,
+					Modules:         nil,
+					ModuleFiles:     nil,
+					ModuleFilesHash: nil,
+				},
+				},
+			},
+			)
+		}
+	}
+	if responses.ProvisionGraph == nil {
+		for _, resp := range responses.ProvisionApply {
+			if resp.GetLog() != nil {
+				responses.ProvisionGraph = append(responses.ProvisionGraph, resp)
+				continue
+			}
+			responses.ProvisionGraph = append(responses.ProvisionGraph, &proto.Response{
+				Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
+					Error:                 resp.GetApply().GetError(),
+					Timings:               nil,
+					Resources:             resp.GetApply().GetResources(),
+					Parameters:            resp.GetApply().GetParameters(),
+					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
+					HasAiTasks:            len(resp.GetApply().GetAiTasks()) > 0,
+					AiTasks:               resp.GetApply().GetAiTasks(),
+					HasExternalAgents:     false,
+				}},
+			})
 		}
 	}
 	if responses.ProvisionPlan == nil {
@@ -275,12 +344,9 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 			responses.ProvisionPlan = append(responses.ProvisionPlan, &proto.Response{
 				Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Error:                 resp.GetApply().GetError(),
-					Resources:             resp.GetApply().GetResources(),
-					Parameters:            resp.GetApply().GetParameters(),
-					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
-					Plan:                  []byte("{}"),
-					ModuleFiles:           []byte{},
+					Error:       resp.GetApply().GetError(),
+					Plan:        []byte("{}"),
+					AiTaskCount: int32(len(resp.GetApply().GetAiTasks())),
 				}},
 			})
 		}
@@ -406,8 +472,8 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 	// that matches the parameters defined in the responses. Dynamic parameters
 	// parsed these, even in the echo provisioner.
 	var mainTF bytes.Buffer
-	for _, respPlan := range responses.ProvisionPlan {
-		plan := respPlan.GetPlan()
+	for _, respPlan := range responses.ProvisionGraph {
+		plan := respPlan.GetGraph()
 		if plan == nil {
 			continue
 		}
@@ -517,9 +583,11 @@ func WithResources(resources []*proto.Resource) *Responses {
 		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{
 			Resources: resources,
 		}}}},
-		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+		ProvisionGraph: []*proto.Response{{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 			Resources: resources,
-			Plan:      []byte("{}"),
+		}}}},
+		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			Plan: []byte("{}"),
 		}}}},
 	}
 }

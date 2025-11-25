@@ -406,9 +406,10 @@ message InitRequest {
 
 message InitComplete {
   string error = 1;
-  repeated Module modules = 2;
-  bytes module_files = 3;
-  bytes module_files_hash = 4;
+  repeated Timing timings = 2;
+  repeated Module modules = 3;
+  bytes module_files = 4;
+  bytes module_files_hash = 5;
 }
 
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
@@ -426,24 +427,11 @@ message PlanRequest {
 // PlanComplete indicates a request to plan completed.
 message PlanComplete {
   string error = 1;
-  repeated Resource resources = 2;
-  repeated RichParameter parameters = 3;
-  repeated ExternalAuthProviderResource external_auth_providers = 4;
-  repeated Timing timings = 6;
-  repeated Module modules = 7;
-  repeated Preset presets = 8;
-  bytes plan = 9;
-  repeated ResourceReplacement resource_replacements = 10;
-  bytes module_files = 11;
-  bytes module_files_hash = 12;
-  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-  // still need to know that such resources are defined.
-  //
-  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
-  bool has_ai_tasks = 13;
-  repeated provisioner.AITask ai_tasks = 14;
-  bool has_external_agents = 15;
+  repeated Timing timings = 2;
+  bytes plan = 3;
+  int32 dailyCost = 4;
+  repeated ResourceReplacement resource_replacements = 5;
+  int32 ai_task_count = 6;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -465,11 +453,31 @@ message ApplyComplete {
   repeated provisioner.AITask ai_tasks = 7;
 }
 
+enum GraphSource {
+  SOURCE_UNKNOWN = 0;
+  SOURCE_PLAN = 1;
+  SOURCE_STATE = 2;
+}
+
 message GraphRequest {
+  GraphSource source = 1;
 }
 
 message GraphComplete {
-  string error = 2;
+  string error = 1;
+  repeated Timing timings = 2;
+  repeated Resource resources = 3;
+  repeated RichParameter parameters = 4;
+  repeated ExternalAuthProviderResource external_auth_providers = 5;
+  repeated Preset presets = 6;
+  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+  // still need to know that such resources are defined.
+  //
+  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+  bool has_ai_tasks = 7;
+  repeated provisioner.AITask ai_tasks = 8;
+  bool has_external_agents = 9;
 }
 
 message Timing {
