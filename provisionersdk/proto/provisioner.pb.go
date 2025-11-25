@@ -3057,9 +3057,9 @@ func (x *Metadata) GetTemplateVersionId() string {
 type Config struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// template_source_archive is a tar of the template source files
-	TemplateSourceArchive []byte `protobuf:"bytes,1,opt,name=template_source_archive,json=templateSourceArchive,proto3" json:"template_source_archive,omitempty"`
+	NoUseTemplateSourceArchive []byte `protobuf:"bytes,1,opt,name=no_use_template_source_archive,json=noUseTemplateSourceArchive,proto3" json:"no_use_template_source_archive,omitempty"`
 	// state is the provisioner state (if any)
-	State               []byte `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	NoUseState          []byte `protobuf:"bytes,2,opt,name=no_use_state,json=noUseState,proto3" json:"no_use_state,omitempty"`
 	ProvisionerLogLevel string `protobuf:"bytes,3,opt,name=provisioner_log_level,json=provisionerLogLevel,proto3" json:"provisioner_log_level,omitempty"`
 	// Template imports can omit template id
 	TemplateId *string `protobuf:"bytes,4,opt,name=template_id,json=templateId,proto3,oneof" json:"template_id,omitempty"`
@@ -3100,16 +3100,16 @@ func (*Config) Descriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{34}
 }
 
-func (x *Config) GetTemplateSourceArchive() []byte {
+func (x *Config) GetNoUseTemplateSourceArchive() []byte {
 	if x != nil {
-		return x.TemplateSourceArchive
+		return x.NoUseTemplateSourceArchive
 	}
 	return nil
 }
 
-func (x *Config) GetState() []byte {
+func (x *Config) GetNoUseState() []byte {
 	if x != nil {
-		return x.State
+		return x.NoUseState
 	}
 	return nil
 }
@@ -3249,9 +3249,16 @@ func (x *ParseComplete) GetWorkspaceTags() map[string]string {
 }
 
 type InitRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// template_source_archive is a tar of the template source files
+	TemplateSourceArchive []byte `protobuf:"bytes,1,opt,name=template_source_archive,json=templateSourceArchive,proto3" json:"template_source_archive,omitempty"`
+	// If true, the provisioner can safely assume the caller does not need the
+	// module files downloaded by the `terraform init` command.
+	// Ideally this boolean would be flipped in its truthy value, however since
+	// this is costly, the zero value omitting the module files is preferred.
+	OmitModuleFiles bool `protobuf:"varint,3,opt,name=omit_module_files,json=omitModuleFiles,proto3" json:"omit_module_files,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *InitRequest) Reset() {
@@ -3284,27 +3291,44 @@ func (*InitRequest) Descriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{37}
 }
 
-type InitResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+func (x *InitRequest) GetTemplateSourceArchive() []byte {
+	if x != nil {
+		return x.TemplateSourceArchive
+	}
+	return nil
 }
 
-func (x *InitResponse) Reset() {
-	*x = InitResponse{}
+func (x *InitRequest) GetOmitModuleFiles() bool {
+	if x != nil {
+		return x.OmitModuleFiles
+	}
+	return false
+}
+
+type InitComplete struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Error           string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	Modules         []*Module              `protobuf:"bytes,2,rep,name=modules,proto3" json:"modules,omitempty"`
+	ModuleFiles     []byte                 `protobuf:"bytes,3,opt,name=module_files,json=moduleFiles,proto3" json:"module_files,omitempty"`
+	ModuleFilesHash []byte                 `protobuf:"bytes,4,opt,name=module_files_hash,json=moduleFilesHash,proto3" json:"module_files_hash,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *InitComplete) Reset() {
+	*x = InitComplete{}
 	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *InitResponse) String() string {
+func (x *InitComplete) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*InitResponse) ProtoMessage() {}
+func (*InitComplete) ProtoMessage() {}
 
-func (x *InitResponse) ProtoReflect() protoreflect.Message {
+func (x *InitComplete) ProtoReflect() protoreflect.Message {
 	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3316,16 +3340,37 @@ func (x *InitResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InitResponse.ProtoReflect.Descriptor instead.
-func (*InitResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use InitComplete.ProtoReflect.Descriptor instead.
+func (*InitComplete) Descriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{38}
 }
 
-func (x *InitResponse) GetError() string {
+func (x *InitComplete) GetError() string {
 	if x != nil {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *InitComplete) GetModules() []*Module {
+	if x != nil {
+		return x.Modules
+	}
+	return nil
+}
+
+func (x *InitComplete) GetModuleFiles() []byte {
+	if x != nil {
+		return x.ModuleFiles
+	}
+	return nil
+}
+
+func (x *InitComplete) GetModuleFilesHash() []byte {
+	if x != nil {
+		return x.ModuleFilesHash
+	}
+	return nil
 }
 
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
@@ -3336,14 +3381,10 @@ type PlanRequest struct {
 	VariableValues          []*VariableValue        `protobuf:"bytes,3,rep,name=variable_values,json=variableValues,proto3" json:"variable_values,omitempty"`
 	ExternalAuthProviders   []*ExternalAuthProvider `protobuf:"bytes,4,rep,name=external_auth_providers,json=externalAuthProviders,proto3" json:"external_auth_providers,omitempty"`
 	PreviousParameterValues []*RichParameterValue   `protobuf:"bytes,5,rep,name=previous_parameter_values,json=previousParameterValues,proto3" json:"previous_parameter_values,omitempty"`
-	// If true, the provisioner can safely assume the caller does not need the
-	// module files downloaded by the `terraform init` command.
-	// Ideally this boolean would be flipped in its truthy value, however for
-	// backwards compatibility reasons, the zero value should be the previous
-	// behavior of downloading the module files.
-	OmitModuleFiles bool `protobuf:"varint,6,opt,name=omit_module_files,json=omitModuleFiles,proto3" json:"omit_module_files,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// state is the provisioner state (if any)
+	State         []byte `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PlanRequest) Reset() {
@@ -3411,11 +3452,11 @@ func (x *PlanRequest) GetPreviousParameterValues() []*RichParameterValue {
 	return nil
 }
 
-func (x *PlanRequest) GetOmitModuleFiles() bool {
+func (x *PlanRequest) GetState() []byte {
 	if x != nil {
-		return x.OmitModuleFiles
+		return x.State
 	}
-	return false
+	return nil
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -3575,8 +3616,10 @@ func (x *PlanComplete) GetHasExternalAgents() bool {
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
 // in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
 type ApplyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Metadata      *Metadata              `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Metadata *Metadata              `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// state is the provisioner state (if any)
+	State         []byte `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3614,6 +3657,13 @@ func (*ApplyRequest) Descriptor() ([]byte, []int) {
 func (x *ApplyRequest) GetMetadata() *Metadata {
 	if x != nil {
 		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ApplyRequest) GetState() []byte {
+	if x != nil {
+		return x.State
 	}
 	return nil
 }
@@ -3711,6 +3761,86 @@ func (x *ApplyComplete) GetAiTasks() []*AITask {
 	return nil
 }
 
+type GraphRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GraphRequest) Reset() {
+	*x = GraphRequest{}
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GraphRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GraphRequest) ProtoMessage() {}
+
+func (x *GraphRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GraphRequest.ProtoReflect.Descriptor instead.
+func (*GraphRequest) Descriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{43}
+}
+
+type GraphComplete struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GraphComplete) Reset() {
+	*x = GraphComplete{}
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GraphComplete) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GraphComplete) ProtoMessage() {}
+
+func (x *GraphComplete) ProtoReflect() protoreflect.Message {
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GraphComplete.ProtoReflect.Descriptor instead.
+func (*GraphComplete) Descriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *GraphComplete) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 type Timing struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Start         *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
@@ -3726,7 +3856,7 @@ type Timing struct {
 
 func (x *Timing) Reset() {
 	*x = Timing{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[43]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3738,7 +3868,7 @@ func (x *Timing) String() string {
 func (*Timing) ProtoMessage() {}
 
 func (x *Timing) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[43]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3751,7 +3881,7 @@ func (x *Timing) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Timing.ProtoReflect.Descriptor instead.
 func (*Timing) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{43}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *Timing) GetStart() *timestamppb.Timestamp {
@@ -3812,7 +3942,7 @@ type CancelRequest struct {
 
 func (x *CancelRequest) Reset() {
 	*x = CancelRequest{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[44]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3824,7 +3954,7 @@ func (x *CancelRequest) String() string {
 func (*CancelRequest) ProtoMessage() {}
 
 func (x *CancelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[44]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3837,7 +3967,7 @@ func (x *CancelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelRequest.ProtoReflect.Descriptor instead.
 func (*CancelRequest) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{44}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{46}
 }
 
 type Request struct {
@@ -3846,8 +3976,10 @@ type Request struct {
 	//
 	//	*Request_Config
 	//	*Request_Parse
+	//	*Request_Init
 	//	*Request_Plan
 	//	*Request_Apply
+	//	*Request_Graph
 	//	*Request_Cancel
 	Type          isRequest_Type `protobuf_oneof:"type"`
 	unknownFields protoimpl.UnknownFields
@@ -3856,7 +3988,7 @@ type Request struct {
 
 func (x *Request) Reset() {
 	*x = Request{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[45]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3868,7 +4000,7 @@ func (x *Request) String() string {
 func (*Request) ProtoMessage() {}
 
 func (x *Request) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[45]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3881,7 +4013,7 @@ func (x *Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Request.ProtoReflect.Descriptor instead.
 func (*Request) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{45}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *Request) GetType() isRequest_Type {
@@ -3909,6 +4041,15 @@ func (x *Request) GetParse() *ParseRequest {
 	return nil
 }
 
+func (x *Request) GetInit() *InitRequest {
+	if x != nil {
+		if x, ok := x.Type.(*Request_Init); ok {
+			return x.Init
+		}
+	}
+	return nil
+}
+
 func (x *Request) GetPlan() *PlanRequest {
 	if x != nil {
 		if x, ok := x.Type.(*Request_Plan); ok {
@@ -3922,6 +4063,15 @@ func (x *Request) GetApply() *ApplyRequest {
 	if x != nil {
 		if x, ok := x.Type.(*Request_Apply); ok {
 			return x.Apply
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetGraph() *GraphRequest {
+	if x != nil {
+		if x, ok := x.Type.(*Request_Graph); ok {
+			return x.Graph
 		}
 	}
 	return nil
@@ -3948,25 +4098,37 @@ type Request_Parse struct {
 	Parse *ParseRequest `protobuf:"bytes,2,opt,name=parse,proto3,oneof"`
 }
 
+type Request_Init struct {
+	Init *InitRequest `protobuf:"bytes,3,opt,name=init,proto3,oneof"`
+}
+
 type Request_Plan struct {
-	Plan *PlanRequest `protobuf:"bytes,3,opt,name=plan,proto3,oneof"`
+	Plan *PlanRequest `protobuf:"bytes,4,opt,name=plan,proto3,oneof"`
 }
 
 type Request_Apply struct {
-	Apply *ApplyRequest `protobuf:"bytes,4,opt,name=apply,proto3,oneof"`
+	Apply *ApplyRequest `protobuf:"bytes,5,opt,name=apply,proto3,oneof"`
+}
+
+type Request_Graph struct {
+	Graph *GraphRequest `protobuf:"bytes,6,opt,name=graph,proto3,oneof"`
 }
 
 type Request_Cancel struct {
-	Cancel *CancelRequest `protobuf:"bytes,5,opt,name=cancel,proto3,oneof"`
+	Cancel *CancelRequest `protobuf:"bytes,7,opt,name=cancel,proto3,oneof"`
 }
 
 func (*Request_Config) isRequest_Type() {}
 
 func (*Request_Parse) isRequest_Type() {}
 
+func (*Request_Init) isRequest_Type() {}
+
 func (*Request_Plan) isRequest_Type() {}
 
 func (*Request_Apply) isRequest_Type() {}
+
+func (*Request_Graph) isRequest_Type() {}
 
 func (*Request_Cancel) isRequest_Type() {}
 
@@ -3976,8 +4138,10 @@ type Response struct {
 	//
 	//	*Response_Log
 	//	*Response_Parse
+	//	*Response_Init
 	//	*Response_Plan
 	//	*Response_Apply
+	//	*Response_Graph
 	//	*Response_DataUpload
 	//	*Response_ChunkPiece
 	Type          isResponse_Type `protobuf_oneof:"type"`
@@ -3987,7 +4151,7 @@ type Response struct {
 
 func (x *Response) Reset() {
 	*x = Response{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[46]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3999,7 +4163,7 @@ func (x *Response) String() string {
 func (*Response) ProtoMessage() {}
 
 func (x *Response) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[46]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4012,7 +4176,7 @@ func (x *Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Response.ProtoReflect.Descriptor instead.
 func (*Response) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{46}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *Response) GetType() isResponse_Type {
@@ -4040,6 +4204,15 @@ func (x *Response) GetParse() *ParseComplete {
 	return nil
 }
 
+func (x *Response) GetInit() *InitComplete {
+	if x != nil {
+		if x, ok := x.Type.(*Response_Init); ok {
+			return x.Init
+		}
+	}
+	return nil
+}
+
 func (x *Response) GetPlan() *PlanComplete {
 	if x != nil {
 		if x, ok := x.Type.(*Response_Plan); ok {
@@ -4053,6 +4226,15 @@ func (x *Response) GetApply() *ApplyComplete {
 	if x != nil {
 		if x, ok := x.Type.(*Response_Apply); ok {
 			return x.Apply
+		}
+	}
+	return nil
+}
+
+func (x *Response) GetGraph() *GraphComplete {
+	if x != nil {
+		if x, ok := x.Type.(*Response_Graph); ok {
+			return x.Graph
 		}
 	}
 	return nil
@@ -4088,29 +4270,41 @@ type Response_Parse struct {
 	Parse *ParseComplete `protobuf:"bytes,2,opt,name=parse,proto3,oneof"`
 }
 
+type Response_Init struct {
+	Init *InitComplete `protobuf:"bytes,3,opt,name=init,proto3,oneof"`
+}
+
 type Response_Plan struct {
-	Plan *PlanComplete `protobuf:"bytes,3,opt,name=plan,proto3,oneof"`
+	Plan *PlanComplete `protobuf:"bytes,4,opt,name=plan,proto3,oneof"`
 }
 
 type Response_Apply struct {
-	Apply *ApplyComplete `protobuf:"bytes,4,opt,name=apply,proto3,oneof"`
+	Apply *ApplyComplete `protobuf:"bytes,5,opt,name=apply,proto3,oneof"`
+}
+
+type Response_Graph struct {
+	Graph *GraphComplete `protobuf:"bytes,6,opt,name=graph,proto3,oneof"`
 }
 
 type Response_DataUpload struct {
-	DataUpload *DataUpload `protobuf:"bytes,5,opt,name=data_upload,json=dataUpload,proto3,oneof"`
+	DataUpload *DataUpload `protobuf:"bytes,7,opt,name=data_upload,json=dataUpload,proto3,oneof"`
 }
 
 type Response_ChunkPiece struct {
-	ChunkPiece *ChunkPiece `protobuf:"bytes,6,opt,name=chunk_piece,json=chunkPiece,proto3,oneof"`
+	ChunkPiece *ChunkPiece `protobuf:"bytes,8,opt,name=chunk_piece,json=chunkPiece,proto3,oneof"`
 }
 
 func (*Response_Log) isResponse_Type() {}
 
 func (*Response_Parse) isResponse_Type() {}
 
+func (*Response_Init) isResponse_Type() {}
+
 func (*Response_Plan) isResponse_Type() {}
 
 func (*Response_Apply) isResponse_Type() {}
+
+func (*Response_Graph) isResponse_Type() {}
 
 func (*Response_DataUpload) isResponse_Type() {}
 
@@ -4132,7 +4326,7 @@ type DataUpload struct {
 
 func (x *DataUpload) Reset() {
 	*x = DataUpload{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[47]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4144,7 +4338,7 @@ func (x *DataUpload) String() string {
 func (*DataUpload) ProtoMessage() {}
 
 func (x *DataUpload) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[47]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4157,7 +4351,7 @@ func (x *DataUpload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataUpload.ProtoReflect.Descriptor instead.
 func (*DataUpload) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{47}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *DataUpload) GetUploadType() DataUploadType {
@@ -4202,7 +4396,7 @@ type ChunkPiece struct {
 
 func (x *ChunkPiece) Reset() {
 	*x = ChunkPiece{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[48]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4214,7 +4408,7 @@ func (x *ChunkPiece) String() string {
 func (*ChunkPiece) ProtoMessage() {}
 
 func (x *ChunkPiece) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[48]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4227,7 +4421,7 @@ func (x *ChunkPiece) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChunkPiece.ProtoReflect.Descriptor instead.
 func (*ChunkPiece) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{48}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ChunkPiece) GetData() []byte {
@@ -4265,7 +4459,7 @@ type Agent_Metadata struct {
 
 func (x *Agent_Metadata) Reset() {
 	*x = Agent_Metadata{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[49]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4277,7 +4471,7 @@ func (x *Agent_Metadata) String() string {
 func (*Agent_Metadata) ProtoMessage() {}
 
 func (x *Agent_Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[49]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4347,7 +4541,7 @@ type Resource_Metadata struct {
 
 func (x *Resource_Metadata) Reset() {
 	*x = Resource_Metadata{}
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[51]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4359,7 +4553,7 @@ func (x *Resource_Metadata) String() string {
 func (*Resource_Metadata) ProtoMessage() {}
 
 func (x *Resource_Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[51]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4647,10 +4841,11 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\atask_id\x18\x16 \x01(\tR\x06taskId\x12\x1f\n" +
 	"\vtask_prompt\x18\x17 \x01(\tR\n" +
 	"taskPrompt\x12.\n" +
-	"\x13template_version_id\x18\x18 \x01(\tR\x11templateVersionId\"\xf7\x02\n" +
-	"\x06Config\x126\n" +
-	"\x17template_source_archive\x18\x01 \x01(\fR\x15templateSourceArchive\x12\x14\n" +
-	"\x05state\x18\x02 \x01(\fR\x05state\x122\n" +
+	"\x13template_version_id\x18\x18 \x01(\tR\x11templateVersionId\"\x8f\x03\n" +
+	"\x06Config\x12B\n" +
+	"\x1eno_use_template_source_archive\x18\x01 \x01(\fR\x1anoUseTemplateSourceArchive\x12 \n" +
+	"\fno_use_state\x18\x02 \x01(\fR\n" +
+	"noUseState\x122\n" +
 	"\x15provisioner_log_level\x18\x03 \x01(\tR\x13provisionerLogLevel\x12$\n" +
 	"\vtemplate_id\x18\x04 \x01(\tH\x00R\n" +
 	"templateId\x88\x01\x01\x123\n" +
@@ -4667,17 +4862,22 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\x0eworkspace_tags\x18\x04 \x03(\v2-.provisioner.ParseComplete.WorkspaceTagsEntryR\rworkspaceTags\x1a@\n" +
 	"\x12WorkspaceTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\r\n" +
-	"\vInitRequest\"$\n" +
-	"\fInitResponse\x12\x14\n" +
-	"\x05error\x18\x01 \x01(\tR\x05error\"\xbe\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"q\n" +
+	"\vInitRequest\x126\n" +
+	"\x17template_source_archive\x18\x01 \x01(\fR\x15templateSourceArchive\x12*\n" +
+	"\x11omit_module_files\x18\x03 \x01(\bR\x0fomitModuleFiles\"\xa2\x01\n" +
+	"\fInitComplete\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\x12-\n" +
+	"\amodules\x18\x02 \x03(\v2\x13.provisioner.ModuleR\amodules\x12!\n" +
+	"\fmodule_files\x18\x03 \x01(\fR\vmoduleFiles\x12*\n" +
+	"\x11module_files_hash\x18\x04 \x01(\fR\x0fmoduleFilesHash\"\xa8\x03\n" +
 	"\vPlanRequest\x121\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x15.provisioner.MetadataR\bmetadata\x12S\n" +
 	"\x15rich_parameter_values\x18\x02 \x03(\v2\x1f.provisioner.RichParameterValueR\x13richParameterValues\x12C\n" +
 	"\x0fvariable_values\x18\x03 \x03(\v2\x1a.provisioner.VariableValueR\x0evariableValues\x12Y\n" +
 	"\x17external_auth_providers\x18\x04 \x03(\v2!.provisioner.ExternalAuthProviderR\x15externalAuthProviders\x12[\n" +
-	"\x19previous_parameter_values\x18\x05 \x03(\v2\x1f.provisioner.RichParameterValueR\x17previousParameterValues\x12*\n" +
-	"\x11omit_module_files\x18\x06 \x01(\bR\x0fomitModuleFiles\"\xc1\x05\n" +
+	"\x19previous_parameter_values\x18\x05 \x03(\v2\x1f.provisioner.RichParameterValueR\x17previousParameterValues\x12\x14\n" +
+	"\x05state\x18\x06 \x01(\fR\x05state\"\xc1\x05\n" +
 	"\fPlanComplete\x12\x14\n" +
 	"\x05error\x18\x01 \x01(\tR\x05error\x123\n" +
 	"\tresources\x18\x02 \x03(\v2\x15.provisioner.ResourceR\tresources\x12:\n" +
@@ -4696,9 +4896,10 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\fhas_ai_tasks\x18\r \x01(\bR\n" +
 	"hasAiTasks\x12.\n" +
 	"\bai_tasks\x18\x0e \x03(\v2\x13.provisioner.AITaskR\aaiTasks\x12.\n" +
-	"\x13has_external_agents\x18\x0f \x01(\bR\x11hasExternalAgents\"A\n" +
+	"\x13has_external_agents\x18\x0f \x01(\bR\x11hasExternalAgents\"W\n" +
 	"\fApplyRequest\x121\n" +
-	"\bmetadata\x18\x01 \x01(\v2\x15.provisioner.MetadataR\bmetadata\"\xee\x02\n" +
+	"\bmetadata\x18\x01 \x01(\v2\x15.provisioner.MetadataR\bmetadata\x12\x14\n" +
+	"\x05state\x18\x06 \x01(\fR\x05state\"\xee\x02\n" +
 	"\rApplyComplete\x12\x14\n" +
 	"\x05state\x18\x01 \x01(\fR\x05state\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x123\n" +
@@ -4708,7 +4909,10 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"parameters\x12a\n" +
 	"\x17external_auth_providers\x18\x05 \x03(\v2).provisioner.ExternalAuthProviderResourceR\x15externalAuthProviders\x12-\n" +
 	"\atimings\x18\x06 \x03(\v2\x13.provisioner.TimingR\atimings\x12.\n" +
-	"\bai_tasks\x18\a \x03(\v2\x13.provisioner.AITaskR\aaiTasks\"\xfa\x01\n" +
+	"\bai_tasks\x18\a \x03(\v2\x13.provisioner.AITaskR\aaiTasks\"\x0e\n" +
+	"\fGraphRequest\"%\n" +
+	"\rGraphComplete\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\xfa\x01\n" +
 	"\x06Timing\x120\n" +
 	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12,\n" +
 	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\x12\x16\n" +
@@ -4717,22 +4921,26 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\bresource\x18\x05 \x01(\tR\bresource\x12\x14\n" +
 	"\x05stage\x18\x06 \x01(\tR\x05stage\x12.\n" +
 	"\x05state\x18\a \x01(\x0e2\x18.provisioner.TimingStateR\x05state\"\x0f\n" +
-	"\rCancelRequest\"\x8c\x02\n" +
+	"\rCancelRequest\"\xef\x02\n" +
 	"\aRequest\x12-\n" +
 	"\x06config\x18\x01 \x01(\v2\x13.provisioner.ConfigH\x00R\x06config\x121\n" +
 	"\x05parse\x18\x02 \x01(\v2\x19.provisioner.ParseRequestH\x00R\x05parse\x12.\n" +
-	"\x04plan\x18\x03 \x01(\v2\x18.provisioner.PlanRequestH\x00R\x04plan\x121\n" +
-	"\x05apply\x18\x04 \x01(\v2\x19.provisioner.ApplyRequestH\x00R\x05apply\x124\n" +
-	"\x06cancel\x18\x05 \x01(\v2\x1a.provisioner.CancelRequestH\x00R\x06cancelB\x06\n" +
-	"\x04type\"\xc9\x02\n" +
+	"\x04init\x18\x03 \x01(\v2\x18.provisioner.InitRequestH\x00R\x04init\x12.\n" +
+	"\x04plan\x18\x04 \x01(\v2\x18.provisioner.PlanRequestH\x00R\x04plan\x121\n" +
+	"\x05apply\x18\x05 \x01(\v2\x19.provisioner.ApplyRequestH\x00R\x05apply\x121\n" +
+	"\x05graph\x18\x06 \x01(\v2\x19.provisioner.GraphRequestH\x00R\x05graph\x124\n" +
+	"\x06cancel\x18\a \x01(\v2\x1a.provisioner.CancelRequestH\x00R\x06cancelB\x06\n" +
+	"\x04type\"\xae\x03\n" +
 	"\bResponse\x12$\n" +
 	"\x03log\x18\x01 \x01(\v2\x10.provisioner.LogH\x00R\x03log\x122\n" +
 	"\x05parse\x18\x02 \x01(\v2\x1a.provisioner.ParseCompleteH\x00R\x05parse\x12/\n" +
-	"\x04plan\x18\x03 \x01(\v2\x19.provisioner.PlanCompleteH\x00R\x04plan\x122\n" +
-	"\x05apply\x18\x04 \x01(\v2\x1a.provisioner.ApplyCompleteH\x00R\x05apply\x12:\n" +
-	"\vdata_upload\x18\x05 \x01(\v2\x17.provisioner.DataUploadH\x00R\n" +
+	"\x04init\x18\x03 \x01(\v2\x19.provisioner.InitCompleteH\x00R\x04init\x12/\n" +
+	"\x04plan\x18\x04 \x01(\v2\x19.provisioner.PlanCompleteH\x00R\x04plan\x122\n" +
+	"\x05apply\x18\x05 \x01(\v2\x1a.provisioner.ApplyCompleteH\x00R\x05apply\x122\n" +
+	"\x05graph\x18\x06 \x01(\v2\x1a.provisioner.GraphCompleteH\x00R\x05graph\x12:\n" +
+	"\vdata_upload\x18\a \x01(\v2\x17.provisioner.DataUploadH\x00R\n" +
 	"dataUpload\x12:\n" +
-	"\vchunk_piece\x18\x06 \x01(\v2\x17.provisioner.ChunkPieceH\x00R\n" +
+	"\vchunk_piece\x18\b \x01(\v2\x17.provisioner.ChunkPieceH\x00R\n" +
 	"chunkPieceB\x06\n" +
 	"\x04type\"\x9c\x01\n" +
 	"\n" +
@@ -4812,7 +5020,7 @@ func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 }
 
 var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 53)
+var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_provisionersdk_proto_provisioner_proto_goTypes = []any{
 	(ParameterFormType)(0),               // 0: provisioner.ParameterFormType
 	(LogLevel)(0),                        // 1: provisioner.LogLevel
@@ -4860,22 +5068,24 @@ var file_provisionersdk_proto_provisioner_proto_goTypes = []any{
 	(*ParseRequest)(nil),                 // 43: provisioner.ParseRequest
 	(*ParseComplete)(nil),                // 44: provisioner.ParseComplete
 	(*InitRequest)(nil),                  // 45: provisioner.InitRequest
-	(*InitResponse)(nil),                 // 46: provisioner.InitResponse
+	(*InitComplete)(nil),                 // 46: provisioner.InitComplete
 	(*PlanRequest)(nil),                  // 47: provisioner.PlanRequest
 	(*PlanComplete)(nil),                 // 48: provisioner.PlanComplete
 	(*ApplyRequest)(nil),                 // 49: provisioner.ApplyRequest
 	(*ApplyComplete)(nil),                // 50: provisioner.ApplyComplete
-	(*Timing)(nil),                       // 51: provisioner.Timing
-	(*CancelRequest)(nil),                // 52: provisioner.CancelRequest
-	(*Request)(nil),                      // 53: provisioner.Request
-	(*Response)(nil),                     // 54: provisioner.Response
-	(*DataUpload)(nil),                   // 55: provisioner.DataUpload
-	(*ChunkPiece)(nil),                   // 56: provisioner.ChunkPiece
-	(*Agent_Metadata)(nil),               // 57: provisioner.Agent.Metadata
-	nil,                                  // 58: provisioner.Agent.EnvEntry
-	(*Resource_Metadata)(nil),            // 59: provisioner.Resource.Metadata
-	nil,                                  // 60: provisioner.ParseComplete.WorkspaceTagsEntry
-	(*timestamppb.Timestamp)(nil),        // 61: google.protobuf.Timestamp
+	(*GraphRequest)(nil),                 // 51: provisioner.GraphRequest
+	(*GraphComplete)(nil),                // 52: provisioner.GraphComplete
+	(*Timing)(nil),                       // 53: provisioner.Timing
+	(*CancelRequest)(nil),                // 54: provisioner.CancelRequest
+	(*Request)(nil),                      // 55: provisioner.Request
+	(*Response)(nil),                     // 56: provisioner.Response
+	(*DataUpload)(nil),                   // 57: provisioner.DataUpload
+	(*ChunkPiece)(nil),                   // 58: provisioner.ChunkPiece
+	(*Agent_Metadata)(nil),               // 59: provisioner.Agent.Metadata
+	nil,                                  // 60: provisioner.Agent.EnvEntry
+	(*Resource_Metadata)(nil),            // 61: provisioner.Resource.Metadata
+	nil,                                  // 62: provisioner.ParseComplete.WorkspaceTagsEntry
+	(*timestamppb.Timestamp)(nil),        // 63: google.protobuf.Timestamp
 }
 var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
 	10, // 0: provisioner.RichParameter.options:type_name -> provisioner.RichParameterOption
@@ -4886,9 +5096,9 @@ var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
 	18, // 5: provisioner.Preset.parameters:type_name -> provisioner.PresetParameter
 	16, // 6: provisioner.Preset.prebuild:type_name -> provisioner.Prebuild
 	1,  // 7: provisioner.Log.level:type_name -> provisioner.LogLevel
-	58, // 8: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
+	60, // 8: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
 	33, // 9: provisioner.Agent.apps:type_name -> provisioner.App
-	57, // 10: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
+	59, // 10: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
 	29, // 11: provisioner.Agent.display_apps:type_name -> provisioner.DisplayApps
 	31, // 12: provisioner.Agent.scripts:type_name -> provisioner.Script
 	30, // 13: provisioner.Agent.extra_envs:type_name -> provisioner.Env
@@ -4900,55 +5110,60 @@ var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
 	2,  // 19: provisioner.App.sharing_level:type_name -> provisioner.AppSharingLevel
 	3,  // 20: provisioner.App.open_in:type_name -> provisioner.AppOpenIn
 	25, // 21: provisioner.Resource.agents:type_name -> provisioner.Agent
-	59, // 22: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
+	61, // 22: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
 	39, // 23: provisioner.AITask.sidebar_app:type_name -> provisioner.AITaskSidebarApp
 	4,  // 24: provisioner.Metadata.workspace_transition:type_name -> provisioner.WorkspaceTransition
 	37, // 25: provisioner.Metadata.workspace_owner_rbac_roles:type_name -> provisioner.Role
 	5,  // 26: provisioner.Metadata.prebuilt_workspace_build_stage:type_name -> provisioner.PrebuiltWorkspaceBuildStage
 	38, // 27: provisioner.Metadata.running_agent_auth_tokens:type_name -> provisioner.RunningAgentAuthToken
 	9,  // 28: provisioner.ParseComplete.template_variables:type_name -> provisioner.TemplateVariable
-	60, // 29: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
-	41, // 30: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
-	12, // 31: provisioner.PlanRequest.rich_parameter_values:type_name -> provisioner.RichParameterValue
-	20, // 32: provisioner.PlanRequest.variable_values:type_name -> provisioner.VariableValue
-	24, // 33: provisioner.PlanRequest.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
-	12, // 34: provisioner.PlanRequest.previous_parameter_values:type_name -> provisioner.RichParameterValue
-	35, // 35: provisioner.PlanComplete.resources:type_name -> provisioner.Resource
-	11, // 36: provisioner.PlanComplete.parameters:type_name -> provisioner.RichParameter
-	23, // 37: provisioner.PlanComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	51, // 38: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
-	36, // 39: provisioner.PlanComplete.modules:type_name -> provisioner.Module
-	17, // 40: provisioner.PlanComplete.presets:type_name -> provisioner.Preset
-	19, // 41: provisioner.PlanComplete.resource_replacements:type_name -> provisioner.ResourceReplacement
-	40, // 42: provisioner.PlanComplete.ai_tasks:type_name -> provisioner.AITask
-	41, // 43: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
-	35, // 44: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
-	11, // 45: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
-	23, // 46: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	51, // 47: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
-	40, // 48: provisioner.ApplyComplete.ai_tasks:type_name -> provisioner.AITask
-	61, // 49: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
-	61, // 50: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
-	6,  // 51: provisioner.Timing.state:type_name -> provisioner.TimingState
-	42, // 52: provisioner.Request.config:type_name -> provisioner.Config
-	43, // 53: provisioner.Request.parse:type_name -> provisioner.ParseRequest
-	47, // 54: provisioner.Request.plan:type_name -> provisioner.PlanRequest
-	49, // 55: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
-	52, // 56: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
-	21, // 57: provisioner.Response.log:type_name -> provisioner.Log
-	44, // 58: provisioner.Response.parse:type_name -> provisioner.ParseComplete
-	48, // 59: provisioner.Response.plan:type_name -> provisioner.PlanComplete
-	50, // 60: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
-	55, // 61: provisioner.Response.data_upload:type_name -> provisioner.DataUpload
-	56, // 62: provisioner.Response.chunk_piece:type_name -> provisioner.ChunkPiece
-	7,  // 63: provisioner.DataUpload.upload_type:type_name -> provisioner.DataUploadType
-	53, // 64: provisioner.Provisioner.Session:input_type -> provisioner.Request
-	54, // 65: provisioner.Provisioner.Session:output_type -> provisioner.Response
-	65, // [65:66] is the sub-list for method output_type
-	64, // [64:65] is the sub-list for method input_type
-	64, // [64:64] is the sub-list for extension type_name
-	64, // [64:64] is the sub-list for extension extendee
-	0,  // [0:64] is the sub-list for field type_name
+	62, // 29: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
+	36, // 30: provisioner.InitComplete.modules:type_name -> provisioner.Module
+	41, // 31: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
+	12, // 32: provisioner.PlanRequest.rich_parameter_values:type_name -> provisioner.RichParameterValue
+	20, // 33: provisioner.PlanRequest.variable_values:type_name -> provisioner.VariableValue
+	24, // 34: provisioner.PlanRequest.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
+	12, // 35: provisioner.PlanRequest.previous_parameter_values:type_name -> provisioner.RichParameterValue
+	35, // 36: provisioner.PlanComplete.resources:type_name -> provisioner.Resource
+	11, // 37: provisioner.PlanComplete.parameters:type_name -> provisioner.RichParameter
+	23, // 38: provisioner.PlanComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	53, // 39: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
+	36, // 40: provisioner.PlanComplete.modules:type_name -> provisioner.Module
+	17, // 41: provisioner.PlanComplete.presets:type_name -> provisioner.Preset
+	19, // 42: provisioner.PlanComplete.resource_replacements:type_name -> provisioner.ResourceReplacement
+	40, // 43: provisioner.PlanComplete.ai_tasks:type_name -> provisioner.AITask
+	41, // 44: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
+	35, // 45: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
+	11, // 46: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
+	23, // 47: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	53, // 48: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
+	40, // 49: provisioner.ApplyComplete.ai_tasks:type_name -> provisioner.AITask
+	63, // 50: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
+	63, // 51: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
+	6,  // 52: provisioner.Timing.state:type_name -> provisioner.TimingState
+	42, // 53: provisioner.Request.config:type_name -> provisioner.Config
+	43, // 54: provisioner.Request.parse:type_name -> provisioner.ParseRequest
+	45, // 55: provisioner.Request.init:type_name -> provisioner.InitRequest
+	47, // 56: provisioner.Request.plan:type_name -> provisioner.PlanRequest
+	49, // 57: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
+	51, // 58: provisioner.Request.graph:type_name -> provisioner.GraphRequest
+	54, // 59: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
+	21, // 60: provisioner.Response.log:type_name -> provisioner.Log
+	44, // 61: provisioner.Response.parse:type_name -> provisioner.ParseComplete
+	46, // 62: provisioner.Response.init:type_name -> provisioner.InitComplete
+	48, // 63: provisioner.Response.plan:type_name -> provisioner.PlanComplete
+	50, // 64: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
+	52, // 65: provisioner.Response.graph:type_name -> provisioner.GraphComplete
+	57, // 66: provisioner.Response.data_upload:type_name -> provisioner.DataUpload
+	58, // 67: provisioner.Response.chunk_piece:type_name -> provisioner.ChunkPiece
+	7,  // 68: provisioner.DataUpload.upload_type:type_name -> provisioner.DataUploadType
+	55, // 69: provisioner.Provisioner.Session:input_type -> provisioner.Request
+	56, // 70: provisioner.Provisioner.Session:output_type -> provisioner.Response
+	70, // [70:71] is the sub-list for method output_type
+	69, // [69:70] is the sub-list for method input_type
+	69, // [69:69] is the sub-list for extension type_name
+	69, // [69:69] is the sub-list for extension extendee
+	0,  // [0:69] is the sub-list for field type_name
 }
 
 func init() { file_provisionersdk_proto_provisioner_proto_init() }
@@ -4963,18 +5178,22 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 	}
 	file_provisionersdk_proto_provisioner_proto_msgTypes[32].OneofWrappers = []any{}
 	file_provisionersdk_proto_provisioner_proto_msgTypes[34].OneofWrappers = []any{}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[45].OneofWrappers = []any{
+	file_provisionersdk_proto_provisioner_proto_msgTypes[47].OneofWrappers = []any{
 		(*Request_Config)(nil),
 		(*Request_Parse)(nil),
+		(*Request_Init)(nil),
 		(*Request_Plan)(nil),
 		(*Request_Apply)(nil),
+		(*Request_Graph)(nil),
 		(*Request_Cancel)(nil),
 	}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[46].OneofWrappers = []any{
+	file_provisionersdk_proto_provisioner_proto_msgTypes[48].OneofWrappers = []any{
 		(*Response_Log)(nil),
 		(*Response_Parse)(nil),
+		(*Response_Init)(nil),
 		(*Response_Plan)(nil),
 		(*Response_Apply)(nil),
+		(*Response_Graph)(nil),
 		(*Response_DataUpload)(nil),
 		(*Response_ChunkPiece)(nil),
 	}
@@ -4984,7 +5203,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_provisionersdk_proto_provisioner_proto_rawDesc), len(file_provisionersdk_proto_provisioner_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   53,
+			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

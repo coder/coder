@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
-	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
 
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -57,7 +56,7 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	}
 
 	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
-		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
+		//s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
 	}
 
 	// Cleanup any previously left stale sessions.
@@ -66,10 +65,6 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.Files, err)
 	}
 
-	err = s.Files.ExtractArchive(s.Context(), s.Logger, afero.NewOsFs(), s.Config)
-	if err != nil {
-		return xerrors.Errorf("extract archive: %w", err)
-	}
 	return s.handleRequests()
 }
 
@@ -129,7 +124,26 @@ func (s *Session) handleRequests() error {
 			}
 			resp.Type = &proto.Response_Parse{Parse: complete}
 		}
+		if init := req.GetInit(); init != nil {
+			r := &request[*proto.InitRequest, *proto.InitComplete]{
+				req:      init,
+				session:  s,
+				serverFn: s.server.Init,
+				cancels:  requests,
+			}
+			complete, err := r.do()
+			if err != nil {
+				return err
+			}
+			resp.Type = &proto.Response_Init{Init: complete}
+			if complete.Error == "" {
+				s.initialized = &initialized{}
+			}
+		}
 		if plan := req.GetPlan(); plan != nil {
+			if s.initialized == nil {
+				return xerrors.New("cannot plan before successful init")
+			}
 			planResp := s.handlePlanRequest(plan, requests)
 			if planResp.Error == "" {
 				planned = true
@@ -206,9 +220,16 @@ type Session struct {
 	Files  tfpath.Layouter
 	Config *proto.Config
 
+	// initialized indicates if an init was run.
+	// Required for plan/apply.
+	initialized *initialized
+
 	server   Server
 	stream   proto.DRPCProvisioner_SessionStream
 	logLevel int32
+}
+
+type initialized struct {
 }
 
 func (s *Session) Context() context.Context {
@@ -231,11 +252,11 @@ func (s *Session) ProvisionLog(level proto.LogLevel, output string) {
 }
 
 type pRequest interface {
-	*proto.ParseRequest | *proto.PlanRequest | *proto.ApplyRequest
+	*proto.ParseRequest | *proto.InitRequest | *proto.PlanRequest | *proto.ApplyRequest | *proto.GraphRequest
 }
 
 type pComplete interface {
-	*proto.ParseComplete | *proto.PlanComplete | *proto.ApplyComplete
+	*proto.ParseComplete | *proto.InitComplete | *proto.PlanComplete | *proto.ApplyComplete | *proto.GraphComplete
 }
 
 // request processes a single request call to the Server and returns its complete result, while also processing cancel

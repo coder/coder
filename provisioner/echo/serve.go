@@ -174,6 +174,11 @@ func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan
 	return provisionersdk.ParseErrorf("complete response missing")
 }
 
+func (e *echo) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+	//TODO implement me
+	panic("implement me")
+}
+
 // Plan reads requests from the provided directory to stream responses.
 func (*echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete {
 	responses, err := readResponses(

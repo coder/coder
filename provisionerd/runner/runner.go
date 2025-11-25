@@ -515,7 +515,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	defer span.End()
 
 	failedJob := r.configure(&sdkproto.Config{
-		TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
+		//TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
 		TemplateId:                 strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
 		TemplateVersionId:          strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
 		ExpReuseTerraformWorkspace: ptr.Ref(false),
@@ -708,7 +708,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		// Template import has no previous values
 		PreviousParameterValues: make([]*sdkproto.RichParameterValue, 0),
 		VariableValues:          variableValues,
-		OmitModuleFiles:         omitModules,
+		//OmitModuleFiles:         omitModules,
 	}}})
 	if err != nil {
 		return nil, xerrors.Errorf("start provision: %w", err)
@@ -855,7 +855,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	failedJob := r.configure(&sdkproto.Config{
-		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
+		//TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
 	})
 	if failedJob != nil {
 		return nil, failedJob
@@ -1014,8 +1014,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	failedJob := r.configure(&sdkproto.Config{
-		TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
-		State:                      r.job.GetWorkspaceBuild().State,
+		//TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
+		//State:                      r.job.GetWorkspaceBuild().State,
 		ProvisionerLogLevel:        r.job.GetWorkspaceBuild().LogLevel,
 		TemplateId:                 strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
 		TemplateVersionId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
@@ -1025,10 +1025,31 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		return nil, failedJob
 	}
 
+	initComplete, failedJob := r.init(ctx, true, r.job.GetTemplateSourceArchive())
+	if failedJob != nil {
+		return nil, failedJob
+	}
+	if initComplete == nil {
+		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during init")
+	}
+	if initComplete.Error != "" {
+		r.logger.Warn(context.Background(), "plan request failed",
+			slog.F("error", initComplete.Error),
+		)
+
+		return nil, &proto.FailedJob{
+			JobId: r.job.JobId,
+			Error: initComplete.Error,
+			Type: &proto.FailedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{},
+			},
+		}
+	}
+
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
 		Type: &sdkproto.Request_Plan{
 			Plan: &sdkproto.PlanRequest{
-				OmitModuleFiles:         true, // Only useful for template imports
+				//OmitModuleFiles:         true, // Only useful for template imports
 				Metadata:                r.job.GetWorkspaceBuild().Metadata,
 				RichParameterValues:     r.job.GetWorkspaceBuild().RichParameterValues,
 				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
