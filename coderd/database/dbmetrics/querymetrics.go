@@ -312,6 +312,13 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
+func (m queryMetricsStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteExpiredAPIKeys(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteExpiredAPIKeys").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteExternalAuthLink(ctx, arg)

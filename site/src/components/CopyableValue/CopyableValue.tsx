@@ -1,7 +1,6 @@
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useClickable } from "hooks/useClickable";
@@ -37,55 +36,53 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	});
 
 	return (
-		<TooltipProvider delayDuration={100}>
-			<Tooltip
-				open={tooltipOpen}
-				onOpenChange={(shouldBeOpen) => {
-					// Always keep the tooltip open when in focus to handle issues when onOpenChange is unexpectedly false
-					if (!shouldBeOpen && isFocused) return;
-					setTooltipOpen(shouldBeOpen);
-				}}
-			>
-				<TooltipTrigger asChild>
-					<span
-						ref={clickableProps.ref}
-						{...attrs}
-						className={cn("cursor-pointer", className)}
-						role={role ?? clickableProps.role}
-						tabIndex={tabIndex ?? clickableProps.tabIndex}
-						onClick={(event) => {
-							clickableProps.onClick(event);
-							onClick?.(event);
-						}}
-						onKeyDown={(event) => {
-							clickableProps.onKeyDown(event);
-							onKeyDown?.(event);
-						}}
-						onKeyUp={(event) => {
-							clickableProps.onKeyUp(event);
-							onKeyUp?.(event);
-						}}
-						onMouseEnter={() => {
-							setIsFocused(true);
-							setTooltipOpen(true);
-						}}
-						onMouseLeave={() => {
-							setTooltipOpen(false);
-						}}
-						onFocus={() => {
-							setIsFocused(true);
-						}}
-						onBlur={() => {
-							setTooltipOpen(false);
-						}}
-					>
-						{children}
-					</span>
-				</TooltipTrigger>
-				<TooltipContent side={side}>
-					{showCopiedSuccess ? "Copied!" : "Click to copy"}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip
+			open={tooltipOpen}
+			onOpenChange={(shouldBeOpen) => {
+				// Always keep the tooltip open when in focus to handle issues when onOpenChange is unexpectedly false
+				if (!shouldBeOpen && isFocused) return;
+				setTooltipOpen(shouldBeOpen);
+			}}
+		>
+			<TooltipTrigger asChild>
+				<span
+					ref={clickableProps.ref}
+					{...attrs}
+					className={cn("cursor-pointer", className)}
+					role={role ?? clickableProps.role}
+					tabIndex={tabIndex ?? clickableProps.tabIndex}
+					onClick={(event) => {
+						clickableProps.onClick(event);
+						onClick?.(event);
+					}}
+					onKeyDown={(event) => {
+						clickableProps.onKeyDown(event);
+						onKeyDown?.(event);
+					}}
+					onKeyUp={(event) => {
+						clickableProps.onKeyUp(event);
+						onKeyUp?.(event);
+					}}
+					onMouseEnter={() => {
+						setIsFocused(true);
+						setTooltipOpen(true);
+					}}
+					onMouseLeave={() => {
+						setTooltipOpen(false);
+					}}
+					onFocus={() => {
+						setIsFocused(true);
+					}}
+					onBlur={() => {
+						setTooltipOpen(false);
+					}}
+				>
+					{children}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side={side}>
+				{showCopiedSuccess ? "Copied!" : "Click to copy"}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
