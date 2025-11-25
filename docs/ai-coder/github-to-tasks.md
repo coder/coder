@@ -100,6 +100,36 @@ coder templates list --org your-org-name
 
 You can also choose to modify the other [input parameters](https://github.com/coder/create-task-action?tab=readme-ov-file#inputs) to better fit your desired workflow.
 
+#### Template Requirements for GitHub CLI
+
+If your prompt uses the GitHub CLI `gh`, your template must pass the user's GitHub token to the agent. Add this to your template's Terraform:
+
+```terraform
+data "coder_external_auth" "github" {
+  id = "github"
+}
+
+resource "coder_agent" "dev" {
+  # ... other config ...
+  env = {
+    GITHUB_TOKEN = data.coder_external_auth.github.access_token
+  }
+}
+```
+
+Note that tokens passed as environment variables represent a snapshot at task creation time and are not automatically refreshed during task execution.
+
+- If your GitHub external auth is configured as a GitHub App with token expiration enabled (the default), tokens expire after 8 hours
+- If configured as a GitHub OAuth App or GitHub App with expiration disabled, tokens remain valid unless unused for 1 year
+
+Recommendations:
+
+- Keep tasks under 8 hours to avoid token expiration issues
+- For longer workflows, break work into multiple sequential tasks 
+- If authentication fails mid-task, users must re-authenticate at /settings/external-auth and restart the task
+
+For more information, see our [External Authentcation documentation](https://coder.com/docs/admin/external-auth#configure-a-github-oauth-app). 
+
 ### Step 3: Test Your Setup
 
 Create a new GitHub issue for a bug in your codebase. We recommend a basic bug, for this test, like “The sidebar color needs to be red” or “The text ‘Coder Tasks are Awesome’ needs to appear in the top left corner of the screen”. You should adapt the phrasing to be specific to your codebase.
@@ -193,3 +223,33 @@ Generate a new token with these permissions at `https://your-coder-url/deploymen
 1. Verify the template name using: `coder templates list --org your-org-name`
 2. Update the `coder-template-name` input in your workflow file to match exactly, or input secret or variable saved in GitHub
 3. Ensure the template exists in the organization specified by `coder-organization`
+
+### Task fails with "authentication failed" or "Bad credentials" after running for hours
+
+**Symptoms:**
+- Task starts successfully and works initially
+- After some time passes, `gh` CLI commands fail with:
+  - `authentication failed`
+  - `Bad credentials` 
+  - `HTTP 401 Unauthorized`
+  - `error getting credentials` from git operations
+
+**Cause:** The GitHub token expired during task execution. Tokens passed as environment variables are captured at task creation time and expire after 8 hours (for GitHub Apps with expiration enabled). These tokens are not automatically refreshed during task execution.
+
+**Diagnosis:**
+
+From within the running task workspace, check if the token is still valid:
+
+```bash
+# Check if the token still works
+curl -H "Authorization: token ${GITHUB_TOKEN}" \
+  https://api.github.com/user
+```
+
+If this returns 401 Unauthorized or Bad credentials, the token has expired.
+
+**Solution:**
+
+1. Have the user re-authenticate at https://your-coder-url/settings/external-auth
+1. Verify the GitHub provider shows "Authenticated" with a green checkmark
+1. Re-trigger the workflow to create a new task with a fresh token
