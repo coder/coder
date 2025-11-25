@@ -393,7 +393,8 @@
   "openai": {
     "base_url": "string",
     "key": "string"
-  }
+  },
+  "retention": 0
 }
 ```
 
@@ -406,6 +407,7 @@
 | `enabled`                | boolean                                                              | false    |              |             |
 | `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
 | `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| `retention`              | integer                                                              | false    |              |             |
 
 ## codersdk.AIBridgeInterception
 
@@ -701,7 +703,8 @@
     "openai": {
       "base_url": "string",
       "key": "string"
-    }
+    },
+    "retention": 0
   }
 }
 ```
@@ -2082,6 +2085,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "display_name": "string",
   "input": "string",
   "name": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -2093,6 +2097,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                         | Type   | Required | Restrictions | Description |
 |------------------------------|--------|----------|--------------|-------------|
+| `display_name`               | string | false    |              |             |
 | `input`                      | string | false    |              |             |
 | `name`                       | string | false    |              |             |
 | `template_version_id`        | string | false    |              |             |
@@ -2858,7 +2863,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "openai": {
           "base_url": "string",
           "key": "string"
-        }
+        },
+        "retention": 0
       }
     },
     "allow_workspace_renames": true,
@@ -3373,7 +3379,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "openai": {
         "base_url": "string",
         "key": "string"
-      }
+      },
+      "retention": 0
     }
   },
   "allow_workspace_renames": true,
@@ -4714,6 +4721,44 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------|
 | `day`  |
 | `week` |
+
+## codersdk.InvalidatePresetsResponse
+
+```json
+{
+  "invalidated": [
+    {
+      "preset_name": "string",
+      "template_name": "string",
+      "template_version_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                              | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `invalidated` | array of [codersdk.InvalidatedPreset](#codersdkinvalidatedpreset) | false    |              |             |
+
+## codersdk.InvalidatedPreset
+
+```json
+{
+  "preset_name": "string",
+  "template_name": "string",
+  "template_version_name": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type   | Required | Restrictions | Description |
+|-------------------------|--------|----------|--------------|-------------|
+| `preset_name`           | string | false    |              |             |
+| `template_name`         | string | false    |              |             |
+| `template_version_name` | string | false    |              |             |
 
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
@@ -7762,6 +7807,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "timestamp": "2019-08-24T14:15:22Z",
     "uri": "string"
   },
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initial_prompt": "string",
   "name": "string",
@@ -7805,6 +7851,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
 | `created_at`                | string                                                               | false    |              |             |
 | `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
+| `display_name`              | string                                                               | false    |              |             |
 | `id`                        | string                                                               | false    |              |             |
 | `initial_prompt`            | string                                                               | false    |              |             |
 | `name`                      | string                                                               | false    |              |             |
@@ -7989,6 +8036,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "timestamp": "2019-08-24T14:15:22Z",
         "uri": "string"
       },
+      "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initial_prompt": "string",
       "name": "string",
@@ -9154,6 +9202,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name    | Type            | Required | Restrictions | Description |
 |---------|-----------------|----------|--------------|-------------|
 | `roles` | array of string | false    |              |             |
+
+## codersdk.UpdateTaskInputRequest
+
+```json
+{
+  "input": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `input` | string | false    |              |             |
 
 ## codersdk.UpdateTemplateACL
 

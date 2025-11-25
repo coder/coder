@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/pproflabel"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -36,7 +37,7 @@ const (
 // It is the caller's responsibility to call Close on the returned instance.
 //
 // This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.Clock) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -77,6 +78,19 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
 				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
 			}
+			expiredAPIKeys, err := tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+				// Leave expired keys for a week to allow the backend to know the difference
+				// between a 404 and an expired key. This purge code is just to bound the size of
+				// the table to something more reasonable.
+				Before: dbtime.Time(start.Add(time.Hour * 24 * 7 * -1)),
+				// There could be a lot of expired keys here, so set a limit to prevent this
+				// taking too long.
+				// This runs every 10 minutes, so it deletes ~1.5m keys per day at most.
+				LimitCount: 10000,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete expired api keys: %w", err)
+			}
 			deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
 			if err := tx.DeleteOldTelemetryLocks(ctx, deleteOldTelemetryLocksBefore); err != nil {
 				return xerrors.Errorf("failed to delete old telemetry locks: %w", err)
@@ -90,7 +104,18 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 				return xerrors.Errorf("failed to delete old audit log connection events: %w", err)
 			}
 
-			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
+			deleteAIBridgeRecordsBefore := start.Add(-vals.AI.BridgeConfig.Retention.Value())
+			// nolint:gocritic // Needs to run as aibridge context.
+			purgedAIBridgeRecords, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
+			if err != nil {
+				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+			}
+
+			logger.Debug(ctx, "purged old database entries",
+				slog.F("expired_api_keys", expiredAPIKeys),
+				slog.F("aibridge_records", purgedAIBridgeRecords),
+				slog.F("duration", clk.Since(start)),
+			)
 
 			return nil
 		}, database.DefaultTXOptions().WithID("db_purge")); err != nil {

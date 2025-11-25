@@ -554,6 +554,21 @@ func (mr *MockStoreMockRecorder) DeleteCustomRole(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCustomRole", reflect.TypeOf((*MockStore)(nil).DeleteCustomRole), ctx, arg)
 }
 
+// DeleteExpiredAPIKeys mocks base method.
+func (m *MockStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredAPIKeys", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteExpiredAPIKeys indicates an expected call of DeleteExpiredAPIKeys.
+func (mr *MockStoreMockRecorder) DeleteExpiredAPIKeys(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAPIKeys", reflect.TypeOf((*MockStore)(nil).DeleteExpiredAPIKeys), ctx, arg)
+}
+
 // DeleteExternalAuthLink mocks base method.
 func (m *MockStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	m.ctrl.T.Helper()
@@ -707,6 +722,21 @@ func (m *MockStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Cont
 func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppTokensByAppAndUserID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppTokensByAppAndUserID), ctx, arg)
+}
+
+// DeleteOldAIBridgeRecords mocks base method.
+func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldAIBridgeRecords", ctx, beforeTime)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldAIBridgeRecords indicates an expected call of DeleteOldAIBridgeRecords.
+func (mr *MockStoreMockRecorder) DeleteOldAIBridgeRecords(ctx, beforeTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAIBridgeRecords", reflect.TypeOf((*MockStore)(nil).DeleteOldAIBridgeRecords), ctx, beforeTime)
 }
 
 // DeleteOldAuditLogConnectionEvents mocks base method.
@@ -2142,19 +2172,19 @@ func (mr *MockStoreMockRecorder) GetLatestCryptoKeyByFeature(ctx, feature any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestCryptoKeyByFeature", reflect.TypeOf((*MockStore)(nil).GetLatestCryptoKeyByFeature), ctx, feature)
 }
 
-// GetLatestWorkspaceAppStatusesByAppID mocks base method.
-func (m *MockStore) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+// GetLatestWorkspaceAppStatusByAppID mocks base method.
+func (m *MockStore) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLatestWorkspaceAppStatusesByAppID", ctx, appID)
-	ret0, _ := ret[0].([]database.WorkspaceAppStatus)
+	ret := m.ctrl.Call(m, "GetLatestWorkspaceAppStatusByAppID", ctx, appID)
+	ret0, _ := ret[0].(database.WorkspaceAppStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetLatestWorkspaceAppStatusesByAppID indicates an expected call of GetLatestWorkspaceAppStatusesByAppID.
-func (mr *MockStoreMockRecorder) GetLatestWorkspaceAppStatusesByAppID(ctx, appID any) *gomock.Call {
+// GetLatestWorkspaceAppStatusByAppID indicates an expected call of GetLatestWorkspaceAppStatusByAppID.
+func (mr *MockStoreMockRecorder) GetLatestWorkspaceAppStatusByAppID(ctx, appID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceAppStatusesByAppID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceAppStatusesByAppID), ctx, appID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceAppStatusByAppID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceAppStatusByAppID), ctx, appID)
 }
 
 // GetLatestWorkspaceAppStatusesByWorkspaceIDs mocks base method.
@@ -6598,6 +6628,21 @@ func (mr *MockStoreMockRecorder) UpdatePresetPrebuildStatus(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePresetPrebuildStatus", reflect.TypeOf((*MockStore)(nil).UpdatePresetPrebuildStatus), ctx, arg)
 }
 
+// UpdatePresetsLastInvalidatedAt mocks base method.
+func (m *MockStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.UpdatePresetsLastInvalidatedAtRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePresetsLastInvalidatedAt", ctx, arg)
+	ret0, _ := ret[0].([]database.UpdatePresetsLastInvalidatedAtRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdatePresetsLastInvalidatedAt indicates an expected call of UpdatePresetsLastInvalidatedAt.
+func (mr *MockStoreMockRecorder) UpdatePresetsLastInvalidatedAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePresetsLastInvalidatedAt", reflect.TypeOf((*MockStore)(nil).UpdatePresetsLastInvalidatedAt), ctx, arg)
+}
+
 // UpdateProvisionerDaemonLastSeenAt mocks base method.
 func (m *MockStore) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	m.ctrl.T.Helper()
@@ -6723,6 +6768,21 @@ func (m *MockStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) UpdateTailnetPeerStatusByCoordinator(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTailnetPeerStatusByCoordinator", reflect.TypeOf((*MockStore)(nil).UpdateTailnetPeerStatusByCoordinator), ctx, arg)
+}
+
+// UpdateTaskPrompt mocks base method.
+func (m *MockStore) UpdateTaskPrompt(ctx context.Context, arg database.UpdateTaskPromptParams) (database.TaskTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTaskPrompt", ctx, arg)
+	ret0, _ := ret[0].(database.TaskTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTaskPrompt indicates an expected call of UpdateTaskPrompt.
+func (mr *MockStoreMockRecorder) UpdateTaskPrompt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTaskPrompt", reflect.TypeOf((*MockStore)(nil).UpdateTaskPrompt), ctx, arg)
 }
 
 // UpdateTaskWorkspaceID mocks base method.

@@ -80,3 +80,54 @@ You can use the
 [`CODER_MAX_TOKEN_LIFETIME`](https://coder.com/docs/reference/cli/server#--max-token-lifetime)
 server flag to set the maximum duration for long-lived tokens in your
 deployment.
+
+## API Key Scopes
+
+API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
+
+Scopes follow the format `resource:action`, where `resource` is the type of object (like `workspace`, `template`, or `user`) and `action` is the operation (like `read`, `create`, `update`, or `delete`). You can also use wildcards like `workspace:*` to grant all permissions for a specific resource type.
+
+### Creating tokens with scopes
+
+You can specify scopes when creating a token using the `--scope` flag:
+
+```sh
+# Create a token that can only read workspaces
+coder tokens create --name "readonly-token" --scope "workspace:read"
+
+# Create a token with multiple scopes
+coder tokens create --name "limited-token" --scope "workspace:read" --scope "template:read"
+```
+
+Common scope examples include:
+
+- `workspace:read` - View workspace information
+- `workspace:*` - Full workspace access (create, read, update, delete)
+- `template:read` - View template information
+- `api_key:read` - View API keys (useful for automation)
+- `application_connect` - Connect to workspace applications
+
+For a complete list of available scopes, see the API reference documentation.
+
+### Allow lists (advanced)
+
+For additional security, you can combine scopes with allow lists to restrict tokens to specific resources. Allow lists let you limit a token to only interact with particular workspaces, templates, or other resources by their UUID:
+
+```sh
+# Create a token limited to a specific workspace
+coder tokens create --name "workspace-token" \
+  --scope "workspace:read" \
+  --allow "workspace:a1b2c3d4-5678-90ab-cdef-1234567890ab"
+```
+
+**Important:** Allow lists are exclusive - the token can **only** perform actions on resources explicitly listed. In the example above, the token can only read the specified workspace and cannot access any other resources (templates, organizations, other workspaces, etc.). To maintain access to other resources, you must explicitly add them to the allow list:
+
+```sh
+# Token that can read one workspace AND access templates and user info
+coder tokens create --name "limited-token" \
+  --scope "workspace:read" --scope "template:*" --scope "user:read" \
+  --allow "workspace:a1b2c3d4-5678-90ab-cdef-1234567890ab" \
+  --allow "template:*" \
+  --allow "user:*" \
+  ... etc
+```

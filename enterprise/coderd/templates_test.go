@@ -2111,3 +2111,100 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func TestInvalidateTemplatePrebuilds(t *testing.T) {
+	t.Parallel()
+
+	// Given the following parameters and presets...
+	templateVersionParameters := []*proto.RichParameter{
+		{Name: "param1", Type: "string", Required: false, DefaultValue: "default1"},
+		{Name: "param2", Type: "string", Required: false, DefaultValue: "default2"},
+		{Name: "param3", Type: "string", Required: false, DefaultValue: "default3"},
+	}
+	presetWithParameters1 := &proto.Preset{
+		Name: "Preset With Parameters 1",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+			{Name: "param3", Value: "value3"},
+		},
+	}
+	presetWithParameters2 := &proto.Preset{
+		Name: "Preset With Parameters 2",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value4"},
+			{Name: "param2", Value: "value5"},
+			{Name: "param3", Value: "value6"},
+		},
+	}
+
+	presetWithParameters3 := &proto.Preset{
+		Name: "Preset With Parameters 3",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value7"},
+			{Name: "param2", Value: "value8"},
+			{Name: "param3", Value: "value9"},
+		},
+	}
+
+	// Given the template versions and template...
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	buildPlanResponse := func(presets ...*proto.Preset) *proto.Response {
+		return &proto.Response{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
+					Presets:    presets,
+					Parameters: templateVersionParameters,
+				},
+			},
+		}
+	}
+
+	version1 := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters1, presetWithParameters2)},
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version1.ID)
+	template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version1.ID)
+
+	// When
+	ctx := testutil.Context(t, testutil.WaitLong)
+	invalidated, err := templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
+	require.NoError(t, err)
+
+	// Then
+	require.Len(t, invalidated.Invalidated, 2)
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters1.Name}, invalidated.Invalidated[0])
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[1])
+
+	// Given the template is updated...
+	version2 := coderdtest.UpdateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters2, presetWithParameters3)},
+		ProvisionApply: echo.ApplyComplete,
+	}, template.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version2.ID)
+	err = templateAdminClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{ID: version2.ID})
+	require.NoError(t, err)
+
+	// When
+	invalidated, err = templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
+	require.NoError(t, err)
+
+	// Then: it should only invalidate the presets from the currently active version (preset2 and preset3)
+	require.Len(t, invalidated.Invalidated, 2)
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[0])
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters3.Name}, invalidated.Invalidated[1])
+}

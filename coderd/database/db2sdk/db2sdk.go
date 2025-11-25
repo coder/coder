@@ -1021,6 +1021,18 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 	}
 }
 
+func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
+	var presets []codersdk.InvalidatedPreset
+	for _, p := range invalidatedPresets {
+		presets = append(presets, codersdk.InvalidatedPreset{
+			TemplateName:        p.TemplateName,
+			TemplateVersionName: p.TemplateVersionName,
+			PresetName:          p.TemplateVersionPresetName,
+		})
+	}
+	return presets
+}
+
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
 	var m map[string]any
 	if !rawMessage.Valid {

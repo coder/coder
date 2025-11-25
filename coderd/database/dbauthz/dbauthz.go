@@ -217,7 +217,7 @@ var (
 					rbac.ResourceTemplate.Type:        {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
 					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
-					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent},
 					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionCreateAgent},
 					// Provisionerd needs to read, update, and delete tasks associated with workspaces.
 					rbac.ResourceTask.Type:   {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
@@ -596,19 +596,19 @@ var (
 	// See aibridged package.
 	subjectAibridged = rbac.Subject{
 		Type:         rbac.SubjectAibridged,
-		FriendlyName: "AIBridge Daemon",
+		FriendlyName: "AI Bridge Daemon",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "aibridged"},
-				DisplayName: "AIBridge Daemon",
+				DisplayName: "AI Bridge Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceUser.Type: {
 						policy.ActionRead,         // Required to validate API key owner is active.
 						policy.ActionReadPersonal, // Required to read users' external auth links. // TODO: this is too broad; reduce scope to just external_auth_links by creating separate resource.
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
-					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -1641,6 +1641,15 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
+func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
+	// Requires DELETE across all API keys.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
+		return 0, err
+	}
+
+	return q.db.DeleteExpiredAPIKeys(ctx, arg)
+}
+
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		//nolint:gosimple
@@ -1721,6 +1730,13 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
+}
+
+func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
+		return -1, err
+	}
+	return q.db.DeleteOldAIBridgeRecords(ctx, beforeTime)
 }
 
 func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
@@ -2410,11 +2426,11 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
 }
 
-func (q *querier) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+		return database.WorkspaceAppStatus{}, err
 	}
-	return q.db.GetLatestWorkspaceAppStatusesByAppID(ctx, appID)
+	return q.db.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
@@ -4972,6 +4988,20 @@ func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.U
 	return q.db.UpdatePresetPrebuildStatus(ctx, arg)
 }
 
+func (q *querier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.UpdatePresetsLastInvalidatedAtRow, error) {
+	// Fetch template to check authorization
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return nil, err
+	}
+
+	return q.db.UpdatePresetsLastInvalidatedAt(ctx, arg)
+}
+
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
 		return err
@@ -5098,6 +5128,21 @@ func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg 
 		return err
 	}
 	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+}
+
+func (q *querier) UpdateTaskPrompt(ctx context.Context, arg database.UpdateTaskPromptParams) (database.TaskTable, error) {
+	// An actor is allowed to update the prompt of a task if they have
+	// permission to update the task (same as UpdateTaskWorkspaceID).
+	task, err := q.db.GetTaskByID(ctx, arg.ID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task.RBACObject()); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	return q.db.UpdateTaskPrompt(ctx, arg)
 }
 
 func (q *querier) UpdateTaskWorkspaceID(ctx context.Context, arg database.UpdateTaskWorkspaceIDParams) (database.TaskTable, error) {
@@ -5511,6 +5556,22 @@ func (q *querier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg d
 }
 
 func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+	// Fast path: Check if we have an RBAC object in context.
+	// This is set by the workspace agent RPC handler to avoid the expensive
+	// GetWorkspaceByAgentID query for every metadata update.
+	// NOTE: The cached RBAC object is refreshed every 5 minutes in agentapi/api.go.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Errors here will result in falling back to the GetWorkspaceAgentByID query, skipping
+		// the cache in case the cached data is stale.
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbacObj); err == nil {
+			return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
+		}
+		q.log.Debug(ctx, "fast path authorization failed, using slow path",
+			slog.F("agent_id", arg.WorkspaceAgentID))
+	}
+
+	// Slow path: Fallback to fetching the workspace for authorization if the RBAC object is not present (or is invalid)
+	// in the request context.
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
 		return err

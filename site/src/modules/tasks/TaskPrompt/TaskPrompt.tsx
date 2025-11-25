@@ -24,7 +24,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
@@ -194,7 +193,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) => {
 			// Users with updateTemplates permission can select the version to use.
 			if (permissions.updateTemplates) {
-				return API.experimental.createTask(user.id, {
+				return API.createTask(user.id, {
 					input: prompt,
 					template_version_id: selectedVersionId,
 					template_version_preset_id: selectedPresetId,
@@ -414,23 +413,21 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 				</Button>
 
 				{shouldRetry && !auth.authenticated && (
-					<TooltipProvider>
-						<Tooltip delayDuration={100}>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="icon"
-									onClick={startPollingExternalAuth}
-								>
-									<RedoIcon />
-									<span className="sr-only">Refresh external auth</span>
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>
-								Retry connecting to {auth.display_name}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={startPollingExternalAuth}
+							>
+								<RedoIcon />
+								<span className="sr-only">Refresh external auth</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							Retry connecting to {auth.display_name}
+						</TooltipContent>
+					</Tooltip>
 				)}
 			</div>
 		);
@@ -456,7 +453,7 @@ async function createTaskWithLatestTemplateVersion(
 	presetId: string | undefined,
 ): Promise<Task> {
 	const template = await API.getTemplate(templateId);
-	return API.experimental.createTask(userId, {
+	return API.createTask(userId, {
 		input,
 		template_version_id: template.active_version_id,
 		template_version_preset_id: presetId,

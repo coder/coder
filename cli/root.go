@@ -104,6 +104,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.resetPassword(),
 		r.sharing(),
 		r.state(),
+		r.tasksCommand(),
 		r.templates(),
 		r.tokens(),
 		r.users(),
@@ -149,7 +150,6 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.mcpCommand(),
 		r.promptExample(),
 		r.rptyCommand(),
-		r.tasksCommand(),
 		r.boundary(),
 	}
 }

@@ -831,6 +831,73 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.True(t, ws.LastUsedAt.After(dormantLastUsedAt))
 	})
 
+	// This test has been added to ensure we don't introduce a regression
+	// to this issue https://github.com/coder/coder/issues/20711.
+	t.Run("DormantAutostop", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker      = make(chan time.Time)
+			statCh      = make(chan autobuild.Stats)
+			inactiveTTL = time.Minute
+			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		)
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				AutobuildStats:           statCh,
+				IncludeProvisionerDaemon: true,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// Create a template version that includes agents on both start AND stop builds.
+		// This simulates a template without `count = data.coder_workspace.me.start_count`.
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+		})
+
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		// Simulate the workspace becoming inactive and transitioning to dormant.
+		tickTime := ws.LastUsedAt.Add(inactiveTTL * 2)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
+		stats := <-statCh
+
+		// Expect workspace to transition to stopped state.
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+
+		// The autostop build should succeed even though the template includes
+		// agents without `count = data.coder_workspace.me.start_count`.
+		// This verifies that provisionerd has permission to create agents on
+		// dormant workspaces during stop builds.
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		require.NotNil(t, ws.DormantAt, "workspace should be marked as dormant")
+		require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition)
+
+		latestBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusStopped, latestBuild.Status)
+	})
+
 	// This test serves as a regression prevention for generating
 	// audit logs in the same transaction the transition workspaces to
 	// the dormant state. The auditor that is passed to autobuild does
@@ -3393,6 +3460,7 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 // This uses the shared testutil caching infrastructure to avoid re-downloading
 // providers on every test run. It is the responsibility of the caller to set
 // TF_CLI_CONFIG_FILE.
+// On Windows, provider caching is not supported and an empty string is returned.
 func downloadProviders(t *testing.T, providersTf string) string {
 	t.Helper()
 
@@ -3401,7 +3469,9 @@ func downloadProviders(t *testing.T, providersTf string) string {
 	testName := "TestWorkspaceTagsTerraform"
 
 	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, testName, templateFiles)
-	t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
+	if cliConfigPath != "" {
+		t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
+	}
 	return cliConfigPath
 }
 

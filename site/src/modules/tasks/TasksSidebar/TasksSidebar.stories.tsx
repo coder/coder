@@ -1,4 +1,9 @@
-import { MockTasks, MockUserOwner, mockApiError } from "testHelpers/entities";
+import {
+	MockDisplayNameTasks,
+	MockTasks,
+	MockUserOwner,
+	mockApiError,
+} from "testHelpers/entities";
 import { withAuthProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -44,13 +49,13 @@ type Story = StoryObj<typeof TasksSidebar>;
 
 export const Loading: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getTasks").mockReturnValue(new Promise(() => {}));
+		spyOn(API, "getTasks").mockReturnValue(new Promise(() => {}));
 	},
 };
 
 export const Failed: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getTasks").mockRejectedValue(
+		spyOn(API, "getTasks").mockRejectedValue(
 			mockApiError({
 				message: "Failed to fetch tasks",
 			}),
@@ -60,19 +65,30 @@ export const Failed: Story = {
 
 export const Loaded: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
+	},
+};
+
+export const DisplayName: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockDisplayNameTasks,
+			},
+		],
 	},
 };
 
 export const Empty: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getTasks").mockResolvedValue([]);
+		spyOn(API, "getTasks").mockResolvedValue([]);
 	},
 };
 
 export const Closed: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -83,7 +99,7 @@ export const Closed: Story = {
 
 export const OpenOptionsMenu: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -96,7 +112,7 @@ export const OpenOptionsMenu: Story = {
 
 export const OpenDeleteDialog: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("Open menu", async () => {

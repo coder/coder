@@ -53,6 +53,7 @@ SUBCOMMANDS:
     stop              Stop a workspace
     support           Commands for troubleshooting issues with a Coder
                       deployment.
+    task              Manage tasks
     templates         Manage templates
     tokens            Manage personal access tokens
     unfavorite        Remove a workspace from your favorites

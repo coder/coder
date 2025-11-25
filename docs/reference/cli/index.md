@@ -36,6 +36,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>publickey</code>](./publickey.md)                     | Output your Coder public key used for Git operations                                                                         |
 | [<code>reset-password</code>](./reset-password.md)           | Directly connect to the database to reset a user's password                                                                  |
 | [<code>state</code>](./state.md)                             | Manually manage Terraform state to fix broken workspaces                                                                     |
+| [<code>task</code>](./task.md)                               | Manage tasks                                                                                                                 |
 | [<code>templates</code>](./templates.md)                     | Manage templates                                                                                                             |
 | [<code>tokens</code>](./tokens.md)                           | Manage personal access tokens                                                                                                |
 | [<code>users</code>](./users.md)                             | Manage users                                                                                                                 |
@@ -68,7 +69,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>groups</code>](./groups.md)                           | Manage groups                                                                                                                |
 | [<code>prebuilds</code>](./prebuilds.md)                     | Manage Coder prebuilds                                                                                                       |
 | [<code>external-workspaces</code>](./external-workspaces.md) | Create or manage external workspaces                                                                                         |
-| [<code>aibridge</code>](./aibridge.md)                       | Manage AIBridge.                                                                                                             |
+| [<code>aibridge</code>](./aibridge.md)                       | Manage AI Bridge.                                                                                                            |
 
 ## Options
 

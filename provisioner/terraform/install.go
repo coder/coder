@@ -34,7 +34,7 @@ var (
 // operation.
 //
 //nolint:revive // verbose is a control flag that controls the verbosity of the log output.
-func Install(ctx context.Context, log slog.Logger, verbose bool, dir string, wantVersion *version.Version, baseUrl string, verifyChecksums bool) (string, error) {
+func Install(ctx context.Context, log slog.Logger, verbose bool, dir string, wantVersion *version.Version, baseUrl string) (string, error) {
 	err := os.MkdirAll(dir, 0o750)
 	if err != nil {
 		return "", err
@@ -63,10 +63,9 @@ func Install(ctx context.Context, log slog.Logger, verbose bool, dir string, wan
 	}
 
 	installer := &releases.ExactVersion{
-		InstallDir:               dir,
-		Product:                  product.Terraform,
-		Version:                  TerraformVersion,
-		SkipChecksumVerification: !verifyChecksums,
+		InstallDir: dir,
+		Product:    product.Terraform,
+		Version:    TerraformVersion,
 	}
 	installer.SetLogger(slog.Stdlib(ctx, log, slog.LevelDebug))
 	if baseUrl != "" {

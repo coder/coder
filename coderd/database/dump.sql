@@ -1826,8 +1826,11 @@ CREATE TABLE tasks (
     template_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
     prompt text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    display_name character varying(127) DEFAULT ''::character varying NOT NULL
 );
+
+COMMENT ON COLUMN tasks.display_name IS 'Display name is a custom, human-friendly task name.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -1964,6 +1967,7 @@ CREATE VIEW tasks_with_status AS
     tasks.prompt,
     tasks.created_at,
     tasks.deleted_at,
+    tasks.display_name,
         CASE
             WHEN (tasks.workspace_id IS NULL) THEN 'pending'::task_status
             WHEN (build_status.status <> 'active'::task_status) THEN build_status.status
@@ -2170,7 +2174,8 @@ CREATE TABLE template_version_presets (
     scheduling_timezone text DEFAULT ''::text NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
     description character varying(128) DEFAULT ''::character varying NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    last_invalidated_at timestamp with time zone
 );
 
 COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';

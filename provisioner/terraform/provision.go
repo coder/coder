@@ -110,12 +110,11 @@ func (s *server) Plan(
 	// The JSON output of `terraform init` doesn't include discrete fields for capturing timings of each plugin,
 	// so we capture the whole init process.
 	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
-	initTimings.ingest(createInitTimingsEvent(timingInitStart))
+	endStage := initTimings.startStage(database.ProvisionerJobTimingStageInit)
 
 	err = e.init(ctx, killCtx, sess)
+	endStage(err)
 	if err != nil {
-		initTimings.ingest(createInitTimingsEvent(timingInitErrored))
-
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
 
 		// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
@@ -148,8 +147,6 @@ func (s *server) Plan(
 		s.logger.Error(ctx, "failed to get modules from disk", slog.Error(err))
 	}
 
-	initTimings.ingest(createInitTimingsEvent(timingInitComplete))
-
 	s.logger.Debug(ctx, "ran initialization")
 
 	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
@@ -170,7 +167,7 @@ func (s *server) Plan(
 
 	// Prepend init timings since they occur prior to plan timings.
 	// Order is irrelevant; this is merely indicative.
-	resp.Timings = mergeInitTimings(initTimings.aggregate(), resp.Timings)
+	resp.Timings = append(initTimings.aggregate(), resp.Timings...) // mergeInitTimings(initTimings.aggregate(), resp.Timings)
 	resp.Modules = modules
 	return resp
 }

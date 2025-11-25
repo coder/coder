@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -27,13 +28,17 @@ type fakeClient struct {
 	logger slog.Logger
 
 	// Channels for controlling the behavior
-	workspaceUpdatesCh chan codersdk.Workspace
+	workspaceUpdatesCh            chan codersdk.Workspace
+	workspaceByOwnerAndNameStatus chan codersdk.ProvisionerJobStatus
+	workspaceByOwnerAndNameErrors chan error
 }
 
 func newFakeClient(t *testing.T) *fakeClient {
 	return &fakeClient{
-		t:                  t,
-		workspaceUpdatesCh: make(chan codersdk.Workspace),
+		t:                             t,
+		workspaceUpdatesCh:            make(chan codersdk.Workspace),
+		workspaceByOwnerAndNameStatus: make(chan codersdk.ProvisionerJobStatus),
+		workspaceByOwnerAndNameErrors: make(chan error, 1),
 	}
 }
 
@@ -46,15 +51,69 @@ func (m *fakeClient) watchWorkspace(ctx context.Context, workspaceID uuid.UUID) 
 	return m.workspaceUpdatesCh, nil
 }
 
-const testAgentToken = "test-agent-token"
+const (
+	testAgentToken    = "test-agent-token"
+	testAgentName     = "test-agent"
+	testWorkspaceName = "test-workspace"
+)
 
-func (m *fakeClient) createExternalWorkspace(ctx context.Context, req codersdk.CreateWorkspaceRequest) (createExternalWorkspaceResult, error) {
-	m.logger.Debug(ctx, "called fake CreateExternalWorkspace", slog.F("req", req))
-	// Return a fake workspace ID and token for testing
-	return createExternalWorkspaceResult{
-		WorkspaceID: uuid.UUID{1, 2, 3, 4}, // Fake workspace ID
-		AgentToken:  testAgentToken,
+var (
+	testWorkspaceID = uuid.UUID{1, 2, 3, 4}
+	testBuildID     = uuid.UUID{5, 6, 7, 8}
+)
+
+func workspaceWithJobStatus(status codersdk.ProvisionerJobStatus) codersdk.Workspace {
+	return codersdk.Workspace{
+		ID:   testWorkspaceID, // Fake workspace ID
+		Name: testWorkspaceName,
+		LatestBuild: codersdk.WorkspaceBuild{
+			ID: testBuildID,
+			Job: codersdk.ProvisionerJob{
+				Status: status,
+			},
+			Resources: []codersdk.WorkspaceResource{
+				{
+					Type: "coder_external_agent",
+					Agents: []codersdk.WorkspaceAgent{
+						{
+							Name: testAgentName,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (m *fakeClient) CreateUserWorkspace(ctx context.Context, userID string, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+	m.logger.Debug(ctx, "called fake CreateUserWorkspace", slog.F("user_id", userID), slog.F("req", req))
+	return workspaceWithJobStatus(codersdk.ProvisionerJobPending), nil
+}
+
+func (m *fakeClient) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params codersdk.WorkspaceOptions) (codersdk.Workspace, error) {
+	m.logger.Debug(ctx, "called fake WorkspaceByOwnerAndName", slog.F("owner", owner), slog.F("name", name))
+	status := <-m.workspaceByOwnerAndNameStatus
+	var err error
+	select {
+	case err = <-m.workspaceByOwnerAndNameErrors:
+		return codersdk.Workspace{}, err
+	default:
+		return workspaceWithJobStatus(status), nil
+	}
+}
+
+func (m *fakeClient) WorkspaceExternalAgentCredentials(ctx context.Context, workspaceID uuid.UUID, agentName string) (codersdk.ExternalAgentCredentials, error) {
+	m.logger.Debug(ctx, "called fake WorkspaceExternalAgentCredentials", slog.F("workspace_id", workspaceID), slog.F("agent_name", agentName))
+	// Return fake credentials for testing
+	return codersdk.ExternalAgentCredentials{
+		AgentToken: testAgentToken,
 	}, nil
+}
+
+func (m *fakeClient) deleteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	m.logger.Debug(ctx, "called fake DeleteWorkspace", slog.F("workspace_id", workspaceID.String()))
+	// Simulate successful deletion in tests
+	return nil
 }
 
 // fakeAppStatusPatcher implements the appStatusPatcher interface for testing
@@ -138,16 +197,24 @@ func TestRunner_Run(t *testing.T) {
 		reportTimes: make(map[int]time.Time),
 	}
 
-	tickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
-	defer tickerTrap.Close()
+	reportTickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
+	defer reportTickerTrap.Close()
 	sinceTrap := mClock.Trap().Since("watchWorkspaceUpdates")
 	defer sinceTrap.Close()
+	buildTickerTrap := mClock.Trap().TickerFunc("createExternalWorkspace")
+	defer buildTickerTrap.Close()
 
 	// Run the runner in a goroutine
 	runErr := make(chan error, 1)
 	go func() {
 		runErr <- runner.Run(ctx, "test-runner", testutil.NewTestLogWriter(t))
 	}()
+
+	// complete the build
+	buildTickerTrap.MustWait(ctx).MustRelease(ctx)
+	w := mClock.Advance(30 * time.Second)
+	testutil.RequireSend(ctx, t, fClient.workspaceByOwnerAndNameStatus, codersdk.ProvisionerJobSucceeded)
+	w.MustWait(ctx)
 
 	// Wait for the runner to connect and watch workspace
 	connectedWaitGroup.Wait()
@@ -156,7 +223,7 @@ func TestRunner_Run(t *testing.T) {
 	close(startReporting)
 
 	// Wait for the initial TickerFunc call before advancing time, otherwise our ticks will be off.
-	tickerTrap.MustWait(ctx).MustRelease(ctx)
+	reportTickerTrap.MustWait(ctx).MustRelease(ctx)
 
 	// at this point, the patcher must be initialized
 	require.Equal(t, testAgentToken, fPatcher.agentToken)
@@ -256,12 +323,20 @@ func TestRunner_RunMissedUpdate(t *testing.T) {
 	defer tickerTrap.Close()
 	sinceTrap := mClock.Trap().Since("watchWorkspaceUpdates")
 	defer sinceTrap.Close()
+	buildTickerTrap := mClock.Trap().TickerFunc("createExternalWorkspace")
+	defer buildTickerTrap.Close()
 
 	// Run the runner in a goroutine
 	runErr := make(chan error, 1)
 	go func() {
 		runErr <- runner.Run(runCtx, "test-runner", testutil.NewTestLogWriter(t))
 	}()
+
+	// complete the build
+	buildTickerTrap.MustWait(testCtx).MustRelease(testCtx)
+	w := mClock.Advance(30 * time.Second)
+	testutil.RequireSend(testCtx, t, fClient.workspaceByOwnerAndNameStatus, codersdk.ProvisionerJobSucceeded)
+	w.MustWait(testCtx)
 
 	// Wait for the runner to connect and watch workspace
 	connectedWaitGroup.Wait()
@@ -371,12 +446,19 @@ func TestRunner_Run_WithErrors(t *testing.T) {
 
 	tickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
 	defer tickerTrap.Close()
-
+	buildTickerTrap := mClock.Trap().TickerFunc("createExternalWorkspace")
+	defer buildTickerTrap.Close()
 	// Run the runner in a goroutine
 	runErr := make(chan error, 1)
 	go func() {
 		runErr <- runner.Run(runCtx, "test-runner", testutil.NewTestLogWriter(t))
 	}()
+
+	// complete the build
+	buildTickerTrap.MustWait(testCtx).MustRelease(testCtx)
+	w := mClock.Advance(30 * time.Second)
+	testutil.RequireSend(testCtx, t, fClient.workspaceByOwnerAndNameStatus, codersdk.ProvisionerJobSucceeded)
+	w.MustWait(testCtx)
 
 	connectedWaitGroup.Wait()
 	close(startReporting)
@@ -416,6 +498,91 @@ func TestRunner_Run_WithErrors(t *testing.T) {
 			require.Len(t, mf.GetMetric(), 1)
 			counter := mf.GetMetric()[0].GetCounter()
 			assert.Equal(t, float64(4), counter.GetValue())
+		}
+	}
+
+	assert.True(t, missingUpdatesFound, "missing updates metric not found")
+	assert.True(t, reportTaskStatusErrorsFound, "report task status errors metric not found")
+}
+
+func TestRunner_Run_BuildFailed(t *testing.T) {
+	t.Parallel()
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	runCtx, cancel := context.WithCancel(testCtx)
+	defer cancel()
+
+	mClock := quartz.NewMock(t)
+	fClient := newFakeClient(t)
+	fPatcher := newFakeAppStatusPatcher(t)
+	templateID := uuid.UUID{5, 6, 7, 8}
+	workspaceName := "test-workspace"
+	appSlug := "test-app"
+
+	reg := prometheus.NewRegistry()
+	metrics := NewMetrics(reg, "test")
+
+	connectedWaitGroup := &sync.WaitGroup{}
+	connectedWaitGroup.Add(1)
+	startReporting := make(chan struct{})
+
+	cfg := Config{
+		TemplateID:           templateID,
+		WorkspaceName:        workspaceName,
+		AppSlug:              appSlug,
+		ConnectedWaitGroup:   connectedWaitGroup,
+		StartReporting:       startReporting,
+		ReportStatusPeriod:   10 * time.Second,
+		ReportStatusDuration: 35 * time.Second,
+		Metrics:              metrics,
+		MetricLabelValues:    []string{"test"},
+	}
+	runner := &Runner{
+		client:      fClient,
+		patcher:     fPatcher,
+		cfg:         cfg,
+		clock:       mClock,
+		reportTimes: make(map[int]time.Time),
+	}
+
+	buildTickerTrap := mClock.Trap().TickerFunc("createExternalWorkspace")
+	defer buildTickerTrap.Close()
+	// Run the runner in a goroutine
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- runner.Run(runCtx, "test-runner", testutil.NewTestLogWriter(t))
+	}()
+
+	// complete the build
+	buildTickerTrap.MustWait(testCtx).MustRelease(testCtx)
+	w := mClock.Advance(30 * time.Second)
+	testutil.RequireSend(testCtx, t, fClient.workspaceByOwnerAndNameStatus, codersdk.ProvisionerJobFailed)
+	w.MustWait(testCtx)
+
+	connectedWaitGroup.Wait()
+
+	// Wait for the runner to complete
+	err := testutil.RequireReceive(testCtx, t, runErr)
+	require.ErrorContains(t, err, "workspace build failed")
+
+	// Verify metrics were updated correctly
+	metricFamilies, err := reg.Gather()
+	require.NoError(t, err)
+
+	var missingUpdatesFound bool
+	var reportTaskStatusErrorsFound bool
+	for _, mf := range metricFamilies {
+		switch mf.GetName() {
+		case "coderd_scaletest_missing_status_updates_total":
+			missingUpdatesFound = true
+			require.Len(t, mf.GetMetric(), 1)
+			counter := mf.GetMetric()[0].GetCounter()
+			assert.Equal(t, float64(0), counter.GetValue())
+		case "coderd_scaletest_report_task_status_errors_total":
+			reportTaskStatusErrorsFound = true
+			require.Len(t, mf.GetMetric(), 1)
+			counter := mf.GetMetric()[0].GetCounter()
+			assert.Equal(t, float64(1), counter.GetValue())
 		}
 	}
 
@@ -479,4 +646,69 @@ func TestParseStatusMessage(t *testing.T) {
 			assert.Equal(t, tt.wantOk, gotOk)
 		})
 	}
+}
+
+func TestRunner_Cleanup(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	fakeClient := &fakeClientWithCleanupTracking{
+		fakeClient:           newFakeClient(t),
+		deleteWorkspaceCalls: make([]uuid.UUID, 0),
+	}
+	fakeClient.initialize(slog.Make(sloghuman.Sink(testutil.NewTestLogWriter(t))).Leveled(slog.LevelDebug))
+
+	cfg := Config{
+		AppSlug:              "test-app",
+		TemplateID:           uuid.UUID{5, 6, 7, 8},
+		WorkspaceName:        "test-workspace",
+		MetricLabelValues:    []string{"test"},
+		Metrics:              NewMetrics(prometheus.NewRegistry(), "test"),
+		ReportStatusPeriod:   100 * time.Millisecond,
+		ReportStatusDuration: 200 * time.Millisecond,
+		StartReporting:       make(chan struct{}),
+		ConnectedWaitGroup:   &sync.WaitGroup{},
+	}
+
+	runner := &Runner{
+		client:  fakeClient,
+		patcher: newFakeAppStatusPatcher(t),
+		cfg:     cfg,
+		clock:   quartz.NewMock(t),
+	}
+
+	logWriter := testutil.NewTestLogWriter(t)
+
+	// Case 1: No workspace created - Cleanup should do nothing
+	err := runner.Cleanup(ctx, "test-runner", logWriter)
+	require.NoError(t, err)
+	require.Len(t, fakeClient.deleteWorkspaceCalls, 0, "deleteWorkspace should not be called when no workspace was created")
+
+	// Case 2: Workspace created - Cleanup should delete it
+	runner.workspaceID = uuid.UUID{1, 2, 3, 4}
+	err = runner.Cleanup(ctx, "test-runner", logWriter)
+	require.NoError(t, err)
+	require.Len(t, fakeClient.deleteWorkspaceCalls, 1, "deleteWorkspace should be called once")
+	require.Equal(t, runner.workspaceID, fakeClient.deleteWorkspaceCalls[0], "deleteWorkspace should be called with correct workspace ID")
+
+	// Case 3: Cleanup with error
+	fakeClient.deleteError = xerrors.New("delete failed")
+	runner.workspaceID = uuid.UUID{5, 6, 7, 8}
+	err = runner.Cleanup(ctx, "test-runner", logWriter)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "delete external workspace")
+}
+
+// fakeClientWithCleanupTracking extends fakeClient to track deleteWorkspace calls
+type fakeClientWithCleanupTracking struct {
+	*fakeClient
+	deleteWorkspaceCalls []uuid.UUID
+	deleteError          error
+}
+
+func (c *fakeClientWithCleanupTracking) deleteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	c.deleteWorkspaceCalls = append(c.deleteWorkspaceCalls, workspaceID)
+	c.logger.Debug(ctx, "called fake DeleteWorkspace with tracking", slog.F("workspace_id", workspaceID.String()))
+	return c.deleteError
 }

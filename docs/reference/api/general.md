@@ -179,7 +179,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "openai": {
           "base_url": "string",
           "key": "string"
-        }
+        },
+        "retention": 0
       }
     },
     "allow_workspace_renames": true,

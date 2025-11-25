@@ -1,4 +1,6 @@
 import {
+	MockDisplayNameTasks,
+	MockInitializingTasks,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
@@ -9,6 +11,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, within } from "storybook/test";
+import { getTemplatesQueryKey } from "../../api/queries/templates";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -51,6 +54,21 @@ export const LoadingTemplates: Story = {
 	},
 };
 
+export const EmptyTemplates: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["templates", { q: "has-ai-task:true" }],
+				data: [],
+			},
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [],
+			},
+		],
+	},
+};
+
 export const LoadingTemplatesError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockRejectedValue(
@@ -65,7 +83,7 @@ export const LoadingTemplatesError: Story = {
 export const LoadingTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockImplementation(
+		spyOn(API, "getTasks").mockImplementation(
 			() => new Promise(() => 1000 * 60 * 60),
 		);
 	},
@@ -83,7 +101,7 @@ export const LoadingTasks: Story = {
 export const LoadingTasksError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockRejectedValue(
+		spyOn(API, "getTasks").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load tasks",
 			}),
@@ -94,14 +112,29 @@ export const LoadingTasksError: Story = {
 export const EmptyTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue([]);
+		spyOn(API, "getTasks").mockResolvedValue([]);
 	},
 };
 
 export const LoadedTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
+	},
+};
+
+export const DisplayName: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockDisplayNameTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
 	},
 };
 
@@ -109,7 +142,7 @@ export const LoadedTasksWaitingForInputTab: Story = {
 	beforeEach: () => {
 		const [firstTask, ...otherTasks] = MockTasks;
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue([
+		spyOn(API, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
 				current_state: {
@@ -140,7 +173,7 @@ export const NonAdmin: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
@@ -157,7 +190,7 @@ export const NonAdmin: Story = {
 export const OpenDeleteDialog: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -165,5 +198,20 @@ export const OpenDeleteDialog: Story = {
 			name: /delete task/i,
 		});
 		await userEvent.click(deleteButtons[0]);
+	},
+};
+
+export const InitializingTasks: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockInitializingTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
 	},
 };
