@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -304,13 +303,6 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 
 	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle, taskAppHealth)
 
-	displayName := dbTask.DisplayName
-	if displayName == "" {
-		// Fallback for tasks created before display_name column was added.
-		// Use the prompt as display name, truncated to match display name limits.
-		displayName = strutil.Truncate(dbTask.Prompt, 64, strutil.TruncateWithFullWords, strutil.TruncateWithEllipsis)
-	}
-
 	return codersdk.Task{
 		ID:                      dbTask.ID,
 		OrganizationID:          dbTask.OrganizationID,
@@ -318,7 +310,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		OwnerName:               dbTask.OwnerUsername,
 		OwnerAvatarURL:          dbTask.OwnerAvatarUrl,
 		Name:                    dbTask.Name,
-		DisplayName:             displayName,
+		DisplayName:             dbTask.DisplayName,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,
 		TemplateName:            ws.TemplateName,

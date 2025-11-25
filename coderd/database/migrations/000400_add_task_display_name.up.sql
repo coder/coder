@@ -2,6 +2,16 @@
 ALTER TABLE tasks ADD COLUMN display_name VARCHAR(127) NOT NULL DEFAULT '';
 COMMENT ON COLUMN tasks.display_name IS 'Display name is a custom, human-friendly task name.';
 
+-- Backfill existing tasks with truncated prompt as display name
+-- Replace newlines/tabs with spaces, truncate to 64 characters and add ellipsis if truncated
+UPDATE tasks
+SET display_name = CASE
+	WHEN LENGTH(REGEXP_REPLACE(prompt, E'[\\n\\r\\t]+', ' ', 'g')) > 64
+	THEN LEFT(REGEXP_REPLACE(prompt, E'[\\n\\r\\t]+', ' ', 'g'), 63) || '…'
+	ELSE REGEXP_REPLACE(prompt, E'[\\n\\r\\t]+', ' ', 'g')
+	END
+WHERE display_name = '';
+
 -- Recreate the tasks_with_status view to pick up the new display_name column.
 -- PostgreSQL resolves the tasks.* wildcard when the view is created, not when
 -- it's queried, so the view must be recreated after adding columns to tasks.
