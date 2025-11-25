@@ -254,6 +254,6 @@ If this returns 401 Unauthorized or Bad credentials, the token has expired.
 
 **Solution:**
 
-1. Have the user re-authenticate at https://your-coder-url/settings/external-auth
+1. Have the user re-authenticate at https://<your-coder-url>/settings/external-auth
 1. Verify the GitHub provider shows "Authenticated" with a green checkmark
 1. Re-trigger the workflow to create a new task with a fresh token
