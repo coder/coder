@@ -1830,8 +1830,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 	createTaskWorkspace := func(t *testing.T, client *codersdk.Client, template codersdk.Template, ctx context.Context, input string) codersdk.Workspace {
 		t.Helper()
 
-		exp := codersdk.NewExperimentalClient(client)
-		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+		task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Input:             input,
 		})

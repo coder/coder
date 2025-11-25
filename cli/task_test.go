@@ -122,8 +122,7 @@ func Test_Tasks(t *testing.T) {
 			assertFn: func(stdout string, userClient *codersdk.Client) {
 				// The task should eventually no longer show up in the list of tasks
 				testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-					expClient := codersdk.NewExperimentalClient(userClient)
-					tasks, err := expClient.Tasks(ctx, &codersdk.TasksFilter{})
+					tasks, err := userClient.Tasks(ctx, &codersdk.TasksFilter{})
 					if !assert.NoError(t, err) {
 						return false
 					}
@@ -248,8 +247,7 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
 
 	wantPrompt := "test prompt"
-	exp := codersdk.NewExperimentalClient(userClient)
-	task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+	task, err := userClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 		TemplateVersionID: template.ActiveVersionID,
 		Input:             wantPrompt,
 		Name:              "test-task",
