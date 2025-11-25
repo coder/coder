@@ -143,7 +143,7 @@ Depending on the complexity of the task and the size of your repository, the Cod
 
 And that’s it! You may now enjoy all the hours you have saved because of this easy integration.
 
-#### Step 4: Adapt this Workflow to your Processes
+### Step 4: Adapt this Workflow to your Processes
 
 Following the above steps sets up a GitHub Workflow that will
 
