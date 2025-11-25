@@ -88,13 +88,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
-	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAppStatusByAppID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1037,6 +1030,13 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
 	m.queryLatencies.WithLabelValues("GetLatestCryptoKeyByFeature").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAppStatusByAppID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
