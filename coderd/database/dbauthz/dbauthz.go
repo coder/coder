@@ -1366,6 +1366,13 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+	return q.db.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -2424,13 +2431,6 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 		return database.CryptoKey{}, err
 	}
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
-}
-
-func (q *querier) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetLatestWorkspaceAppStatusesByAppID(ctx, appID)
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {

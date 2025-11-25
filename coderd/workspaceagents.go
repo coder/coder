@@ -388,16 +388,17 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
-	// Get the latest statuses for the workspace app to detect no-op updates
+	// Get the latest status for the workspace app to detect no-op updates
 	// nolint:gocritic // This is a system restricted operation.
-	latestAppStatus, err := api.Database.GetLatestWorkspaceAppStatusesByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
-	if err != nil {
+	latestAppStatus, err := api.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get latest workspace app statuses.",
+			Message: "Failed to get latest workspace app status.",
 			Detail:  err.Error(),
 		})
 		return
 	}
+	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
 
 	// nolint:gocritic // This is a system restricted operation.
 	_, err = api.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
@@ -442,7 +443,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 func (api *API) enqueueAITaskStateNotification(
 	ctx context.Context,
 	appID uuid.UUID,
-	latestAppStatus []database.WorkspaceAppStatus,
+	latestAppStatus database.WorkspaceAppStatus,
 	newAppStatus codersdk.WorkspaceAppStatusState,
 	workspace database.Workspace,
 	agent database.WorkspaceAgent,
@@ -492,14 +493,16 @@ func (api *API) enqueueAITaskStateNotification(
 	}
 
 	// Skip if the latest persisted state equals the new state (no new transition)
-	if len(latestAppStatus) > 0 && latestAppStatus[0].State == database.WorkspaceAppStatusState(newAppStatus) {
+	// Note: uuid.Nil check is valid here - if no previous status exists,
+	// GetLatestWorkspaceAppStatusByAppID returns sql.ErrNoRows and we get a zero-value struct.
+	if latestAppStatus.ID != uuid.Nil && latestAppStatus.State == database.WorkspaceAppStatusState(newAppStatus) {
 		return
 	}
 
 	// Skip the initial "Working" notification when task first starts.
 	// This is obvious to the user since they just created the task.
 	// We still notify on first "Idle" status and all subsequent transitions.
-	if len(latestAppStatus) == 0 && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
+	if latestAppStatus.ID == uuid.Nil && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
 		return
 	}
 
