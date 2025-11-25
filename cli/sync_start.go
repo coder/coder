@@ -23,8 +23,8 @@ func (r *RootCmd) syncStart() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "start <unit>",
-		Short: "Start a unit in the dependency graph",
-		Long:  "Register a unit in the dependency graph and set its status to started. Waits for all dependencies to be satisfied before marking as started.",
+		Short: "Start a service and wait for dependencies",
+		Long:  "Start a service unit and automatically wait for all its dependencies to be satisfied before proceeding. This command registers the unit in the dependency graph, polls until dependencies are ready, then marks the unit as started. Use this as the primary command for starting services in a coordinated sequence.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := context.Background()
 

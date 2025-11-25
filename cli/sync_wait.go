@@ -23,8 +23,8 @@ func (r *RootCmd) syncWait() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "wait <unit>",
-		Short: "Wait for a unit's dependencies to be satisfied",
-		Long:  "Poll until all dependencies for a unit are met. Exits when dependencies are satisfied or timeout is reached.",
+		Short: "Wait for dependencies without starting the unit",
+		Long:  "Poll until all dependencies for a unit are satisfied, then exit. Unlike 'start', this command does not mark the unit as started - it only waits. Useful for scripts that need to wait for dependencies but handle service startup themselves, or for synchronizing external processes with the dependency graph.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := context.Background()
 

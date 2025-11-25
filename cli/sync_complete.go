@@ -14,8 +14,8 @@ import (
 func (r *RootCmd) syncComplete() *serpent.Command {
 	return &serpent.Command{
 		Use:   "complete <unit>",
-		Short: "Mark a unit as complete in the dependency graph",
-		Long:  "Set a unit's status to complete in the dependency graph.",
+		Short: "Signal that a service has finished",
+		Long:  "Mark a service unit as complete, indicating it has finished its work and is ready. This allows dependent units that are waiting for this unit to proceed with their startup. Call this after a service has completed its startup and is ready to accept connections or requests.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := context.Background()
 

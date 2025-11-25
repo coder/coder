@@ -14,8 +14,8 @@ import (
 func (r *RootCmd) syncWant() *serpent.Command {
 	return &serpent.Command{
 		Use:   "want <unit> <depends-on>",
-		Short: "Declare a dependency between units",
-		Long:  "Declare that a unit depends on another unit reaching complete status.",
+		Short: "Declare a dependency relationship",
+		Long:  "Declare that a service unit depends on another unit completing before it can start. This builds the dependency graph that coordinates service startup order. The dependent unit will not be ready to start until the dependency reaches complete status.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := context.Background()
 
