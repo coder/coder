@@ -60,14 +60,14 @@ func Test_Tasks(t *testing.T) {
 	}{
 		{
 			name:    "create task",
-			cmdArgs: []string{"exp", "task", "create", "test task input for " + t.Name(), "--name", taskName, "--template", taskTpl.Name},
+			cmdArgs: []string{"task", "create", "test task input for " + t.Name(), "--name", taskName, "--template", taskTpl.Name},
 			assertFn: func(stdout string, userClient *codersdk.Client) {
 				require.Contains(t, stdout, taskName, "task name should be in output")
 			},
 		},
 		{
 			name:    "list tasks after create",
-			cmdArgs: []string{"exp", "task", "list", "--output", "json"},
+			cmdArgs: []string{"task", "list", "--output", "json"},
 			assertFn: func(stdout string, userClient *codersdk.Client) {
 				var tasks []codersdk.Task
 				err := json.NewDecoder(strings.NewReader(stdout)).Decode(&tasks)
@@ -88,7 +88,7 @@ func Test_Tasks(t *testing.T) {
 		},
 		{
 			name:    "get task status after create",
-			cmdArgs: []string{"exp", "task", "status", taskName, "--output", "json"},
+			cmdArgs: []string{"task", "status", taskName, "--output", "json"},
 			assertFn: func(stdout string, userClient *codersdk.Client) {
 				var task codersdk.Task
 				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&task), "should unmarshal task status")
@@ -98,12 +98,12 @@ func Test_Tasks(t *testing.T) {
 		},
 		{
 			name:    "send task message",
-			cmdArgs: []string{"exp", "task", "send", taskName, "hello"},
+			cmdArgs: []string{"task", "send", taskName, "hello"},
 			// Assertions for this happen in the fake agent API handler.
 		},
 		{
 			name:    "read task logs",
-			cmdArgs: []string{"exp", "task", "logs", taskName, "--output", "json"},
+			cmdArgs: []string{"task", "logs", taskName, "--output", "json"},
 			assertFn: func(stdout string, userClient *codersdk.Client) {
 				var logs []codersdk.TaskLogEntry
 				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&logs), "should unmarshal task logs")
@@ -118,7 +118,7 @@ func Test_Tasks(t *testing.T) {
 		},
 		{
 			name:    "delete task",
-			cmdArgs: []string{"exp", "task", "delete", taskName, "--yes"},
+			cmdArgs: []string{"task", "delete", taskName, "--yes"},
 			assertFn: func(stdout string, userClient *codersdk.Client) {
 				// The task should eventually no longer show up in the list of tasks
 				testutil.Eventually(ctx, t, func(ctx context.Context) bool {

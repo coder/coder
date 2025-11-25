@@ -69,7 +69,7 @@ func TestExpTaskList(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		inv, root := clitest.New(t, "exp", "task", "list")
+		inv, root := clitest.New(t, "task", "list")
 		clitest.SetupConfig(t, memberClient, root)
 
 		pty := ptytest.New(t).Attach(inv)
@@ -93,7 +93,7 @@ func TestExpTaskList(t *testing.T) {
 		wantPrompt := "build me a web app"
 		task := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, wantPrompt)
 
-		inv, root := clitest.New(t, "exp", "task", "list", "--column", "id,name,status,initial prompt")
+		inv, root := clitest.New(t, "task", "list", "--column", "id,name,status,initial prompt")
 		clitest.SetupConfig(t, memberClient, root)
 
 		pty := ptytest.New(t).Attach(inv)
@@ -122,7 +122,7 @@ func TestExpTaskList(t *testing.T) {
 		pausedTask := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
 
 		// Use JSON output to reliably validate filtering.
-		inv, root := clitest.New(t, "exp", "task", "list", "--status=paused", "--output=json")
+		inv, root := clitest.New(t, "task", "list", "--status=paused", "--output=json")
 		clitest.SetupConfig(t, memberClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -153,7 +153,7 @@ func TestExpTaskList(t *testing.T) {
 		_ = makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "other-task")
 		task := makeAITask(t, db, owner.OrganizationID, owner.UserID, owner.UserID, database.WorkspaceTransitionStart, "me-task")
 
-		inv, root := clitest.New(t, "exp", "task", "list", "--user", "me")
+		inv, root := clitest.New(t, "task", "list", "--user", "me")
 		//nolint:gocritic // Owner client is intended here smoke test the member task not showing up.
 		clitest.SetupConfig(t, client, root)
 
@@ -180,7 +180,7 @@ func TestExpTaskList(t *testing.T) {
 		task2 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
 
 		// Given: We add the `--quiet` flag
-		inv, root := clitest.New(t, "exp", "task", "list", "--quiet")
+		inv, root := clitest.New(t, "task", "list", "--quiet")
 		clitest.SetupConfig(t, memberClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -224,7 +224,7 @@ func TestExpTaskList_OwnerCanListOthers(t *testing.T) {
 		t.Parallel()
 
 		// As the owner, list only member A tasks.
-		inv, root := clitest.New(t, "exp", "task", "list", "--user", memberAUser.Username, "--output=json")
+		inv, root := clitest.New(t, "task", "list", "--user", memberAUser.Username, "--output=json")
 		//nolint:gocritic // Owner client is intended here to allow member tasks to be listed.
 		clitest.SetupConfig(t, ownerClient, root)
 
@@ -252,7 +252,7 @@ func TestExpTaskList_OwnerCanListOthers(t *testing.T) {
 
 		// As the owner, list all tasks to verify both member tasks are present.
 		// Use JSON output to reliably validate filtering.
-		inv, root := clitest.New(t, "exp", "task", "list", "--all", "--output=json")
+		inv, root := clitest.New(t, "task", "list", "--all", "--output=json")
 		//nolint:gocritic // Owner client is intended here to allow all tasks to be listed.
 		clitest.SetupConfig(t, ownerClient, root)
 

@@ -46,7 +46,7 @@ func Test_TaskLogs(t *testing.T) {
 		userClient := client // user already has access to their own workspace
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", task.Name, "--output", "json")
+		inv, root := clitest.New(t, "task", "logs", task.Name, "--output", "json")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -72,7 +72,7 @@ func Test_TaskLogs(t *testing.T) {
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", task.ID.String(), "--output", "json")
+		inv, root := clitest.New(t, "task", "logs", task.ID.String(), "--output", "json")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -98,7 +98,7 @@ func Test_TaskLogs(t *testing.T) {
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", task.ID.String())
+		inv, root := clitest.New(t, "task", "logs", task.ID.String())
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -121,7 +121,7 @@ func Test_TaskLogs(t *testing.T) {
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", "doesnotexist")
+		inv, root := clitest.New(t, "task", "logs", "doesnotexist")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -139,7 +139,7 @@ func Test_TaskLogs(t *testing.T) {
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", uuid.Nil.String())
+		inv, root := clitest.New(t, "task", "logs", uuid.Nil.String())
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -155,7 +155,7 @@ func Test_TaskLogs(t *testing.T) {
 		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsErr(assert.AnError))
 		userClient := client
 
-		inv, root := clitest.New(t, "exp", "task", "logs", task.ID.String())
+		inv, root := clitest.New(t, "task", "logs", task.ID.String())
 		clitest.SetupConfig(t, userClient, root)
 
 		err := inv.WithContext(ctx).Run()
