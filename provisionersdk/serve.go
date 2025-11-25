@@ -35,6 +35,7 @@ type ServeOptions struct {
 }
 
 type Server interface {
+	Init(s *Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete
 	Parse(s *Session, r *proto.ParseRequest, canceledOrComplete <-chan struct{}) *proto.ParseComplete
 	Plan(s *Session, r *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete
 	Apply(s *Session, r *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete

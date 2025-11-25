@@ -67,51 +67,34 @@ func (s *server) setupContexts(parent context.Context, canceledOrComplete <-chan
 	return ctx, cancel, killCtx, kill
 }
 
-func (s *server) Plan(
-	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
-) *proto.PlanComplete {
+func (s *server) Init(
+	sess *provisionersdk.Session, request *proto.InitRequest, canceledOrComplete <-chan struct{},
+) *proto.InitComplete {
 	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
 	defer span.End()
 	ctx, cancel, killCtx, kill := s.setupContexts(ctx, canceledOrComplete)
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.Files, database.ProvisionerJobTimingStagePlan)
+	e := s.executor(sess.Files, database.ProvisionerJobTimingStageInit)
 	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.PlanErrorf("%s", err.Error())
+		return provisionersdk.InitErrorf("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 
-	// If we're destroying, exit early if there's no state. This is necessary to
-	// avoid any cases where a workspace is "locked out" of terraform due to
-	// e.g. bad template param values and cannot be deleted. This is just for
-	// contingency, in the future we will try harder to prevent workspaces being
-	// broken this hard.
-	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(sess.Config.State) == 0 {
-		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform state does not exist, there is nothing to do")
-		return &proto.PlanComplete{}
-	}
-
-	statefilePath := sess.Files.StateFilePath()
-	if len(sess.Config.State) > 0 {
-		err := os.WriteFile(statefilePath, sess.Config.State, 0o600)
-		if err != nil {
-			return provisionersdk.PlanErrorf("write statefile %q: %s", statefilePath, err)
-		}
-	}
-
-	err := CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
+	// TODO: These logs should probably be streamed back to the provisioner runner.
+	err := sess.Files.ExtractArchive(ctx, s.logger, afero.NewOsFs(), request.GetTemplateSourceArchive())
 	if err != nil {
-		return provisionersdk.PlanErrorf("unable to clean stale Terraform plugins: %s", err)
+		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
-	s.logger.Debug(ctx, "running initialization")
+	err = CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
+	if err != nil {
+		return provisionersdk.InitErrorf("unable to clean stale Terraform plugins: %s", err)
+	}
 
-	// The JSON output of `terraform init` doesn't include discrete fields for capturing timings of each plugin,
-	// so we capture the whole init process.
-	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
-	endStage := initTimings.startStage(database.ProvisionerJobTimingStageInit)
-
+	s.logger.Debug(ctx, "running terraform initialization")
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
 	err = e.init(ctx, killCtx, sess)
 	endStage(err)
 	if err != nil {
@@ -137,7 +120,7 @@ func (s *server) Plan(
 				slog.F("provider_coder_stacktrace", stacktrace),
 			)
 		}
-		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
+		return provisionersdk.InitErrorf("initialize terraform: %s", err)
 	}
 
 	modules, err := getModules(sess.Files)
@@ -147,7 +130,59 @@ func (s *server) Plan(
 		s.logger.Error(ctx, "failed to get modules from disk", slog.Error(err))
 	}
 
+	var moduleFiles []byte
+	// Skipping modules archiving is useful if the caller does not need it, eg during
+	// a workspace build. This removes some added costs of sending the modules
+	// payload back to coderd if coderd is just going to ignore it.
+	if !request.OmitModuleFiles {
+		moduleFiles, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
+		if err != nil {
+			// TODO: we probably want to persist this error or make it louder eventually
+			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
+		}
+	}
+
 	s.logger.Debug(ctx, "ran initialization")
+
+	return &proto.InitComplete{
+		Modules:         modules,
+		ModuleFiles:     moduleFiles,
+		ModuleFilesHash: nil,
+	}
+}
+
+func (s *server) Plan(
+	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
+) *proto.PlanComplete {
+	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
+	defer span.End()
+	ctx, cancel, killCtx, kill := s.setupContexts(ctx, canceledOrComplete)
+	defer cancel()
+	defer kill()
+
+	e := s.executor(sess.Files, database.ProvisionerJobTimingStagePlan)
+	if err := e.checkMinVersion(ctx); err != nil {
+		return provisionersdk.PlanErrorf("%s", err.Error())
+	}
+	logTerraformEnvVars(sess)
+
+	// If we're destroying, exit early if there's no state. This is necessary to
+	// avoid any cases where a workspace is "locked out" of terraform due to
+	// e.g. bad template param values and cannot be deleted. This is just for
+	// contingency, in the future we will try harder to prevent workspaces being
+	// broken this hard.
+	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(request.GetState()) == 0 {
+		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform state does not exist, there is nothing to do")
+		return &proto.PlanComplete{}
+	}
+
+	statefilePath := sess.Files.StateFilePath()
+	if len(request.GetState()) > 0 {
+		err := os.WriteFile(statefilePath, request.GetState(), 0o600)
+		if err != nil {
+			return provisionersdk.PlanErrorf("write statefile %q: %s", statefilePath, err)
+		}
+	}
 
 	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
 	if err != nil {
@@ -165,10 +200,6 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
-	// Prepend init timings since they occur prior to plan timings.
-	// Order is irrelevant; this is merely indicative.
-	resp.Timings = append(initTimings.aggregate(), resp.Timings...) // mergeInitTimings(initTimings.aggregate(), resp.Timings)
-	resp.Modules = modules
 	return resp
 }
 
@@ -192,7 +223,7 @@ func (s *server) Apply(
 	// e.g. bad template param values and cannot be deleted. This is just for
 	// contingency, in the future we will try harder to prevent workspaces being
 	// broken this hard.
-	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(sess.Config.State) == 0 {
+	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(request.GetState()) == 0 {
 		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform plan does not exist, there is nothing to do")
 		return &proto.ApplyComplete{}
 	}

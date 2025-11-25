@@ -348,18 +348,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
-	var moduleFiles []byte
-	// Skipping modules archiving is useful if the caller does not need it, eg during
-	// a workspace build. This removes some added costs of sending the modules
-	// payload back to coderd if coderd is just going to ignore it.
-	if !req.OmitModuleFiles {
-		moduleFiles, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
-		if err != nil {
-			// TODO: we probably want to persist this error or make it louder eventually
-			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
-		}
-	}
-
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
 	// the point of prebuilding if the expensive resource is replaced once claimed!
 	var (
@@ -394,7 +382,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Presets:               state.Presets,
 		Plan:                  planJSON,
 		ResourceReplacements:  resReps,
-		ModuleFiles:           moduleFiles,
 		HasAiTasks:            state.HasAITasks,
 		AiTasks:               state.AITasks,
 		HasExternalAgents:     state.HasExternalAgents,
