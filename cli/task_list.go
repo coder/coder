@@ -135,14 +135,13 @@ func (r *RootCmd) taskList() *serpent.Command {
 			}
 
 			ctx := inv.Context()
-			exp := codersdk.NewExperimentalClient(client)
 
 			targetUser := strings.TrimSpace(user)
 			if targetUser == "" && !all {
 				targetUser = codersdk.Me
 			}
 
-			tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{
+			tasks, err := client.Tasks(ctx, &codersdk.TasksFilter{
 				Owner:  targetUser,
 				Status: codersdk.TaskStatus(statusFilter),
 			})

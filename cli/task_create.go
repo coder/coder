@@ -111,8 +111,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			}
 
 			var (
-				ctx       = inv.Context()
-				expClient = codersdk.NewExperimentalClient(client)
+				ctx = inv.Context()
 
 				taskInput               string
 				templateVersionID       uuid.UUID
@@ -208,7 +207,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				templateVersionPresetID = preset.ID
 			}
 
-			task, err := expClient.CreateTask(ctx, ownerArg, codersdk.CreateTaskRequest{
+			task, err := client.CreateTask(ctx, ownerArg, codersdk.CreateTaskRequest{
 				Name:                    taskName,
 				TemplateVersionID:       templateVersionID,
 				TemplateVersionPresetID: templateVersionPresetID,
