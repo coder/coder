@@ -445,9 +445,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err := vals.PostgresURL.Set(postgresURL); err != nil {
 					return xerrors.Errorf("set postgres URL from file: %w", err)
 				}
-				logger.Info(ctx, "loaded postgres connection URL from file")
-			} else if vals.PostgresURL != "" {
-				logger.Info(ctx, "loaded postgres connection URL from environment or flag")
 			}
 
 			builtinPostgres := false
