@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -201,6 +202,63 @@ func (s *server) Plan(
 	}
 
 	return resp
+}
+
+func (s *server) Graph(
+	sess *provisionersdk.Session, request *proto.GraphRequest, canceledOrComplete <-chan struct{},
+) *proto.GraphComplete {
+	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
+	defer span.End()
+	ctx, cancel, killCtx, kill := s.setupContexts(ctx, canceledOrComplete)
+	defer cancel()
+	defer kill()
+
+	e := s.executor(sess.Files, database.ProvisionerJobTimingStageGraph)
+	if err := e.checkMinVersion(ctx); err != nil {
+		return provisionersdk.GraphError("%s", err.Error())
+	}
+	logTerraformEnvVars(sess)
+
+	modules := []*tfjson.StateModule{}
+	switch request.Source {
+	case proto.GraphSource_SOURCE_PLAN:
+		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+		if err != nil {
+			return provisionersdk.GraphError("parse plan for graph: %s", err)
+		}
+
+		modules = planModules(plan)
+	case proto.GraphSource_SOURCE_STATE:
+		tfState, err := e.state(ctx, killCtx)
+		if err != nil {
+			return provisionersdk.GraphError("load tfstate for graph: %s", err)
+		}
+		if tfState.Values != nil {
+			modules = []*tfjson.StateModule{tfState.Values.RootModule}
+		}
+	default:
+		return provisionersdk.GraphError("unknown graph source: %q", request.Source.String())
+	}
+
+	rawGraph, err := e.graph(ctx, killCtx)
+	if err != nil {
+		return provisionersdk.GraphError("generate graph: %s", err)
+	}
+
+	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
+	if err != nil {
+		return provisionersdk.GraphError("convert state for graph: %s", err)
+	}
+
+	return &proto.GraphComplete{
+		Error:                 "",
+		Timings:               e.timings.aggregate(),
+		Resources:             state.Resources,
+		Parameters:            state.Parameters,
+		ExternalAuthProviders: state.ExternalAuthProviders,
+		Presets:               state.Presets,
+		AiTasks:               state.AITasks,
+	}
 }
 
 func (s *server) Apply(

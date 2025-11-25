@@ -21,3 +21,7 @@ func PlanErrorf(format string, args ...any) *proto.PlanComplete {
 func ApplyErrorf(format string, args ...any) *proto.ApplyComplete {
 	return &proto.ApplyComplete{Error: fmt.Sprintf(format, args...)}
 }
+
+func GraphError(format string, args ...any) *proto.GraphComplete {
+	return &proto.GraphComplete{Error: fmt.Sprintf(format, args...)}
+}
