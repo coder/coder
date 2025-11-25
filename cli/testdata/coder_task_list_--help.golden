@@ -31,7 +31,7 @@ OPTIONS:
   -a, --all bool (default: false)
           List tasks for all users you can view.
 
-  -c, --column [id|organization id|owner id|owner name|owner avatar url|name|template id|template version id|template name|template display name|template icon|workspace id|workspace name|workspace status|workspace build number|workspace agent id|workspace agent lifecycle|workspace agent health|workspace app id|initial prompt|status|state|message|created at|updated at|state changed] (default: name,status,state,state changed,message)
+  -c, --column [id|organization id|owner id|owner name|owner avatar url|name|display name|template id|template version id|template name|template display name|template icon|workspace id|workspace name|workspace status|workspace build number|workspace agent id|workspace agent lifecycle|workspace agent health|workspace app id|initial prompt|status|state|message|created at|updated at|state changed] (default: name,status,state,state changed,message)
           Columns to display in table output.
 
   -o, --output table|json (default: table)
