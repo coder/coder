@@ -228,8 +228,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
+                        "description": "Task ID, or task name",
                         "name": "task",
                         "in": "path",
                         "required": true
@@ -265,8 +264,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
+                        "description": "Task ID, or task name",
                         "name": "task",
                         "in": "path",
                         "required": true
@@ -275,6 +273,50 @@ const docTemplate = `{
                 "responses": {
                     "202": {
                         "description": "Task deletion initiated"
+                    }
+                }
+            }
+        },
+        "/api/experimental/tasks/{user}/{task}/input": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Experimental"
+                ],
+                "summary": "Update AI task input",
+                "operationId": "update-task-input",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID, or task name",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update task input request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateTaskInputRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -301,8 +343,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
+                        "description": "Task ID, or task name",
                         "name": "task",
                         "in": "path",
                         "required": true
@@ -340,8 +381,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
+                        "description": "Task ID, or task name",
                         "name": "task",
                         "in": "path",
                         "required": true
@@ -19022,6 +19062,14 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.UpdateTaskInputRequest": {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string"
                 }
             }
         },

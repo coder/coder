@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -736,6 +737,210 @@ func TestTasks(t *testing.T) {
 			require.Error(t, err)
 			require.ErrorAs(t, err, &sdkErr)
 			require.Equal(t, http.StatusBadGateway, sdkErr.StatusCode())
+		})
+	})
+
+	t.Run("UpdateInput", func(t *testing.T) {
+		tests := []struct {
+			name               string
+			disableProvisioner bool
+			transition         database.WorkspaceTransition
+			cancelTransition   bool
+			deleteTask         bool
+			taskInput          string
+			wantStatus         codersdk.TaskStatus
+			wantErr            string
+			wantErrStatusCode  int
+		}{
+			{
+				name: "TaskStatusInitializing",
+				// We want to disable the provisioner so that the task
+				// never gets provisioned (ensuring it stays in Initializing).
+				disableProvisioner: true,
+				taskInput:          "Valid prompt",
+				wantStatus:         codersdk.TaskStatusInitializing,
+				wantErr:            "Unable to update",
+				wantErrStatusCode:  http.StatusConflict,
+			},
+			{
+				name:       "TaskStatusPaused",
+				transition: database.WorkspaceTransitionStop,
+				taskInput:  "Valid prompt",
+				wantStatus: codersdk.TaskStatusPaused,
+			},
+			{
+				name:              "TaskStatusError",
+				transition:        database.WorkspaceTransitionStart,
+				cancelTransition:  true,
+				taskInput:         "Valid prompt",
+				wantStatus:        codersdk.TaskStatusError,
+				wantErr:           "Unable to update",
+				wantErrStatusCode: http.StatusConflict,
+			},
+			{
+				name:       "EmptyPrompt",
+				transition: database.WorkspaceTransitionStop,
+				// We want to ensure an empty prompt is rejected.
+				taskInput:         "",
+				wantStatus:        codersdk.TaskStatusPaused,
+				wantErr:           "Task input is required.",
+				wantErrStatusCode: http.StatusBadRequest,
+			},
+			{
+				name:              "TaskDeleted",
+				transition:        database.WorkspaceTransitionStop,
+				deleteTask:        true,
+				taskInput:         "Valid prompt",
+				wantErr:           httpapi.ResourceNotFoundResponse.Message,
+				wantErrStatusCode: http.StatusNotFound,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				client, provisioner := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				user := coderdtest.CreateFirstUser(t, client)
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				template := createAITemplate(t, client, user)
+
+				if tt.disableProvisioner {
+					provisioner.Close()
+				}
+
+				// Given: We create a task
+				exp := codersdk.NewExperimentalClient(client)
+				task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+					TemplateVersionID: template.ActiveVersionID,
+					Input:             "initial prompt",
+				})
+				require.NoError(t, err)
+				require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+
+				if !tt.disableProvisioner {
+					// Given: The Task is running
+					workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+					require.NoError(t, err)
+					coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+					// Given: We transition the task's workspace
+					build := coderdtest.CreateWorkspaceBuild(t, client, workspace, tt.transition)
+					if tt.cancelTransition {
+						// Given: We cancel the workspace build
+						err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
+						require.NoError(t, err)
+
+						coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+						// Then: We expect it to be canceled
+						build, err = client.WorkspaceBuild(ctx, build.ID)
+						require.NoError(t, err)
+						require.Equal(t, codersdk.WorkspaceStatusCanceled, build.Status)
+					} else {
+						coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+					}
+				}
+
+				if tt.deleteTask {
+					err = exp.DeleteTask(ctx, codersdk.Me, task.ID)
+					require.NoError(t, err)
+				} else {
+					// Given: Task has expected status
+					task, err = exp.TaskByID(ctx, task.ID)
+					require.NoError(t, err)
+					require.Equal(t, tt.wantStatus, task.Status)
+				}
+
+				// When: We attempt to update the task input
+				err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
+					Input: tt.taskInput,
+				})
+				if tt.wantErr != "" {
+					require.ErrorContains(t, err, tt.wantErr)
+
+					if tt.wantErrStatusCode != 0 {
+						var apiErr *codersdk.Error
+						require.ErrorAs(t, err, &apiErr)
+						require.Equal(t, tt.wantErrStatusCode, apiErr.StatusCode())
+					}
+
+					if !tt.deleteTask {
+						// Then: We expect the input to **not** be updated
+						task, err = exp.TaskByID(ctx, task.ID)
+						require.NoError(t, err)
+						require.NotEqual(t, tt.taskInput, task.InitialPrompt)
+					}
+				} else {
+					require.NoError(t, err)
+
+					if !tt.deleteTask {
+						// Then: We expect the input to be updated
+						task, err = exp.TaskByID(ctx, task.ID)
+						require.NoError(t, err)
+						require.Equal(t, tt.taskInput, task.InitialPrompt)
+					}
+				}
+			})
+		}
+
+		t.Run("NonExistentTask", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			exp := codersdk.NewExperimentalClient(client)
+
+			// Attempt to update prompt for non-existent task
+			err := exp.UpdateTaskInput(ctx, user.UserID.String(), uuid.New(), codersdk.UpdateTaskInputRequest{
+				Input: "Should fail",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		})
+
+		t.Run("UnauthorizedUser", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			anotherUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task as the first user
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Wait for workspace to complete
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Stop the workspace
+			build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+			// Attempt to update prompt as another user should fail with 404 Not Found
+			otherExp := codersdk.NewExperimentalClient(anotherUser)
+			err = otherExp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
+				Input: "Should fail - unauthorized",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 		})
 	})
 }

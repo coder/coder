@@ -58,6 +58,45 @@ func TestWorkspaceTableConvert(t *testing.T) {
 			"To resolve this, go to the 'func (w Workspace) WorkspaceTable()' and ensure all fields are converted.")
 }
 
+// TestTaskTableConvert verifies all task fields are converted
+// when reducing a `Task` to a `TaskTable`.
+// This test is a guard rail to prevent developer oversight mistakes.
+func TestTaskTableConvert(t *testing.T) {
+	t.Parallel()
+
+	staticRandoms := &testutil.Random{
+		String:  func() string { return "foo" },
+		Bool:    func() bool { return true },
+		Int:     func() int64 { return 500 },
+		Uint:    func() uint64 { return 126 },
+		Float:   func() float64 { return 3.14 },
+		Complex: func() complex128 { return 6.24 },
+		Time: func() time.Time {
+			return time.Date(2020, 5, 2, 5, 19, 21, 30, time.UTC)
+		},
+	}
+
+	// Copies the approach taken by TestWorkspaceTableConvert.
+	//
+	// If you use 'PopulateStruct' to create 2 tasks, using the same
+	// "random" values for each type. Then they should be identical.
+	//
+	// So if 'task.TaskTable()' was missing any fields in its
+	// conversion, the comparison would fail.
+
+	var task Task
+	err := testutil.PopulateStruct(&task, staticRandoms)
+	require.NoError(t, err)
+
+	var subset TaskTable
+	err = testutil.PopulateStruct(&subset, staticRandoms)
+	require.NoError(t, err)
+
+	require.Equal(t, task.TaskTable(), subset,
+		"'task.TaskTable()' is not missing at least 1 field when converting to 'TaskTable'. "+
+			"To resolve this, go to the 'func (t Task) TaskTable()' and ensure all fields are converted.")
+}
+
 // TestAuditLogsQueryConsistency ensures that GetAuditLogsOffset and CountAuditLogs
 // have identical WHERE clauses to prevent filtering inconsistencies.
 // This test is a guard rail to prevent developer oversight mistakes.
