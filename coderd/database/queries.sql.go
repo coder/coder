@@ -15648,10 +15648,11 @@ INSERT INTO
 		oauth_refresh_token,
 		oauth_refresh_token_key_id,
 		oauth_expiry,
+		oauth_id_token,
 		claims
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
+	( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_id_token, claims
 `
 
 type InsertUserLinkParams struct {
@@ -15663,6 +15664,7 @@ type InsertUserLinkParams struct {
 	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	OAuthIdToken           string         `db:"oauth_id_token" json:"oauth_id_token"`
 	Claims                 UserLinkClaims `db:"claims" json:"claims"`
 }
 
@@ -15676,6 +15678,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
+		arg.OAuthIdToken,
 		arg.Claims,
 	)
 	var i UserLink
@@ -15688,6 +15691,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthIdToken,
 		&i.Claims,
 	)
 	return i, err
@@ -15806,9 +15810,10 @@ SET
 	oauth_refresh_token = $3,
 	oauth_refresh_token_key_id = $4,
 	oauth_expiry = $5,
-	claims = $6
+	oauth_id_token = $6,
+	claims = $7
 WHERE
-	user_id = $7 AND login_type = $8 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
+	user_id = $8 AND login_type = $9 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_id_token, claims
 `
 
 type UpdateUserLinkParams struct {
@@ -15817,6 +15822,7 @@ type UpdateUserLinkParams struct {
 	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	OAuthIdToken           string         `db:"oauth_id_token" json:"oauth_id_token"`
 	Claims                 UserLinkClaims `db:"claims" json:"claims"`
 	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
 	LoginType              LoginType      `db:"login_type" json:"login_type"`
@@ -15829,6 +15835,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
+		arg.OAuthIdToken,
 		arg.Claims,
 		arg.UserID,
 		arg.LoginType,
@@ -15843,6 +15850,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthIdToken,
 		&i.Claims,
 	)
 	return i, err

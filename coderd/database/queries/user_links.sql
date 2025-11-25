@@ -32,10 +32,11 @@ INSERT INTO
 		oauth_refresh_token,
 		oauth_refresh_token_key_id,
 		oauth_expiry,
+		oauth_id_token,
 		claims
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING *;
+	( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) RETURNING *;
 
 -- name: UpdateUserLinkedID :one
 UPDATE
@@ -54,9 +55,10 @@ SET
 	oauth_refresh_token = $3,
 	oauth_refresh_token_key_id = $4,
 	oauth_expiry = $5,
-	claims = $6
+	oauth_id_token = $6,
+	claims = $7
 WHERE
-	user_id = $7 AND login_type = $8 RETURNING *;
+	user_id = $8 AND login_type = $9 RETURNING *;
 
 -- name: OIDCClaimFields :many
 -- OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.

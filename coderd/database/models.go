@@ -4599,6 +4599,7 @@ type UserLink struct {
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthIdToken           string         `db:"oauth_id_token" json:"oauth_id_token"`
 	// Claims from the IDP for the linked user. Includes both id_token and userinfo claims.
 	Claims UserLinkClaims `db:"claims" json:"claims"`
 }

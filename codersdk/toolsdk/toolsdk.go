@@ -649,6 +649,7 @@ This data source provides the following fields:
 - email: The email of the workspace owner.
 - session_token: A token that can be used to authenticate the workspace owner. It is regenerated every time the workspace is started.
 - oidc_access_token: A valid OpenID Connect access token of the workspace owner. This is only available if the workspace owner authenticated with OpenID Connect. If a valid token cannot be obtained, this value will be an empty string.
+- oidc_id_token: A valid OpenID Connect ID token of the workspace owner. This is only available if the workspace owner authenticated with OpenID Connect. If a valid token cannot be obtained, this value will be an empty string. This is useful for providers like Azure that require the ID token for authentication.
 
 Parameters are defined in the template version. They are rendered in the UI on the workspace creation page:
 

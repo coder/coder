@@ -2423,6 +2423,7 @@ CREATE TABLE user_links (
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
     oauth_refresh_token_key_id text,
+    oauth_id_token text DEFAULT ''::text NOT NULL,
     claims jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 

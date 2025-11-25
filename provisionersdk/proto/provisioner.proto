@@ -351,6 +351,7 @@ message Metadata {
   string template_name = 8;
   string template_version = 9;
   string workspace_owner_oidc_access_token = 10;
+  string workspace_owner_oidc_id_token = 25;
   string workspace_owner_session_token = 11;
   string template_id = 12;
   string workspace_owner_name = 13;
