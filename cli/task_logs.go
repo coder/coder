@@ -41,16 +41,15 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 
 			var (
 				ctx        = inv.Context()
-				exp        = codersdk.NewExperimentalClient(client)
 				identifier = inv.Args[0]
 			)
 
-			task, err := exp.TaskByIdentifier(ctx, identifier)
+			task, err := client.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return xerrors.Errorf("resolve task %q: %w", identifier, err)
 			}
 
-			logs, err := exp.TaskLogs(ctx, codersdk.Me, task.ID)
+			logs, err := client.TaskLogs(ctx, codersdk.Me, task.ID)
 			if err != nil {
 				return xerrors.Errorf("get task logs: %w", err)
 			}

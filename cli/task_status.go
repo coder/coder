@@ -83,10 +83,9 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			}
 
 			ctx := i.Context()
-			exp := codersdk.NewExperimentalClient(client)
 			identifier := i.Args[0]
 
-			task, err := exp.TaskByIdentifier(ctx, identifier)
+			task, err := client.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return err
 			}
@@ -107,7 +106,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			// TODO: implement streaming updates instead of polling
 			lastStatusRow := tsr
 			for range t.C {
-				task, err := exp.TaskByID(ctx, task.ID)
+				task, err := client.TaskByID(ctx, task.ID)
 				if err != nil {
 					return err
 				}

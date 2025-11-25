@@ -2666,7 +2666,7 @@ class ExperimentalApiMethods {
 		req: TypesGen.CreateTaskRequest,
 	): Promise<TypesGen.Task> => {
 		const response = await this.axios.post<TypesGen.Task>(
-			`/api/experimental/tasks/${user}`,
+			`/api/v2/tasks/${user}`,
 			req,
 		);
 
@@ -2685,7 +2685,7 @@ class ExperimentalApiMethods {
 		}
 
 		const res = await this.axios.get<TypesGen.TasksListResponse>(
-			"/api/experimental/tasks",
+			"/api/v2/tasks",
 			{
 				params: {
 					q: query.join(", "),
@@ -2698,14 +2698,14 @@ class ExperimentalApiMethods {
 
 	getTask = async (user: string, id: string): Promise<TypesGen.Task> => {
 		const response = await this.axios.get<TypesGen.Task>(
-			`/api/experimental/tasks/${user}/${id}`,
+			`/api/v2/tasks/${user}/${id}`,
 		);
 
 		return response.data;
 	};
 
 	deleteTask = async (user: string, id: string): Promise<void> => {
-		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
+		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
 	};
 
 	createTaskFeedback = async (

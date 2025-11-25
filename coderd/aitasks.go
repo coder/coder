@@ -31,17 +31,15 @@ import (
 )
 
 // @Summary Create a new AI task
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID create-task
+// @ID create-a-new-ai-task
 // @Security CoderSessionToken
+// @Accept json
+// @Produce json
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param request body codersdk.CreateTaskRequest true "Create task request"
 // @Success 201 {object} codersdk.Task
-// @Router /api/experimental/tasks/{user} [post]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// This endpoint creates a new task for the given user.
+// @Router /tasks/{user} [post]
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -400,16 +398,13 @@ func deriveTaskCurrentState(
 }
 
 // @Summary List AI tasks
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID list-tasks
+// @ID list-ai-tasks
 // @Security CoderSessionToken
+// @Produce json
 // @Tags Experimental
 // @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
 // @Success 200 {object} codersdk.TasksListResponse
-// @Router /api/experimental/tasks [get]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// tasksList is an experimental endpoint to list tasks.
+// @Router /tasks [get]
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -502,20 +497,15 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	return result, nil
 }
 
-// @Summary Get AI task by ID
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID get-task
+// @Summary Get AI task by ID or name
+// @ID get-ai-task-by-id-or-name
 // @Security CoderSessionToken
+// @Produce json
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.Task
-// @Router /api/experimental/tasks/{user}/{task} [get]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskGet is an experimental endpoint to fetch a single AI task by ID
-// (workspace ID). It returns a synthesized task response including
-// prompt and status.
+// @Router /tasks/{user}/{task} [get]
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -580,20 +570,14 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
-// @Summary Delete AI task by ID
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID delete-task
+// @Summary Delete AI task
+// @ID delete-ai-task
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
-// @Success 202 "Task deletion initiated"
-// @Router /api/experimental/tasks/{user}/{task} [delete]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskDelete is an experimental endpoint to delete a task by ID.
-// It creates a delete workspace build and returns 202 Accepted if the build was
-// created.
+// @Success 202
+// @Router /tasks/{user}/{task} [delete]
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -655,18 +639,15 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update AI task input
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID update-task-input
+// @ID update-ai-task-input
 // @Security CoderSessionToken
+// @Accept json
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
 // @Success 204
-// @Router /api/experimental/tasks/{user}/{task}/input [patch]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskUpdateInput allows modifying a task's prompt before the agent executes it.
+// @Router /tasks/{user}/{task}/input [patch]
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -738,20 +719,15 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Send input to AI task
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID send-task-input
+// @ID send-input-to-ai-task
 // @Security CoderSessionToken
+// @Accept json
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
-// @Success 204 "Input sent successfully"
-// @Router /api/experimental/tasks/{user}/{task}/send [post]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskSend submits task input to the task app by dialing the agent
-// directly over the tailnet. We enforce ApplicationConnect RBAC on the
-// workspace and validate the task app health.
+// @Success 204
+// @Router /tasks/{user}/{task}/send [post]
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -812,18 +788,14 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get AI task logs
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID get-task-logs
+// @ID get-ai-task-logs
 // @Security CoderSessionToken
+// @Produce json
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.TaskLogsResponse
-// @Router /api/experimental/tasks/{user}/{task}/logs [get]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskLogs reads task output by dialing the agent directly over the tailnet.
-// We enforce ApplicationConnect RBAC on the workspace and validate the task app health.
+// @Router /tasks/{user}/{task}/logs [get]
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
