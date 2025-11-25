@@ -6,9 +6,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/serpent"
-
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func (r *RootCmd) syncComplete() *serpent.Command {
@@ -26,9 +25,7 @@ func (r *RootCmd) syncComplete() *serpent.Command {
 
 			fmt.Printf("Completing unit '%s'...\n", unit)
 
-			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
-				Path: "/tmp/coder.sock",
-			})
+			client, err := agentsocket.NewClient(ctx, "")
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}

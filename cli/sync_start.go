@@ -9,8 +9,7 @@ import (
 
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/agent/unit"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent/agentsocket"
 )
 
 const (
@@ -40,46 +39,41 @@ func (r *RootCmd) syncStart() *serpent.Command {
 
 			fmt.Printf("Starting unit '%s'...\n", unitName)
 
-			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
-				Path: "/tmp/coder.sock",
-			})
+			client, err := agentsocket.NewClient(ctx, "")
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
 			defer client.Close()
 
-			err = client.SyncReady(ctx, unitName)
+			ready, err := client.SyncReady(ctx, unitName)
 			if err != nil {
-				if xerrors.Is(err, unit.ErrDependenciesNotSatisfied) {
-					fmt.Printf("Waiting for dependencies of unit '%s' to be satisfied...\n", unitName)
+				return xerrors.Errorf("error checking dependencies: %w", err)
+			}
 
-					ticker := time.NewTicker(SyncPollInterval)
-					defer ticker.Stop()
+			if !ready {
+				fmt.Printf("Waiting for dependencies of unit '%s' to be satisfied...\n", unitName)
 
-				pollLoop:
-					for {
-						select {
-						case <-ctx.Done():
-							if ctx.Err() == context.DeadlineExceeded {
-								return xerrors.Errorf("timeout waiting for dependencies of unit '%s'", unitName)
-							}
-							return ctx.Err()
-						case <-ticker.C:
-							err := client.SyncReady(ctx, unitName)
-							if err == nil {
-								fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)
-								break pollLoop
-							}
+				ticker := time.NewTicker(SyncPollInterval)
+				defer ticker.Stop()
 
-							if xerrors.Is(err, unit.ErrDependenciesNotSatisfied) {
-								continue
-							}
-
+			pollLoop:
+				for {
+					select {
+					case <-ctx.Done():
+						if ctx.Err() == context.DeadlineExceeded {
+							return xerrors.Errorf("timeout waiting for dependencies of unit '%s'", unitName)
+						}
+						return ctx.Err()
+					case <-ticker.C:
+						ready, err := client.SyncReady(ctx, unitName)
+						if err != nil {
 							return xerrors.Errorf("error checking dependencies: %w", err)
 						}
+						if ready {
+							fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)
+							break pollLoop
+						}
 					}
-				} else {
-					return xerrors.Errorf("error checking dependencies: %w", err)
 				}
 			} else {
 				fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)

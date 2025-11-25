@@ -7,9 +7,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/serpent"
-
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func (r *RootCmd) syncPing() *serpent.Command {
@@ -22,26 +21,21 @@ func (r *RootCmd) syncPing() *serpent.Command {
 
 			fmt.Println("Pinging agent socket...")
 
-			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
-				Path: "/tmp/coder.sock",
-			})
+			client, err := agentsocket.NewClient(ctx, "")
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
 			defer client.Close()
 
 			start := time.Now()
-			resp, err := client.Ping(ctx)
+			err = client.Ping(ctx)
 			duration := time.Since(start)
 
 			if err != nil {
 				return xerrors.Errorf("ping failed: %w", err)
 			}
 
-			fmt.Printf("Response: %s\n", resp.Message)
-			fmt.Printf("Timestamp: %s\n", resp.Timestamp.Format(time.RFC3339))
 			fmt.Printf("Round-trip time: %s\n", duration.Round(time.Microsecond))
-			fmt.Println("Status: healthy")
 
 			return nil
 		},

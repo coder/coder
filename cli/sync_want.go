@@ -8,7 +8,7 @@ import (
 
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent/agentsocket"
 )
 
 func (r *RootCmd) syncWant() *serpent.Command {
@@ -27,9 +27,7 @@ func (r *RootCmd) syncWant() *serpent.Command {
 
 			fmt.Printf("Declaring dependency: '%s' depends on '%s'...\n", unit, dependsOn)
 
-			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
-				Path: "/tmp/coder.sock",
-			})
+			client, err := agentsocket.NewClient(ctx, "")
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}

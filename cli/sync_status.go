@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent/agentsocket"
 )
 
 type outputFormat string
@@ -23,10 +23,7 @@ const (
 )
 
 func (r *RootCmd) syncStatus() *serpent.Command {
-	var (
-		output    string
-		recursive bool
-	)
+	var output string
 
 	cmd := &serpent.Command{
 		Use:   "status <unit>",
@@ -40,26 +37,24 @@ func (r *RootCmd) syncStatus() *serpent.Command {
 			}
 			unit := i.Args[0]
 
-			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
-				Path: "/tmp/coder.sock",
-			})
+			client, err := agentsocket.NewClient(ctx, "")
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
 			defer client.Close()
 
-			statusResp, err := client.SyncStatus(ctx, unit, recursive)
+			statusResp, err := client.SyncStatus(ctx, unit)
 			if err != nil {
 				return xerrors.Errorf("get status failed: %w", err)
 			}
 
 			switch outputFormat(output) {
 			case outputFormatJSON:
-				return outputJSON(statusResp)
+				return outputJSON(unit, statusResp)
 			case outputFormatDOT:
 				return outputDOT(statusResp)
 			default: // outputFormatHuman
-				return outputHuman(statusResp)
+				return outputHuman(unit, statusResp)
 			}
 		},
 	}
@@ -71,33 +66,23 @@ func (r *RootCmd) syncStatus() *serpent.Command {
 			Description:   "Output format: human, json, or dot.",
 			Value:         serpent.EnumOf(&output, "human", "json", "dot"),
 		},
-		serpent.Option{
-			Flag:          "recursive",
-			FlagShorthand: "r",
-			Description:   "Show transitive dependencies and include DOT graph.",
-			Value:         serpent.BoolOf(&recursive),
-		},
 	)
 
 	return cmd
 }
 
-func outputJSON(statusResp *agentsdk.SyncStatusResponse) error {
+func outputJSON(unitName string, statusResp agentsocket.SyncStatusResponse) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(statusResp)
 }
 
-func outputDOT(statusResp *agentsdk.SyncStatusResponse) error {
-	if statusResp.DOT == "" {
-		return xerrors.New("DOT output requires --recursive flag")
-	}
-	fmt.Println(statusResp.DOT)
-	return nil
+func outputDOT(statusResp agentsocket.SyncStatusResponse) error {
+	return xerrors.New("DOT output is not currently supported")
 }
 
-func outputHuman(statusResp *agentsdk.SyncStatusResponse) error {
-	fmt.Printf("Unit: %s\n", statusResp.Unit)
+func outputHuman(unitName string, statusResp agentsocket.SyncStatusResponse) error {
+	fmt.Printf("Unit: %s\n", unitName)
 	fmt.Printf("Status: %s\n", statusResp.Status)
 	fmt.Printf("Ready: %t\n", statusResp.IsReady)
 	fmt.Println()

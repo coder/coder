@@ -9,8 +9,7 @@ import (
 
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/agent/unit"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent/agentsocket"
 )
 
 const (
@@ -40,9 +39,7 @@ func (r *RootCmd) syncWait() *serpent.Command {
 
 			fmt.Printf("Waiting for dependencies of unit '%s' to be satisfied...\n", unitName)
 
-			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
-				Path: "/tmp/coder.sock",
-			})
+			client, err := agentsocket.NewClient(ctx, "")
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
@@ -59,17 +56,14 @@ func (r *RootCmd) syncWait() *serpent.Command {
 					}
 					return ctx.Err()
 				case <-ticker.C:
-					err := client.SyncReady(ctx, unitName)
-					if err == nil {
+					ready, err := client.SyncReady(ctx, unitName)
+					if err != nil {
+						return xerrors.Errorf("error checking dependencies: %w", err)
+					}
+					if ready {
 						fmt.Printf("Dependencies for unit '%s' are now satisfied\n", unitName)
 						return nil
 					}
-
-					if xerrors.Is(err, unit.ErrDependenciesNotSatisfied) {
-						continue
-					}
-
-					return xerrors.Errorf("error checking dependencies: %w", err)
 				}
 			}
 		},
