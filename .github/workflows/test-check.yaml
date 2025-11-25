@@ -1,0 +1,227 @@
+# This workflow checks if a PR requires test updates.
+# It creates a Coder Task that uses AI to analyze the PR changes,
+# check existing tests, and comment with recommendations.
+#
+# Triggered by: Adding the "test-check" label to a PR, or manual dispatch.
+
+name: AI Test Coverage Check
+
+on:
+  pull_request:
+    types:
+      - labeled
+  workflow_dispatch:
+    inputs:
+      pr_url:
+        description: "Pull Request URL to check"
+        required: true
+        type: string
+      template_preset:
+        description: "Template preset to use"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  test-check:
+    name: Analyze PR for Test Updates Needed
+    runs-on: ubuntu-latest
+    if: |
+      (github.event.label.name == 'test-check' || github.event_name == 'workflow_dispatch') &&
+      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 30
+    env:
+      CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: write
+
+    steps:
+      - name: Determine PR Context
+        id: determine-context
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_EVENT_SENDER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_SENDER_LOGIN: ${{ github.event.sender.login }}
+          INPUTS_PR_URL: ${{ inputs.pr_url }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
+          echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
+
+          # For workflow_dispatch, use the provided PR URL
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
+              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+              exit 1
+            fi
+            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using PR URL: ${INPUTS_PR_URL}"
+            # Convert /pull/ to /issues/ for create-task-action compatibility
+            ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+
+            # Extract PR number from URL for later use
+            PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
+            echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
+            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
+            # Convert /pull/ to /issues/ for create-task-action compatibility
+            ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+      - name: Build prompt
+        id: build-prompt
+        env:
+          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Analyzing PR #${PR_NUMBER}"
+
+          # Build task prompt - using unquoted heredoc so variables expand
+          TASK_PROMPT=$(cat <<EOF
+          Review PR #${PR_NUMBER} and determine if tests need updating or creating.
+
+          PR URL: ${PR_URL}
+
+          WORKFLOW:
+            1. Setup (repo is pre-cloned at ~/coder)
+               cd ~/coder
+               git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+               git checkout pr-${PR_NUMBER}
+
+            2. Get PR info
+               Use GitHub MCP tools to get PR title, body, and diff
+               Or use: git diff main...pr-${PR_NUMBER}
+
+            3. Understand Changes
+               Read the diff and identify what changed
+               Ask: Does this add/modify/delete functionality?
+
+            4. Analyze Test Coverage
+               Go Backend:
+               - For Go files: check if corresponding _test.go exists (co-located)
+               - Test packages use package_test naming (e.g., coderd_test)
+               - Look for table-driven tests with t.Run() subtests
+               - Integration tests use coderdtest.New(t, nil) for setup
+               - Check enterprise/ for enterprise-specific tests
+
+               Frontend (site/):
+               - Unit tests: site/src/**/*.test.ts and *.test.tsx
+               - E2E tests: site/e2e/tests/*.spec.ts (Playwright)
+               - Run with: pnpm test
+
+               Scale/Performance:
+               - Scale tests: scaletest/**/run_test.go
+               - Used for load testing and performance validation
+
+            5. Decide (use judgment based on context)
+               NEEDS TESTS: New functionality that isn't covered by existing tests
+               NEEDS UPDATES: Changes that make existing test assertions incorrect or incomplete
+               NO CHANGES: Tests already sufficient, or changes don't affect testable behavior
+
+            6. Comment on the PR using this format
+
+          COMMENT FORMAT:
+          ## 🧪 Test Coverage Review
+
+          ### ❌ Tests Needed
+          - **path/to/file.go** - New function needs unit tests
+
+          ### ⚠️ Tests Need Updates
+          - **path/to/file_test.go** - Assertions outdated for changed behavior
+
+          ### ⚠️ Tests to Remove
+          - **path/to/old_test.go** - Tests orphaned deleted code
+
+          ### ✅ No Changes Needed
+          [Reason: Tests already updated in PR | Internal refactor with existing coverage | Docs-only changes | Config-only changes]
+
+          ---
+          *This comment was generated by an AI Agent through [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+
+          TEST LOCATIONS:
+            Go unit tests: *_test.go co-located with source (632+ files)
+            CLI tests: cli/*_test.go
+            Coderd API tests: coderd/*_test.go
+            Enterprise tests: enterprise/**/*_test.go
+            Frontend unit: site/src/**/*.test.ts, *.test.tsx (36 files)
+            E2E tests: site/e2e/tests/*.spec.ts (Playwright)
+            Scale tests: scaletest/**/run_test.go
+            Test utilities: testutil/, coderd/coderdtest/
+
+          EOF
+          )
+
+          # Output the prompt
+          {
+            echo "task_prompt<<EOFOUTPUT"
+            echo "${TASK_PROMPT}"
+            echo "EOFOUTPUT"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout create-task-action
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+          path: ./.github/actions/create-task-action
+          persist-credentials: false
+          ref: main
+          repository: coder/create-task-action
+
+      - name: Create Coder Task for Test Coverage Check
+        id: create_task
+        uses: ./.github/actions/create-task-action
+        with:
+          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          coder-organization: "default"
+          coder-template-name: coder
+          coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
+          coder-task-name-prefix: test-check
+          coder-task-prompt: ${{ steps.build-prompt.outputs.task_prompt }}
+          github-user-id: ${{ steps.determine-context.outputs.github_user_id }}
+          github-token: ${{ github.token }}
+          github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
+          comment-on-issue: true
+
+      - name: Write outputs
+        env:
+          TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_URL: ${{ steps.create_task.outputs.task-url }}
+          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
+        run: |
+          {
+            echo "## Test Coverage Check Task"
+            echo ""
+            echo "**PR:** ${PR_URL}"
+            echo "**Task created:** ${TASK_CREATED}"
+            echo "**Task name:** ${TASK_NAME}"
+            echo "**Task URL:** ${TASK_URL}"
+            echo ""
+            echo "The Coder task is analyzing the PR changes and will comment with test coverage recommendations."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
