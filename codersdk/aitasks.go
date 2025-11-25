@@ -35,6 +35,7 @@ type CreateTaskRequest struct {
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	Input                   string    `json:"input"`
 	Name                    string    `json:"name,omitempty"`
+	DisplayName             string    `json:"display_name,omitempty"`
 }
 
 // CreateTask creates a new task.
@@ -128,6 +129,7 @@ type Task struct {
 	OwnerName               string                   `json:"owner_name" table:"owner name"`
 	OwnerAvatarURL          string                   `json:"owner_avatar_url,omitempty" table:"owner avatar url"`
 	Name                    string                   `json:"name" table:"name,default_sort"`
+	DisplayName             string                   `json:"display_name" table:"display_name"`
 	TemplateID              uuid.UUID                `json:"template_id" format:"uuid" table:"template id"`
 	TemplateVersionID       uuid.UUID                `json:"template_version_id" format:"uuid" table:"template version id"`
 	TemplateName            string                   `json:"template_name" table:"template name"`
