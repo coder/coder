@@ -1,10 +1,7 @@
 package agentapi
 
 import (
-	// "database/sql"
 	"sync"
-
-	// "github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -30,8 +27,8 @@ func (cws *CachedWorkspaceFields) Equal(cws2 *CachedWorkspaceFields) bool {
 	cws2.lock.RLock()
 	defer cws2.lock.RUnlock()
 
-	return cws.identity.ID == cws2.identity.ID && cws.identity.OwnerID == cws2.identity.OwnerID && 
-		cws.identity.OrganizationID == cws2.identity.OrganizationID && cws.identity.TemplateID == cws2.identity.TemplateID && 
+	return cws.identity.ID == cws2.identity.ID && cws.identity.OwnerID == cws2.identity.OwnerID &&
+		cws.identity.OrganizationID == cws2.identity.OrganizationID && cws.identity.TemplateID == cws2.identity.TemplateID &&
 		cws.identity.Name == cws2.identity.Name && cws.identity.OwnerUsername == cws2.identity.OwnerUsername &&
 		cws.identity.TemplateName == cws2.identity.TemplateName && cws.identity.AutostartSchedule == cws2.identity.AutostartSchedule
 }

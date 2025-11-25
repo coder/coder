@@ -343,11 +343,10 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Workspace: &agentapi.CachedWorkspaceFields{
-			},
-			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
-			Pubsub:   pub,
-			Log:      testutil.Logger(t),
+			Workspace: &agentapi.CachedWorkspaceFields{},
+			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
+			Pubsub:    pub,
+			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -429,12 +428,10 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				return agent, nil
 			},
 
-			Workspace: &agentapi.CachedWorkspaceFields{
-				
-			},
-			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
-			Pubsub:   pub,
-			Log:      testutil.Logger(t),
+			Workspace: &agentapi.CachedWorkspaceFields{},
+			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
+			Pubsub:    pub,
+			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -607,18 +604,18 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				return agent, nil
 			},
 			Workspace: &agentapi.CachedWorkspaceFields{},
-			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
-			Pubsub:   pub,
-			Log:      testutil.Logger(t),
+			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
+			Pubsub:    pub,
+			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
 			},
 		}
 
 		api.Workspace.UpdateValues(database.Workspace{
-				ID:             workspaceID,
-				OwnerID:        prebuildOwnerID, // STALE! Still has prebuild owner
-				OrganizationID: orgID,
+			ID:             workspaceID,
+			OwnerID:        prebuildOwnerID, // STALE! Still has prebuild owner
+			OrganizationID: orgID,
 		})
 
 		// Call metadata update as the REAL OWNER

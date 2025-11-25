@@ -1,8 +1,8 @@
 package database
 
 import (
-	"encoding/hex"
 	"database/sql"
+	"encoding/hex"
 	"slices"
 	"sort"
 	"strconv"
@@ -782,8 +782,8 @@ func (s AIBridgeInterception) RBACObject() rbac.Object {
 // WorkspaceIdentity contains the minimal workspace fields needed for agent API metadata/stats reporting
 // and RBAC checks, without requiring a full database.Workspace object.
 type WorkspaceIdentity struct {
-    // Add any other fields needed for IsPrebuild() if it relies on workspace fields
-		// Identity fields
+	// Add any other fields needed for IsPrebuild() if it relies on workspace fields
+	// Identity fields
 	ID             uuid.UUID
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
@@ -799,33 +799,33 @@ type WorkspaceIdentity struct {
 }
 
 func (w WorkspaceIdentity) RBACObject() rbac.Object {
-    return Workspace{
-        ID:                w.ID,
-        OwnerID:           w.OwnerID,
-		OrganizationID: w.OrganizationID,
-        TemplateID:        w.TemplateID,
-		Name: w.Name,
-		OwnerUsername: w.OwnerUsername,
-		TemplateName: w.TemplateName,
+	return Workspace{
+		ID:                w.ID,
+		OwnerID:           w.OwnerID,
+		OrganizationID:    w.OrganizationID,
+		TemplateID:        w.TemplateID,
+		Name:              w.Name,
+		OwnerUsername:     w.OwnerUsername,
+		TemplateName:      w.TemplateName,
 		AutostartSchedule: w.AutostartSchedule,
-    }.RBACObject()
+	}.RBACObject()
 }
 
 // IsPrebuild returns true if the workspace is a prebuild workspace.
 // A workspace is considered a prebuild if its owner is the prebuild system user.
 func (w WorkspaceIdentity) IsPrebuild() bool {
-    return w.OwnerID == PrebuildsSystemUserID
+	return w.OwnerID == PrebuildsSystemUserID
 }
 
 func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
 	return WorkspaceIdentity{
 		ID:                w.ID,
-        OwnerID:           w.OwnerID,
-		OrganizationID: w.OrganizationID,
-        TemplateID:        w.TemplateID,
-		Name: w.Name,
-		OwnerUsername: w.OwnerUsername,
-		TemplateName: w.TemplateName,
+		OwnerID:           w.OwnerID,
+		OrganizationID:    w.OrganizationID,
+		TemplateID:        w.TemplateID,
+		Name:              w.Name,
+		OwnerUsername:     w.OwnerUsername,
+		TemplateName:      w.TemplateName,
 		AutostartSchedule: w.AutostartSchedule,
 	}
 }

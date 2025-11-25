@@ -41,7 +41,7 @@ func TestCacheClear(t *testing.T) {
 		Name:              workspace.Name,
 		TemplateName:      workspace.TemplateName,
 		AutostartSchedule: workspace.AutostartSchedule,
-		},
+	},
 	)
 
 	emptyCws := agentapi.CachedWorkspaceFields{}
@@ -80,7 +80,7 @@ func TestCacheUpdate(t *testing.T) {
 		Name:              workspace.Name,
 		TemplateName:      workspace.TemplateName,
 		AutostartSchedule: workspace.AutostartSchedule,
-		},
+	},
 	)
 
 	cws := agentapi.CachedWorkspaceFields{}
