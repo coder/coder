@@ -999,6 +999,7 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_PG_CONNECTION_URL_FILE</code> |
+| YAML        | <code>pgConnectionURLFile</code>           |
 
 Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.
 
