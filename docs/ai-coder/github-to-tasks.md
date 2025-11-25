@@ -135,7 +135,7 @@ Create a new GitHub issue for a bug in your codebase. We recommend a basic bug, 
 
 Add the `coder` label to that GitHub issue. You should see the following things occur:
 
-- A comment is made on the issue saying `Task created: https://your-coder-url/tasks/username/task-id`
+- A comment is made on the issue saying `Task created: https://<your-coder-url>/tasks/username/task-id`
 - A Coder Task will spin up, and you'll receive a Tasks notification to that effect
 - You can click the link to follow the Task's progress in creating a plan to solve your bug
 
