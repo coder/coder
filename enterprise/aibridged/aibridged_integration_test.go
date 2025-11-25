@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -107,7 +108,7 @@ func TestIntegration(t *testing.T) {
     "completion_tokens": 15,
     "total_tokens": 75,
     "prompt_tokens_details": {
-      "cached_tokens": 0,
+      "cached_tokens": 15,
       "audio_tokens": 0
     },
     "completion_tokens_details": {
@@ -244,8 +245,9 @@ func TestIntegration(t *testing.T) {
 	tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
-	require.EqualValues(t, tokens[0].InputTokens, 60)
+	require.EqualValues(t, tokens[0].InputTokens, 45)
 	require.EqualValues(t, tokens[0].OutputTokens, 15)
+	require.EqualValues(t, gjson.Get(string(tokens[0].Metadata.RawMessage), "prompt_cached").Int(), 15)
 
 	tools, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)
