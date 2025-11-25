@@ -2556,6 +2556,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Flag:        "postgres-url-file",
 			Env:         "CODER_PG_CONNECTION_URL_FILE",
 			Value:       &c.PostgresURLFile,
+			YAML:        "pgConnectionURLFile",
 		},
 		{
 			Name:        "Postgres Auth",
