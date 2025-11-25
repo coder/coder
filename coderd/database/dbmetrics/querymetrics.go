@@ -1033,10 +1033,10 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+func (m queryMetricsStore) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetLatestWorkspaceAppStatusesByAppID(ctx, appID)
-	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAppStatusesByAppID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAppStatusByAppID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
