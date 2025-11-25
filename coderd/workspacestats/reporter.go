@@ -120,7 +120,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 }
 
 // nolint:revive // usage is a control flag while we have the experiment
-func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.Workspace, workspaceAgent database.WorkspaceAgent, templateName string, stats *agentproto.Stats, usage bool) error {
+func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.WorkspaceIdentity, workspaceAgent database.WorkspaceAgent, stats *agentproto.Stats, usage bool) error {
 	// update agent stats
 	r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
 
@@ -130,7 +130,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 			Username:      workspace.OwnerUsername,
 			WorkspaceName: workspace.Name,
 			AgentName:     workspaceAgent.Name,
-			TemplateName:  templateName,
+			TemplateName:  workspace.TemplateName,
 		}, stats.Metrics)
 	}
 
