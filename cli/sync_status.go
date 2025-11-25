@@ -37,7 +37,7 @@ func (r *RootCmd) syncStatus() *serpent.Command {
 			}
 			unit := i.Args[0]
 
-			client, err := agentsocket.NewClient(ctx, "")
+			client, err := agentsocket.NewClient(ctx)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}

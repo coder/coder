@@ -47,7 +47,7 @@ func tempDirUnixSocket(t *testing.T) string {
 func newSocketClient(ctx context.Context, t *testing.T, socketPath string) *agentsocket.Client {
 	t.Helper()
 
-	client, err := agentsocket.NewClient(ctx, socketPath)
+	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(socketPath))
 	t.Cleanup(func() {
 		_ = client.Close()
 	})

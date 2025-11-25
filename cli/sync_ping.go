@@ -21,7 +21,7 @@ func (r *RootCmd) syncPing() *serpent.Command {
 
 			fmt.Println("Pinging agent socket...")
 
-			client, err := agentsocket.NewClient(ctx, "")
+			client, err := agentsocket.NewClient(ctx)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}

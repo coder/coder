@@ -82,7 +82,7 @@ func TestServerWindowsNotSupported(t *testing.T) {
 	t.Run("NewClient", func(t *testing.T) {
 		t.Parallel()
 
-		client, err := agentsocket.NewClient(context.Background(), "test.sock")
+		client, err := agentsocket.NewClient(context.Background(), agentsocket.WithPath("test.sock"))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "agentsocket is not supported on Windows")
 		require.Nil(t, client)

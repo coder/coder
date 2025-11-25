@@ -11,8 +11,23 @@ import (
 // Client provides a client for communicating with the workspace agentsocket API.
 type Client struct{}
 
+// Option represents a configuration option for NewClient.
+type Option func(*clientOptions)
+
+type clientOptions struct {
+	path string
+}
+
+// WithPath sets the socket path. If not provided or empty, the client will
+// auto-discover the default socket path.
+func WithPath(path string) Option {
+	return func(opts *clientOptions) {
+		opts.path = path
+	}
+}
+
 // NewClient returns an error indicating that agentsocket is not supported on Windows.
-func NewClient(ctx context.Context, path string) (*Client, error) {
+func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 	return nil, xerrors.New("agentsocket is not supported on Windows")
 }
 

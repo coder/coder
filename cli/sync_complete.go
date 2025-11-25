@@ -25,7 +25,7 @@ func (r *RootCmd) syncComplete() *serpent.Command {
 
 			fmt.Printf("Completing unit '%s'...\n", unit)
 
-			client, err := agentsocket.NewClient(ctx, "")
+			client, err := agentsocket.NewClient(ctx)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}

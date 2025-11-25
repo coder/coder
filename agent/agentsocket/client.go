@@ -20,9 +20,30 @@ type Client struct {
 	conn   drpc.Conn
 }
 
+// Option represents a configuration option for NewClient.
+type Option func(*clientOptions)
+
+type clientOptions struct {
+	path string
+}
+
+// WithPath sets the socket path. If not provided or empty, the client will
+// auto-discover the default socket path.
+func WithPath(path string) Option {
+	return func(opts *clientOptions) {
+		opts.path = path
+	}
+}
+
 // NewClient creates a new socket client and opens a connection to the socket.
-// If path is empty, it will auto-discover the default socket path.
-func NewClient(ctx context.Context, path string) (*Client, error) {
+// If path is not provided via WithPath or is empty, it will auto-discover the default socket path.
+func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
+	options := &clientOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	path := options.path
 	if path == "" {
 		var err error
 		path, err = getDefaultSocketPath()

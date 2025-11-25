@@ -39,7 +39,7 @@ func (r *RootCmd) syncWait() *serpent.Command {
 
 			fmt.Printf("Waiting for dependencies of unit '%s' to be satisfied...\n", unitName)
 
-			client, err := agentsocket.NewClient(ctx, "")
+			client, err := agentsocket.NewClient(ctx)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}

@@ -39,7 +39,7 @@ func (r *RootCmd) syncStart() *serpent.Command {
 
 			fmt.Printf("Starting unit '%s'...\n", unitName)
 
-			client, err := agentsocket.NewClient(ctx, "")
+			client, err := agentsocket.NewClient(ctx)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}

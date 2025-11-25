@@ -27,7 +27,7 @@ func (r *RootCmd) syncWant() *serpent.Command {
 
 			fmt.Printf("Declaring dependency: '%s' depends on '%s'...\n", unit, dependsOn)
 
-			client, err := agentsocket.NewClient(ctx, "")
+			client, err := agentsocket.NewClient(ctx)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
