@@ -47,8 +47,8 @@ func Test_TaskStatus(t *testing.T) {
 		},
 		{
 			args: []string{"exists"},
-			expectOutput: `STATE CHANGED  STATUS  HEALTHY  STATE    MESSAGE
-0s ago         active  true     working  Thinking furiously...`,
+			expectOutput: `STATE CHANGED  TASK STATUS  HEALTHY  STATE    MESSAGE
+now            active       true     working  Thinking furiously...`,
 			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
@@ -58,11 +58,17 @@ func Test_TaskStatus(t *testing.T) {
 							WorkspaceStatus: codersdk.WorkspaceStatusRunning,
 							CreatedAt:       now,
 							UpdatedAt:       now,
-							CurrentState: &codersdk.TaskStateEntry{
-								State:     codersdk.TaskStateWorking,
-								Timestamp: now,
+							AppStatus: &codersdk.WorkspaceAppStatus{
+								State:     codersdk.WorkspaceAppStatusStateWorking,
+								CreatedAt: now,
 								Message:   "Thinking furiously...",
 							},
+							CurrentState: &codersdk.TaskStateEntry{
+								Timestamp: now,
+								State:     codersdk.TaskStateWorking,
+								Message:   "Thinking furiously...",
+							},
+
 							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 								Healthy: true,
 							},
@@ -78,12 +84,12 @@ func Test_TaskStatus(t *testing.T) {
 		},
 		{
 			args: []string{"exists", "--watch"},
-			expectOutput: `STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
-5s ago         pending  true
-4s ago         initializing  true
-4s ago         active  true
-3s ago         active  true     working  Reticulating splines...
-2s ago         active  true     complete  Splines reticulated successfully!`,
+			expectOutput: `STATE CHANGED  TASK STATUS    HEALTHY  STATE     MESSAGE
+5s ago         pending        true
+4s ago         initializing   true
+4s ago         active         true
+in <1m         active         true      working   Reticulating splines...
+in <1m         active         true      complete  Splines reticulated successfully!`,
 			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -144,11 +150,17 @@ func Test_TaskStatus(t *testing.T) {
 									Healthy: true,
 								},
 								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateWorking,
-									Timestamp: now.Add(-3 * time.Second),
+								AppStatus: &codersdk.WorkspaceAppStatus{
+									State:     codersdk.WorkspaceAppStatusStateWorking,
+									CreatedAt: now.Add(-3 * time.Second),
 									Message:   "Reticulating splines...",
 								},
+								CurrentState: &codersdk.TaskStateEntry{
+									Timestamp: now.Add(-3 * time.Second),
+									State:     codersdk.TaskStateWorking,
+									Message:   "Reticulating splines...",
+								},
+
 								Status: codersdk.TaskStatusActive,
 							})
 							return
@@ -162,11 +174,17 @@ func Test_TaskStatus(t *testing.T) {
 									Healthy: true,
 								},
 								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateComplete,
-									Timestamp: now.Add(-2 * time.Second),
+								AppStatus: &codersdk.WorkspaceAppStatus{
+									State:     codersdk.WorkspaceAppStatusStateComplete,
+									CreatedAt: now.Add(-2 * time.Second),
 									Message:   "Splines reticulated successfully!",
 								},
+								CurrentState: &codersdk.TaskStateEntry{
+									Timestamp: now.Add(-2 * time.Second),
+									State:     codersdk.TaskStateComplete,
+									Message:   "Splines reticulated successfully!",
+								},
+
 								Status: codersdk.TaskStatusActive,
 							})
 							return
@@ -206,14 +224,26 @@ func Test_TaskStatus(t *testing.T) {
   "workspace_app_id": null,
   "initial_prompt": "",
   "status": "active",
+  "latest_workspace_app_status": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "created_at": "2025-08-26T12:34:57Z",
+    "workspace_id": "00000000-0000-0000-0000-000000000000",
+    "agent_id": "00000000-0000-0000-0000-000000000000",
+    "app_id": "00000000-0000-0000-0000-000000000000",
+    "state": "working",
+    "message": "Thinking furiously...",
+    "uri": "",
+    "icon": "",
+    "needs_user_attention": false
+  },
+  "created_at": "2025-08-26T12:34:56Z",
+  "updated_at": "2025-08-26T12:34:56Z",
   "current_state": {
     "timestamp": "2025-08-26T12:34:57Z",
     "state": "working",
     "message": "Thinking furiously...",
     "uri": ""
-  },
-  "created_at": "2025-08-26T12:34:56Z",
-  "updated_at": "2025-08-26T12:34:56Z"
+  }
 }`,
 			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
@@ -232,11 +262,17 @@ func Test_TaskStatus(t *testing.T) {
 							WorkspaceStatus:         codersdk.WorkspaceStatusRunning,
 							CreatedAt:               ts,
 							UpdatedAt:               ts,
-							CurrentState: &codersdk.TaskStateEntry{
-								State:     codersdk.TaskStateWorking,
-								Timestamp: ts.Add(time.Second),
+							AppStatus: &codersdk.WorkspaceAppStatus{
+								State:     codersdk.WorkspaceAppStatusStateWorking,
+								CreatedAt: ts.Add(time.Second),
 								Message:   "Thinking furiously...",
 							},
+							CurrentState: &codersdk.TaskStateEntry{
+								Timestamp: ts.Add(time.Second),
+								State:     codersdk.TaskStateWorking,
+								Message:   "Thinking furiously...",
+							},
+
 							Status: codersdk.TaskStatusActive,
 						})
 						return

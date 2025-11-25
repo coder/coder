@@ -21,8 +21,10 @@ type taskListRow struct {
 
 func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
 	var stateAgo string
-	if t.CurrentState != nil {
-		stateAgo = now.UTC().Sub(t.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
+	if t.AppStatus != nil {
+		stateAgo = relative(now.UTC().Sub(t.AppStatus.CreatedAt).Truncate(time.Second))
+	} else if t.CurrentState != nil {
+		stateAgo = relative(now.UTC().Sub(t.CurrentState.Timestamp).Truncate(time.Second))
 	}
 
 	return taskListRow{
@@ -44,7 +46,7 @@ func (r *RootCmd) taskList() *serpent.Command {
 				[]taskListRow{},
 				[]string{
 					"name",
-					"status",
+					"task status",
 					"state",
 					"state changed",
 					"message",

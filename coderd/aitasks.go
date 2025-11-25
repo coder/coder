@@ -302,6 +302,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 
 	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle, taskAppHealth)
+	appStatus := deriveTaskAppStatus(ws)
 
 	return codersdk.Task{
 		ID:                      dbTask.ID,
@@ -326,10 +327,26 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		WorkspaceAppID:          dbTask.WorkspaceAppID,
 		InitialPrompt:           dbTask.Prompt,
 		Status:                  codersdk.TaskStatus(dbTask.Status),
+		AppStatus:               appStatus,
 		CurrentState:            currentState,
 		CreatedAt:               dbTask.CreatedAt,
 		UpdatedAt:               ws.UpdatedAt,
 	}
+}
+
+// deriveTaskAppStatus determines the latest app status for a task.
+// Returns nil if no valid app status can be determined.
+func deriveTaskAppStatus(ws codersdk.Workspace) *codersdk.WorkspaceAppStatus {
+	// Ignore 'latest app status' if it is older than the latest build and the
+	// latest build is a 'start' transition. This ensures that you don't show a
+	// stale app status from a previous build. For stop transitions, there is
+	// still value in showing the latest app status.
+	if ws.LatestAppStatus != nil {
+		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			return ws.LatestAppStatus
+		}
+	}
+	return nil
 }
 
 // deriveTaskCurrentState determines the current state of a task based on the

@@ -100,7 +100,7 @@ func AllTaskStatuses() []TaskStatus {
 
 // TaskState represents the high-level lifecycle of a task.
 //
-// Experimental: This type is experimental and may change in the future.
+// Deprecated: use WorkspaceAppStatusState instead.
 type TaskState string
 
 // TaskState enums.
@@ -144,15 +144,17 @@ type Task struct {
 	WorkspaceAgentHealth    *WorkspaceAgentHealth    `json:"workspace_agent_health" table:"workspace agent health"`
 	WorkspaceAppID          uuid.NullUUID            `json:"workspace_app_id" format:"uuid" table:"workspace app id"`
 	InitialPrompt           string                   `json:"initial_prompt" table:"initial prompt"`
-	Status                  TaskStatus               `json:"status" enums:"pending,initializing,active,paused,unknown,error" table:"status"`
-	CurrentState            *TaskStateEntry          `json:"current_state" table:"cs,recursive_inline,empty_nil"`
+	Status                  TaskStatus               `json:"status" enums:"pending,initializing,active,paused,unknown,error" table:"task status"`
+	AppStatus               *WorkspaceAppStatus      `json:"latest_workspace_app_status" table:"app status,recursive_inline,empty_nil"`
 	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
 	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
+	// Deprecated: use AppStatus instead.
+	CurrentState *TaskStateEntry `json:"current_state" table:"cs,recursive_inline"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
 //
-// Experimental: This type is experimental and may change in the future.
+// Deprecated: use WorkspaceAppStatus instead.
 type TaskStateEntry struct {
 	Timestamp time.Time `json:"timestamp" format:"date-time" table:"-"`
 	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"state"`

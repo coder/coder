@@ -19,7 +19,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				[]taskStatusRow{},
 				[]string{
 					"state changed",
-					"status",
+					"task status",
 					"healthy",
 					"state",
 					"message",
@@ -149,10 +149,25 @@ func taskWatchIsEnded(task codersdk.Task) bool {
 	if task.WorkspaceAgentLifecycle == nil || task.WorkspaceAgentLifecycle.Starting() || task.WorkspaceAgentLifecycle.ShuttingDown() {
 		return false
 	}
-	if task.CurrentState == nil || task.CurrentState.State == codersdk.TaskStateWorking {
-		return false
+	// Check if we have a state to examine
+	if task.AppStatus != nil {
+		// If AppStatus says we're working, keep watching
+		if task.AppStatus.State == codersdk.WorkspaceAppStatusStateWorking {
+			return false
+		}
+		// AppStatus has a terminal state, we're done
+		return true
 	}
-	return true
+	if task.CurrentState != nil {
+		// If CurrentState says we're working, keep watching
+		if task.CurrentState.State == codersdk.TaskStateWorking {
+			return false
+		}
+		// CurrentState has a terminal state, we're done
+		return true
+	}
+	// No state available yet, keep watching
+	return false
 }
 
 type taskStatusRow struct {
@@ -178,8 +193,10 @@ func toStatusRow(task codersdk.Task) taskStatusRow {
 		!task.WorkspaceAgentLifecycle.Starting() &&
 		!task.WorkspaceAgentLifecycle.ShuttingDown()
 
-	if task.CurrentState != nil {
-		tsr.ChangedAgo = time.Since(task.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
+	if task.AppStatus != nil {
+		tsr.ChangedAgo = relative(time.Since(task.AppStatus.CreatedAt).Truncate(time.Second))
+	} else if task.CurrentState != nil {
+		tsr.ChangedAgo = relative(time.Since(task.CurrentState.Timestamp).Truncate(time.Second))
 	}
 	return tsr
 }

@@ -17877,7 +17877,12 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "current_state": {
-                    "$ref": "#/definitions/codersdk.TaskStateEntry"
+                    "description": "Deprecated: use AppStatus instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TaskStateEntry"
+                        }
+                    ]
                 },
                 "display_name": {
                     "type": "string"
@@ -17888,6 +17893,9 @@ const docTemplate = `{
                 },
                 "initial_prompt": {
                     "type": "string"
+                },
+                "latest_workspace_app_status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAppStatus"
                 },
                 "name": {
                     "type": "string"

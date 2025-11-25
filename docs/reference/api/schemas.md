@@ -7810,6 +7810,18 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initial_prompt": "string",
+  "latest_workspace_app_status": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message": "string",
+    "needs_user_attention": true,
+    "state": "working",
+    "uri": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_avatar_url": "string",
@@ -7847,33 +7859,34 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                        | Type                                                                 | Required | Restrictions | Description |
-|-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `created_at`                | string                                                               | false    |              |             |
-| `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
-| `display_name`              | string                                                               | false    |              |             |
-| `id`                        | string                                                               | false    |              |             |
-| `initial_prompt`            | string                                                               | false    |              |             |
-| `name`                      | string                                                               | false    |              |             |
-| `organization_id`           | string                                                               | false    |              |             |
-| `owner_avatar_url`          | string                                                               | false    |              |             |
-| `owner_id`                  | string                                                               | false    |              |             |
-| `owner_name`                | string                                                               | false    |              |             |
-| `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
-| `template_display_name`     | string                                                               | false    |              |             |
-| `template_icon`             | string                                                               | false    |              |             |
-| `template_id`               | string                                                               | false    |              |             |
-| `template_name`             | string                                                               | false    |              |             |
-| `template_version_id`       | string                                                               | false    |              |             |
-| `updated_at`                | string                                                               | false    |              |             |
-| `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
-| `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
-| `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
-| `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
-| `workspace_build_number`    | integer                                                              | false    |              |             |
-| `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
-| `workspace_name`            | string                                                               | false    |              |             |
-| `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
+| Name                          | Type                                                                 | Required | Restrictions | Description                        |
+|-------------------------------|----------------------------------------------------------------------|----------|--------------|------------------------------------|
+| `created_at`                  | string                                                               | false    |              |                                    |
+| `current_state`               | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              | Deprecated: use AppStatus instead. |
+| `display_name`                | string                                                               | false    |              |                                    |
+| `id`                          | string                                                               | false    |              |                                    |
+| `initial_prompt`              | string                                                               | false    |              |                                    |
+| `latest_workspace_app_status` | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)           | false    |              |                                    |
+| `name`                        | string                                                               | false    |              |                                    |
+| `organization_id`             | string                                                               | false    |              |                                    |
+| `owner_avatar_url`            | string                                                               | false    |              |                                    |
+| `owner_id`                    | string                                                               | false    |              |                                    |
+| `owner_name`                  | string                                                               | false    |              |                                    |
+| `status`                      | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |                                    |
+| `template_display_name`       | string                                                               | false    |              |                                    |
+| `template_icon`               | string                                                               | false    |              |                                    |
+| `template_id`                 | string                                                               | false    |              |                                    |
+| `template_name`               | string                                                               | false    |              |                                    |
+| `template_version_id`         | string                                                               | false    |              |                                    |
+| `updated_at`                  | string                                                               | false    |              |                                    |
+| `workspace_agent_health`      | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |                                    |
+| `workspace_agent_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |                                    |
+| `workspace_agent_lifecycle`   | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                    |
+| `workspace_app_id`            | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |                                    |
+| `workspace_build_number`      | integer                                                              | false    |              |                                    |
+| `workspace_id`                | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |                                    |
+| `workspace_name`              | string                                                               | false    |              |                                    |
+| `workspace_status`            | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |                                    |
 
 #### Enumerated Values
 
@@ -8039,6 +8052,18 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initial_prompt": "string",
+      "latest_workspace_app_status": {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "created_at": "2019-08-24T14:15:22Z",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "message": "string",
+        "needs_user_attention": true,
+        "state": "working",
+        "uri": "string",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+      },
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_avatar_url": "string",

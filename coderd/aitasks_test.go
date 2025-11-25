@@ -238,10 +238,10 @@ func TestTasks(t *testing.T) {
 		// Verify that the previous status still remains
 		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
-		assert.NotNil(t, updated.CurrentState, "current state should not be nil")
-		assert.Equal(t, "all done", updated.CurrentState.Message)
-		assert.Equal(t, codersdk.TaskStateComplete, updated.CurrentState.State)
-		previousCurrentState := updated.CurrentState
+		assert.NotNil(t, updated.AppStatus, "latest app status should not be nil")
+		assert.Equal(t, "all done", updated.AppStatus.Message)
+		assert.Equal(t, codersdk.WorkspaceAppStatusStateComplete, updated.AppStatus.State)
+		previousAppStatus := updated.AppStatus
 
 		// Start the workspace again
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
@@ -250,9 +250,11 @@ func TestTasks(t *testing.T) {
 		// and replaced by the agent initialization status.
 		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
-		assert.NotEqual(t, previousCurrentState, updated.CurrentState)
-		assert.Equal(t, codersdk.TaskStateWorking, updated.CurrentState.State)
-		assert.NotEqual(t, "all done", updated.CurrentState.Message)
+		assert.NotEqual(t, previousAppStatus, updated.AppStatus)
+		if updated.AppStatus != nil {
+			assert.Equal(t, codersdk.WorkspaceAppStatusStateWorking, updated.AppStatus.State)
+			assert.NotEqual(t, "all done", updated.AppStatus.Message)
+		}
 	})
 
 	t.Run("Delete", func(t *testing.T) {
