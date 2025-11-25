@@ -250,7 +250,7 @@ const TerminalPage: FC = () => {
 
 		// Open terminal - both xterm.js and ghostty-web have synchronous open()
 		// For ghostty-web, WASM loading happens in constructor, and open() returns void.
-		// The terminal becomes fully ready after onReady fires (FitAddon handles this internally).
+		// The terminal becomes fully ready after onReady fires.
 		terminal.open(terminalWrapperRef.current);
 
 		// We have to fit twice here. It's unknown why, but the first fit will
@@ -259,15 +259,29 @@ const TerminalPage: FC = () => {
 		fitAddonRef.current?.fit();
 		fitAddonRef.current?.fit();
 
-		// Terminal is correctly sized and is ready to be used.
+		// This will trigger a resize event on the terminal.
+		const resizeListener = () => fitAddonRef.current?.fit();
+		window.addEventListener("resize", resizeListener);
+
+		// For ghostty-web, wait for onReady before exposing terminal to other effects.
+		// The WASM loads asynchronously in the constructor, so methods like clear()
+		// and write() won't work until onReady fires.
+		if (useGhosttyWeb) {
+			const readyDisposable = (terminal as GhosttyTerminal).onReady(() => {
+				setTerminal(terminal);
+			});
+			return () => {
+				readyDisposable.dispose();
+				window.removeEventListener("resize", resizeListener);
+				terminal.dispose();
+			};
+		}
+
+		// For xterm.js, terminal is ready immediately after open()
 		setTerminal(terminal);
 
-		// This will trigger a resize event on the terminal.
-		const listener = () => fitAddonRef.current?.fit();
-		window.addEventListener("resize", listener);
-
 		return () => {
-			window.removeEventListener("resize", listener);
+			window.removeEventListener("resize", resizeListener);
 			terminal.dispose();
 		};
 	}, [
