@@ -106,6 +106,10 @@ func (s *Session) handleRequests() error {
 		}
 		resp := &proto.Response{}
 		if parse := req.GetParse(); parse != nil {
+			if s.initialized == nil {
+				// Files must be initialized before parsing.
+				return xerrors.New("cannot parse before successful init")
+			}
 			r := &request[*proto.ParseRequest, *proto.ParseComplete]{
 				req:      parse,
 				session:  s,

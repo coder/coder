@@ -304,8 +304,8 @@ func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.P
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: parameters,
 						Presets:    presets,
 					},
@@ -1576,8 +1576,8 @@ func TestCreateWithGitAuth(t *testing.T) {
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}},
 					},
 				},

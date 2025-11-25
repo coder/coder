@@ -1325,8 +1325,8 @@ func completeWithAgent() *echo.Responses {
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "compute",
@@ -1346,8 +1346,8 @@ func completeWithAgent() *echo.Responses {
 		},
 		ProvisionApply: []*proto.Response{
 			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "compute",

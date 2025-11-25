@@ -369,16 +369,12 @@ message Metadata {
 
 // Config represents execution configuration shared by all subsequent requests in the Session
 message Config {
-  // template_source_archive is a tar of the template source files
-  bytes no_use_template_source_archive = 1;
-  // state is the provisioner state (if any)
-  bytes no_use_state = 2;
-  string provisioner_log_level = 3;
+  string provisioner_log_level = 1;
   // Template imports can omit template id
-  optional string template_id = 4;
+  optional string template_id = 2;
   // Dry runs omit version id
-  optional string template_version_id = 5;
-  optional bool exp_reuse_terraform_workspace = 6; // Whether to reuse existing terraform workspaces if they exist.
+  optional string template_version_id = 3;
+  optional bool exp_reuse_terraform_workspace = 4; // Whether to reuse existing terraform workspaces if they exist.
 }
 
 // ParseRequest consumes source-code to produce inputs.
@@ -456,7 +452,8 @@ enum GraphSource {
 }
 
 message GraphRequest {
-  GraphSource source = 1;
+  Metadata metadata = 1;
+  GraphSource source = 2;
 }
 
 message GraphComplete {

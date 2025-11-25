@@ -38,8 +38,8 @@ func mutableParamsResponse() *echo.Responses {
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:        mutableParameterName,
@@ -61,8 +61,8 @@ func immutableParamsResponse() *echo.Responses {
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:        immutableParameterName,
@@ -83,11 +83,13 @@ func TestStart(t *testing.T) {
 
 	echoResponses := func() *echo.Responses {
 		return &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
+			Parse:         echo.ParseComplete,
+			ProvisionInit: echo.InitComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionGraph: []*proto.Response{
 				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Parameters: []*proto.RichParameter{
 								{
 									Name:        ephemeralParameterName,

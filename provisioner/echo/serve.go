@@ -12,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -201,6 +202,11 @@ func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan
 }
 
 func (e *echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+	err := sess.Files.ExtractArchive(sess.Context(), sess.Logger, afero.NewOsFs(), req.TemplateSourceArchive)
+	if err != nil {
+		return provisionersdk.InitErrorf("extract archive: %s", err.Error())
+	}
+
 	responses, err := readResponses(
 		sess,
 		"", // transition not supported for echo graph responses
@@ -225,7 +231,7 @@ func (e *echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, cancel
 func (e *echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
 	responses, err := readResponses(
 		sess,
-		"", // transition not supported for echo graph responses
+		strings.ToLower(req.GetMetadata().GetWorkspaceTransition().String()),
 		"graph.protobuf")
 	if err != nil {
 		return &proto.GraphComplete{Error: err.Error()}
@@ -307,6 +313,7 @@ type Responses struct {
 	// Used to mock specific transition responses. They are prioritized over the generic responses.
 	ProvisionPlanMap  map[proto.WorkspaceTransition][]*proto.Response
 	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
+	ProvisionGraphMap map[proto.WorkspaceTransition][]*proto.Response
 
 	ExtraFiles map[string][]byte
 }
@@ -483,6 +490,16 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 
 			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), resp)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	for trans, m := range responses.ProvisionGraphMap {
+		for i, resp := range m {
+			graph := resp.GetGraph()
+
+			err := writeProto(fmt.Sprintf("%d.%s.graph.protobuf", i, strings.ToLower(trans.String())), graph)
 			if err != nil {
 				return nil, err
 			}

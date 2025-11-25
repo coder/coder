@@ -287,8 +287,8 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						HasAiTasks: true,
 					},
 				},
@@ -296,8 +296,8 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 		},
 		ProvisionApply: []*proto.Response{
 			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Name: "example",
