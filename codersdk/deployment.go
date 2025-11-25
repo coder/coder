@@ -463,6 +463,7 @@ type DeploymentValues struct {
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	PostgresURLFile                 serpent.String                       `json:"pg_connection_url_file,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
@@ -2551,6 +2552,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresURL,
+		},
+		{
+			Name:        "Postgres Connection URL File",
+			Description: "Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.",
+			Flag:        "postgres-url-file",
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Value:       &c.PostgresURLFile,
 		},
 		{
 			Name:        "Postgres Auth",

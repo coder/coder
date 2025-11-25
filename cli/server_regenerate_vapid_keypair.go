@@ -20,8 +20,9 @@ import (
 
 func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 	var (
-		regenVapidKeypairDBURL  string
-		regenVapidKeypairPgAuth string
+		regenVapidKeypairDBURL     string
+		regenVapidKeypairDBURLFile string
+		regenVapidKeypairPgAuth    string
 	)
 	regenerateVapidKeypairCommand := &serpent.Command{
 		Use:    "regenerate-vapid-keypair",
@@ -38,6 +39,18 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 			}
 
 			defer cancel()
+
+			// Read the postgres URL from a file, if specified.
+			if regenVapidKeypairDBURLFile != "" {
+				if regenVapidKeypairDBURL != "" {
+					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+				}
+				var err error
+				regenVapidKeypairDBURL, err = ReadPostgresURLFromFile(regenVapidKeypairDBURLFile)
+				if err != nil {
+					return err
+				}
+			}
 
 			if regenVapidKeypairDBURL == "" {
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", cfg.PostgresPath())
@@ -97,6 +110,12 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
 			Value:       serpent.StringOf(&regenVapidKeypairDBURL),
+		},
+		serpent.Option{
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Flag:        "postgres-url-file",
+			Description: "Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.",
+			Value:       serpent.StringOf(&regenVapidKeypairDBURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -371,4 +373,42 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadPostgresURLFromFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReadsFile", func(t *testing.T) {
+		t.Parallel()
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "pg_url")
+		expectedURL := "postgres://user:pass@localhost:5432/db"
+		err := os.WriteFile(filePath, []byte(expectedURL), 0o600)
+		require.NoError(t, err)
+
+		url, err := ReadPostgresURLFromFile(filePath)
+		require.NoError(t, err)
+		require.Equal(t, expectedURL, url)
+	})
+
+	t.Run("TrimsWhitespace", func(t *testing.T) {
+		t.Parallel()
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "pg_url")
+		expectedURL := "postgres://user:pass@localhost:5432/db"
+		// Write with leading/trailing whitespace and newlines
+		err := os.WriteFile(filePath, []byte("  \n"+expectedURL+"\n  \n"), 0o600)
+		require.NoError(t, err)
+
+		url, err := ReadPostgresURLFromFile(filePath)
+		require.NoError(t, err)
+		require.Equal(t, expectedURL, url)
+	})
+
+	t.Run("FileNotFound", func(t *testing.T) {
+		t.Parallel()
+		_, err := ReadPostgresURLFromFile("/nonexistent/path/to/file")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "read postgres URL file")
+	})
 }

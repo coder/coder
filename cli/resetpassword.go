@@ -21,8 +21,9 @@ import (
 
 func (*RootCmd) resetPassword() *serpent.Command {
 	var (
-		postgresURL  string
-		postgresAuth string
+		postgresURL     string
+		postgresURLFile string
+		postgresAuth    string
 	)
 
 	root := &serpent.Command{
@@ -35,6 +36,18 @@ func (*RootCmd) resetPassword() *serpent.Command {
 			logger := slog.Make(sloghuman.Sink(inv.Stdout))
 			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
 				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			// Read the postgres URL from a file, if specified.
+			if postgresURLFile != "" {
+				if postgresURL != "" {
+					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+				}
+				var err error
+				postgresURL, err = ReadPostgresURLFromFile(postgresURLFile)
+				if err != nil {
+					return err
+				}
 			}
 
 			sqlDriver := "postgres"
@@ -105,6 +118,12 @@ func (*RootCmd) resetPassword() *serpent.Command {
 			Description: "URL of a PostgreSQL database to connect to.",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Value:       serpent.StringOf(&postgresURL),
+		},
+		{
+			Flag:        "postgres-url-file",
+			Description: "Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.",
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Value:       serpent.StringOf(&postgresURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",

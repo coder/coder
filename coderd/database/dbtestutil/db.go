@@ -100,6 +100,14 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	var ps pubsub.Pubsub
 
 	connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
+	if connectionURL == "" {
+		// Check if a file path is provided instead.
+		if filePath := os.Getenv("CODER_PG_CONNECTION_URL_FILE"); filePath != "" {
+			content, err := os.ReadFile(filePath)
+			require.NoError(t, err, "read postgres URL file")
+			connectionURL = strings.TrimSpace(string(content))
+		}
+	}
 	if connectionURL == "" && o.url != "" {
 		connectionURL = o.url
 	}

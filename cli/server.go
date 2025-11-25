@@ -433,6 +433,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			config := r.createConfig()
 
+			// If a postgres URL file is specified, read the URL from the file.
+			if vals.PostgresURLFile != "" {
+				if vals.PostgresURL != "" {
+					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+				}
+				postgresURL, err := ReadPostgresURLFromFile(vals.PostgresURLFile.String())
+				if err != nil {
+					return err
+				}
+				if err := vals.PostgresURL.Set(postgresURL); err != nil {
+					return xerrors.Errorf("set postgres URL from file: %w", err)
+				}
+			}
+
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if vals.PostgresURL == "" {
@@ -2818,6 +2832,17 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 		return context.WithCancel(ctx)
 	}
 	return inv.SignalNotifyContext(ctx, sig...)
+}
+
+// ReadPostgresURLFromFile reads a PostgreSQL connection URL from a file. The
+// file contents are trimmed of whitespace. This is useful for reading secrets
+// from files, such as Docker or Kubernetes secrets.
+func ReadPostgresURLFromFile(filePath string) (string, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", xerrors.Errorf("read postgres URL file %q: %w", filePath, err)
+	}
+	return strings.TrimSpace(string(content)), nil
 }
 
 func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
