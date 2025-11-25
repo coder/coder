@@ -1,4 +1,3 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import {
@@ -45,7 +44,7 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<IconButton
-						css={styles.button}
+						className="text-inherit"
 						onClick={() => {
 							setShouldDisplay((value) => !value);
 						}}
@@ -60,9 +59,3 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 		</div>
 	);
 };
-
-const styles = {
-	button: css`
-		color: inherit;
-	`,
-} satisfies Record<string, Interpolation<Theme>>;
