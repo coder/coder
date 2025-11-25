@@ -193,7 +193,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) => {
 			// Users with updateTemplates permission can select the version to use.
 			if (permissions.updateTemplates) {
-				return API.tasks.createTask(user.id, {
+				return API.createTask(user.id, {
 					input: prompt,
 					template_version_id: selectedVersionId,
 					template_version_preset_id: selectedPresetId,
@@ -453,7 +453,7 @@ async function createTaskWithLatestTemplateVersion(
 	presetId: string | undefined,
 ): Promise<Task> {
 	const template = await API.getTemplate(templateId);
-	return API.tasks.createTask(userId, {
+	return API.createTask(userId, {
 		input,
 		template_version_id: template.active_version_id,
 		template_version_preset_id: presetId,

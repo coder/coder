@@ -135,7 +135,7 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ owner }) => {
 	const filter: TasksFilter = { owner };
 	const tasksQuery = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => API.tasks.getTasks(filter),
+		queryFn: () => API.getTasks(filter),
 		refetchInterval: 10_000,
 	});
 

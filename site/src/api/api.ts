@@ -440,11 +440,9 @@ export type GetProvisionerDaemonsParams = {
  */
 class ApiMethods {
 	experimental: ExperimentalApiMethods;
-	tasks: TasksApiMethods;
 
 	constructor(protected readonly axios: AxiosInstance) {
 		this.experimental = new ExperimentalApiMethods(this.axios);
-		this.tasks = new TasksApiMethods(this.axios);
 	}
 
 	login = async (
@@ -2646,19 +2644,6 @@ class ApiMethods {
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
-}
-
-export type TaskFeedbackRating = "good" | "okay" | "bad";
-
-export type CreateTaskFeedbackRequest = {
-	rate: TaskFeedbackRating;
-	comment?: string;
-};
-
-// All methods must be defined with arrow function syntax. See the docstring
-// above the ApiMethods class for a full explanation.
-class TasksApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
 
 	createTask = async (
 		user: string,
@@ -2716,6 +2701,13 @@ class TasksApiMethods {
 		});
 	};
 }
+
+export type TaskFeedbackRating = "good" | "okay" | "bad";
+
+export type CreateTaskFeedbackRequest = {
+	rate: TaskFeedbackRating;
+	comment?: string;
+};
 
 // Experimental API methods call endpoints under the /api/experimental/ prefix.
 // These endpoints are not stable and may change or be removed at any time.
