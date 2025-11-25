@@ -12,20 +12,15 @@ import (
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
 )
 
-// Client provides a client for communicating with the workspace agentsocket API
+// Client provides a client for communicating with the workspace agentsocket API.
 type Client struct {
 	client proto.DRPCAgentSocketClient
 	conn   drpc.Conn
 }
 
-// ClientConfig holds configuration for the socket client
-type ClientConfig struct {
-	Path string // Socket path (optional, will auto-discover if not set)
-}
-
-// NewClient creates a new socket client
-func NewClient(ctx context.Context, config ClientConfig) (*Client, error) {
-	path := config.Path
+// NewClient creates a new socket client and opens a connection to the socket.
+// If path is empty, it will auto-discover the default socket path.
+func NewClient(ctx context.Context, path string) (*Client, error) {
 	if path == "" {
 		var err error
 		path, err = getDefaultSocketPath()
@@ -40,10 +35,7 @@ func NewClient(ctx context.Context, config ClientConfig) (*Client, error) {
 		return nil, xerrors.Errorf("connect to socket: %w", err)
 	}
 
-	// Create drpc connection using the multiplexed connection
 	drpcConn := drpcconn.New(conn)
-
-	// Create drpc client
 	client := proto.NewDRPCAgentSocketClient(drpcConn)
 
 	return &Client{
@@ -52,18 +44,18 @@ func NewClient(ctx context.Context, config ClientConfig) (*Client, error) {
 	}, nil
 }
 
-// Close closes the socket connection
+// Close closes the socket connection.
 func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-// Ping sends a ping request to the agent
+// Ping sends a ping request to the agent.
 func (c *Client) Ping(ctx context.Context) error {
 	_, err := c.client.Ping(ctx, &proto.PingRequest{})
 	return err
 }
 
-// SyncStart starts a unit in the dependency graph
+// SyncStart starts a unit in the dependency graph.
 func (c *Client) SyncStart(ctx context.Context, unitName string) error {
 	_, err := c.client.SyncStart(ctx, &proto.SyncStartRequest{
 		Unit: unitName,
@@ -71,7 +63,7 @@ func (c *Client) SyncStart(ctx context.Context, unitName string) error {
 	return err
 }
 
-// SyncWant declares a dependency between units
+// SyncWant declares a dependency between units.
 func (c *Client) SyncWant(ctx context.Context, unitName, dependsOn string) error {
 	_, err := c.client.SyncWant(ctx, &proto.SyncWantRequest{
 		Unit:      unitName,
@@ -80,7 +72,7 @@ func (c *Client) SyncWant(ctx context.Context, unitName, dependsOn string) error
 	return err
 }
 
-// SyncComplete marks a unit as complete in the dependency graph
+// SyncComplete marks a unit as complete in the dependency graph.
 func (c *Client) SyncComplete(ctx context.Context, unitName string) error {
 	_, err := c.client.SyncComplete(ctx, &proto.SyncCompleteRequest{
 		Unit: unitName,
@@ -96,7 +88,7 @@ func (c *Client) SyncReady(ctx context.Context, unitName string) (bool, error) {
 	return resp.Ready, err
 }
 
-// SyncStatus gets the status of a unit and its dependencies
+// SyncStatus gets the status of a unit and its dependencies.
 func (c *Client) SyncStatus(ctx context.Context, unitName string) (*SyncStatusResponse, error) {
 	resp, err := c.client.SyncStatus(ctx, &proto.SyncStatusRequest{
 		Unit: unitName,
@@ -105,7 +97,6 @@ func (c *Client) SyncStatus(ctx context.Context, unitName string) (*SyncStatusRe
 		return nil, err
 	}
 
-	// Convert dependencies
 	var dependencies []DependencyInfo
 	for _, dep := range resp.Dependencies {
 		dependencies = append(dependencies, DependencyInfo{
@@ -123,12 +114,14 @@ func (c *Client) SyncStatus(ctx context.Context, unitName string) (*SyncStatusRe
 	}, nil
 }
 
+// SyncStatusResponse contains the status information for a unit.
 type SyncStatusResponse struct {
 	Status       string           `json:"status"`
 	IsReady      bool             `json:"is_ready"`
 	Dependencies []DependencyInfo `json:"dependencies"`
 }
 
+// DependencyInfo contains information about a unit dependency.
 type DependencyInfo struct {
 	DependsOn      string `json:"depends_on"`
 	RequiredStatus string `json:"required_status"`

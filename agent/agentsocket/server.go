@@ -32,6 +32,7 @@ type Server struct {
 	wg       sync.WaitGroup
 }
 
+// NewServer creates a new agent socket server.
 func NewServer(path string, logger slog.Logger) (*Server, error) {
 	logger = logger.Named("agentsocket-server")
 	server := &Server{
@@ -90,6 +91,7 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 	return server, nil
 }
 
+// Close stops the server and cleans up resources.
 func (s *Server) Close() error {
 	s.mu.Lock()
 

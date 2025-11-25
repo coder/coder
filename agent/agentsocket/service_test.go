@@ -47,7 +47,7 @@ func tempDirUnixSocket(t *testing.T) string {
 func newSocketClient(ctx context.Context, t *testing.T, socketPath string) *agentsocket.Client {
 	t.Helper()
 
-	client, err := agentsocket.NewClient(ctx, agentsocket.ClientConfig{Path: socketPath})
+	client, err := agentsocket.NewClient(ctx, socketPath)
 	t.Cleanup(func() {
 		_ = client.Close()
 	})
@@ -67,9 +67,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Parallel()
 
 		socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		t.Cleanup(cancel)
-
+		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := agentsocket.NewServer(
 			socketPath,
 			slog.Make().Leveled(slog.LevelDebug),
@@ -89,9 +87,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("NewUnit", func(t *testing.T) {
 			t.Parallel()
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -113,9 +109,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -145,9 +139,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -186,9 +178,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -218,9 +208,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -245,9 +233,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -282,9 +268,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -326,9 +310,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -347,9 +329,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
@@ -373,9 +353,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
