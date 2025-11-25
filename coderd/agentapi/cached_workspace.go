@@ -21,18 +21,6 @@ type CachedWorkspaceFields struct {
 	identity database.WorkspaceIdentity
 }
 
-func (cws *CachedWorkspaceFields) Equal(cws2 *CachedWorkspaceFields) bool {
-	cws.lock.RLock()
-	defer cws.lock.RUnlock()
-	cws2.lock.RLock()
-	defer cws2.lock.RUnlock()
-
-	return cws.identity.ID == cws2.identity.ID && cws.identity.OwnerID == cws2.identity.OwnerID &&
-		cws.identity.OrganizationID == cws2.identity.OrganizationID && cws.identity.TemplateID == cws2.identity.TemplateID &&
-		cws.identity.Name == cws2.identity.Name && cws.identity.OwnerUsername == cws2.identity.OwnerUsername &&
-		cws.identity.TemplateName == cws2.identity.TemplateName && cws.identity.AutostartSchedule == cws2.identity.AutostartSchedule
-}
-
 func (cws *CachedWorkspaceFields) Clear() {
 	cws.lock.Lock()
 	defer cws.lock.Unlock()
@@ -57,7 +45,7 @@ func (cws *CachedWorkspaceFields) AsWorkspaceIdentity() (database.WorkspaceIdent
 	cws.lock.RLock()
 	defer cws.lock.RUnlock()
 	// Should we be more explicit about all fields being set to be valid?
-	if cws.Equal(&CachedWorkspaceFields{}) {
+	if cws.identity.Equal(database.WorkspaceIdentity{}) {
 		return database.WorkspaceIdentity{}, false
 	}
 	return cws.identity, true

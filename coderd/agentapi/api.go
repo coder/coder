@@ -283,11 +283,14 @@ func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	}
 
 	if ws.IsPrebuild() {
-		a.opts.Log.Debug(ctx, "workspace is a prebuild, not caching in AgentAPI")
 		return
 	}
 
-	// Update fields that can change during workspace lifecycle (e.g., prebuild claim)
+	// If we still have the same values, skip the update and logging calls.
+	if a.cachedWorkspaceFields.identity.Equal(database.WorkspaceIdentityFromWorkspace(ws)) {
+		return
+	}
+	// Update fields that can change during workspace lifecycle (e.g., AutostartSchedule)
 	a.cachedWorkspaceFields.UpdateValues(ws)
 
 	a.opts.Log.Debug(ctx, "refreshed cached workspace fields",

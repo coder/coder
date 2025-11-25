@@ -817,6 +817,12 @@ func (w WorkspaceIdentity) IsPrebuild() bool {
 	return w.OwnerID == PrebuildsSystemUserID
 }
 
+func (w WorkspaceIdentity) Equal(w2 WorkspaceIdentity) bool {
+	return w.ID == w2.ID && w.OwnerID == w2.OwnerID && w.OrganizationID == w2.OrganizationID &&
+		w.TemplateID == w2.TemplateID && w.Name == w2.Name && w.OwnerUsername == w2.OwnerUsername &&
+		w.TemplateName == w2.TemplateName && w.AutostartSchedule == w2.AutostartSchedule
+}
+
 func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
 	return WorkspaceIdentity{
 		ID:                w.ID,

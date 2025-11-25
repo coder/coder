@@ -46,7 +46,11 @@ func TestCacheClear(t *testing.T) {
 
 	emptyCws := agentapi.CachedWorkspaceFields{}
 	workspaceAsCacheFields.Clear()
-	require.True(t, emptyCws.Equal(&workspaceAsCacheFields))
+	wsi, ok := workspaceAsCacheFields.AsWorkspaceIdentity()
+	require.False(t, ok)
+	ecwsi, ok := emptyCws.AsWorkspaceIdentity()
+	require.False(t, ok)
+	require.True(t, ecwsi.Equal(wsi))
 }
 
 func TestCacheUpdate(t *testing.T) {
@@ -85,5 +89,9 @@ func TestCacheUpdate(t *testing.T) {
 
 	cws := agentapi.CachedWorkspaceFields{}
 	cws.UpdateValues(workspace)
-	require.True(t, workspaceAsCacheFields.Equal(&cws))
+	wsi, ok := workspaceAsCacheFields.AsWorkspaceIdentity()
+	require.True(t, ok)
+	cwsi, ok := cws.AsWorkspaceIdentity()
+	require.True(t, ok)
+	require.True(t, wsi.Equal(cwsi))
 }
