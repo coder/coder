@@ -5,9 +5,11 @@ import type {
 	ProvisionerLogLevel,
 	UsageAppName,
 	Workspace,
+	WorkspaceACL,
 	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
+	WorkspaceRole,
 	WorkspacesRequest,
 	WorkspacesResponse,
 } from "api/typesGenerated";
@@ -18,6 +20,7 @@ import {
 } from "modules/workspaces/permissions";
 import type { ConnectionStatus } from "pages/TerminalPage/types";
 import type {
+	MutationOptions,
 	QueryClient,
 	QueryOptions,
 	UseMutationOptions,
@@ -39,6 +42,66 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 			API.getWorkspaceByOwnerAndName(owner, name, {
 				include_deleted: true,
 			}),
+	};
+};
+
+export const workspaceACLKey = (workspaceId: string) => [
+	"workspaceAcl",
+	workspaceId,
+];
+
+export const workspaceACL = (workspaceId: string) => {
+	return {
+		queryKey: workspaceACLKey(workspaceId),
+		queryFn: () => API.getWorkspaceACL(workspaceId),
+	} satisfies QueryOptions<WorkspaceACL>;
+};
+
+export const setWorkspaceUserRole = (
+	queryClient: QueryClient,
+): MutationOptions<
+	void,
+	unknown,
+	{
+		workspaceId: string;
+		userId: string;
+		role: WorkspaceRole;
+	}
+> => {
+	return {
+		mutationFn: ({ workspaceId, userId, role }) =>
+			API.updateWorkspaceACL(workspaceId, {
+				user_roles: {
+					[userId]: role,
+				},
+			}),
+		onSuccess: async (_res, { workspaceId }) => {
+			await queryClient.invalidateQueries({
+				queryKey: workspaceACLKey(workspaceId),
+			});
+		},
+	};
+};
+
+export const setWorkspaceGroupRole = (
+	queryClient: QueryClient,
+): MutationOptions<
+	void,
+	unknown,
+	{ workspaceId: string; groupId: string; role: WorkspaceRole }
+> => {
+	return {
+		mutationFn: ({ workspaceId, groupId, role }) =>
+			API.updateWorkspaceACL(workspaceId, {
+				group_roles: {
+					[groupId]: role,
+				},
+			}),
+		onSuccess: async (_res, { workspaceId }) => {
+			await queryClient.invalidateQueries({
+				queryKey: workspaceACLKey(workspaceId),
+			});
+		},
 	};
 };
 
