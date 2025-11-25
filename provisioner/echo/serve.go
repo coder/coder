@@ -200,14 +200,48 @@ func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan
 	return provisionersdk.ParseErrorf("complete response missing")
 }
 
-func (e *echo) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
-	// TODO implement me
-	panic("implement me")
+func (e *echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+	responses, err := readResponses(
+		sess,
+		"", // transition not supported for echo graph responses
+		"init.protobuf")
+	if err != nil {
+		return &proto.InitComplete{Error: err.Error()}
+	}
+	for _, response := range responses {
+		if log := response.GetLog(); log != nil {
+			sess.ProvisionLog(log.Level, log.Output)
+		}
+		if complete := response.GetInit(); complete != nil {
+			return complete
+		}
+	}
+
+	// some tests use Echo without a complete response to test cancel
+	<-canceledOrComplete
+	return provisionersdk.InitErrorf("canceled")
 }
 
-func (e *echo) Graph(s *provisionersdk.Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
-	// TODO implement me
-	panic("implement me")
+func (e *echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
+	responses, err := readResponses(
+		sess,
+		"", // transition not supported for echo graph responses
+		"graph.protobuf")
+	if err != nil {
+		return &proto.GraphComplete{Error: err.Error()}
+	}
+	for _, response := range responses {
+		if log := response.GetLog(); log != nil {
+			sess.ProvisionLog(log.Level, log.Output)
+		}
+		if complete := response.GetGraph(); complete != nil {
+			return complete
+		}
+	}
+
+	// some tests use Echo without a complete response to test cancel
+	<-canceledOrComplete
+	return provisionersdk.GraphError("canceled")
 }
 
 // Plan reads requests from the provided directory to stream responses.
@@ -271,10 +305,8 @@ type Responses struct {
 	ProvisionGraph []*proto.Response
 
 	// Used to mock specific transition responses. They are prioritized over the generic responses.
-	ProvisionInitMap  map[proto.WorkspaceTransition][]*proto.Response
 	ProvisionPlanMap  map[proto.WorkspaceTransition][]*proto.Response
 	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
-	ProvisionGraphMap map[proto.WorkspaceTransition][]*proto.Response
 
 	ExtraFiles map[string][]byte
 }
@@ -409,6 +441,12 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			return nil, err
 		}
 	}
+	for index, response := range responses.ProvisionInit {
+		err := writeProto(fmt.Sprintf("%d.init.protobuf", index), response)
+		if err != nil {
+			return nil, err
+		}
+	}
 	for index, response := range responses.ProvisionApply {
 		err := writeProto(fmt.Sprintf("%d.apply.protobuf", index), response)
 		if err != nil {
@@ -417,6 +455,12 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 	}
 	for index, response := range responses.ProvisionPlan {
 		err := writeProto(fmt.Sprintf("%d.plan.protobuf", index), response)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for index, response := range responses.ProvisionGraph {
+		err := writeProto(fmt.Sprintf("%d.graph.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
