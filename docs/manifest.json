@@ -1167,10 +1167,6 @@
 							"path": "./reference/api/enterprise.md"
 						},
 						{
-							"title": "Experimental",
-							"path": "./reference/api/experimental.md"
-						},
-						{
 							"title": "Files",
 							"path": "./reference/api/files.md"
 						},
@@ -1213,6 +1209,10 @@
 						{
 							"title": "Schemas",
 							"path": "./reference/api/schemas.md"
+						},
+						{
+							"title": "Tasks",
+							"path": "./reference/api/tasks.md"
 						},
 						{
 							"title": "Templates",

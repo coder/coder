@@ -42,7 +42,7 @@ export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 		isPending,
 	} = useMutation({
 		mutationFn: (req: CreateTaskFeedbackRequest) =>
-			API.experimental.createTaskFeedback(taskId, req),
+			API.createTaskFeedback(taskId, req),
 		onSuccess: () => {
 			displaySuccess("Feedback submitted successfully");
 		},

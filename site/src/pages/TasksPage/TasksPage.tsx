@@ -40,7 +40,7 @@ const TasksPage: FC = () => {
 	};
 	const tasksQuery = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => API.experimental.getTasks(filter),
+		queryFn: () => API.getTasks(filter),
 		refetchInterval: 10_000,
 	});
 	const idleTasks = tasksQuery.data?.filter(
