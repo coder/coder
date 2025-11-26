@@ -21,16 +21,16 @@ import {
 } from "components/PageHeader/PageHeader";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import {
+	isTaskNotification,
+	notificationIsDisabled,
+	selectDisabledPreferences,
+} from "modules/notifications/utils";
 import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
 import type { FC } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import {
-	isTaskNotification,
-	notificationIsDisabled,
-	selectDisabledPreferences,
-} from "../../modules/notifications/utils";
 import { TasksTable } from "./TasksTable";
 import { UsersCombobox } from "./UsersCombobox";
 
