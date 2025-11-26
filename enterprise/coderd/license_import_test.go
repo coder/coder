@@ -271,15 +271,15 @@ func TestImportLicenseFromFile(t *testing.T) {
 		err := os.WriteFile(licenseFile, []byte(licenseJWT), 0o600)
 		require.NoError(t, err)
 
-		// Import should succeed (expiration is stored but not enforced during import)
+		// Import should fail for expired licenses
 		err = coderd.ImportLicenseFromFile(ctx, db, coderdenttest.Keys, licenseFile, deploymentID, logger)
-		require.NoError(t, err)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "parse license")
 
-		// Verify the license was imported
+		// Verify no license was imported
 		licenses, err := db.GetLicenses(ctx)
 		require.NoError(t, err)
-		require.Len(t, licenses, 1)
-		require.True(t, licenses[0].Exp.Before(time.Now()))
+		require.Len(t, licenses, 0)
 	})
 
 	t.Run("LicenseWithUUID", func(t *testing.T) {
