@@ -252,7 +252,7 @@ coder:
     #     command: ["/bin/sh","-c","echo preStart"]
 
   # coder.license -- License configuration for automated license import.
-  # The license will only be imported on first startup when no users exist yet.
+  # The license will only be imported on first startup when no licenses exist yet.
   license:
     # coder.license.secretName -- Name of a Kubernetes secret containing the license.
     # The secret must be in the same namespace and contain a key with the license JWT.

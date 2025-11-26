@@ -3376,7 +3376,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "License File",
-			Description: "Path to a license file to automatically import on server startup. The license will only be imported if no users exist yet. This is useful for automated deployments.",
+			Description: "Path to a license file to automatically import on server startup. The license will only be imported if no licenses exist yet. This is useful for automated deployments.",
 			Flag:        "license-file",
 			Env:         "CODER_LICENSE_FILE",
 			Value:       &c.LicenseFile,
