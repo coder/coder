@@ -825,9 +825,9 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "first_resource",
 							Type: "example",
@@ -1032,7 +1032,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionApply: []*proto.Response{{
+		ProvisionGraph: []*proto.Response{{
 			Type: &proto.Response_Log{
 				Log: &proto.Log{
 					Level:  proto.LogLevel_INFO,
@@ -1040,8 +1040,8 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 				},
 			},
 		}, {
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "some",
 						Type: "example",
@@ -1208,9 +1208,9 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionApply: echo.ApplyComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Error:      "",
 					Resources:  nil,
 					Parameters: nil,
@@ -1642,9 +1642,9 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Presets: []*proto.Preset{
 							{
 								Name: "autodetected",
@@ -1854,8 +1854,8 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			workspaceOwnerClient, member1 = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
 			otherMemberClient, _          = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
 			ws                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OwnerID: member1.ID, OrganizationID: admin.OrganizationID}).
-							Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionDelete}).
-							Do()
+				Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionDelete}).
+				Do()
 		)
 
 		// This needs to be done separately as provisionerd handles marking the workspace as deleted

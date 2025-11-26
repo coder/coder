@@ -506,9 +506,9 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
 			ProvisionPlan: echo.PlanComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "example",
 							Type: "aws_instance",
@@ -2696,7 +2696,7 @@ type workspace struct {
 
 func waitForUpdates(
 	t *testing.T,
-	//nolint:revive // t takes precedence
+//nolint:revive // t takes precedence
 	ctx context.Context,
 	stream tailnetproto.DRPCTailnet_WorkspaceUpdatesClient,
 	currentState map[uuid.UUID]workspace,

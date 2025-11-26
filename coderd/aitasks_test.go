@@ -61,19 +61,11 @@ func TestTasks(t *testing.T) {
 		taskAppID := uuid.New()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
+			ProvisionGraph: []*proto.Response{
 				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							HasAiTasks: true,
-						},
-					},
-				},
-			},
-			ProvisionApply: []*proto.Response{
-				{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
 							Resources: []*proto.Resource{
 								{
 									Name: "example",
@@ -945,8 +937,8 @@ func TestTasksCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 				}}},
 			},
@@ -989,8 +981,8 @@ func TestTasksCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
 					HasAiTasks: true,
 				}}},
@@ -1091,8 +1083,8 @@ func TestTasksCreate(t *testing.T) {
 					version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 						Parse:          echo.ParseComplete,
 						ProvisionApply: echo.ApplyComplete,
-						ProvisionPlan: []*proto.Response{
-							{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+						ProvisionGraph: []*proto.Response{
+							{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 								HasAiTasks: true,
 							}}},
 						},
@@ -1212,8 +1204,8 @@ func TestTasksCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 				}}},
 			},
@@ -1269,8 +1261,8 @@ func TestTasksCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 				}}},
 			},
@@ -1303,8 +1295,8 @@ func TestTasksCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 				}}},
 			},
@@ -1353,8 +1345,8 @@ func TestTasksCreate(t *testing.T) {
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 				}}},
 			},
@@ -1365,8 +1357,8 @@ func TestTasksCreate(t *testing.T) {
 		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 				}}},
 			},
