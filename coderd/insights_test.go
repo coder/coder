@@ -2389,3 +2389,95 @@ func TestGenericInsights_RBAC(t *testing.T) {
 		})
 	}
 }
+
+func TestGenericInsights_Disabled(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                  db,
+		Pubsub:                    ps,
+		Logger:                    &logger,
+		IncludeProvisionerDaemon:  true,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
+		DatabaseRolluper: dbrollup.New(
+			logger.Named("dbrollup"),
+			db,
+			dbrollup.WithInterval(time.Millisecond*100),
+		),
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.DisableTemplateInsights = true
+		}),
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	_, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+	tests := []struct {
+		name string
+		fn   func(ctx context.Context) error
+		// ok means there should be no error, otherwise assume forbidden due to
+		// being disabled.
+		ok bool
+	}{
+		{
+			name: "DAUS",
+			fn: func(ctx context.Context) error {
+				_, err := client.DeploymentDAUs(ctx, 0)
+				return err
+			},
+		},
+		{
+			name: "UserActivity",
+			fn: func(ctx context.Context) error {
+				_, err := client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{})
+				return err
+			},
+		},
+		{
+			name: "UserLatency",
+			fn: func(ctx context.Context) error {
+				_, err := client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{})
+				return err
+			},
+		},
+		{
+			name: "UserStatusCounts",
+			fn: func(ctx context.Context) error {
+				_, err := client.GetUserStatusCounts(ctx, codersdk.GetUserStatusCountsRequest{
+					Offset: 0,
+				})
+				return err
+			},
+			// Status count is not derived from template insights, so it should not be
+			// disabled.
+			ok: true,
+		},
+		{
+			name: "Templates",
+			fn: func(ctx context.Context) error {
+				_, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{})
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			err := tt.fn(ctx)
+			if tt.ok {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				cerr := coderdtest.SDKError(t, err)
+				require.Contains(t, cerr.Error(), "disabled")
+				require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+			}
+		})
+	}
+}
