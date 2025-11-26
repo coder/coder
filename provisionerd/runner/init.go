@@ -75,7 +75,7 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 
 			moduleFilesUpload, err = sdkproto.NewDataBuilder(c)
 			if err != nil {
-				return nil, r.failedJobf("create data builder: %w", err)
+				return nil, r.failedJobf("create data builder: %s", err.Error())
 			}
 		case *sdkproto.Response_ChunkPiece:
 			if omitModules {
@@ -88,14 +88,14 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 
 			_, err := moduleFilesUpload.Add(c)
 			if err != nil {
-				return nil, r.failedJobf("module files, add chunk piece: %w", err)
+				return nil, r.failedJobf("module files, add chunk piece: %s", err.Error())
 			}
 		case *sdkproto.Response_Init:
 			if moduleFilesUpload != nil {
 				// If files were uploaded in multiple chunks, put them back together.
 				moduleFilesData, err := moduleFilesUpload.Complete()
 				if err != nil {
-					return nil, r.failedJobf("complete module files data upload: %w", err)
+					return nil, r.failedJobf("complete module files data upload: %s", err.Error())
 				}
 
 				if !bytes.Equal(msgType.Init.ModuleFilesHash, moduleFilesUpload.Hash) {
