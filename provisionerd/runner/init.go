@@ -23,6 +23,23 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 		return nil, r.failedJobf("send init request: %v", err)
 	}
 
+	nevermind := make(chan struct{})
+	defer close(nevermind)
+	go func() {
+		select {
+		case <-nevermind:
+			return
+		case <-r.notStopped.Done():
+			return
+		case <-r.notCanceled.Done():
+			_ = r.session.Send(&sdkproto.Request{
+				Type: &sdkproto.Request_Cancel{
+					Cancel: &sdkproto.CancelRequest{},
+				},
+			})
+		}
+	}()
+
 	var moduleFilesUpload *sdkproto.DataBuilder
 	for {
 		msg, err := r.session.Recv()

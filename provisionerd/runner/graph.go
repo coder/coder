@@ -19,6 +19,23 @@ func (r *Runner) graph(ctx context.Context, req *sdkproto.GraphRequest) (*sdkpro
 		return nil, r.failedJobf("send graph request: %v", err)
 	}
 
+	nevermind := make(chan struct{})
+	defer close(nevermind)
+	go func() {
+		select {
+		case <-nevermind:
+			return
+		case <-r.notStopped.Done():
+			return
+		case <-r.notCanceled.Done():
+			_ = r.session.Send(&sdkproto.Request{
+				Type: &sdkproto.Request_Cancel{
+					Cancel: &sdkproto.CancelRequest{},
+				},
+			})
+		}
+	}()
+
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
