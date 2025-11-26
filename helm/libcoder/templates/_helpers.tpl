@@ -104,11 +104,13 @@ Coder volume definitions.
   secret:
     secretName: {{ $secret.name | quote }}
 {{ end -}}
-{{- if and .Values.coder.license .Values.coder.license.secretName -}}
+{{- with .Values.coder.license }}
+{{- if .secretName }}
 - name: "license"
   secret:
-    secretName: {{ .Values.coder.license.secretName | quote }}
+    secretName: {{ .secretName | quote }}
 {{ end -}}
+{{- end }}
 {{ if gt (len .Values.coder.volumes) 0 -}}
 {{ toYaml .Values.coder.volumes }}
 {{ end -}}
@@ -143,11 +145,13 @@ Coder volume mounts.
   subPath: {{ $secret.key | quote }}
   readOnly: true
 {{ end -}}
-{{- if and .Values.coder.license .Values.coder.license.secretName -}}
+{{- with .Values.coder.license }}
+{{- if .secretName }}
 - name: "license"
-  mountPath: {{ .Values.coder.license.mountPath | quote }}
+  mountPath: {{ .mountPath | quote }}
   readOnly: true
 {{ end -}}
+{{- end }}
 {{ if gt (len .Values.coder.volumeMounts) 0 -}}
 {{ toYaml .Values.coder.volumeMounts }}
 {{ end -}}
