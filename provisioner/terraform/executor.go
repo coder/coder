@@ -566,33 +566,6 @@ func (e *executor) apply(
 	}, nil
 }
 
-// stateResources must only be called while the lock is held.
-func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) {
-	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
-	defer span.End()
-
-	state, err := e.state(ctx, killCtx)
-	if err != nil {
-		return nil, err
-	}
-	rawGraph, err := e.graph(ctx, killCtx)
-	if err != nil {
-		return nil, xerrors.Errorf("get terraform graph: %w", err)
-	}
-	converted := &State{}
-	if state.Values == nil {
-		return converted, nil
-	}
-
-	converted, err = ConvertState(ctx, []*tfjson.StateModule{
-		state.Values.RootModule,
-	}, rawGraph, e.server.logger)
-	if err != nil {
-		return nil, err
-	}
-	return converted, nil
-}
-
 // state must only be called while the lock is held.
 func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
