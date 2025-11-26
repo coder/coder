@@ -11,6 +11,7 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+//nolint:revive
 func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []byte) (*sdkproto.InitComplete, *proto.FailedJob) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()

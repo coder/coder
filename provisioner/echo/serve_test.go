@@ -158,22 +158,28 @@ func TestEcho(t *testing.T) {
 				TemplateSourceArchive: data,
 			},
 		}})
+		require.NoError(t, err)
+
 		_, err = client.Recv()
 		require.NoError(t, err)
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{}}})
 		require.NoError(t, err)
+
 		log, err := client.Recv()
 		require.NoError(t, err)
 		require.Equal(t, planResponses[0].GetLog().Output, log.GetLog().Output)
+
 		complete, err := client.Recv()
 		require.NoError(t, err)
+		require.NotNil(t, complete)
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Apply{Apply: &proto.ApplyRequest{}}})
 		require.NoError(t, err)
 		log, err = client.Recv()
 		require.NoError(t, err)
 		require.Equal(t, applyResponses[0].GetLog().Output, log.GetLog().Output)
+
 		_, err = client.Recv()
 		require.NoError(t, err)
 
