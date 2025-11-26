@@ -538,6 +538,23 @@ type RootCmd struct {
 	noVersionCheck          bool
 	noFeatureWarning        bool
 	useKeyring              bool
+
+	// TestOverrideSDKClient is returned by GetClient if set. This is used in unit testing to mock or fake the
+	// *codersdk.Client
+	TestOverrideSDKClient any
+}
+
+// GetClient gets the SDK client of the given type. In tests, this can be used with TestOverrideSDKClient to mock or
+// fake the client. In production, this returns a *codersdk.Client.
+func GetClient[T any](r *RootCmd, inv *serpent.Invocation) (T, error) {
+	if r.TestOverrideSDKClient != nil {
+		// nolint: forcetypeassert
+		return r.TestOverrideSDKClient.(T), nil
+	}
+	var a any
+	a, err := r.InitClient(inv)
+	// nolint: forcetypeassert
+	return a.(T), err
 }
 
 // InitClient creates and configures a new client with authentication, telemetry,
@@ -893,10 +910,14 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 	return owner, workspaceName, nil
 }
 
+type workspaceGetterByName interface {
+	WorkspaceByOwnerAndName(context.Context, string, string, codersdk.WorkspaceOptions) (codersdk.Workspace, error)
+}
+
 // namedWorkspace fetches and returns a workspace by an identifier, which may be either
 // a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
 // where user is either a username or UUID.
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+func namedWorkspace(ctx context.Context, client workspaceGetterByName, identifier string) (codersdk.Workspace, error) {
 	owner, name, err := splitNamedWorkspace(identifier)
 	if err != nil {
 		return codersdk.Workspace{}, err
