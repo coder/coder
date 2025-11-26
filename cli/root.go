@@ -484,9 +484,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Flag: varUseKeyring,
 			Env:  envUseKeyring,
 			Description: "Store and retrieve session tokens using the operating system " +
-				"keyring. Enabled by default when --global-config is not set. If the " +
-				"keyring is not supported on the current platform, file-based storage is " +
-				"used automatically. Set to false to force file-based storage.",
+				"keyring. This flag is ignored and file-based storage is used when " +
+				"--global-config is set or keyring usage is not supported on the current " +
+				"platform. Set to false to force file-based storage on supported platforms.",
 			Default: "true",
 			Value:   serpent.BoolOf(&r.useKeyring),
 			Group:   globalGroup,
