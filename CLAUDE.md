@@ -140,6 +140,40 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
 
+### Writing Comments
+
+Code comments should be clear, well-formatted, and add meaningful context.
+
+**Proper sentence structure**: Comments are sentences and should end with
+periods or other appropriate punctuation. This improves readability and
+maintains professional code standards.
+
+**Explain why, not what**: Good comments explain the reasoning behind code
+rather than describing what the code does. The code itself should be
+self-documenting through clear naming and structure. Focus your comments on
+non-obvious decisions, edge cases, or business logic that isn't immediately
+apparent from reading the implementation.
+
+**Line length and wrapping**: Keep comment lines to 80 characters wide
+(including the comment prefix like `//` or `#`). When a comment spans multiple
+lines, wrap it naturally at word boundaries rather than writing one sentence
+per line. This creates more readable, paragraph-like blocks of documentation.
+
+```go
+// Good: Explains why with proper formatting.
+// We use AsSystemRestricted here because this endpoint is public and doesn't
+// have an authenticated user context. The authorization checks happen later
+// in the OAuth2 flow after we validate the client credentials.
+app, err := api.Database.GetOAuth2ProviderAppByClientID(
+    dbauthz.AsSystemRestricted(ctx), clientID)
+
+// Bad: Describes what and has awkward formatting.
+// Get the OAuth2 provider app by client ID
+// using AsSystemRestricted
+app, err := api.Database.GetOAuth2ProviderAppByClientID(
+    dbauthz.AsSystemRestricted(ctx), clientID)
+```
+
 ## Detailed Development Guides
 
 @.claude/docs/OAUTH2.md
