@@ -1,7 +1,6 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
@@ -9,6 +8,11 @@ import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -128,8 +132,15 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 									{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 									{showOrgDetails ? (
-										<Tooltip
-											title={
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<InfoIcon
+													css={(theme) => ({
+														color: theme.palette.info.light,
+													})}
+												/>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
 												<div css={styles.auditLogInfoTooltip}>
 													{auditLog.ip && (
 														<div>
@@ -181,13 +192,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</div>
 														)}
 												</div>
-											}
-										>
-											<InfoIcon
-												css={(theme) => ({
-													color: theme.palette.info.light,
-												})}
-											/>
+											</TooltipContent>
 										</Tooltip>
 									) : (
 										<Stack direction="row" spacing={1} alignItems="baseline">
