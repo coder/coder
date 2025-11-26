@@ -2652,6 +2652,7 @@ func convertWorkspace(
 			}
 		}
 	}
+	sharedWith := []codersdk.SharedWorkspaceActor{}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	// If the template doesn't allow a workspace-configured value, then report the
