@@ -723,7 +723,7 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	if r.tokenBackend == nil {
 		// Checking for the --global-config directory being set is a bit wonky but necessary
-		// to allow extensions that invoke the CLi with this flag (e.g. VS code) to continue
+		// to allow extensions that invoke the CLI with this flag (e.g. VS code) to continue
 		// working without modification. In the future we should modify these extensions to
 		// either access the credential in the keyring (like Coder Desktop) or some other
 		// approach that doesn't rely on the session token being stored on disk. We set the
