@@ -54,6 +54,7 @@ func setupKeyringTestEnv(t *testing.T, clientURL string, args ...string) keyring
 
 	serviceName := keyringTestServiceName(t)
 	root.WithKeyringServiceName(serviceName)
+	root.UseKeyringWithGlobalConfig()
 
 	inv, cfg := clitest.NewWithDefaultKeyringCommand(t, cmd, args...)
 
@@ -169,6 +170,7 @@ func TestUseKeyring(t *testing.T) {
 		logoutCmd, err := logoutRoot.Command(logoutRoot.AGPL())
 		require.NoError(t, err)
 		logoutRoot.WithKeyringServiceName(env.serviceName)
+		logoutRoot.UseKeyringWithGlobalConfig()
 
 		logoutInv, _ := clitest.NewWithDefaultKeyringCommand(t, logoutCmd,
 			"logout",

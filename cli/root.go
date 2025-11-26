@@ -21,7 +21,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"testing"
 	"text/tabwriter"
 	"time"
 
@@ -537,11 +536,12 @@ type RootCmd struct {
 	disableDirect bool
 	debugHTTP     bool
 
-	disableNetworkTelemetry bool
-	noVersionCheck          bool
-	noFeatureWarning        bool
-	useKeyring              bool
-	keyringServiceName      string
+	disableNetworkTelemetry    bool
+	noVersionCheck             bool
+	noFeatureWarning           bool
+	useKeyring                 bool
+	keyringServiceName         string
+	useKeyringWithGlobalConfig bool
 }
 
 // InitClient creates and configures a new client with authentication, telemetry,
@@ -726,9 +726,8 @@ func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 		// to allow extensions that invoke the CLI with this flag (e.g. VS code) to continue
 		// working without modification. In the future we should modify these extensions to
 		// either access the credential in the keyring (like Coder Desktop) or some other
-		// approach that doesn't rely on the session token being stored on disk. We set the
-		// global config directory in most CLI tests, so we need to skip this check for tests.
-		assumeExtensionInUse := r.globalConfig != config.DefaultDir() && !testing.Testing()
+		// approach that doesn't rely on the session token being stored on disk.
+		assumeExtensionInUse := r.globalConfig != config.DefaultDir() && !r.useKeyringWithGlobalConfig
 		keyringSupported := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
 		if r.useKeyring && !assumeExtensionInUse && keyringSupported {
 			serviceName := sessionstore.DefaultServiceName
@@ -748,6 +747,13 @@ func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 // genuine storage backend selection logic in ensureTokenBackend().
 func (r *RootCmd) WithKeyringServiceName(serviceName string) {
 	r.keyringServiceName = serviceName
+}
+
+// UseKeyringWithGlobalConfig enables the use of the keyring storage backend
+// when the --global-config directory is set. This is only intended as an override
+// for tests, which require specifying the global config directory for test isolation.
+func (r *RootCmd) UseKeyringWithGlobalConfig() {
+	r.useKeyringWithGlobalConfig = true
 }
 
 type AgentAuth struct {
