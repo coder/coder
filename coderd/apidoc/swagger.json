@@ -8472,6 +8472,40 @@
 				}
 			}
 		},
+		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
+			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Agents"],
+				"summary": "Delete devcontainer for workspace agent",
+				"operationId": "delete-devcontainer-for-workspace-agent",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Devcontainer ID",
+						"name": "devcontainer",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
 		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
 			"post": {
 				"security": [
