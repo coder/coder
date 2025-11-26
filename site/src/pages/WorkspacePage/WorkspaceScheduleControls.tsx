@@ -218,7 +218,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						}}
 					>
 						<MinusIcon className="size-icon-xs" />
-						<span style={visuallyHidden}>Subtract 1 hour</span>
+						<span style={visuallyHidden}>Subtract 1 hour from deadline</span>
 					</IconButton>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">
@@ -236,7 +236,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						}}
 					>
 						<PlusIcon className="size-icon-xs" />
-						<span style={visuallyHidden}>Add 1 hour</span>
+						<span style={visuallyHidden}>Add 1 hour to deadline</span>
 					</IconButton>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Add 1 hour to deadline</TooltipContent>
