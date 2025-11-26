@@ -115,7 +115,6 @@ Docker’s default seccomp profile may also block certain syscalls (such as `clo
 
 [see Docker Seccomp Profile Considerations](#docker-seccomp-profile-considerations)
 
-
 ### 2. Default `runc` runtime with `CAP_SYS_ADMIN` (testing only)
 
 For development or testing environments, you may grant the container `CAP_SYS_ADMIN`, which implicitly bypasses many of the restrictions in Docker’s default seccomp profile.
@@ -145,6 +144,7 @@ You can find the default Docker seccomp profile for your Docker version here (sp
 https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
 
 If the profile blocks the necessary `clone` syscall arguments, you can provide a custom seccomp profile that adds an allow rule like the following:
+
 ```json
 {
   "names": [
@@ -153,9 +153,11 @@ If the profile blocks the necessary `clone` syscall arguments, you can provide a
   "action": "SCMP_ACT_ALLOW"
 }
 ```
+
 This example unblocks the clone syscall entirely.
 
 ### Example: Overriding the Docker Seccomp Profile
+
 To use a custom seccomp profile, start by downloading the default profile for your Docker version:
 
 https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
