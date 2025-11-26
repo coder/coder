@@ -4528,6 +4528,22 @@ export interface SessionLifetime {
  */
 export const SessionTokenHeader = "Coder-Session-Token";
 
+// From codersdk/workspaces.go
+export interface SharedWorkspaceActor {
+	readonly actor_type: SharedWorkspaceActorType;
+	readonly name: string;
+	readonly avatar_url?: string;
+	readonly roles: readonly WorkspaceRole[];
+}
+
+// From codersdk/workspaces.go
+export type SharedWorkspaceActorType = "group" | "user";
+
+export const SharedWorkspaceActorTypes: SharedWorkspaceActorType[] = [
+	"group",
+	"user",
+];
+
 // From codersdk/client.go
 /**
  * SignedAppTokenCookie is the name of the cookie that stores a temporary
@@ -5940,6 +5956,7 @@ export interface Workspace {
 	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	 */
 	readonly task_id?: string;
+	readonly shared_with: readonly SharedWorkspaceActor[];
 }
 
 // From codersdk/workspaces.go
