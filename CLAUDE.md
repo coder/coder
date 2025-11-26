@@ -160,18 +160,17 @@ lines, wrap it naturally at word boundaries rather than writing one sentence
 per line. This creates more readable, paragraph-like blocks of documentation.
 
 ```go
-// Good: Explains why with proper formatting.
-// We use AsSystemRestricted here because this endpoint is public and doesn't
-// have an authenticated user context. The authorization checks happen later
-// in the OAuth2 flow after we validate the client credentials.
-app, err := api.Database.GetOAuth2ProviderAppByClientID(
-    dbauthz.AsSystemRestricted(ctx), clientID)
+// Good: Explains the rationale with proper sentence structure.
+// We need a custom timeout here because workspace builds can take several
+// minutes on slow networks, and the default 30s timeout causes false
+// failures during initial template imports.
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 
-// Bad: Describes what and has awkward formatting.
-// Get the OAuth2 provider app by client ID
-// using AsSystemRestricted
-app, err := api.Database.GetOAuth2ProviderAppByClientID(
-    dbauthz.AsSystemRestricted(ctx), clientID)
+// Bad: Describes what the code does without punctuation or wrapping
+// Set a custom timeout
+// Workspace builds can take a long time
+// Default timeout is too short
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 ```
 
 ## Detailed Development Guides
