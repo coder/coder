@@ -69,7 +69,7 @@ type Options struct {
 	WorkspaceID    uuid.UUID
 	OrganizationID uuid.UUID
 
-	Ctx                               context.Context
+	AuthenticatedCtx                  context.Context
 	Log                               slog.Logger
 	Clock                             quartz.Clock
 	Database                          database.Store
@@ -220,7 +220,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	// Start background cache refresh loop to handle workspace changes
 	// like prebuild claims where owner_id and other fields may be modified in the DB.
-	go api.startCacheRefreshLoop(opts.Ctx)
+	go api.startCacheRefreshLoop(opts.AuthenticatedCtx)
 
 	return api
 }
