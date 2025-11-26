@@ -164,7 +164,7 @@ Save it locally as seccomp-v25.0.13.json, then insert the clone allow rule shown
 
 Once updated, you can run the container with the custom seccomp profile:
 
-```
+```bash
 docker run -it \
   --cap-add=NET_ADMIN \
   --security-opt seccomp=seccomp-v25.0.13.json \
