@@ -155,3 +155,20 @@ If the profile blocks the necessary `clone` syscall arguments, you can provide a
 ```
 This example unblocks the clone syscall entirely.
 
+### Example: Overriding the Docker Seccomp Profile
+To use a custom seccomp profile, start by downloading the default profile for your Docker version:
+
+https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
+
+Save it locally as seccomp-v25.0.13.json, then insert the clone allow rule shown above (or add "clone" to the list of allowed syscalls).
+
+Once updated, you can run the container with the custom seccomp profile:
+
+```
+docker run -it \
+  --cap-add=NET_ADMIN \
+  --security-opt seccomp=seccomp-v25.0.13.json \
+  test bash
+```
+
+This instructs Docker to load your modified seccomp profile while granting only the minimal required capability (`CAP_NET_ADMIN`).
