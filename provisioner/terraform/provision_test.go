@@ -83,10 +83,11 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 
 func initDo(t *testing.T, sess proto.DRPCProvisioner_SessionClient, archive []byte) *proto.InitComplete {
 	t.Helper()
-	err := sess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
-		TemplateSourceArchive: archive,
-		OmitModuleFiles:       false,
-	},
+	err := sess.Send(&proto.Request{Type: &proto.Request_Init{
+		Init: &proto.InitRequest{
+			TemplateSourceArchive: archive,
+			OmitModuleFiles:       false,
+		},
 	}})
 	require.NoError(t, err)
 	for {
