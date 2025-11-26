@@ -38,4 +38,4 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ## Troubleshooting
 
-To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for AI Bridge](https://github.com/coder/aibridge). If you encounter issues with AI Bridge during early access, please reach out to us via [Discord](https://discord.gg/coder).
+To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for AI Bridge](https://github.com/coder/aibridge). If you encounter issues with AI Bridge, please reach out to us via [Discord](https://discord.gg/coder).
