@@ -460,7 +460,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/templates/{template}/prebuilds", func(r chi.Router) {
 			r.Use(
-				api.templateRBACEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(api.Database),
 			)
