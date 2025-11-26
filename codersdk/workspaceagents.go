@@ -588,6 +588,19 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 	return d.Chan(), d, nil
 }
 
+// WorkspaceAgentDeleteDevcontainer deletes the devcontainer with the given ID.
+func (c *Client) WorkspaceAgentDeleteDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s", agentID, devcontainerID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
 func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) (Response, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s/recreate", agentID, devcontainerID), nil)
