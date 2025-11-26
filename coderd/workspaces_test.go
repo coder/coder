@@ -3392,8 +3392,10 @@ func TestWorkspaceWatcher(t *testing.T) {
 
 	// Add a new version that will fail.
 	badVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.PlanComplete,
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionInit:  echo.InitComplete,
+		ProvisionGraph: echo.GraphComplete,
 		ProvisionApply: []*proto.Response{{
 			Type: &proto.Response_Apply{
 				Apply: &proto.ApplyComplete{

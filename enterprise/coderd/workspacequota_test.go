@@ -121,6 +121,13 @@ func TestWorkspaceQuota(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						DailyCost: 1,
+					},
+				},
+			}},
 			ProvisionGraph: []*proto.Response{{
 				Type: &proto.Response_Graph{
 					Graph: &proto.GraphComplete{
