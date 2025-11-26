@@ -21,7 +21,7 @@ func (*RootCmd) syncStart() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "start <unit>",
-		Short: "Wait until all dependencies are satisfied, consider the unit to have started, then allow it to proceed",
+		Short: "Wait until all unit dependencies are satisfied",
 		Long:  "Wait until all dependencies are satisfied, consider the unit to have started, then allow it to proceed. This command polls until dependencies are ready, then marks the unit as started.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
