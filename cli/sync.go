@@ -7,8 +7,8 @@ import (
 func (r *RootCmd) syncCommand() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "sync",
-		Short: "Manage service dependency graph for coordinated startup",
-		Long:  "Commands for orchestrating service startup order in workspaces. Use these commands to declare dependencies between services, coordinate their startup sequence, and ensure services start only after their dependencies are ready. This prevents race conditions and startup failures in multi-service workspaces by managing a dependency graph that tracks service status and readiness.",
+		Short: "Manage unit dependencies for coordinated startup",
+		Long:  "Commands for orchestrating unit startup order in workspaces. Units are most commonly coder scripts. Use these commands to declare dependencies between units, coordinate their startup sequence, and ensure units start only after their dependencies are ready. This helps to prevents race conditions and startup failures.",
 		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},
@@ -17,7 +17,6 @@ func (r *RootCmd) syncCommand() *serpent.Command {
 			r.syncStart(),
 			r.syncWant(),
 			r.syncComplete(),
-			r.syncWait(),
 			r.syncStatus(),
 		},
 	}

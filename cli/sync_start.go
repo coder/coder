@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -10,21 +9,22 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 const (
 	SyncPollInterval = 1 * time.Second
 )
 
-func (r *RootCmd) syncStart() *serpent.Command {
+func (*RootCmd) syncStart() *serpent.Command {
 	var timeout time.Duration
 
 	cmd := &serpent.Command{
 		Use:   "start <unit>",
-		Short: "Start a service and wait for dependencies",
-		Long:  "Start a service unit and automatically wait for all its dependencies to be satisfied before proceeding. This command registers the unit in the dependency graph, polls until dependencies are ready, then marks the unit as started. Use this as the primary command for starting services in a coordinated sequence.",
+		Short: "Wait until all dependencies are satisfied and then start the unit",
+		Long:  "Wait until all dependencies are satisfied and then start the unit. This command polls until dependencies are ready, then marks the unit as started.",
 		Handler: func(i *serpent.Invocation) error {
-			ctx := context.Background()
+			ctx := i.Context()
 
 			if len(i.Args) != 1 {
 				return xerrors.New("exactly one unit name is required")
@@ -36,8 +36,6 @@ func (r *RootCmd) syncStart() *serpent.Command {
 				ctx, cancel = context.WithTimeout(ctx, timeout)
 				defer cancel()
 			}
-
-			fmt.Printf("Starting unit '%s'...\n", unitName)
 
 			client, err := agentsocket.NewClient(ctx)
 			if err != nil {
@@ -51,7 +49,7 @@ func (r *RootCmd) syncStart() *serpent.Command {
 			}
 
 			if !ready {
-				fmt.Printf("Waiting for dependencies of unit '%s' to be satisfied...\n", unitName)
+				cliui.Info(i.Stdout, "Waiting for dependencies of unit '%s' to be satisfied...", unitName)
 
 				ticker := time.NewTicker(SyncPollInterval)
 				defer ticker.Stop()
@@ -70,20 +68,17 @@ func (r *RootCmd) syncStart() *serpent.Command {
 							return xerrors.Errorf("error checking dependencies: %w", err)
 						}
 						if ready {
-							fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)
 							break pollLoop
 						}
 					}
 				}
-			} else {
-				fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)
 			}
 
 			if err := client.SyncStart(ctx, unitName); err != nil {
 				return xerrors.Errorf("start unit failed: %w", err)
 			}
 
-			fmt.Printf("Unit '%s' started successfully\n", unitName)
+			cliui.Info(i.Stdout, "Success")
 
 			return nil
 		},
@@ -91,8 +86,9 @@ func (r *RootCmd) syncStart() *serpent.Command {
 
 	cmd.Options = append(cmd.Options, serpent.Option{
 		Flag:        "timeout",
-		Description: "Maximum time to wait for dependencies (e.g., 30s, 5m). No timeout by default.",
+		Description: "Maximum time to wait for dependencies (e.g., 30s, 5m). 5m by default.",
 		Value:       serpent.DurationOf(&timeout),
+		Default:     "5m",
 	})
 
 	return cmd

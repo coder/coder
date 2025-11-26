@@ -1,17 +1,17 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
+	"io"
+	"strconv"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 type outputFormat string
@@ -19,18 +19,17 @@ type outputFormat string
 const (
 	outputFormatHuman outputFormat = "human"
 	outputFormatJSON  outputFormat = "json"
-	outputFormatDOT   outputFormat = "dot"
 )
 
-func (r *RootCmd) syncStatus() *serpent.Command {
+func (*RootCmd) syncStatus() *serpent.Command {
 	var output string
 
 	cmd := &serpent.Command{
 		Use:   "status <unit>",
-		Short: "Inspect service status and dependency state",
-		Long:  "Display the current status of a service unit, its readiness state, and detailed information about its dependencies. Shows which dependencies are satisfied and which are still pending. Supports multiple output formats (human-readable, JSON, or DOT graph) for integration with other tools or visualization.",
+		Short: "Inspect unit status and dependency state",
+		Long:  "Display the current status of a unit, whether it is ready to start, and lists its dependencies. Shows which dependencies are satisfied and which are still pending. Supports multiple output formats.",
 		Handler: func(i *serpent.Invocation) error {
-			ctx := context.Background()
+			ctx := i.Context()
 
 			if len(i.Args) != 1 {
 				return xerrors.New("exactly one unit name is required")
@@ -50,11 +49,9 @@ func (r *RootCmd) syncStatus() *serpent.Command {
 
 			switch outputFormat(output) {
 			case outputFormatJSON:
-				return outputJSON(unit, statusResp)
-			case outputFormatDOT:
-				return outputDOT(statusResp)
-			default: // outputFormatHuman
-				return outputHuman(unit, statusResp)
+				return outputJSON(i.Stdout, unit, statusResp)
+			default:
+				return outputHuman(i.Stdout, unit, statusResp)
 			}
 		},
 	}
@@ -63,52 +60,80 @@ func (r *RootCmd) syncStatus() *serpent.Command {
 		serpent.Option{
 			Flag:          "output",
 			FlagShorthand: "o",
-			Description:   "Output format: human, json, or dot.",
-			Value:         serpent.EnumOf(&output, "human", "json", "dot"),
+			Description:   "Output format.",
+			Default:       "human",
+			Value:         serpent.EnumOf(&output, "human", "json"),
 		},
 	)
 
 	return cmd
 }
 
-func outputJSON(unitName string, statusResp agentsocket.SyncStatusResponse) error {
-	encoder := json.NewEncoder(os.Stdout)
+type statusResponse struct {
+	UnitName     string          `json:"unit_name"`
+	Status       string          `json:"status"`
+	IsReady      bool            `json:"is_ready"`
+	Dependencies []dependencyRow `json:"dependencies"`
+}
+
+type dependencyRow struct {
+	DependsOn      string `table:"Depends On,default_sort"`
+	RequiredStatus string `table:"Required"`
+	CurrentStatus  string `table:"Current"`
+	IsSatisfied    bool   `table:"Satisfied"`
+}
+
+func outputJSON(w io.Writer, unitName string, statusResp agentsocket.SyncStatusResponse) error {
+	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(statusResp)
+
+	dependencies := make([]dependencyRow, len(statusResp.Dependencies))
+	for i, dep := range statusResp.Dependencies {
+		dependencies[i] = dependencyRow{
+			DependsOn:      dep.DependsOn,
+			RequiredStatus: dep.RequiredStatus,
+			CurrentStatus:  dep.CurrentStatus,
+			IsSatisfied:    dep.IsSatisfied,
+		}
+	}
+
+	if err := encoder.Encode(statusResponse{
+		UnitName:     unitName,
+		Status:       statusResp.Status,
+		IsReady:      statusResp.IsReady,
+		Dependencies: dependencies,
+	}); err != nil {
+		return xerrors.Errorf("encode status response: %w", err)
+	}
+	return nil
 }
 
-func outputDOT(statusResp agentsocket.SyncStatusResponse) error {
-	return xerrors.New("DOT output is not currently supported")
-}
-
-func outputHuman(unitName string, statusResp agentsocket.SyncStatusResponse) error {
-	fmt.Printf("Unit: %s\n", unitName)
-	fmt.Printf("Status: %s\n", statusResp.Status)
-	fmt.Printf("Ready: %t\n", statusResp.IsReady)
-	fmt.Println()
+func outputHuman(w io.Writer, unitName string, statusResp agentsocket.SyncStatusResponse) error {
+	cliui.Info(w, "Unit: %s", unitName)
+	cliui.Info(w, "Status: %s", statusResp.Status)
+	cliui.Info(w, "Ready: %t", strconv.FormatBool(statusResp.IsReady))
 
 	if len(statusResp.Dependencies) == 0 {
-		fmt.Println("No dependencies")
+		cliui.Info(w, "No dependencies")
 		return nil
 	}
 
-	fmt.Println("Dependencies:")
-	fmt.Println(strings.Repeat("-", 80))
-	fmt.Printf("%-20s %-15s %-15s %-10s\n", "Depends On", "Required", "Current", "Satisfied")
-	fmt.Println(strings.Repeat("-", 80))
-
-	for _, dep := range statusResp.Dependencies {
-		satisfied := "✓"
-		if !dep.IsSatisfied {
-			satisfied = "✗"
+	rows := make([]dependencyRow, len(statusResp.Dependencies))
+	for i, dep := range statusResp.Dependencies {
+		rows[i] = dependencyRow{
+			DependsOn:      dep.DependsOn,
+			RequiredStatus: dep.RequiredStatus,
+			CurrentStatus:  dep.CurrentStatus,
+			IsSatisfied:    dep.IsSatisfied,
 		}
-		fmt.Printf("%-20s %-15s %-15s %-10s\n",
-			dep.DependsOn,
-			dep.RequiredStatus,
-			dep.CurrentStatus,
-			satisfied,
-		)
 	}
+
+	cliui.Info(w, "Dependencies:")
+	rendered, err := cliui.DisplayTable(rows, "", nil)
+	if err != nil {
+		return xerrors.Errorf("render dependencies table: %w", err)
+	}
+	_, _ = fmt.Fprintln(w, rendered)
 
 	return nil
 }
