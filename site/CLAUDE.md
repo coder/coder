@@ -1,5 +1,17 @@
 # Frontend Development Guidelines
 
+## 🚨 Critical Pattern Migrations (MUST FOLLOW)
+
+The following patterns are actively being migrated and have **STRICT policies**:
+
+1. **Emotion → Tailwind**: "No new emotion styles, full stop" - Always use Tailwind CSS
+2. **MUI Components → Custom/Radix Components**: Replace MUI components (Tooltips, Tables, Buttons) with custom/shadcn equivalents
+3. **MUI Icons → lucide-react**: All icons must use lucide-react, never MUI icons
+4. **spyOn → queries parameter**: Use `queries` in story parameters for GET endpoint mocks
+5. **localStorage → user_configs**: Store user preferences in backend, not browser storage
+
+When touching existing code, **"leave the campsite better than you found it"** - refactor old patterns to new ones even if not directly related to your changes.
+
 ## TypeScript LSP Navigation (USE FIRST)
 
 When investigating or editing TypeScript/React code, always use the TypeScript language server tools for accurate navigation:
@@ -26,25 +38,104 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 
 ## Components
 
-- MUI components are deprecated - migrate away from these when encountered
-- Use shadcn/ui components first - check `site/src/components` for existing implementations.
+- **MUI components are deprecated** - migrate away from these when encountered
+  - Replace `@mui/material/Tooltip` with custom `Tooltip` component (Radix-based)
+  - Default 100ms delay via global tooltip provider
+  - Use `delayDuration={0}` when immediate tooltip needed
+  - Replace MUI Tables with custom table components
+  - Replace MUI Buttons with shadcn Button components
+  - Systematically replace MUI components with custom/shadcn equivalents
+- Use shadcn/ui components first - check `site/src/components` for existing implementations
 - Do not use shadcn CLI - manually add components to maintain consistency
-- The modules folder should contain components with business logic specific to the codebase.
+- The modules folder should contain components with business logic specific to the codebase
 - Create custom components only when shadcn alternatives don't exist
+
+### Icon Migration: MUI Icons → lucide-react
+
+**STRICT POLICY**: All icons must use `lucide-react`, not MUI icons.
+
+```tsx
+// OLD - MUI Icons (DO NOT USE)
+import BusinessIcon from "@mui/icons-material/Business";
+import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
+
+// NEW - lucide-react
+import {
+  Building2Icon,
+  UsersIcon,
+  GlobeIcon,
+} from "lucide-react";
+```
+
+**Common icon mappings:**
+- `BusinessIcon` → `Building2Icon`
+- `GroupOutlinedIcon` / `GroupIcon` → `UsersIcon`
+- `PublicOutlinedIcon` / `PublicIcon` → `GlobeIcon`
+- `PersonIcon` → `UserIcon`
+- Always use descriptive lucide-react icons over generic MUI icons
+
+### MUI → Radix Component Prop Naming
+
+When migrating from MUI to Radix components, prop names change:
+
+```tsx
+// MUI Tooltip props
+<Tooltip placement="top" PopperProps={...}>
+
+// Radix Tooltip props
+<Tooltip side="top">  // placement → side
+// PopperProps is removed (internal implementation detail)
+```
+
+**Common prop name changes:**
+- `placement` → `side` (for positioning)
+- Remove `PopperProps` (internal implementation, not needed)
+- MUI's `title` prop → Radix uses children pattern with `TooltipContent`
 
 ## Styling
 
-- Emotion CSS is deprecated. Use Tailwind CSS instead.
-- Use custom Tailwind classes in tailwind.config.js.
+- **Emotion CSS is STRICTLY DEPRECATED: "no new emotion styles, full stop"**
+  - Never use `@emotion/react`, `css` prop, `useTheme()`, or emotion styled components
+  - Always use Tailwind CSS utility classes instead
+  - When touching code with emotion styles, refactor to Tailwind ("leave the campsite better than you found it")
+- Use custom Tailwind classes in tailwind.config.js
 - Tailwind CSS reset is currently not used to maintain compatibility with MUI
 - Responsive design - use Tailwind's responsive prefixes (sm:, md:, lg:, xl:)
 - Do not use `dark:` prefix for dark mode
+
+### Common Emotion → Tailwind Migrations
+
+```tsx
+// OLD - Emotion (DO NOT USE)
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+<div css={styles.container}>
+<Stack direction="row" spacing={3}>
+<span css={{ fontWeight: 500, color: theme.experimental.l1.text }}>
+
+// NEW - Tailwind
+<div className="flex flex-col gap-2">
+<div className="flex items-center gap-6">
+<span className="font-medium text-content-primary">
+```
+
+**Common replacements:**
+- `css={visuallyHidden}` → `className="sr-only"`
+- `Stack` component → flex with Tailwind classes (`flex`, `flex-col`, `flex-row`, `gap-*`)
+- Theme colors → Tailwind semantic tokens (`text-content-primary`, `bg-surface-secondary`, `border-border-default`)
+- Icons: use lucide-react with `size-icon-sm`, `size-icon-xs` classes
 
 ## Tailwind Best Practices
 
 - Group related classes
 - Use semantic color names from the theme inside `tailwind.config.js` including `content`, `surface`, `border`, `highlight` semantic tokens
 - Prefer Tailwind utilities over custom CSS when possible
+- For conditional classes, use the `cn()` utility (from `utils/cn`) which combines `clsx` and `tailwind-merge`
+  ```tsx
+  import { cn } from "utils/cn";
+  
+  <div className={cn("base-classes", condition && "conditional-classes", className)} />
+  ```
 
 ## General Code style
 
@@ -52,6 +143,66 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - Destructure imports when possible (eg. import { foo } from 'bar')
 - Prefer `for...of` over `forEach` for iteration
 - **Biome** handles both linting and formatting (not ESLint/Prettier)
+
+## Testing Patterns
+
+### Storybook: spyOn → queries parameter (for GET endpoint mocks)
+
+**PREFERRED PATTERN**: Use `queries` parameter in story parameters instead of `spyOn` for GET endpoint mocks.
+
+```tsx
+// OLD - spyOn pattern (AVOID for GET mocks)
+beforeEach: () => {
+  spyOn(API, "getUsers").mockResolvedValue({
+    users: MockUsers,
+    count: MockUsers.length,
+  });
+  spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+}
+
+// NEW - queries parameter pattern (PREFERRED)
+parameters: {
+  queries: [
+    {
+      key: usersKey({ q: "" }),
+      data: {
+        users: MockUsers,
+        count: MockUsers.length,
+      },
+    },
+    {
+      key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+      data: [MockTemplate],
+    },
+  ],
+}
+```
+
+**Important notes:**
+- This applies specifically to GET endpoint mocks in Storybook stories
+- `spyOn` is still used for other mock types (POST, PUT, DELETE, non-GET endpoints)
+- Must import the correct query key functions (e.g., `usersKey`, `getTemplatesQueryKey`)
+
+### Chromatic/Storybook Testing Best Practices
+
+- **Prefer visual validation through snapshots** over programmatic assertions
+- Chromatic snapshots catch visual changes during review
+- Avoid programmatic assertions in stories that duplicate what snapshots show
+- Programmatic assertions can introduce flakiness - remove when redundant
+- Stories are snapshot tests - rely on the screenshot to verify correctness
+
+## State Storage
+
+### localStorage vs user_configs table
+
+**IMPORTANT**: For user preferences that should persist across devices and browsers, use the `user_configs` table in the backend, NOT `localStorage`.
+
+- **localStorage is browser-specific**, not user-specific
+- **User preferences should persist** across devices/browsers
+- Follow the plumbing for `theme_preference` as a reference example
+- localStorage may be acceptable only for truly transient UI state that doesn't need to follow the user
+
+**Key principle**: If a user dismisses something or sets a preference, it should be tied to their account, not their browser.
 
 ## Workflow
 
