@@ -1,30 +1,35 @@
 import { API } from "api/api";
-import type { ApiErrorResponse } from "api/errors";
+import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
-	richParameters,
 	templateByName,
+	templateVersionExternalAuth,
 	templateVersionPresets,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
-	Template,
-	TemplateVersionParameter,
-	UserParameter,
+	DynamicParametersRequest,
+	DynamicParametersResponse,
+	PreviewParameter,
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useExternalAuth } from "hooks/useExternalAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
+import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
 	type CreateWorkspacePermissions,
@@ -33,6 +38,7 @@ import {
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
+type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -40,7 +46,13 @@ const CreateWorkspacePage: FC = () => {
 	const { user: me } = useAuthenticated();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
-	const { experiments } = useDashboard();
+
+	const [latestResponse, setLatestResponse] =
+		useState<DynamicParametersResponse | null>(null);
+	const wsResponseId = useRef<number>(-1);
+	const ws = useRef<WebSocket | null>(null);
+	const [wsError, setWsError] = useState<Error | null>(null);
+	const initialParamsSentRef = useRef(false);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -48,6 +60,8 @@ const CreateWorkspacePage: FC = () => {
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
+	const defaultOwner = me;
+	const [owner, setOwner] = useState(defaultOwner);
 
 	const queryClient = useQueryClient();
 	const autoCreateWorkspaceMutation = useMutation(
@@ -71,30 +85,102 @@ const CreateWorkspacePage: FC = () => {
 		}),
 		enabled: !!templateQuery.data,
 	});
-	const templatePermissionsQuery = useQuery({
-		...checkAuthorization({
-			checks: {
-				canUpdateTemplate: {
-					object: {
-						resource_type: "template",
-						resource_id: templateQuery.data?.id ?? "",
-					},
-					action: "update",
-				},
-			},
-		}),
-		enabled: !!templateQuery.data,
-	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
-	const organizationId = templateQuery.data?.organization_id;
-	const richParametersQuery = useQuery({
-		...richParameters(realizedVersionId ?? ""),
-		enabled: realizedVersionId !== undefined,
+
+	const autofillParameters = getAutofillParameters(searchParams);
+
+	const sendMessage = useEffectEvent(
+		(formValues: Record<string, string>, ownerId?: string) => {
+			const request: DynamicParametersRequest = {
+				id: wsResponseId.current + 1,
+				owner_id: ownerId ?? owner.id,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				wsResponseId.current = wsResponseId.current + 1;
+			}
+		},
+	);
+
+	// On page load, sends all initial parameter values to the websocket
+	// (including defaults and autofilled from the url)
+	// This ensures the backend has the complete initial state of the form,
+	// which is vital for correctly rendering dynamic UI elements where parameter visibility
+	// or options might depend on the initial values of other parameters.
+	const sendInitialParameters = useEffectEvent(
+		(parameters: PreviewParameter[]) => {
+			if (initialParamsSentRef.current) return;
+			if (parameters.length === 0) return;
+
+			const initialFormValues = getInitialParameterValues(
+				parameters,
+				autofillParameters,
+			);
+			if (initialFormValues.length === 0) return;
+
+			const initialParamsToSend: Record<string, string> = {};
+			for (const param of initialFormValues) {
+				if (param.name && param.value) {
+					initialParamsToSend[param.name] = param.value;
+				}
+			}
+
+			if (Object.keys(initialParamsToSend).length === 0) return;
+
+			sendMessage(initialParamsToSend);
+			initialParamsSentRef.current = true;
+		},
+	);
+
+	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
+		if (latestResponse && latestResponse?.id >= response.id) {
+			return;
+		}
+
+		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
+			sendInitialParameters([...response.parameters]);
+		}
+
+		setLatestResponse(response);
 	});
-	const realizedParameters = richParametersQuery.data
-		? richParametersQuery.data.filter(paramsUsedToCreateWorkspace)
-		: undefined;
+
+	// Initialize the WebSocket connection when there is a valid template version ID
+	useEffect(() => {
+		if (!realizedVersionId) return;
+
+		const socket = API.templateVersionDynamicParameters(
+			realizedVersionId,
+			defaultOwner.id,
+			{
+				onMessage,
+				onError: (error) => {
+					if (ws.current === socket) {
+						setWsError(error);
+					}
+				},
+				onClose: () => {
+					if (ws.current === socket) {
+						setWsError(
+							new DetailedError(
+								"Websocket connection for dynamic parameters unexpectedly closed.",
+								"Refresh the page to reset the form.",
+							),
+						);
+					}
+				},
+			},
+		);
+
+		ws.current = socket;
+
+		return () => {
+			socket.close();
+		};
+	}, [realizedVersionId, onMessage, defaultOwner.id]);
+
+	const organizationId = templateQuery.data?.organization_id;
 
 	const {
 		externalAuth,
@@ -104,15 +190,10 @@ const CreateWorkspacePage: FC = () => {
 	} = useExternalAuth(realizedVersionId);
 
 	const isLoadingFormData =
+		ws.current?.readyState === WebSocket.CONNECTING ||
 		templateQuery.isLoading ||
-		permissionsQuery.isLoading ||
-		templatePermissionsQuery.isLoading ||
-		richParametersQuery.isLoading;
-	const loadFormDataError =
-		templateQuery.error ??
-		permissionsQuery.error ??
-		templatePermissionsQuery.error ??
-		richParametersQuery.error;
+		permissionsQuery.isLoading;
+	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isPending
 		? "Creating workspace..."
@@ -123,18 +204,6 @@ const CreateWorkspacePage: FC = () => {
 			navigate(`/@${workspace.owner_name}/${workspace.name}`);
 		},
 		[navigate],
-	);
-
-	// Auto fill parameters
-	const autofillEnabled = experiments.includes("auto-fill-parameters");
-	const userParametersQuery = useQuery({
-		queryKey: ["userParameters"],
-		queryFn: () => API.getUserParameters(templateQuery.data?.id ?? ""),
-		enabled: autofillEnabled && templateQuery.isSuccess,
-	});
-	const autofillParameters = getAutofillParameters(
-		searchParams,
-		userParametersQuery.data ? userParametersQuery.data : [],
 	);
 
 	const autoCreationStartedRef = useRef(false);
@@ -165,13 +234,11 @@ const CreateWorkspacePage: FC = () => {
 			externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
-	let autoCreateReady =
-		mode === "auto" &&
-		(!autofillEnabled || userParametersQuery.isSuccess) &&
-		hasAllRequiredExternalAuth;
+	let autoCreateReady = mode === "auto" && hasAllRequiredExternalAuth;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
+		Boolean(realizedVersionId) &&
 		mode === "auto" &&
 		!isLoadingExternalAuth &&
 		!hasAllRequiredExternalAuth
@@ -200,45 +267,63 @@ const CreateWorkspacePage: FC = () => {
 		}
 	}, [automateWorkspaceCreation, autoCreateReady]);
 
+	const sortedParams = useMemo(() => {
+		if (!latestResponse?.parameters) {
+			return [];
+		}
+		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+	}, [latestResponse?.parameters]);
+
+	const shouldShowLoader =
+		!templateQuery.data ||
+		isLoadingFormData ||
+		isLoadingExternalAuth ||
+		autoCreateReady ||
+		(!latestResponse && !wsError);
+
 	return (
 		<>
 			<title>{pageTitle(title)}</title>
 
-			{isLoadingFormData || isLoadingExternalAuth || autoCreateReady ? (
+			{shouldShowLoader ? (
 				<Loader />
 			) : (
 				<CreateWorkspacePageView
 					mode={mode}
 					defaultName={defaultName}
+					diagnostics={latestResponse?.diagnostics ?? []}
 					disabledParams={disabledParams}
-					defaultOwner={me}
+					defaultOwner={defaultOwner}
+					owner={owner}
+					setOwner={setOwner}
 					autofillParameters={autofillParameters}
+					canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
 					error={
+						wsError ||
 						createWorkspaceMutation.error ||
 						autoCreateError ||
 						loadFormDataError ||
 						autoCreateWorkspaceMutation.error
 					}
 					resetMutation={createWorkspaceMutation.reset}
-					template={templateQuery.data as Template}
+					template={templateQuery.data}
 					versionId={realizedVersionId}
 					externalAuth={externalAuth ?? []}
 					externalAuthPollingState={externalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
-					templatePermissions={
-						templatePermissionsQuery.data as { canUpdateTemplate: boolean }
-					}
-					parameters={realizedParameters as TemplateVersionParameter[]}
+					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isPending}
+					sendMessage={sendMessage}
 					onCancel={() => {
 						navigate(-1);
 					}}
 					onSubmit={async (request, owner) => {
+						let workspaceRequest = request;
 						if (realizedVersionId) {
-							request = {
+							workspaceRequest = {
 								...request,
 								template_id: undefined,
 								template_version_id: realizedVersionId,
@@ -246,7 +331,7 @@ const CreateWorkspacePage: FC = () => {
 						}
 
 						const workspace = await createWorkspaceMutation.mutateAsync({
-							...request,
+							...workspaceRequest,
 							userId: owner.id,
 						});
 						onCreateWorkspace(workspace);
@@ -257,15 +342,53 @@ const CreateWorkspacePage: FC = () => {
 	);
 };
 
+const useExternalAuth = (versionId: string | undefined) => {
+	const [externalAuthPollingState, setExternalAuthPollingState] =
+		useState<ExternalAuthPollingState>("idle");
+
+	const startPollingExternalAuth = useCallback(() => {
+		setExternalAuthPollingState("polling");
+	}, []);
+
+	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
+		...templateVersionExternalAuth(versionId ?? ""),
+		enabled: Boolean(versionId),
+		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+	});
+
+	const allSignedIn = externalAuth?.every((it) => it.authenticated);
+
+	useEffect(() => {
+		if (allSignedIn) {
+			setExternalAuthPollingState("idle");
+			return;
+		}
+
+		if (externalAuthPollingState !== "polling") {
+			return;
+		}
+
+		// Poll for a maximum of one minute
+		const quitPolling = setTimeout(
+			() => setExternalAuthPollingState("abandoned"),
+			60_000,
+		);
+		return () => {
+			clearTimeout(quitPolling);
+		};
+	}, [externalAuthPollingState, allSignedIn]);
+
+	return {
+		startPollingExternalAuth,
+		externalAuth,
+		externalAuthPollingState,
+		isLoadingExternalAuth,
+	};
+};
+
 const getAutofillParameters = (
 	urlSearchParams: URLSearchParams,
-	userParameters: UserParameter[],
 ): AutofillBuildParameter[] => {
-	const userParamMap = userParameters.reduce((acc, param) => {
-		acc.set(param.name, param);
-		return acc;
-	}, new Map<string, UserParameter>());
-
 	const buildValues: AutofillBuildParameter[] = Array.from(
 		urlSearchParams.keys(),
 	)
@@ -273,18 +396,8 @@ const getAutofillParameters = (
 		.map((key) => {
 			const name = key.replace("param.", "");
 			const value = urlSearchParams.get(key) ?? "";
-			// URL should take precedence over user parameters
-			userParamMap.delete(name);
 			return { name, value, source: "url" };
 		});
-
-	for (const param of userParamMap.values()) {
-		buildValues.push({
-			name: param.name,
-			value: param.value,
-			source: "user_history",
-		});
-	}
 	return buildValues;
 };
 

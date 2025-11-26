@@ -28,7 +28,9 @@ import (
 )
 
 // New creates a CLI instance with a configuration pointed to a
-// temporary testing directory.
+// temporary testing directory. The invocation is set up to use a
+// global config directory for the given testing.TB, and keyring
+// usage disabled.
 func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
 
@@ -59,6 +61,15 @@ func NewWithCommand(
 	t testing.TB, cmd *serpent.Command, args ...string,
 ) (*serpent.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
+	// Keyring usage is disabled here because many existing tests expect the session token
+	// to be stored on disk and is not properly instrumented for parallel testing against
+	// the actual operating system keyring.
+	invArgs := append([]string{"--global-config", string(configDir), "--use-keyring=false"}, args...)
+	return setupInvocation(t, cmd, invArgs...), configDir
+}
+
+func setupInvocation(t testing.TB, cmd *serpent.Command, args ...string,
+) *serpent.Invocation {
 	// I really would like to fail test on error logs, but realistically, turning on by default
 	// in all our CLI tests is going to create a lot of flaky noise.
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
@@ -66,16 +77,21 @@ func NewWithCommand(
 		Named("cli")
 	i := &serpent.Invocation{
 		Command: cmd,
-		Args:    append([]string{"--global-config", string(configDir)}, args...),
+		Args:    args,
 		Stdin:   io.LimitReader(nil, 0),
 		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
 		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
 		Logger:  logger,
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
+	return i
+}
 
-	// These can be overridden by the test.
-	return i, configDir
+func NewWithDefaultKeyringCommand(t testing.TB, cmd *serpent.Command, args ...string,
+) (*serpent.Invocation, config.Root) {
+	configDir := config.Root(t.TempDir())
+	invArgs := append([]string{"--global-config", string(configDir)}, args...)
+	return setupInvocation(t, cmd, invArgs...), configDir
 }
 
 // SetupConfig applies the URL and SessionToken of the client to the config.

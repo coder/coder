@@ -1043,7 +1043,7 @@ export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
 	icon: "",
 };
 
-const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
+export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "test-workspace-agent-2",
 	name: "another-workspace-agent",
@@ -1790,31 +1790,6 @@ export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
 	default_value: "",
 	required: true,
 	sensitive: false,
-};
-
-export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
-	name: "test",
-	template_version_id: "test-template-version",
-	rich_parameter_values: [],
-};
-
-export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest =
-	{
-		name: "test",
-		template_version_id: "test-template-version",
-		rich_parameter_values: [
-			{
-				name: MockTemplateVersionParameter1.name,
-				value: MockTemplateVersionParameter1.default_value,
-			},
-		],
-	};
-
-const _MockUserAgent = {
-	browser: "Chrome 99.0.4844",
-	device: "Other",
-	ip_address: "11.22.33.44",
-	os: "Windows 10",
 };
 
 export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
