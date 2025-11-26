@@ -768,7 +768,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		Plan:                  planComplete.Plan,
 		DailyCost:             planComplete.DailyCost,
 		HasAITasks:            graphComplete.HasAiTasks,
-		HasExternalAgents:     graphComplete.GetHasAiTasks(),
+		HasExternalAgents:     graphComplete.HasExternalAgents,
 	}, nil
 }
 
