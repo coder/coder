@@ -1573,8 +1573,10 @@ func TestCreateValidateRichParameters(t *testing.T) {
 func TestCreateWithGitAuth(t *testing.T) {
 	t.Parallel()
 	echoResponses := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		Parse:         echo.ParseComplete,
+		ProvisionInit: echo.InitComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionGraph: []*proto.Response{
 			{
 				Type: &proto.Response_Graph{
 					Graph: &proto.GraphComplete{
