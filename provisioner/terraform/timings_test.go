@@ -4,8 +4,6 @@ package terraform_test
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,8 +109,7 @@ func TestTimingsFromProvision(t *testing.T) {
 	// NOTE: These timings have been encoded to JSON format to make the tests more readable.
 	initTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:31Z","action":"load","resource":"modules","stage":"init","state":"COMPLETED"}
 {"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:29Z","action":"load","resource":"backend","stage":"init","state":"COMPLETED"}
-{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}
-{}`))
+{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}`))
 	planTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195836Z", "action":"read", "source":"coder", "resource":"data.coder_parameter.memory_size", "stage":"plan", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195712Z", "action":"read", "source":"coder", "resource":"data.coder_provisioner.me", "stage":"plan", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195820Z", "action":"read", "source":"coder", "resource":"data.coder_workspace.me", "stage":"plan", "state":"COMPLETED"}`))
@@ -120,14 +117,18 @@ func TestTimingsFromProvision(t *testing.T) {
 {"start":"2024-08-15T08:26:39.626722Z", "end":"2024-08-15T08:26:39.669954Z", "action":"create", "source":"docker", "resource":"docker_image.main", "stage":"apply", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.627335Z", "end":"2024-08-15T08:26:39.660616Z", "action":"create", "source":"docker", "resource":"docker_volume.home_volume", "stage":"apply", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.682223Z", "end":"2024-08-15T08:26:40.186482Z", "action":"create", "source":"docker", "resource":"docker_container.workspace[0]", "stage":"apply", "state":"COMPLETED"}`))
-	graphTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2000-01-01T01:01:01.123456Z", "end":"2000-01-01T01:01:01.123456Z", "action":"building terraform dependency graph", "source":"terraform", "resource":"state file", "stage":"graph", "state":"COMPLETED"}`))
-	graphTiming := graphTimings[0]
+	// Graphing is omitted as it is captured by the stage timing, which uses now()
 
+	totals := make(map[string]int)
 	for _, ti := range timings {
-		msg, _ := json.Marshal(ti)
-		fmt.Println(string(msg))
+		totals[ti.Stage]++
 	}
-	require.Len(t, timings, len(initTimings)+len(planTimings)+len(applyTimings)+len(graphTimings))
+	require.Equal(t, totals["init"], len(initTimings), "init")
+	require.Equal(t, totals["plan"], len(planTimings), "plan")
+	require.Equal(t, totals["apply"], len(applyTimings), "apply")
+
+	// Lastly total
+	require.Len(t, timings, len(initTimings)+len(planTimings)+len(applyTimings))
 
 	// init/graph timings are computed dynamically during provisioning whereas plan/apply come from the logs (fixtures) in
 	// provisioner/terraform/testdata/timings-aggregation/fake-terraform.sh.
@@ -142,9 +143,6 @@ func TestTimingsFromProvision(t *testing.T) {
 		case string(database.ProvisionerJobTimingStageInit):
 			require.True(t, terraform_internal.TimingsAreEqual(t, []*proto.Timing{initTimings[iCursor]}, []*proto.Timing{tim}))
 			iCursor++
-		case string(database.ProvisionerJobTimingStageGraph):
-			tim.Start, tim.End = graphTiming.Start, graphTiming.End
-			require.True(t, terraform_internal.TimingsAreEqual(t, []*proto.Timing{graphTiming}, []*proto.Timing{tim}))
 		case string(database.ProvisionerJobTimingStagePlan):
 			require.True(t, terraform_internal.TimingsAreEqual(t, []*proto.Timing{planTimings[pCursor]}, []*proto.Timing{tim}))
 			pCursor++
