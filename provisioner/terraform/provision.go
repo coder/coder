@@ -257,7 +257,9 @@ func (s *server) Graph(
 		Parameters:            state.Parameters,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		Presets:               state.Presets,
+		HasAiTasks:            state.HasAITasks,
 		AiTasks:               state.AITasks,
+		HasExternalAgents:     state.HasExternalAgents,
 	}
 }
 
