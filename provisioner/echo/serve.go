@@ -241,6 +241,10 @@ func (e *echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, canc
 			sess.ProvisionLog(log.Level, log.Output)
 		}
 		if complete := response.GetGraph(); complete != nil {
+			if len(complete.AiTasks) > 0 {
+				// These two fields are linked; if there are AI tasks, indicate that.
+				complete.HasAiTasks = true
+			}
 			return complete
 		}
 	}
