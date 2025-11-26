@@ -145,6 +145,29 @@ export const LoadedTasksWaitingForInputTab: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
+				id: "active-idle-task",
+				display_name: "Active Idle Task",
+				status: "active",
+				current_state: {
+					...firstTask.current_state,
+					state: "idle",
+				},
+			},
+			{
+				...firstTask,
+				id: "paused-idle-task",
+				display_name: "Paused Idle Task",
+				status: "paused",
+				current_state: {
+					...firstTask.current_state,
+					state: "idle",
+				},
+			},
+			{
+				...firstTask,
+				id: "error-idle-task",
+				display_name: "Error Idle Task",
+				status: "error",
 				current_state: {
 					...firstTask.current_state,
 					state: "idle",
@@ -161,6 +184,13 @@ export const LoadedTasksWaitingForInputTab: Story = {
 				name: /waiting for input/i,
 			});
 			await userEvent.click(waitingForInputTab);
+
+			// Wait for the active idle task to appear.
+			await canvas.findByText("Active Idle Task");
+
+			// Only active idle tasks should be visible.
+			expect(canvas.queryByText("Paused Idle Task")).not.toBeInTheDocument();
+			expect(canvas.queryByText("Error Idle Task")).not.toBeInTheDocument();
 		});
 	},
 };
