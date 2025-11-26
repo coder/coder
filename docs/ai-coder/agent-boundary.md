@@ -102,3 +102,56 @@ You can also run Agent Boundaries directly in your workspace and configure it pe
 ```hcl
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
  ```
+
+## Runtime & Permission Requirements for Running the Boundary in Docker
+
+This section describes the Linux capabilities and runtime configurations required to run the Agent Boundary inside a Docker container. Requirements vary depending on the OCI runtime and the seccomp profile in use.
+
+### 1. Default `runc` runtime with `CAP_NET_ADMIN`
+
+When using Docker’s default `runc` runtime, the Boundary requires the container to have `CAP_NET_ADMIN`. This is the minimal capability needed for configuring virtual networking inside the container.
+
+Docker’s default seccomp profile may also block certain syscalls (such as `clone`) required for creating unprivileged network namespaces. If you encounter these restrictions, you may need to update or override the seccomp profile to allow these syscalls.
+
+[see Docker Seccomp Profile Considerations](#docker-seccomp-profile-considerations)
+
+
+### 2. Default `runc` runtime with `CAP_SYS_ADMIN` (testing only)
+
+For development or testing environments, you may grant the container `CAP_SYS_ADMIN`, which implicitly bypasses many of the restrictions in Docker’s default seccomp profile.
+
+- The Boundary does not require `CAP_SYS_ADMIN` itself.
+- However, Docker’s default seccomp policy commonly blocks namespace-related syscalls unless `CAP_SYS_ADMIN` is present.
+- Granting `CAP_SYS_ADMIN` enables the Boundary to run without modifying the seccomp profile.
+
+⚠️ Warning: `CAP_SYS_ADMIN` is extremely powerful and should not be used in production unless absolutely necessary.
+
+### 3. `sysbox-runc` runtime with `CAP_NET_ADMIN`
+
+When using the `sysbox-runc` runtime (from Nestybox), the Boundary can run with only:
+
+- `CAP_NET_ADMIN`
+
+The sysbox-runc runtime provides more complete support for unprivileged user namespaces and nested containerization, which typically eliminates the need for seccomp profile modifications.
+
+## Docker Seccomp Profile Considerations
+
+Docker’s default seccomp profile frequently blocks the `clone` syscall, which is required by the Boundary when creating unprivileged network namespaces. If the `clone` syscall is denied, the Boundary may fail to start or encounter runtime errors when attempting to configure networking.
+
+To address this, you may need to modify or override the seccomp profile used by your container to explicitly allow the required `clone` variants.
+
+You can find the default Docker seccomp profile for your Docker version here:
+
+https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
+
+If the profile blocks the necessary `clone` syscall arguments, you can provide a custom seccomp profile that adds an allow rule like the following:
+```json
+{
+  "names": [
+    "clone"
+  ],
+  "action": "SCMP_ACT_ALLOW"
+}
+```
+This example unblocks the clone syscall entirely; depending on your security requirements, you may wish to narrow the rule to specific argument patterns.
+
