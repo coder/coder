@@ -302,7 +302,7 @@ func TestCreate(t *testing.T) {
 func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.Preset) *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
 				Type: &proto.Response_Graph{
 					Graph: &proto.GraphComplete{
