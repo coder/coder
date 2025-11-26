@@ -81,7 +81,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	return ctx, api
 }
 
-func initDo(t *testing.T, sess proto.DRPCProvisioner_SessionClient, archive []byte) *proto.InitComplete {
+func initDo(t *testing.T, sess proto.DRPCProvisioner_SessionClient, archive []byte, onLog ...func(log string)) *proto.InitComplete {
 	t.Helper()
 	err := sess.Send(&proto.Request{Type: &proto.Request_Init{
 		Init: &proto.InitRequest{
@@ -93,7 +93,10 @@ func initDo(t *testing.T, sess proto.DRPCProvisioner_SessionClient, archive []by
 	for {
 		msg, err := sess.Recv()
 		require.NoError(t, err)
-		if _, ok := msg.Type.(*proto.Response_Log); ok {
+		if logMsg, ok := msg.Type.(*proto.Response_Log); ok {
+			for _, do := range onLog {
+				do(logMsg.Log.Output)
+			}
 			continue
 		}
 
@@ -372,12 +375,14 @@ func TestProvision(t *testing.T) {
 		Metadata *proto.Metadata
 		Request  *proto.PlanRequest
 		// Response may be nil to not check the response.
-		Response     *proto.GraphComplete
-		InitResponse *proto.InitComplete
+		Response              *proto.GraphComplete
+		InitResponse          *proto.InitComplete
+		InitErrorContains     string
+		InitExpectLogContains string
 		// If ErrorContains is not empty, PlanComplete should have an Error containing the given string
-		ErrorContains string
-		// If ExpectLogContains is not empty, then the logs should contain it.
-		ExpectLogContains string
+		PlanErrorContains string
+		// If PlanExpectLogContains is not empty, then the logs should contain it.
+		PlanExpectLogContains string
 		// If Apply is true, then send an Apply request and check we get the same Resources as in Response.
 		Apply bool
 		// Some tests may need to be skipped until the relevant provider version is released.
@@ -391,8 +396,8 @@ func TestProvision(t *testing.T) {
 				"main.tf": `variable "A" {
 			}`,
 			},
-			ErrorContains:     "terraform plan:",
-			ExpectLogContains: "No value for required variable",
+			PlanErrorContains:     "terraform plan:",
+			PlanExpectLogContains: "No value for required variable",
 		},
 		{
 			Name: "missing-variable-dry-run",
@@ -400,8 +405,8 @@ func TestProvision(t *testing.T) {
 				"main.tf": `variable "A" {
 			}`,
 			},
-			ErrorContains:     "terraform plan:",
-			ExpectLogContains: "No value for required variable",
+			PlanErrorContains:     "terraform plan:",
+			PlanExpectLogContains: "No value for required variable",
 		},
 		{
 			Name: "single-resource-dry-run",
@@ -454,18 +459,18 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `a`,
 			},
-			ErrorContains:      "initialize terraform",
-			ExpectLogContains:  "Argument or block definition required",
-			SkipCacheProviders: true,
+			InitErrorContains:     "initialize terraform",
+			InitExpectLogContains: "Argument or block definition required",
+			SkipCacheProviders:    true,
 		},
 		{
 			Name: "bad-syntax-2",
 			Files: map[string]string{
 				"main.tf": `;asdf;`,
 			},
-			ErrorContains:      "initialize terraform",
-			ExpectLogContains:  `The ";" character is not valid.`,
-			SkipCacheProviders: true,
+			InitErrorContains:     "initialize terraform",
+			InitExpectLogContains: `The ";" character is not valid.`,
+			SkipCacheProviders:    true,
 		},
 		{
 			Name: "destroy-no-state",
@@ -475,7 +480,7 @@ func TestProvision(t *testing.T) {
 			Metadata: &proto.Metadata{
 				WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
 			},
-			ExpectLogContains: "nothing to do",
+			PlanExpectLogContains: "nothing to do",
 		},
 		{
 			Name: "rich-parameter-with-value",
@@ -1072,7 +1077,17 @@ func TestProvision(t *testing.T) {
 				cliConfigPath: cliConfigPath,
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
-			initComplete := initDo(t, sess, testutil.CreateTar(t, testCase.Files))
+			initLogGot := testCase.InitExpectLogContains == ""
+			initComplete := initDo(t, sess, testutil.CreateTar(t, testCase.Files), func(log string) {
+				if strings.Contains(log, testCase.InitExpectLogContains) {
+					initLogGot = true
+				}
+			})
+			require.Truef(t, initLogGot, "did not get expected init log substring %q", testCase.InitExpectLogContains)
+			if testCase.InitErrorContains != "" {
+				require.Contains(t, initComplete.Error, testCase.InitErrorContains)
+				return
+			}
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
 				Metadata: testCase.Metadata,
@@ -1081,7 +1096,7 @@ func TestProvision(t *testing.T) {
 				planRequest = &proto.Request{Type: &proto.Request_Plan{Plan: testCase.Request}}
 			}
 
-			gotExpectedLog := testCase.ExpectLogContains == ""
+			gotExpectedLog := testCase.PlanExpectLogContains == ""
 
 			provision := func(req *proto.Request) *proto.Response {
 				err := sess.Send(req)
@@ -1090,7 +1105,7 @@ func TestProvision(t *testing.T) {
 					msg, err := sess.Recv()
 					require.NoError(t, err)
 					if msg.GetLog() != nil {
-						if testCase.ExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.ExpectLogContains) {
+						if testCase.PlanExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.PlanExpectLogContains) {
 							gotExpectedLog = true
 						}
 
@@ -1102,12 +1117,18 @@ func TestProvision(t *testing.T) {
 			}
 
 			resp := provision(planRequest)
-			graphComplete := resp.GetGraph()
-			require.NotNil(t, graphComplete)
+			planComplete := resp.GetPlan()
+			require.NotNil(t, planComplete)
 
-			if testCase.ErrorContains != "" {
-				require.Contains(t, graphComplete.GetError(), testCase.ErrorContains)
+			if testCase.PlanErrorContains != "" {
+				require.Contains(t, planComplete.GetError(), testCase.PlanErrorContains)
 			}
+
+			graphCompleteResp := provision(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+				Source: proto.GraphSource_SOURCE_PLAN,
+			}}})
+			graphComplete := graphCompleteResp.GetGraph()
+			require.NotNil(t, graphCompleteResp)
 
 			if testCase.Response != nil {
 				require.Equal(t, testCase.Response.Error, graphComplete.Error)
@@ -1156,7 +1177,7 @@ func TestProvision(t *testing.T) {
 			}
 
 			if !gotExpectedLog {
-				t.Fatalf("expected log string %q but never saw it", testCase.ExpectLogContains)
+				t.Fatalf("expected log string %q but never saw it", testCase.PlanExpectLogContains)
 			}
 		})
 	}
