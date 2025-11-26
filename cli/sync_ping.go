@@ -11,7 +11,7 @@ import (
 func (*RootCmd) syncPing() *serpent.Command {
 	return &serpent.Command{
 		Use:   "ping",
-		Short: "Verify agent connectivity and health",
+		Short: "Test agent socket connectivity and health",
 		Long:  "Test connectivity to the local Coder agent socket to verify the agent is running and responsive. Useful for troubleshooting startup issues or verifying the agent is accessible before running other sync commands.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
