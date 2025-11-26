@@ -141,13 +141,19 @@ ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_proxy:read';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_proxy:update';
 -- End enum extensions
 
+-- Purge old API keys to speed up the migration for large deployments.
+-- Note: that problem should be solved in coderd once PR 20863 is released:
+-- https://github.com/coder/coder/blob/main/coderd/database/dbpurge/dbpurge.go#L85
+DELETE FROM api_keys WHERE expires_at < NOW() - INTERVAL '7 days';
+
 -- Add new columns without defaults; backfill; then enforce NOT NULL
 ALTER TABLE api_keys ADD COLUMN scopes api_key_scope[];
 ALTER TABLE api_keys ADD COLUMN allow_list text[];
 
 -- Backfill existing rows for compatibility
-UPDATE api_keys SET scopes = ARRAY[scope::api_key_scope];
-UPDATE api_keys SET allow_list = ARRAY['*:*'];
+UPDATE api_keys SET
+    scopes = ARRAY[scope::api_key_scope],
+    allow_list = ARRAY['*:*'];
 
 -- Enforce NOT NULL
 ALTER TABLE api_keys ALTER COLUMN scopes SET NOT NULL;
