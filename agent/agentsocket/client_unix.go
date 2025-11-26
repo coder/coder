@@ -21,7 +21,8 @@ type Client struct {
 }
 
 // NewClient creates a new socket client and opens a connection to the socket.
-// If path is not provided via WithPath or is empty, it will auto-discover the default socket path.
+// If path is not provided via WithPath or is empty, it will auto-discover the
+// default socket path.
 func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 	options := &options{}
 	for _, opt := range opts {
