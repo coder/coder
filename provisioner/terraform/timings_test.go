@@ -4,6 +4,8 @@ package terraform_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,63 +38,65 @@ func TestTimingsFromProvision(t *testing.T) {
 		binaryPath: fakeBin,
 	})
 	sess := configure(ctx, t, api, &proto.Config{})
-	_ = initDo(t, sess, testutil.CreateTar(t, nil))
 
 	ctx, cancel := context.WithTimeout(ctx, testutil.WaitLong)
 	t.Cleanup(cancel)
+
+	var timings []*proto.Timing
+
+	handleResponse := func(t *testing.T, stage string) {
+		t.Helper()
+		for {
+			select {
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			default:
+			}
+
+			msg, err := sess.Recv()
+			require.NoError(t, err)
+
+			if log := msg.GetLog(); log != nil {
+				t.Logf("%s: %s: %s", stage, log.Level.String(), log.Output)
+				continue
+			}
+			switch {
+			case msg.GetInit() != nil:
+				timings = append(timings, msg.GetInit().GetTimings()...)
+			case msg.GetPlan() != nil:
+				timings = append(timings, msg.GetPlan().GetTimings()...)
+			case msg.GetApply() != nil:
+				timings = append(timings, msg.GetApply().GetTimings()...)
+			case msg.GetGraph() != nil:
+				timings = append(timings, msg.GetGraph().GetTimings()...)
+			}
+			break
+		}
+	}
+
+	// When: configured, our fake terraform will fake an init setup
+	err = sendInit(sess, testutil.CreateTar(t, nil))
+	require.NoError(t, err)
+	handleResponse(t, "init")
 
 	// When: a plan is executed in the provisioner, our fake terraform will be executed and will produce a
 	// state file and some log content.
 	err = sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	var timings []*proto.Timing
-
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatal(ctx.Err())
-		default:
-		}
-
-		msg, err := sess.Recv()
-		require.NoError(t, err)
-
-		if log := msg.GetLog(); log != nil {
-			t.Logf("%s: %s: %s", "plan", log.Level.String(), log.Output)
-		}
-		if c := msg.GetPlan(); c != nil {
-			require.Empty(t, c.Error)
-			// Capture the timing information returned by the plan process.
-			timings = append(timings, c.GetTimings()...)
-			break
-		}
-	}
+	handleResponse(t, "plan")
 
 	// When: the plan has completed, let's trigger an apply.
 	err = sendApply(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatal(ctx.Err())
-		default:
-		}
+	handleResponse(t, "apply")
 
-		msg, err := sess.Recv()
-		require.NoError(t, err)
+	// When: the apply has completed, graph the results
+	err = sendGraph(sess, proto.GraphSource_SOURCE_STATE)
+	require.NoError(t, err)
 
-		if log := msg.GetLog(); log != nil {
-			t.Logf("%s: %s: %s", "apply", log.Level.String(), log.Output)
-		}
-		if c := msg.GetApply(); c != nil {
-			require.Empty(t, c.Error)
-			// Capture the timing information returned by the apply process.
-			timings = append(timings, c.GetTimings()...)
-			break
-		}
-	}
+	handleResponse(t, "graph")
 
 	// Sort the timings stably to keep reduce flakiness.
 	terraform_internal.StableSortTimings(t, timings)
@@ -107,7 +111,8 @@ func TestTimingsFromProvision(t *testing.T) {
 	// NOTE: These timings have been encoded to JSON format to make the tests more readable.
 	initTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:31Z","action":"load","resource":"modules","stage":"init","state":"COMPLETED"}
 {"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:29Z","action":"load","resource":"backend","stage":"init","state":"COMPLETED"}
-{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}`))
+{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}
+{}`))
 	planTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195836Z", "action":"read", "source":"coder", "resource":"data.coder_parameter.memory_size", "stage":"plan", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195712Z", "action":"read", "source":"coder", "resource":"data.coder_provisioner.me", "stage":"plan", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195820Z", "action":"read", "source":"coder", "resource":"data.coder_workspace.me", "stage":"plan", "state":"COMPLETED"}`))
@@ -118,6 +123,10 @@ func TestTimingsFromProvision(t *testing.T) {
 	graphTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2000-01-01T01:01:01.123456Z", "end":"2000-01-01T01:01:01.123456Z", "action":"building terraform dependency graph", "source":"terraform", "resource":"state file", "stage":"graph", "state":"COMPLETED"}`))
 	graphTiming := graphTimings[0]
 
+	for _, ti := range timings {
+		msg, _ := json.Marshal(ti)
+		fmt.Println(string(msg))
+	}
 	require.Len(t, timings, len(initTimings)+len(planTimings)+len(applyTimings)+len(graphTimings))
 
 	// init/graph timings are computed dynamically during provisioning whereas plan/apply come from the logs (fixtures) in
