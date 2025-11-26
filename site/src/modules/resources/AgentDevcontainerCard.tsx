@@ -34,6 +34,9 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
+import { API } from "api/api";
+import { DropdownMenu } from "components/DropdownMenu/DropdownMenu";
+import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 
 type AgentDevcontainerCardProps = {
 	parentAgent: WorkspaceAgent;
@@ -80,17 +83,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 	const rebuildDevcontainerMutation = useMutation({
 		mutationFn: async () => {
-			const response = await fetch(
-				`/api/v2/workspaceagents/${parentAgent.id}/containers/devcontainers/${devcontainer.id}/recreate`,
-				{ method: "POST" },
-			);
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.message || `Failed to rebuild: ${response.statusText}`,
-				);
-			}
-			return response;
+			await API.recreateDevContainer({
+				parentAgentId: parentAgent.id,
+				devcontainerId: devcontainer.id,
+			});
 		},
 		onMutate: async () => {
 			await queryClient.cancelQueries({
@@ -168,6 +164,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 	const showDevcontainerControls = subAgent && devcontainer.container;
 	const showSubAgentApps =
+		devcontainer.status !== "stopping" &&
 		devcontainer.status !== "starting" &&
 		subAgent?.status === "connected" &&
 		hasAppsToDisplay;
@@ -250,11 +247,23 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						variant="outline"
 						size="sm"
 						onClick={handleRebuildDevcontainer}
-						disabled={devcontainer.status === "starting"}
+						disabled={
+							devcontainer.status === "starting" ||
+							devcontainer.status === "stopping"
+						}
 					>
-						<Spinner loading={devcontainer.status === "starting"} />
+						<Spinner
+							loading={
+								devcontainer.status === "starting" ||
+								devcontainer.status === "stopping"
+							}
+						/>
 
-						{devcontainer.container === undefined ? "Start" : "Rebuild"}
+						{devcontainer.status === "stopping"
+							? "Stop"
+							: devcontainer.container === undefined
+								? "Start"
+								: "Rebuild"}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
@@ -274,6 +283,13 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 								template={template}
 							/>
 						)}
+
+					{showDevcontainerControls && (
+						<AgentDevcontainerMoreActions
+							devcontainer={devcontainer}
+							parentAgent={parentAgent}
+						/>
+					)}
 				</div>
 			</header>
 
