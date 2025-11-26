@@ -175,7 +175,7 @@ const TasksPage: FC = () => {
 															disabled={batchActions.isProcessing}
 															variant="outline"
 															size="sm"
-															css={{ borderRadius: 9999, marginLeft: "auto" }}
+															className="ml-auto"
 														>
 															Bulk actions
 															<Spinner loading={batchActions.isProcessing}>
