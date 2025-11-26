@@ -38,7 +38,9 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 				</Tooltip>
 			</TooltipProvider>
 
-			<h1 className="m-0 pl-2 text-base font-medium truncate">{task.name}</h1>
+			<h1 className="m-0 pl-2 text-base font-medium max-w-[520px] truncate">
+				{task.display_name}
+			</h1>
 
 			{task.current_state?.uri && (
 				<div className="flex items-center gap-2 flex-wrap ml-4">
