@@ -2652,7 +2652,13 @@ func convertWorkspace(
 			}
 		}
 	}
-	sharedWith := []codersdk.SharedWorkspaceActor{}
+	// TODO(geokat): using a pointer that's serialized with
+	// "omitempty" so that we can hide it behind an experiment. This
+	// won't be necessary once workspace sharing is in beta.
+	var sharedWith *[]codersdk.SharedWorkspaceActor
+	if experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
+		sharedWith = &[]codersdk.SharedWorkspaceActor{}
+	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	// If the template doesn't allow a workspace-configured value, then report the
