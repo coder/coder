@@ -1,9 +1,6 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { visuallyHidden } from "@mui/utils";
 import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { ClockIcon, UserIcon } from "lucide-react";
@@ -67,7 +64,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 		);
 	}
 
-	// The flicker of these icons is quit noticeable if they aren't loaded in advance,
+	// The flicker of these icons is quite noticeable if they aren't loaded in advance,
 	// so we insert them into the document without actually displaying them yet.
 	const resourceIconPreloads = [
 		...new Set(
@@ -78,7 +75,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 			),
 		),
 	].map((url) => (
-		<img key={url} alt="" aria-hidden css={{ ...visuallyHidden }} src={url} />
+		<img key={url} alt="" aria-hidden className="sr-only" src={url} />
 	));
 
 	return (
@@ -118,7 +115,7 @@ const Consequences: FC = () => {
 	return (
 		<>
 			<p>Deleting workspaces is irreversible!</p>
-			<ul css={styles.consequences}>
+			<ul className="flex flex-col gap-2 pl-4 mb-0">
 				<li>
 					Terraform resources belonging to deleted workspaces will be destroyed.
 				</li>
@@ -129,8 +126,6 @@ const Consequences: FC = () => {
 };
 
 const Workspaces: FC<StageProps> = ({ workspaces }) => {
-	const theme = useTheme();
-
 	const mostRecent = workspaces.reduce(
 		(latestSoFar, against) => {
 			if (!latestSoFar) {
@@ -150,69 +145,47 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
 
 	return (
 		<>
-			<ul css={styles.workspacesList}>
+			<ul className="list-none p-0 border border-solid border-zinc-200 dark:border-zinc-700 rounded-lg overflow-x-hidden overflow-y-auto max-h-[184px]">
 				{workspaces.map((workspace) => (
-					<li key={workspace.id} css={styles.workspace}>
-						<Stack
-							direction="row"
-							alignItems="center"
-							justifyContent="space-between"
-							spacing={3}
-						>
-							<span
-								css={{ fontWeight: 500, color: theme.experimental.l1.text }}
-							>
+					<li
+						key={workspace.id}
+						className="py-2 px-4 border-solid border-0 border-b border-zinc-200 dark:border-zinc-700 last:border-b-0"
+					>
+						<div className="flex items-center justify-between gap-6">
+							<span className="font-medium text-content-primary max-w-[400px] overflow-hidden text-ellipsis whitespace-nowrap">
 								{workspace.name}
 							</span>
-							<Stack css={{ gap: 0, fontSize: 14 }} justifyContent="flex-end">
-								<Stack
-									direction="row"
-									alignItems="center"
-									justifyContent="flex-end"
-									spacing={1}
-								>
-									<span
-										css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
-									>
+
+							<div className="flex flex-col text-sm items-end">
+								<div className="flex items-center gap-2">
+									<span className="whitespace-nowrap">
 										{workspace.owner_name}
 									</span>
-									<PersonIcon />
-								</Stack>
-								<Stack
-									direction="row"
-									alignItems="center"
-									spacing={1}
-									justifyContent="flex-end"
-								>
-									<span
-										css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
-									>
+									<UserIcon className="size-icon-sm -m-px" />
+								</div>
+								<div className="flex items-center gap-2">
+									<span className="whitespace-nowrap">
 										{dayjs(workspace.last_used_at).fromNow()}
 									</span>
 									<ClockIcon className="size-icon-xs" />
-								</Stack>
-							</Stack>
-						</Stack>
+								</div>
+							</div>
+						</div>
 					</li>
 				))}
 			</ul>
-			<Stack
-				justifyContent="center"
-				direction="row"
-				wrap="wrap"
-				css={{ gap: "6px 20px", fontSize: 14 }}
-			>
-				<Stack direction="row" alignItems="center" spacing={1}>
-					<PersonIcon />
+			<div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm">
+				<div className="flex items-center gap-2">
+					<UserIcon className="size-icon-sm -m-px" />
 					<span>{ownersCount}</span>
-				</Stack>
+				</div>
 				{mostRecent && (
-					<Stack direction="row" alignItems="center" spacing={1}>
+					<div className="flex items-center gap-2">
 						<ClockIcon className="size-icon-xs" />
 						<span>Last used {dayjs(mostRecent.last_used_at).fromNow()}</span>
-					</Stack>
+					</div>
 				)}
-			</Stack>
+			</div>
 		</>
 	);
 };
@@ -233,66 +206,22 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
 	}
 
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			<p>
 				Deleting{" "}
 				{workspaces.length === 1 ? "this workspace" : "these workspaces"} will
 				also permanently destroy&hellip;
 			</p>
-			<Stack
-				direction="row"
-				justifyContent="center"
-				wrap="wrap"
-				css={{ gap: "6px 20px", fontSize: 14 }}
-			>
+			<div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm">
 				{Object.entries(resources).map(([type, summary]) => (
-					<Stack key={type} direction="row" alignItems="center" spacing={1}>
-						<ExternalImage
-							src={summary.icon}
-							width={styles.summaryIcon.width}
-							height={styles.summaryIcon.height}
-						/>
+					<div key={type} className="flex items-center gap-2">
+						<ExternalImage src={summary.icon} width={16} height={16} />
 						<span>
 							{summary.count} <code>{type}</code>
 						</span>
-					</Stack>
+					</div>
 				))}
-			</Stack>
-		</Stack>
+			</div>
+		</div>
 	);
 };
-
-const PersonIcon: FC = () => {
-	// Using the Lucide icon with appropriate size class
-	return <UserIcon className="size-icon-sm" css={{ margin: -1 }} />;
-};
-
-const styles = {
-	summaryIcon: { width: 16, height: 16 },
-
-	consequences: {
-		display: "flex",
-		flexDirection: "column",
-		gap: 8,
-		paddingLeft: 16,
-		marginBottom: 0,
-	},
-
-	workspacesList: (theme) => ({
-		listStyleType: "none",
-		padding: 0,
-		border: `1px solid ${theme.palette.divider}`,
-		borderRadius: 8,
-		overflow: "hidden auto",
-		maxHeight: 184,
-	}),
-
-	workspace: (theme) => ({
-		padding: "8px 16px",
-		borderBottom: `1px solid ${theme.palette.divider}`,
-
-		"&:last-child": {
-			border: "none",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
