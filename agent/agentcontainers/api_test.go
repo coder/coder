@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
@@ -50,6 +51,8 @@ type fakeContainerCLI struct {
 	archErr    error
 	copyErr    error
 	execErr    error
+	stopErr    error
+	removeErr  error
 }
 
 func (f *fakeContainerCLI) List(_ context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
@@ -66,6 +69,26 @@ func (f *fakeContainerCLI) Copy(ctx context.Context, name, src, dst string) erro
 
 func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args ...string) ([]byte, error) {
 	return nil, f.execErr
+}
+
+func (f *fakeContainerCLI) Stop(ctx context.Context, name string) error {
+	f.containers.Devcontainers = slice.Filter(f.containers.Devcontainers, func(dc codersdk.WorkspaceAgentDevcontainer) bool {
+		return dc.Container.ID == name
+	})
+	for i, container := range f.containers.Containers {
+		container.Running = false
+		f.containers.Containers[i] = container
+	}
+
+	return f.stopErr
+}
+
+func (f *fakeContainerCLI) Remove(ctx context.Context, name string) error {
+	f.containers.Containers = slice.Filter(f.containers.Containers, func(container codersdk.WorkspaceAgentContainer) bool {
+		return container.ID == name
+	})
+
+	return f.removeErr
 }
 
 // fakeDevcontainerCLI implements the agentcontainers.DevcontainerCLI
@@ -1031,6 +1054,247 @@ func TestAPI(t *testing.T) {
 				require.Len(t, resp.Devcontainers, 1, "expected one devcontainer in response after recreation")
 				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, resp.Devcontainers[0].Status, "devcontainer is not running after recreation")
 				require.NotNil(t, resp.Devcontainers[0].Container, "devcontainer should have container reference after recreation")
+			})
+		}
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+
+		devcontainerID1 := uuid.New()
+		workspaceFolder1 := "/workspace/test1"
+		configPath1 := "/workspace/test1/.devcontainer/devcontainer.json"
+
+		// Create a container that represents an existing devcontainer.
+		devContainer1 := codersdk.WorkspaceAgentContainer{
+			ID:           "container-1",
+			FriendlyName: "test-container-1",
+			Running:      true,
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder1,
+				agentcontainers.DevcontainerConfigFileLabel:  configPath1,
+			},
+		}
+
+		tests := []struct {
+			name               string
+			devcontainerID     string
+			setupDevcontainers []codersdk.WorkspaceAgentDevcontainer
+			lister             *fakeContainerCLI
+			devcontainerCLI    *fakeDevcontainerCLI
+			wantStatus         int
+			wantBody           string
+		}{
+			{
+				name:            "Missing devcontainer ID",
+				devcontainerID:  "",
+				lister:          &fakeContainerCLI{},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusBadRequest,
+				wantBody:        "Missing devcontainer ID",
+			},
+			{
+				name:           "Devcontainer not found",
+				devcontainerID: uuid.NewString(),
+				lister: &fakeContainerCLI{
+					arch: "<none>", // Unsupported architecture, don't inject subagent.
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusNotFound,
+				wantBody:        "Devcontainer not found",
+			},
+			{
+				name:           "Devcontainer is starting",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusStarting,
+						Container:       &devContainer1,
+					},
+				},
+				lister: &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
+					},
+					arch: "<none>",
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusConflict,
+				wantBody:        "Devcontainer is starting",
+			},
+			{
+				name:           "Devcontainer is stopping",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusStopping,
+						Container:       &devContainer1,
+					},
+				},
+				lister: &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
+					},
+					arch: "<none>",
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusConflict,
+				wantBody:        "Devcontainer is stopping",
+			},
+			{
+				name:           "Container stop fails",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer1,
+					},
+				},
+				lister: &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
+					},
+					arch:    "<none>",
+					stopErr: xerrors.New("stop error"),
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusInternalServerError,
+				wantBody:        "An internal error occurred stopping the container",
+			},
+			{
+				name:           "Container remove fails",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer1,
+					},
+				},
+				lister: &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
+					},
+					arch:      "<none>",
+					removeErr: xerrors.New("remove error"),
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusInternalServerError,
+				wantBody:        "An internal error occurred removing the container",
+			},
+			{
+				name:           "OK with container",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer1,
+					},
+				},
+				lister: &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
+					},
+					arch: "<none>",
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusNoContent,
+				wantBody:        "",
+			},
+			{
+				name:           "OK without container",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+						Container:       nil, // No container.
+					},
+				},
+				lister: &fakeContainerCLI{
+					arch: "<none>",
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      http.StatusNoContent,
+				wantBody:        "",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				mClock := quartz.NewMock(t)
+				mClock.Set(time.Now()).MustWait(ctx)
+				tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+				// Setup router with the handler under test.
+				r := chi.NewRouter()
+
+				api := agentcontainers.NewAPI(
+					logger,
+					agentcontainers.WithClock(mClock),
+					agentcontainers.WithContainerCLI(tt.lister),
+					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
+					agentcontainers.WithWatcher(watcher.NewNoop()),
+					agentcontainers.WithDevcontainers(tt.setupDevcontainers, nil),
+				)
+
+				api.Start()
+				defer api.Close()
+				r.Mount("/", api.Routes())
+
+				tickerTrap.MustWait(ctx).MustRelease(ctx)
+				tickerTrap.Close()
+
+				req := httptest.NewRequest(http.MethodDelete, "/devcontainers/"+tt.devcontainerID+"/", nil).
+					WithContext(ctx)
+				rec := httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+
+				require.Equal(t, tt.wantStatus, rec.Code, "status code mismatch")
+				if tt.wantBody != "" {
+					assert.Contains(t, rec.Body.String(), tt.wantBody, "response body mismatch")
+				}
+
+				// For successful deletes, verify the devcontainer is removed from the list.
+				if tt.wantStatus == http.StatusNoContent {
+					req = httptest.NewRequest(http.MethodGet, "/", nil).
+						WithContext(ctx)
+					rec = httptest.NewRecorder()
+					r.ServeHTTP(rec, req)
+
+					require.Equal(t, http.StatusOK, rec.Code, "status code mismatch on list")
+					var resp codersdk.WorkspaceAgentListContainersResponse
+					err := json.NewDecoder(rec.Body).Decode(&resp)
+					require.NoError(t, err, "unmarshal response failed")
+					assert.Empty(t, resp.Devcontainers, "devcontainer should be removed after delete")
+				}
 			})
 		}
 	})
