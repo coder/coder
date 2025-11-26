@@ -104,7 +104,7 @@ Coder volume definitions.
   secret:
     secretName: {{ $secret.name | quote }}
 {{ end -}}
-{{- if .Values.coder.license.secretName -}}
+{{- if and .Values.coder.license .Values.coder.license.secretName -}}
 - name: "license"
   secret:
     secretName: {{ .Values.coder.license.secretName | quote }}
@@ -143,7 +143,7 @@ Coder volume mounts.
   subPath: {{ $secret.key | quote }}
   readOnly: true
 {{ end -}}
-{{- if .Values.coder.license.secretName -}}
+{{- if and .Values.coder.license .Values.coder.license.secretName -}}
 - name: "license"
   mountPath: {{ .Values.coder.license.mountPath | quote }}
   readOnly: true

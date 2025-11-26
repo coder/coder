@@ -467,7 +467,7 @@ func ImportLicenseFromFile(ctx context.Context, db database.Store, licenseKeys m
 	logger.Info(ctx, "successfully imported license from file",
 		slog.F("path", filePath),
 		slog.F("license_id", dl.ID),
-		slog.F("license_uuid", dl.UUID),
+		slog.F("license_uuid_id", dl.UUID),
 	)
 
 	return nil
