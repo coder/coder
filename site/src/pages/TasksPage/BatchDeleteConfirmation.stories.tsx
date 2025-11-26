@@ -20,6 +20,7 @@ const meta: Meta<typeof BatchDeleteConfirmation> = {
 				...MockTask,
 				id: "task-2",
 				name: "task-test-456",
+				display_name: "Add API Tests",
 				initial_prompt: "Add comprehensive tests for the API endpoints",
 				owner_name: "bob",
 				created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -29,6 +30,7 @@ const meta: Meta<typeof BatchDeleteConfirmation> = {
 				...MockTask,
 				id: "task-3",
 				name: "task-docs-789",
+				display_name: "Update Documentation",
 				initial_prompt: "Update documentation for the new features",
 				workspace_id: null,
 				created_at: new Date(
