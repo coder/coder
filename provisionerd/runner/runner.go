@@ -912,7 +912,7 @@ func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
 		JobId: r.job.JobId,
 		// #nosec G115 - Safe conversion as cost is expected to be within int32 range for provisioning costs
-		DailyCost: int32(cost),
+		DailyCost: cost,
 	})
 	if err != nil {
 		r.queueLog(ctx, &proto.Log{

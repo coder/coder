@@ -174,7 +174,7 @@ func TestEcho(t *testing.T) {
 		log, err = client.Recv()
 		require.NoError(t, err)
 		require.Equal(t, applyResponses[0].GetLog().Output, log.GetLog().Output)
-		complete, err = client.Recv()
+		_, err = client.Recv()
 		require.NoError(t, err)
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Graph{
@@ -182,6 +182,8 @@ func TestEcho(t *testing.T) {
 				Source: proto.GraphSource_SOURCE_STATE,
 			},
 		}})
+		require.NoError(t, err)
+
 		log, err = client.Recv()
 		require.NoError(t, err)
 		require.Equal(t, graphResponses[0].GetLog().Output, log.GetLog().Output)

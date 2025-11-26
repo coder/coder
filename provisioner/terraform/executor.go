@@ -368,7 +368,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		}
 	}
 
-	state, err := ConvertPlanState(ctx, e.server.logger, plan)
+	state, err := ConvertPlanState(plan)
 	if err != nil {
 		return nil, xerrors.Errorf("convert plan state: %w", err)
 	}

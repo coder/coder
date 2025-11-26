@@ -149,11 +149,11 @@ var _ provisionersdk.Server = unimplementedServer{}
 
 type unimplementedServer struct{}
 
-func (s2 unimplementedServer) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+func (unimplementedServer) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
 	return &proto.InitComplete{}
 }
 
-func (s2 unimplementedServer) Graph(s *provisionersdk.Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
+func (unimplementedServer) Graph(s *provisionersdk.Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
 	return &proto.GraphComplete{Error: "unimplemented"}
 }
 
