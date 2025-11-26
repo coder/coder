@@ -505,7 +505,7 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 		response := new(proto.Response)
 		err = protobuf.Unmarshal(data, response)
 		if err != nil {
-			return fmt.Errorf("you must have saved the wrong type, the proto cannot unmarshal: %w", err)
+			return xerrors.Errorf("you must have saved the wrong type, the proto cannot unmarshal: %w", err)
 		}
 
 		logger.Debug(context.Background(), "proto written", slog.F("name", name), slog.F("bytes_written", n))
