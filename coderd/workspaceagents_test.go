@@ -1571,6 +1571,105 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			workspaceFolder = t.TempDir()
+			configFile      = filepath.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
+			devcontainerID  = uuid.New()
+
+			// Create a container that would be associated with the devcontainer
+			devContainer = codersdk.WorkspaceAgentContainer{
+				ID:           uuid.NewString(),
+				CreatedAt:    dbtime.Now(),
+				FriendlyName: testutil.GetRandomName(t),
+				Image:        "busybox:latest",
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+					agentcontainers.DevcontainerConfigFileLabel:  configFile,
+				},
+				Running: true,
+				Status:  "running",
+			}
+
+			devcontainer = codersdk.WorkspaceAgentDevcontainer{
+				ID:              devcontainerID,
+				Name:            "test-devcontainer",
+				WorkspaceFolder: workspaceFolder,
+				ConfigPath:      configFile,
+				Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+				Container:       &devContainer,
+			}
+		)
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitLong)
+			mCtrl      = gomock.NewController(t)
+			mCCLI      = acmock.NewMockContainerCLI(mCtrl)
+			mDCCLI     = acmock.NewMockDevcontainerCLI(mCtrl)
+			logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				Logger: &logger,
+			})
+			user = coderdtest.CreateFirstUser(t, client)
+			r    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+				return agents
+			}).Do()
+		)
+
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{devContainer},
+		}, nil).AnyTimes()
+
+		// DetectArchitecture always returns "<none>" for this test to disable agent injection.
+		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
+		mDCCLI.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
+
+		// Expect Stop and Remove to be called when deleting the devcontainer.
+		deleteCalled := make(chan string, 1)
+		mCCLI.EXPECT().Stop(gomock.Any(), devContainer.ID).Return(nil).Times(1)
+		mCCLI.EXPECT().Remove(gomock.Any(), devContainer.ID).DoAndReturn(func(_ context.Context, containerID string) error {
+			deleteCalled <- containerID
+			return nil
+		}).Times(1)
+
+		devcontainerAPIOptions := []agentcontainers.Option{
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithDevcontainerCLI(mDCCLI),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+			agentcontainers.WithDevcontainers([]codersdk.WorkspaceAgentDevcontainer{devcontainer}, nil),
+		}
+
+		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+			o.Logger = logger.Named("agent")
+			o.Devcontainers = true
+			o.DevcontainerAPIOptions = devcontainerAPIOptions
+		})
+		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+		require.Len(t, resources, 1, "expected one resource")
+		require.Len(t, resources[0].Agents, 1, "expected one agent")
+		agentID := resources[0].Agents[0].ID
+
+		err := client.WorkspaceAgentDeleteDevcontainer(ctx, agentID, devcontainerID.String())
+		require.NoError(t, err, "failed to delete devcontainer")
+
+		// Verify the Remove method was called with the correct container ID.
+		select {
+		case containerID := <-deleteCalled:
+			require.Equal(t, devContainer.ID, containerID, "unexpected container ID")
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for Remove to be called")
+		}
+	})
+}
+
 func TestWorkspaceAgentAppHealth(t *testing.T) {
 	t.Parallel()
 	client, db := coderdtest.NewWithDatabase(t, nil)

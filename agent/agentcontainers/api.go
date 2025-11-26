@@ -1351,10 +1351,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
 
-	httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-		Message: "An internal error occurred",
-		Detail:  err.Error(),
-	})
+	httpapi.Write(ctx, w, http.StatusNoContent, nil)
 }
 
 // handleDevcontainerRecreate handles the HTTP request to recreate a
