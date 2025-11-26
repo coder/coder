@@ -127,8 +127,8 @@ const Tasks: FC<TasksStageProps> = ({ tasks }) => {
 		undefined as Task | undefined,
 	);
 
-	const owners = new Set(tasks.map((it) => it.owner_name)).size;
-	const ownersCount = `${owners} ${owners === 1 ? "owner" : "owners"}`;
+	const ownersCount = new Set(tasks.map((it) => it.owner_name)).size;
+	const ownersCountDisplay = `${ownersCount} ${ownersCount === 1 ? "owner" : "owners"}`;
 
 	return (
 		<>
@@ -162,7 +162,7 @@ const Tasks: FC<TasksStageProps> = ({ tasks }) => {
 			<div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm">
 				<div className="flex items-center gap-2">
 					<UserIcon className="size-icon-sm -m-px" />
-					<span>{ownersCount}</span>
+					<span>{ownersCountDisplay}</span>
 				</div>
 				{mostRecent && (
 					<div className="flex items-center gap-2">

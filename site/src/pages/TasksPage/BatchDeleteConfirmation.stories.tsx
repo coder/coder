@@ -32,6 +32,7 @@ const meta: Meta<typeof BatchDeleteConfirmation> = {
 				name: "task-docs-789",
 				display_name: "Update Documentation",
 				initial_prompt: "Update documentation for the new features",
+				// Intentionally null to test that only 2 workspaces are shown in review resources stage
 				workspace_id: null,
 				created_at: new Date(
 					Date.now() - 3 * 24 * 60 * 60 * 1000,
