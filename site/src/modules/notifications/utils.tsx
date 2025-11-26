@@ -1,8 +1,8 @@
-import { MailIcon, WebhookIcon } from "lucide-react";
 import type {
 	NotificationPreference,
 	NotificationTemplate,
-} from "../../api/typesGenerated";
+} from "api/typesGenerated";
+import { MailIcon, WebhookIcon } from "lucide-react";
 
 // TODO: This should be provided by the auto generated types from codersdk
 const notificationMethods = ["smtp", "webhook"] as const;
@@ -49,9 +49,9 @@ export function notificationIsDisabled(
 	disabledPreferences: Record<string, boolean>,
 	tmpl: NotificationTemplate,
 ): boolean {
-	return (
+	return Boolean(
 		(!tmpl.enabled_by_default && disabledPreferences[tmpl.id] === undefined) ||
-		!!disabledPreferences[tmpl.id]
+			disabledPreferences[tmpl.id],
 	);
 }
 
@@ -59,11 +59,5 @@ export function notificationIsDisabled(
 // where the key is the template ID and the value is whether it's disabled
 // Example: [{ id: "abc", disabled: true }, { id: "def", disabled: false }]
 export function selectDisabledPreferences(data: NotificationPreference[]) {
-	return data.reduce(
-		(acc, pref) => {
-			acc[pref.id] = pref.disabled;
-			return acc;
-		},
-		{} as Record<string, boolean>,
-	);
+	return Object.fromEntries(data.map((pref) => [pref.id, pref.disabled]));
 }

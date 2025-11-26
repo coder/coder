@@ -1,4 +1,8 @@
 import { API } from "api/api";
+import {
+	systemNotificationTemplates,
+	userNotificationPreferences,
+} from "api/queries/notifications";
 import { templates } from "api/queries/templates";
 import type { TasksFilter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -18,10 +22,6 @@ import { type FC, useState } from "react";
 import { useQueries, useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import {
-	systemNotificationTemplates,
-	userNotificationPreferences,
-} from "../../api/queries/notifications";
 import {
 	isTaskNotification,
 	notificationIsDisabled,
