@@ -104,6 +104,11 @@ Coder volume definitions.
   secret:
     secretName: {{ $secret.name | quote }}
 {{ end -}}
+{{- if .Values.coder.license.secretName -}}
+- name: "license"
+  secret:
+    secretName: {{ .Values.coder.license.secretName | quote }}
+{{ end -}}
 {{ if gt (len .Values.coder.volumes) 0 -}}
 {{ toYaml .Values.coder.volumes }}
 {{ end -}}
@@ -136,6 +141,11 @@ Coder volume mounts.
 - name: "ca-cert-{{ $secret.name }}"
   mountPath: "/etc/ssl/certs/{{ $secret.name }}.crt"
   subPath: {{ $secret.key | quote }}
+  readOnly: true
+{{ end -}}
+{{- if .Values.coder.license.secretName -}}
+- name: "license"
+  mountPath: {{ .Values.coder.license.mountPath | quote }}
   readOnly: true
 {{ end -}}
 {{ if gt (len .Values.coder.volumeMounts) 0 -}}

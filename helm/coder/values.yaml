@@ -251,6 +251,19 @@ coder:
     #   exec:
     #     command: ["/bin/sh","-c","echo preStart"]
 
+  # coder.license -- License configuration for automated license import.
+  # The license will only be imported on first startup when no users exist yet.
+  license:
+    # coder.license.secretName -- Name of a Kubernetes secret containing the license.
+    # The secret must be in the same namespace and contain a key with the license JWT.
+    secretName: ""
+    # coder.license.secretKey -- Key in the secret that contains the license JWT.
+    # Defaults to "license.jwt" if not specified.
+    secretKey: "license.jwt"
+    # coder.license.mountPath -- Path where the license will be mounted inside the container.
+    # This path will be passed to CODER_LICENSE_FILE environment variable.
+    mountPath: "/tmp/coder-license"
+
   # coder.resources -- The resources to request for Coder. The below values are
   # defaults and can be overridden.
   resources:

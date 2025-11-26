@@ -131,6 +131,17 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		}
 		closers.Add(api)
 
+		// Import license from file if configured and no licenses exist yet.
+		// This is useful for automated deployments where you want to provision
+		// a license without manual intervention.
+		if licenseFile := options.DeploymentValues.LicenseFile.Value(); licenseFile != "" {
+			err = coderd.ImportLicenseFromFile(ctx, options.Database, o.LicenseKeys, licenseFile, api.AGPL.DeploymentID, options.Logger)
+			if err != nil {
+				_ = closers.Close()
+				return nil, nil, xerrors.Errorf("import license from file: %w", err)
+			}
+		}
+
 		// Start the enterprise usage publisher routine. This won't do anything
 		// unless the deployment is licensed and one of the licenses has usage
 		// publishing enabled.

@@ -8,8 +8,10 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -380,4 +383,92 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	d.UseNumber()
 	err = d.Decode(&c)
 	return c, err
+}
+
+// ImportLicenseFromFile reads a license from a file and adds it to the database.
+// This should only be called during server startup, and only if no licenses exist yet.
+// It returns nil if the file doesn't exist or if licenses already exist.
+func ImportLicenseFromFile(ctx context.Context, db database.Store, licenseKeys map[string]ed25519.PublicKey, filePath string, deploymentID string, logger slog.Logger) error {
+	if filePath == "" {
+		return nil
+	}
+
+	// Check if any licenses already exist
+	// Use a subject with wildcard permissions for this system startup operation
+	// nolint:gocritic // This is a system operation during startup before any users exist
+	systemCtx := dbauthz.As(ctx, rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "license-import"},
+				DisplayName: "License Import",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceWildcard.Type: {policy.WildcardSymbol},
+				}),
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	})
+	licenses, err := db.GetLicenses(systemCtx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("check existing licenses: %w", err)
+	}
+	if len(licenses) > 0 {
+		logger.Debug(ctx, "licenses already exist, skipping file import", slog.F("count", len(licenses)))
+		return nil
+	}
+
+	// Read the license file
+	licenseData, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Debug(ctx, "license file does not exist, skipping import", slog.F("path", filePath))
+			return nil
+		}
+		return xerrors.Errorf("read license file: %w", err)
+	}
+
+	licenseStr := strings.TrimSpace(string(licenseData))
+	if licenseStr == "" {
+		logger.Warn(ctx, "license file is empty, skipping import", slog.F("path", filePath))
+		return nil
+	}
+
+	// Parse and validate the license
+	claims, err := license.ParseClaimsIgnoreNbf(licenseStr, licenseKeys)
+	if err != nil {
+		return xerrors.Errorf("parse license: %w", err)
+	}
+
+	id, err := uuid.Parse(claims.ID)
+	if err != nil {
+		// If no uuid is in the license, we generate a random uuid.
+		id = uuid.New()
+	}
+
+	// Check deployment ID restriction
+	if len(claims.DeploymentIDs) > 0 && !slices.Contains(claims.DeploymentIDs, deploymentID) {
+		return xerrors.Errorf("license is locked to deployments %q but this deployment is %q", claims.DeploymentIDs, deploymentID)
+	}
+
+	// Insert the license into the database
+	// Use the same system context with wildcard permissions
+	// nolint:gocritic // This is a system operation during startup before any users exist
+	dl, err := db.InsertLicense(systemCtx, database.InsertLicenseParams{
+		UploadedAt: dbtime.Now(),
+		JWT:        licenseStr,
+		Exp:        claims.ExpiresAt.Time,
+		UUID:       id,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert license: %w", err)
+	}
+
+	logger.Info(ctx, "successfully imported license from file",
+		slog.F("path", filePath),
+		slog.F("license_id", dl.ID),
+		slog.F("license_uuid", dl.UUID),
+	)
+
+	return nil
 }
