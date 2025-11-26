@@ -33,7 +33,7 @@ func TestServer(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(socketPath, logger)
+		server, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		require.NoError(t, server.Close())
 	})
@@ -43,10 +43,10 @@ func TestServer(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server1, err := agentsocket.NewServer(socketPath, logger)
+		server1, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		defer server1.Close()
-		_, err = agentsocket.NewServer(socketPath, logger)
+		_, err = agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.ErrorContains(t, err, "create socket")
 	})
 
@@ -55,7 +55,7 @@ func TestServer(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(socketPath, logger)
+		server, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		require.NoError(t, server.Close())
 	})
@@ -73,7 +73,7 @@ func TestServerWindowsNotSupported(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(socketPath, logger)
+		server, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.Error(t, err)
 		require.Nil(t, server)
 		require.ErrorContains(t, err, "agentsocket is not supported on Windows")

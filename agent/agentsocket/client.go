@@ -1,16 +1,16 @@
 package agentsocket
 
 // Option represents a configuration option for NewClient.
-type Option func(*clientOptions)
+type Option func(*options)
 
-type clientOptions struct {
+type options struct {
 	path string
 }
 
 // WithPath sets the socket path. If not provided or empty, the client will
 // auto-discover the default socket path.
 func WithPath(path string) Option {
-	return func(opts *clientOptions) {
+	return func(opts *options) {
 		opts.path = path
 	}
 }

@@ -35,7 +35,21 @@ type Server struct {
 }
 
 // NewServer creates a new agent socket server.
-func NewServer(path string, logger slog.Logger) (*Server, error) {
+func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
+	options := &options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	path := options.path
+	if path == "" {
+		var err error
+		path, err = getDefaultSocketPath()
+		if err != nil {
+			return nil, xerrors.Errorf("get default socket path: %w", err)
+		}
+	}
+
 	logger = logger.Named("agentsocket-server")
 	server := &Server{
 		logger: logger,

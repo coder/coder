@@ -69,8 +69,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := agentsocket.NewServer(
-			socketPath,
 			slog.Make().Leveled(slog.LevelDebug),
+			agentsocket.WithPath(socketPath),
 		)
 		require.NoError(t, err)
 		defer server.Close()
@@ -89,8 +89,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -111,8 +111,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -141,8 +141,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -180,8 +180,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -210,8 +210,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -235,8 +235,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -270,8 +270,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -312,8 +312,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -331,8 +331,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -355,8 +355,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()

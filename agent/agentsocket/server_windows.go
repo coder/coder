@@ -13,7 +13,7 @@ import (
 type Server struct{}
 
 // NewServer returns an error indicating that agentsocket is not supported on Windows.
-func NewServer(path string, logger slog.Logger) (*Server, error) {
+func NewServer(_ slog.Logger, _ ...Option) (*Server, error) {
 	return &Server{}, xerrors.New("agentsocket is not supported on Windows")
 }
 
