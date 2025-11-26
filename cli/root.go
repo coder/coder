@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"testing"
 	"text/tabwriter"
 	"time"
 
@@ -483,9 +484,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Flag: varUseKeyring,
 			Env:  envUseKeyring,
 			Description: "Store and retrieve session tokens using the operating system " +
-				"keyring. Enabled by default. If the keyring is not supported on the " +
-				"current platform, file-based storage is used automatically. Set to " +
-				"false to force file-based storage.",
+				"keyring. Enabled by default when --global-config is not set. If the " +
+				"keyring is not supported on the current platform, file-based storage is " +
+				"used automatically. Set to false to force file-based storage.",
 			Default: "true",
 			Value:   serpent.BoolOf(&r.useKeyring),
 			Group:   globalGroup,
@@ -721,8 +722,15 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 // flag.
 func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	if r.tokenBackend == nil {
+		// Checking for the --global-config directory being set is a bit wonky but necessary
+		// to allow extensions that invoke the CLi with this flag (e.g. VS code) to continue
+		// working without modification. In the future we should modify these extensions to
+		// either access the credential in the keyring (like Coder Desktop) or some other
+		// approach that doesn't rely on the session token being stored on disk. We set the
+		// global config directory in most CLI tests, so we need to skip this check for tests.
+		assumeExtensionInUse := r.globalConfig != config.DefaultDir() && !testing.Testing()
 		keyringSupported := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
-		if r.useKeyring && keyringSupported {
+		if r.useKeyring && !assumeExtensionInUse && keyringSupported {
 			serviceName := sessionstore.DefaultServiceName
 			if r.keyringServiceName != "" {
 				serviceName = r.keyringServiceName
