@@ -16324,6 +16324,23 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	return count, err
 }
 
+const getUserTaskNotificationAlertDismissed = `-- name: GetUserTaskNotificationAlertDismissed :one
+SELECT
+	value as task_notification_alert_dismissed
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'task_notification_alert_dismissed'
+`
+
+func (q *sqlQuerier) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserTaskNotificationAlertDismissed, userID)
+	var task_notification_alert_dismissed string
+	err := row.Scan(&task_notification_alert_dismissed)
+	return task_notification_alert_dismissed, err
+}
+
 const getUserTerminalFont = `-- name: GetUserTerminalFont :one
 SELECT
 	value as terminal_font
@@ -17073,6 +17090,33 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 	)
+	return i, err
+}
+
+const updateUserTaskNotificationAlertDismissed = `-- name: UpdateUserTaskNotificationAlertDismissed :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'task_notification_alert_dismissed', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'task_notification_alert_dismissed'
+RETURNING user_id, key, value
+`
+
+type UpdateUserTaskNotificationAlertDismissedParams struct {
+	UserID                         uuid.UUID `db:"user_id" json:"user_id"`
+	TaskNotificationAlertDismissed string    `db:"task_notification_alert_dismissed" json:"task_notification_alert_dismissed"`
+}
+
+func (q *sqlQuerier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTaskNotificationAlertDismissed, arg.UserID, arg.TaskNotificationAlertDismissed)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err
 }
 

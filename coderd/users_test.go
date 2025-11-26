@@ -2192,7 +2192,7 @@ func TestUserTerminalFont(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// given
@@ -2218,7 +2218,7 @@ func TestUserTerminalFont(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// given
@@ -2243,7 +2243,7 @@ func TestUserTerminalFont(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// given
@@ -2259,6 +2259,74 @@ func TestUserTerminalFont(t *testing.T) {
 
 		// then
 		require.Error(t, err)
+	})
+}
+
+func TestUserTaskNotificationAlertDismissed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults to false", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// When: getting user preference settings for a user
+		settings, err := client.GetUserPreferenceSettings(ctx, "me")
+		require.NoError(t, err)
+
+		// Then: the task notification alert dismissed should default to false
+		require.False(t, settings.TaskNotificationAlertDismissed)
+	})
+
+	t.Run("update to true", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// When: user dismisses the task notification alert
+		updated, err := client.UpdateUserPreferenceSettings(ctx, "me", codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: true,
+		})
+		require.NoError(t, err)
+
+		// Then: the setting is updated to true
+		require.True(t, updated.TaskNotificationAlertDismissed)
+	})
+
+	t.Run("update to false", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// Given: user has dismissed the task notification alert
+		_, err := client.UpdateUserPreferenceSettings(ctx, "me", codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: true,
+		})
+		require.NoError(t, err)
+
+		// When: user un-dismisses the alert (sets it back to false)
+		updated, err := client.UpdateUserPreferenceSettings(ctx, "me", codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: false,
+		})
+		require.NoError(t, err)
+
+		// Then: the setting is updated to false
+		require.False(t, updated.TaskNotificationAlertDismissed)
 	})
 }
 

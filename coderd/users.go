@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -1074,6 +1075,79 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
 		ThemePreference: updatedThemePreference.Value,
 		TerminalFont:    codersdk.TerminalFontName(updatedTerminalFont.Value),
+	})
+}
+
+// @Summary Get user preference settings
+// @ID get-user-preference-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.UserPreferenceSettings
+// @Router /users/{user}/preferences [get]
+func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	taskAlertDismissed := false
+	taskAlertDismissedValue, err := api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user preference settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		taskAlertDismissed, _ = strconv.ParseBool(taskAlertDismissedValue)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
+		TaskNotificationAlertDismissed: taskAlertDismissed,
+	})
+}
+
+// @Summary Update user preference settings
+// @ID update-user-preference-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserPreferenceSettingsRequest true "New preference settings"
+// @Success 200 {object} codersdk.UserPreferenceSettings
+// @Router /users/{user}/preferences [put]
+func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	var params codersdk.UpdateUserPreferenceSettingsRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updatedTaskAlertDismissed, err := api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
+		UserID:                         user.ID,
+		TaskNotificationAlertDismissed: strconv.FormatBool(params.TaskNotificationAlertDismissed),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user task notification alert dismissed.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	taskAlertDismissedBool := false
+	taskAlertDismissedBool, _ = strconv.ParseBool(updatedTaskAlertDismissed.Value)
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
+		TaskNotificationAlertDismissed: taskAlertDismissedBool,
 	})
 }
 

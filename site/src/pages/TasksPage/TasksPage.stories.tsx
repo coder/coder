@@ -279,13 +279,12 @@ export const AllTaskNotificationsDisabledAlertVisible: Story = {
 				key: ["notifications", "templates", "system"],
 				data: MockSystemNotificationTemplates,
 			},
+			{
+				// User preferences: alert NOT dismissed
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: false },
+			},
 		],
-	},
-	beforeEach: () => {
-		// Mock localStorage to not contain warning dismissal
-		spyOn(Storage.prototype, "getItem").mockReturnValue(null);
-		// Prevent actual localStorage writes during the story
-		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
 	},
 };
 
@@ -311,13 +310,12 @@ export const AllTaskNotificationsDisabledAlertDismissed: Story = {
 				key: ["notifications", "templates", "system"],
 				data: MockSystemNotificationTemplates,
 			},
+			{
+				// User preferences: alert IS dismissed
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: true },
+			},
 		],
-	},
-	beforeEach: () => {
-		// Mock localStorage to contain warning dismissal
-		spyOn(Storage.prototype, "getItem").mockReturnValue("true");
-		// Prevent actual localStorage writes during the story
-		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
 	},
 };
 
@@ -349,13 +347,12 @@ export const OneTaskNotificationEnabledAlertHidden: Story = {
 				key: ["notifications", "templates", "system"],
 				data: MockSystemNotificationTemplates,
 			},
+			{
+				// User preferences: doesn't matter since alert shouldn't show anyway
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: false },
+			},
 		],
-	},
-	beforeEach: () => {
-		// Mock localStorage to not contain warning dismissal
-		spyOn(Storage.prototype, "getItem").mockReturnValue(null);
-		// Prevent actual localStorage writes during the story
-		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
 	},
 };
 
@@ -386,12 +383,11 @@ export const AllTaskNotificationsExplicitlyDisabledAlertVisible: Story = {
 				key: ["notifications", "templates", "system"],
 				data: MockSystemNotificationTemplates,
 			},
+			{
+				// User preferences: alert NOT dismissed
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: false },
+			},
 		],
-	},
-	beforeEach: () => {
-		// Mock localStorage to not contain warning dismissal
-		spyOn(Storage.prototype, "getItem").mockReturnValue(null);
-		// Prevent actual localStorage writes during the story
-		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
 	},
 };

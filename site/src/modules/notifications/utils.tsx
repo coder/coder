@@ -7,11 +7,6 @@ import { MailIcon, WebhookIcon } from "lucide-react";
 // TODO: This should be provided by the auto generated types from codersdk
 const notificationMethods = ["smtp", "webhook"] as const;
 
-// localStorage key for tracking whether the user has dismissed the
-// task notifications warning alert on the Tasks page
-export const TasksNotificationAlertDismissedKey =
-	"tasksNotificationAlertDismissed";
-
 export type NotificationMethod = (typeof notificationMethods)[number];
 
 export const methodIcons: Record<NotificationMethod, typeof MailIcon> = {

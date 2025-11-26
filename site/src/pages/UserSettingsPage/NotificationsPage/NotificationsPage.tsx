@@ -15,6 +15,10 @@ import {
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "api/queries/notifications";
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "api/queries/users";
 import type { NotificationTemplate } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -32,11 +36,10 @@ import {
 	methodLabels,
 	notificationIsDisabled,
 	selectDisabledPreferences,
-	TasksNotificationAlertDismissedKey,
 } from "modules/notifications/utils";
 import type { Permissions } from "modules/permissions";
 import { type FC, Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQueryClient } from "react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
@@ -103,6 +106,11 @@ const NotificationsPage: FC = () => {
 		...systemTemplatesByGroup.data,
 		...customTemplatesByGroup.data,
 	};
+
+	const preferencesQuery = useQuery(preferenceSettings());
+	const updatePreferencesMutation = useMutation(
+		updatePreferenceSettings(queryClient),
+	);
 
 	return (
 		<>
@@ -190,11 +198,14 @@ const NotificationsPage: FC = () => {
 																	// Clear the Tasks page warning dismissal when enabling a task notification
 																	// This ensures that if the user disables task notifications again later,
 																	// they will see the warning alert again.
-																	if (isTaskNotification(tmpl) && checked) {
-																		localStorage.setItem(
-																			TasksNotificationAlertDismissedKey,
-																			"false",
-																		);
+																	if (
+																		isTaskNotification(tmpl) &&
+																		checked &&
+																		preferencesQuery.data
+																	) {
+																		updatePreferencesMutation.mutate({
+																			task_notification_alert_dismissed: false,
+																		});
 																	}
 
 																	displaySuccess(

@@ -20,7 +20,6 @@ import {
 } from "api/queries/notifications";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { TasksNotificationAlertDismissedKey } from "../../../modules/notifications/utils";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {
@@ -209,35 +208,32 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 				key: notificationDispatchMethodsKey,
 				data: MockNotificationMethodsResponse,
 			},
+			{
+				// User preferences: alert was previously dismissed
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: true },
+			},
 		],
 	},
-	beforeEach: () => {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
 		// Mock the API call to update notification preferences
 		spyOn(API, "putUserNotificationPreferences").mockResolvedValue([
 			{
-				id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+				id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799", // Task Idle
 				disabled: false,
 				updated_at: new Date().toISOString(),
 			},
 		]);
 
-		// Mock localStorage as if the alert was previously dismissed
-		const mockLocalStorage: Record<string, string> = {
-			TasksNotificationAlertDismissedKey: "true",
-		};
-
-		spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
-			return mockLocalStorage[key] || null;
+		// Mock the user preferences update to verify the alert dismissal is cleared
+		const updatePreferencesSpy = spyOn(
+			API,
+			"updateUserPreferenceSettings",
+		).mockResolvedValue({
+			task_notification_alert_dismissed: false,
 		});
-
-		spyOn(Storage.prototype, "setItem").mockImplementation(
-			(key: string, value: string) => {
-				mockLocalStorage[key] = value;
-			},
-		);
-	},
-	play: async ({ canvasElement, step }) => {
-		const canvas = within(canvasElement);
 
 		await step("Enable Task Idle notification", async () => {
 			// Find the Task Idle checkbox by its label text
@@ -246,12 +242,11 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 			// Click to enable it
 			await userEvent.click(taskIdleToggle);
 
-			// Verify localStorage was updated to "false" to show the warning alert again
-			// on the tasks page
+			// Verify the preferences API was called to clear the alert dismissal
 			await waitFor(() => {
-				expect(
-					localStorage.getItem(TasksNotificationAlertDismissedKey),
-				).toEqual("false");
+				expect(updatePreferencesSpy).toHaveBeenCalledWith({
+					task_notification_alert_dismissed: false,
+				});
 			});
 		});
 	},
