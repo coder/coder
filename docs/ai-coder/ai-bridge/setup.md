@@ -73,7 +73,7 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
    - Under **Access keys**, click **Create access key**.
    - Select **"Application running outside AWS"** as the use case.
    - Click **Next**.
-   - Add a description like "Coder AIBridge token".
+   - Add a description like "Coder AI Bridge token".
    - Click **Create access key**.
    - Save both the access key ID and secret access key securely.
 
