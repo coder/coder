@@ -306,7 +306,7 @@ func TestRestartWithParameters(t *testing.T) {
 	echoResponses := func() *echo.Responses {
 		return &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
+			ProvisionGraph: []*proto.Response{
 				{
 					Type: &proto.Response_Graph{
 						Graph: &proto.GraphComplete{

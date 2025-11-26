@@ -56,7 +56,8 @@ func TestEcho(t *testing.T) {
 			},
 		}
 		data, err := echo.Tar(&echo.Responses{
-			Parse: responses,
+			Parse:         responses,
+			ProvisionInit: echo.InitComplete,
 		})
 		require.NoError(t, err)
 		client, err := api.Session(ctx)
@@ -296,6 +297,7 @@ func TestEcho(t *testing.T) {
 			},
 		}}
 		data, err := echo.Tar(&echo.Responses{
+			ProvisionInit:  echo.InitComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyComplete,
 			ProvisionGraph: responses,

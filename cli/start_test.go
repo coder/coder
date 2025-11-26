@@ -36,7 +36,7 @@ const (
 func mutableParamsResponse() *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
 				Type: &proto.Response_Graph{
 					Graph: &proto.GraphComplete{
@@ -59,7 +59,7 @@ func mutableParamsResponse() *echo.Responses {
 func immutableParamsResponse() *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
 				Type: &proto.Response_Graph{
 					Graph: &proto.GraphComplete{
