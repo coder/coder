@@ -22,6 +22,7 @@ const meta: Meta<typeof BatchDeleteConfirmation> = {
 				name: "task-test-456",
 				display_name: "Add API Tests",
 				initial_prompt: "Add comprehensive tests for the API endpoints",
+				// Different owner to test admin bulk delete of other users' tasks
 				owner_name: "bob",
 				created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
 				updated_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
