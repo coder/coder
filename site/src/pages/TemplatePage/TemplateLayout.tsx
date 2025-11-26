@@ -106,7 +106,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	// have permission to update templates. Need both checks.
 	const shouldShowInsights =
 		data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
-	const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
+	const { workspace_prebuilds: isWorkspacePrebuildsEnabled } = useFeatureVisibility();
 
 	if (error || workspacePermissionsQuery.error) {
 		return (
@@ -159,7 +159,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 								Insights
 							</TabLink>
 						)}
-						{isTemplateRBACEnabled && data.permissions.canUpdateTemplate && (
+						{isWorkspacePrebuildsEnabled && data.permissions.canUpdateTemplate && (
 							<TabLink to="prebuilds" value="prebuilds">
 								Prebuilds
 							</TabLink>
