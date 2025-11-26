@@ -394,7 +394,7 @@ func ImportLicenseFromFile(ctx context.Context, db database.Store, licenseKeys m
 	}
 
 	// Check if any licenses already exist
-	// Use a subject with specific license permissions for this system startup operation
+	// Use a subject with wildcard permissions for this system startup operation
 	// nolint:gocritic // This is a system operation during startup before any users exist
 	systemCtx := dbauthz.As(ctx, rbac.Subject{
 		ID: uuid.Nil.String(),
@@ -403,7 +403,7 @@ func ImportLicenseFromFile(ctx context.Context, db database.Store, licenseKeys m
 				Identifier:  rbac.RoleIdentifier{Name: "license-import"},
 				DisplayName: "License Import",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceLicense.Type: {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceWildcard.Type: {policy.WildcardSymbol},
 				}),
 			},
 		}),
@@ -452,7 +452,7 @@ func ImportLicenseFromFile(ctx context.Context, db database.Store, licenseKeys m
 	}
 
 	// Insert the license into the database
-	// Use the same system context with specific license permissions
+	// Use the same system context with wildcard permissions
 	// nolint:gocritic // This is a system operation during startup before any users exist
 	dl, err := db.InsertLicense(systemCtx, database.InsertLicenseParams{
 		UploadedAt: dbtime.Now(),
