@@ -1,6 +1,6 @@
 import { API } from "api/api";
 import { templates } from "api/queries/templates";
-import { workspaces } from "api/queries/workspaces";
+
 import type { TasksFilter } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button, type ButtonProps } from "components/Button/Button";
@@ -91,16 +91,10 @@ const TasksPage: FC = () => {
 	const { entitlements } = useDashboard();
 	const canCheckTasks = entitlements.features.task_batch_actions.enabled;
 
-	// Workspaces are fetched lazily only when dialog opens because tasks
-	// don't always have associated workspaces and we need full resource data
-	// for the confirmation dialog.
-	const workspaceIds = checkedTasks
-		.map((t) => t.workspace_id)
-		.filter((id): id is string => id !== null);
-	const workspacesQuery = useQuery({
-		...workspaces({ q: `id:${workspaceIds.join(",")}` }),
-		enabled: workspaceIds.length > 0 && isDeleteDialogOpen,
-	});
+	// Count workspaces that will be deleted with the selected tasks.
+	const workspaceCount = checkedTasks.filter(
+		(t) => t.workspace_id !== null,
+	).length;
 
 	// Clear selections when switching tabs/filters to avoid confusing UX
 	// where selected tasks might no longer be visible.
@@ -232,7 +226,7 @@ const TasksPage: FC = () => {
 				<BatchDeleteConfirmation
 					open={isDeleteDialogOpen}
 					checkedTasks={checkedTasks}
-					workspaces={workspacesQuery.data?.workspaces ?? []}
+					workspaceCount={workspaceCount}
 					isLoading={batchActions.isProcessing}
 					onClose={() => setIsDeleteDialogOpen(false)}
 					onConfirm={handleConfirmDelete}

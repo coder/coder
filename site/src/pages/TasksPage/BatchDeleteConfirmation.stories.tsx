@@ -1,5 +1,5 @@
 import { chromatic } from "testHelpers/chromatic";
-import { MockTask, MockWorkspace } from "testHelpers/entities";
+import { MockTask } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
@@ -39,23 +39,16 @@ const meta: Meta<typeof BatchDeleteConfirmation> = {
 				).toISOString(),
 			},
 		],
-		workspaces: [
-			MockWorkspace,
-			{
-				...MockWorkspace,
-				id: "workspace-2",
-				name: "bob-workspace",
-			},
-		],
+		workspaceCount: 2,
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof BatchDeleteConfirmation>;
 
-const Stage1_Consequences: Story = {};
+export const Consequences: Story = {};
 
-const Stage2_ReviewTasks: Story = {
+export const ReviewTasks: Story = {
 	play: async ({ canvasElement, step }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -68,7 +61,7 @@ const Stage2_ReviewTasks: Story = {
 	},
 };
 
-const Stage3_ReviewResources: Story = {
+export const ReviewResources: Story = {
 	play: async ({ canvasElement, step }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -86,10 +79,4 @@ const Stage3_ReviewResources: Story = {
 			await userEvent.click(confirmButton);
 		});
 	},
-};
-
-export {
-	Stage1_Consequences as Consequences,
-	Stage2_ReviewTasks as ReviewTasks,
-	Stage3_ReviewResources as ReviewResources,
 };
