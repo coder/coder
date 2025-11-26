@@ -30,7 +30,7 @@ import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialo
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
 import { type FC, type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
-import { cn } from "utils/cn";
+
 import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
@@ -201,7 +201,6 @@ const TaskRow: FC<TaskRowProps> = ({
 				key={task.id}
 				data-testid={`task-${task.id}`}
 				{...clickableRowProps}
-				className={cn(checked && "bg-surface-secondary")}
 			>
 				<TableCell>
 					<div className="flex items-center gap-2">
