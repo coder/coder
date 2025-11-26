@@ -136,11 +136,11 @@ The sysbox-runc runtime provides more complete support for unprivileged user nam
 
 ## Docker Seccomp Profile Considerations
 
-Docker’s default seccomp profile frequently blocks the `clone` syscall, which is required by the Boundary when creating unprivileged network namespaces. If the `clone` syscall is denied, the Boundary may fail to start or encounter runtime errors when attempting to configure networking.
+Docker’s default seccomp profile frequently blocks the `clone` syscall, which is required by the Boundary when creating unprivileged network namespaces. If the `clone` syscall is denied, the Boundary will fail to start.
 
 To address this, you may need to modify or override the seccomp profile used by your container to explicitly allow the required `clone` variants.
 
-You can find the default Docker seccomp profile for your Docker version here:
+You can find the default Docker seccomp profile for your Docker version here (specify your docker version):
 
 https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
 
@@ -153,5 +153,5 @@ If the profile blocks the necessary `clone` syscall arguments, you can provide a
   "action": "SCMP_ACT_ALLOW"
 }
 ```
-This example unblocks the clone syscall entirely; depending on your security requirements, you may wish to narrow the rule to specific argument patterns.
+This example unblocks the clone syscall entirely.
 
