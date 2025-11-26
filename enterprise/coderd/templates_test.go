@@ -2230,7 +2230,7 @@ func TestInvalidateTemplatePrebuilds_RegularUser(t *testing.T) {
 	version1 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
-			&proto.Response{
+			{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
 						Presets:    []*proto.Preset{presetWithParameters1},
