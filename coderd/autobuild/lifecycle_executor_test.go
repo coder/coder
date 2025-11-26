@@ -233,9 +233,9 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				// Since initial version has no parameters, any parameters in the new version will be incompatible
 				res = &echo.Responses{
 					Parse: echo.ParseComplete,
-					ProvisionApply: []*proto.Response{{
-						Type: &proto.Response_Apply{
-							Apply: &proto.ApplyComplete{
+					ProvisionGraph: []*proto.Response{{
+						Type: &proto.Response_Graph{
+							Graph: &proto.GraphComplete{
 								Parameters: []*proto.RichParameter{
 									{
 										Name:     "new",
@@ -1644,10 +1644,10 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: richParameters,
 					},
 				},
@@ -1774,17 +1774,10 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		taskAppID := uuid.New()
 		version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
+			ProvisionGraph: []*proto.Response{
 				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{HasAiTasks: true},
-					},
-				},
-			},
-			ProvisionApply: []*proto.Response{
-				{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{
 								{
 									Agents: []*proto.Agent{
@@ -1804,6 +1797,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 									},
 								},
 							},
+							HasAiTasks: true,
 							AiTasks: []*proto.AITask{
 								{
 									AppId: taskAppID.String(),
