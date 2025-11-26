@@ -246,21 +246,6 @@ export const provisioningStages: Stage[] = [
 		},
 	},
 	{
-		name: "graph",
-		label: "graph",
-		section: "provisioning",
-		tooltip: {
-			title: (
-				<>
-					<TooltipTitle>Terraform graph</TooltipTitle>
-					<TooltipShortDescription>
-						List all resources in plan, used to update coderd database.
-					</TooltipShortDescription>
-				</>
-			),
-		},
-	},
-	{
 		name: "apply",
 		label: "apply",
 		section: "provisioning",
@@ -271,6 +256,21 @@ export const provisioningStages: Stage[] = [
 					<TooltipShortDescription>
 						Execute Terraform plan to create/modify/delete resources into
 						desired states.
+					</TooltipShortDescription>
+				</>
+			),
+		},
+	},
+	{
+		name: "graph",
+		label: "graph",
+		section: "provisioning",
+		tooltip: {
+			title: (
+				<>
+					<TooltipTitle>Terraform graph</TooltipTitle>
+					<TooltipShortDescription>
+						List all resources in plan, used to update coderd database.
 					</TooltipShortDescription>
 				</>
 			),

@@ -146,6 +146,7 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "ran initialization")
 
 	return &proto.InitComplete{
+		Timings:         e.timings.aggregate(),
 		Modules:         modules,
 		ModuleFiles:     moduleFiles,
 		ModuleFilesHash: nil,
@@ -240,7 +241,9 @@ func (s *server) Graph(
 		return provisionersdk.GraphError("unknown graph source: %q", request.Source.String())
 	}
 
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
 	rawGraph, err := e.graph(ctx, killCtx)
+	endStage(err)
 	if err != nil {
 		return provisionersdk.GraphError("generate graph: %s", err)
 	}
