@@ -2153,6 +2153,11 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
 	})
 	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
@@ -2223,6 +2228,11 @@ func TestInvalidateTemplatePrebuilds_RegularUser(t *testing.T) {
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
 	})
 	regularUserClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -2263,6 +2273,11 @@ func TestInvalidateTemplatePrebuilds_NoPresets(t *testing.T) {
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
 		},
 	})
 	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
