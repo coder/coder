@@ -32,6 +32,7 @@ import {
 	type ApplyComplete,
 	AppSharingLevel,
 	type ExternalAuthProviderResource,
+	type GraphComplete,
 	type ParseComplete,
 	type PlanComplete,
 	type Resource,
@@ -540,12 +541,14 @@ type RecursivePartial<T> = {
 };
 
 interface EchoProvisionerResponses {
+	init?: RecursivePartial<Response>[];
 	// parse is for observing any Terraform variables
 	parse?: RecursivePartial<Response>[];
 	// plan occurs when the template is imported
 	plan?: RecursivePartial<Response>[];
 	// apply occurs when the workspace is built
 	apply?: RecursivePartial<Response>[];
+	graph?: RecursivePartial<Response>[];
 	// extraFiles allows the bundling of terraform files in echo provisioner tars
 	// in order to support dynamic parameters
 	extraFiles?: Map<string, string>;
@@ -560,6 +563,13 @@ const emptyPlan = new TextEncoder().encode("{}");
 const createTemplateVersionTar = async (
 	responses: EchoProvisionerResponses = {},
 ): Promise<Buffer> => {
+	if (!responses.init) {
+		responses.init = [
+			{
+				init: {},
+			},
+		];
+	}
 	if (!responses.parse) {
 		responses.parse = [
 			{
@@ -575,17 +585,24 @@ const createTemplateVersionTar = async (
 		];
 	}
 	if (!responses.plan) {
-		responses.plan = responses.apply.map((response) => {
+		responses.plan = [
+			{
+				plan: {},
+			},
+		];
+	}
+	if (!responses.graph) {
+		responses.graph = responses.apply.map((response) => {
 			if (response.log) {
 				return response;
 			}
 			return {
-				plan: {
-					error: response.apply?.error ?? "",
-					resources: response.apply?.resources ?? [],
-					parameters: response.apply?.parameters ?? [],
-					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
-					timings: response.apply?.timings ?? [],
+				graph: {
+					error: response.graph?.error ?? "",
+					resources: response.graph?.resources ?? [],
+					parameters: response.graph?.parameters ?? [],
+					externalAuthProviders: response.graph?.externalAuthProviders ?? [],
+					timings: response.graph?.timings ?? [],
 					presets: [],
 					resourceReplacements: [],
 					plan: emptyPlan,
@@ -698,7 +715,7 @@ const createTemplateVersionTar = async (
 	};
 
 	responses.apply.forEach((response, index) => {
-		response.apply = {
+		response.graph = {
 			error: "",
 			state: new Uint8Array(),
 			resources: [],
@@ -706,17 +723,17 @@ const createTemplateVersionTar = async (
 			externalAuthProviders: [],
 			timings: [],
 			aiTasks: [],
-			...response.apply,
+			...response.graph,
 		} as ApplyComplete;
-		response.apply.resources = response.apply.resources?.map(fillResource);
+		response.graph.resources = response.graph.resources?.map(fillResource);
 
 		tar.addFile(
 			`${index}.apply.protobuf`,
 			Response.encode(response as Response).finish(),
 		);
 	});
-	responses.plan.forEach((response, index) => {
-		response.plan = {
+	responses.graph.forEach((response, index) => {
+		response.graph = {
 			error: "",
 			resources: [],
 			parameters: [],
@@ -729,9 +746,9 @@ const createTemplateVersionTar = async (
 			moduleFiles: new Uint8Array(),
 			moduleFilesHash: new Uint8Array(),
 			aiTasks: [],
-			...response.plan,
-		} as PlanComplete;
-		response.plan.resources = response.plan.resources?.map(fillResource);
+			...response.graph,
+		} as GraphComplete;
+		response.graph.resources = response.graph.resources?.map(fillResource);
 
 		tar.addFile(
 			`${index}.plan.protobuf`,
@@ -889,21 +906,22 @@ ${options}}
 				parse: {},
 			},
 		],
-		plan: [
+		graph: [
 			{
-				plan: {
+				graph: {
 					parameters: richParameters,
+					resources: [
+						{
+							name: "example",
+						},
+					],
 				},
 			},
 		],
 		apply: [
 			{
 				apply: {
-					resources: [
-						{
-							name: "example",
-						},
-					],
+
 				},
 			},
 		],
@@ -920,22 +938,22 @@ export const echoResponsesWithExternalAuth = (
 				parse: {},
 			},
 		],
-		plan: [
+		graph: [
 			{
-				plan: {
-					externalAuthProviders: providers,
-				},
-			},
-		],
-		apply: [
-			{
-				apply: {
+				graph: {
 					externalAuthProviders: providers,
 					resources: [
 						{
 							name: "example",
 						},
 					],
+				},
+			},
+		],
+		apply: [
+			{
+				apply: {
+
 				},
 			},
 		],
