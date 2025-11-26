@@ -17,6 +17,10 @@ type ContainerCLI interface {
 	Copy(ctx context.Context, containerName, src, dst string) error
 	// ExecAs executes a command in a container as a specific user.
 	ExecAs(ctx context.Context, containerName, user string, args ...string) ([]byte, error)
+	// Stop terminates the container
+	Stop(ctx context.Context, containerName string) error
+	// Remove removes the container
+	Remove(ctx context.Context, containerName string) error
 }
 
 // noopContainerCLI is a ContainerCLI that does nothing.
@@ -35,3 +39,5 @@ func (noopContainerCLI) Copy(_ context.Context, _ string, _ string, _ string) er
 func (noopContainerCLI) ExecAs(_ context.Context, _ string, _ string, _ ...string) ([]byte, error) {
 	return nil, nil
 }
+func (noopContainerCLI) Stop(_ context.Context, _ string) error   { return nil }
+func (noopContainerCLI) Remove(_ context.Context, _ string) error { return nil }

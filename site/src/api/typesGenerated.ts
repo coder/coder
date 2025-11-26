@@ -6055,10 +6055,11 @@ export type WorkspaceAgentDevcontainerStatus =
 	| "error"
 	| "running"
 	| "starting"
-	| "stopped";
+	| "stopped"
+	| "stopping";
 
 export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
-	["error", "running", "starting", "stopped"];
+	["error", "running", "starting", "stopped", "stopping"];
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {

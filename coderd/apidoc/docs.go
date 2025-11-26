@@ -20210,12 +20210,14 @@ const docTemplate = `{
                 "running",
                 "stopped",
                 "starting",
+                "stopping",
                 "error"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentDevcontainerStatusRunning",
                 "WorkspaceAgentDevcontainerStatusStopped",
                 "WorkspaceAgentDevcontainerStatusStarting",
+                "WorkspaceAgentDevcontainerStatusStopping",
                 "WorkspaceAgentDevcontainerStatusError"
             ]
         },

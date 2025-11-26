@@ -311,6 +311,14 @@ func (*fakeContainerCLI) ExecAs(ctx context.Context, containerID, user string, a
 	return nil, nil
 }
 
+func (*fakeContainerCLI) Stop(ctx context.Context, containerID string) error {
+	return nil
+}
+
+func (*fakeContainerCLI) Remove(ctx context.Context, containerID string) error {
+	return nil
+}
+
 type fakeDevcontainerCLI struct {
 	config    agentcontainers.DevcontainerConfig
 	execAgent func(ctx context.Context, token string) error

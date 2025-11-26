@@ -18572,11 +18572,12 @@
 		},
 		"codersdk.WorkspaceAgentDevcontainerStatus": {
 			"type": "string",
-			"enum": ["running", "stopped", "starting", "error"],
+			"enum": ["running", "stopped", "starting", "stopping", "error"],
 			"x-enum-varnames": [
 				"WorkspaceAgentDevcontainerStatusRunning",
 				"WorkspaceAgentDevcontainerStatusStopped",
 				"WorkspaceAgentDevcontainerStatusStarting",
+				"WorkspaceAgentDevcontainerStatusStopping",
 				"WorkspaceAgentDevcontainerStatusError"
 			]
 		},

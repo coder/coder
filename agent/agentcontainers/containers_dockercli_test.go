@@ -126,3 +126,50 @@ func TestIntegrationDockerCLI(t *testing.T) {
 		t.Logf("Successfully executed commands in container %s", containerName)
 	})
 }
+
+// TestIntegrationDockerCLIStop tests the Stop method using a real
+// real Docker container.
+//
+// Run manually with: CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestIntegrationDockerCLIStop
+//
+//nolint:tparallel,paralleltest // Docker integration tests don't run in parallel to avoid flakiness.
+func TestIntegrationDockerCLIStop(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+
+	// Given: A simple busybox container
+	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository: "busybox",
+		Tag:        "latest",
+		Cmd:        []string{"sleep", "infinity"},
+	}, func(config *docker.HostConfig) {
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	})
+	require.NoError(t, err, "Could not start test docker container")
+	t.Logf("Created container %q", ct.Container.Name)
+	t.Cleanup(func() {
+		assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
+		t.Logf("Purged container %q", ct.Container.Name)
+	})
+
+	// Given: The container is running
+	require.Eventually(t, func() bool {
+		ct, ok := pool.ContainerByName(ct.Container.Name)
+		return ok && ct.Container.State.Running
+	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+
+	dcli := agentcontainers.NewDockerCLI(agentexec.DefaultExecer)
+	containerName := strings.TrimPrefix(ct.Container.Name, "/")
+
+	// When: We attempt to stop the container
+	err = dcli.Stop(ctx, containerName)
+	require.NoError(t, err)
+
+	// Then: We expect the container to be stopped.
+	ct, ok := pool.ContainerByName(ct.Container.Name)
+	require.True(t, ok)
+	require.False(t, ct.Container.State.Running)
+	require.Equal(t, "exited", ct.Container.State.Status)
+}
