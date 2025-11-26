@@ -256,21 +256,16 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionGraph: []*sdkproto.Response{{
-				Type: &sdkproto.Response_Graph{
-					Graph: &sdkproto.GraphComplete{
-						Resources: []*sdkproto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*sdkproto.Agent{{
-								Id:   uuid.NewString(),
-								Name: "example",
-							}},
-						}},
-					},
-				},
-			}},
-			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken, func(g *sdkproto.GraphComplete) {
+				g.Resources = []*sdkproto.Resource{{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   uuid.NewString(),
+						Name: "example",
+					}},
+				}}
+			}),
 		})
 		require.NoError(t, err)
 		//nolint:gocritic // Not testing file upload in this test.

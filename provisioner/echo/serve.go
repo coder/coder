@@ -47,22 +47,27 @@ func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string)
 
 // ProvisionGraphWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
-func ProvisionGraphWithAgent(authToken string) []*proto.Response {
+func ProvisionGraphWithAgent(authToken string, muts ...func(g *proto.GraphComplete)) []*proto.Response {
+	gc := &proto.GraphComplete{
+		Resources: []*proto.Resource{{
+			Name: "example",
+			Type: "aws_instance",
+			Agents: []*proto.Agent{{
+				Id:   uuid.NewString(),
+				Name: "example",
+				Auth: &proto.Agent_Token{
+					Token: authToken,
+				},
+			}},
+		}},
+	}
+	for _, mut := range muts {
+		mut(gc)
+	}
+
 	return []*proto.Response{{
 		Type: &proto.Response_Graph{
-			Graph: &proto.GraphComplete{
-				Resources: []*proto.Resource{{
-					Name: "example",
-					Type: "aws_instance",
-					Agents: []*proto.Agent{{
-						Id:   uuid.NewString(),
-						Name: "example",
-						Auth: &proto.Agent_Token{
-							Token: authToken,
-						},
-					}},
-				}},
-			},
+			Graph: gc,
 		},
 	}}
 }
