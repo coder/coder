@@ -12,15 +12,17 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 type MetadataAPI struct {
-	AgentFn  func(context.Context) (database.WorkspaceAgent, error)
-	Database database.Store
-	Pubsub   pubsub.Pubsub
-	Log      slog.Logger
+	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	Workspace *CachedWorkspaceFields
+	Database  database.Store
+	Pubsub    pubsub.Pubsub
+	Log       slog.Logger
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -107,7 +109,19 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		)
 	}
 
-	err = a.Database.UpdateWorkspaceAgentMetadata(ctx, dbUpdate)
+	// Inject RBAC object into context for dbauthz fast path, avoid having to
+	// call GetWorkspaceByAgentID on every metadata update.
+	rbacCtx := ctx
+	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
+		if err != nil {
+			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
+			//nolint:gocritic
+			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
+		}
+	}
+
+	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
 	}

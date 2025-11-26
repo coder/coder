@@ -1717,13 +1717,13 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
+	// template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	// if err != nil {
+	// 	httpapi.InternalServerError(rw, err)
+	// 	return
+	// }
 
-	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), workspace, agent, template.Name, stat, true)
+	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent, stat, true)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

@@ -36,6 +36,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+const workspaceCacheRefreshInterval = 5 * time.Minute
+
 // API implements the DRPC agent API interface from agent/proto. This struct is
 // instantiated once per agent connection and kept alive for the duration of the
 // session.
@@ -53,6 +55,8 @@ type API struct {
 	*ConnLogAPI
 	*SubAgentAPI
 	*tailnet.DRPCService
+
+	cachedWorkspaceFields *CachedWorkspaceFields
 
 	mu sync.Mutex
 }
@@ -92,7 +96,7 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options) *API {
+func New(opts Options, workspace database.Workspace) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
@@ -112,6 +116,13 @@ func New(opts Options) *API {
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
+	}
+
+	// Don't cache details for prebuilds, though the cached fields will eventually be updated
+	// by the refresh routine once the prebuild workspace is claimed.
+	api.cachedWorkspaceFields = &CachedWorkspaceFields{}
+	if !workspace.IsPrebuild() {
+		api.cachedWorkspaceFields.UpdateValues(workspace)
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
@@ -139,6 +150,7 @@ func New(opts Options) *API {
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
+		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
@@ -162,10 +174,11 @@ func New(opts Options) *API {
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:  api.agent,
-		Database: opts.Database,
-		Pubsub:   opts.Pubsub,
-		Log:      opts.Log,
+		AgentFn:   api.agent,
+		Workspace: api.cachedWorkspaceFields,
+		Database:  opts.Database,
+		Pubsub:    opts.Pubsub,
+		Log:       opts.Log,
 	}
 
 	api.LogsAPI = &LogsAPI{
@@ -204,6 +217,10 @@ func New(opts Options) *API {
 		Clock:          opts.Clock,
 		Database:       opts.Database,
 	}
+
+	// Start background cache refresh loop to handle workspace changes
+	// like prebuild claims where owner_id and other fields may be modified in the DB.
+	go api.startCacheRefreshLoop(opts.Ctx)
 
 	return api
 }
@@ -252,6 +269,56 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 		return database.WorkspaceAgent{}, xerrors.Errorf("get workspace agent by id %q: %w", a.opts.AgentID, err)
 	}
 	return agent, nil
+}
+
+// refreshCachedWorkspace periodically updates the cached workspace fields.
+// This ensures that changes like prebuild claims (which modify owner_id, name, etc.)
+// are eventually reflected in the cache without requiring agent reconnection.
+func (a *API) refreshCachedWorkspace(ctx context.Context) {
+	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
+	if err != nil {
+		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
+		a.cachedWorkspaceFields.Clear()
+		return
+	}
+
+	if ws.IsPrebuild() {
+		return
+	}
+
+	// If we still have the same values, skip the update and logging calls.
+	if a.cachedWorkspaceFields.identity.Equal(database.WorkspaceIdentityFromWorkspace(ws)) {
+		return
+	}
+	// Update fields that can change during workspace lifecycle (e.g., AutostartSchedule)
+	a.cachedWorkspaceFields.UpdateValues(ws)
+
+	a.opts.Log.Debug(ctx, "refreshed cached workspace fields",
+		slog.F("workspace_id", ws.ID),
+		slog.F("owner_id", ws.OwnerID),
+		slog.F("name", ws.Name))
+}
+
+// startCacheRefreshLoop runs a background goroutine that periodically refreshes
+// the cached workspace fields. This is primarily needed to handle prebuild claims
+// where the owner_id and other fields change while the agent connection persists.
+func (a *API) startCacheRefreshLoop(ctx context.Context) {
+	// Refresh every 5 minutes. This provides a reasonable balance between:
+	// - Keeping cache fresh for prebuild claims and other workspace updates
+	// - Minimizing unnecessary database queries
+	ticker := a.opts.Clock.TickerFunc(ctx, workspaceCacheRefreshInterval, func() error {
+		a.refreshCachedWorkspace(ctx)
+		return nil
+	}, "cache_refresh")
+
+	// We need to wait on the ticker exiting.
+	_ = ticker.Wait()
+
+	a.opts.Log.Debug(ctx, "cache refresh loop exited, invalidating the workspace cache on agent API",
+		slog.F("workspace_id", a.cachedWorkspaceFields.identity.ID),
+		slog.F("owner_id", a.cachedWorkspaceFields.identity.OwnerUsername),
+		slog.F("name", a.cachedWorkspaceFields.identity.Name))
+	a.cachedWorkspaceFields.Clear()
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
