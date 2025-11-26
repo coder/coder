@@ -2178,7 +2178,11 @@ export interface GetInboxNotificationResponse {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
-	readonly offset: string;
+	/**
+	 * Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
+	 * for the local timezone.
+	 */
+	readonly offset: number;
 }
 
 // From codersdk/insights.go
