@@ -1,4 +1,5 @@
 import Skeleton from "@mui/material/Skeleton";
+import { API } from "api/api";
 import type {
 	Template,
 	Workspace,
@@ -6,7 +7,6 @@ import type {
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
-
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
@@ -27,6 +27,7 @@ import { cn } from "utils/cn";
 import { portForwardURL } from "utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
+import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 import { AgentLatency } from "./AgentLatency";
 import { DevcontainerStatus } from "./AgentStatus";
 import { PortForwardButton } from "./PortForwardButton";
@@ -80,17 +81,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 	const rebuildDevcontainerMutation = useMutation({
 		mutationFn: async () => {
-			const response = await fetch(
-				`/api/v2/workspaceagents/${parentAgent.id}/containers/devcontainers/${devcontainer.id}/recreate`,
-				{ method: "POST" },
-			);
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.message || `Failed to rebuild: ${response.statusText}`,
-				);
-			}
-			return response;
+			await API.recreateDevContainer({
+				parentAgentId: parentAgent.id,
+				devcontainerId: devcontainer.id,
+			});
 		},
 		onMutate: async () => {
 			await queryClient.cancelQueries({
@@ -167,7 +161,21 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	]);
 
 	const showDevcontainerControls = subAgent && devcontainer.container;
+	const statusLabels: Partial<
+		Record<WorkspaceAgentDevcontainer["status"], string>
+	> = {
+		deleting: "Deleting",
+		stopping: "Stopping",
+	};
+	const rebuildButtonLabel =
+		statusLabels[devcontainer.status] ??
+		(devcontainer.container === undefined ? "Start" : "Rebuild");
+	const isTransitioning =
+		devcontainer.status === "starting" ||
+		devcontainer.status === "stopping" ||
+		devcontainer.status === "deleting";
 	const showSubAgentApps =
+		devcontainer.status !== "deleting" &&
 		devcontainer.status !== "starting" &&
 		subAgent?.status === "connected" &&
 		hasAppsToDisplay;
@@ -250,11 +258,11 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						variant="outline"
 						size="sm"
 						onClick={handleRebuildDevcontainer}
-						disabled={devcontainer.status === "starting"}
+						disabled={isTransitioning}
 					>
-						<Spinner loading={devcontainer.status === "starting"} />
+						<Spinner loading={isTransitioning} />
 
-						{devcontainer.container === undefined ? "Start" : "Rebuild"}
+						{rebuildButtonLabel}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
@@ -274,6 +282,13 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 								template={template}
 							/>
 						)}
+
+					{showDevcontainerControls && (
+						<AgentDevcontainerMoreActions
+							devcontainer={devcontainer}
+							parentAgent={parentAgent}
+						/>
+					)}
 				</div>
 			</header>
 
