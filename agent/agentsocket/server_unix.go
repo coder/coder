@@ -36,14 +36,11 @@ type Server struct {
 
 // NewServer creates a new agent socket server.
 func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
-	options := &options{}
+	options := &options{
+		path: defaultSocketPath,
+	}
 	for _, opt := range opts {
 		opt(options)
-	}
-
-	path := options.path
-	if path == "" {
-		path = defaultSocketPath
 	}
 
 	logger = logger.Named("agentsocket-server")
