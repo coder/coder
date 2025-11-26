@@ -114,6 +114,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	w, err := convertWorkspace(
+		api.Experiments,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -229,7 +230,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wss, err := convertWorkspaces(apiKey.UserID, workspaces, data)
+	wss, err := convertWorkspaces(api.Experiments, apiKey.UserID, workspaces, data)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting workspaces.",
@@ -319,6 +320,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 
 	w, err := convertWorkspace(
+		api.Experiments,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -847,6 +849,7 @@ func createWorkspace(
 	}
 
 	w, err := convertWorkspace(
+		api.Experiments,
 		initiatorID,
 		workspace,
 		apiBuild,
@@ -1490,6 +1493,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	w, err := convertWorkspace(
+		api.Experiments,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -2067,6 +2071,7 @@ func (api *API) watchWorkspace(
 			appStatus = data.appStatuses[0]
 		}
 		w, err := convertWorkspace(
+			api.Experiments,
 			apiKey.UserID,
 			workspace,
 			data.builds[0],
@@ -2516,7 +2521,12 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
-func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
+func convertWorkspaces(
+	experiments codersdk.Experiments,
+	requesterID uuid.UUID,
+	workspaces []database.Workspace,
+	data workspaceData,
+) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
@@ -2548,6 +2558,7 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 		appStatus := appStatusesByWorkspaceID[workspace.ID]
 
 		w, err := convertWorkspace(
+			experiments,
 			requesterID,
 			workspace,
 			build,
@@ -2565,6 +2576,7 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 }
 
 func convertWorkspace(
+	experiments codersdk.Experiments,
 	requesterID uuid.UUID,
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
@@ -2610,7 +2622,13 @@ func convertWorkspace(
 			}
 		}
 	}
-	sharedWith := []codersdk.SharedWorkspaceActor{}
+	// TODO(geokat): using a pointer that's serialized with
+	// "omitempty" so that we can hide it behind an experiment. This
+	// won't be necessary once workspace sharing is in beta.
+	var sharedWith *[]codersdk.SharedWorkspaceActor
+	if experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
+		sharedWith = &[]codersdk.SharedWorkspaceActor{}
+	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	// If the template doesn't allow a workspace-configured value, then report the
