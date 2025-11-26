@@ -2696,7 +2696,7 @@ type workspace struct {
 
 func waitForUpdates(
 	t *testing.T,
-//nolint:revive // t takes precedence
+	//nolint:revive // t takes precedence
 	ctx context.Context,
 	stream tailnetproto.DRPCTailnet_WorkspaceUpdatesClient,
 	currentState map[uuid.UUID]workspace,
