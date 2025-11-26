@@ -36,7 +36,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-const workspaceCacheRefreshInterval = 1 * time.Minute
+const workspaceCacheRefreshInterval = 5 * time.Minute
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
 // instantiated once per agent connection and kept alive for the duration of the
@@ -275,7 +275,6 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 // This ensures that changes like prebuild claims (which modify owner_id, name, etc.)
 // are eventually reflected in the cache without requiring agent reconnection.
 func (a *API) refreshCachedWorkspace(ctx context.Context) {
-	a.opts.Log.Debug(ctx, "refreshing cached workspace", slog.F("test", "test"))
 	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
 	if err != nil {
 		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
