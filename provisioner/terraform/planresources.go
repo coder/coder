@@ -1,13 +1,9 @@
 package terraform
 
 import (
-	"context"
-
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
 )
 
 type PlanState struct {
@@ -35,7 +31,7 @@ func planModules(plan *tfjson.Plan) []*tfjson.StateModule {
 // ConvertPlanState consumes a terraform plan json output and produces a thinner
 // version of `State` to be used before `terraform apply`. `ConvertState`
 // requires `terraform graph`, this does not.
-func ConvertPlanState(ctx context.Context, logger slog.Logger, plan *tfjson.Plan) (*PlanState, error) {
+func ConvertPlanState(plan *tfjson.Plan) (*PlanState, error) {
 	modules := planModules(plan)
 
 	var dailyCost int32

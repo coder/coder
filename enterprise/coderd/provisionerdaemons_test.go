@@ -270,7 +270,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					},
 				},
 			}},
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		require.NoError(t, err)
 		//nolint:gocritic // Not testing file upload in this test.

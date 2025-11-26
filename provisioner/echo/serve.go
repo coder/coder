@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// ProvisionGraphWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
 func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string) []*proto.Response {
 	return []*proto.Response{{
@@ -45,9 +45,9 @@ func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string)
 	}}
 }
 
-// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// ProvisionGraphWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
-func ProvisionApplyWithAgent(authToken string) []*proto.Response {
+func ProvisionGraphWithAgent(authToken string) []*proto.Response {
 	return []*proto.Response{{
 		Type: &proto.Response_Graph{
 			Graph: &proto.GraphComplete{
@@ -201,7 +201,7 @@ func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan
 	return provisionersdk.ParseErrorf("complete response missing")
 }
 
-func (e *echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+func (*echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
 	err := sess.Files.ExtractArchive(sess.Context(), sess.Logger, afero.NewOsFs(), req.TemplateSourceArchive)
 	if err != nil {
 		return provisionersdk.InitErrorf("extract archive: %s", err.Error())
@@ -228,7 +228,7 @@ func (e *echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, cancel
 	return provisionersdk.InitErrorf("canceled")
 }
 
-func (e *echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
+func (*echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
 	responses, err := readResponses(
 		sess,
 		strings.ToLower(req.GetMetadata().GetWorkspaceTransition().String()),
