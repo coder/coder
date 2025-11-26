@@ -1854,8 +1854,8 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			workspaceOwnerClient, member1 = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
 			otherMemberClient, _          = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
 			ws                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OwnerID: member1.ID, OrganizationID: admin.OrganizationID}).
-				Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionDelete}).
-				Do()
+							Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionDelete}).
+							Do()
 		)
 
 		// This needs to be done separately as provisionerd handles marking the workspace as deleted
