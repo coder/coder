@@ -1143,8 +1143,7 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	taskAlertDismissedBool := false
-	taskAlertDismissedBool, _ = strconv.ParseBool(updatedTaskAlertDismissed.Value)
+	taskAlertDismissedBool, _ := strconv.ParseBool(updatedTaskAlertDismissed.Value)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissedBool,
