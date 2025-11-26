@@ -133,6 +133,10 @@ var testCases = []testCase{
 		name:          "namespace_rbac",
 		expectedError: "",
 	},
+	{
+		name:          "priority_class_name",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

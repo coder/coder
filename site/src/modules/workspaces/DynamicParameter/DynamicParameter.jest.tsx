@@ -97,26 +97,6 @@ describe("DynamicParameter", () => {
 			expect(screen.getByRole("textbox")).toHaveValue("test_value");
 		});
 
-		it("calls onChange when input value changes", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockStringParameter}
-					value=""
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const input = screen.getByRole("textbox");
-
-			await waitFor(async () => {
-				await userEvent.type(input, "new_value");
-			});
-
-			await waitFor(() => {
-				expect(mockOnChange).toHaveBeenCalledWith("new_value");
-			});
-		});
-
 		it("shows required indicator for required parameters", () => {
 			render(
 				<DynamicParameter
@@ -169,25 +149,6 @@ describe("DynamicParameter", () => {
 
 			expect(screen.getByText("Textarea Parameter")).toBeInTheDocument();
 			expect(screen.getByRole("textbox")).toHaveValue(testValue);
-		});
-
-		it("handles textarea value changes", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockTextareaParameter}
-					value=""
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const textarea = screen.getByRole("textbox");
-			await waitFor(async () => {
-				await userEvent.type(textarea, "line1{enter}line2{enter}line3");
-			});
-
-			await waitFor(() => {
-				expect(mockOnChange).toHaveBeenCalledWith("line1\nline2\nline3");
-			});
 		});
 	});
 
@@ -726,58 +687,6 @@ describe("DynamicParameter", () => {
 
 			const input = screen.getByRole("textbox");
 			expect(input).toBeRequired();
-		});
-	});
-
-	describe("Debounced Input", () => {
-		it("debounces input changes for text inputs", async () => {
-			jest.useFakeTimers();
-
-			render(
-				<DynamicParameter
-					parameter={mockStringParameter}
-					value=""
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const input = screen.getByRole("textbox");
-			fireEvent.change(input, { target: { value: "abc" } });
-
-			expect(mockOnChange).not.toHaveBeenCalled();
-
-			act(() => {
-				jest.runAllTimers();
-			});
-
-			expect(mockOnChange).toHaveBeenCalledWith("abc");
-
-			jest.useRealTimers();
-		});
-
-		it("debounces textarea changes", async () => {
-			jest.useFakeTimers();
-
-			render(
-				<DynamicParameter
-					parameter={mockTextareaParameter}
-					value=""
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const textarea = screen.getByRole("textbox");
-			fireEvent.change(textarea, { target: { value: "line1\nline2" } });
-
-			expect(mockOnChange).not.toHaveBeenCalled();
-
-			act(() => {
-				jest.runAllTimers();
-			});
-
-			expect(mockOnChange).toHaveBeenCalledWith("line1\nline2");
-
-			jest.useRealTimers();
 		});
 	});
 

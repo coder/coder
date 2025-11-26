@@ -142,6 +142,7 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 ## Detailed Development Guides
 
+@.claude/docs/ARCHITECTURE.md
 @.claude/docs/OAUTH2.md
 @.claude/docs/TESTING.md
 @.claude/docs/TROUBLESHOOTING.md

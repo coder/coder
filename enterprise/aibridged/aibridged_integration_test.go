@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -105,7 +108,7 @@ func TestIntegration(t *testing.T) {
     "completion_tokens": 15,
     "total_tokens": 75,
     "prompt_tokens_details": {
-      "cached_tokens": 0,
+      "cached_tokens": 15,
       "audio_tokens": 0
     },
     "completion_tokens_details": {
@@ -166,7 +169,7 @@ func TestIntegration(t *testing.T) {
 
 	logger := testutil.Logger(t)
 	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger)
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, nil, logger)
 	require.NoError(t, err)
 
 	// Given: aibridged is started.
@@ -242,8 +245,9 @@ func TestIntegration(t *testing.T) {
 	tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
-	require.EqualValues(t, tokens[0].InputTokens, 60)
+	require.EqualValues(t, tokens[0].InputTokens, 45)
 	require.EqualValues(t, tokens[0].OutputTokens, 15)
+	require.EqualValues(t, gjson.Get(string(tokens[0].Metadata.RawMessage), "prompt_cached").Int(), 15)
 
 	tools, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)
@@ -252,4 +256,110 @@ func TestIntegration(t *testing.T) {
 
 	// Then: the MCP server was initialized.
 	require.Contains(t, mcpTokenReceived, authLink.OAuthAccessToken, "mock MCP server not requested")
+}
+
+// TestIntegrationWithMetrics validates that Prometheus metrics are correctly incremented
+// when requests are processed through aibridged.
+func TestIntegrationWithMetrics(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create prometheus registry and metrics.
+	registry := prometheus.NewRegistry()
+	metrics := aibridge.NewMetrics(registry)
+
+	// Set up mock OpenAI server.
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+  "id": "chatcmpl-test",
+  "object": "chat.completion",
+  "created": 1753343279,
+  "model": "gpt-4.1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "test response"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 5,
+    "total_tokens": 15
+  }
+}`))
+	}))
+	t.Cleanup(mockOpenAI.Close)
+
+	// Database and coderd setup.
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		},
+	})
+
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+	// Create an API token for the user.
+	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
+		TokenName: fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeCoderAll,
+	})
+	require.NoError(t, err)
+
+	// Create aibridge client.
+	aiBridgeClient, err := api.CreateInMemoryAIBridgeServer(ctx)
+	require.NoError(t, err)
+
+	logger := testutil.Logger(t)
+	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
+
+	// Create pool with metrics.
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, metrics, logger)
+	require.NoError(t, err)
+
+	// Given: aibridged is started.
+	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+		return aiBridgeClient, nil
+	}, logger)
+	require.NoError(t, err, "create new aibridged")
+	t.Cleanup(func() {
+		_ = srv.Shutdown(ctx)
+	})
+
+	// When: a request is made to aibridged.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(`{
+  "messages": [
+    {
+      "role": "user",
+      "content": "test message"
+    }
+  ],
+  "model": "gpt-4.1"
+}`))
+	require.NoError(t, err, "make request to test server")
+	req.Header.Add("Authorization", "Bearer "+apiKey.Key)
+	req.Header.Add("Accept", "application/json")
+
+	// When: aibridged handles the request.
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Then: the interceptions metric should increase to 1.
+	// This is not exhaustively checking the available metrics; just an indicative one to prove
+	// the plumbing is working.
+	require.Eventually(t, func() bool {
+		count := promtest.ToFloat64(metrics.InterceptionCount)
+		return count == 1
+	}, testutil.WaitShort, testutil.IntervalFast, "interceptions_total metric should be 1")
 }

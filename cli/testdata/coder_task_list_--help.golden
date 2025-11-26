@@ -1,0 +1,50 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder task list [flags]
+
+  List tasks
+
+  Aliases: ls
+
+    - List tasks for the current user.:
+  
+       $ coder task list
+  
+    - List tasks for a specific user.:
+  
+       $ coder task list --user someone-else
+  
+    - List all tasks you can view.:
+  
+       $ coder task list --all
+  
+    - List all your running tasks.:
+  
+       $ coder task list --status running
+  
+    - As above, but only show IDs.:
+  
+       $ coder task list --status running --quiet
+
+OPTIONS:
+  -a, --all bool (default: false)
+          List tasks for all users you can view.
+
+  -c, --column [id|organization id|owner id|owner name|owner avatar url|name|display name|template id|template version id|template name|template display name|template icon|workspace id|workspace name|workspace status|workspace build number|workspace agent id|workspace agent lifecycle|workspace agent health|workspace app id|initial prompt|status|state|message|created at|updated at|state changed] (default: name,status,state,state changed,message)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+  -q, --quiet bool (default: false)
+          Only display task IDs.
+
+      --status pending|initializing|active|paused|error|unknown
+          Filter by task status.
+
+      --user string
+          List tasks for the specified user (username, "me").
+
+———
+Run `coder --help` for a list of global options.

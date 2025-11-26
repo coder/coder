@@ -1,8 +1,8 @@
 -- name: InsertTask :one
 INSERT INTO tasks
-	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
+	(id, organization_id, owner_id, name, display_name, workspace_id, template_version_id, template_parameters, prompt, created_at)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: UpdateTaskWorkspaceID :one
@@ -60,6 +60,17 @@ ORDER BY tws.created_at DESC;
 UPDATE tasks
 SET
 	deleted_at = @deleted_at::timestamptz
+WHERE
+	id = @id::uuid
+	AND deleted_at IS NULL
+RETURNING *;
+
+
+-- name: UpdateTaskPrompt :one
+UPDATE
+	tasks
+SET
+	prompt = @prompt::text
 WHERE
 	id = @id::uuid
 	AND deleted_at IS NULL

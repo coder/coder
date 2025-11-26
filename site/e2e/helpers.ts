@@ -183,34 +183,37 @@ export const verifyParameters = async (
 			);
 		}
 
-		const parameterLabel = await page.waitForSelector(
-			`[data-testid='parameter-field-${richParameter.name}']`,
-			{ state: "visible" },
+		const parameterLabel = page.getByTestId(
+			`parameter-field-${richParameter.displayName}`,
 		);
+		await expect(parameterLabel).toBeVisible();
 
-		const muiDisabled = richParameter.mutable ? "" : ".Mui-disabled";
+		if (richParameter.options.length > 0) {
+			const parameterValue = parameterLabel.getByLabel(buildParameter.value);
+			const value = await parameterValue.isChecked();
+			expect(value).toBe(true);
+			continue;
+		}
 
-		if (richParameter.type === "bool") {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked${muiDisabled} input`,
-			);
-			const value = await parameterField.inputValue();
-			expect(value).toEqual(buildParameter.value);
-		} else if (richParameter.options.length > 0) {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked${muiDisabled} input`,
-			);
-			const value = await parameterField.inputValue();
-			expect(value).toEqual(buildParameter.value);
-		} else if (richParameter.type === "list(string)") {
-			throw new Error("not implemented yet"); // FIXME
-		} else {
-			// text or number
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-text'] input${muiDisabled}`,
-			);
-			const value = await parameterField.inputValue();
-			expect(value).toEqual(buildParameter.value);
+		switch (richParameter.type) {
+			case "bool":
+				{
+					const parameterField = parameterLabel.locator("input");
+					const value = await parameterField.isChecked();
+					expect(value.toString()).toEqual(buildParameter.value);
+				}
+				break;
+			case "string":
+			case "number":
+				{
+					const parameterField = parameterLabel.locator("input");
+					const value = await parameterField.inputValue();
+					expect(value).toEqual(buildParameter.value);
+				}
+				break;
+			default:
+				// Some types like `list(string)` are not tested
+				throw new Error("not implemented yet");
 		}
 	}
 };
@@ -373,25 +376,22 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
 	});
 };
 
-export const buildWorkspaceWithParameters = async (
+export const startWorkspaceWithEphemeralParameters = async (
 	page: Page,
 	workspaceName: string,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
-	confirm = false,
 ) => {
 	const user = currentUser(page);
 	await page.goto(`/@${user.username}/${workspaceName}`, {
 		waitUntil: "domcontentloaded",
 	});
 
-	await page.getByTestId("build-parameters-button").click();
+	await page.getByTestId("workspace-start").click();
+	await page.getByTestId("workspace-parameters").click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByTestId("build-parameters-submit").click();
-	if (confirm) {
-		await page.getByTestId("confirm-button").click();
-	}
+	await page.getByRole("button", { name: "Update and restart" }).click();
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -547,6 +547,9 @@ interface EchoProvisionerResponses {
 	plan?: RecursivePartial<Response>[];
 	// apply occurs when the workspace is built
 	apply?: RecursivePartial<Response>[];
+	// extraFiles allows the bundling of terraform files in echo provisioner tars
+	// in order to support dynamic parameters
+	extraFiles?: Map<string, string>;
 }
 
 const emptyPlan = new TextEncoder().encode("{}");
@@ -595,6 +598,13 @@ const createTemplateVersionTar = async (
 	}
 
 	const tar = new TarWriter();
+
+	if (responses.extraFiles) {
+		for (const [fileName, fileContents] of responses.extraFiles) {
+			tar.addFile(fileName, fileContents);
+		}
+	}
+
 	responses.parse.forEach((response, index) => {
 		response.parse = {
 			templateVariables: [],
@@ -830,6 +840,50 @@ export const findSessionToken = async (page: Page): Promise<string> => {
 export const echoResponsesWithParameters = (
 	richParameters: RichParameter[],
 ): EchoProvisionerResponses => {
+	let tf = `terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+    }
+  }
+}
+`;
+
+	for (const parameter of richParameters) {
+		let options = "";
+		if (parameter.options) {
+			for (const option of parameter.options) {
+				options += `
+	option {
+		name        = ${JSON.stringify(option.name)}
+		description = ${JSON.stringify(option.description)}
+		value       = ${JSON.stringify(option.value)}
+		icon        = ${JSON.stringify(option.icon)}
+	}
+`;
+			}
+		}
+
+		tf += `
+data "coder_parameter" "${parameter.name}" {
+	type        = ${JSON.stringify(parameter.type)}
+	name        = ${JSON.stringify(parameter.displayName)}
+	icon        = ${JSON.stringify(parameter.icon)}
+	description = ${JSON.stringify(parameter.description)}
+	mutable     = ${JSON.stringify(parameter.mutable)}`;
+
+		if (!parameter.required) {
+			tf += `
+	default     = ${JSON.stringify(parameter.defaultValue)}`;
+		}
+
+		tf += `
+	order       = ${JSON.stringify(parameter.order)}
+	ephemeral   = ${JSON.stringify(parameter.ephemeral)}
+${options}}
+`;
+	}
+
 	return {
 		parse: [
 			{
@@ -854,6 +908,7 @@ export const echoResponsesWithParameters = (
 				},
 			},
 		],
+		extraFiles: new Map([["main.tf", tf]]),
 	};
 };
 
@@ -903,30 +958,36 @@ const fillParameters = async (
 			);
 		}
 
-		// Use modern locator approach instead of waitForSelector
 		const parameterLabel = page.getByTestId(
-			`parameter-field-${richParameter.name}`,
+			`parameter-field-${richParameter.displayName}`,
 		);
 		await expect(parameterLabel).toBeVisible();
 
-		if (richParameter.type === "bool") {
-			const parameterField = parameterLabel
-				.getByTestId("parameter-field-bool")
-				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
-			await parameterField.click();
-		} else if (richParameter.options.length > 0) {
-			const parameterField = parameterLabel
-				.getByTestId("parameter-field-options")
-				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
-			await parameterField.click();
-		} else if (richParameter.type === "list(string)") {
-			throw new Error("not implemented yet"); // FIXME
-		} else {
-			// text or number
-			const parameterField = parameterLabel
-				.getByTestId("parameter-field-text")
-				.locator("input");
-			await parameterField.fill(buildParameter.value);
+		if (richParameter.options.length > 0) {
+			const parameterValue = parameterLabel.getByRole("button", {
+				name: buildParameter.value,
+			});
+			await parameterValue.click();
+			continue;
+		}
+
+		switch (richParameter.type) {
+			case "bool":
+				{
+					const parameterField = parameterLabel.locator("button");
+					await parameterField.click();
+				}
+				break;
+			case "string":
+			case "number":
+				{
+					const parameterField = parameterLabel.locator("input");
+					await parameterField.fill(buildParameter.value);
+				}
+				break;
+			default:
+				// Some types like `list(string)` are not tested
+				throw new Error("not implemented yet");
 		}
 	}
 };
@@ -1021,27 +1082,13 @@ export const updateWorkspace = async (
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
 
-	await page.waitForSelector('[data-testid="dialog"]', { state: "visible" });
+	await page
+		.getByRole("button", { name: /go to workspace parameters/i })
+		.click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: /update parameters/i }).click();
 
-	// Wait for the update button to detach.
-	await page.waitForSelector(
-		"button[data-testid='workspace-update-button']:enabled",
-		{ state: "detached" },
-	);
-	// Wait for the workspace to be running again.
-	await page.waitForSelector("text=Workspace status: Running", {
-		state: "visible",
-	});
-	// Wait for the stop button to be enabled again
-	await page.waitForSelector(
-		"button[data-testid='workspace-stop-button']:enabled",
-		{
-			state: "visible",
-		},
-	);
+	await page.getByRole("button", { name: /update and restart/i }).click();
 };
 
 export const updateWorkspaceParameters = async (
@@ -1056,7 +1103,7 @@ export const updateWorkspaceParameters = async (
 	});
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: /submit and restart/i }).click();
+	await page.getByRole("button", { name: /update and restart/i }).click();
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1209,48 +1256,3 @@ export async function addUserToOrganization(
 	}
 	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 }
-
-/**
- * disableDynamicParameters navigates to the template settings page and disables
- * dynamic parameters by unchecking the "Enable dynamic parameters" checkbox.
- */
-export const disableDynamicParameters = async (
-	page: Page,
-	templateName: string,
-	orgName = defaultOrganizationName,
-) => {
-	await page.goto(`/templates/${orgName}/${templateName}/settings`, {
-		waitUntil: "domcontentloaded",
-	});
-
-	await page.waitForSelector("form", { state: "visible" });
-
-	// Find and uncheck the "Enable dynamic parameters" checkbox
-	const dynamicParamsCheckbox = page.getByRole("checkbox", {
-		name: /Enable dynamic parameters for workspace creation/,
-	});
-
-	await dynamicParamsCheckbox.waitFor({ state: "visible" });
-
-	// If the checkbox is checked, uncheck it
-	if (await dynamicParamsCheckbox.isChecked()) {
-		await dynamicParamsCheckbox.click();
-	}
-
-	// Save the changes
-	const saveButton = page.getByRole("button", { name: /save/i });
-	await saveButton.waitFor({ state: "visible" });
-	await saveButton.click();
-
-	// Wait for the success message or page to update
-	await page
-		.locator("[role='alert']:has-text('Template updated successfully')")
-		.first()
-		.waitFor({
-			state: "visible",
-			timeout: 15000,
-		});
-
-	// Additional wait to ensure the changes are persisted
-	await page.waitForTimeout(500);
-};

@@ -1,12 +1,11 @@
 import { test } from "@playwright/test";
 import { users } from "../../constants";
 import {
-	buildWorkspaceWithParameters,
 	createTemplate,
 	createWorkspace,
-	disableDynamicParameters,
 	echoResponsesWithParameters,
 	login,
+	startWorkspaceWithEphemeralParameters,
 	stopWorkspace,
 	verifyParameters,
 } from "../../helpers";
@@ -26,9 +25,6 @@ test("start workspace with ephemeral parameters", async ({ page }) => {
 		echoResponsesWithParameters(richParameters),
 	);
 
-	// Disable dynamic parameters to use classic parameter flow for this test
-	await disableDynamicParameters(page, template);
-
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
 
@@ -47,12 +43,15 @@ test("start workspace with ephemeral parameters", async ({ page }) => {
 		{ name: richParameters[1].name, value: "true" },
 	];
 
-	await buildWorkspaceWithParameters(
+	await startWorkspaceWithEphemeralParameters(
 		page,
 		workspaceName,
 		richParameters,
 		buildParameters,
 	);
+
+	// Stop the workspace
+	await stopWorkspace(page, workspaceName);
 
 	// Verify that build options are default (not selected).
 	await verifyParameters(page, workspaceName, richParameters, [

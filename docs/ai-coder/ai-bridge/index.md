@@ -2,7 +2,7 @@
 
 ![AI bridge diagram](../../images/aibridge/aibridge_diagram.png)
 
-AI Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
+AI Bridge is a smart gateway for AI. It acts as an intermediary between your users' coding agents / IDEs
 and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
 the upstream APIs, AI Bridge can record user prompts, token usage, and tool invocations.
 

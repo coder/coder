@@ -3,7 +3,6 @@ import { Button } from "components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
@@ -77,21 +76,19 @@ export const CodeExample: FC<CodeExampleProps> = ({
 
 			<div className="flex items-center gap-1">
 				{showRevealButton && redactPattern && !secret && (
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									onClick={() => setShowFullValue(!showFullValue)}
-								>
-									{icon}
-									<span className="sr-only">{showButtonLabel}</span>
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>{showButtonLabel}</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								onClick={() => setShowFullValue(!showFullValue)}
+							>
+								{icon}
+								<span className="sr-only">{showButtonLabel}</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>{showButtonLabel}</TooltipContent>
+					</Tooltip>
 				)}
 				<CopyButton text={code} label="Copy code" />
 			</div>

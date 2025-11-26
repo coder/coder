@@ -99,6 +99,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	sharedhttpmw "github.com/coder/coder/v2/httpmw"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -861,7 +862,7 @@ func New(options *Options) *API {
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
 	r.Use(
-		httpmw.Recover(api.Logger),
+		sharedhttpmw.Recover(api.Logger),
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
@@ -1023,6 +1024,9 @@ func New(options *Options) *API {
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
 
+		// NOTE(DanielleMaywood):
+		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
+		// where these routes must remain. These should be removed no earlier than Coder v2.30.0
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 
@@ -1036,6 +1040,7 @@ func New(options *Options) *API {
 					r.Use(httpmw.ExtractTaskParam(options.Database))
 					r.Get("/", api.taskGet)
 					r.Delete("/", api.taskDelete)
+					r.Patch("/input", api.taskUpdateInput)
 					r.Post("/send", api.taskSend)
 					r.Get("/logs", api.taskLogs)
 				})
@@ -1648,6 +1653,25 @@ func New(options *Options) *API {
 		})
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
+		})
+		r.Route("/tasks", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+
+			r.Get("/", api.tasksList)
+
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+				r.Post("/", api.tasksCreate)
+
+				r.Route("/{task}", func(r chi.Router) {
+					r.Use(httpmw.ExtractTaskParam(options.Database))
+					r.Get("/", api.taskGet)
+					r.Delete("/", api.taskDelete)
+					r.Patch("/input", api.taskUpdateInput)
+					r.Post("/send", api.taskSend)
+					r.Get("/logs", api.taskLogs)
+				})
+			})
 		})
 	})
 
