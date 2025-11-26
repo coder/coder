@@ -117,6 +117,7 @@ func TestConnectionLog(t *testing.T) {
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
 				},
+				Workspace: &agentapi.CachedWorkspaceFields{},
 			}
 			api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{
