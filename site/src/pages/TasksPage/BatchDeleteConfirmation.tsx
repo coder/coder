@@ -119,8 +119,8 @@ const Tasks: FC<TasksStageProps> = ({ tasks }) => {
 				return against;
 			}
 
-			return new Date(against.created_at).getTime() >
-				new Date(latestSoFar.created_at).getTime()
+			return new Date(against.updated_at).getTime() >
+				new Date(latestSoFar.updated_at).getTime()
 				? against
 				: latestSoFar;
 		},
@@ -150,7 +150,7 @@ const Tasks: FC<TasksStageProps> = ({ tasks }) => {
 								</div>
 								<div className="flex items-center gap-2">
 									<span className="whitespace-nowrap">
-										{dayjs(task.created_at).fromNow()}
+										{dayjs(task.updated_at).fromNow()}
 									</span>
 									<ClockIcon className="size-icon-xs" />
 								</div>
@@ -167,7 +167,7 @@ const Tasks: FC<TasksStageProps> = ({ tasks }) => {
 				{mostRecent && (
 					<div className="flex items-center gap-2">
 						<ClockIcon className="size-icon-xs" />
-						<span>Last created {dayjs(mostRecent.created_at).fromNow()}</span>
+						<span>Last updated {dayjs(mostRecent.updated_at).fromNow()}</span>
 					</div>
 				)}
 			</div>
