@@ -34,7 +34,6 @@ import {
 	type ExternalAuthProviderResource,
 	type GraphComplete,
 	type ParseComplete,
-	type PlanComplete,
 	type Resource,
 	Response,
 	type RichParameter,
@@ -920,9 +919,7 @@ ${options}}
 		],
 		apply: [
 			{
-				apply: {
-
-				},
+				apply: {},
 			},
 		],
 		extraFiles: new Map([["main.tf", tf]]),
@@ -952,9 +949,7 @@ export const echoResponsesWithExternalAuth = (
 		],
 		apply: [
 			{
-				apply: {
-
-				},
+				apply: {},
 			},
 		],
 	};
