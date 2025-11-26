@@ -2297,3 +2297,33 @@ func TestInvalidateTemplatePrebuilds_NoPresets(t *testing.T) {
 	require.NotNil(t, invalidated.Invalidated)
 	require.Len(t, invalidated.Invalidated, 0)
 }
+
+func TestInvalidateTemplatePrebuilds_LicenseFeatureDisabled(t *testing.T) {
+	t.Parallel()
+
+	// Given the template versions and template...
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{},
+	})
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	version1 := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete, ProvisionPlan: echo.PlanComplete, ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version1.ID)
+	template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version1.ID)
+
+	// When
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
+
+	// Then
+	require.Error(t, err, "license feature prebuilds is required")
+	var sdkError *codersdk.Error
+	require.True(t, errors.As(err, &sdkError))
+	require.ErrorAs(t, err, &sdkError)
+	require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+}
