@@ -1529,11 +1529,28 @@ func New(options *Options) *API {
 		})
 		r.Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/daus", api.deploymentDAUs)
-			r.Get("/user-activity", api.insightsUserActivity)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					func(next http.Handler) http.Handler {
+						return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+							if options.DeploymentValues.DisableTemplateInsights.Value() {
+								httpapi.Write(context.Background(), rw, http.StatusForbidden, codersdk.Response{
+									Message: "Forbidden.",
+									Detail:  "Template insights are disabled.",
+								})
+								return
+							}
+
+							next.ServeHTTP(rw, r)
+						})
+					},
+				)
+				r.Get("/daus", api.deploymentDAUs)
+				r.Get("/user-activity", api.insightsUserActivity)
+				r.Get("/user-latency", api.insightsUserLatency)
+				r.Get("/templates", api.insightsTemplates)
+			})
 			r.Get("/user-status-counts", api.insightsUserStatusCounts)
-			r.Get("/user-latency", api.insightsUserLatency)
-			r.Get("/templates", api.insightsTemplates)
 		})
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(
