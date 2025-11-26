@@ -138,6 +138,12 @@ func sendInit(sess proto.DRPCProvisioner_SessionClient, archive []byte) error {
 	}}})
 }
 
+func sendGraph(sess proto.DRPCProvisioner_SessionClient, source proto.GraphSource) error {
+	return sess.Send(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+		Source: source,
+	}}})
+}
+
 func sendPlan(sess proto.DRPCProvisioner_SessionClient, transition proto.WorkspaceTransition) error {
 	return sess.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
 		Metadata: &proto.Metadata{WorkspaceTransition: transition},
