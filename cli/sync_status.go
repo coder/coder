@@ -26,8 +26,8 @@ func (*RootCmd) syncStatus() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "status <unit>",
-		Short: "Inspect unit status and dependency state",
-		Long:  "Display the current status of a unit, whether it is ready to start, and lists its dependencies. Shows which dependencies are satisfied and which are still pending. Supports multiple output formats.",
+		Short: "Show unit status and dependency state",
+		Long:  "Show the current status of a unit, whether it is ready to start, and lists its dependencies. Shows which dependencies are satisfied and which are still pending. Supports multiple output formats.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
 
