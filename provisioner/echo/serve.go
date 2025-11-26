@@ -458,8 +458,9 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 			responses.ProvisionPlan = append(responses.ProvisionPlan, &proto.Response{
 				Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Error:       resp.GetGraph().GetError(),
-					Plan:        []byte("{}"),
+					Error: resp.GetGraph().GetError(),
+					Plan:  []byte("{}"),
+					//nolint:gosec // the number of resources will not exceed int32
 					AiTaskCount: int32(len(resp.GetGraph().GetAiTasks())),
 				}},
 			})
