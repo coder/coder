@@ -30,11 +30,7 @@ func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 
 	path := options.path
 	if path == "" {
-		var err error
-		path, err = getDefaultSocketPath()
-		if err != nil {
-			return nil, xerrors.Errorf("get default socket path: %w", err)
-		}
+		path = defaultSocketPath
 	}
 
 	dialer := net.Dialer{}

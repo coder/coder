@@ -3,8 +3,6 @@
 package agentsocket
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,6 +10,8 @@ import (
 
 	"golang.org/x/xerrors"
 )
+
+const defaultSocketPath = "/tmp/coder-agent.sock"
 
 func createSocket(path string) (net.Listener, error) {
 	if !isSocketAvailable(path) {
@@ -37,21 +37,6 @@ func createSocket(path string) (net.Listener, error) {
 		return nil, xerrors.Errorf("set socket permissions: %w", err)
 	}
 	return listener, nil
-}
-
-func getDefaultSocketPath() (string, error) {
-	randomBytes := make([]byte, 4)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return "", xerrors.Errorf("generate random socket name: %w", err)
-	}
-	randomSuffix := hex.EncodeToString(randomBytes)
-
-	// Try XDG_RUNTIME_DIR first
-	if runtimeDir := os.Getenv("XDG_RUNTIME_DIR"); runtimeDir != "" {
-		return filepath.Join(runtimeDir, "coder-agent-"+randomSuffix+".sock"), nil
-	}
-
-	return filepath.Join("/tmp", "coder-agent-"+randomSuffix+".sock"), nil
 }
 
 func cleanupSocket(path string) error {

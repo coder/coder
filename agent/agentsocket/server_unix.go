@@ -43,11 +43,7 @@ func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
 
 	path := options.path
 	if path == "" {
-		var err error
-		path, err = getDefaultSocketPath()
-		if err != nil {
-			return nil, xerrors.Errorf("get default socket path: %w", err)
-		}
+		path = defaultSocketPath
 	}
 
 	logger = logger.Named("agentsocket-server")
@@ -76,14 +72,6 @@ func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
 			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
 		},
 	})
-
-	if server.path == "" {
-		var err error
-		server.path, err = getDefaultSocketPath()
-		if err != nil {
-			return nil, xerrors.Errorf("get default socket path: %w", err)
-		}
-	}
 
 	listener, err := createSocket(server.path)
 	if err != nil {
