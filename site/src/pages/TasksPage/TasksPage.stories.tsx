@@ -10,7 +10,7 @@ import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { getTemplatesQueryKey } from "../../api/queries/templates";
 import TasksPage from "./TasksPage";
 
@@ -185,19 +185,22 @@ export const LoadedTasksWaitingForInputTab: Story = {
 			});
 			await userEvent.click(waitingForInputTab);
 
-			// Query within the table to check only visible rows
-			const table = await canvas.findByRole("table");
-			const tableContent = within(table);
+			// Wait for the table to update after tab switch
+			await waitFor(async () => {
+				const table = canvas.getByRole("table");
+				const tableContent = within(table);
 
-			await tableContent.findByText("Active Idle Task");
+				// Active idle task should be visible
+				expect(tableContent.getByText("Active Idle Task")).toBeInTheDocument();
 
-			// Only active idle tasks should be visible in the table
-			expect(
-				tableContent.queryByText("Paused Idle Task"),
-			).not.toBeInTheDocument();
-			expect(
-				tableContent.queryByText("Error Idle Task"),
-			).not.toBeInTheDocument();
+				// Only active idle tasks should be visible in the table
+				expect(
+					tableContent.queryByText("Paused Idle Task"),
+				).not.toBeInTheDocument();
+				expect(
+					tableContent.queryByText("Error Idle Task"),
+				).not.toBeInTheDocument();
+			});
 		});
 	},
 };
