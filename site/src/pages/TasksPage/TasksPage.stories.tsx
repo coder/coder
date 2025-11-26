@@ -185,12 +185,19 @@ export const LoadedTasksWaitingForInputTab: Story = {
 			});
 			await userEvent.click(waitingForInputTab);
 
-			// Wait for the active idle task to appear.
-			await canvas.findByText("Active Idle Task");
+			// Query within the table to check only visible rows
+			const table = await canvas.findByRole("table");
+			const tableContent = within(table);
 
-			// Only active idle tasks should be visible.
-			expect(canvas.queryByText("Paused Idle Task")).not.toBeInTheDocument();
-			expect(canvas.queryByText("Error Idle Task")).not.toBeInTheDocument();
+			await tableContent.findByText("Active Idle Task");
+
+			// Only active idle tasks should be visible in the table
+			expect(
+				tableContent.queryByText("Paused Idle Task"),
+			).not.toBeInTheDocument();
+			expect(
+				tableContent.queryByText("Error Idle Task"),
+			).not.toBeInTheDocument();
 		});
 	},
 };
