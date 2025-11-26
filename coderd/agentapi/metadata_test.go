@@ -671,7 +671,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 
 		// Create full API with cached workspace fields (initial state)
 		api := agentapi.New(agentapi.Options{
-			Ctx:            ctxWithActor,
+			AuthenticatedCtx:            ctxWithActor,
 			AgentID:        agentID,
 			WorkspaceID:    workspaceID,
 			OwnerID:        ownerID,
