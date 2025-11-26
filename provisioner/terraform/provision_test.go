@@ -352,9 +352,8 @@ func TestProvision_TextFileBusy(t *testing.T) {
 	})
 
 	sess := configure(ctx, t, api, &proto.Config{})
-	_ = initDo(t, sess, testutil.CreateTar(t, nil))
 
-	err = sendPlan(sess, proto.WorkspaceTransition_START)
+	err = sendInit(sess, testutil.CreateTar(t, nil))
 	require.NoError(t, err)
 
 	found := false
@@ -362,7 +361,7 @@ func TestProvision_TextFileBusy(t *testing.T) {
 		msg, err := sess.Recv()
 		require.NoError(t, err)
 
-		if c := msg.GetPlan(); c != nil {
+		if c := msg.GetInit(); c != nil {
 			require.Contains(t, c.Error, "exit status 1")
 			found = true
 			break

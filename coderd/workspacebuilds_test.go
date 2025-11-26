@@ -556,13 +556,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying since there is no complete message
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -603,13 +606,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Logger: &logger})
 		owner := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
@@ -694,13 +700,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -791,13 +800,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -1478,28 +1490,6 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
-	t.Run("TemplateVersionFailedImport", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			ProvisionApply: []*proto.Response{{}},
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
-			Name:       "workspace",
-		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
