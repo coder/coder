@@ -671,15 +671,15 @@ func TestBatchUpdateMetadata(t *testing.T) {
 
 		// Create full API with cached workspace fields (initial state)
 		api := agentapi.New(agentapi.Options{
-			AuthenticatedCtx:            ctxWithActor,
-			AgentID:        agentID,
-			WorkspaceID:    workspaceID,
-			OwnerID:        ownerID,
-			OrganizationID: orgID,
-			Database:       dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
-			Log:            testutil.Logger(t),
-			Clock:          mClock,
-			Pubsub:         pub,
+			AuthenticatedCtx: ctxWithActor,
+			AgentID:          agentID,
+			WorkspaceID:      workspaceID,
+			OwnerID:          ownerID,
+			OrganizationID:   orgID,
+			Database:         dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
+			Log:              testutil.Logger(t),
+			Clock:            mClock,
+			Pubsub:           pub,
 		}, initialWorkspace) // Cache is initialized with 9am schedule and "my-workspace" name
 
 		// Wait for ticker to be set up and release it so it can fire
