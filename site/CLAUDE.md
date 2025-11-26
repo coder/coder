@@ -69,6 +69,7 @@ import {
 ```
 
 **Common icon mappings:**
+
 - `BusinessIcon` → `Building2Icon`
 - `GroupOutlinedIcon` / `GroupIcon` → `UsersIcon`
 - `PublicOutlinedIcon` / `PublicIcon` → `GlobeIcon`
@@ -89,6 +90,7 @@ When migrating from MUI to Radix components, prop names change:
 ```
 
 **Common prop name changes:**
+
 - `placement` → `side` (for positioning)
 - Remove `PopperProps` (internal implementation, not needed)
 - MUI's `title` prop → Radix uses children pattern with `TooltipContent`
@@ -120,6 +122,7 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 ```
 
 **Common replacements:**
+
 - `css={visuallyHidden}` → `className="sr-only"`
 - `Stack` component → flex with Tailwind classes (`flex`, `flex-col`, `flex-row`, `gap-*`)
 - Theme colors → Tailwind semantic tokens (`text-content-primary`, `bg-surface-secondary`, `border-border-default`)
@@ -131,6 +134,7 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 - Use semantic color names from the theme inside `tailwind.config.js` including `content`, `surface`, `border`, `highlight` semantic tokens
 - Prefer Tailwind utilities over custom CSS when possible
 - For conditional classes, use the `cn()` utility (from `utils/cn`) which combines `clsx` and `tailwind-merge`
+
   ```tsx
   import { cn } from "utils/cn";
   
@@ -179,6 +183,7 @@ parameters: {
 ```
 
 **Important notes:**
+
 - This applies specifically to GET endpoint mocks in Storybook stories
 - `spyOn` is still used for other mock types (POST, PUT, DELETE, non-GET endpoints)
 - Must import the correct query key functions (e.g., `usersKey`, `getTemplatesQueryKey`)
