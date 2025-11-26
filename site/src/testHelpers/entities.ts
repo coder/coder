@@ -1451,6 +1451,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 	dormant_at: null,
 	next_start_at: null,
 	is_prebuild: false,
+	shared_with: [],
 };
 
 export const MockPrebuiltWorkspace = {
