@@ -11,8 +11,8 @@ import (
 func (*RootCmd) syncComplete() *serpent.Command {
 	return &serpent.Command{
 		Use:   "complete <unit>",
-		Short: "Signal that a unit has completed",
-		Long:  "Mark a unit as complete, indicating it has completed its work. This allows units that depend on it to proceed with their startup.",
+		Short: "Mark a unit as complete",
+		Long:  "Mark a unit as complete. Indicating to other units that it has completed its work. This allows units that depend on it to proceed with their startup.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
 
