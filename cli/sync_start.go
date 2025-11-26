@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	SyncPollInterval = 1 * time.Second
+	syncPollInterval = 1 * time.Second
 )
 
 func (*RootCmd) syncStart() *serpent.Command {
@@ -51,7 +51,7 @@ func (*RootCmd) syncStart() *serpent.Command {
 			if !ready {
 				cliui.Info(i.Stdout, "Waiting for dependencies of unit '%s' to be satisfied...", unitName)
 
-				ticker := time.NewTicker(SyncPollInterval)
+				ticker := time.NewTicker(syncPollInterval)
 				defer ticker.Stop()
 
 			pollLoop:
