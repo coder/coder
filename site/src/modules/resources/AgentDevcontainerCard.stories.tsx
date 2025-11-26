@@ -91,6 +91,17 @@ export const Recreating: Story = {
 	},
 };
 
+export const Stopping: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			dirty: true,
+			status: "stopping",
+		},
+		subAgents: [],
+	},
+};
+
 export const NoContainerOrSubAgent: Story = {
 	args: {
 		devcontainer: {
