@@ -1095,7 +1095,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if err != nil {
 			return xerrors.Errorf("fetch metadata: %w", err)
 		}
-		a.logger.Info(ctx, "fetched manifest", slog.F("manifest", mp))
+		a.logger.Info(ctx, "fetched manifest")
 		manifest, err := agentsdk.ManifestFromProto(mp)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
