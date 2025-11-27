@@ -92,6 +92,7 @@ type Options struct {
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
 	Clock                        quartz.Clock
+	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
 }
 
@@ -193,6 +194,7 @@ func New(options Options) Agent {
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
 		socketPath:          options.SocketPath,
+		socketServerEnabled: options.SocketServerEnabled,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -275,8 +277,9 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	socketPath   string
-	socketServer *agentsocket.Server
+	socketServerEnabled bool
+	socketPath          string
+	socketServer        *agentsocket.Server
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -364,14 +367,17 @@ func (a *agent) init() {
 
 // initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
 func (a *agent) initSocketServer() {
-	if a.socketPath == "" {
-		a.logger.Info(a.hardCtx, "socket server disabled (no path configured)")
+	if !a.socketServerEnabled {
+		a.logger.Info(a.hardCtx, "socket server is disabled")
 		return
 	}
 
-	server, err := agentsocket.NewServer(a.socketPath, a.logger.Named("socket"))
+	server, err := agentsocket.NewServer(
+		a.logger.Named("socket"),
+		agentsocket.WithPath(a.socketPath),
+	)
 	if err != nil {
-		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err))
+		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
 		return
 	}
 

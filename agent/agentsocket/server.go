@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
-
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -16,21 +15,6 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
-
-// Client wraps a DRPC client with connection management.
-// This type is defined here so it's available on all platforms.
-type Client struct {
-	proto.DRPCAgentSocketClient
-	conn net.Conn
-}
-
-// Close closes the client connection.
-func (c *Client) Close() error {
-	if c.conn != nil {
-		return c.conn.Close()
-	}
-	return nil
-}
 
 // Server provides access to the DRPCAgentSocketService via a Unix domain socket.
 // Do not invoke Server{} directly. Use NewServer() instead.
@@ -47,11 +31,17 @@ type Server struct {
 	wg       sync.WaitGroup
 }
 
-func NewServer(path string, logger slog.Logger) (*Server, error) {
+// NewServer creates a new agent socket server.
+func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
+	options := &options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	logger = logger.Named("agentsocket-server")
 	server := &Server{
 		logger: logger,
-		path:   path,
+		path:   options.path,
 		service: &DRPCAgentSocketService{
 			logger:      logger,
 			unitManager: unit.NewManager(),
@@ -75,14 +65,6 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 		},
 	})
 
-	if server.path == "" {
-		var err error
-		server.path, err = getDefaultSocketPath()
-		if err != nil {
-			return nil, xerrors.Errorf("get default socket path: %w", err)
-		}
-	}
-
 	listener, err := createSocket(server.path)
 	if err != nil {
 		return nil, xerrors.Errorf("create socket: %w", err)
@@ -105,6 +87,7 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 	return server, nil
 }
 
+// Close stops the server and cleans up resources.
 func (s *Server) Close() error {
 	s.mu.Lock()
 
