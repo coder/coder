@@ -48,7 +48,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 				</div>
 			)}
 
-			<div className="gap-2 flex items-center">
+			<div className="ml-auto gap-2 flex items-center">
 				<TaskStartupWarningButton
 					lifecycleState={task.workspace_agent_lifecycle}
 				/>
