@@ -1,6 +1,6 @@
 # Frontend Development Guidelines
 
-## 🚨 Critical Pattern Migrations (MUST FOLLOW)
+## Critical Pattern Migrations (MUST FOLLOW)
 
 The following patterns are actively being migrated and have **STRICT policies**:
 
