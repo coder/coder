@@ -117,9 +117,9 @@ export const ObservabilitySettingsPageView: FC<
 					</SettingsHeader>
 
 					<OptionsTable
-						options={options
-							.filter((o) => deploymentGroupHasParent(o.group, "AIBridge"))
-							.filter((o) => !o.hidden)}
+						options={options.filter((o) =>
+							deploymentGroupHasParent(o.group, "AIBridge"),
+						)}
 					/>
 				</div>
 			)}
