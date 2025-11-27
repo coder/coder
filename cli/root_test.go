@@ -72,6 +72,7 @@ func TestCommandHelp(t *testing.T) {
 			Name: "coder provisioner jobs list --output json",
 			Cmd:  []string{"provisioner", "jobs", "list", "--output", "json"},
 		},
+		// TODO (SasSwart): Remove these once the sync commands are promoted out of experimental.
 		clitest.CommandHelpCase{
 			Name: "coder exp sync --help",
 			Cmd:  []string{"exp", "sync", "--help"},
