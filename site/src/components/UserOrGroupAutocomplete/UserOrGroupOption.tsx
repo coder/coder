@@ -3,7 +3,7 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import type { HTMLAttributes } from "react";
 import { getGroupSubtitle } from "utils/groups";
 
-export type UserOrGroupAutocompleteValue = User | ReducedUser | Group | null;
+type UserOrGroupAutocompleteValue = User | ReducedUser | Group | null;
 
 type UserOption = User | ReducedUser;
 type OptionType = UserOption | Group;

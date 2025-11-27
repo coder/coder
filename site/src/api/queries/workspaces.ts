@@ -45,7 +45,7 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	};
 };
 
-export const workspaceACLKey = (workspaceId: string) => [
+const workspaceACLKey = (workspaceId: string) => [
 	"workspaceAcl",
 	workspaceId,
 ];
