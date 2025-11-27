@@ -53,11 +53,8 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 						Invalidate presets
 					</h3>
 					<p className="text-sm text-content-secondary">
-						All prebuilt workspaces for the active template version are marked
-						as invalid. The reconciler automatically identifies expired
-						prebuilds created before the invalidation time. This is useful when
-						prebuilds become stale due to repository changes or infrastructure
-						updates and need recycling.
+						All prebuilt workspaces for the active template version are marked as invalid.
+						This is useful when prebuilds become stale due to repository changes or infrastructure updates and need recycling.
 					</p>
 				</div>
 
