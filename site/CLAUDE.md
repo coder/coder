@@ -78,7 +78,6 @@ When migrating from MUI to Radix components, use Radix naming conventions:
 - **Emotion CSS is STRICTLY DEPRECATED: "no new emotion styles, full stop"**
   - Never use `@emotion/react`, `css` prop, `useTheme()`, or emotion styled components
   - Always use Tailwind CSS utility classes instead
-  - When touching code with emotion styles, refactor to Tailwind ("leave the campsite better than you found it")
 - Use custom Tailwind classes in tailwind.config.js
 - Tailwind CSS reset is currently not used to maintain compatibility with MUI
 - Responsive design - use Tailwind's responsive prefixes (sm:, md:, lg:, xl:)
@@ -86,7 +85,7 @@ When migrating from MUI to Radix components, use Radix naming conventions:
 
 ### Common Emotion → Tailwind Migrations
 
-Never import from `@emotion/react`. Use Tailwind CSS utility classes:
+Use Tailwind CSS utility classes:
 
 ```tsx
 <div className="flex flex-col gap-2">
@@ -188,23 +187,6 @@ parameters: {
 3. `pnpm format` - Format code consistently
 4. `pnpm test` - Run affected unit tests
 5. Visual check in Storybook if component changes
-
-## Migration (MUI → shadcn) (Emotion → Tailwind)
-
-### Migration Strategy
-
-- Identify MUI components in current feature
-- Find shadcn equivalent in existing components
-- Create wrapper if needed for missing functionality
-- Update tests to reflect new component structure
-- Remove MUI imports once migration complete
-
-### Migration Guidelines
-
-- Use Tailwind classes for all new styling
-- Replace Emotion `css` prop with Tailwind classes
-- Leverage custom color tokens: `content-primary`, `surface-secondary`, etc.
-- Use `className` with `clsx` for conditional styling
 
 ## React Rules
 
