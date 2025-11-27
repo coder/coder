@@ -295,6 +295,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			now  = dbtime.Now()
 			// Set up consistent IDs that represent a valid workspace->agent relationship
 			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
+			templateID  = uuid.MustParse("aaaabbbb-cccc-dddd-eeee-ffffffff0000")
 			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
 			orgID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
 			agentID     = uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")

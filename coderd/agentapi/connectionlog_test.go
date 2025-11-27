@@ -186,3 +186,94 @@ func asAtomicPointer[T any](v T) *atomic.Pointer[T] {
 	p.Store(&v)
 	return &p
 }
+
+func TestWorkspaceCached_SkipsDBCall(t *testing.T) {
+	t.Parallel()
+
+	var (
+		owner = database.User{
+			ID:       uuid.New(),
+			Username: "cool-user",
+		}
+		workspace = database.Workspace{
+			ID:             uuid.New(),
+			OrganizationID: uuid.New(),
+			OwnerID:        owner.ID,
+			Name:           "cool-workspace",
+		}
+		agent = database.WorkspaceAgent{
+			ID: uuid.New(),
+		}
+	)
+	id:=     uuid.New()
+	action:= agentproto.Connection_CONNECT.Enum()
+	typ:=    agentproto.Connection_SSH.Enum()
+	time:=   dbtime.Now()
+	ip:=     "127.0.0.1"
+	status:= 200
+	reason := ""
+	cachedWorkspace := &agentapi.CachedWorkspaceFields{}
+
+
+	cachedWorkspace.UpdateValues(workspace)
+
+	connLogger := connectionlog.NewFake()
+
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	// mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
+
+	api := &agentapi.ConnLogAPI{
+		ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
+		Database:         mDB,
+		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+			return agent, nil
+		},
+		Workspace: cachedWorkspace,
+	}
+	api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
+		Connection: &agentproto.Connection{
+			Id:         id[:],
+			Action:     *action,
+			Type:       *typ,
+			Timestamp:  timestamppb.New(time),
+			Ip:         ip,
+			StatusCode: int32(status),
+			Reason:     &reason,
+		},
+	})
+
+	expectedIPRaw := ip
+	if expectedIPRaw == "localhost" {
+		expectedIPRaw = "127.0.0.1"
+	}
+	expectedIP := database.ParseIP(expectedIPRaw)
+
+	require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
+		Time:             dbtime.Time(time),
+		OrganizationID:   workspace.OrganizationID,
+		WorkspaceOwnerID: workspace.OwnerID,
+		WorkspaceID:      workspace.ID,
+		WorkspaceName:    workspace.Name,
+		AgentName:        agent.Name,
+		UserID: uuid.NullUUID{
+			UUID:  uuid.Nil,
+			Valid: false,
+		},
+		ConnectionStatus: agentProtoConnectionActionToConnectionLog(t, *action),
+
+		Code: sql.NullInt32{
+			Int32: int32(status),
+			Valid: *action == agentproto.Connection_DISCONNECT,
+		},
+		Ip:   expectedIP,
+		Type: agentProtoConnectionTypeToConnectionLog(t, *typ),
+		DisconnectReason: sql.NullString{
+			String: reason,
+			Valid:  reason != "",
+		},
+		ConnectionID: uuid.NullUUID{
+			UUID:  id,
+			Valid: id != uuid.Nil,
+		},
+	}))
+}

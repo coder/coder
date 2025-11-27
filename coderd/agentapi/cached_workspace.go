@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"sync"
+	"fmt"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -46,6 +47,7 @@ func (cws *CachedWorkspaceFields) AsWorkspaceIdentity() (database.WorkspaceIdent
 	defer cws.lock.RUnlock()
 	// Should we be more explicit about all fields being set to be valid?
 	if cws.identity.Equal(database.WorkspaceIdentity{}) {
+		fmt.Println("not okay")
 		return database.WorkspaceIdentity{}, false
 	}
 	return cws.identity, true

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"sync/atomic"
+	"fmt"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -56,7 +57,9 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	// Inject RBAC object into context for dbauthz fast path, avoid having to
 	// call GetWorkspaceByAgentID on every metadata update.
 	rbacCtx := ctx
+	var ws database.WorkspaceIdentity
 	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		ws = dbws
 		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
 		if err != nil {
 			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
@@ -70,10 +73,15 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, xerrors.Errorf("get agent: %w", err)
 	}
-	workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace by agent id: %w", err)
+	if ws.Equal(database.WorkspaceIdentity{}) {
+		fmt.Println("workspace identity was not set?")
+		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by agent id: %w", err)
+		}
+		ws = database.WorkspaceIdentityFromWorkspace(workspace)
 	}
+	
 
 	// Some older clients may incorrectly report "localhost" as the IP address.
 	// Related to https://github.com/coder/coder/issues/20194
@@ -88,10 +96,10 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
 		Time:             req.GetConnection().GetTimestamp().AsTime(),
-		OrganizationID:   workspace.OrganizationID,
-		WorkspaceOwnerID: workspace.OwnerID,
-		WorkspaceID:      workspace.ID,
-		WorkspaceName:    workspace.Name,
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
 		AgentName:        workspaceAgent.Name,
 		Type:             connectionType,
 		Code:             code,
