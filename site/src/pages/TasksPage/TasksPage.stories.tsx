@@ -10,7 +10,7 @@ import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { getTemplatesQueryKey } from "../../api/queries/templates";
 import TasksPage from "./TasksPage";
 
@@ -145,6 +145,29 @@ export const LoadedTasksWaitingForInputTab: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
+				id: "active-idle-task",
+				display_name: "Active Idle Task",
+				status: "active",
+				current_state: {
+					...firstTask.current_state,
+					state: "idle",
+				},
+			},
+			{
+				...firstTask,
+				id: "paused-idle-task",
+				display_name: "Paused Idle Task",
+				status: "paused",
+				current_state: {
+					...firstTask.current_state,
+					state: "idle",
+				},
+			},
+			{
+				...firstTask,
+				id: "error-idle-task",
+				display_name: "Error Idle Task",
+				status: "error",
 				current_state: {
 					...firstTask.current_state,
 					state: "idle",
@@ -161,6 +184,23 @@ export const LoadedTasksWaitingForInputTab: Story = {
 				name: /waiting for input/i,
 			});
 			await userEvent.click(waitingForInputTab);
+
+			// Wait for the table to update after tab switch
+			await waitFor(async () => {
+				const table = canvas.getByRole("table");
+				const tableContent = within(table);
+
+				// Active idle task should be visible
+				expect(tableContent.getByText("Active Idle Task")).toBeInTheDocument();
+
+				// Only active idle tasks should be visible in the table
+				expect(
+					tableContent.queryByText("Paused Idle Task"),
+				).not.toBeInTheDocument();
+				expect(
+					tableContent.queryByText("Error Idle Task"),
+				).not.toBeInTheDocument();
+			});
 		});
 	},
 };
