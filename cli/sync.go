@@ -31,23 +31,5 @@ func (r *RootCmd) syncCommand() *serpent.Command {
 		},
 	}
 
-	// Add the socket path option to all child commands so it appears in their help
-	cmd.Walk(func(c *serpent.Command) {
-		// Skip the parent command itself
-		if c == cmd {
-			return
-		}
-		// Check if the option already exists (shouldn't, but be safe)
-		existing := c.Options.ByName("socket-path")
-		if existing == nil {
-			c.Options = append(c.Options, serpent.Option{
-				Flag:        "socket-path",
-				Env:         "CODER_AGENT_SOCKET_PATH",
-				Description: "Specify the path for the agent socket.",
-				Value:       serpent.StringOf(&socketPath),
-			})
-		}
-	})
-
 	return cmd
 }

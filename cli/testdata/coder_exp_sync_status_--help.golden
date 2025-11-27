@@ -16,8 +16,5 @@ OPTIONS:
   -o, --output table|json (default: table)
           Output format.
 
-      --socket-path string, $CODER_AGENT_SOCKET_PATH
-          Specify the path for the agent socket.
-
 ———
 Run `coder --help` for a list of global options.

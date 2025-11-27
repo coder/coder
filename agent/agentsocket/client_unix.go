@@ -25,18 +25,15 @@ type Client struct {
 // If path is not provided via WithPath or is empty, it will auto-discover the
 // default socket path.
 func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
-	options := &options{}
+	options := &options{
+		path: defaultSocketPath,
+	}
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	path := options.path
-	if path == "" {
-		path = defaultSocketPath
-	}
-
 	dialer := net.Dialer{}
-	conn, err := dialer.DialContext(ctx, "unix", path)
+	conn, err := dialer.DialContext(ctx, "unix", options.path)
 	if err != nil {
 		return nil, xerrors.Errorf("connect to socket: %w", err)
 	}

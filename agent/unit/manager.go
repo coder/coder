@@ -27,7 +27,7 @@ type Status string
 var _ fmt.Stringer = Status("")
 
 func (s Status) String() string {
-	if s == "" {
+	if s == StatusNotRegistered {
 		return "not registered"
 	}
 	return string(s)

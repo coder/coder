@@ -4,4 +4,4 @@ Ready: false
 
 DEPENDS ON  REQUIRED STATUS  CURRENT STATUS  SATISFIED  
 dep-1       completed        completed       true       
-dep-2       completed        not registered  false      
+dep-2       completed        not registered  false
