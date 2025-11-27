@@ -139,7 +139,7 @@ func (n FeatureName) Humanize() string {
 	case FeatureSCIM:
 		return "SCIM"
 	case FeatureAIBridge:
-		return "AIBridge"
+		return "AI Bridge"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -1174,7 +1174,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:   "inbox",
 		}
 		deploymentGroupAIBridge = serpent.Group{
-			Name: "AIBridge",
+			Name: "AI Bridge",
 			YAML: "aibridge",
 		}
 	)
@@ -3302,7 +3302,7 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "bedrock_region",
 		},
 		{
-			Name:        "AIBridge Bedrock Access Key",
+			Name:        "AI Bridge Bedrock Access Key",
 			Description: "The access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",

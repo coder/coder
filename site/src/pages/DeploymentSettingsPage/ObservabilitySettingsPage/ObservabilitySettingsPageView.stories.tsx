@@ -60,9 +60,9 @@ export const AIBridge: Story = {
 		featureAIBridgeEnabled: true,
 		options: [
 			{
-				name: "AIBridge Enabled",
+				name: "AI Bridge Enabled",
 				value: true,
-				group: { name: "AIBridge" },
+				group: { name: "AI Bridge" },
 				flag: "aibridge-enabled",
 				hidden: false,
 			},

@@ -118,7 +118,7 @@ export const ObservabilitySettingsPageView: FC<
 
 					<OptionsTable
 						options={options
-							.filter((o) => deploymentGroupHasParent(o.group, "AIBridge"))
+							.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
 							.filter((o) => !o.annotations?.secret === true)}
 					/>
 				</div>
