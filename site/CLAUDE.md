@@ -52,30 +52,17 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 
 ### Icon Migration: MUI Icons → lucide-react
 
-**STRICT POLICY**: Never import from `@mui/icons-material`. Always use `lucide-react` instead.
-
-**Use lucide-react icons:**
+Never import from `@mui/icons-material`. Use `lucide-react` instead.
 
 ```tsx
-import {
-  Building2Icon,
-  UsersIcon,
-  GlobeIcon,
-  UserIcon,
-} from "lucide-react";
+import { Building2Icon, UsersIcon, GlobeIcon, UserIcon } from "lucide-react";
 ```
 
-**Common icon replacements:**
-
-- Replace `BusinessIcon` with `Building2Icon`
-- Replace `GroupOutlinedIcon` / `GroupIcon` with `UsersIcon`
-- Replace `PublicOutlinedIcon` / `PublicIcon` with `GlobeIcon`
-- Replace `PersonIcon` with `UserIcon`
-- Always use descriptive lucide-react icons over generic alternatives
+**Common replacements:** `BusinessIcon` → `Building2Icon`, `GroupIcon` → `UsersIcon`, `PublicIcon` → `GlobeIcon`, `PersonIcon` → `UserIcon`
 
 ### MUI → Radix Component Prop Naming
 
-When migrating from MUI to Radix components, prop names change. Use Radix naming conventions:
+When migrating from MUI to Radix components, use Radix naming conventions:
 
 ```tsx
 <Tooltip side="top">
@@ -84,11 +71,7 @@ When migrating from MUI to Radix components, prop names change. Use Radix naming
 </Tooltip>
 ```
 
-**Common prop name changes from MUI:**
-
-- Use `side` instead of `placement` for positioning
-- Remove `PopperProps` (internal implementation detail, not needed in Radix)
-- MUI's `title` prop is replaced by Radix's children pattern with `TooltipContent`
+**Prop changes from MUI:** Use `side` instead of `placement`, remove `PopperProps`, and use `TooltipContent` children instead of `title` prop.
 
 ## Styling
 
@@ -118,10 +101,9 @@ Never import from `@emotion/react`. Use Tailwind CSS utility classes:
 **Common replacements:**
 
 - Replace `css={visuallyHidden}` with `className="sr-only"`
-- Replace `Stack` component with flex layouts using Tailwind (`flex`, `flex-col`, `flex-row`, `gap-*`)
-- Replace emotion theme colors with Tailwind semantic tokens (`text-content-primary`, `bg-surface-secondary`, `border-border-default`)
-- Replace emotion `css` prop with `className` and Tailwind utilities
-- Use lucide-react icons with `size-icon-sm`, `size-icon-xs` classes for sizing
+- Replace `Stack` component with Tailwind flex (`flex`, `flex-col`, `gap-*`)
+- Replace emotion `css` prop and theme colors with Tailwind utilities (`text-content-primary`, `bg-surface-secondary`, `border-border-default`)
+- Use lucide-react icons with `size-icon-sm`, `size-icon-xs` classes
 
 ## Tailwind Best Practices
 
@@ -176,24 +158,20 @@ parameters: {
 
 ### Chromatic/Storybook Testing Best Practices
 
-- **Prefer visual validation through snapshots** over programmatic assertions
-- Chromatic snapshots catch visual changes during review
-- Avoid programmatic assertions in stories that duplicate what snapshots show
-- Programmatic assertions can introduce flakiness - remove when redundant
-- Stories are snapshot tests - rely on the screenshot to verify correctness
+- Prefer visual validation through Chromatic snapshots over programmatic assertions
+- Remove redundant assertions that duplicate snapshot validation
+- Stories are snapshot tests - rely on screenshots to verify correctness
 
 ## State Storage
 
 ### localStorage vs user_configs table
 
-**IMPORTANT**: For user preferences that should persist across devices and browsers, use the `user_configs` table in the backend, NOT `localStorage`.
+**IMPORTANT**: Use `user_configs` table for user preferences, NOT `localStorage`.
 
-- **localStorage is browser-specific**, not user-specific
-- **User preferences should persist** across devices/browsers
-- Follow the plumbing for `theme_preference` as a reference example
-- localStorage may be acceptable only for truly transient UI state that doesn't need to follow the user
-
-**Key principle**: If a user dismisses something or sets a preference, it should be tied to their account, not their browser.
+- localStorage is browser-specific; user preferences should persist across devices
+- Follow `theme_preference` as reference implementation
+- Use localStorage only for truly transient UI state
+- **Key principle**: User preferences should be tied to their account, not their browser
 
 ## Workflow
 
