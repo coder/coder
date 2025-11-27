@@ -51,3 +51,15 @@ export const PresetsInvalidated: Story = {
 		await user.click(groupLabel);
 	},
 };
+
+export const InvalidationFailed: Story = {
+	play: async ({ canvasElement }) => {
+		spyOn(API, "invalidateTemplatePresets").mockRejectedValue(
+			new Error("Mocked error"),
+		);
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const groupLabel = await canvas.findByText("Invalidate now");
+		await user.click(groupLabel);
+	},
+};
