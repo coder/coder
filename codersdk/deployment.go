@@ -139,7 +139,7 @@ func (n FeatureName) Humanize() string {
 	case FeatureSCIM:
 		return "SCIM"
 	case FeatureAIBridge:
-		return "AI Bridge"
+		return "AIBridge"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -1174,7 +1174,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:   "inbox",
 		}
 		deploymentGroupAIBridge = serpent.Group{
-			Name: "AI Bridge",
+			Name: "AIBridge",
 			YAML: "aibridge",
 		}
 	)
@@ -3268,6 +3268,8 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
 		},
 		{
 			Name:        "AI Bridge Anthropic Base URL",
@@ -3288,6 +3290,8 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "anthropic_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
 		},
 		{
 			Name:        "AI Bridge Bedrock Region",
@@ -3308,6 +3312,8 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_access_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key Secret",
@@ -3318,6 +3324,8 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_access_key_secret",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
 		},
 		{
 			Name:        "AI Bridge Bedrock Model",
