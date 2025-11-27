@@ -23,7 +23,7 @@ type TaskTopbarProps = { task: Task; workspace: Workspace };
 
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 	return (
-		<header className="flex flex-shrink-0 items-center p-3 border-solid border-border border-0 border-b">
+		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -48,7 +48,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 				</div>
 			)}
 
-			<div className="ml-auto gap-2 flex items-center">
+			<div className="gap-2 flex items-center">
 				<TaskStartupWarningButton
 					lifecycleState={task.workspace_agent_lifecycle}
 				/>
