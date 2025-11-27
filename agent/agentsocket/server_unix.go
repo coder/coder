@@ -46,7 +46,7 @@ func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
 	logger = logger.Named("agentsocket-server")
 	server := &Server{
 		logger: logger,
-		path:   path,
+		path:   options.path,
 		service: &DRPCAgentSocketService{
 			logger:      logger,
 			unitManager: unit.NewManager(),
