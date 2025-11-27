@@ -2103,6 +2103,7 @@ export type FeatureName =
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
+	| "task_batch_actions"
 	| "template_rbac"
 	| "user_limit"
 	| "user_role_management"
@@ -2128,6 +2129,7 @@ export const FeatureNames: FeatureName[] = [
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
+	"task_batch_actions",
 	"template_rbac",
 	"user_limit",
 	"user_role_management",
