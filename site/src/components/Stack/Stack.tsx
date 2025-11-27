@@ -1,6 +1,10 @@
 import type { CSSObject } from "@emotion/react";
 import { forwardRef } from "react";
 
+/**
+ * @deprecated Stack component is deprecated. Use Tailwind flex utilities instead.
+ * Example: <div className="flex flex-col gap-4">...</div>
+ */
 type StackProps = {
 	className?: string;
 	direction?: "column" | "row";
@@ -10,6 +14,10 @@ type StackProps = {
 	wrap?: CSSObject["flexWrap"];
 } & React.HTMLProps<HTMLDivElement>;
 
+/**
+ * @deprecated Stack component is deprecated. Use Tailwind flex utilities instead.
+ * Example: <div className="flex flex-col gap-4">...</div>
+ */
 export const Stack = forwardRef<HTMLDivElement, StackProps>((props, ref) => {
 	const {
 		children,

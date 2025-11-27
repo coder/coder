@@ -3,7 +3,9 @@ import {
 	CacheProvider,
 	ThemeProvider as EmotionThemeProvider,
 } from "@emotion/react";
+/** @deprecated MUI CssBaseline is deprecated. Migrate to shadcn/ui components and Tailwind CSS. */
 import CssBaseline from "@mui/material/CssBaseline";
+/** @deprecated MUI components are deprecated. Migrate to shadcn/ui components and Tailwind CSS. */
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
