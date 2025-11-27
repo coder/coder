@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 )
@@ -19,6 +20,7 @@ import (
 type ConnLogAPI struct {
 	AgentFn          func(context.Context) (database.WorkspaceAgent, error)
 	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
+	Workspace        *CachedWorkspaceFields
 	Database         database.Store
 	Log              slog.Logger
 }
@@ -51,8 +53,20 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 	}
 
+	// Inject RBAC object into context for dbauthz fast path, avoid having to
+	// call GetWorkspaceByAgentID on every metadata update.
+	rbacCtx := ctx
+	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
+		if err != nil {
+			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
+			//nolint:gocritic
+			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
+		}
+	}
+
 	// Fetch contextual data for this connection log event.
-	workspaceAgent, err := a.AgentFn(ctx)
+	workspaceAgent, err := a.AgentFn(rbacCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("get agent: %w", err)
 	}
