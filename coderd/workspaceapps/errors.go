@@ -125,15 +125,26 @@ func WriteWorkspaceOffline(log slog.Logger, accessURL *url.URL, rw http.Response
 		)
 	}
 
+	actions := []site.Action{
+		{
+			URL:  accessURL.String(),
+			Text: "Back to site",
+		},
+	}
+
+	workspaceURL, err := url.Parse(accessURL.String())
+	if err == nil {
+		workspaceURL.Path = path.Join(accessURL.Path, "@"+appReq.UsernameOrID, appReq.WorkspaceNameOrID)
+		actions = append(actions, site.Action{
+			URL:  workspaceURL.String(),
+			Text: "View workspace",
+		})
+	}
+
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 		Status:      http.StatusBadRequest,
 		Title:       "Workspace Offline",
 		Description: fmt.Sprintf("Last workspace transition was to the %q state. Start the workspace to access its applications.", codersdk.WorkspaceTransitionStop),
-		Actions: []site.Action{
-			{
-				URL:  accessURL.String(),
-				Text: "Back to site",
-			},
-		},
+		Actions:     actions,
 	})
 }
