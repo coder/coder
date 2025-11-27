@@ -36,9 +36,10 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 
 			// They all have the same template version
 			const { template_version_name } = data.invalidated[0];
+			const count = data.invalidated.length;
 
 			displaySuccess(
-				`Invalidated ${data.invalidated.length} preset(s) for version ${template_version_name}.`,
+				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version ${template_version_name}.`,
 			);
 		},
 		onError: () => displayError("Failed to invalidate template presets."),

@@ -106,7 +106,8 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	// have permission to update templates. Need both checks.
 	const shouldShowInsights =
 		data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
-	const { workspace_prebuilds: isWorkspacePrebuildsEnabled } = useFeatureVisibility();
+	const { workspace_prebuilds: isWorkspacePrebuildsEnabled } =
+		useFeatureVisibility();
 
 	if (error || workspacePermissionsQuery.error) {
 		return (
@@ -159,11 +160,12 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 								Insights
 							</TabLink>
 						)}
-						{isWorkspacePrebuildsEnabled && data.permissions.canUpdateTemplate && (
-							<TabLink to="prebuilds" value="prebuilds">
-								Prebuilds
-							</TabLink>
-						)}
+						{isWorkspacePrebuildsEnabled &&
+							data.permissions.canUpdateTemplate && (
+								<TabLink to="prebuilds" value="prebuilds">
+									Prebuilds
+								</TabLink>
+							)}
 					</TabsList>
 				</Margins>
 			</Tabs>
