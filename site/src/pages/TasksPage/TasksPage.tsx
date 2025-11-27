@@ -23,7 +23,7 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ChevronDownIcon, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -96,13 +96,6 @@ const TasksPage: FC = () => {
 		(t) => t.workspace_id !== null,
 	).length;
 
-	// Clear selections when switching tabs/filters to avoid confusing UX
-	// where selected tasks might no longer be visible.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset on tab/filter changes.
-	useEffect(() => {
-		setCheckedTaskIds(new Set());
-	}, [tab.value, ownerFilter.value]);
-
 	return (
 		<>
 			<title>{pageTitle("AI Tasks")}</title>
@@ -130,14 +123,20 @@ const TasksPage: FC = () => {
 										<div className="flex items-center bg-surface-secondary rounded p-1">
 											<PillButton
 												active={tab.value === "all"}
-												onClick={() => tab.setValue("all")}
+												onClick={() => {
+													tab.setValue("all");
+													setCheckedTaskIds(new Set());
+												}}
 											>
 												All tasks
 											</PillButton>
 											<PillButton
 												disabled={!idleTasks || idleTasks.length === 0}
 												active={tab.value === "waiting-for-input"}
-												onClick={() => tab.setValue("waiting-for-input")}
+												onClick={() => {
+													tab.setValue("waiting-for-input");
+													setCheckedTaskIds(new Set());
+												}}
 											>
 												Waiting for input
 												{idleTasks && idleTasks.length > 0 && (
@@ -154,6 +153,7 @@ const TasksPage: FC = () => {
 												ownerFilter.setValue(
 													username === ownerFilter.value ? "" : username,
 												);
+												setCheckedTaskIds(new Set());
 											}}
 										/>
 									</section>
