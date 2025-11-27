@@ -2,6 +2,7 @@ package unit
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -22,6 +23,15 @@ var (
 
 // Status represents the status of a unit.
 type Status string
+
+var _ fmt.Stringer = Status("")
+
+func (s Status) String() string {
+	if s == "" {
+		return "not registered"
+	}
+	return string(s)
+}
 
 // Status constants for dependency tracking.
 const (

@@ -10,7 +10,7 @@ USAGE:
   pending. Supports multiple output formats.
 
 OPTIONS:
-  -c, --column [unit|status|ready|dependencies] (default: unit,status,ready,dependencies)
+  -c, --column [depends on|required status|current status|satisfied] (default: depends on,required status,current status,satisfied)
           Columns to display in table output.
 
   -o, --output table|json (default: table)

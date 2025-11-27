@@ -124,8 +124,11 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 	}
 
 	dependencies, err := s.unitManager.GetAllDependencies(unitID)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to get dependencies: %w", err)
+	switch {
+	case errors.Is(err, unit.ErrUnitNotFound):
+		dependencies = []unit.Dependency{}
+	case err != nil:
+		return nil, xerrors.Errorf("cannot get dependencies: %w", err)
 	}
 
 	var depInfos []*proto.DependencyInfo

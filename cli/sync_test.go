@@ -190,141 +190,141 @@ func TestSyncCommands_Golden(t *testing.T) {
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/complete_success", outBuf.Bytes(), nil)
 	})
 
-	// t.Run("status_pending", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	path, cleanup := setupSocketServer(t)
-	// 	defer cleanup()
+	t.Run("status_pending", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
 
-	// 	ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	// 	// Set up a unit with unsatisfied dependency
-	// 	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
-	// 	require.NoError(t, err)
-	// 	err = client.SyncWant(ctx, "test-unit", "dep-unit")
-	// 	require.NoError(t, err)
-	// 	client.Close()
+		// Set up a unit with unsatisfied dependency
+		client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
+		require.NoError(t, err)
+		err = client.SyncWant(ctx, "test-unit", "dep-unit")
+		require.NoError(t, err)
+		client.Close()
 
-	// 	var outBuf bytes.Buffer
-	// 	inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
-	// 	inv.Stdout = &outBuf
-	// 	inv.Stderr = &outBuf
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
 
-	// 	err = inv.WithContext(ctx).Run()
-	// 	require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
 
-	// 	clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_pending", outBuf.Bytes(), nil)
-	// })
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_pending", outBuf.Bytes(), nil)
+	})
 
-	// t.Run("status_started", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	path, cleanup := setupSocketServer(t)
-	// 	defer cleanup()
+	t.Run("status_started", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
 
-	// 	ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	// 	// Start a unit
-	// 	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
-	// 	require.NoError(t, err)
-	// 	err = client.SyncStart(ctx, "test-unit")
-	// 	require.NoError(t, err)
-	// 	client.Close()
+		// Start a unit
+		client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
+		require.NoError(t, err)
+		err = client.SyncStart(ctx, "test-unit")
+		require.NoError(t, err)
+		client.Close()
 
-	// 	var outBuf bytes.Buffer
-	// 	inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
-	// 	inv.Stdout = &outBuf
-	// 	inv.Stderr = &outBuf
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
 
-	// 	err = inv.WithContext(ctx).Run()
-	// 	require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
 
-	// 	clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_started", outBuf.Bytes(), nil)
-	// })
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_started", outBuf.Bytes(), nil)
+	})
 
-	// t.Run("status_completed", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	path, cleanup := setupSocketServer(t)
-	// 	defer cleanup()
+	t.Run("status_completed", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
 
-	// 	ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	// 	// Start and complete a unit
-	// 	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
-	// 	require.NoError(t, err)
-	// 	err = client.SyncStart(ctx, "test-unit")
-	// 	require.NoError(t, err)
-	// 	err = client.SyncComplete(ctx, "test-unit")
-	// 	require.NoError(t, err)
-	// 	client.Close()
+		// Start and complete a unit
+		client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
+		require.NoError(t, err)
+		err = client.SyncStart(ctx, "test-unit")
+		require.NoError(t, err)
+		err = client.SyncComplete(ctx, "test-unit")
+		require.NoError(t, err)
+		client.Close()
 
-	// 	var outBuf bytes.Buffer
-	// 	inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
-	// 	inv.Stdout = &outBuf
-	// 	inv.Stderr = &outBuf
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
 
-	// 	err = inv.WithContext(ctx).Run()
-	// 	require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
 
-	// 	clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_completed", outBuf.Bytes(), nil)
-	// })
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_completed", outBuf.Bytes(), nil)
+	})
 
-	// t.Run("status_with_dependencies", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	path, cleanup := setupSocketServer(t)
-	// 	defer cleanup()
+	t.Run("status_with_dependencies", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
 
-	// 	ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	// 	// Set up a unit with dependencies, some satisfied, some not
-	// 	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
-	// 	require.NoError(t, err)
-	// 	err = client.SyncWant(ctx, "test-unit", "dep-1")
-	// 	require.NoError(t, err)
-	// 	err = client.SyncWant(ctx, "test-unit", "dep-2")
-	// 	require.NoError(t, err)
-	// 	// Complete dep-1, leave dep-2 incomplete
-	// 	err = client.SyncStart(ctx, "dep-1")
-	// 	require.NoError(t, err)
-	// 	err = client.SyncComplete(ctx, "dep-1")
-	// 	require.NoError(t, err)
-	// 	client.Close()
+		// Set up a unit with dependencies, some satisfied, some not
+		client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
+		require.NoError(t, err)
+		err = client.SyncWant(ctx, "test-unit", "dep-1")
+		require.NoError(t, err)
+		err = client.SyncWant(ctx, "test-unit", "dep-2")
+		require.NoError(t, err)
+		// Complete dep-1, leave dep-2 incomplete
+		err = client.SyncStart(ctx, "dep-1")
+		require.NoError(t, err)
+		err = client.SyncComplete(ctx, "dep-1")
+		require.NoError(t, err)
+		client.Close()
 
-	// 	var outBuf bytes.Buffer
-	// 	inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
-	// 	inv.Stdout = &outBuf
-	// 	inv.Stderr = &outBuf
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
 
-	// 	err = inv.WithContext(ctx).Run()
-	// 	require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
 
-	// 	clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_with_dependencies", outBuf.Bytes(), nil)
-	// })
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_with_dependencies", outBuf.Bytes(), nil)
+	})
 
-	// t.Run("status_json_format", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	path, cleanup := setupSocketServer(t)
-	// 	defer cleanup()
+	t.Run("status_json_format", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
 
-	// 	ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	// 	// Set up a unit with dependencies
-	// 	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
-	// 	require.NoError(t, err)
-	// 	err = client.SyncWant(ctx, "test-unit", "dep-unit")
-	// 	require.NoError(t, err)
-	// 	err = client.SyncStart(ctx, "dep-unit")
-	// 	require.NoError(t, err)
-	// 	err = client.SyncComplete(ctx, "dep-unit")
-	// 	require.NoError(t, err)
-	// 	client.Close()
+		// Set up a unit with dependencies
+		client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
+		require.NoError(t, err)
+		err = client.SyncWant(ctx, "test-unit", "dep-unit")
+		require.NoError(t, err)
+		err = client.SyncStart(ctx, "dep-unit")
+		require.NoError(t, err)
+		err = client.SyncComplete(ctx, "dep-unit")
+		require.NoError(t, err)
+		client.Close()
 
-	// 	var outBuf bytes.Buffer
-	// 	inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--output", "json", "--socket-path", path)
-	// 	inv.Stdout = &outBuf
-	// 	inv.Stderr = &outBuf
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "status", "test-unit", "--output", "json", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
 
-	// 	err = inv.WithContext(ctx).Run()
-	// 	require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
 
-	// 	clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_json_format", outBuf.Bytes(), nil)
-	// })
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_json_format", outBuf.Bytes(), nil)
+	})
 }

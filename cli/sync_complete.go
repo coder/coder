@@ -4,6 +4,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
 )
@@ -19,7 +20,7 @@ func (*RootCmd) syncComplete(socketPath *string) *serpent.Command {
 			if len(i.Args) != 1 {
 				return xerrors.New("exactly one unit name is required")
 			}
-			unit := i.Args[0]
+			unit := unit.ID(i.Args[0])
 
 			opts := []agentsocket.Option{}
 			if *socketPath != "" {

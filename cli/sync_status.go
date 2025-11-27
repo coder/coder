@@ -8,20 +8,29 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/cli/cliui"
 )
 
 func (*RootCmd) syncStatus(socketPath *string) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat(
-			[]agentsocket.SyncStatusResponse{},
-			[]string{
-				"unit",
-				"status",
-				"ready",
-				"dependencies",
-			},
-		),
+		cliui.ChangeFormatterData(
+			cliui.TableFormat(
+				[]agentsocket.DependencyInfo{},
+				[]string{
+					"depends on",
+					"required status",
+					"current status",
+					"satisfied",
+				},
+			),
+			func(data any) (any, error) {
+				resp, ok := data.(agentsocket.SyncStatusResponse)
+				if !ok {
+					return nil, xerrors.Errorf("expected agentsocket.SyncStatusResponse, got %T", data)
+				}
+				return resp.Dependencies, nil
+			}),
 		cliui.JSONFormat(),
 	)
 
@@ -35,7 +44,7 @@ func (*RootCmd) syncStatus(socketPath *string) *serpent.Command {
 			if len(i.Args) != 1 {
 				return xerrors.New("exactly one unit name is required")
 			}
-			unit := i.Args[0]
+			unit := unit.ID(i.Args[0])
 
 			opts := []agentsocket.Option{}
 			if *socketPath != "" {
@@ -53,17 +62,19 @@ func (*RootCmd) syncStatus(socketPath *string) *serpent.Command {
 				return xerrors.Errorf("get status failed: %w", err)
 			}
 
-			out, err := formatter.Format(ctx, statusResp)
-			if err != nil {
-				return xerrors.Errorf("format status: %w", err)
-			}
-
 			if formatter.FormatID() == "table" {
-				header := fmt.Sprintf("Unit: %s\nStatus: %s\nReady: %t\n\n", unit, statusResp.Status, statusResp.IsReady)
-				_, _ = fmt.Fprint(i.Stdout, header)
+				header := fmt.Sprintf("Unit: %s\nStatus: %s\nReady: %t\n", unit, statusResp.Status, statusResp.IsReady)
+				cliui.Infof(i.Stdout, "%s", header)
 			}
 
-			_, _ = fmt.Fprintln(i.Stdout, out)
+			if len(statusResp.Dependencies) > 0 {
+				out, err := formatter.Format(ctx, statusResp)
+				if err != nil {
+					return xerrors.Errorf("format status: %w", err)
+				}
+
+				_, _ = fmt.Fprintln(i.Stdout, out)
+			}
 			return nil
 		},
 	}

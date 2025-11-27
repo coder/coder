@@ -12,7 +12,10 @@ import (
 	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
+	"github.com/coder/coder/v2/agent/unit"
 )
+
+var _ client = (*Client)(nil)
 
 // Client provides a client for communicating with the workspace agentsocket API.
 type Client struct {
@@ -61,42 +64,42 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 // SyncStart starts a unit in the dependency graph.
-func (c *Client) SyncStart(ctx context.Context, unitName string) error {
+func (c *Client) SyncStart(ctx context.Context, unitName unit.ID) error {
 	_, err := c.client.SyncStart(ctx, &proto.SyncStartRequest{
-		Unit: unitName,
+		Unit: string(unitName),
 	})
 	return err
 }
 
 // SyncWant declares a dependency between units.
-func (c *Client) SyncWant(ctx context.Context, unitName, dependsOn string) error {
+func (c *Client) SyncWant(ctx context.Context, unitName, dependsOn unit.ID) error {
 	_, err := c.client.SyncWant(ctx, &proto.SyncWantRequest{
-		Unit:      unitName,
-		DependsOn: dependsOn,
+		Unit:      string(unitName),
+		DependsOn: string(dependsOn),
 	})
 	return err
 }
 
 // SyncComplete marks a unit as complete in the dependency graph.
-func (c *Client) SyncComplete(ctx context.Context, unitName string) error {
+func (c *Client) SyncComplete(ctx context.Context, unitName unit.ID) error {
 	_, err := c.client.SyncComplete(ctx, &proto.SyncCompleteRequest{
-		Unit: unitName,
+		Unit: string(unitName),
 	})
 	return err
 }
 
 // SyncReady requests whether a unit is ready to be started. That is, all dependencies are satisfied.
-func (c *Client) SyncReady(ctx context.Context, unitName string) (bool, error) {
+func (c *Client) SyncReady(ctx context.Context, unitName unit.ID) (bool, error) {
 	resp, err := c.client.SyncReady(ctx, &proto.SyncReadyRequest{
-		Unit: unitName,
+		Unit: string(unitName),
 	})
 	return resp.Ready, err
 }
 
 // SyncStatus gets the status of a unit and its dependencies.
-func (c *Client) SyncStatus(ctx context.Context, unitName string) (SyncStatusResponse, error) {
+func (c *Client) SyncStatus(ctx context.Context, unitName unit.ID) (SyncStatusResponse, error) {
 	resp, err := c.client.SyncStatus(ctx, &proto.SyncStatusRequest{
-		Unit: unitName,
+		Unit: string(unitName),
 	})
 	if err != nil {
 		return SyncStatusResponse{}, err
@@ -105,16 +108,16 @@ func (c *Client) SyncStatus(ctx context.Context, unitName string) (SyncStatusRes
 	var dependencies []DependencyInfo
 	for _, dep := range resp.Dependencies {
 		dependencies = append(dependencies, DependencyInfo{
-			DependsOn:      dep.DependsOn,
-			RequiredStatus: dep.RequiredStatus,
-			CurrentStatus:  dep.CurrentStatus,
+			DependsOn:      unit.ID(dep.DependsOn),
+			RequiredStatus: unit.Status(dep.RequiredStatus),
+			CurrentStatus:  unit.Status(dep.CurrentStatus),
 			IsSatisfied:    dep.IsSatisfied,
 		})
 	}
 
 	return SyncStatusResponse{
 		UnitName:     unitName,
-		Status:       resp.Status,
+		Status:       unit.Status(resp.Status),
 		IsReady:      resp.IsReady,
 		Dependencies: dependencies,
 	}, nil

@@ -6,6 +6,7 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/cli/cliui"
 )
 
@@ -20,8 +21,8 @@ func (*RootCmd) syncWant(socketPath *string) *serpent.Command {
 			if len(i.Args) != 2 {
 				return xerrors.New("exactly two arguments are required: unit and depends-on")
 			}
-			unit := i.Args[0]
-			dependsOn := i.Args[1]
+			dependentUnit := unit.ID(i.Args[0])
+			dependsOn := unit.ID(i.Args[1])
 
 			opts := []agentsocket.Option{}
 			if *socketPath != "" {
@@ -34,7 +35,7 @@ func (*RootCmd) syncWant(socketPath *string) *serpent.Command {
 			}
 			defer client.Close()
 
-			if err := client.SyncWant(ctx, unit, dependsOn); err != nil {
+			if err := client.SyncWant(ctx, dependentUnit, dependsOn); err != nil {
 				return xerrors.Errorf("declare dependency failed: %w", err)
 			}
 

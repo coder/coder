@@ -1,0 +1,6 @@
+Unit: test-unit
+Status: pending
+Ready: false
+
+DEPENDS ON  REQUIRED STATUS  CURRENT STATUS  SATISFIED  
+dep-unit    completed        not registered  false      

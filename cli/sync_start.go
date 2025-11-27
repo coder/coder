@@ -9,6 +9,7 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/cli/cliui"
 )
 
@@ -29,7 +30,7 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 			if len(i.Args) != 1 {
 				return xerrors.New("exactly one unit name is required")
 			}
-			unitName := i.Args[0]
+			unitName := unit.ID(i.Args[0])
 
 			if timeout > 0 {
 				var cancel context.CancelFunc
