@@ -121,6 +121,11 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 				return xerrors.Errorf("render table: %w", err)
 			}
 
+			if out == "" {
+				_, _ = fmt.Fprintln(inv.Stderr, "No template versions found.")
+				return nil
+			}
+
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},

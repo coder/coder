@@ -153,13 +153,6 @@ func (f *tableFormat) AttachOptions(opts *serpent.OptionSet) {
 
 // Format implements OutputFormat.
 func (f *tableFormat) Format(_ context.Context, data any) (string, error) {
-	// Return empty string for empty data. Callers should check for this
-	// and provide an appropriate message to the user.
-	v := reflect.Indirect(reflect.ValueOf(data))
-	if v.Kind() == reflect.Slice && v.Len() == 0 {
-		return "", nil
-	}
-
 	headers := make(table.Row, len(f.allColumns))
 	for i, header := range f.allColumns {
 		headers[i] = header

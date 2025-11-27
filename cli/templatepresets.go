@@ -124,6 +124,11 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 				return xerrors.Errorf("render table: %w", err)
 			}
 
+			if out == "" {
+				_, _ = fmt.Fprintln(inv.Stderr, "No template presets found.")
+				return nil
+			}
+
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},

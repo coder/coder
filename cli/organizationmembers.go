@@ -170,6 +170,11 @@ func (r *RootCmd) listOrganizationMembers(orgContext *OrganizationContext) *serp
 				return err
 			}
 
+			if out == "" {
+				_, _ = fmt.Fprintln(inv.Stderr, "No organization members found.")
+				return nil
+			}
+
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
