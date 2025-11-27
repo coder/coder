@@ -216,6 +216,14 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().DeleteAPIKeyByID(gomock.Any(), key.ID).Return(nil).AnyTimes()
 		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns()
 	}))
+	s.Run("DeleteExpiredAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		args := database.DeleteExpiredAPIKeysParams{
+			Before:     time.Date(2025, 11, 21, 0, 0, 0, 0, time.UTC),
+			LimitCount: 1000,
+		}
+		dbm.EXPECT().DeleteExpiredAPIKeys(gomock.Any(), args).Return(int64(0), nil).AnyTimes()
+		check.Args(args).Asserts(rbac.ResourceApiKey, policy.ActionDelete).Returns(int64(0))
+	}))
 	s.Run("GetAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
 		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
@@ -1314,6 +1322,13 @@ func (s *MethodTestSuite) TestTemplate() {
 	s.Run("UpsertTemplateUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any()).Return(nil).AnyTimes()
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("UpdatePresetsLastInvalidatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdatePresetsLastInvalidatedAtParams{LastInvalidatedAt: sql.NullTime{Valid: true, Time: dbtime.Now()}, TemplateID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdatePresetsLastInvalidatedAt(gomock.Any(), arg).Return([]database.UpdatePresetsLastInvalidatedAtRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
 }
 
@@ -2442,6 +2457,22 @@ func (s *MethodTestSuite) TestTasks() {
 
 		check.Args(arg).Asserts(task, policy.ActionUpdate, ws, policy.ActionUpdate).Returns(database.TaskTable{})
 	}))
+	s.Run("UpdateTaskPrompt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		arg := database.UpdateTaskPromptParams{
+			ID:     task.ID,
+			Prompt: "Updated prompt text",
+		}
+
+		// Create a copy of the task with the updated prompt
+		updatedTask := task
+		updatedTask.Prompt = arg.Prompt
+
+		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
+		dbm.EXPECT().UpdateTaskPrompt(gomock.Any(), arg).Return(updatedTask.TaskTable(), nil).AnyTimes()
+
+		check.Args(arg).Asserts(task, policy.ActionUpdate).Returns(updatedTask.TaskTable())
+	}))
 	s.Run("GetTaskByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		task := testutil.Fake(s.T(), faker, database.Task{})
 		task.WorkspaceID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
@@ -2833,9 +2864,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().UpdateUserLinkedID(gomock.Any(), arg).Return(l, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
 	}))
-	s.Run("GetLatestWorkspaceAppStatusesByAppID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetLatestWorkspaceAppStatusByAppID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		appID := uuid.New()
-		dbm.EXPECT().GetLatestWorkspaceAppStatusesByAppID(gomock.Any(), appID).Return([]database.WorkspaceAppStatus{}, nil).AnyTimes()
+		dbm.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(database.WorkspaceAppStatus{}, nil).AnyTimes()
 		check.Args(appID).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -4646,6 +4677,12 @@ func (s *MethodTestSuite) TestAIBridge() {
 		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intcID).Return(intc, nil).AnyTimes() // Validation.
 		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), params).Return(intc, nil).AnyTimes()
 		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
+	}))
+
+	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t := dbtime.Now()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
+		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
 	}))
 }
 

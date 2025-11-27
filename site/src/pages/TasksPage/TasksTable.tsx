@@ -135,8 +135,8 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 				<TableCell>
 					<AvatarData
 						title={
-							<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
-								{task.initial_prompt}
+							<span className="block max-w-[520px] truncate">
+								{task.display_name}
 							</span>
 						}
 						subtitle={templateDisplayName}

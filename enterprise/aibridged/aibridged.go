@@ -55,13 +55,14 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger)
 
 	ctx, cancel := context.WithCancel(ctx)
 	daemon := &Server{
-		logger:            logger,
-		clientDialer:      rpcDialer,
+		logger:           logger,
+		clientDialer:     rpcDialer,
+		clientCh:         make(chan DRPCClient),
+		lifecycleCtx:     ctx,
+		cancelFn:         cancel,
+		initConnectionCh: make(chan struct{}),
+
 		requestBridgePool: pool,
-		clientCh:          make(chan DRPCClient),
-		lifecycleCtx:      ctx,
-		cancelFn:          cancel,
-		initConnectionCh:  make(chan struct{}),
 	}
 
 	daemon.wg.Add(1)

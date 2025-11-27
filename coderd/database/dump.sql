@@ -1826,8 +1826,11 @@ CREATE TABLE tasks (
     template_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
     prompt text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    display_name character varying(127) DEFAULT ''::character varying NOT NULL
 );
+
+COMMENT ON COLUMN tasks.display_name IS 'Display name is a custom, human-friendly task name.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -1964,6 +1967,7 @@ CREATE VIEW tasks_with_status AS
     tasks.prompt,
     tasks.created_at,
     tasks.deleted_at,
+    tasks.display_name,
         CASE
             WHEN (tasks.workspace_id IS NULL) THEN 'pending'::task_status
             WHEN (build_status.status <> 'active'::task_status) THEN build_status.status
@@ -2170,7 +2174,8 @@ CREATE TABLE template_version_presets (
     scheduling_timezone text DEFAULT ''::text NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
     description character varying(128) DEFAULT ''::character varying NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    last_invalidated_at timestamp with time zone
 );
 
 COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';
@@ -3431,6 +3436,8 @@ CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_log
 CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, connection_median_latency_ms) WHERE (connection_count > 0);
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
+
+CREATE INDEX workspace_agents_auth_instance_id_deleted_idx ON workspace_agents USING btree (auth_instance_id, deleted);
 
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 

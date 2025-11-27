@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"testing"
@@ -2110,4 +2111,219 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 		t.Error("Creating template version in second organization took too long")
 		t.FailNow()
 	}
+}
+
+func TestInvalidateTemplatePrebuilds(t *testing.T) {
+	t.Parallel()
+
+	// Given the following parameters and presets...
+	templateVersionParameters := []*proto.RichParameter{
+		{Name: "param1", Type: "string", Required: false, DefaultValue: "default1"},
+		{Name: "param2", Type: "string", Required: false, DefaultValue: "default2"},
+		{Name: "param3", Type: "string", Required: false, DefaultValue: "default3"},
+	}
+	presetWithParameters1 := &proto.Preset{
+		Name: "Preset With Parameters 1",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+			{Name: "param3", Value: "value3"},
+		},
+	}
+	presetWithParameters2 := &proto.Preset{
+		Name: "Preset With Parameters 2",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value4"},
+			{Name: "param2", Value: "value5"},
+			{Name: "param3", Value: "value6"},
+		},
+	}
+
+	presetWithParameters3 := &proto.Preset{
+		Name: "Preset With Parameters 3",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value7"},
+			{Name: "param2", Value: "value8"},
+			{Name: "param3", Value: "value9"},
+		},
+	}
+
+	// Given the template versions and template...
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	buildPlanResponse := func(presets ...*proto.Preset) *proto.Response {
+		return &proto.Response{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
+					Presets:    presets,
+					Parameters: templateVersionParameters,
+				},
+			},
+		}
+	}
+
+	version1 := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters1, presetWithParameters2)},
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version1.ID)
+	template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version1.ID)
+
+	// When
+	ctx := testutil.Context(t, testutil.WaitLong)
+	invalidated, err := templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
+	require.NoError(t, err)
+
+	// Then
+	require.Len(t, invalidated.Invalidated, 2)
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters1.Name}, invalidated.Invalidated[0])
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[1])
+
+	// Given the template is updated...
+	version2 := coderdtest.UpdateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters2, presetWithParameters3)},
+		ProvisionApply: echo.ApplyComplete,
+	}, template.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version2.ID)
+	err = templateAdminClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{ID: version2.ID})
+	require.NoError(t, err)
+
+	// When
+	invalidated, err = templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
+	require.NoError(t, err)
+
+	// Then: it should only invalidate the presets from the currently active version (preset2 and preset3)
+	require.Len(t, invalidated.Invalidated, 2)
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[0])
+	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters3.Name}, invalidated.Invalidated[1])
+}
+
+func TestInvalidateTemplatePrebuilds_RegularUser(t *testing.T) {
+	t.Parallel()
+
+	// Given the following parameters and presets...
+	templateVersionParameters := []*proto.RichParameter{
+		{Name: "param1", Type: "string", Required: false, DefaultValue: "default1"},
+	}
+	presetWithParameters1 := &proto.Preset{
+		Name: "Preset With Parameters 1",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value1"},
+		},
+	}
+
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+	regularUserClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	// Given
+	version1 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Presets:    []*proto.Preset{presetWithParameters1},
+						Parameters: templateVersionParameters,
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version1.ID)
+	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version1.ID)
+
+	// When
+	ctx := testutil.Context(t, testutil.WaitShort)
+	_, err := regularUserClient.InvalidateTemplatePresets(ctx, template.ID)
+
+	// Then
+	require.Error(t, err, "regular user cannot invalidate presets")
+	var sdkError *codersdk.Error
+	require.True(t, errors.As(err, &sdkError))
+	require.ErrorAs(t, err, &sdkError)
+	require.Equal(t, http.StatusNotFound, sdkError.StatusCode())
+}
+
+func TestInvalidateTemplatePrebuilds_NoPresets(t *testing.T) {
+	t.Parallel()
+
+	// Given the template versions and template...
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	version1 := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete, ProvisionPlan: echo.PlanComplete, ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version1.ID)
+	template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version1.ID)
+
+	// When
+	ctx := testutil.Context(t, testutil.WaitLong)
+	invalidated, err := templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
+	require.NoError(t, err)
+
+	// Then
+	require.NotNil(t, invalidated.Invalidated)
+	require.Len(t, invalidated.Invalidated, 0)
+}
+
+func TestInvalidateTemplatePrebuilds_LicenseFeatureDisabled(t *testing.T) {
+	t.Parallel()
+
+	// Given the template versions and template...
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{},
+	})
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	version1 := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete, ProvisionPlan: echo.PlanComplete, ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version1.ID)
+	template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version1.ID)
+
+	// When
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
+
+	// Then
+	require.Error(t, err, "license feature prebuilds is required")
+	var sdkError *codersdk.Error
+	require.True(t, errors.As(err, &sdkError))
+	require.ErrorAs(t, err, &sdkError)
+	require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 }

@@ -1,0 +1,86 @@
+{
+  "Resources": [
+    {
+      "name": "dev1",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "b67999d7-9356-4d32-b3ed-f9ffd283cd5b",
+          "name": "dev1",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "apps": [
+            {
+              "slug": "app1",
+              "display_name": "app1",
+              "open_in": 1,
+              "id": "634ec976-f595-9122-c51e-8da2e3c6e3ce"
+            },
+            {
+              "slug": "app2",
+              "display_name": "app2",
+              "subdomain": true,
+              "healthcheck": {
+                "url": "http://localhost:13337/healthz",
+                "interval": 5,
+                "threshold": 6
+              },
+              "open_in": 1,
+              "id": "13922208-d2bc-196b-54cb-3fc084916309"
+            }
+          ],
+          "Auth": {
+            "Token": "f736f6d7-6fce-47b6-9fe0-3c99ce17bd8f"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "dev2",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "cb18360a-0bad-4371-a26d-50c30e1d33f7",
+          "name": "dev2",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "apps": [
+            {
+              "slug": "app3",
+              "display_name": "app3",
+              "open_in": 1,
+              "id": "a2714999-3f82-11a4-b8fe-3a11d88f3021"
+            }
+          ],
+          "Auth": {
+            "Token": "5d1d447c-65b0-47ba-998b-1ba752db7d78"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

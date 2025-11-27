@@ -1,0 +1,4 @@
+coder:
+  image:
+    tag: latest
+  priorityClassName: high-priority

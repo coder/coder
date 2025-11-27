@@ -35,7 +35,7 @@ export const templateByName = (organization: string, name: string) => {
 	} satisfies QueryOptions<Template>;
 };
 
-const getTemplatesQueryKey = (
+export const getTemplatesQueryKey = (
 	options?: GetTemplatesOptions | GetTemplatesQuery,
 ) => ["templates", options];
 

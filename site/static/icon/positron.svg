@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 440 440">
+  <g id="Layer_6" data-name="Layer 6">
+    <rect x="12" y="12" width="416" height="416" rx="103" ry="103" fill="#3a78b1" stroke-width="0"/>
+  </g>
+  <g id="Layer_8" data-name="Layer 8">
+    <path d="M83.6,373.6v-178.6c0-63,52.4-143.7,142.7-143.7s144.1,69.7,144.1,141.1c0,122.6-116.6,143.1-116.6,143.1,0,0,7.2-11.5,7.2-29.5s-8-28-8-28c0,0,60-16,60-87s-53-83-86-83c-57,0-88.3,48.5-88.3,84.3v181.9c0,25.9-17.5,23.9-17.5,23.9h-19.2s-18.4,0-18.4-24.4Z" fill="#fff" stroke-width="0"/>
+  </g>
+  <g id="Layer_9" data-name="Layer 9">
+    <circle cx="204.9" cy="306.6" r="48" fill="#fff" stroke-width="0"/>
+  </g>
+</svg>

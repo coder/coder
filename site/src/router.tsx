@@ -103,8 +103,8 @@ const TemplateResourcesPage = lazy(
 	() =>
 		import("./pages/TemplatePage/TemplateResourcesPage/TemplateResourcesPage"),
 );
-const CreateWorkspaceExperimentRouter = lazy(
-	() => import("./pages/CreateWorkspacePage/CreateWorkspaceExperimentRouter"),
+const CreateWorkspacePage = lazy(
+	() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
 );
 const OverviewPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/OverviewPage/OverviewPage"),
@@ -334,11 +334,11 @@ const ProvisionerJobsPage = lazy(
 );
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
-const AIGovernanceLayout = lazy(
-	() => import("./pages/AIGovernancePage/AIGovernanceLayout"),
+const AIBridgeLayout = lazy(
+	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );
-const AIGovernanceRequestLogsPage = lazy(
-	() => import("./pages/AIGovernancePage/RequestLogsPage/RequestLogsPage"),
+const AIBridgeRequestLogsPage = lazy(
+	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
 
 const RoutesWithSuspense = () => {
@@ -363,7 +363,7 @@ const templateRouter = () => {
 					<Route path="insights" element={<TemplateInsightsPage />} />
 				</Route>
 
-				<Route path="workspace" element={<CreateWorkspaceExperimentRouter />} />
+				<Route path="workspace" element={<CreateWorkspacePage />} />
 
 				<Route path="settings" element={<TemplateSettingsLayout />}>
 					<Route index element={<TemplateSettingsPage />} />
@@ -563,12 +563,9 @@ export const router = createBrowserRouter(
 						</Route>
 					</Route>
 
-					<Route path="/aigovernance" element={<AIGovernanceLayout />}>
+					<Route path="/aibridge" element={<AIBridgeLayout />}>
 						<Route index element={<Navigate to="request-logs" replace />} />
-						<Route
-							path="request-logs"
-							element={<AIGovernanceRequestLogsPage />}
-						/>
+						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>

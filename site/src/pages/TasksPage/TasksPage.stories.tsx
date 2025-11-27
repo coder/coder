@@ -1,4 +1,6 @@
 import {
+	MockDisplayNameTasks,
+	MockInitializingTasks,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
@@ -8,7 +10,8 @@ import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { getTemplatesQueryKey } from "../../api/queries/templates";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -51,6 +54,21 @@ export const LoadingTemplates: Story = {
 	},
 };
 
+export const EmptyTemplates: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["templates", { q: "has-ai-task:true" }],
+				data: [],
+			},
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [],
+			},
+		],
+	},
+};
+
 export const LoadingTemplatesError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockRejectedValue(
@@ -65,7 +83,7 @@ export const LoadingTemplatesError: Story = {
 export const LoadingTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockImplementation(
+		spyOn(API, "getTasks").mockImplementation(
 			() => new Promise(() => 1000 * 60 * 60),
 		);
 	},
@@ -83,7 +101,7 @@ export const LoadingTasks: Story = {
 export const LoadingTasksError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockRejectedValue(
+		spyOn(API, "getTasks").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load tasks",
 			}),
@@ -94,14 +112,29 @@ export const LoadingTasksError: Story = {
 export const EmptyTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue([]);
+		spyOn(API, "getTasks").mockResolvedValue([]);
 	},
 };
 
 export const LoadedTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
+	},
+};
+
+export const DisplayName: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockDisplayNameTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
 	},
 };
 
@@ -109,9 +142,32 @@ export const LoadedTasksWaitingForInputTab: Story = {
 	beforeEach: () => {
 		const [firstTask, ...otherTasks] = MockTasks;
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue([
+		spyOn(API, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
+				id: "active-idle-task",
+				display_name: "Active Idle Task",
+				status: "active",
+				current_state: {
+					...firstTask.current_state,
+					state: "idle",
+				},
+			},
+			{
+				...firstTask,
+				id: "paused-idle-task",
+				display_name: "Paused Idle Task",
+				status: "paused",
+				current_state: {
+					...firstTask.current_state,
+					state: "idle",
+				},
+			},
+			{
+				...firstTask,
+				id: "error-idle-task",
+				display_name: "Error Idle Task",
+				status: "error",
 				current_state: {
 					...firstTask.current_state,
 					state: "idle",
@@ -128,6 +184,23 @@ export const LoadedTasksWaitingForInputTab: Story = {
 				name: /waiting for input/i,
 			});
 			await userEvent.click(waitingForInputTab);
+
+			// Wait for the table to update after tab switch
+			await waitFor(async () => {
+				const table = canvas.getByRole("table");
+				const tableContent = within(table);
+
+				// Active idle task should be visible
+				expect(tableContent.getByText("Active Idle Task")).toBeInTheDocument();
+
+				// Only active idle tasks should be visible in the table
+				expect(
+					tableContent.queryByText("Paused Idle Task"),
+				).not.toBeInTheDocument();
+				expect(
+					tableContent.queryByText("Error Idle Task"),
+				).not.toBeInTheDocument();
+			});
 		});
 	},
 };
@@ -140,7 +213,7 @@ export const NonAdmin: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
@@ -157,7 +230,7 @@ export const NonAdmin: Story = {
 export const OpenDeleteDialog: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -165,5 +238,20 @@ export const OpenDeleteDialog: Story = {
 			name: /delete task/i,
 		});
 		await userEvent.click(deleteButtons[0]);
+	},
+};
+
+export const InitializingTasks: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockInitializingTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
 	},
 };

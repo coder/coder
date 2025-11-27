@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # aibridge interceptions
 
-Manage AIBridge interceptions.
+Manage AI Bridge interceptions.
 
 ## Usage
 
@@ -11,6 +11,6 @@ coder aibridge interceptions
 
 ## Subcommands
 
-| Name                                                  | Purpose                              |
-|-------------------------------------------------------|--------------------------------------|
-| [<code>list</code>](./aibridge_interceptions_list.md) | List AIBridge interceptions as JSON. |
+| Name                                                  | Purpose                               |
+|-------------------------------------------------------|---------------------------------------|
+| [<code>list</code>](./aibridge_interceptions_list.md) | List AI Bridge interceptions as JSON. |

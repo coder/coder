@@ -1174,7 +1174,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:   "inbox",
 		}
 		deploymentGroupAIBridge = serpent.Group{
-			Name: "AIBridge",
+			Name: "AI Bridge",
 			YAML: "aibridge",
 		}
 	)
@@ -3238,7 +3238,7 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hideAITasks",
 		},
 
-		// AIBridge Options
+		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
 			Description: "Whether to start an in-memory aibridged instance.",
@@ -3350,6 +3350,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "inject_coder_mcp_tools",
 		},
 		{
+			Name:        "AI Bridge Data Retention Duration",
+			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Flag:        "aibridge-retention",
+			Env:         "CODER_AIBRIDGE_RETENTION",
+			Value:       &c.AI.BridgeConfig.Retention,
+			Default:     "60d",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "retention",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name: "Enable Authorization Recordings",
 			Description: "All api requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
@@ -3373,6 +3384,7 @@ type AIBridgeConfig struct {
 	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
 	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
 	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
