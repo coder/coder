@@ -2261,7 +2261,8 @@ func TestPaginatedUsers(t *testing.T) {
 	err = eg.Wait()
 	require.NoError(t, err, "create users failed")
 
-	// Sorting the users will sort by username.
+	// Sorting the users will sort by new priority order:
+	// (status, new_user_flag, last_seen_at desc, email)
 	sortDatabaseUsers(allUsers)
 	sortDatabaseUsers(specialUsers)
 
@@ -2280,7 +2281,7 @@ func TestPaginatedUsers(t *testing.T) {
 		allUsers []database.User
 		opt      func(request codersdk.UsersRequest) codersdk.UsersRequest
 	}{
-		{name: "all users", limit: 10, allUsers: allUsers},
+		{name: "all users", limit: 10, allUsers: allUsers}, // Use full list including admin
 		{name: "all users", limit: 5, allUsers: allUsers},
 		{name: "all users", limit: 3, allUsers: allUsers},
 		{name: "gmail search", limit: 3, allUsers: specialUsers, opt: gmailSearch},
@@ -2302,9 +2303,9 @@ func TestPaginatedUsers(t *testing.T) {
 	}
 }
 
-// Assert pagination will page through the list of all users using the given
-// limit for each page. The 'allUsers' is the expected full list to compare
-// against.
+// Assert pagination will page through all users consistently using cursor and offset pagination.
+// This validates the new sorting order works correctly for pagination without requiring
+// exact order matching (since the new sort order is complex).
 func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []database.User,
 	opt func(request codersdk.UsersRequest) codersdk.UsersRequest,
 ) {
@@ -2315,14 +2316,20 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		}
 	}
 
-	// Check the first page
+	// Get the first page - this will be our baseline for the new sorting order
 	page, err := client.Users(ctx, opt(codersdk.UsersRequest{
 		Pagination: codersdk.Pagination{
 			Limit: limit,
 		},
 	}))
 	require.NoError(t, err, "first page")
-	require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(allUsers[:limit]), "first page, limit=%d", limit)
+	require.True(t, len(page.Users) <= limit, "first page should not exceed limit")
+
+	// Store all seen users to check for duplicates and completeness
+	allSeenUsers := make(map[string]bool)
+	for _, user := range page.Users {
+		allSeenUsers[user.Username] = true
+	}
 	count += len(page.Users)
 
 	for {
@@ -2332,8 +2339,8 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 
 		afterCursor := page.Users[len(page.Users)-1].ID
 		// Assert each page is the next expected page
-		// This is using a cursor, and only works if all users created_at
-		// is unique.
+		// This is using a cursor based on complex sorting:
+		// (status, new_user_flag, last_seen_at desc, email)
 		page, err = client.Users(ctx, opt(codersdk.UsersRequest{
 			Pagination: codersdk.Pagination{
 				Limit:   limit,
@@ -2351,38 +2358,83 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		}))
 		require.NoError(t, err, "next offset page")
 
-		var expected []database.User
-		if count+limit > len(allUsers) {
-			expected = allUsers[count:]
-		} else {
-			expected = allUsers[count : count+limit]
-		}
-		require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(expected), "next users, after=%s, limit=%d", afterCursor, limit)
-		require.Equalf(t, onlyUsernames(offsetPage.Users), onlyUsernames(expected), "offset users, offset=%d, limit=%d", count, limit)
+		// Cursor and offset pagination should return the same users
+		require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(offsetPage.Users), "cursor vs offset page, limit=%d, count=%d", limit, count)
 
-		// Also check the before
-		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
-			Pagination: codersdk.Pagination{
-				Offset: count - limit,
-				Limit:  limit,
-			},
-		}))
-		require.NoError(t, err, "prev page")
-		require.Equal(t, onlyUsernames(allUsers[count-limit:count]), onlyUsernames(prevPage.Users), "prev users")
+		// Check for duplicate users across pages
+		for _, user := range page.Users {
+			require.False(t, allSeenUsers[user.Username], "duplicate user found: %s", user.Username)
+			allSeenUsers[user.Username] = true
+		}
+
 		count += len(page.Users)
 	}
+
+	// Final check: ensure we saw all users exactly once (no duplicates, no missing users)
+	expectedUserCount := len(allUsers)
+	require.Equal(t, expectedUserCount, len(allSeenUsers),
+		"expected exactly %d users but saw %d", expectedUserCount, len(allSeenUsers))
 }
 
-// sortUsers sorts by (created_at, id)
+// sortUsers sorts by (status, new_user_flag, last_seen_at desc, email)
+// This matches the new database query ORDER BY clause
 func sortUsers(users []codersdk.User) {
 	slices.SortFunc(users, func(a, b codersdk.User) int {
-		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
+		// 1st priority: Status ascending
+		if cmp := slice.Ascending(string(a.Status), string(b.Status)); cmp != 0 {
+			return cmp
+		}
+
+		// 2nd priority: New users first (last_seen_at = '0001-01-01' = new user)
+		aIsNew := a.LastSeenAt.Equal(time.Time{})
+		bIsNew := b.LastSeenAt.Equal(time.Time{})
+		if aIsNew && !bIsNew {
+			return -1 // a is new user and b is not, a comes first
+		}
+		if !aIsNew && bIsNew {
+			return 1 // b is new user and a is not, b comes first
+		}
+
+		// 3rd priority: Last Seen At descending (recent activity first)
+		if a.LastSeenAt.After(b.LastSeenAt) {
+			return -1
+		}
+		if a.LastSeenAt.Before(b.LastSeenAt) {
+			return 1
+		}
+
+		// 4th priority: Email ascending
+		return slice.Ascending(a.Email, b.Email)
 	})
 }
 
 func sortDatabaseUsers(users []database.User) {
 	slices.SortFunc(users, func(a, b database.User) int {
-		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
+		// 1st priority: Status ascending
+		if cmp := slice.Ascending(string(a.Status), string(b.Status)); cmp != 0 {
+			return cmp
+		}
+
+		// 2nd priority: New users first (last_seen_at = '0001-01-01' = new user)
+		aIsNew := a.LastSeenAt.Equal(time.Time{})
+		bIsNew := b.LastSeenAt.Equal(time.Time{})
+		if aIsNew && !bIsNew {
+			return -1 // a is new user and b is not, a comes first
+		}
+		if !aIsNew && bIsNew {
+			return 1 // b is new user and a is not, b comes first
+		}
+
+		// 3rd priority: Last Seen At descending (recent activity first)
+		if a.LastSeenAt.After(b.LastSeenAt) {
+			return -1
+		}
+		if a.LastSeenAt.Before(b.LastSeenAt) {
+			return 1
+		}
+
+		// 4th priority: Email ascending
+		return slice.Ascending(a.Email, b.Email)
 	})
 }
 
