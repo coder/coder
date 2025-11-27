@@ -1170,6 +1170,11 @@ export interface CreateGroupRequest {
 	readonly quota_allowance: number;
 }
 
+// From codersdk/immortalstreams.go
+export interface CreateImmortalStreamRequest {
+	readonly tcp_port: number;
+}
+
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
 	readonly name: string;
@@ -2288,6 +2293,13 @@ export interface HTTPCookieConfig {
 	readonly same_site?: string;
 }
 
+// From codersdk/immortalstreams.go
+export const HeaderImmortalStreamSequenceNum =
+	"X-Coder-Immortal-Stream-Sequence-Num";
+
+// From codersdk/immortalstreams.go
+export const HeaderUpgradeImmortalStream = "coder-immortal-stream";
+
 // From health/model.go
 export type HealthCode =
 	| "EACS03"
@@ -2441,6 +2453,16 @@ export interface IDPSyncMapping<ResourceIdType extends string> {
 	 * The ID of the Coder resource the user should be added to
 	 */
 	readonly Gets: ResourceIdType;
+}
+
+// From codersdk/immortalstreams.go
+export interface ImmortalStream {
+	readonly id: string;
+	readonly name: string;
+	readonly tcp_port: number;
+	readonly created_at: string;
+	readonly last_connection_at: string;
+	readonly last_disconnection_at?: string;
 }
 
 // From codersdk/inboxnotification.go

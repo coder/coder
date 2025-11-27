@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/immortalstreams"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
@@ -279,6 +280,10 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+
+	// Immortal streams
+	immortalStreamsManager *immortalstreams.Manager
+	immortalStreamsDialer  *immortalstreams.LocalDialer
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1572,6 +1577,9 @@ func (a *agent) createTailnet(
 		return nil, err
 	}
 
+	a.immortalStreamsDialer = immortalstreams.NewLocalDialer(a.logger.Named("immortal-streams"), network)
+	a.immortalStreamsManager = immortalstreams.New(a.logger.Named("immortal-streams"), a.immortalStreamsDialer)
+
 	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
 	if err != nil {
 		return nil, xerrors.Errorf("api listener: %w", err)
@@ -1937,6 +1945,12 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+
+	if a.immortalStreamsManager != nil {
+		if err := a.immortalStreamsManager.Close(); err != nil {
+			a.logger.Error(a.hardCtx, "immortal streams manager close", slog.Error(err))
+		}
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so
