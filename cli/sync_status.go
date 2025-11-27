@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -64,21 +63,19 @@ func (*RootCmd) syncStatus(socketPath *string) *serpent.Command {
 			}
 
 			var out string
-			switch formatter.FormatID() {
-			case "table":
-				header := fmt.Sprintf("Unit: %s\nStatus: %s\nReady: %t\n", unit, statusResp.Status, statusResp.IsReady)
-				if len(statusResp.Dependencies) > 0 {
-					out, err = formatter.Format(ctx, statusResp)
-				}
-				out = strings.Join([]string{header, out}, "\n")
-			case "json":
+			header := fmt.Sprintf("Unit: %s\nStatus: %s\nReady: %t\n\nDependencies:\n", unit, statusResp.Status, statusResp.IsReady)
+			if formatter.FormatID() == "table" && len(statusResp.Dependencies) == 0 {
+				out = header + "No dependencies found"
+			} else {
 				out, err = formatter.Format(ctx, statusResp)
-			}
-			if err != nil {
-				return xerrors.Errorf("format status: %w", err)
-			}
+				if err != nil {
+					return xerrors.Errorf("format status: %w", err)
+				}
 
-			out = strings.TrimSpace(out)
+				if formatter.FormatID() == "table" {
+					out = header + out
+				}
+			}
 
 			_, _ = fmt.Fprintln(i.Stdout, out)
 

@@ -3,6 +3,7 @@
 package agentsocket
 
 import (
+	"context"
 	"net"
 	"os"
 	"path/filepath"
@@ -14,6 +15,10 @@ import (
 const defaultSocketPath = "/tmp/coder-agent.sock"
 
 func createSocket(path string) (net.Listener, error) {
+	if path == "" {
+		path = defaultSocketPath
+	}
+
 	if !isSocketAvailable(path) {
 		return nil, xerrors.Errorf("socket path %s is not available", path)
 	}
@@ -56,4 +61,13 @@ func isSocketAvailable(path string) bool {
 	}
 	_ = conn.Close()
 	return false
+}
+
+func dialSocket(ctx context.Context, path string) (net.Conn, error) {
+	if path == "" {
+		path = defaultSocketPath
+	}
+
+	dialer := net.Dialer{}
+	return dialer.DialContext(ctx, "unix", path)
 }
