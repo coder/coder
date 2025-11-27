@@ -33,6 +33,10 @@ Set the following when routing [OpenAI-compatible](https://coder.com/docs/refere
 
 The default base URL (`https://api.openai.com/v1/`) works for the native OpenAI service. Point the base URL at your preferred OpenAI-compatible endpoint (for example, a hosted proxy or LiteLLM deployment) when needed.
 
+If you'd like to create an [OpenAI key](https://platform.openai.com/api-keys) with minimal privileges, this is the minimum required set:
+
+![List Models scope should be set to "Read", Model Capabilities set to "Request"](../../images/aibridge/openai_key_scope.png)
+
 ### Anthropic
 
 Set the following when routing [Anthropic-compatible](https://coder.com/docs/reference/cli/server#--aibridge-anthropic-key) traffic through AI Bridge:
@@ -41,6 +45,8 @@ Set the following when routing [Anthropic-compatible](https://coder.com/docs/ref
 - `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`
 
 The default base URL (`https://api.anthropic.com/`) targets Anthropic's public API. Override it for Anthropic-compatible brokers.
+
+Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys) to have restricted permissions at the time of writing (Nov 2025).
 
 ### Amazon Bedrock
 
@@ -51,6 +57,34 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
 - `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET` or `--aibridge-bedrock-access-key-secret`
 - `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
 - `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
+
+#### Obtaining Bedrock credentials
+
+1. **Choose a region** where you want to use Bedrock.
+
+2. **Generate API keys** in the [AWS Bedrock console](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/api-keys/long-term/create) (replace `us-east-1` in the URL with your chosen region):
+   - Choose an expiry period for the key.
+   - Click **Generate**.
+   - This creates an IAM user with strictly-scoped permissions for Bedrock access.
+
+3. **Create an access key** for the IAM user:
+   - After generating the API key, click **"You can directly modify permissions for the IAM user associated"**.
+   - In the IAM user page, navigate to the **Security credentials** tab.
+   - Under **Access keys**, click **Create access key**.
+   - Select **"Application running outside AWS"** as the use case.
+   - Click **Next**.
+   - Add a description like "Coder AI Bridge token".
+   - Click **Create access key**.
+   - Save both the access key ID and secret access key securely.
+
+4. **Configure your Coder deployment** with the credentials:
+
+   ```sh
+   export CODER_AIBRIDGE_BEDROCK_REGION=us-east-1
+   export CODER_AIBRIDGE_BEDROCK_ACCESS_KEY=<your-access-key-id>
+   export CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET=<your-secret-access-key>
+   coder server
+   ```
 
 ### Additional providers and Model Proxies
 

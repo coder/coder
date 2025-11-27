@@ -3,7 +3,6 @@ import { Button } from "components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { BanIcon } from "lucide-react";
@@ -22,24 +21,22 @@ export const CancelJobButton: FC<CancelJobButtonProps> = ({ job }) => {
 
 	return (
 		<>
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							disabled={!isCancellable}
-							aria-label="Cancel job"
-							size="icon"
-							variant="outline"
-							onClick={() => {
-								setIsDialogOpen(true);
-							}}
-						>
-							<BanIcon />
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Cancel job</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						disabled={!isCancellable}
+						aria-label="Cancel job"
+						size="icon"
+						variant="outline"
+						onClick={() => {
+							setIsDialogOpen(true);
+						}}
+					>
+						<BanIcon />
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>Cancel job</TooltipContent>
+			</Tooltip>
 
 			<CancelJobConfirmationDialog
 				open={isDialogOpen}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/netip"
@@ -71,16 +72,21 @@ const (
 )
 
 type Options struct {
-	Filesystem                   afero.Fs
-	LogDir                       string
-	TempDir                      string
-	ScriptDataDir                string
-	Client                       Client
-	ReconnectingPTYTimeout       time.Duration
-	EnvironmentVariables         map[string]string
-	Logger                       slog.Logger
-	IgnorePorts                  map[int]string
-	PortCacheDuration            time.Duration
+	Filesystem             afero.Fs
+	LogDir                 string
+	TempDir                string
+	ScriptDataDir          string
+	Client                 Client
+	ReconnectingPTYTimeout time.Duration
+	EnvironmentVariables   map[string]string
+	Logger                 slog.Logger
+	// IgnorePorts tells the api handler which ports to ignore when
+	// listing all listening ports. This is helpful to hide ports that
+	// are used by the agent, that the user does not care about.
+	IgnorePorts map[int]string
+	// ListeningPortsGetter is used to get the list of listening ports. Only
+	// tests should set this. If unset, a default that queries the OS will be used.
+	ListeningPortsGetter         ListeningPortsGetter
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
 	Subsystems                   []codersdk.AgentSubsystem
@@ -140,9 +146,7 @@ func New(options Options) Agent {
 	if options.ServiceBannerRefreshInterval == 0 {
 		options.ServiceBannerRefreshInterval = 2 * time.Minute
 	}
-	if options.PortCacheDuration == 0 {
-		options.PortCacheDuration = 1 * time.Second
-	}
+
 	if options.Clock == nil {
 		options.Clock = quartz.NewReal()
 	}
@@ -156,30 +160,38 @@ func New(options Options) Agent {
 		options.Execer = agentexec.DefaultExecer
 	}
 
+	if options.ListeningPortsGetter == nil {
+		options.ListeningPortsGetter = &osListeningPortsGetter{
+			cacheDuration: 1 * time.Second,
+		}
+	}
+
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
-		clock:                              options.Clock,
-		tailnetListenPort:                  options.TailnetListenPort,
-		reconnectingPTYTimeout:             options.ReconnectingPTYTimeout,
-		logger:                             options.Logger,
-		gracefulCtx:                        gracefulCtx,
-		gracefulCancel:                     gracefulCancel,
-		hardCtx:                            hardCtx,
-		hardCancel:                         hardCancel,
-		coordDisconnected:                  make(chan struct{}),
-		environmentVariables:               options.EnvironmentVariables,
-		client:                             options.Client,
-		filesystem:                         options.Filesystem,
-		logDir:                             options.LogDir,
-		tempDir:                            options.TempDir,
-		scriptDataDir:                      options.ScriptDataDir,
-		lifecycleUpdate:                    make(chan struct{}, 1),
-		lifecycleReported:                  make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:                    []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		reportConnectionsUpdate:            make(chan struct{}, 1),
-		ignorePorts:                        options.IgnorePorts,
-		portCacheDuration:                  options.PortCacheDuration,
+		clock:                   options.Clock,
+		tailnetListenPort:       options.TailnetListenPort,
+		reconnectingPTYTimeout:  options.ReconnectingPTYTimeout,
+		logger:                  options.Logger,
+		gracefulCtx:             gracefulCtx,
+		gracefulCancel:          gracefulCancel,
+		hardCtx:                 hardCtx,
+		hardCancel:              hardCancel,
+		coordDisconnected:       make(chan struct{}),
+		environmentVariables:    options.EnvironmentVariables,
+		client:                  options.Client,
+		filesystem:              options.Filesystem,
+		logDir:                  options.LogDir,
+		tempDir:                 options.TempDir,
+		scriptDataDir:           options.ScriptDataDir,
+		lifecycleUpdate:         make(chan struct{}, 1),
+		lifecycleReported:       make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:         []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		reportConnectionsUpdate: make(chan struct{}, 1),
+		listeningPortsHandler: listeningPortsHandler{
+			getter:      options.ListeningPortsGetter,
+			ignorePorts: maps.Clone(options.IgnorePorts),
+		},
 		reportMetadataInterval:             options.ReportMetadataInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
@@ -207,20 +219,16 @@ func New(options Options) Agent {
 }
 
 type agent struct {
-	clock             quartz.Clock
-	logger            slog.Logger
-	client            Client
-	tailnetListenPort uint16
-	filesystem        afero.Fs
-	logDir            string
-	tempDir           string
-	scriptDataDir     string
-	// ignorePorts tells the api handler which ports to ignore when
-	// listing all listening ports. This is helpful to hide ports that
-	// are used by the agent, that the user does not care about.
-	ignorePorts       map[int]string
-	portCacheDuration time.Duration
-	subsystems        []codersdk.AgentSubsystem
+	clock                 quartz.Clock
+	logger                slog.Logger
+	client                Client
+	tailnetListenPort     uint16
+	filesystem            afero.Fs
+	logDir                string
+	tempDir               string
+	scriptDataDir         string
+	listeningPortsHandler listeningPortsHandler
+	subsystems            []codersdk.AgentSubsystem
 
 	reconnectingPTYTimeout time.Duration
 	reconnectingPTYServer  *reconnectingpty.Server
@@ -1119,7 +1127,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if err != nil {
 			return xerrors.Errorf("fetch metadata: %w", err)
 		}
-		a.logger.Info(ctx, "fetched manifest", slog.F("manifest", mp))
+		a.logger.Info(ctx, "fetched manifest")
 		manifest, err := agentsdk.ManifestFromProto(mp)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))

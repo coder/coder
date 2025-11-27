@@ -3,7 +3,6 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
@@ -12,6 +11,11 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import {
@@ -75,20 +79,18 @@ const IconsPage: FC = () => {
 			<Margins>
 				<PageHeader
 					actions={
-						<Tooltip
-							placement="bottom-end"
-							title={
-								<p className="p-2 leading-6 text-sm">
-									You can suggest a new icon by submitting a Pull Request to our
-									public GitHub repository. Just keep in mind that it should be
-									relevant to many Coder users, and redistributable under a
-									permissive license.
-								</p>
-							}
-						>
-							<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
-								Suggest an icon
-							</Link>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
+									Suggest an icon
+								</Link>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" align="end" className="max-w-xs">
+								You can suggest a new icon by submitting a Pull Request to our
+								public GitHub repository. Just keep in mind that it should be
+								relevant to many Coder users, and redistributable under a
+								permissive license.
+							</TooltipContent>
 						</Tooltip>
 					}
 				>
@@ -122,13 +124,16 @@ const IconsPage: FC = () => {
 						),
 						endAdornment: searchInputText && (
 							<InputAdornment position="end">
-								<Tooltip title="Clear filter">
-									<IconButton
-										size="small"
-										onClick={() => setSearchInputText("")}
-									>
-										<XIcon className="size-icon-xs" />
-									</IconButton>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<IconButton
+											size="small"
+											onClick={() => setSearchInputText("")}
+										>
+											<XIcon className="size-icon-xs" />
+										</IconButton>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">Clear filter</TooltipContent>
 								</Tooltip>
 							</InputAdornment>
 						),

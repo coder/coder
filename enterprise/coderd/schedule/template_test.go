@@ -737,6 +737,105 @@ func TestNotifications(t *testing.T) {
 			require.Contains(t, sent[i].Targets, dormantWs.OwnerID)
 		}
 	})
+
+	// Regression test for https://github.com/coder/coder/issues/20913
+	// Deleted workspaces should not receive dormancy notifications.
+	t.Run("DeletedWorkspacesNotNotified", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitLong)
+			user  = dbgen.User(t, db, database.User{})
+			file  = dbgen.File(t, db, database.File{
+				CreatedBy: user.ID,
+			})
+			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Tags: database.StringMap{
+					"foo": "bar",
+				},
+			})
+			timeTilDormant  = time.Minute * 2
+			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				JobID:          templateJob.ID,
+				OrganizationID: templateJob.OrganizationID,
+			})
+			template = dbgen.Template(t, db, database.Template{
+				ActiveVersionID:          templateVersion.ID,
+				CreatedBy:                user.ID,
+				OrganizationID:           templateJob.OrganizationID,
+				TimeTilDormant:           int64(timeTilDormant),
+				TimeTilDormantAutoDelete: int64(timeTilDormant),
+			})
+		)
+
+		// Create a dormant workspace that is NOT deleted.
+		activeDormantWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+			OrganizationID: templateJob.OrganizationID,
+			LastUsedAt:     time.Now().Add(-time.Hour),
+		})
+		_, err := db.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+			ID: activeDormantWorkspace.ID,
+			DormantAt: sql.NullTime{
+				Time:  activeDormantWorkspace.LastUsedAt.Add(timeTilDormant),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Create a dormant workspace that IS deleted.
+		deletedDormantWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+			OrganizationID: templateJob.OrganizationID,
+			LastUsedAt:     time.Now().Add(-time.Hour),
+			Deleted:        true, // Mark as deleted
+		})
+		_, err = db.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+			ID: deletedDormantWorkspace.ID,
+			DormantAt: sql.NullTime{
+				Time:  deletedDormantWorkspace.LastUsedAt.Add(timeTilDormant),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Setup dependencies
+		notifyEnq := notificationstest.NewFakeEnqueuer()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+		require.NoError(t, err)
+		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+		userQuietHoursStorePtr.Store(&userQuietHoursStore)
+		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger, nil)
+
+		// Lower the dormancy TTL to ensure the schedule recalculates deadlines and
+		// triggers notifications.
+		_, err = templateScheduleStore.Set(dbauthz.AsNotifier(ctx), db, template, agplschedule.TemplateScheduleOptions{
+			TimeTilDormant:           timeTilDormant / 2,
+			TimeTilDormantAutoDelete: timeTilDormant / 2,
+		})
+		require.NoError(t, err)
+
+		// We should only receive a notification for the non-deleted dormant workspace.
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, 1, "expected exactly 1 notification for the non-deleted workspace")
+		require.Equal(t, sent[0].UserID, activeDormantWorkspace.OwnerID)
+		require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceMarkedForDeletion)
+		require.Contains(t, sent[0].Targets, activeDormantWorkspace.ID)
+
+		// Ensure the deleted workspace was NOT notified
+		for _, notification := range sent {
+			require.NotContains(t, notification.Targets, deletedDormantWorkspace.ID,
+				"deleted workspace should not receive notifications")
+		}
+	})
 }
 
 func TestTemplateTTL(t *testing.T) {

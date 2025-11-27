@@ -53,6 +53,7 @@ SUBCOMMANDS:
     stop              Stop a workspace
     support           Commands for troubleshooting issues with a Coder
                       deployment.
+    task              Manage tasks
     templates         Manage templates
     tokens            Manage personal access tokens
     unfavorite        Remove a workspace from your favorites
@@ -108,10 +109,12 @@ variables or flags.
       --url url, $CODER_URL
           URL to a deployment.
 
-      --use-keyring bool, $CODER_USE_KEYRING
+      --use-keyring bool, $CODER_USE_KEYRING (default: true)
           Store and retrieve session tokens using the operating system keyring.
-          Currently only supported on Windows. By default, tokens are stored in
-          plain text files.
+          This flag is ignored and file-based storage is used when
+          --global-config is set or keyring usage is not supported on the
+          current platform. Set to false to force file-based storage on
+          supported platforms.
 
   -v, --verbose bool, $CODER_VERBOSE
           Enable verbose output.

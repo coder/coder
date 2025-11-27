@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder aibridge interceptions list [flags]
 
-  List AIBridge interceptions as JSON.
+  List AI Bridge interceptions as JSON.
 
 OPTIONS:
       --after-id string

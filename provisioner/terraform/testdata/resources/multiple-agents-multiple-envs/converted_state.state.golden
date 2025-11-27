@@ -1,0 +1,86 @@
+{
+  "Resources": [
+    {
+      "name": "dev1",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "fac6034b-1d42-4407-b266-265e35795241",
+          "name": "dev1",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "1ef61ba1-3502-4e65-b934-8cc63b16877c"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "extra_envs": [
+            {
+              "name": "ENV_1",
+              "value": "Env 1"
+            },
+            {
+              "name": "ENV_2",
+              "value": "Env 2"
+            }
+          ],
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "dev2",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "a02262af-b94b-4d6d-98ec-6e36b775e328",
+          "name": "dev2",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "3d5caada-8239-4074-8d90-6a28a11858f9"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "extra_envs": [
+            {
+              "name": "ENV_3",
+              "value": "Env 3"
+            }
+          ],
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "env1",
+      "type": "coder_env"
+    },
+    {
+      "name": "env2",
+      "type": "coder_env"
+    },
+    {
+      "name": "env3",
+      "type": "coder_env"
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

@@ -1,0 +1,32 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "c49a0e36-fd67-4946-a75f-ff52b77e9f95",
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "d9775224-6ecb-4c53-b24d-931555a7c86a"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode_insiders": true,
+            "web_terminal": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

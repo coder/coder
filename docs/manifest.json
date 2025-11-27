@@ -935,7 +935,7 @@
 					"description": "Centralized LLM and MCP proxy for platform teams",
 					"path": "./ai-coder/ai-bridge/index.md",
 					"icon_path": "./images/icons/api.svg",
-					"state": ["premium", "early access"],
+					"state": ["premium", "beta"],
 					"children": [
 						{
 							"title": "Setup",
@@ -1131,6 +1131,10 @@
 							"path": "./reference/api/general.md"
 						},
 						{
+							"title": "AI Bridge",
+							"path": "./reference/api/aibridge.md"
+						},
+						{
 							"title": "Agents",
 							"path": "./reference/api/agents.md"
 						},
@@ -1171,12 +1175,20 @@
 							"path": "./reference/api/git.md"
 						},
 						{
+							"title": "InitScript",
+							"path": "./reference/api/initscript.md"
+						},
+						{
 							"title": "Insights",
 							"path": "./reference/api/insights.md"
 						},
 						{
 							"title": "Members",
 							"path": "./reference/api/members.md"
+						},
+						{
+							"title": "Notifications",
+							"path": "./reference/api/notifications.md"
 						},
 						{
 							"title": "Organizations",
@@ -1187,8 +1199,20 @@
 							"path": "./reference/api/portsharing.md"
 						},
 						{
+							"title": "Prebuilds",
+							"path": "./reference/api/prebuilds.md"
+						},
+						{
+							"title": "Provisioning",
+							"path": "./reference/api/provisioning.md"
+						},
+						{
 							"title": "Schemas",
 							"path": "./reference/api/schemas.md"
+						},
+						{
+							"title": "Tasks",
+							"path": "./reference/api/tasks.md"
 						},
 						{
 							"title": "Templates",
@@ -1216,17 +1240,17 @@
 					"children": [
 						{
 							"title": "aibridge",
-							"description": "Manage AIBridge.",
+							"description": "Manage AI Bridge.",
 							"path": "reference/cli/aibridge.md"
 						},
 						{
 							"title": "aibridge interceptions",
-							"description": "Manage AIBridge interceptions.",
+							"description": "Manage AI Bridge interceptions.",
 							"path": "reference/cli/aibridge_interceptions.md"
 						},
 						{
 							"title": "aibridge interceptions list",
-							"description": "List AIBridge interceptions as JSON.",
+							"description": "List AI Bridge interceptions as JSON.",
 							"path": "reference/cli/aibridge_interceptions_list.md"
 						},
 						{
@@ -1746,6 +1770,41 @@
 							"title": "support bundle",
 							"description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 							"path": "reference/cli/support_bundle.md"
+						},
+						{
+							"title": "task",
+							"description": "Manage tasks",
+							"path": "reference/cli/task.md"
+						},
+						{
+							"title": "task create",
+							"description": "Create a task",
+							"path": "reference/cli/task_create.md"
+						},
+						{
+							"title": "task delete",
+							"description": "Delete tasks",
+							"path": "reference/cli/task_delete.md"
+						},
+						{
+							"title": "task list",
+							"description": "List tasks",
+							"path": "reference/cli/task_list.md"
+						},
+						{
+							"title": "task logs",
+							"description": "Show a task's logs",
+							"path": "reference/cli/task_logs.md"
+						},
+						{
+							"title": "task send",
+							"description": "Send input to a task",
+							"path": "reference/cli/task_send.md"
+						},
+						{
+							"title": "task status",
+							"description": "Show the status of a task.",
+							"path": "reference/cli/task_status.md"
 						},
 						{
 							"title": "templates",
