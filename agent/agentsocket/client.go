@@ -1,19 +1,8 @@
 package agentsocket
 
 import (
-	"context"
-
 	"github.com/coder/coder/v2/agent/unit"
 )
-
-type client interface {
-	Ping(ctx context.Context) error
-	SyncStart(ctx context.Context, unitName unit.ID) error
-	SyncWant(ctx context.Context, unitName, dependsOn unit.ID) error
-	SyncComplete(ctx context.Context, unitName unit.ID) error
-	SyncReady(ctx context.Context, unitName unit.ID) (bool, error)
-	SyncStatus(ctx context.Context, unitName unit.ID) (SyncStatusResponse, error)
-}
 
 // Option represents a configuration option for NewClient.
 type Option func(*options)

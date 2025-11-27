@@ -15,8 +15,6 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 )
 
-var _ client = (*Client)(nil)
-
 // Client provides a client for communicating with the workspace agentsocket API.
 type Client struct {
 	client proto.DRPCAgentSocketClient

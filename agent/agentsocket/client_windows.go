@@ -9,8 +9,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var _ client = (*Client)(nil)
-
 // Client provides a client for communicating with the workspace agentsocket API.
 type Client struct{}
 
