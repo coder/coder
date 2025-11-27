@@ -16,10 +16,10 @@ func (*RootCmd) syncStatus() *serpent.Command {
 		cliui.TableFormat(
 			[]agentsocket.SyncStatusResponse{},
 			[]string{
-				"Unit",
-				"Status",
-				"Ready",
-				"Dependencies",
+				"unit",
+				"status",
+				"ready",
+				"dependencies",
 			},
 		),
 		cliui.JSONFormat(),
