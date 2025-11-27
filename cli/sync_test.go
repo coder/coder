@@ -25,7 +25,7 @@ func setupSocketServer(t *testing.T) (path string, cleanup func()) {
 	t.Helper()
 
 	// Use a temporary socket path for each test
-	socketPath := testutil.TempFile(t, t.TempDir(), "coder-agent.sock")
+	socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 	// Create parent directory if needed
 	parentDir := filepath.Dir(socketPath)
