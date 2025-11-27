@@ -33,7 +33,7 @@ func TestServer(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(socketPath, logger)
+		server, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		require.NoError(t, server.Close())
 	})
@@ -43,10 +43,10 @@ func TestServer(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server1, err := agentsocket.NewServer(socketPath, logger)
+		server1, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		defer server1.Close()
-		_, err = agentsocket.NewServer(socketPath, logger)
+		_, err = agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.ErrorContains(t, err, "create socket")
 	})
 
@@ -55,7 +55,7 @@ func TestServer(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(socketPath, logger)
+		server, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		require.NoError(t, server.Close())
 	})
@@ -73,19 +73,15 @@ func TestServerWindowsNotSupported(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(socketPath, logger)
-		require.Error(t, err)
-		require.Nil(t, server)
+		_, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
 		require.ErrorContains(t, err, "agentsocket is not supported on Windows")
 	})
 
 	t.Run("NewClient", func(t *testing.T) {
 		t.Parallel()
 
-		client, err := agentsocket.NewClient(context.Background(), "test.sock")
-		require.Error(t, err)
+		_, err := agentsocket.NewClient(context.Background(), agentsocket.WithPath("test.sock"))
 		require.ErrorContains(t, err, "agentsocket is not supported on Windows")
-		require.Nil(t, client)
 	})
 }
 

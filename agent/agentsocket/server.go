@@ -1,5 +1,3 @@
-//go:build !windows
-
 package agentsocket
 
 import (
@@ -9,7 +7,6 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
-
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -35,11 +32,16 @@ type Server struct {
 }
 
 // NewServer creates a new agent socket server.
-func NewServer(path string, logger slog.Logger) (*Server, error) {
+func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
+	options := &options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	logger = logger.Named("agentsocket-server")
 	server := &Server{
 		logger: logger,
-		path:   path,
+		path:   options.path,
 		service: &DRPCAgentSocketService{
 			logger:      logger,
 			unitManager: unit.NewManager(),
@@ -62,14 +64,6 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
 		},
 	})
-
-	if server.path == "" {
-		var err error
-		server.path, err = getDefaultSocketPath()
-		if err != nil {
-			return nil, xerrors.Errorf("get default socket path: %w", err)
-		}
-	}
 
 	listener, err := createSocket(server.path)
 	if err != nil {

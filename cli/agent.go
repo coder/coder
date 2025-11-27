@@ -57,6 +57,7 @@ func workspaceAgent() *serpent.Command {
 		devcontainers                  bool
 		devcontainerProjectDiscovery   bool
 		devcontainerDiscoveryAutostart bool
+		socketServerEnabled            bool
 		socketPath                     string
 	)
 	agentAuth := &AgentAuth{}
@@ -318,7 +319,8 @@ func workspaceAgent() *serpent.Command {
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
 						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
 					},
-					SocketPath: socketPath,
+					SocketPath:          socketPath,
+					SocketServerEnabled: socketServerEnabled,
 				})
 
 				if debugAddress != "" {
@@ -478,6 +480,13 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE",
 			Description: "Allow the agent to autostart devcontainer projects it discovers based on their configuration.",
 			Value:       serpent.BoolOf(&devcontainerDiscoveryAutostart),
+		},
+		{
+			Flag:        "socket-server-enabled",
+			Default:     "false",
+			Env:         "CODER_AGENT_SOCKET_SERVER_ENABLED",
+			Description: "Enable the agent socket server.",
+			Value:       serpent.BoolOf(&socketServerEnabled),
 		},
 		{
 			Flag:        "socket-path",

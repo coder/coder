@@ -47,7 +47,7 @@ func tempDirUnixSocket(t *testing.T) string {
 func newSocketClient(ctx context.Context, t *testing.T, socketPath string) *agentsocket.Client {
 	t.Helper()
 
-	client, err := agentsocket.NewClient(ctx, socketPath)
+	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(socketPath))
 	t.Cleanup(func() {
 		_ = client.Close()
 	})
@@ -69,8 +69,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := agentsocket.NewServer(
-			socketPath,
 			slog.Make().Leveled(slog.LevelDebug),
+			agentsocket.WithPath(socketPath),
 		)
 		require.NoError(t, err)
 		defer server.Close()
@@ -89,8 +89,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -102,7 +102,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 		})
 
 		t.Run("UnitAlreadyStarted", func(t *testing.T) {
@@ -111,8 +111,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -124,7 +124,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			require.NoError(t, err)
 			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Second Start
 			err = client.SyncStart(ctx, "test-unit")
@@ -132,7 +132,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 		})
 
 		t.Run("UnitAlreadyCompleted", func(t *testing.T) {
@@ -141,8 +141,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -155,7 +155,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Complete the unit
 			err = client.SyncComplete(ctx, "test-unit")
@@ -163,7 +163,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "completed", status.Status)
+			require.Equal(t, unit.StatusComplete, status.Status)
 
 			// Second start
 			err = client.SyncStart(ctx, "test-unit")
@@ -171,7 +171,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 		})
 
 		t.Run("UnitNotReady", func(t *testing.T) {
@@ -180,8 +180,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -196,7 +196,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, string(unit.StatusPending), status.Status)
+			require.Equal(t, unit.StatusPending, status.Status)
 			require.False(t, status.IsReady)
 		})
 	})
@@ -210,8 +210,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -225,8 +225,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
 			require.Len(t, status.Dependencies, 1)
-			require.Equal(t, "dependency-unit", status.Dependencies[0].DependsOn)
-			require.Equal(t, "completed", status.Dependencies[0].RequiredStatus)
+			require.Equal(t, unit.ID("dependency-unit"), status.Dependencies[0].DependsOn)
+			require.Equal(t, unit.StatusComplete, status.Dependencies[0].RequiredStatus)
 		})
 
 		t.Run("DependencyAlreadyRegistered", func(t *testing.T) {
@@ -235,8 +235,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -249,7 +249,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err := client.SyncStatus(ctx, "dependency-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Add the dependency after the dependency unit has already started
 			err = client.SyncWant(ctx, "test-unit", "dependency-unit")
@@ -260,8 +260,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			// The dependency is now reflected in the test unit's status
 			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "dependency-unit", status.Dependencies[0].DependsOn)
-			require.Equal(t, "completed", status.Dependencies[0].RequiredStatus)
+			require.Equal(t, unit.ID("dependency-unit"), status.Dependencies[0].DependsOn)
+			require.Equal(t, unit.StatusComplete, status.Dependencies[0].RequiredStatus)
 		})
 
 		t.Run("DependencyAddedAfterDependentStarted", func(t *testing.T) {
@@ -270,8 +270,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -284,7 +284,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Add the dependency after the dependency unit has already started
 			err = client.SyncWant(ctx, "test-unit", "dependency-unit")
@@ -298,8 +298,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			// The dependency is now reflected in the test unit's status
 			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "dependency-unit", status.Dependencies[0].DependsOn)
-			require.Equal(t, "completed", status.Dependencies[0].RequiredStatus)
+			require.Equal(t, unit.ID("dependency-unit"), status.Dependencies[0].DependsOn)
+			require.Equal(t, unit.StatusComplete, status.Dependencies[0].RequiredStatus)
 		})
 	})
 
@@ -312,8 +312,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -322,7 +322,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			ready, err := client.SyncReady(ctx, "unregistered-unit")
 			require.NoError(t, err)
-			require.False(t, ready)
+			require.True(t, ready)
 		})
 
 		t.Run("UnitNotReady", func(t *testing.T) {
@@ -331,8 +331,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
@@ -355,8 +355,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()

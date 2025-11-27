@@ -3,8 +3,7 @@
 package agentsocket
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
 	"net"
 	"os"
 	"path/filepath"
@@ -13,7 +12,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const defaultSocketPath = "/tmp/coder-agent.sock"
+
 func createSocket(path string) (net.Listener, error) {
+	if path == "" {
+		path = defaultSocketPath
+	}
+
 	if !isSocketAvailable(path) {
 		return nil, xerrors.Errorf("socket path %s is not available", path)
 	}
@@ -39,21 +44,6 @@ func createSocket(path string) (net.Listener, error) {
 	return listener, nil
 }
 
-func getDefaultSocketPath() (string, error) {
-	randomBytes := make([]byte, 4)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return "", xerrors.Errorf("generate random socket name: %w", err)
-	}
-	randomSuffix := hex.EncodeToString(randomBytes)
-
-	// Try XDG_RUNTIME_DIR first
-	if runtimeDir := os.Getenv("XDG_RUNTIME_DIR"); runtimeDir != "" {
-		return filepath.Join(runtimeDir, "coder-agent-"+randomSuffix+".sock"), nil
-	}
-
-	return filepath.Join("/tmp", "coder-agent-"+randomSuffix+".sock"), nil
-}
-
 func cleanupSocket(path string) error {
 	return os.Remove(path)
 }
@@ -71,4 +61,13 @@ func isSocketAvailable(path string) bool {
 	}
 	_ = conn.Close()
 	return false
+}
+
+func dialSocket(ctx context.Context, path string) (net.Conn, error) {
+	if path == "" {
+		path = defaultSocketPath
+	}
+
+	dialer := net.Dialer{}
+	return dialer.DialContext(ctx, "unix", path)
 }
