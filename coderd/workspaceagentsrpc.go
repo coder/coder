@@ -132,7 +132,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:    workspace.ID,
 		OrganizationID: workspace.OrganizationID,
 
-		Ctx:                               api.ctx,
+		AuthenticatedCtx:                  ctx,
 		Log:                               logger,
 		Clock:                             api.Clock,
 		Database:                          api.Database,
