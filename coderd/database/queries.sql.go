@@ -10854,16 +10854,27 @@ FROM
 WHERE
 	users.deleted = false
 	AND CASE
-		-- This allows using the last element on a page as effectively a cursor.
-		-- This is an important option for scripts that need to paginate without
-		-- duplicating or missing data.
+		-- Cursor-based pagination with multi-level sorting
+		-- This ensures consistent pagination even when data is inserted/updated
 		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-			-- The pagination cursor is the last ID of the previous page.
-			-- The query is ordered by the username field, so select all
-			-- rows after the cursor.
-			(LOWER(username)) > (
+			-- Complex tuple comparison matching the ORDER BY clause
+			(
+				status,
+				CASE 
+					WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0 
+					ELSE 1 
+				END,
+				last_seen_at,
+				email
+			) > (
 				SELECT
-					LOWER(username)
+					status,
+					CASE 
+						WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0 
+						ELSE 1 
+					END,
+					last_seen_at,
+					email
 				FROM
 					users
 				WHERE
@@ -10924,8 +10935,15 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
-	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $9
+	-- Multi-level sorting for admin user management
+	status ASC,  -- 1st priority: Status ascending (active, suspended, etc.)
+	CASE 
+		WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0 
+		ELSE 1 
+	END ASC,  -- 2nd priority: New users (0001-01-01) first
+	last_seen_at DESC,  -- 3rd priority: Last Seen At descending (recent activity first)
+	email ASC  -- 4th priority: Email ascending (unique + stable sort key)
+OFFSET $9
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF($10 :: int, 0)
