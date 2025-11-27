@@ -136,3 +136,24 @@ func Test_OutputFormatter(t *testing.T) {
 		require.EqualValues(t, 2, atomic.LoadInt64(&called))
 	})
 }
+
+type tableFormatTestRow struct {
+	Name string `table:"name,default_sort"`
+	Age  int    `table:"age"`
+}
+
+func Test_TableFormat_EmptyData(t *testing.T) {
+	t.Parallel()
+
+	f := cliui.NewOutputFormatter(
+		cliui.TableFormat([]tableFormatTestRow{}, nil),
+		cliui.JSONFormat(),
+	)
+
+	ctx := context.Background()
+	var emptyData []tableFormatTestRow
+
+	out, err := f.Format(ctx, emptyData)
+	require.NoError(t, err)
+	require.Equal(t, "", out)
+}

@@ -106,6 +106,9 @@ var _ OutputFormat = &tableFormat{}
 //
 // defaultColumns is optional and specifies the default columns to display. If
 // not specified, all columns are displayed by default.
+//
+// If the data is empty, an empty string is returned. Callers should check for
+// this and provide an appropriate message to the user.
 func TableFormat(out any, defaultColumns []string) OutputFormat {
 	v := reflect.Indirect(reflect.ValueOf(out))
 	if v.Kind() != reflect.Slice {
@@ -150,6 +153,13 @@ func (f *tableFormat) AttachOptions(opts *serpent.OptionSet) {
 
 // Format implements OutputFormat.
 func (f *tableFormat) Format(_ context.Context, data any) (string, error) {
+	// Return empty string for empty data. Callers should check for this
+	// and provide an appropriate message to the user.
+	v := reflect.Indirect(reflect.ValueOf(data))
+	if v.Kind() == reflect.Slice && v.Len() == 0 {
+		return "", nil
+	}
+
 	headers := make(table.Row, len(f.allColumns))
 	for i, header := range f.allColumns {
 		headers[i] = header

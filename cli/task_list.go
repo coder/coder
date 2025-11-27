@@ -157,12 +157,6 @@ func (r *RootCmd) taskList() *serpent.Command {
 				return nil
 			}
 
-			// If no rows and not JSON, show a friendly message.
-			if len(tasks) == 0 && formatter.FormatID() != cliui.JSONFormat().ID() {
-				_, _ = fmt.Fprintln(inv.Stderr, "No tasks found.")
-				return nil
-			}
-
 			rows := make([]taskListRow, len(tasks))
 			now := time.Now()
 			for i := range tasks {
@@ -172,6 +166,10 @@ func (r *RootCmd) taskList() *serpent.Command {
 			out, err := formatter.Format(ctx, rows)
 			if err != nil {
 				return xerrors.Errorf("format tasks: %w", err)
+			}
+			if out == "" {
+				_, _ = fmt.Fprintln(inv.Stderr, "No tasks found.")
+				return nil
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, out)
 			return nil
