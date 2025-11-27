@@ -113,6 +113,7 @@ func (c *Client) SyncStatus(ctx context.Context, unitName string) (SyncStatusRes
 	}
 
 	return SyncStatusResponse{
+		UnitName:     unitName,
 		Status:       resp.Status,
 		IsReady:      resp.IsReady,
 		Dependencies: dependencies,

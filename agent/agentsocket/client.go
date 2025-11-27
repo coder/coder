@@ -17,15 +17,16 @@ func WithPath(path string) Option {
 
 // SyncStatusResponse contains the status information for a unit.
 type SyncStatusResponse struct {
-	Status       string           `json:"status"`
-	IsReady      bool             `json:"is_ready"`
-	Dependencies []DependencyInfo `json:"dependencies"`
+	UnitName     string           `table:"Unit" json:"unit_name"`
+	Status       string           `table:"Status" json:"status"`
+	IsReady      bool             `table:"Ready" json:"is_ready"`
+	Dependencies []DependencyInfo `table:"Dependencies,recursive_inline" json:"dependencies"`
 }
 
 // DependencyInfo contains information about a unit dependency.
 type DependencyInfo struct {
-	DependsOn      string `json:"depends_on"`
-	RequiredStatus string `json:"required_status"`
-	CurrentStatus  string `json:"current_status"`
-	IsSatisfied    bool   `json:"is_satisfied"`
+	DependsOn      string `table:"Depends On,default_sort" json:"depends_on"`
+	RequiredStatus string `table:"Required" json:"required_status"`
+	CurrentStatus  string `table:"Current" json:"current_status"`
+	IsSatisfied    bool   `table:"Satisfied" json:"is_satisfied"`
 }
