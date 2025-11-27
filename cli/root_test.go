@@ -72,6 +72,30 @@ func TestCommandHelp(t *testing.T) {
 			Name: "coder provisioner jobs list --output json",
 			Cmd:  []string{"provisioner", "jobs", "list", "--output", "json"},
 		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync --help",
+			Cmd:  []string{"exp", "sync", "--help"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync ping --help",
+			Cmd:  []string{"exp", "sync", "ping", "--help"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync start --help",
+			Cmd:  []string{"exp", "sync", "start", "--help"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync want --help",
+			Cmd:  []string{"exp", "sync", "want", "--help"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync complete --help",
+			Cmd:  []string{"exp", "sync", "complete", "--help"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync status --help",
+			Cmd:  []string{"exp", "sync", "status", "--help"},
+		},
 	))
 }
 

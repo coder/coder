@@ -16,7 +16,7 @@ const (
 	syncPollInterval = 1 * time.Second
 )
 
-func (*RootCmd) syncStart() *serpent.Command {
+func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 	var timeout time.Duration
 
 	cmd := &serpent.Command{
@@ -37,7 +37,12 @@ func (*RootCmd) syncStart() *serpent.Command {
 				defer cancel()
 			}
 
-			client, err := agentsocket.NewClient(ctx)
+			opts := []agentsocket.Option{}
+			if *socketPath != "" {
+				opts = append(opts, agentsocket.WithPath(*socketPath))
+			}
+
+			client, err := agentsocket.NewClient(ctx, opts...)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
@@ -49,7 +54,7 @@ func (*RootCmd) syncStart() *serpent.Command {
 			}
 
 			if !ready {
-				cliui.Info(i.Stdout, "Waiting for dependencies of unit '%s' to be satisfied...", unitName)
+				cliui.Infof(i.Stdout, "Waiting for dependencies of unit '%s' to be satisfied...", unitName)
 
 				ticker := time.NewTicker(syncPollInterval)
 				defer ticker.Stop()

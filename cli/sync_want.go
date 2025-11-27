@@ -9,8 +9,8 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 )
 
-func (*RootCmd) syncWant() *serpent.Command {
-	return &serpent.Command{
+func (*RootCmd) syncWant(socketPath *string) *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "want <unit> <depends-on>",
 		Short: "Declare that a unit depends on another unit completing before it can start",
 		Long:  "Declare that a unit depends on another unit completing before it can start. The unit specified first will not start until the second has signaled that it has completed.",
@@ -23,7 +23,12 @@ func (*RootCmd) syncWant() *serpent.Command {
 			unit := i.Args[0]
 			dependsOn := i.Args[1]
 
-			client, err := agentsocket.NewClient(ctx)
+			opts := []agentsocket.Option{}
+			if *socketPath != "" {
+				opts = append(opts, agentsocket.WithPath(*socketPath))
+			}
+
+			client, err := agentsocket.NewClient(ctx, opts...)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
@@ -38,4 +43,6 @@ func (*RootCmd) syncWant() *serpent.Command {
 			return nil
 		},
 	}
+
+	return cmd
 }

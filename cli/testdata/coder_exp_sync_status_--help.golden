@@ -1,0 +1,23 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync status [flags] <unit>
+
+  Show unit status and dependency state
+
+  Show the current status of a unit, whether it is ready to start, and lists its
+  dependencies. Shows which dependencies are satisfied and which are still
+  pending. Supports multiple output formats.
+
+OPTIONS:
+  -c, --column [unit|status|ready|dependencies] (default: unit,status,ready,dependencies)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+      --socket-path string, $CODER_AGENT_SOCKET_PATH
+          Specify the path for the agent socket.
+
+———
+Run `coder --help` for a list of global options.

@@ -8,8 +8,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (*RootCmd) syncComplete() *serpent.Command {
-	return &serpent.Command{
+func (*RootCmd) syncComplete(socketPath *string) *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "complete <unit>",
 		Short: "Mark a unit as complete",
 		Long:  "Mark a unit as complete. Indicating to other units that it has completed its work. This allows units that depend on it to proceed with their startup.",
@@ -21,7 +21,12 @@ func (*RootCmd) syncComplete() *serpent.Command {
 			}
 			unit := i.Args[0]
 
-			client, err := agentsocket.NewClient(ctx)
+			opts := []agentsocket.Option{}
+			if *socketPath != "" {
+				opts = append(opts, agentsocket.WithPath(*socketPath))
+			}
+
+			client, err := agentsocket.NewClient(ctx, opts...)
 			if err != nil {
 				return xerrors.Errorf("connect to agent socket: %w", err)
 			}
@@ -36,4 +41,6 @@ func (*RootCmd) syncComplete() *serpent.Command {
 			return nil
 		},
 	}
+
+	return cmd
 }

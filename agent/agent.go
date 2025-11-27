@@ -377,7 +377,7 @@ func (a *agent) initSocketServer() {
 		agentsocket.WithPath(a.socketPath),
 	)
 	if err != nil {
-		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err))
+		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
 		return
 	}
 

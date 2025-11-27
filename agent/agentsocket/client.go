@@ -11,16 +11,19 @@ type options struct {
 // auto-discover the default socket path.
 func WithPath(path string) Option {
 	return func(opts *options) {
+		if path == "" {
+			return
+		}
 		opts.path = path
 	}
 }
 
 // SyncStatusResponse contains the status information for a unit.
 type SyncStatusResponse struct {
-	UnitName     string           `table:"unit" json:"unit_name"`
+	UnitName     string           `table:"unit,default_sort" json:"unit_name"`
 	Status       string           `table:"status" json:"status"`
 	IsReady      bool             `table:"ready" json:"is_ready"`
-	Dependencies []DependencyInfo `table:"dependencies,recursive_inline" json:"dependencies"`
+	Dependencies []DependencyInfo `table:"dependencies" json:"dependencies"`
 }
 
 // DependencyInfo contains information about a unit dependency.

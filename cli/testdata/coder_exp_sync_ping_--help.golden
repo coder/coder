@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync ping [flags]
+
+  Test agent socket connectivity and health
+
+  Test connectivity to the local Coder agent socket to verify the agent is
+  running and responsive. Useful for troubleshooting startup issues or verifying
+  the agent is accessible before running other sync commands.
+
+OPTIONS:
+      --socket-path string, $CODER_AGENT_SOCKET_PATH
+          Specify the path for the agent socket.
+
+———
+Run `coder --help` for a list of global options.

@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync complete [flags] <unit>
+
+  Mark a unit as complete
+
+  Mark a unit as complete. Indicating to other units that it has completed its
+  work. This allows units that depend on it to proceed with their startup.
+
+OPTIONS:
+      --socket-path string, $CODER_AGENT_SOCKET_PATH
+          Specify the path for the agent socket.
+
+———
+Run `coder --help` for a list of global options.

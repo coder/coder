@@ -137,7 +137,7 @@ func (m *Manager) IsReady(id ID) (bool, error) {
 	defer m.mu.RUnlock()
 
 	if !m.registered(id) {
-		return false, nil
+		return true, nil
 	}
 
 	return m.units[id].ready, nil

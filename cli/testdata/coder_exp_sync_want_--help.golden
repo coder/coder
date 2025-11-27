@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync want [flags] <unit> <depends-on>
+
+  Declare that a unit depends on another unit completing before it can start
+
+  Declare that a unit depends on another unit completing before it can start.
+  The unit specified first will not start until the second has signaled that it
+  has completed.
+
+OPTIONS:
+      --socket-path string, $CODER_AGENT_SOCKET_PATH
+          Specify the path for the agent socket.
+
+———
+Run `coder --help` for a list of global options.
