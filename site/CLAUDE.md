@@ -52,48 +52,43 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 
 ### Icon Migration: MUI Icons → lucide-react
 
-**STRICT POLICY**: All icons must use `lucide-react`, not MUI icons.
+**STRICT POLICY**: Never import from `@mui/icons-material`. Always use `lucide-react` instead.
+
+**Use lucide-react icons:**
 
 ```tsx
-// OLD - MUI Icons (DO NOT USE)
-import BusinessIcon from "@mui/icons-material/Business";
-import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
-import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
-
-// NEW - lucide-react
 import {
   Building2Icon,
   UsersIcon,
   GlobeIcon,
+  UserIcon,
 } from "lucide-react";
 ```
 
-**Common icon mappings:**
+**Common icon replacements:**
 
-- `BusinessIcon` → `Building2Icon`
-- `GroupOutlinedIcon` / `GroupIcon` → `UsersIcon`
-- `PublicOutlinedIcon` / `PublicIcon` → `GlobeIcon`
-- `PersonIcon` → `UserIcon`
-- Always use descriptive lucide-react icons over generic MUI icons
+- Replace `BusinessIcon` with `Building2Icon`
+- Replace `GroupOutlinedIcon` / `GroupIcon` with `UsersIcon`
+- Replace `PublicOutlinedIcon` / `PublicIcon` with `GlobeIcon`
+- Replace `PersonIcon` with `UserIcon`
+- Always use descriptive lucide-react icons over generic alternatives
 
 ### MUI → Radix Component Prop Naming
 
-When migrating from MUI to Radix components, prop names change:
+When migrating from MUI to Radix components, prop names change. Use Radix naming conventions:
 
 ```tsx
-// MUI Tooltip props
-<Tooltip placement="top" PopperProps={...}>
-
-// Radix Tooltip props
-<Tooltip side="top">  // placement → side
-// PopperProps is removed (internal implementation detail)
+<Tooltip side="top">
+  <TooltipTrigger>Hover me</TooltipTrigger>
+  <TooltipContent>Tooltip text</TooltipContent>
+</Tooltip>
 ```
 
-**Common prop name changes:**
+**Common prop name changes from MUI:**
 
-- `placement` → `side` (for positioning)
-- Remove `PopperProps` (internal implementation, not needed)
-- MUI's `title` prop → Radix uses children pattern with `TooltipContent`
+- Use `side` instead of `placement` for positioning
+- Remove `PopperProps` (internal implementation detail, not needed in Radix)
+- MUI's `title` prop is replaced by Radix's children pattern with `TooltipContent`
 
 ## Styling
 
@@ -108,25 +103,25 @@ When migrating from MUI to Radix components, prop names change:
 
 ### Common Emotion → Tailwind Migrations
 
-```tsx
-// OLD - Emotion (DO NOT USE)
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-<div css={styles.container}>
-<Stack direction="row" spacing={3}>
-<span css={{ fontWeight: 500, color: theme.experimental.l1.text }}>
+Never import from `@emotion/react`. Use Tailwind CSS utility classes:
 
-// NEW - Tailwind
+```tsx
 <div className="flex flex-col gap-2">
-<div className="flex items-center gap-6">
-<span className="font-medium text-content-primary">
+  <div className="flex items-center gap-6">
+    <span className="font-medium text-content-primary">
+      Content here
+    </span>
+  </div>
+</div>
 ```
 
 **Common replacements:**
 
-- `css={visuallyHidden}` → `className="sr-only"`
-- `Stack` component → flex with Tailwind classes (`flex`, `flex-col`, `flex-row`, `gap-*`)
-- Theme colors → Tailwind semantic tokens (`text-content-primary`, `bg-surface-secondary`, `border-border-default`)
-- Icons: use lucide-react with `size-icon-sm`, `size-icon-xs` classes
+- Replace `css={visuallyHidden}` with `className="sr-only"`
+- Replace `Stack` component with flex layouts using Tailwind (`flex`, `flex-col`, `flex-row`, `gap-*`)
+- Replace emotion theme colors with Tailwind semantic tokens (`text-content-primary`, `bg-surface-secondary`, `border-border-default`)
+- Replace emotion `css` prop with `className` and Tailwind utilities
+- Use lucide-react icons with `size-icon-sm`, `size-icon-xs` classes for sizing
 
 ## Tailwind Best Practices
 
@@ -150,21 +145,12 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 
 ## Testing Patterns
 
-### Storybook: spyOn → queries parameter (for GET endpoint mocks)
+### Storybook: queries parameter for GET endpoint mocks
 
-**PREFERRED PATTERN**: Use `queries` parameter in story parameters instead of `spyOn` for GET endpoint mocks.
+**PREFERRED PATTERN**: For GET endpoint mocks in Storybook stories, use `queries` parameter instead of `spyOn`.
 
 ```tsx
-// OLD - spyOn pattern (AVOID for GET mocks)
-beforeEach: () => {
-  spyOn(API, "getUsers").mockResolvedValue({
-    users: MockUsers,
-    count: MockUsers.length,
-  });
-  spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-}
-
-// NEW - queries parameter pattern (PREFERRED)
+// Use queries parameter pattern
 parameters: {
   queries: [
     {
@@ -185,7 +171,7 @@ parameters: {
 **Important notes:**
 
 - This applies specifically to GET endpoint mocks in Storybook stories
-- `spyOn` is still used for other mock types (POST, PUT, DELETE, non-GET endpoints)
+- `spyOn` is still appropriate for other mock types (POST, PUT, DELETE, non-GET endpoints)
 - Must import the correct query key functions (e.g., `usersKey`, `getTemplatesQueryKey`)
 
 ### Chromatic/Storybook Testing Best Practices
