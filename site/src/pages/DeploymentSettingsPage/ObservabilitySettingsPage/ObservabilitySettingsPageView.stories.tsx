@@ -55,7 +55,7 @@ export const Page: Story = {};
 
 export const Premium: Story = { args: { isPremium: true } };
 
-export const AIBridge: Story = {
+export const AI_Bridge: Story = {
 	args: {
 		featureAIBridgeEnabled: true,
 		options: [
