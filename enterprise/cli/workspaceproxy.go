@@ -393,7 +393,7 @@ func (r *RootCmd) listProxies() *serpent.Command {
 			}
 
 			if output == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No workspace proxies found.")
+				cliui.Infof(inv.Stderr, "No workspace proxies found.")
 				return nil
 			}
 

@@ -130,7 +130,7 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No schedules found.")
+				cliui.Infof(inv.Stderr, "No schedules found.")
 				return nil
 			}
 

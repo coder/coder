@@ -60,7 +60,7 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No task logs found.")
+				cliui.Infof(inv.Stderr, "No task logs found.")
 				return nil
 			}
 

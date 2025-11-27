@@ -122,7 +122,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No template versions found.")
+				cliui.Infof(inv.Stderr, "No template versions found.")
 				return nil
 			}
 

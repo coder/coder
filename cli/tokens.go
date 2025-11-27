@@ -258,7 +258,7 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No tokens found.")
+				cliui.Info(inv.Stderr, "No tokens found.")
 				return nil
 			}
 

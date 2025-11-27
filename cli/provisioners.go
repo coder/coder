@@ -88,7 +88,7 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No provisioner daemons found.")
+				cliui.Infof(inv.Stderr, "No provisioner daemons found.")
 				return nil
 			}
 

@@ -111,7 +111,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No provisioner jobs found.")
+				cliui.Infof(inv.Stderr, "No provisioner jobs found.")
 				return nil
 			}
 

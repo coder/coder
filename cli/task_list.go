@@ -168,7 +168,7 @@ func (r *RootCmd) taskList() *serpent.Command {
 				return xerrors.Errorf("format tasks: %w", err)
 			}
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No tasks found.")
+				cliui.Infof(inv.Stderr, "No tasks found.")
 				return nil
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, out)

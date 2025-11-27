@@ -171,7 +171,7 @@ func (r *RootCmd) listOrganizationMembers(orgContext *OrganizationContext) *serp
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No organization members found.")
+				cliui.Infof(inv.Stderr, "No organization members found.")
 				return nil
 			}
 

@@ -132,7 +132,7 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 			}
 
 			if out == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "No provisioner keys found.")
+				cliui.Infof(inv.Stderr, "No provisioner keys found.")
 				return nil
 			}
 
