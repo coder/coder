@@ -1,7 +1,8 @@
 import { API } from "api/api";
 import type { InvalidatePresetsResponse } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { RefreshCw } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import type { FC } from "react";
@@ -42,19 +43,22 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version ${template_version_name}.`,
 			);
 		},
-		onError: () => displayError("Failed to invalidate template presets."),
 	});
 
 	return (
 		<div className="flex">
 			<div className="max-w-xl space-y-6">
+				{invalidateMutation.error && (
+					<ErrorAlert error={invalidateMutation.error} />
+				)}
 				<div>
 					<h3 className="text-xl text-content-primary m-0">
 						Invalidate presets
 					</h3>
 					<p className="text-sm text-content-secondary">
-						All prebuilt workspaces for the active template version are marked as invalid.
-						This is useful when prebuilds become stale due to repository changes or infrastructure updates and need recycling.
+						All prebuilt workspaces for the active template version are marked
+						as invalid. This is useful when prebuilds become stale due to
+						repository changes or infrastructure updates and need recycling.
 					</p>
 				</div>
 
