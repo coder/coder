@@ -58,6 +58,34 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
 - `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
 - `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
 
+#### Obtaining Bedrock credentials
+
+1. **Choose a region** where you want to use Bedrock.
+
+2. **Generate API keys** in the [AWS Bedrock console](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/api-keys/long-term/create) (replace `us-east-1` in the URL with your chosen region):
+   - Choose an expiry period for the key.
+   - Click **Generate**.
+   - This creates an IAM user with strictly-scoped permissions for Bedrock access.
+
+3. **Create an access key** for the IAM user:
+   - After generating the API key, click **"You can directly modify permissions for the IAM user associated"**.
+   - In the IAM user page, navigate to the **Security credentials** tab.
+   - Under **Access keys**, click **Create access key**.
+   - Select **"Application running outside AWS"** as the use case.
+   - Click **Next**.
+   - Add a description like "Coder AI Bridge token".
+   - Click **Create access key**.
+   - Save both the access key ID and secret access key securely.
+
+4. **Configure your Coder deployment** with the credentials:
+
+   ```sh
+   export CODER_AIBRIDGE_BEDROCK_REGION=us-east-1
+   export CODER_AIBRIDGE_BEDROCK_ACCESS_KEY=<your-access-key-id>
+   export CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET=<your-secret-access-key>
+   coder server
+   ```
+
 ### Additional providers and Model Proxies
 
 AI Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
