@@ -70,7 +70,9 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	return (
 		<div>
 			<Stack css={styles.info} spacing={0}>
-				<span css={styles.userName}>{user.username}</span>
+				<span css={styles.userName}>
+					{user.email.substring(0, user.email.lastIndexOf("@"))}
+				</span>
 				<span css={styles.userEmail}>{user.email}</span>
 			</Stack>
 
