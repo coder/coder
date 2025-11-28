@@ -469,7 +469,10 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 		return nil, xerrors.Errorf("fetch workspaces: %w", err)
 	}
 
-	workspaces := database.ConvertWorkspaceRows(workspaceRows)
+	workspaces, err := database.ConvertWorkspaceRows(workspaceRows)
+	if err != nil {
+		return nil, xerrors.Errorf("convert workspace rows: %w", err)
+	}
 
 	// Gather associated data and convert to API workspaces.
 	data, err := api.workspaceData(ctx, workspaces)

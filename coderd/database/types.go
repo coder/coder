@@ -67,9 +67,10 @@ func (t *TemplateACL) Scan(src interface{}) error {
 	switch v := src.(type) {
 	case string:
 		return json.Unmarshal([]byte(v), &t)
-	case []byte, json.RawMessage:
-		//nolint
-		return json.Unmarshal(v.([]byte), &t)
+	case []byte:
+		return json.Unmarshal(v, &t)
+	case json.RawMessage:
+		return json.Unmarshal(v, &t)
 	}
 
 	return xerrors.Errorf("unexpected type %T", src)
@@ -85,9 +86,10 @@ func (t *WorkspaceACL) Scan(src interface{}) error {
 	switch v := src.(type) {
 	case string:
 		return json.Unmarshal([]byte(v), &t)
-	case []byte, json.RawMessage:
-		//nolint
-		return json.Unmarshal(v.([]byte), &t)
+	case []byte:
+		return json.Unmarshal(v, &t)
+	case json.RawMessage:
+		return json.Unmarshal(v, &t)
 	}
 
 	return xerrors.Errorf("unexpected type %T", src)
