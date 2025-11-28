@@ -7,12 +7,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import every from "lodash/every";
-import keys from "lodash/keys";
-import mapValues from "lodash/mapValues";
-import some from "lodash/some";
-import sum from "lodash/sum";
-import uniq from "lodash/uniq";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
@@ -37,35 +31,43 @@ type RequestLogsRowProps = {
 function tokenUsageMetadataMerge(
 	...objects: Array<AIBridgeInterception["token_usages"][number]["metadata"]>
 ): unknown {
-	// TODO: Where possible, use native JS functions instead of lodash functions
-
 	// Filter out empty objects
-	const nonEmptyObjects = objects.filter((obj) => keys(obj).length > 0);
+	const nonEmptyObjects = objects.filter((obj) => Object.keys(obj).length > 0);
 
 	// If all objects were empty, return null
 	if (nonEmptyObjects.length === 0) return null;
 
 	// Check if all objects have the same keys
-	const keySets = nonEmptyObjects.map((obj) => keys(obj).sort().join(","));
+	const keySets = nonEmptyObjects.map((obj) =>
+		Object.keys(obj).sort().join(","),
+	);
 	// If the keys are different, just instantly return the objects
-	if (uniq(keySets).length > 1) return nonEmptyObjects;
+	if (new Set(keySets).size > 1) return nonEmptyObjects;
 
 	// Group the objects by key
-	const grouped = mapValues(nonEmptyObjects[0], (_, key) =>
-		nonEmptyObjects.map((obj) => obj[key]),
+	const grouped = Object.fromEntries(
+		Object.keys(nonEmptyObjects[0]).map((key) => [
+			key,
+			nonEmptyObjects.map((obj) => obj[key]),
+		]),
 	);
 
 	// Map the grouped values to a new object
-	const result = mapValues(grouped, (values: unknown[]) => {
-		const allNumeric = every(values, (v: unknown) => typeof v === "number");
-		const allSame = uniq(values).length === 1;
+	const result = Object.fromEntries(
+		Object.entries(grouped).map(([key, values]: [string, unknown[]]) => {
+			const allNumeric = values.every((v: unknown) => typeof v === "number");
+			const allSame = new Set(values).size === 1;
 
-		if (allNumeric) return sum(values);
-		if (allSame) return values[0];
-		return null; // Mark conflict
-	});
+			if (allNumeric)
+				return [key, values.reduce((acc, v) => acc + (v as number), 0)];
+			if (allSame) return [key, values[0]];
+			return [key, null]; // Mark conflict
+		}),
+	);
 
-	return some(result, (v: unknown) => v === null) ? nonEmptyObjects : result;
+	return Object.values(result).some((v: unknown) => v === null)
+		? nonEmptyObjects
+		: result;
 }
 
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
