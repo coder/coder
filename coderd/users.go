@@ -259,6 +259,9 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.GetUsersResponse
 // @Router /users [get]
+// @Description Users are returned in priority order for administrators: Status → New users first → Recent activity → Email
+// @Description New users (never logged in) are prioritized within each status group
+// @Description BREAKING CHANGE: Sorting changed from alphabetical by username to status-priority-based ordering
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	users, userCount, ok := api.GetUsers(rw, r)
@@ -293,6 +296,11 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetUsers returns users sorted by admin priority:
+// 1. Status (active, suspended, etc.) - ascending
+// 2. New users (never logged in) - first
+// 3. Recent activity (last_seen_at) - descending
+// 4. Email - ascending (stable sort key)
 func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.User, int64, bool) {
 	ctx := r.Context()
 	query := r.URL.Query().Get("q")

@@ -149,17 +149,31 @@ WHERE
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
 		WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-			-- The pagination cursor is the last ID of the previous page.
-			-- The query is ordered by the username field, so select all
-			-- rows after the cursor.
-			(LOWER(username)) > (
-				SELECT
-					LOWER(username)
-				FROM
-					users
-				WHERE
-					id = @after_id
-			)
+		-- The pagination cursor is the last ID of the previous page.
+		-- The query is ordered by multi-field criteria, so select all
+		-- rows after the cursor using tuple comparison.
+		(
+			status,
+			CASE
+				WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
+				ELSE 1
+			END,
+			-EXTRACT(EPOCH FROM last_seen_at),
+			email
+		) > (
+			SELECT
+				status,
+				CASE
+					WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
+					ELSE 1
+				END,
+				-EXTRACT(EPOCH FROM last_seen_at),
+				email
+			FROM
+				users
+			WHERE
+				id = @after_id
+		)
 		)
 		ELSE true
 	END
@@ -215,8 +229,19 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
-	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET @offset_opt
+	-- Admin-priority ordering for better user management experience.
+	-- 1st: Status ascending (active, suspended, etc.)
+	-- 2nd: New users first (last_seen_at = '0001-01-01')
+	-- 3rd: Last Seen At descending (recent activity first)
+	-- 4th: Email ascending (unique + stable sort key)
+	status ASC,
+	CASE
+		WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
+		ELSE 1
+	END ASC,
+	last_seen_at DESC,
+	email ASC
+OFFSET @offset_opt
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF(@limit_opt :: int, 0);
