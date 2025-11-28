@@ -1490,8 +1490,8 @@ func (s *MethodTestSuite) TestUser() {
 		userConfigValue, _ := strconv.ParseBool(userConfig.Value)
 		arg := database.UpdateUserTaskNotificationAlertDismissedParams{UserID: user.ID, TaskNotificationAlertDismissed: userConfigValue}
 		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
-		dbm.EXPECT().UpdateUserTaskNotificationAlertDismissed(gomock.Any(), arg).Return(userConfig, nil).AnyTimes()
-		check.Args(arg).Asserts(user, policy.ActionUpdatePersonal).Returns(userConfig)
+		dbm.EXPECT().UpdateUserTaskNotificationAlertDismissed(gomock.Any(), arg).Return(false, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionUpdatePersonal).Returns(userConfigValue)
 	}))
 	s.Run("UpdateUserStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})

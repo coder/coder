@@ -3357,7 +3357,7 @@ func (m queryMetricsStore) UpdateUserStatus(ctx context.Context, arg database.Up
 	return user, err
 }
 
-func (m queryMetricsStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (database.UserConfig, error) {
+func (m queryMetricsStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserTaskNotificationAlertDismissed(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())

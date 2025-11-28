@@ -136,14 +136,14 @@ const TasksPage: FC = () => {
 		updatePreferenceSettings(queryClient),
 	);
 
-	const alertDismissed =
+	const taskNotificationAlertDismissed =
 		preferencesQuery.data?.task_notification_alert_dismissed ?? false;
 
 	return (
 		<>
 			<title>{pageTitle("AI Tasks")}</title>
 			<Margins>
-				{allTaskNotificationsDisabled && !alertDismissed && (
+				{allTaskNotificationsDisabled && !taskNotificationAlertDismissed && (
 					<div className="mt-6">
 						<Alert
 							severity="warning"

@@ -189,7 +189,7 @@ SET
 	value = @task_notification_alert_dismissed
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_task_notification_alert_dismissed'
-RETURNING *;
+RETURNING value::boolean AS task_notification_alert_dismissed;
 
 -- name: UpdateUserRoles :one
 UPDATE

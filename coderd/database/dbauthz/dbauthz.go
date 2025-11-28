@@ -5475,13 +5475,13 @@ func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserS
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserStatus)(ctx, arg)
 }
 
-func (q *querier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (database.UserConfig, error) {
+func (q *querier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
 	user, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserConfig{}, err
+		return false, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
-		return database.UserConfig{}, err
+		return false, err
 	}
 	return q.db.UpdateUserTaskNotificationAlertDismissed(ctx, arg)
 }

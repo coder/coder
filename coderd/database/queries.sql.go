@@ -17105,7 +17105,7 @@ SET
 	value = $2
 WHERE user_configs.user_id = $1
 	AND user_configs.key = 'preference_task_notification_alert_dismissed'
-RETURNING user_id, key, value
+RETURNING value::boolean AS task_notification_alert_dismissed
 `
 
 type UpdateUserTaskNotificationAlertDismissedParams struct {
@@ -17113,11 +17113,11 @@ type UpdateUserTaskNotificationAlertDismissedParams struct {
 	TaskNotificationAlertDismissed bool      `db:"task_notification_alert_dismissed" json:"task_notification_alert_dismissed"`
 }
 
-func (q *sqlQuerier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (UserConfig, error) {
+func (q *sqlQuerier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, updateUserTaskNotificationAlertDismissed, arg.UserID, arg.TaskNotificationAlertDismissed)
-	var i UserConfig
-	err := row.Scan(&i.UserID, &i.Key, &i.Value)
-	return i, err
+	var task_notification_alert_dismissed bool
+	err := row.Scan(&task_notification_alert_dismissed)
+	return task_notification_alert_dismissed, err
 }
 
 const updateUserTerminalFont = `-- name: UpdateUserTerminalFont :one

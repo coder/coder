@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -1140,10 +1139,9 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	taskAlertDismissedBool, _ := strconv.ParseBool(updatedTaskAlertDismissed.Value)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
-		TaskNotificationAlertDismissed: taskAlertDismissedBool,
+		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
 	})
 }
 

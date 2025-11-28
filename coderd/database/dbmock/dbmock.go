@@ -7190,10 +7190,10 @@ func (mr *MockStoreMockRecorder) UpdateUserStatus(ctx, arg any) *gomock.Call {
 }
 
 // UpdateUserTaskNotificationAlertDismissed mocks base method.
-func (m *MockStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (database.UserConfig, error) {
+func (m *MockStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateUserTaskNotificationAlertDismissed", ctx, arg)
-	ret0, _ := ret[0].(database.UserConfig)
+	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
