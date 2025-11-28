@@ -7418,6 +7418,74 @@
 				}
 			}
 		},
+		"/users/{user}/preferences": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "Get user preference settings",
+				"operationId": "get-user-preference-settings",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "User ID, name, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.UserPreferenceSettings"
+						}
+					}
+				}
+			},
+			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "Update user preference settings",
+				"operationId": "update-user-preference-settings",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "User ID, name, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "New preference settings",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateUserPreferenceSettingsRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.UserPreferenceSettings"
+						}
+					}
+				}
+			}
+		},
 		"/users/{user}/profile": {
 			"put": {
 				"security": [
@@ -17660,6 +17728,14 @@
 				}
 			}
 		},
+		"codersdk.UpdateUserPreferenceSettingsRequest": {
+			"type": "object",
+			"properties": {
+				"task_notification_alert_dismissed": {
+					"type": "boolean"
+				}
+			}
+		},
 		"codersdk.UpdateUserProfileRequest": {
 			"type": "object",
 			"required": ["username"],
@@ -18017,6 +18093,14 @@
 				},
 				"value": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.UserPreferenceSettings": {
+			"type": "object",
+			"properties": {
+				"task_notification_alert_dismissed": {
+					"type": "boolean"
 				}
 			}
 		},

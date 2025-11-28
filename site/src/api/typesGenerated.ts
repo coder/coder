@@ -5478,6 +5478,11 @@ export interface UpdateUserPasswordRequest {
 }
 
 // From codersdk/users.go
+export interface UpdateUserPreferenceSettingsRequest {
+	readonly task_notification_alert_dismissed: boolean;
+}
+
+// From codersdk/users.go
 export interface UpdateUserProfileRequest {
 	readonly username: string;
 	readonly name: string;
@@ -5703,6 +5708,11 @@ export interface UserLoginType {
 export interface UserParameter {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/users.go
+export interface UserPreferenceSettings {
+	readonly task_notification_alert_dismissed: boolean;
 }
 
 // From codersdk/deployment.go

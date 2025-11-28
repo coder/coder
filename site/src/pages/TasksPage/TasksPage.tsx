@@ -1,8 +1,18 @@
 import { API } from "api/api";
+import {
+	systemNotificationTemplates,
+	userNotificationPreferences,
+} from "api/queries/notifications";
 import { templates } from "api/queries/templates";
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "api/queries/users";
 import type { TasksFilter } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { Badge } from "components/Badge/Badge";
 import { Button, type ButtonProps } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
@@ -11,9 +21,14 @@ import {
 } from "components/PageHeader/PageHeader";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import {
+	isTaskNotification,
+	notificationIsDisabled,
+	selectDisabledPreferences,
+} from "modules/notifications/utils";
 import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
-import type { FC } from "react";
-import { useQuery } from "react-query";
+import { type FC, useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { TasksTable } from "./TasksTable";
@@ -49,10 +64,56 @@ const TasksPage: FC = () => {
 	const displayedTasks =
 		tab.value === "waiting-for-input" ? idleTasks : tasksQuery.data;
 
+	// Fetch notification preferences and templates
+	const [disabledPreferencesQuery, systemTemplatesQuery] = useQueries({
+		queries: [
+			{
+				...userNotificationPreferences(user.id),
+				select: selectDisabledPreferences,
+			},
+			systemNotificationTemplates(),
+		],
+	});
+
+	const disabledPreferences = disabledPreferencesQuery.data ?? {};
+
+	// Check if ALL task notifications are disabled
+	// Returns true only when all task notification templates are disabled.
+	// If even one is enabled, returns false and the warning won't show.
+	const allTaskNotificationsDisabled = systemTemplatesQuery.data
+		?.filter(isTaskNotification)
+		.every((template) => notificationIsDisabled(disabledPreferences, template));
+
+	const queryClient = useQueryClient();
+	const preferencesQuery = useQuery(preferenceSettings());
+	const updatePreferencesMutation = useMutation(
+		updatePreferenceSettings(queryClient),
+	);
+
+	const taskNotificationAlertDismissed =
+		preferencesQuery.data?.task_notification_alert_dismissed ?? false;
+
 	return (
 		<>
 			<title>{pageTitle("AI Tasks")}</title>
 			<Margins>
+				{allTaskNotificationsDisabled && !taskNotificationAlertDismissed && (
+					<div className="mt-6">
+						<Alert
+							severity="warning"
+							dismissible
+							onDismiss={() => {
+								updatePreferencesMutation.mutate({
+									task_notification_alert_dismissed: true,
+								});
+							}}
+						>
+							Your notifications for tasks status changes are disabled. Go to{" "}
+							<Link href="/settings/notifications">Account Settings</Link> to
+							change it.
+						</Alert>
+					</div>
+				)}
 				<PageHeader>
 					<PageHeaderTitle>Tasks</PageHeaderTitle>
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
