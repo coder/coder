@@ -341,11 +341,24 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 		}
 
 		var eg errgroup.Group
+		// Limit concurrent goroutines to avoid exhausting the database connection pool.
+		// Each preset reconciliation may perform multiple sequential database operations
+		// (creates/deletes), and with a pool limit of 10 connections, allowing unlimited
+		// concurrency would cause connection contention and thrashing. A limit of 5 ensures
+		// we stay below the pool limit while maintaining reasonable parallelism.
+		eg.SetLimit(5)
+
 		// Reconcile presets in parallel. Each preset in its own goroutine.
 		for _, preset := range snapshot.Presets {
 			ps, err := snapshot.FilterByPreset(preset.ID)
 			if err != nil {
 				logger.Warn(ctx, "failed to find preset snapshot", slog.Error(err), slog.F("preset_id", preset.ID.String()))
+				continue
+			}
+			// Performance optimization: Skip presets from inactive template versions that have
+			// no running workspaces, pending jobs, or in-progress builds. This avoids spawning
+			// goroutines for presets that don't need reconciliation actions.
+			if ps.CanSkipReconciliation() {
 				continue
 			}
 
