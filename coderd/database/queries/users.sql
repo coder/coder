@@ -158,7 +158,7 @@ WHERE
 				WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
 				ELSE 1
 			END,
-			last_seen_at,
+			-EXTRACT(EPOCH FROM last_seen_at),
 			email
 		) > (
 			SELECT
@@ -167,7 +167,7 @@ WHERE
 					WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
 					ELSE 1
 				END,
-				last_seen_at,
+				-EXTRACT(EPOCH FROM last_seen_at),
 				email
 			FROM
 				users

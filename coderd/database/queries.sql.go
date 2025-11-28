@@ -10854,32 +10854,35 @@ FROM
 WHERE
 	users.deleted = false
 	AND CASE
-		-- Cursor-based pagination with multi-level sorting
-		-- This ensures consistent pagination even when data is inserted/updated
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
 		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-			-- Complex tuple comparison matching the ORDER BY clause
-			(
+		-- The pagination cursor is the last ID of the previous page.
+		-- The query is ordered by multi-field criteria, so select all
+		-- rows after the cursor using tuple comparison.
+		(
+			status,
+			CASE
+				WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
+				ELSE 1
+			END,
+			-EXTRACT(EPOCH FROM last_seen_at),
+			email
+		) > (
+			SELECT
 				status,
-				CASE 
-					WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0 
-					ELSE 1 
+				CASE
+					WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
+					ELSE 1
 				END,
-				last_seen_at,
+				-EXTRACT(EPOCH FROM last_seen_at),
 				email
-			) > (
-				SELECT
-					status,
-					CASE 
-						WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0 
-						ELSE 1 
-					END,
-					last_seen_at,
-					email
-				FROM
-					users
-				WHERE
-					id = $1
-			)
+			FROM
+				users
+			WHERE
+				id = $1
+		)
 		)
 		ELSE true
 	END
@@ -10935,14 +10938,18 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
-	-- Multi-level sorting for admin user management
-	status ASC,  -- 1st priority: Status ascending (active, suspended, etc.)
-	CASE 
-		WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0 
-		ELSE 1 
-	END ASC,  -- 2nd priority: New users (0001-01-01) first
-	last_seen_at DESC,  -- 3rd priority: Last Seen At descending (recent activity first)
-	email ASC  -- 4th priority: Email ascending (unique + stable sort key)
+	-- Admin-priority ordering for better user management experience.
+	-- 1st: Status ascending (active, suspended, etc.)
+	-- 2nd: New users first (last_seen_at = '0001-01-01')
+	-- 3rd: Last Seen At descending (recent activity first)
+	-- 4th: Email ascending (unique + stable sort key)
+	status ASC,
+	CASE
+		WHEN last_seen_at = '0001-01-01 00:00:00'::timestamp without time zone THEN 0
+		ELSE 1
+	END ASC,
+	last_seen_at DESC,  -- Recent activity first (natural DESC ordering)
+	email ASC
 OFFSET $9
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
