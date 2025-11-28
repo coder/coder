@@ -658,7 +658,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	return users
 }
 
-func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
+func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 	workspaces := make([]Workspace, len(rows))
 	for i, r := range rows {
 		workspaces[i] = Workspace{
@@ -690,9 +690,16 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			NextStartAt:             r.NextStartAt,
 			TaskID:                  r.TaskID,
 		}
+
+		if err := workspaces[i].UserACL.Scan(r.UserACL); err != nil {
+			return nil, xerrors.Errorf("scan user ACL %q: %w", r.UserACL, err)
+		}
+		if err := workspaces[i].GroupACL.Scan(r.GroupACL); err != nil {
+			return nil, xerrors.Errorf("scan group ACL %q: %w", r.GroupACL, err)
+		}
 	}
 
-	return workspaces
+	return workspaces, nil
 }
 
 func (g Group) IsEveryone() bool {

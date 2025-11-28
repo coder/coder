@@ -219,7 +219,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces := database.ConvertWorkspaceRows(workspaceRows)
+	workspaces, err := database.ConvertWorkspaceRows(workspaceRows)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace rows.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	data, err := api.workspaceData(ctx, workspaces)
 	if err != nil {
