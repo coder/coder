@@ -1177,6 +1177,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	invalidateTemplatePresets = async (
+		templateId: string,
+	): Promise<TypesGen.InvalidatePresetsResponse> => {
+		const response = await this.axios.post<TypesGen.InvalidatePresetsResponse>(
+			`/api/v2/templates/${templateId}/prebuilds/invalidate`,
+		);
+		return response.data;
+	};
+
 	getWorkspace = async (
 		workspaceId: string,
 		params?: TypesGen.WorkspaceOptions,

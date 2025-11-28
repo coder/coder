@@ -1,24 +1,27 @@
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
-	MockSystemNotificationTemplates,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
-	mockApiError,
+	mockApiError, MockSystemNotificationTemplates,
 } from "testHelpers/entities";
-import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { getTemplatesQueryKey } from "../../api/queries/templates";
+import { getTemplatesQueryKey } from "api/queries/templates";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
 	title: "pages/TasksPage",
 	component: TasksPage,
-	decorators: [withAuthProvider, withProxyProvider()],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		user: MockUserOwner,
 		permissions: {
@@ -254,6 +257,108 @@ export const InitializingTasks: Story = {
 				data: [MockTemplate],
 			},
 		],
+	},
+};
+
+export const BatchActionsEnabled: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+};
+
+export const BatchActionsSomeSelected: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select first two tasks", async () => {
+			await canvas.findByRole("table");
+			const checkboxes = await canvas.findAllByRole("checkbox");
+			// Skip the "select all" checkbox (first one) and select the next two
+			await userEvent.click(checkboxes[1]);
+			await userEvent.click(checkboxes[2]);
+		});
+	},
+};
+
+export const BatchActionsAllSelected: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select all tasks using header checkbox", async () => {
+			await canvas.findByRole("table");
+			const checkboxes = await canvas.findAllByRole("checkbox");
+			// Click the first checkbox (select all)
+			await userEvent.click(checkboxes[0]);
+		});
+	},
+};
+
+export const BatchActionsDropdownOpen: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select some tasks", async () => {
+			await canvas.findByRole("table");
+			const checkboxes = await canvas.findAllByRole("checkbox");
+			await userEvent.click(checkboxes[1]);
+			await userEvent.click(checkboxes[2]);
+		});
+
+		await step("Open bulk actions dropdown", async () => {
+			const bulkActionsButton = await canvas.findByRole("button", {
+				name: /bulk actions/i,
+			});
+			await userEvent.click(bulkActionsButton);
+		});
 	},
 };
 
