@@ -7,6 +7,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import every from "lodash/every";
+import keys from "lodash/keys";
+import mapValues from "lodash/mapValues";
+import some from "lodash/some";
+import sum from "lodash/sum";
+import uniq from "lodash/uniq";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
@@ -19,6 +25,43 @@ import { humanDuration } from "utils/time";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
+};
+
+/**
+ * This function merges multiple objects with the same keys into a single object.
+ * It's super unconventional, but it's only a temporary workaround until we
+ * structure our metadata field for rendering in the UI.
+ * @param objects - The objects to merge.
+ * @returns The merged object.
+ */
+const magicMetadataMerge = (...objects: Record<string, unknown>[]): unknown => {
+	// Filter out empty objects
+	const nonEmptyObjects = objects.filter((obj) => keys(obj).length > 0);
+
+	// If all objects were empty, return null
+	if (nonEmptyObjects.length === 0) return null;
+
+	// Check if all objects have the same keys
+	const keySets = nonEmptyObjects.map((obj) => keys(obj).sort().join(","));
+	// If the keys are different, just instantly return the objects
+	if (uniq(keySets).length > 1) return nonEmptyObjects;
+
+	// Group the objects by key
+	const grouped = mapValues(nonEmptyObjects[0], (_, key) =>
+		nonEmptyObjects.map((obj) => obj[key]),
+	);
+
+	// Map the grouped values to a new object
+	const result = mapValues(grouped, (values: unknown[]) => {
+		const allNumeric = every(values, (v: unknown) => typeof v === "number");
+		const allSame = uniq(values).length === 1;
+
+		if (allNumeric) return sum(values);
+		if (allSame) return values[0];
+		return null; // Mark conflict
+	});
+
+	return some(result, (v: unknown) => v === null) ? nonEmptyObjects : result;
 };
 
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
@@ -35,35 +78,8 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 		0,
 	);
 
-	const KEY_ANTHROPIC_READ = "cache_read_input";
-	const KEY_ANTHROPIC_WRITTEN = "cache_creation_input";
-
-	const KEY_OPENAI_READ = "prompt_cached";
-
-	// These are an unstructured metadata field of "Record<string, unknown>",
-	// so we need to check if they're numbers and if not, return 0.
-	const cachedReadTokens = interception.token_usages.reduce(
-		(acc, tokenUsage) =>
-			acc +
-			(interception.provider === "anthropic"
-				? typeof tokenUsage.metadata?.[KEY_ANTHROPIC_READ] === "number"
-					? tokenUsage.metadata?.[KEY_ANTHROPIC_READ]
-					: 0
-				: typeof tokenUsage.metadata?.[KEY_OPENAI_READ] === "number"
-					? tokenUsage.metadata?.[KEY_OPENAI_READ]
-					: 0),
-		0,
-	);
-	const cachedWrittenTokens = interception.token_usages.reduce(
-		(acc, tokenUsage) =>
-			acc +
-			(interception.provider === "anthropic"
-				? typeof tokenUsage.metadata?.[KEY_ANTHROPIC_WRITTEN] === "number"
-					? tokenUsage.metadata?.[KEY_ANTHROPIC_WRITTEN]
-					: 0
-				: // OpenAI doesn't have a cached written tokens field, so we return 0.
-					0),
-		0,
+	const tokenUsagesMetadata = magicMetadataMerge(
+		...interception.token_usages.map((tokenUsage) => tokenUsage.metadata),
 	);
 
 	const toolCalls = interception.tool_usages.length;
@@ -186,12 +202,6 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<dt>Output Tokens:</dt>
 								<dd data-chromatic="ignore">{outputTokens}</dd>
 
-								<dt>Cached Read Tokens:</dt>
-								<dd data-chromatic="ignore">{cachedReadTokens}</dd>
-
-								<dt>Cached Written Tokens:</dt>
-								<dd data-chromatic="ignore">{cachedWrittenTokens}</dd>
-
 								<dt>Tool Calls:</dt>
 								<dd data-chromatic="ignore">
 									{interception.tool_usages.length}
@@ -243,6 +253,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 												</dl>
 											);
 										})}
+									</div>
+								</div>
+							)}
+
+							{tokenUsagesMetadata !== null && (
+								<div className="flex flex-col gap-2">
+									<div>Metadata</div>
+									<div className="bg-surface-secondary rounded-md p-4">
+										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
 									</div>
 								</div>
 							)}
