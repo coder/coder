@@ -136,7 +136,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 			<div css={styles.topbarLeft}>
 				<TopbarData>
 					<OwnerBreadcrumb
-						ownerName={workspace.owner_name}
+						ownerName={workspace.owner_email ?? workspace.owner_name}
 						ownerAvatarUrl={workspace.owner_avatar_url}
 					/>
 
