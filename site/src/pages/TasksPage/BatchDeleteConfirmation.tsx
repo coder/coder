@@ -2,7 +2,7 @@ import type { Task } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { ClockIcon, ServerIcon, UserIcon } from "lucide-react";
+import { ClockIcon, UserIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 
 dayjs.extend(relativeTime);
@@ -24,17 +24,12 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 	onConfirm,
 	isLoading,
 }) => {
-	const [stage, setStage] = useState<"consequences" | "tasks" | "resources">(
-		"consequences",
-	);
+	const [stage, setStage] = useState<"consequences" | "tasks">("consequences");
 
 	const onProceed = () => {
 		switch (stage) {
-			case "resources":
-				onConfirm();
-				break;
 			case "tasks":
-				setStage("resources");
+				onConfirm();
 				break;
 			case "consequences":
 				setStage("tasks");
@@ -45,15 +40,12 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 	const taskCount = `${checkedTasks.length} ${
 		checkedTasks.length === 1 ? "task" : "tasks"
 	}`;
+	const workspaceCountText = `${workspaceCount} ${
+		workspaceCount === 1 ? "workspace" : "workspaces"
+	}`;
 
 	let confirmText: ReactNode = <>Review selected tasks&hellip;</>;
 	if (stage === "tasks") {
-		confirmText = <>Confirm {taskCount}&hellip;</>;
-	}
-	if (stage === "resources") {
-		const workspaceCountText = `${workspaceCount} ${
-			workspaceCount === 1 ? "workspace" : "workspaces"
-		}`;
 		confirmText = (
 			<>
 				Delete {taskCount} and {workspaceCountText}
@@ -70,7 +62,6 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 				onClose();
 			}}
 			title={`Delete ${taskCount}`}
-			hideCancel
 			confirmLoading={isLoading}
 			confirmText={confirmText}
 			onConfirm={onProceed}
@@ -78,11 +69,6 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 				<>
 					{stage === "consequences" && <Consequences />}
 					{stage === "tasks" && <Tasks tasks={checkedTasks} />}
-					{stage === "resources" && (
-						<Resources tasks={checkedTasks} workspaceCount={workspaceCount} />
-					)}
-					{/* Preload ServerIcon to prevent flicker on stage 3 */}
-					<ServerIcon className="sr-only" aria-hidden />
 				</>
 			}
 		/>
@@ -91,11 +77,6 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 
 interface TasksStageProps {
 	tasks: readonly Task[];
-}
-
-interface ResourcesStageProps {
-	tasks: readonly Task[];
-	workspaceCount: number;
 }
 
 const Consequences: FC = () => {
@@ -172,26 +153,5 @@ const Tasks: FC<TasksStageProps> = ({ tasks }) => {
 				)}
 			</div>
 		</>
-	);
-};
-
-const Resources: FC<ResourcesStageProps> = ({ tasks, workspaceCount }) => {
-	const taskCount = tasks.length;
-
-	return (
-		<div className="flex flex-col gap-4">
-			<p>
-				Deleting {taskCount === 1 ? "this task" : "these tasks"} will also
-				permanently destroy&hellip;
-			</p>
-			<div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm">
-				<div className="flex items-center gap-2">
-					<ServerIcon className="size-icon-sm" />
-					<span>
-						{workspaceCount} {workspaceCount === 1 ? "workspace" : "workspaces"}
-					</span>
-				</div>
-			</div>
-		</div>
 	);
 };

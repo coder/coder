@@ -33,7 +33,7 @@ const meta: Meta<typeof BatchDeleteConfirmation> = {
 				name: "task-docs-789",
 				display_name: "Update Documentation",
 				initial_prompt: "Update documentation for the new features",
-				// Intentionally null to test that only 2 workspaces are shown in review resources stage
+				// Intentionally null to test that only 2 workspaces are shown
 				workspace_id: null,
 				created_at: new Date(
 					Date.now() - 3 * 24 * 60 * 60 * 1000,
@@ -59,26 +59,6 @@ export const ReviewTasks: Story = {
 		await step("Advance to stage 2: Review tasks", async () => {
 			const confirmButton = await body.findByRole("button", {
 				name: /review selected tasks/i,
-			});
-			await userEvent.click(confirmButton);
-		});
-	},
-};
-
-export const ReviewResources: Story = {
-	play: async ({ canvasElement, step }) => {
-		const body = within(canvasElement.ownerDocument.body);
-
-		await step("Advance to stage 2: Review tasks", async () => {
-			const confirmButton = await body.findByRole("button", {
-				name: /review selected tasks/i,
-			});
-			await userEvent.click(confirmButton);
-		});
-
-		await step("Advance to stage 3: Review resources", async () => {
-			const confirmButton = await body.findByRole("button", {
-				name: /confirm.*tasks/i,
 			});
 			await userEvent.click(confirmButton);
 		});
