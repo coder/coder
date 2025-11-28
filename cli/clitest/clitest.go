@@ -61,10 +61,10 @@ func NewWithCommand(
 	t testing.TB, cmd *serpent.Command, args ...string,
 ) (*serpent.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
-	// Keyring usage is disabled here because many existing tests expect the session token
-	// to be stored on disk and is not properly instrumented for parallel testing against
-	// the actual operating system keyring.
-	invArgs := append([]string{"--global-config", string(configDir), "--use-keyring=false"}, args...)
+	// Keyring usage is disabled here when --global-config is set because many existing
+	// tests expect the session token to be stored on disk and is not properly instrumented
+	// for parallel testing against the actual operating system keyring.
+	invArgs := append([]string{"--global-config", string(configDir)}, args...)
 	return setupInvocation(t, cmd, invArgs...), configDir
 }
 
