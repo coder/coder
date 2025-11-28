@@ -1,7 +1,15 @@
 import { API } from "api/api";
+import {
+	systemNotificationTemplates,
+	userNotificationPreferences,
+} from "api/queries/notifications";
 import { templates } from "api/queries/templates";
-
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "api/queries/users";
 import type { TasksFilter } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { Badge } from "components/Badge/Badge";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
@@ -10,6 +18,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { Link } from "components/Link/Link";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
@@ -22,20 +31,20 @@ import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ChevronDownIcon, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import {
+	isTaskNotification,
+	notificationIsDisabled,
+	selectDisabledPreferences,
+} from "modules/notifications/utils";
 import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
 import { type FC, useState } from "react";
-import {useMutation, useQueries, useQuery, useQueryClient} from "react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { useBatchTaskActions } from "./batchActions";
 import { TasksTable } from "./TasksTable";
 import { UsersCombobox } from "./UsersCombobox";
-import {systemNotificationTemplates, userNotificationPreferences} from "api/queries/notifications";
-import {isTaskNotification, notificationIsDisabled, selectDisabledPreferences} from "modules/notifications/utils";
-import {preferenceSettings, updatePreferenceSettings} from "api/queries/users";
-import { Alert } from "components/Alert/Alert";
-import { Link } from "components/Link/Link";
 
 const TasksPage: FC = () => {
 	const aiTemplatesQuery = useQuery(

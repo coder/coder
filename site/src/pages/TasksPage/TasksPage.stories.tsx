@@ -1,10 +1,11 @@
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
+	MockSystemNotificationTemplates,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
-	mockApiError, MockSystemNotificationTemplates,
+	mockApiError,
 } from "testHelpers/entities";
 import {
 	withAuthProvider,
@@ -13,9 +14,9 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { getTemplatesQueryKey } from "api/queries/templates";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { getTemplatesQueryKey } from "api/queries/templates";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
