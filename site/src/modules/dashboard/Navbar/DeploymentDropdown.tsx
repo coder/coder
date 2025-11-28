@@ -34,7 +34,8 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 		!canViewConnectionLog &&
 		!canViewOrganizations &&
 		!canViewDeployment &&
-		!canViewHealth
+		!canViewHealth &&
+		!canViewAIBridge
 	) {
 		return null;
 	}
