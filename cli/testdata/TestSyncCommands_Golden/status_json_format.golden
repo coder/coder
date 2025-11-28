@@ -1,0 +1,13 @@
+{
+  "unit_name": "test-unit",
+  "status": "pending",
+  "is_ready": true,
+  "dependencies": [
+    {
+      "depends_on": "dep-unit",
+      "required_status": "completed",
+      "current_status": "completed",
+      "is_satisfied": true
+    }
+  ]
+}

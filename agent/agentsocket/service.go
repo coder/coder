@@ -15,15 +15,18 @@ var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
 
 var ErrUnitManagerNotAvailable = xerrors.New("unit manager not available")
 
+// DRPCAgentSocketService implements the DRPC agent socket service.
 type DRPCAgentSocketService struct {
 	unitManager *unit.Manager
 	logger      slog.Logger
 }
 
+// Ping responds to a ping request to check if the service is alive.
 func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*proto.PingResponse, error) {
 	return &proto.PingResponse{}, nil
 }
 
+// SyncStart starts a unit in the dependency graph.
 func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncStartRequest) (*proto.SyncStartResponse, error) {
 	if s.unitManager == nil {
 		return nil, xerrors.Errorf("SyncStart: %w", ErrUnitManagerNotAvailable)
@@ -53,6 +56,7 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 	return &proto.SyncStartResponse{}, nil
 }
 
+// SyncWant declares a dependency between units.
 func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWantRequest) (*proto.SyncWantResponse, error) {
 	if s.unitManager == nil {
 		return nil, xerrors.Errorf("cannot add dependency: %w", ErrUnitManagerNotAvailable)
@@ -72,6 +76,7 @@ func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWant
 	return &proto.SyncWantResponse{}, nil
 }
 
+// SyncComplete marks a unit as complete in the dependency graph.
 func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.SyncCompleteRequest) (*proto.SyncCompleteResponse, error) {
 	if s.unitManager == nil {
 		return nil, xerrors.Errorf("cannot complete unit: %w", ErrUnitManagerNotAvailable)
@@ -86,6 +91,7 @@ func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.Sync
 	return &proto.SyncCompleteResponse{}, nil
 }
 
+// SyncReady checks whether a unit is ready to be started. That is, all dependencies are satisfied.
 func (s *DRPCAgentSocketService) SyncReady(_ context.Context, req *proto.SyncReadyRequest) (*proto.SyncReadyResponse, error) {
 	if s.unitManager == nil {
 		return nil, xerrors.Errorf("cannot check readiness: %w", ErrUnitManagerNotAvailable)
@@ -102,6 +108,7 @@ func (s *DRPCAgentSocketService) SyncReady(_ context.Context, req *proto.SyncRea
 	}, nil
 }
 
+// SyncStatus gets the status of a unit and lists its dependencies.
 func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncStatusRequest) (*proto.SyncStatusResponse, error) {
 	if s.unitManager == nil {
 		return nil, xerrors.Errorf("cannot get status for unit %q: %w", req.Unit, ErrUnitManagerNotAvailable)
@@ -115,8 +122,11 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 	}
 
 	dependencies, err := s.unitManager.GetAllDependencies(unitID)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to get dependencies: %w", err)
+	switch {
+	case errors.Is(err, unit.ErrUnitNotFound):
+		dependencies = []unit.Dependency{}
+	case err != nil:
+		return nil, xerrors.Errorf("cannot get dependencies: %w", err)
 	}
 
 	var depInfos []*proto.DependencyInfo

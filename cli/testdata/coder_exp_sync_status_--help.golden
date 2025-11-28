@@ -1,0 +1,20 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync status [flags] <unit>
+
+  Show unit status and dependency state
+
+  Show the current status of a unit, whether it is ready to start, and lists its
+  dependencies. Shows which dependencies are satisfied and which are still
+  pending. Supports multiple output formats.
+
+OPTIONS:
+  -c, --column [depends on|required status|current status|satisfied] (default: depends on,required status,current status,satisfied)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

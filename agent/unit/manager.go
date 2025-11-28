@@ -2,6 +2,7 @@ package unit
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -22,6 +23,15 @@ var (
 
 // Status represents the status of a unit.
 type Status string
+
+var _ fmt.Stringer = Status("")
+
+func (s Status) String() string {
+	if s == StatusNotRegistered {
+		return "not registered"
+	}
+	return string(s)
+}
 
 // Status constants for dependency tracking.
 const (
@@ -137,7 +147,7 @@ func (m *Manager) IsReady(id ID) (bool, error) {
 	defer m.mu.RUnlock()
 
 	if !m.registered(id) {
-		return false, nil
+		return true, nil
 	}
 
 	return m.units[id].ready, nil

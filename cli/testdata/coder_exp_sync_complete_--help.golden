@@ -1,0 +1,12 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync complete <unit>
+
+  Mark a unit as complete
+
+  Mark a unit as complete. Indicating to other units that it has completed its
+  work. This allows units that depend on it to proceed with their startup.
+
+———
+Run `coder --help` for a list of global options.

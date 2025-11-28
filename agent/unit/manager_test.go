@@ -684,7 +684,7 @@ func TestManager_IsReady(t *testing.T) {
 		// Then: the unit is not ready
 		isReady, err := manager.IsReady(unitA)
 		require.NoError(t, err)
-		assert.False(t, isReady)
+		assert.True(t, isReady)
 	})
 }
 

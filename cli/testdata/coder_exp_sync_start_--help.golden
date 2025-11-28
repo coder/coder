@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync start [flags] <unit>
+
+  Wait until all unit dependencies are satisfied
+
+  Wait until all dependencies are satisfied, consider the unit to have started,
+  then allow it to proceed. This command polls until dependencies are ready,
+  then marks the unit as started.
+
+OPTIONS:
+      --timeout duration (default: 5m)
+          Maximum time to wait for dependencies (e.g., 30s, 5m). 5m by default.
+
+———
+Run `coder --help` for a list of global options.
