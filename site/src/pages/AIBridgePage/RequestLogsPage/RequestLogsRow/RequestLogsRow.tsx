@@ -35,6 +35,8 @@ type RequestLogsRowProps = {
  * @returns The merged object.
  */
 const magicMetadataMerge = (...objects: Record<string, unknown>[]): unknown => {
+	// TODO: Where possible, use native JS functions instead of lodash functions
+
 	// Filter out empty objects
 	const nonEmptyObjects = objects.filter((obj) => keys(obj).length > 0);
 
