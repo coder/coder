@@ -240,7 +240,8 @@ ORDER BY
 		ELSE 1
 	END ASC,
 	last_seen_at DESC,
-	email ASC OFFSET @offset_opt
+	email ASC
+OFFSET @offset_opt
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF(@limit_opt :: int, 0);
