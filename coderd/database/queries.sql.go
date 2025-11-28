@@ -16326,17 +16326,17 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 
 const getUserTaskNotificationAlertDismissed = `-- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
-	value as task_notification_alert_dismissed
+	value::boolean as task_notification_alert_dismissed
 FROM
 	user_configs
 WHERE
 	user_id = $1
-	AND key = 'task_notification_alert_dismissed'
+	AND key = 'preference_task_notification_alert_dismissed'
 `
 
-func (q *sqlQuerier) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (string, error) {
+func (q *sqlQuerier) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getUserTaskNotificationAlertDismissed, userID)
-	var task_notification_alert_dismissed string
+	var task_notification_alert_dismissed bool
 	err := row.Scan(&task_notification_alert_dismissed)
 	return task_notification_alert_dismissed, err
 }
@@ -17097,20 +17097,20 @@ const updateUserTaskNotificationAlertDismissed = `-- name: UpdateUserTaskNotific
 INSERT INTO
 	user_configs (user_id, key, value)
 VALUES
-	($1, 'task_notification_alert_dismissed', $2)
+	($1, 'preference_task_notification_alert_dismissed', ($2::boolean)::text)
 ON CONFLICT
 	ON CONSTRAINT user_configs_pkey
 DO UPDATE
 SET
 	value = $2
 WHERE user_configs.user_id = $1
-	AND user_configs.key = 'task_notification_alert_dismissed'
+	AND user_configs.key = 'preference_task_notification_alert_dismissed'
 RETURNING user_id, key, value
 `
 
 type UpdateUserTaskNotificationAlertDismissedParams struct {
 	UserID                         uuid.UUID `db:"user_id" json:"user_id"`
-	TaskNotificationAlertDismissed string    `db:"task_notification_alert_dismissed" json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed bool      `db:"task_notification_alert_dismissed" json:"task_notification_alert_dismissed"`
 }
 
 func (q *sqlQuerier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (UserConfig, error) {

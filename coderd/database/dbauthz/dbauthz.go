@@ -3431,13 +3431,13 @@ func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserS
 	return q.db.GetUserStatusCounts(ctx, arg)
 }
 
-func (q *querier) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (string, error) {
+func (q *querier) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
 	user, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
-		return "", err
+		return false, err
 	}
 	return q.db.GetUserTaskNotificationAlertDismissed(ctx, userID)
 }

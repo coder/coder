@@ -2196,12 +2196,12 @@ func TestUserTerminalFont(t *testing.T) {
 		defer cancel()
 
 		// given
-		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
-		updated, err := client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 			ThemePreference: "light",
 			TerminalFont:    "fira-code",
 		})
@@ -2222,12 +2222,12 @@ func TestUserTerminalFont(t *testing.T) {
 		defer cancel()
 
 		// given
-		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
-		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+		_, err = client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 			ThemePreference: "light",
 			TerminalFont:    "foobar",
 		})
@@ -2247,12 +2247,12 @@ func TestUserTerminalFont(t *testing.T) {
 		defer cancel()
 
 		// given
-		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
-		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+		_, err = client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 			ThemePreference: "light",
 			TerminalFont:    "",
 		})
@@ -2276,7 +2276,7 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 		defer cancel()
 
 		// When: getting user preference settings for a user
-		settings, err := client.GetUserPreferenceSettings(ctx, "me")
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 
 		// Then: the task notification alert dismissed should default to false
@@ -2294,7 +2294,7 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 		defer cancel()
 
 		// When: user dismisses the task notification alert
-		updated, err := client.UpdateUserPreferenceSettings(ctx, "me", codersdk.UpdateUserPreferenceSettingsRequest{
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 			TaskNotificationAlertDismissed: true,
 		})
 		require.NoError(t, err)
@@ -2314,13 +2314,14 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 		defer cancel()
 
 		// Given: user has dismissed the task notification alert
-		_, err := client.UpdateUserPreferenceSettings(ctx, "me", codersdk.UpdateUserPreferenceSettingsRequest{
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 			TaskNotificationAlertDismissed: true,
 		})
 		require.NoError(t, err)
 
-		// When: user un-dismisses the alert (sets it back to false)
-		updated, err := client.UpdateUserPreferenceSettings(ctx, "me", codersdk.UpdateUserPreferenceSettingsRequest{
+		// When: the task notification alert dismissal is cleared
+		// (e.g., when user enables a task notification in the UI settings)
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 			TaskNotificationAlertDismissed: false,
 		})
 		require.NoError(t, err)

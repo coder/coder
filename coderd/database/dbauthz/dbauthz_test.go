@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1480,13 +1481,14 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("GetUserTaskNotificationAlertDismissed", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserTaskNotificationAlertDismissed(gomock.Any(), u.ID).Return("false", nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("false")
+		dbm.EXPECT().GetUserTaskNotificationAlertDismissed(gomock.Any(), u.ID).Return(false, nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns(false)
 	}))
 	s.Run("UpdateUserTaskNotificationAlertDismissed", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		userConfig := database.UserConfig{UserID: user.ID, Key: "task_notification_alert_dismissed", Value: "false"}
-		arg := database.UpdateUserTaskNotificationAlertDismissedParams{UserID: user.ID, TaskNotificationAlertDismissed: userConfig.Value}
+		userConfigValue, _ := strconv.ParseBool(userConfig.Value)
+		arg := database.UpdateUserTaskNotificationAlertDismissedParams{UserID: user.ID, TaskNotificationAlertDismissed: userConfigValue}
 		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserTaskNotificationAlertDismissed(gomock.Any(), arg).Return(userConfig, nil).AnyTimes()
 		check.Args(arg).Asserts(user, policy.ActionUpdatePersonal).Returns(userConfig)

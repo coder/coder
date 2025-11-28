@@ -170,25 +170,25 @@ RETURNING *;
 
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
-	value as task_notification_alert_dismissed
+	value::boolean as task_notification_alert_dismissed
 FROM
 	user_configs
 WHERE
 	user_id = @user_id
-	AND key = 'task_notification_alert_dismissed';
+	AND key = 'preference_task_notification_alert_dismissed';
 
 -- name: UpdateUserTaskNotificationAlertDismissed :one
 INSERT INTO
 	user_configs (user_id, key, value)
 VALUES
-	(@user_id, 'task_notification_alert_dismissed', @task_notification_alert_dismissed)
+	(@user_id, 'preference_task_notification_alert_dismissed', (@task_notification_alert_dismissed::boolean)::text)
 ON CONFLICT
 	ON CONSTRAINT user_configs_pkey
 DO UPDATE
 SET
 	value = @task_notification_alert_dismissed
 WHERE user_configs.user_id = @user_id
-	AND user_configs.key = 'task_notification_alert_dismissed'
+	AND user_configs.key = 'preference_task_notification_alert_dismissed'
 RETURNING *;
 
 -- name: UpdateUserRoles :one

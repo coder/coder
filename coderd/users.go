@@ -1092,8 +1092,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	taskAlertDismissed := false
-	taskAlertDismissedValue, err := api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
+	taskAlertDismissed, err := api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1102,8 +1101,6 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
-	} else {
-		taskAlertDismissed, _ = strconv.ParseBool(taskAlertDismissedValue)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
@@ -1134,7 +1131,7 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 
 	updatedTaskAlertDismissed, err := api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
 		UserID:                         user.ID,
-		TaskNotificationAlertDismissed: strconv.FormatBool(params.TaskNotificationAlertDismissed),
+		TaskNotificationAlertDismissed: params.TaskNotificationAlertDismissed,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
