@@ -265,7 +265,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 							{tokenUsagesMetadata !== null && (
 								<div className="flex flex-col gap-2">
-									<div>Metadata</div>
+									<div>Token Usage Metadata</div>
 									<div className="bg-surface-secondary rounded-md p-4">
 										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
 									</div>
