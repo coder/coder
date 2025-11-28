@@ -1474,6 +1474,19 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUserPreferenceSettings =
+		async (): Promise<TypesGen.UserPreferenceSettings> => {
+			const response = await this.axios.get("/api/v2/users/me/preferences");
+			return response.data;
+		};
+
+	updateUserPreferenceSettings = async (
+		req: TypesGen.UpdateUserPreferenceSettingsRequest,
+	): Promise<TypesGen.UserPreferenceSettings> => {
+		const response = await this.axios.put("/api/v2/users/me/preferences", req);
+		return response.data;
+	};
+
 	getUserQuietHoursSchedule = async (
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.UserQuietHoursScheduleResponse> => {

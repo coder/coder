@@ -9358,6 +9358,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `old_password` | string | false    |              |             |
 | `password`     | string | true     |              |             |
 
+## codersdk.UpdateUserPreferenceSettingsRequest
+
+```json
+{
+  "task_notification_alert_dismissed": true
+}
+```
+
+### Properties
+
+| Name                                | Type    | Required | Restrictions | Description |
+|-------------------------------------|---------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean | false    |              |             |
+
 ## codersdk.UpdateUserProfileRequest
 
 ```json
@@ -9845,6 +9859,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------|--------|----------|--------------|-------------|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.UserPreferenceSettings
+
+```json
+{
+  "task_notification_alert_dismissed": true
+}
+```
+
+### Properties
+
+| Name                                | Type    | Required | Restrictions | Description |
+|-------------------------------------|---------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 

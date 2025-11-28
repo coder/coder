@@ -168,6 +168,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
+-- name: GetUserTaskNotificationAlertDismissed :one
+SELECT
+	value::boolean as task_notification_alert_dismissed
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_task_notification_alert_dismissed';
+
+-- name: UpdateUserTaskNotificationAlertDismissed :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_task_notification_alert_dismissed', (@task_notification_alert_dismissed::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @task_notification_alert_dismissed
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_task_notification_alert_dismissed'
+RETURNING value::boolean AS task_notification_alert_dismissed;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users
