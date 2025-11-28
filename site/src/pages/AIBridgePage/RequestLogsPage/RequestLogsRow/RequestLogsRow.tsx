@@ -34,6 +34,38 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 		(acc, tokenUsage) => acc + tokenUsage.output_tokens,
 		0,
 	);
+
+	const KEY_ANTHROPIC_READ = "cache_read_input";
+	const KEY_ANTHROPIC_WRITTEN = "cache_creation_input";
+
+	const KEY_OPENAI_READ = "prompt_cached";
+
+	// These are an unstructured metadata field of "Record<string, unknown>",
+	// so we need to check if they're numbers and if not, return 0.
+	const cachedReadTokens = interception.token_usages.reduce(
+		(acc, tokenUsage) =>
+			acc +
+			(interception.provider === "anthropic"
+				? typeof tokenUsage.metadata?.[KEY_ANTHROPIC_READ] === "number"
+					? tokenUsage.metadata?.[KEY_ANTHROPIC_READ]
+					: 0
+				: typeof tokenUsage.metadata?.[KEY_OPENAI_READ] === "number"
+					? tokenUsage.metadata?.[KEY_OPENAI_READ]
+					: 0),
+		0,
+	);
+	const cachedWrittenTokens = interception.token_usages.reduce(
+		(acc, tokenUsage) =>
+			acc +
+			(interception.provider === "anthropic"
+				? typeof tokenUsage.metadata?.[KEY_ANTHROPIC_WRITTEN] === "number"
+					? tokenUsage.metadata?.[KEY_ANTHROPIC_WRITTEN]
+					: 0
+				: // OpenAI doesn't have a cached written tokens field, so we return 0.
+					0),
+		0,
+	);
+
 	const toolCalls = interception.tool_usages.length;
 	const duration =
 		interception.ended_at &&
@@ -153,6 +185,12 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Output Tokens:</dt>
 								<dd data-chromatic="ignore">{outputTokens}</dd>
+
+								<dt>Cached Read Tokens:</dt>
+								<dd data-chromatic="ignore">{cachedReadTokens}</dd>
+
+								<dt>Cached Written Tokens:</dt>
+								<dd data-chromatic="ignore">{cachedWrittenTokens}</dd>
 
 								<dt>Tool Calls:</dt>
 								<dd data-chromatic="ignore">
