@@ -34,7 +34,9 @@ type RequestLogsRowProps = {
  * @param objects - The objects to merge.
  * @returns The merged object.
  */
-const magicMetadataMerge = (...objects: Record<string, unknown>[]): unknown => {
+function tokenUsageMetadataMerge(
+	...objects: Array<AIBridgeInterception["token_usages"][number]["metadata"]>
+): unknown {
 	// TODO: Where possible, use native JS functions instead of lodash functions
 
 	// Filter out empty objects
@@ -64,7 +66,7 @@ const magicMetadataMerge = (...objects: Record<string, unknown>[]): unknown => {
 	});
 
 	return some(result, (v: unknown) => v === null) ? nonEmptyObjects : result;
-};
+}
 
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
@@ -80,7 +82,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 		0,
 	);
 
-	const tokenUsagesMetadata = magicMetadataMerge(
+	const tokenUsagesMetadata = tokenUsageMetadataMerge(
 		...interception.token_usages.map((tokenUsage) => tokenUsage.metadata),
 	);
 
