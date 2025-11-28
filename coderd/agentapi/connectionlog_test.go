@@ -205,15 +205,14 @@ func TestWorkspaceCached_SkipsDBCall(t *testing.T) {
 			ID: uuid.New(),
 		}
 	)
-	id:=     uuid.New()
-	action:= agentproto.Connection_CONNECT.Enum()
-	typ:=    agentproto.Connection_SSH.Enum()
-	time:=   dbtime.Now()
-	ip:=     "127.0.0.1"
-	status:= 200
+	id := uuid.New()
+	action := agentproto.Connection_CONNECT.Enum()
+	typ := agentproto.Connection_SSH.Enum()
+	time := dbtime.Now()
+	ip := "127.0.0.1"
+	status := 200
 	reason := ""
 	cachedWorkspace := &agentapi.CachedWorkspaceFields{}
-
 
 	cachedWorkspace.UpdateValues(workspace)
 

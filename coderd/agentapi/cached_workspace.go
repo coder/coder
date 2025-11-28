@@ -1,8 +1,8 @@
 package agentapi
 
 import (
-	"sync"
 	"fmt"
+	"sync"
 
 	"github.com/coder/coder/v2/coderd/database"
 )

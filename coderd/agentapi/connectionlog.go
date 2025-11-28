@@ -3,8 +3,8 @@ package agentapi
 import (
 	"context"
 	"database/sql"
-	"sync/atomic"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -13,9 +13,9 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/connectionlog"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 type ConnLogAPI struct {
@@ -81,7 +81,6 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 		ws = database.WorkspaceIdentityFromWorkspace(workspace)
 	}
-	
 
 	// Some older clients may incorrectly report "localhost" as the IP address.
 	// Related to https://github.com/coder/coder/issues/20194
