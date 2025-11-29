@@ -4530,6 +4530,7 @@ export const SessionTokenHeader = "Coder-Session-Token";
 
 // From codersdk/workspaces.go
 export interface SharedWorkspaceActor {
+	readonly id: string;
 	readonly actor_type: SharedWorkspaceActorType;
 	readonly name: string;
 	readonly avatar_url?: string;

@@ -697,6 +697,7 @@ type WorkspaceUser struct {
 }
 
 type SharedWorkspaceActor struct {
+	ID        uuid.UUID                `json:"id" format:"uuid"`
 	ActorType SharedWorkspaceActorType `json:"actor_type" enums:"group,user"`
 	Name      string                   `json:"name"`
 	AvatarURL string                   `json:"avatar_url,omitempty" format:"uri"`
