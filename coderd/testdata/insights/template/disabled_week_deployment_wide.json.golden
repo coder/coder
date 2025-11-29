@@ -1,0 +1,107 @@
+{
+  "report": {
+    "start_time": "2023-08-15T00:00:00Z",
+    "end_time": "2023-08-22T00:00:00Z",
+    "template_ids": [],
+    "active_users": 0,
+    "apps_usage": [
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "Visual Studio Code",
+        "slug": "vscode",
+        "icon": "/icon/code.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "JetBrains",
+        "slug": "jetbrains",
+        "icon": "/icon/intellij.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "Web Terminal",
+        "slug": "reconnecting-pty",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "SSH",
+        "slug": "ssh",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0,
+        "times_used": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "SFTP",
+        "slug": "sftp",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0,
+        "times_used": 0
+      }
+    ],
+    "parameters_usage": []
+  },
+  "interval_reports": [
+    {
+      "start_time": "2023-08-15T00:00:00Z",
+      "end_time": "2023-08-16T00:00:00Z",
+      "template_ids": [],
+      "interval": "day",
+      "active_users": 0
+    },
+    {
+      "start_time": "2023-08-16T00:00:00Z",
+      "end_time": "2023-08-17T00:00:00Z",
+      "template_ids": [],
+      "interval": "day",
+      "active_users": 0
+    },
+    {
+      "start_time": "2023-08-17T00:00:00Z",
+      "end_time": "2023-08-18T00:00:00Z",
+      "template_ids": [],
+      "interval": "day",
+      "active_users": 0
+    },
+    {
+      "start_time": "2023-08-18T00:00:00Z",
+      "end_time": "2023-08-19T00:00:00Z",
+      "template_ids": [],
+      "interval": "day",
+      "active_users": 0
+    },
+    {
+      "start_time": "2023-08-19T00:00:00Z",
+      "end_time": "2023-08-20T00:00:00Z",
+      "template_ids": [],
+      "interval": "day",
+      "active_users": 0
+    },
+    {
+      "start_time": "2023-08-20T00:00:00Z",
+      "end_time": "2023-08-21T00:00:00Z",
+      "template_ids": [],
+      "interval": "day",
+      "active_users": 0
+    },
+    {
+      "start_time": "2023-08-21T00:00:00Z",
+      "end_time": "2023-08-22T00:00:00Z",
+      "template_ids": [],
+      "interval": "day",
+      "active_users": 0
+    }
+  ]
+}
