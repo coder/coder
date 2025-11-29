@@ -1336,6 +1336,8 @@ func New(options *Options) *API {
 						})
 						r.Get("/appearance", api.userAppearanceSettings)
 						r.Put("/appearance", api.putUserAppearanceSettings)
+						r.Get("/preferences", api.userPreferenceSettings)
+						r.Put("/preferences", api.putUserPreferenceSettings)
 						r.Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)
