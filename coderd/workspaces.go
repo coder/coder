@@ -2669,10 +2669,36 @@ func convertWorkspace(
 	}
 	// TODO(geokat): using a pointer that's serialized with
 	// "omitempty" so that we can hide it behind an experiment. This
-	// won't be necessary once workspace sharing is in beta.
+	// won't be necessary once workspace sharing is in GA.
 	var sharedWith *[]codersdk.SharedWorkspaceActor
 	if experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
-		sharedWith = &[]codersdk.SharedWorkspaceActor{}
+		out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
+
+		// Users
+		for uid, aclEntry := range workspace.UserACL {
+			user := userData[uid]
+			out = append(out, codersdk.SharedWorkspaceActor{
+				ID:        user.ID,
+				ActorType: codersdk.SharedWorkspaceActorTypeUser,
+				Name:      user.Name,
+				AvatarURL: user.AvatarURL,
+				Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
+			})
+		}
+
+		// Groups
+		for gid, aclEntry := range workspace.GroupACL {
+			group := groupData[gid]
+			out = append(out, codersdk.SharedWorkspaceActor{
+				ID:        group.ID,
+				ActorType: codersdk.SharedWorkspaceActorTypeGroup,
+				Name:      group.Name,
+				AvatarURL: group.AvatarURL,
+				Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
+			})
+		}
+
+		sharedWith = &out
 	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
