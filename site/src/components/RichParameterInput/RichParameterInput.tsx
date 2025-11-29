@@ -5,13 +5,17 @@ import type { InputBaseComponentProps } from "@mui/material/InputBase";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import type { TemplateVersionParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { CircleAlertIcon, SettingsIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import type {
@@ -136,25 +140,41 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 			{displayName}
 
 			{!parameter.required && (
-				<Tooltip title="If no value is specified, the system will default to the value set by the administrator.">
-					<span css={styles.optionalLabel}>(optional)</span>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span css={styles.optionalLabel}>(optional)</span>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" className="max-w-xs">
+						If no value is specified, the system will default to the value set
+						by the administrator.
+					</TooltipContent>
 				</Tooltip>
 			)}
 			{!parameter.mutable && (
-				<Tooltip title="This value cannot be modified after the workspace has been created.">
-					<Pill
-						type="warning"
-						icon={<CircleAlertIcon className="size-icon-xs" />}
-					>
-						Immutable
-					</Pill>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Pill
+							type="warning"
+							icon={<CircleAlertIcon className="size-icon-xs" />}
+						>
+							Immutable
+						</Pill>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" className="max-w-xs">
+						This value cannot be modified after the workspace has been created.
+					</TooltipContent>
 				</Tooltip>
 			)}
 			{isPreset && (
-				<Tooltip title="This value was set by a preset">
-					<Pill type="info" icon={<SettingsIcon className="size-icon-xs" />}>
-						Preset
-					</Pill>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Pill type="info" icon={<SettingsIcon className="size-icon-xs" />}>
+							Preset
+						</Pill>
+					</TooltipTrigger>
+					<TooltipContent side="bottom">
+						This value was set by a preset
+					</TooltipContent>
 				</Tooltip>
 			)}
 		</span>
@@ -328,14 +348,15 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 										css={{ padding: small ? undefined : "4px 0" }}
 									>
 										{small ? (
-											<Tooltip
-												title={
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<div>{option.name}</div>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" className="max-w-xs">
 													<MemoizedMarkdown>
 														{option.description}
 													</MemoizedMarkdown>
-												}
-											>
-												<div>{option.name}</div>
+												</TooltipContent>
 											</Tooltip>
 										) : (
 											<>
