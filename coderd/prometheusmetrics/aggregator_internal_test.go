@@ -11,6 +11,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestDescCache_DescExpire(t *testing.T) {
@@ -62,8 +63,9 @@ func TestDescCache_DescExpire(t *testing.T) {
 func TestDescCacheTimestampUpdate(t *testing.T) {
 	t.Parallel()
 
+	mClock := quartz.NewMock(t)
 	registry := prometheus.NewRegistry()
-	ma, err := NewMetricsAggregator(slogtest.Make(t, nil), registry, time.Hour, nil)
+	ma, err := NewMetricsAggregator(slogtest.Make(t, nil), registry, time.Hour, nil, WithClock(mClock))
 	require.NoError(t, err)
 
 	baseLabelNames := []string{"label1", "label2"}
@@ -77,6 +79,9 @@ func TestDescCacheTimestampUpdate(t *testing.T) {
 	key := cacheKeyForDesc("test_metric", baseLabelNames, extraLabels)
 	initialEntry := ma.descCache[key]
 	initialTime := initialEntry.lastUsed
+
+	// Advance the mock clock to ensure a different timestamp
+	mClock.Advance(time.Second)
 
 	desc2 := ma.getOrCreateDesc("test_metric", "help text", baseLabelNames, extraLabels)
 	require.NotNil(t, desc2)
