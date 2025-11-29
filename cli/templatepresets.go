@@ -106,7 +106,7 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 			if len(presets) == 0 {
 				cliui.Infof(
 					inv.Stdout,
-					"No presets found for template %q and template-version %q.\n", template.Name, version.Name,
+					"No presets found for template %q and template-version %q.", template.Name, version.Name,
 				)
 				return nil
 			}
@@ -115,13 +115,18 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 			if formatter.FormatID() == "table" {
 				cliui.Infof(
 					inv.Stdout,
-					"Showing presets for template %q and template version %q.\n", template.Name, version.Name,
+					"Showing presets for template %q and template version %q.", template.Name, version.Name,
 				)
 			}
 			rows := templatePresetsToRows(presets...)
 			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("render table: %w", err)
+			}
+
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No template presets found.")
+				return nil
 			}
 
 			_, err = fmt.Fprintln(inv.Stdout, out)

@@ -94,6 +94,7 @@ func TestProvisionerKeys(t *testing.T) {
 		)
 		pty = ptytest.New(t)
 		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 		clitest.SetupConfig(t, orgAdminClient, conf)
 
 		err = inv.WithContext(ctx).Run()

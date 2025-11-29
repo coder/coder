@@ -59,6 +59,11 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 				return xerrors.Errorf("format task logs: %w", err)
 			}
 
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No task logs found.")
+				return nil
+			}
+
 			_, _ = fmt.Fprintln(inv.Stdout, out)
 			return nil
 		},

@@ -30,16 +30,16 @@ func (r *RootCmd) templateList() *serpent.Command {
 				return err
 			}
 
-			if len(templates) == 0 {
-				_, _ = fmt.Fprintf(inv.Stderr, "%s No templates found! Create one:\n\n", Caret)
-				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder templates push <directory>\n"))
-				return nil
-			}
-
 			rows := templatesToRows(templates...)
 			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return err
+			}
+
+			if out == "" {
+				_, _ = fmt.Fprintf(inv.Stderr, "%s No templates found! Create one:\n\n", Caret)
+				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder templates push <directory>\n"))
+				return nil
 			}
 
 			_, err = fmt.Fprintln(inv.Stdout, out)

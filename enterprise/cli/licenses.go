@@ -166,6 +166,11 @@ func (r *RootCmd) licensesList() *serpent.Command {
 				return err
 			}
 
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No licenses found.")
+				return nil
+			}
+
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},

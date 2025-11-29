@@ -74,11 +74,6 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 				return xerrors.Errorf("list provisioner daemons: %w", err)
 			}
 
-			if len(daemons) == 0 {
-				_, _ = fmt.Fprintln(inv.Stdout, "No provisioner daemons found")
-				return nil
-			}
-
 			var rows []provisionerDaemonRow
 			for _, daemon := range daemons {
 				rows = append(rows, provisionerDaemonRow{
@@ -90,6 +85,11 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			out, err := formatter.Format(ctx, rows)
 			if err != nil {
 				return xerrors.Errorf("display provisioner daemons: %w", err)
+			}
+
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No provisioner daemons found.")
+				return nil
 			}
 
 			_, _ = fmt.Fprintln(inv.Stdout, out)

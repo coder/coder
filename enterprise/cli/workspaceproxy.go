@@ -392,6 +392,11 @@ func (r *RootCmd) listProxies() *serpent.Command {
 				return err
 			}
 
+			if output == "" {
+				cliui.Infof(inv.Stderr, "No workspace proxies found.")
+				return nil
+			}
+
 			_, err = fmt.Fprintln(inv.Stdout, output)
 			return err
 		},

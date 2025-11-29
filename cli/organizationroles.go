@@ -92,6 +92,11 @@ func (r *RootCmd) showOrganizationRoles(orgContext *OrganizationContext) *serpen
 				return err
 			}
 
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No organization roles found.")
+				return nil
+			}
+
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},

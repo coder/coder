@@ -34,6 +34,7 @@ func TestTokens(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	buf := new(bytes.Buffer)
 	inv.Stdout = buf
+	inv.Stderr = buf
 	err := inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res := buf.String()
