@@ -1786,6 +1786,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
+	readonly license_file?: string;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**

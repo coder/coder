@@ -509,6 +509,7 @@ type DeploymentValues struct {
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
+	LicenseFile                     serpent.String                       `json:"license_file,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -3375,6 +3376,15 @@ Write out the current server config as YAML to stdout.`,
 			// Do not show this option ever. It is a developer tool only, and not to be
 			// used externally.
 			Hidden: true,
+		},
+		{
+			Name:        "License File",
+			Description: "Path to a license file to automatically import on server startup. The license will only be imported if no licenses exist yet. This is useful for automated deployments.",
+			Flag:        "license-file",
+			Env:         "CODER_LICENSE_FILE",
+			Value:       &c.LicenseFile,
+			Default:     "",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 		},
 	}
 
