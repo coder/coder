@@ -457,6 +457,11 @@ message Timing {
   string resource = 5;
   string stage = 6;
   TimingState state = 7;
+  // stage_que distinguishes repeated runs of the same stage.
+  // 0 is the first occurrence, 1 is the second, etc.
+  // Repeated stages are not ideal, but they do exist and should be known
+  // to be unique by this field.
+  int32 stage_seq = 8;
 }
 
 enum TimingState {

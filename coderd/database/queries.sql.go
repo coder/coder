@@ -10204,7 +10204,7 @@ func (q *sqlQuerier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.
 }
 
 const getProvisionerJobTimingsByJobID = `-- name: GetProvisionerJobTimingsByJobID :many
-SELECT job_id, started_at, ended_at, stage, source, action, resource FROM provisioner_job_timings
+SELECT job_id, started_at, ended_at, stage, source, action, resource, stage_seq FROM provisioner_job_timings
 WHERE job_id = $1
 ORDER BY started_at ASC
 `
@@ -10226,6 +10226,7 @@ func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID 
 			&i.Source,
 			&i.Action,
 			&i.Resource,
+			&i.StageSeq,
 		); err != nil {
 			return nil, err
 		}
@@ -10818,7 +10819,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 }
 
 const insertProvisionerJobTimings = `-- name: InsertProvisionerJobTimings :many
-INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
+INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource, stage_seq)
 SELECT
     $1::uuid AS provisioner_job_id,
     unnest($2::timestamptz[]),
@@ -10826,8 +10827,9 @@ SELECT
     unnest($4::provisioner_job_timing_stage[]),
     unnest($5::text[]),
     unnest($6::text[]),
-    unnest($7::text[])
-RETURNING job_id, started_at, ended_at, stage, source, action, resource
+    unnest($7::text[]),
+	unnest($8::integer[])
+RETURNING job_id, started_at, ended_at, stage, source, action, resource, stage_seq
 `
 
 type InsertProvisionerJobTimingsParams struct {
@@ -10838,6 +10840,7 @@ type InsertProvisionerJobTimingsParams struct {
 	Source    []string                    `db:"source" json:"source"`
 	Action    []string                    `db:"action" json:"action"`
 	Resource  []string                    `db:"resource" json:"resource"`
+	StageSeq  []int32                     `db:"stage_seq" json:"stage_seq"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error) {
@@ -10849,6 +10852,7 @@ func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg Insert
 		pq.Array(arg.Source),
 		pq.Array(arg.Action),
 		pq.Array(arg.Resource),
+		pq.Array(arg.StageSeq),
 	)
 	if err != nil {
 		return nil, err
@@ -10865,6 +10869,7 @@ func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg Insert
 			&i.Source,
 			&i.Action,
 			&i.Resource,
+			&i.StageSeq,
 		); err != nil {
 			return nil, err
 		}
