@@ -572,6 +572,8 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		data.templates[0],
 		api.Options.AllowWorkspaceRenames,
 		appStatus,
+		nil,
+		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
