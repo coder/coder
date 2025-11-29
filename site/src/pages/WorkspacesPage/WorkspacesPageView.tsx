@@ -146,7 +146,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									disabled={isRunningBatchAction}
 									variant="outline"
 									size="sm"
-									css={{ borderRadius: 9999, marginLeft: "auto" }}
+									className="ml-auto"
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
