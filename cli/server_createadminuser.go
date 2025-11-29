@@ -26,6 +26,7 @@ import (
 func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 	var (
 		newUserDBURL              string
+		newUserDBURLFile          string
 		newUserPgAuth             string
 		newUserSSHKeygenAlgorithm string
 		newUserUsername           string
@@ -51,6 +52,18 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 			ctx, cancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer cancel()
+
+			// Read the postgres URL from a file, if specified.
+			if newUserDBURLFile != "" {
+				if newUserDBURL != "" {
+					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+				}
+				var err error
+				newUserDBURL, err = ReadPostgresURLFromFile(newUserDBURLFile)
+				if err != nil {
+					return err
+				}
+			}
 
 			if newUserDBURL == "" {
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", cfg.PostgresPath())
@@ -256,6 +269,12 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
 			Value:       serpent.StringOf(&newUserDBURL),
+		},
+		serpent.Option{
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Flag:        "postgres-url-file",
+			Description: "Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.",
+			Value:       serpent.StringOf(&newUserDBURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",
