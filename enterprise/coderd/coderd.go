@@ -260,6 +260,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/", api.postLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
+			r.Post("/usage/embeddable-dashboard", api.postUsageEmbeddableDashboard)
 		})
 		r.Route("/applications/reconnecting-pty-signed-token", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -669,6 +670,9 @@ type Options struct {
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	LicenseKeys                map[string]ed25519.PublicKey
+
+	// TallymanURL is the base URL for the Tallyman API. If nil, the default URL is used.
+	TallymanURL *url.URL
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string

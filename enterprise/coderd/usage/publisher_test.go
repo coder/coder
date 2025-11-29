@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func TestIntegration(t *testing.T) {
 		calls   int
 		handler func(req usagetypes.TallymanV1IngestRequest) any
 	)
-	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
+	baseURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
 		t.Logf("tallyman backend received call %d", calls)
 
@@ -89,7 +90,7 @@ func TestIntegration(t *testing.T) {
 	authzDB := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), log, coderdtest.AccessControlStorePointer())
 	publisher := usage.NewTallymanPublisher(ctx, log, authzDB, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
-		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithTallymanBaseURL(baseURL),
 	)
 	defer publisher.Close()
 
@@ -210,7 +211,7 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	db.EXPECT().GetDeploymentID(gomock.Any()).Return(deploymentID.String(), nil).Times(1)
 
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), "", func(req usagetypes.TallymanV1IngestRequest) any {
+	baseURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), "", func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
 		return usagetypes.TallymanV1IngestResponse{
 			AcceptedEvents: []usagetypes.TallymanV1IngestAcceptedEvent{},
@@ -220,7 +221,7 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
-		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithTallymanBaseURL(baseURL),
 	)
 	defer publisher.Close()
 
@@ -283,7 +284,7 @@ func TestPublisherClaimExpiry(t *testing.T) {
 	now := time.Now()
 
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
+	baseURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
 		return tallymanAcceptAllHandler(req)
 	}))
@@ -294,7 +295,7 @@ func TestPublisherClaimExpiry(t *testing.T) {
 
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
-		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithTallymanBaseURL(baseURL),
 		usage.PublisherWithInitialDelay(17*time.Minute),
 	)
 	defer publisher.Close()
@@ -363,7 +364,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 	clock.Set(now)
 
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
+	baseURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
 		return usagetypes.TallymanV1IngestResponse{
 			AcceptedEvents: []usagetypes.TallymanV1IngestAcceptedEvent{},
@@ -373,7 +374,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
-		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithTallymanBaseURL(baseURL),
 	)
 
 	// Expect the publisher to call SelectUsageEventsForPublishing, followed by
@@ -507,14 +508,14 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	}, nil)
 
 	called := false
-	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), expectedLicense, func(req usagetypes.TallymanV1IngestRequest) any {
+	baseURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), expectedLicense, func(req usagetypes.TallymanV1IngestRequest) any {
 		called = true
 		return tallymanAcceptAllHandler(req)
 	}))
 
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
-		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithTallymanBaseURL(baseURL),
 	)
 	defer publisher.Close()
 
@@ -573,7 +574,7 @@ func TestPublisherTallymanError(t *testing.T) {
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	const errorMessage = "tallyman error"
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
+	baseURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
 		return usagetypes.TallymanV1Response{
 			Message: errorMessage,
@@ -582,7 +583,7 @@ func TestPublisherTallymanError(t *testing.T) {
 
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
-		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithTallymanBaseURL(baseURL),
 	)
 	defer publisher.Close()
 
@@ -679,11 +680,13 @@ func configureMockDeployment(t *testing.T, db *dbmock.MockStore) (uuid.UUID, str
 	return deploymentID, licenseRaw
 }
 
-func fakeServer(t *testing.T, handler http.Handler) string {
+func fakeServer(t *testing.T, handler http.Handler) *url.URL {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	return server.URL
+	baseURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	return baseURL
 }
 
 func tallymanHandler(t *testing.T, expectDeploymentID string, expectLicenseJWT string, handler func(req usagetypes.TallymanV1IngestRequest) any) http.Handler {

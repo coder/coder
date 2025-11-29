@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strings"
 	"testing"
@@ -77,6 +78,7 @@ type Options struct {
 	ReplicaErrorGracePeriod    time.Duration
 	ExternalTokenEncryption    []dbcrypt.Cipher
 	ProvisionerDaemonPSK       string
+	TallymanURL                *url.URL
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -120,6 +122,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,
 		ExternalTokenEncryption:    options.ExternalTokenEncryption,
+		TallymanURL:                options.TallymanURL,
 	})
 	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)
