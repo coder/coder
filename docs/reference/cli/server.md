@@ -1676,7 +1676,6 @@ The base URL of the OpenAI API.
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_AIBRIDGE_OPENAI_KEY</code> |
-| YAML        | <code>aibridge.openai_key</code>        |
 
 The key to authenticate against the OpenAI API.
 
@@ -1697,7 +1696,6 @@ The base URL of the Anthropic API.
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_KEY</code> |
-| YAML        | <code>aibridge.anthropic_key</code>        |
 
 The key to authenticate against the Anthropic API.
 
@@ -1717,7 +1715,6 @@ The AWS Bedrock API region.
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY</code> |
-| YAML        | <code>aibridge.bedrock_access_key</code>        |
 
 The access key to authenticate against the AWS Bedrock API.
 
@@ -1727,7 +1724,6 @@ The access key to authenticate against the AWS Bedrock API.
 |-------------|--------------------------------------------------------|
 | Type        | <code>string</code>                                    |
 | Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET</code> |
-| YAML        | <code>aibridge.bedrock_access_key_secret</code>        |
 
 The access key secret to use with the access key to authenticate against the AWS Bedrock API.
 
