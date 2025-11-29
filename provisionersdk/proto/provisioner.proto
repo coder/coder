@@ -369,16 +369,12 @@ message Metadata {
 
 // Config represents execution configuration shared by all subsequent requests in the Session
 message Config {
-  // template_source_archive is a tar of the template source files
-  bytes template_source_archive = 1;
-  // state is the provisioner state (if any)
-  bytes state = 2;
-  string provisioner_log_level = 3;
+  string provisioner_log_level = 1;
   // Template imports can omit template id
-  optional string template_id = 4;
+  optional string template_id = 2;
   // Dry runs omit version id
-  optional string template_version_id = 5;
-  optional bool exp_reuse_terraform_workspace = 6; // Whether to reuse existing terraform workspaces if they exist.
+  optional string template_version_id = 3;
+  optional bool exp_reuse_terraform_workspace = 4; // Whether to reuse existing terraform workspaces if they exist.
 }
 
 // ParseRequest consumes source-code to produce inputs.
@@ -393,6 +389,25 @@ message ParseComplete {
   map<string, string> workspace_tags = 4;
 }
 
+message InitRequest {
+  // template_source_archive is a tar of the template source files
+  bytes template_source_archive = 1;
+
+  // If true, the provisioner can safely assume the caller does not need the
+  // module files downloaded by the `terraform init` command.
+  // Ideally this boolean would be flipped in its truthy value, however since
+  // this is costly, the zero value omitting the module files is preferred.
+  bool omit_module_files = 3;
+}
+
+message InitComplete {
+  string error = 1;
+  repeated Timing timings = 2;
+  repeated Module modules = 3;
+  bytes module_files = 4;
+  bytes module_files_hash = 5;
+}
+
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
 message PlanRequest {
   Metadata metadata = 1;
@@ -401,52 +416,61 @@ message PlanRequest {
   repeated ExternalAuthProvider external_auth_providers = 4;
   repeated RichParameterValue previous_parameter_values = 5;
 
-  // If true, the provisioner can safely assume the caller does not need the
-  // module files downloaded by the `terraform init` command.
-  // Ideally this boolean would be flipped in its truthy value, however for
-  // backwards compatibility reasons, the zero value should be the previous
-  // behavior of downloading the module files.
-  bool omit_module_files = 6;
+  // state is the provisioner state (if any)
+  bytes state = 6;
 }
 
 // PlanComplete indicates a request to plan completed.
 message PlanComplete {
   string error = 1;
-  repeated Resource resources = 2;
-  repeated RichParameter parameters = 3;
-  repeated ExternalAuthProviderResource external_auth_providers = 4;
-  repeated Timing timings = 6;
-  repeated Module modules = 7;
-  repeated Preset presets = 8;
-  bytes plan = 9;
-  repeated ResourceReplacement resource_replacements = 10;
-  bytes module_files = 11;
-  bytes module_files_hash = 12;
-  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-  // still need to know that such resources are defined.
-  //
-  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
-  bool has_ai_tasks = 13;
-  repeated provisioner.AITask ai_tasks = 14;
-  bool has_external_agents = 15;
+  repeated Timing timings = 2;
+  bytes plan = 3;
+  int32 dailyCost = 4;
+  repeated ResourceReplacement resource_replacements = 5;
+  int32 ai_task_count = 6;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
 // in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
 message ApplyRequest {
   Metadata metadata = 1;
+  // state is the provisioner state (if any)
+  bytes state = 6;
 }
 
 // ApplyComplete indicates a request to apply completed.
 message ApplyComplete {
   bytes state = 1;
   string error = 2;
+  repeated Timing timings = 3;
+}
+
+enum GraphSource {
+  SOURCE_UNKNOWN = 0;
+  SOURCE_PLAN = 1;
+  SOURCE_STATE = 2;
+}
+
+message GraphRequest {
+  Metadata metadata = 1;
+  GraphSource source = 2;
+}
+
+message GraphComplete {
+  string error = 1;
+  repeated Timing timings = 2;
   repeated Resource resources = 3;
   repeated RichParameter parameters = 4;
   repeated ExternalAuthProviderResource external_auth_providers = 5;
-  repeated Timing timings = 6;
-  repeated provisioner.AITask ai_tasks = 7;
+  repeated Preset presets = 6;
+  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+  // still need to know that such resources are defined.
+  //
+  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+  bool has_ai_tasks = 7;
+  repeated provisioner.AITask ai_tasks = 8;
+  bool has_external_agents = 9;
 }
 
 message Timing {
@@ -472,9 +496,11 @@ message Request {
   oneof type {
     Config config = 1;
     ParseRequest parse = 2;
-    PlanRequest plan = 3;
-    ApplyRequest apply = 4;
-    CancelRequest cancel = 5;
+    InitRequest init = 3;
+    PlanRequest plan = 4;
+    ApplyRequest apply = 5;
+    GraphRequest graph = 6;
+    CancelRequest cancel = 7;
   }
 }
 
@@ -482,10 +508,12 @@ message Response {
   oneof type {
     Log log = 1;
     ParseComplete parse = 2;
-    PlanComplete plan = 3;
-    ApplyComplete apply = 4;
-    DataUpload data_upload = 5;
-    ChunkPiece chunk_piece = 6;
+    InitComplete init =  3;
+    PlanComplete plan = 4;
+    ApplyComplete apply = 5;
+    GraphComplete graph = 6;
+    DataUpload data_upload = 7;
+    ChunkPiece chunk_piece = 8;
   }
 }
 

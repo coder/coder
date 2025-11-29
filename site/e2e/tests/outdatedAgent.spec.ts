@@ -25,9 +25,9 @@ test.skip(`ssh with agent ${agentVersion}`, async ({ page }) => {
 
 	const token = randomUUID();
 	const template = await createTemplate(page, {
-		apply: [
+		graph: [
 			{
-				apply: {
+				graph: {
 					resources: [
 						{
 							agents: [

@@ -21,8 +21,9 @@ func TestParse(t *testing.T) {
 		Name     string
 		Files    map[string]string
 		Response *proto.ParseComplete
-		// If ErrorContains is not empty, then the ParseComplete should have an Error containing the given string
-		ErrorContains string
+		// If ErrorContains is not empty, then the InitComplete should have an Error containing the given string
+		ErrorContains      string
+		ParseErrorContains string
 	}{
 		{
 			Name: "single-variable",
@@ -63,6 +64,7 @@ func TestParse(t *testing.T) {
 				"main.tf": `variable "A" {
 				validation {
 					condition = var.A == "value"
+					error_message = "A must be 'value'"
 				}
 			}`,
 			},
@@ -80,7 +82,7 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
 			},
-			ErrorContains: `The ";" character is not valid.`,
+			ErrorContains: `initialize terraform: exit status 1`,
 		},
 		{
 			Name: "multiple-variables",
@@ -205,6 +207,15 @@ func TestParse(t *testing.T) {
 		{
 			Name: "workspace-tags",
 			Files: map[string]string{
+				`main.tf`: `
+					terraform {
+					  required_providers {
+						coder = {
+						  source = "coder/coder"
+						}
+					  }
+					}
+				`,
 				"parameters.tf": `data "coder_parameter" "os_selector" {
 					name         = "os_selector"
 					display_name = "Operating System"
@@ -266,7 +277,13 @@ func TestParse(t *testing.T) {
 			Name: "workspace-tags-in-a-single-file",
 			Files: map[string]string{
 				"main.tf": `
-
+				  terraform {
+				    required_providers {
+				     coder = {
+				  	   source = "coder/coder"
+				  	 }
+				    }
+				  }
 				  data "coder_parameter" "os_selector" {
 					name         = "os_selector"
 					display_name = "Operating System"
@@ -330,7 +347,13 @@ func TestParse(t *testing.T) {
 			Name: "workspace-tags-duplicate-tag",
 			Files: map[string]string{
 				"main.tf": `
-
+				  terraform {
+				    required_providers {
+				     coder = {
+				  	   source = "coder/coder"
+				  	 }
+				    }
+				  }
 				  data "coder_workspace_tags" "custom_workspace_tags" {
 					tags = {
 					  "cluster" = "developers"
@@ -341,23 +364,30 @@ func TestParse(t *testing.T) {
 				  }
 				  `,
 			},
-			ErrorContains: `workspace tag "debug" is defined multiple times`,
+			ParseErrorContains: `workspace tag "debug" is defined multiple times`,
 		},
 		{
 			Name: "workspace-tags-wrong-tag-format",
 			Files: map[string]string{
 				"main.tf": `
-
-				  data "coder_workspace_tags" "custom_workspace_tags" {
-					tags {
-					  cluster = "developers"
-					  debug   = "yes"
-					  cache   = "no-cache"
+					terraform {
+					  required_providers {
+						coder = {
+						  source = "coder/coder"
+						}
+					  }
 					}
-				  }
+
+					data "coder_workspace_tags" "custom_workspace_tags" {
+						tags {
+						  cluster = "developers"
+						  debug   = "yes"
+						  cache   = "no-cache"
+						}
+					}
 				  `,
 			},
-			ErrorContains: `"tags" attribute is required by coder_workspace_tags`,
+			ParseErrorContains: `"tags" attribute is required by coder_workspace_tags`,
 		},
 		{
 			Name: "empty-main",
@@ -379,25 +409,41 @@ func TestParse(t *testing.T) {
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 
-			session := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: testutil.CreateTar(t, testCase.Files),
-			})
+			session := configure(ctx, t, api, &proto.Config{})
+			err := sendInit(session, testutil.CreateTar(t, testCase.Files))
+			require.NoError(t, err)
 
-			err := session.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})
+			// Init stage
+			for {
+				msg, err := session.Recv()
+				require.NoError(t, err)
+				if msgLog, ok := msg.Type.(*proto.Response_Log); ok {
+					t.Logf("init log: %s", msgLog.Log.Output)
+					continue
+				}
+
+				if testCase.ErrorContains != "" {
+					require.Contains(t, msg.GetInit().GetError(), testCase.ErrorContains)
+					return // Stop test at this point
+				}
+				break
+			}
+
+			err = session.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})
 			require.NoError(t, err)
 
 			for {
 				msg, err := session.Recv()
 				require.NoError(t, err)
 
-				if testCase.ErrorContains != "" {
-					require.Contains(t, msg.GetParse().GetError(), testCase.ErrorContains)
-					break
-				}
-
 				// Ignore logs in this test
 				if msg.GetLog() != nil {
 					continue
+				}
+
+				if testCase.ParseErrorContains != "" {
+					require.Contains(t, msg.GetParse().GetError(), testCase.ParseErrorContains)
+					return // Stop test at this point
 				}
 
 				// Ensure the want and got are equivalent!

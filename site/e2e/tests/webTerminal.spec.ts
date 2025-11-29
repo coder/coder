@@ -18,9 +18,9 @@ test.beforeEach(async ({ page }) => {
 test("web terminal", async ({ context, page }) => {
 	const token = randomUUID();
 	const template = await createTemplate(page, {
-		apply: [
+		graph: [
 			{
-				apply: {
+				graph: {
 					resources: [
 						{
 							agents: [

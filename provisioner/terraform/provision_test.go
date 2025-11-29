@@ -81,6 +81,31 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	return ctx, api
 }
 
+func initDo(t *testing.T, sess proto.DRPCProvisioner_SessionClient, archive []byte, onLog ...func(log string)) *proto.InitComplete {
+	t.Helper()
+	err := sess.Send(&proto.Request{Type: &proto.Request_Init{
+		Init: &proto.InitRequest{
+			TemplateSourceArchive: archive,
+			OmitModuleFiles:       false,
+		},
+	}})
+	require.NoError(t, err)
+	for {
+		msg, err := sess.Recv()
+		require.NoError(t, err)
+		if logMsg, ok := msg.Type.(*proto.Response_Log); ok {
+			for _, do := range onLog {
+				do(logMsg.Log.Output)
+			}
+			continue
+		}
+
+		init := msg.GetInit()
+		require.NotNil(t, init)
+		return init
+	}
+}
+
 func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerClient, config *proto.Config) proto.DRPCProvisioner_SessionClient {
 	t.Helper()
 	sess, err := client.Session(ctx)
@@ -105,6 +130,18 @@ func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient
 		break
 	}
 	return logBuf.String()
+}
+
+func sendInit(sess proto.DRPCProvisioner_SessionClient, archive []byte) error {
+	return sess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
+		TemplateSourceArchive: archive,
+	}}})
+}
+
+func sendGraph(sess proto.DRPCProvisioner_SessionClient, source proto.GraphSource) error {
+	return sess.Send(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+		Source: source,
+	}}})
 }
 
 func sendPlan(sess proto.DRPCProvisioner_SessionClient, transition proto.WorkspaceTransition) error {
@@ -164,9 +201,8 @@ func TestProvision_Cancel(t *testing.T) {
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binPath,
 			})
-			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: testutil.CreateTar(t, nil),
-			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			_ = initDo(t, sess, testutil.CreateTar(t, nil))
 
 			err = sendPlan(sess, proto.WorkspaceTransition_START)
 			require.NoError(t, err)
@@ -231,9 +267,8 @@ func TestProvision_CancelTimeout(t *testing.T) {
 		exitTimeout: time.Second,
 	})
 
-	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: testutil.CreateTar(t, nil),
-	})
+	sess := configure(ctx, t, api, &proto.Config{})
+	_ = initDo(t, sess, testutil.CreateTar(t, nil))
 
 	// provisioner requires plan before apply, so test cancel with plan.
 	err = sendPlan(sess, proto.WorkspaceTransition_START)
@@ -316,11 +351,9 @@ func TestProvision_TextFileBusy(t *testing.T) {
 		logger:      &logger,
 	})
 
-	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: testutil.CreateTar(t, nil),
-	})
+	sess := configure(ctx, t, api, &proto.Config{})
 
-	err = sendPlan(sess, proto.WorkspaceTransition_START)
+	err = sendInit(sess, testutil.CreateTar(t, nil))
 	require.NoError(t, err)
 
 	found := false
@@ -328,7 +361,7 @@ func TestProvision_TextFileBusy(t *testing.T) {
 		msg, err := sess.Recv()
 		require.NoError(t, err)
 
-		if c := msg.GetPlan(); c != nil {
+		if c := msg.GetInit(); c != nil {
 			require.Contains(t, c.Error, "exit status 1")
 			found = true
 			break
@@ -347,11 +380,14 @@ func TestProvision(t *testing.T) {
 		Metadata *proto.Metadata
 		Request  *proto.PlanRequest
 		// Response may be nil to not check the response.
-		Response *proto.PlanComplete
+		Response              *proto.GraphComplete
+		InitResponse          *proto.InitComplete
+		InitErrorContains     string
+		InitExpectLogContains string
 		// If ErrorContains is not empty, PlanComplete should have an Error containing the given string
-		ErrorContains string
-		// If ExpectLogContains is not empty, then the logs should contain it.
-		ExpectLogContains string
+		PlanErrorContains string
+		// If PlanExpectLogContains is not empty, then the logs should contain it.
+		PlanExpectLogContains string
 		// If Apply is true, then send an Apply request and check we get the same Resources as in Response.
 		Apply bool
 		// Some tests may need to be skipped until the relevant provider version is released.
@@ -365,8 +401,8 @@ func TestProvision(t *testing.T) {
 				"main.tf": `variable "A" {
 			}`,
 			},
-			ErrorContains:     "terraform plan:",
-			ExpectLogContains: "No value for required variable",
+			PlanErrorContains:     "terraform plan:",
+			PlanExpectLogContains: "No value for required variable",
 		},
 		{
 			Name: "missing-variable-dry-run",
@@ -374,15 +410,15 @@ func TestProvision(t *testing.T) {
 				"main.tf": `variable "A" {
 			}`,
 			},
-			ErrorContains:     "terraform plan:",
-			ExpectLogContains: "No value for required variable",
+			PlanErrorContains:     "terraform plan:",
+			PlanExpectLogContains: "No value for required variable",
 		},
 		{
 			Name: "single-resource-dry-run",
 			Files: map[string]string{
 				"main.tf": `resource "null_resource" "A" {}`,
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "A",
 					Type: "null_resource",
@@ -394,7 +430,7 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `resource "null_resource" "A" {}`,
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "A",
 					Type: "null_resource",
@@ -415,7 +451,7 @@ func TestProvision(t *testing.T) {
 					}
 				}`,
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "A",
 					Type: "null_resource",
@@ -428,18 +464,18 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `a`,
 			},
-			ErrorContains:      "initialize terraform",
-			ExpectLogContains:  "Argument or block definition required",
-			SkipCacheProviders: true,
+			InitErrorContains:     "initialize terraform",
+			InitExpectLogContains: "Argument or block definition required",
+			SkipCacheProviders:    true,
 		},
 		{
 			Name: "bad-syntax-2",
 			Files: map[string]string{
 				"main.tf": `;asdf;`,
 			},
-			ErrorContains:      "initialize terraform",
-			ExpectLogContains:  `The ";" character is not valid.`,
-			SkipCacheProviders: true,
+			InitErrorContains:     "initialize terraform",
+			InitExpectLogContains: `The ";" character is not valid.`,
+			SkipCacheProviders:    true,
 		},
 		{
 			Name: "destroy-no-state",
@@ -449,7 +485,7 @@ func TestProvision(t *testing.T) {
 			Metadata: &proto.Metadata{
 				WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
 			},
-			ExpectLogContains: "nothing to do",
+			PlanExpectLogContains: "nothing to do",
 		},
 		{
 			Name: "rich-parameter-with-value",
@@ -493,7 +529,7 @@ func TestProvision(t *testing.T) {
 					},
 				},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Parameters: []*proto.RichParameter{
 					{
 						Name:         "Example",
@@ -571,7 +607,7 @@ func TestProvision(t *testing.T) {
 					},
 				},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Parameters: []*proto.RichParameter{
 					{
 						Name:         "Example",
@@ -623,7 +659,7 @@ func TestProvision(t *testing.T) {
 					AccessToken: "some-value",
 				}},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "null_resource",
@@ -666,7 +702,7 @@ func TestProvision(t *testing.T) {
 					WorkspaceOwnerSshPrivateKey: "fake private key",
 				},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "null_resource",
@@ -709,7 +745,7 @@ func TestProvision(t *testing.T) {
 					WorkspaceOwnerLoginType: "github",
 				},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "null_resource",
@@ -738,16 +774,7 @@ func TestProvision(t *testing.T) {
 				`,
 			},
 			Request: &proto.PlanRequest{},
-			Response: &proto.PlanComplete{
-				Resources: []*proto.Resource{{
-					Name:       "example",
-					Type:       "null_resource",
-					ModulePath: "module.hello",
-				}, {
-					Name:       "inner_example",
-					Type:       "null_resource",
-					ModulePath: "module.hello.module.there",
-				}},
+			InitResponse: &proto.InitComplete{
 				Modules: []*proto.Module{{
 					Key:     "hello",
 					Version: "",
@@ -756,6 +783,17 @@ func TestProvision(t *testing.T) {
 					Key:     "hello.there",
 					Version: "",
 					Source:  "./inner_module",
+				}},
+			},
+			Response: &proto.GraphComplete{
+				Resources: []*proto.Resource{{
+					Name:       "example",
+					Type:       "null_resource",
+					ModulePath: "module.hello",
+				}, {
+					Name:       "inner_example",
+					Type:       "null_resource",
+					ModulePath: "module.hello.module.there",
 				}},
 			},
 		},
@@ -792,7 +830,7 @@ func TestProvision(t *testing.T) {
 					WorkspaceOwnerRbacRoles: []*proto.Role{{Name: "member", OrgId: ""}},
 				},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "null_resource",
@@ -833,7 +871,7 @@ func TestProvision(t *testing.T) {
 					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CREATE,
 				},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "null_resource",
@@ -871,7 +909,7 @@ func TestProvision(t *testing.T) {
 					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CLAIM,
 				},
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "null_resource",
@@ -910,7 +948,7 @@ func TestProvision(t *testing.T) {
 				`, provider.TaskPromptParameterName),
 			},
 			Request: &proto.PlanRequest{},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{
 					{
 						Name: "a",
@@ -962,7 +1000,7 @@ func TestProvision(t *testing.T) {
 				}
 				`,
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "coder_external_agent",
@@ -987,7 +1025,7 @@ func TestProvision(t *testing.T) {
 				}
 				`,
 			},
-			Response: &proto.PlanComplete{
+			Response: &proto.GraphComplete{
 				Resources: []*proto.Resource{
 					{
 						Name: "my-task",
@@ -1043,9 +1081,18 @@ func TestProvision(t *testing.T) {
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				cliConfigPath: cliConfigPath,
 			})
-			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: testutil.CreateTar(t, testCase.Files),
+			sess := configure(ctx, t, api, &proto.Config{})
+			initLogGot := testCase.InitExpectLogContains == ""
+			initComplete := initDo(t, sess, testutil.CreateTar(t, testCase.Files), func(log string) {
+				if strings.Contains(log, testCase.InitExpectLogContains) {
+					initLogGot = true
+				}
 			})
+			require.Truef(t, initLogGot, "did not get expected init log substring %q", testCase.InitExpectLogContains)
+			if testCase.InitErrorContains != "" {
+				require.Contains(t, initComplete.Error, testCase.InitErrorContains)
+				return
+			}
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
 				Metadata: testCase.Metadata,
@@ -1054,7 +1101,7 @@ func TestProvision(t *testing.T) {
 				planRequest = &proto.Request{Type: &proto.Request_Plan{Plan: testCase.Request}}
 			}
 
-			gotExpectedLog := testCase.ExpectLogContains == ""
+			gotExpectedLog := testCase.PlanExpectLogContains == ""
 
 			provision := func(req *proto.Request) *proto.Response {
 				err := sess.Send(req)
@@ -1063,7 +1110,7 @@ func TestProvision(t *testing.T) {
 					msg, err := sess.Recv()
 					require.NoError(t, err)
 					if msg.GetLog() != nil {
-						if testCase.ExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.ExpectLogContains) {
+						if testCase.PlanExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.PlanExpectLogContains) {
 							gotExpectedLog = true
 						}
 
@@ -1078,35 +1125,43 @@ func TestProvision(t *testing.T) {
 			planComplete := resp.GetPlan()
 			require.NotNil(t, planComplete)
 
-			if testCase.ErrorContains != "" {
-				require.Contains(t, planComplete.GetError(), testCase.ErrorContains)
+			if testCase.PlanErrorContains != "" {
+				require.Contains(t, planComplete.GetError(), testCase.PlanErrorContains)
 			}
 
+			graphCompleteResp := provision(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+				Source: proto.GraphSource_SOURCE_PLAN,
+			}}})
+			graphComplete := graphCompleteResp.GetGraph()
+			require.NotNil(t, graphCompleteResp)
+
 			if testCase.Response != nil {
-				require.Equal(t, testCase.Response.Error, planComplete.Error)
+				require.Equal(t, testCase.Response.Error, graphComplete.Error)
 
 				// Remove randomly generated data and sort by name.
-				normalizeResources(planComplete.Resources)
-				resourcesGot, err := json.Marshal(planComplete.Resources)
+				normalizeResources(graphComplete.Resources)
+				resourcesGot, err := json.Marshal(graphComplete.Resources)
 				require.NoError(t, err)
 				resourcesWant, err := json.Marshal(testCase.Response.Resources)
 				require.NoError(t, err)
 				require.Equal(t, string(resourcesWant), string(resourcesGot))
 
-				parametersGot, err := json.Marshal(planComplete.Parameters)
+				parametersGot, err := json.Marshal(graphComplete.Parameters)
 				require.NoError(t, err)
 				parametersWant, err := json.Marshal(testCase.Response.Parameters)
 				require.NoError(t, err)
 				require.Equal(t, string(parametersWant), string(parametersGot))
 
-				modulesGot, err := json.Marshal(planComplete.Modules)
+				modulesGot, err := json.Marshal(initComplete.Modules)
 				require.NoError(t, err)
-				modulesWant, err := json.Marshal(testCase.Response.Modules)
-				require.NoError(t, err)
-				require.Equal(t, string(modulesWant), string(modulesGot))
+				if testCase.InitResponse != nil {
+					modulesWant, err := json.Marshal(testCase.InitResponse.Modules)
+					require.NoError(t, err)
+					require.Equal(t, string(modulesWant), string(modulesGot))
+				}
 
-				require.Equal(t, planComplete.HasAiTasks, testCase.Response.HasAiTasks)
-				require.Equal(t, planComplete.HasExternalAgents, testCase.Response.HasExternalAgents)
+				require.Equal(t, graphComplete.HasAiTasks, testCase.Response.HasAiTasks)
+				require.Equal(t, graphComplete.HasExternalAgents, testCase.Response.HasExternalAgents)
 			}
 
 			if testCase.Apply {
@@ -1117,8 +1172,8 @@ func TestProvision(t *testing.T) {
 				require.NotNil(t, applyComplete)
 
 				if testCase.Response != nil {
-					normalizeResources(applyComplete.Resources)
-					resourcesGot, err := json.Marshal(applyComplete.Resources)
+					normalizeResources(graphComplete.Resources)
+					resourcesGot, err := json.Marshal(graphComplete.Resources)
 					require.NoError(t, err)
 					resourcesWant, err := json.Marshal(testCase.Response.Resources)
 					require.NoError(t, err)
@@ -1127,7 +1182,7 @@ func TestProvision(t *testing.T) {
 			}
 
 			if !gotExpectedLog {
-				t.Fatalf("expected log string %q but never saw it", testCase.ExpectLogContains)
+				t.Fatalf("expected log string %q but never saw it", testCase.PlanExpectLogContains)
 			}
 		})
 	}
@@ -1160,9 +1215,8 @@ func TestProvision_ExtraEnv(t *testing.T) {
 	t.Setenv("TF_SUPERSECRET", secretValue)
 
 	ctx, api := setupProvisioner(t, nil)
-	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
-	})
+	sess := configure(ctx, t, api, &proto.Config{})
+	_ = initDo(t, sess, testutil.CreateTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}))
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
@@ -1210,9 +1264,8 @@ func TestProvision_SafeEnv(t *testing.T) {
 	`
 
 	ctx, api := setupProvisioner(t, nil)
-	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": echoResource}),
-	})
+	sess := configure(ctx, t, api, &proto.Config{})
+	_ = initDo(t, sess, testutil.CreateTar(t, map[string]string{"main.tf": echoResource}))
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
@@ -1232,15 +1285,13 @@ func TestProvision_MalformedModules(t *testing.T) {
 	t.Parallel()
 
 	ctx, api := setupProvisioner(t, nil)
-	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
-			"main.tf":          `module "hello" { source = "./module" }`,
-			"module/module.tf": `resource "null_`,
-		}),
-	})
-
-	err := sendPlan(sess, proto.WorkspaceTransition_START)
+	sess := configure(ctx, t, api, &proto.Config{})
+	err := sendInit(sess, testutil.CreateTar(t, map[string]string{
+		"main.tf":          `module "hello" { source = "./module" }`,
+		"module/module.tf": `resource "null_`,
+	}))
 	require.NoError(t, err)
+
 	log := readProvisionLog(t, sess)
 	require.Contains(t, log, "Invalid block definition")
 }

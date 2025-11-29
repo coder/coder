@@ -655,21 +655,21 @@ func TestManagedAgentLimit(t *testing.T) {
 	// build.
 	appID := uuid.NewString()
 	echoRes := &echo.Responses{
-		Parse: echo.ParseComplete,
+		Parse:         echo.ParseComplete,
+		ProvisionInit: echo.InitComplete,
 		ProvisionPlan: []*proto.Response{
 			{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						Plan:        []byte("{}"),
-						ModuleFiles: []byte{},
-						HasAiTasks:  true,
+						Plan: []byte("{}"),
 					},
 				},
 			},
 		},
-		ProvisionApply: []*proto.Response{{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",
