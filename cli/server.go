@@ -76,6 +76,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/database/pgfileurl"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/devtunnel"
 	"github.com/coder/coder/v2/coderd/entitlements"
@@ -433,18 +434,29 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			config := r.createConfig()
 
-			// If a postgres URL file is specified, read the URL from the file.
+			// If a postgres URL file is specified, register a driver that
+			// re-reads the file on each connection attempt. This supports
+			// credential rotation without restarting the server.
 			if vals.PostgresURLFile != "" {
 				if vals.PostgresURL != "" {
-					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file flags")
 				}
+				// Read the URL once for initial validation and migrations.
+				logger.Debug(ctx, "database connection URL sourced from file")
 				postgresURL, err := ReadPostgresURLFromFile(vals.PostgresURLFile.String())
 				if err != nil {
 					return err
 				}
 				if err := vals.PostgresURL.Set(postgresURL); err != nil {
-					return xerrors.Errorf("set postgres URL from file: %w", err)
+					return xerrors.Errorf("set database URL from file: %w", err)
 				}
+				// Register a driver that re-reads the file on each new connection.
+				sqlDriver, err = pgfileurl.Register(sqlDriver, vals.PostgresURLFile.String(), logger)
+				if err != nil {
+					return xerrors.Errorf("register database file URL driver: %w", err)
+				}
+			} else if vals.PostgresURL != "" {
+				logger.Debug(ctx, "database connection URL sourced from environment variable")
 			}
 
 			builtinPostgres := false
@@ -2843,6 +2855,47 @@ func ReadPostgresURLFromFile(filePath string) (string, error) {
 		return "", xerrors.Errorf("read postgres URL file %q: %w", filePath, err)
 	}
 	return strings.TrimSpace(string(content)), nil
+}
+
+// PostgresParams holds parameters for resolving a postgres connection.
+type PostgresParams struct {
+	// URL is the direct connection URL (from --postgres-url or CODER_PG_CONNECTION_URL).
+	URL string
+	// URLFile is the path to a file containing the connection URL
+	// (from --postgres-url-file or CODER_PG_CONNECTION_URL_FILE).
+	URLFile string
+	// Auth is the authentication method (e.g., "password" or "awsiamrds").
+	Auth string
+}
+
+// ResolvePostgresParams resolves the postgres connection URL and SQL driver.
+// It handles mutual exclusion between URL and URLFile, reads the URL from file
+// if specified, and registers the appropriate SQL driver based on the auth type.
+// Returns the driver name and the resolved URL.
+func ResolvePostgresParams(ctx context.Context, params PostgresParams, baseDriver string) (driver string, dbURL string, err error) {
+	dbURL = params.URL
+
+	// Handle mutual exclusion and file reading.
+	if params.URLFile != "" {
+		if params.URL != "" {
+			return "", "", xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+		}
+		dbURL, err = ReadPostgresURLFromFile(params.URLFile)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
+	// Register the appropriate driver.
+	driver = baseDriver
+	if codersdk.PostgresAuth(params.Auth) == codersdk.PostgresAuthAWSIAMRDS {
+		driver, err = awsiamrds.Register(ctx, driver)
+		if err != nil {
+			return "", "", xerrors.Errorf("register aws rds iam auth: %w", err)
+		}
+	}
+
+	return driver, dbURL, nil
 }
 
 func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {

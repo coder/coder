@@ -9,7 +9,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -38,25 +37,13 @@ func (*RootCmd) resetPassword() *serpent.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			// Read the postgres URL from a file, if specified.
-			if postgresURLFile != "" {
-				if postgresURL != "" {
-					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
-				}
-				var err error
-				postgresURL, err = ReadPostgresURLFromFile(postgresURLFile)
-				if err != nil {
-					return err
-				}
-			}
-
-			sqlDriver := "postgres"
-			if codersdk.PostgresAuth(postgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
-				var err error
-				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("register aws rds iam auth: %w", err)
-				}
+			sqlDriver, postgresURL, err := ResolvePostgresParams(inv.Context(), PostgresParams{
+				URL:     postgresURL,
+				URLFile: postgresURLFile,
+				Auth:    postgresAuth,
+			}, "postgres")
+			if err != nil {
+				return err
 			}
 
 			sqlDB, err := ConnectToPostgres(inv.Context(), logger, sqlDriver, postgresURL, nil)

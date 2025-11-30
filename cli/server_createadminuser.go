@@ -13,7 +13,6 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -53,16 +52,13 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			ctx, cancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer cancel()
 
-			// Read the postgres URL from a file, if specified.
-			if newUserDBURLFile != "" {
-				if newUserDBURL != "" {
-					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
-				}
-				var err error
-				newUserDBURL, err = ReadPostgresURLFromFile(newUserDBURLFile)
-				if err != nil {
-					return err
-				}
+			sqlDriver, newUserDBURL, err := ResolvePostgresParams(ctx, PostgresParams{
+				URL:     newUserDBURL,
+				URLFile: newUserDBURLFile,
+				Auth:    newUserPgAuth,
+			}, "postgres")
+			if err != nil {
+				return err
 			}
 
 			if newUserDBURL == "" {
@@ -75,14 +71,6 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					_ = closePg()
 				}()
 				newUserDBURL = url
-			}
-
-			sqlDriver := "postgres"
-			if codersdk.PostgresAuth(newUserPgAuth) == codersdk.PostgresAuthAWSIAMRDS {
-				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("register aws rds iam auth: %w", err)
-				}
 			}
 
 			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL, nil)

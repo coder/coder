@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -40,16 +39,13 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 
 			defer cancel()
 
-			// Read the postgres URL from a file, if specified.
-			if regenVapidKeypairDBURLFile != "" {
-				if regenVapidKeypairDBURL != "" {
-					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
-				}
-				var err error
-				regenVapidKeypairDBURL, err = ReadPostgresURLFromFile(regenVapidKeypairDBURLFile)
-				if err != nil {
-					return err
-				}
+			sqlDriver, regenVapidKeypairDBURL, err := ResolvePostgresParams(ctx, PostgresParams{
+				URL:     regenVapidKeypairDBURL,
+				URLFile: regenVapidKeypairDBURLFile,
+				Auth:    regenVapidKeypairPgAuth,
+			}, "postgres")
+			if err != nil {
+				return err
 			}
 
 			if regenVapidKeypairDBURL == "" {
@@ -62,15 +58,6 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 					_ = closePg()
 				}()
 				regenVapidKeypairDBURL = url
-			}
-
-			sqlDriver := "postgres"
-			var err error
-			if codersdk.PostgresAuth(regenVapidKeypairPgAuth) == codersdk.PostgresAuthAWSIAMRDS {
-				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("register aws rds iam auth: %w", err)
-				}
 			}
 
 			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, regenVapidKeypairDBURL, nil)
