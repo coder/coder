@@ -253,10 +253,14 @@ func TestProvision_Cancel(t *testing.T) {
 
 				if log := msg.GetLog(); log != nil {
 					gotLog = append(gotLog, log.Output)
-				}
-				if c := msg.GetPlan(); c != nil {
+				} else if c := msg.GetPlan(); c != nil {
 					require.Contains(t, c.Error, "exit status 1")
 					break
+				} else if c := msg.GetInit(); c != nil {
+					require.Contains(t, c.Error, "exit status 1")
+					break
+				} else {
+					t.Fatalf("unexpected message: %v", msg)
 				}
 			}
 			require.Equal(t, tt.wantLog, gotLog)
