@@ -762,218 +762,131 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 func TestDeleteOldConnectionLogs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RetentionEnabled", func(t *testing.T) {
-		t.Parallel()
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 30 * 24 * time.Hour
+	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
+	beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
-		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
-		tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tmpl.ID,
-		})
-
-		// Create old connection log (should be deleted)
-		oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             afterThreshold,
-			OrganizationID:   org.ID,
-			WorkspaceOwnerID: user.ID,
-			WorkspaceID:      workspace.ID,
-			WorkspaceName:    workspace.Name,
-			AgentName:        "agent1",
-			Type:             database.ConnectionTypeSsh,
-			ConnectionStatus: database.ConnectionStatusConnected,
-		})
-
-		// Create recent connection log (should be kept)
-		recentLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             beforeThreshold,
-			OrganizationID:   org.ID,
-			WorkspaceOwnerID: user.ID,
-			WorkspaceID:      workspace.ID,
-			WorkspaceName:    workspace.Name,
-			AgentName:        "agent2",
-			Type:             database.ConnectionTypeSsh,
-			ConnectionStatus: database.ConnectionStatusConnected,
-		})
-
-		// Run the purge with configured retention period
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
+	testCases := []struct {
+		name             string
+		retentionConfig  codersdk.RetentionConfig
+		oldLogTime       time.Time
+		recentLogTime    *time.Time // nil means no recent log created
+		expectOldDeleted bool
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
 				ConnectionLogs: serpent.Duration(retentionPeriod),
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify results by querying all connection logs
-		logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
-			LimitOpt: 100,
-		})
-		require.NoError(t, err)
-
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.ConnectionLog.ID
-		}
-
-		require.NotContains(t, logIDs, oldLog.ID, "old connection log should be deleted")
-		require.Contains(t, logIDs, recentLog.ID, "recent connection log should be kept")
-	})
-
-	t.Run("RetentionDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		oldTime := now.Add(-365 * 24 * time.Hour) // 1 year ago
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
-		tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tmpl.ID,
-		})
-
-		// Create old connection log (should NOT be deleted when retention is 0)
-		oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             oldTime,
-			OrganizationID:   org.ID,
-			WorkspaceOwnerID: user.ID,
-			WorkspaceID:      workspace.ID,
-			WorkspaceName:    workspace.Name,
-			AgentName:        "agent1",
-			Type:             database.ConnectionTypeSsh,
-			ConnectionStatus: database.ConnectionStatusConnected,
-		})
-
-		// Run the purge with retention disabled (0)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				ConnectionLogs: serpent.Duration(0), // disabled
+			oldLogTime:       afterThreshold,
+			recentLogTime:    &beforeThreshold,
+			expectOldDeleted: true,
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				ConnectionLogs: serpent.Duration(0),
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify old log is still present
-		logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
-			LimitOpt: 100,
-		})
-		require.NoError(t, err)
-
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.ConnectionLog.ID
-		}
-
-		require.Contains(t, logIDs, oldLog.ID, "old connection log should NOT be deleted when retention is disabled")
-	})
-
-	t.Run("GlobalRetentionFallback", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
-		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
-		tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tmpl.ID,
-		})
-
-		// Create old connection log (should be deleted)
-		oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             afterThreshold,
-			OrganizationID:   org.ID,
-			WorkspaceOwnerID: user.ID,
-			WorkspaceID:      workspace.ID,
-			WorkspaceName:    workspace.Name,
-			AgentName:        "agent1",
-			Type:             database.ConnectionTypeSsh,
-			ConnectionStatus: database.ConnectionStatusConnected,
-		})
-
-		// Create recent connection log (should be kept)
-		recentLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             beforeThreshold,
-			OrganizationID:   org.ID,
-			WorkspaceOwnerID: user.ID,
-			WorkspaceID:      workspace.ID,
-			WorkspaceName:    workspace.Name,
-			AgentName:        "agent2",
-			Type:             database.ConnectionTypeSsh,
-			ConnectionStatus: database.ConnectionStatusConnected,
-		})
-
-		// Run the purge with global retention (connection logs retention is 0, so it falls back)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				Global:         serpent.Duration(retentionPeriod), // Use global
-				ConnectionLogs: serpent.Duration(0),               // Not set, should fall back to global
+			oldLogTime:       now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:    nil,
+			expectOldDeleted: false,
+		},
+		{
+			name: "GlobalRetentionFallback",
+			retentionConfig: codersdk.RetentionConfig{
+				Global:         serpent.Duration(retentionPeriod),
+				ConnectionLogs: serpent.Duration(0), // Not set, should fall back to global
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
+			oldLogTime:       afterThreshold,
+			recentLogTime:    &beforeThreshold,
+			expectOldDeleted: true,
+		},
+	}
 
-		// Verify results
-		logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
-			LimitOpt: 100,
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Setup test fixtures.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+
+			// Create old connection log.
+			oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+				ID:               uuid.New(),
+				Time:             tc.oldLogTime,
+				OrganizationID:   org.ID,
+				WorkspaceOwnerID: user.ID,
+				WorkspaceID:      workspace.ID,
+				WorkspaceName:    workspace.Name,
+				AgentName:        "agent1",
+				Type:             database.ConnectionTypeSsh,
+				ConnectionStatus: database.ConnectionStatusConnected,
+			})
+
+			// Create recent connection log if specified.
+			var recentLog database.ConnectionLog
+			if tc.recentLogTime != nil {
+				recentLog = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+					ID:               uuid.New(),
+					Time:             *tc.recentLogTime,
+					OrganizationID:   org.ID,
+					WorkspaceOwnerID: user.ID,
+					WorkspaceID:      workspace.ID,
+					WorkspaceName:    workspace.Name,
+					AgentName:        "agent2",
+					Type:             database.ConnectionTypeSsh,
+					ConnectionStatus: database.ConnectionStatusConnected,
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+				LimitOpt: 100,
+			})
+			require.NoError(t, err)
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, log := range logs {
+				logIDs[i] = log.ConnectionLog.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old connection log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old connection log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent connection log should be kept")
+			}
 		})
-		require.NoError(t, err)
-
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.ConnectionLog.ID
-		}
-
-		require.NotContains(t, logIDs, oldLog.ID, "old connection log should be deleted via global retention")
-		require.Contains(t, logIDs, recentLog.ID, "recent connection log should be kept")
-	})
+	}
 }
 
 func TestDeleteOldAIBridgeRecords(t *testing.T) {
@@ -1148,184 +1061,123 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 func TestDeleteOldAuditLogs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RetentionEnabled", func(t *testing.T) {
-		t.Parallel()
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 30 * 24 * time.Hour
+	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
+	beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
-		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		// Create old audit log (should be deleted)
-		oldLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           afterThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Create recent audit log (should be kept)
-		recentLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           beforeThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Run the purge with configured retention period
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
+	testCases := []struct {
+		name             string
+		retentionConfig  codersdk.RetentionConfig
+		oldLogTime       time.Time
+		recentLogTime    *time.Time // nil means no recent log created
+		expectOldDeleted bool
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify results by querying all audit logs
-		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-			LimitOpt: 100,
-		})
-		require.NoError(t, err)
-
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.AuditLog.ID
-		}
-
-		require.NotContains(t, logIDs, oldLog.ID, "old audit log should be deleted")
-		require.Contains(t, logIDs, recentLog.ID, "recent audit log should be kept")
-	})
-
-	t.Run("RetentionDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		oldTime := now.Add(-365 * 24 * time.Hour) // 1 year ago
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		// Create old audit log (should NOT be deleted when retention is 0)
-		oldLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           oldTime,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Run the purge with retention disabled (0)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				AuditLogs: serpent.Duration(0), // disabled
+			oldLogTime:       afterThreshold,
+			recentLogTime:    &beforeThreshold,
+			expectOldDeleted: true,
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				AuditLogs: serpent.Duration(0),
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify old log is still present
-		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-			LimitOpt: 100,
-		})
-		require.NoError(t, err)
-
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.AuditLog.ID
-		}
-
-		require.Contains(t, logIDs, oldLog.ID, "old audit log should NOT be deleted when retention is disabled")
-	})
-
-	t.Run("GlobalRetentionFallback", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
-		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		// Create old audit log (should be deleted)
-		oldLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           afterThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Create recent audit log (should be kept)
-		recentLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           beforeThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Run the purge with global retention (audit logs retention is 0, so it falls back)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				Global:    serpent.Duration(retentionPeriod), // Use global
-				AuditLogs: serpent.Duration(0),               // Not set, should fall back to global
+			oldLogTime:       now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:    nil,
+			expectOldDeleted: false,
+		},
+		{
+			name: "GlobalRetentionFallback",
+			retentionConfig: codersdk.RetentionConfig{
+				Global:    serpent.Duration(retentionPeriod),
+				AuditLogs: serpent.Duration(0), // Not set, should fall back to global
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
+			oldLogTime:       afterThreshold,
+			recentLogTime:    &beforeThreshold,
+			expectOldDeleted: true,
+		},
+	}
 
-		// Verify results
-		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-			LimitOpt: 100,
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Setup test fixtures.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+
+			// Create old audit log.
+			oldLog := dbgen.AuditLog(t, db, database.AuditLog{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+				Time:           tc.oldLogTime,
+				Action:         database.AuditActionCreate,
+				ResourceType:   database.ResourceTypeWorkspace,
+			})
+
+			// Create recent audit log if specified.
+			var recentLog database.AuditLog
+			if tc.recentLogTime != nil {
+				recentLog = dbgen.AuditLog(t, db, database.AuditLog{
+					UserID:         user.ID,
+					OrganizationID: org.ID,
+					Time:           *tc.recentLogTime,
+					Action:         database.AuditActionCreate,
+					ResourceType:   database.ResourceTypeWorkspace,
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
+				LimitOpt: 100,
+			})
+			require.NoError(t, err)
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, log := range logs {
+				logIDs[i] = log.AuditLog.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old audit log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old audit log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent audit log should be kept")
+			}
 		})
-		require.NoError(t, err)
+	}
 
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.AuditLog.ID
-		}
-
-		require.NotContains(t, logIDs, oldLog.ID, "old audit log should be deleted via global retention")
-		require.Contains(t, logIDs, recentLog.ID, "recent audit log should be kept")
-	})
-
+	// ConnectionEventsNotDeleted is a special case that tests multiple audit
+	// action types, so it's kept as a separate subtest.
 	t.Run("ConnectionEventsNotDeleted", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-
 		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
 		clk.Set(now).MustWait(ctx)
 
 		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
@@ -1333,7 +1185,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		org := dbgen.Organization(t, db, database.Organization{})
 
-		// Create old connection events (should NOT be deleted by audit logs retention)
+		// Create old connection events (should NOT be deleted by audit logs retention).
 		oldConnectLog := dbgen.AuditLog(t, db, database.AuditLog{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
@@ -1366,7 +1218,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			ResourceType:   database.ResourceTypeWorkspace,
 		})
 
-		// Create old non-connection audit log (should be deleted)
+		// Create old non-connection audit log (should be deleted).
 		oldCreateLog := dbgen.AuditLog(t, db, database.AuditLog{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
@@ -1375,7 +1227,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			ResourceType:   database.ResourceTypeWorkspace,
 		})
 
-		// Run the purge with audit logs retention enabled
+		// Run the purge with audit logs retention enabled.
 		done := awaitDoTick(ctx, t, clk)
 		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 			Retention: codersdk.RetentionConfig{
@@ -1385,7 +1237,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
-		// Verify results
+		// Verify results.
 		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
 			LimitOpt: 100,
 		})
@@ -1396,13 +1248,13 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			logIDs[i] = log.AuditLog.ID
 		}
 
-		// Connection events should NOT be deleted by audit logs retention
+		// Connection events should NOT be deleted by audit logs retention.
 		require.Contains(t, logIDs, oldConnectLog.ID, "old connect log should NOT be deleted by audit logs retention")
 		require.Contains(t, logIDs, oldDisconnectLog.ID, "old disconnect log should NOT be deleted by audit logs retention")
 		require.Contains(t, logIDs, oldOpenLog.ID, "old open log should NOT be deleted by audit logs retention")
 		require.Contains(t, logIDs, oldCloseLog.ID, "old close log should NOT be deleted by audit logs retention")
 
-		// Non-connection event should be deleted
+		// Non-connection event should be deleted.
 		require.NotContains(t, logIDs, oldCreateLog.ID, "old create log should be deleted by audit logs retention")
 	})
 }
@@ -1410,195 +1262,135 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RetentionEnabled", func(t *testing.T) {
-		t.Parallel()
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 7 * 24 * time.Hour                            // 7 days
-		expiredLongAgo := now.Add(-retentionPeriod).Add(-24 * time.Hour) // Expired 8 days ago (should be deleted)
-		expiredRecently := now.Add(-retentionPeriod).Add(24 * time.Hour) // Expired 6 days ago (should be kept)
-		notExpired := now.Add(24 * time.Hour)                            // Expires tomorrow (should be kept)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-
-		// Create API key that expired long ago (should be deleted)
-		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: expiredLongAgo,
-			TokenName: "old-expired-key",
-		})
-
-		// Create API key that expired recently (should be kept)
-		recentExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: expiredRecently,
-			TokenName: "recent-expired-key",
-		})
-
-		// Create API key that hasn't expired yet (should be kept)
-		activeKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: notExpired,
-			TokenName: "active-key",
-		})
-
-		// Run the purge with configured retention period
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				APIKeys: serpent.Duration(retentionPeriod),
+	testCases := []struct {
+		name                    string
+		retentionConfig         codersdk.RetentionConfig
+		oldExpiredTime          time.Time
+		recentExpiredTime       *time.Time // nil means no recent expired key created
+		activeTime              *time.Time // nil means no active key created
+		expectOldExpiredDeleted bool
+		expectRecentExpiredKept bool
+		expectActiveKept        bool
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(7 * 24 * time.Hour), // 7 days
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify results
-		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
-		require.Error(t, err, "old expired key should be deleted")
-
-		_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
-		require.NoError(t, err, "recently expired key should be kept")
-
-		_, err = db.GetAPIKeyByID(ctx, activeKey.ID)
-		require.NoError(t, err, "active key should be kept")
-	})
-
-	t.Run("RetentionDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		expiredLongAgo := now.Add(-365 * 24 * time.Hour) // Expired 1 year ago
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-
-		// Create API key that expired long ago (should NOT be deleted when retention is 0)
-		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: expiredLongAgo,
-			TokenName: "old-expired-key",
-		})
-
-		// Run the purge with retention disabled (0)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				APIKeys: serpent.Duration(0), // disabled
+			oldExpiredTime:          now.Add(-8 * 24 * time.Hour),      // Expired 8 days ago
+			recentExpiredTime:       ptr(now.Add(-6 * 24 * time.Hour)), // Expired 6 days ago
+			activeTime:              ptr(now.Add(24 * time.Hour)),      // Expires tomorrow
+			expectOldExpiredDeleted: true,
+			expectRecentExpiredKept: true,
+			expectActiveKept:        true,
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(0),
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify old expired key is still present
-		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
-		require.NoError(t, err, "old expired key should NOT be deleted when retention is disabled")
-	})
-
-	t.Run("GlobalRetentionFallback", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 14 * 24 * time.Hour                           // 14 days global
-		expiredLongAgo := now.Add(-retentionPeriod).Add(-24 * time.Hour) // Expired 15 days ago (should be deleted)
-		expiredRecently := now.Add(-retentionPeriod).Add(24 * time.Hour) // Expired 13 days ago (should be kept)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-
-		// Create API key that expired long ago (should be deleted)
-		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: expiredLongAgo,
-			TokenName: "old-expired-key",
-		})
-
-		// Create API key that expired recently (should be kept)
-		recentExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: expiredRecently,
-			TokenName: "recent-expired-key",
-		})
-
-		// Run the purge with global retention (API keys retention is 0, so it falls back)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				Global:  serpent.Duration(retentionPeriod), // Use global
-				APIKeys: serpent.Duration(0),               // Not set, should fall back to global
+			oldExpiredTime:          now.Add(-365 * 24 * time.Hour), // Expired 1 year ago
+			recentExpiredTime:       nil,
+			activeTime:              nil,
+			expectOldExpiredDeleted: false,
+		},
+		{
+			name: "GlobalRetentionFallback",
+			retentionConfig: codersdk.RetentionConfig{
+				Global:  serpent.Duration(14 * 24 * time.Hour), // 14 days global
+				APIKeys: serpent.Duration(0),                   // Not set, should fall back to global
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify results
-		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
-		require.Error(t, err, "old expired key should be deleted via global retention")
-
-		_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
-		require.NoError(t, err, "recently expired key should be kept")
-	})
-
-	t.Run("CustomRetention30Days", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		expiredLongAgo := now.Add(-retentionPeriod).Add(-24 * time.Hour) // Expired 31 days ago (should be deleted)
-		expiredRecently := now.Add(-retentionPeriod).Add(24 * time.Hour) // Expired 29 days ago (should be kept)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-
-		// Create API key that expired long ago (should be deleted)
-		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: expiredLongAgo,
-			TokenName: "old-expired-key",
-		})
-
-		// Create API key that expired recently (should be kept)
-		recentExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
-			ExpiresAt: expiredRecently,
-			TokenName: "recent-expired-key",
-		})
-
-		// Run the purge with 30-day retention
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				APIKeys: serpent.Duration(retentionPeriod),
+			oldExpiredTime:          now.Add(-15 * 24 * time.Hour),      // Expired 15 days ago
+			recentExpiredTime:       ptr(now.Add(-13 * 24 * time.Hour)), // Expired 13 days ago
+			activeTime:              nil,
+			expectOldExpiredDeleted: true,
+			expectRecentExpiredKept: true,
+		},
+		{
+			name: "CustomRetention30Days",
+			retentionConfig: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(30 * 24 * time.Hour), // 30 days
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
+			oldExpiredTime:          now.Add(-31 * 24 * time.Hour),      // Expired 31 days ago
+			recentExpiredTime:       ptr(now.Add(-29 * 24 * time.Hour)), // Expired 29 days ago
+			activeTime:              nil,
+			expectOldExpiredDeleted: true,
+			expectRecentExpiredKept: true,
+		},
+	}
 
-		// Verify results
-		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
-		require.Error(t, err, "old expired key should be deleted with 30-day retention")
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
-		require.NoError(t, err, "recently expired key should be kept with 30-day retention")
-	})
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			user := dbgen.User(t, db, database.User{})
+
+			// Create API key that expired long ago.
+			oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: tc.oldExpiredTime,
+				TokenName: "old-expired-key",
+			})
+
+			// Create API key that expired recently if specified.
+			var recentExpiredKey database.APIKey
+			if tc.recentExpiredTime != nil {
+				recentExpiredKey, _ = dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: *tc.recentExpiredTime,
+					TokenName: "recent-expired-key",
+				})
+			}
+
+			// Create API key that hasn't expired yet if specified.
+			var activeKey database.APIKey
+			if tc.activeTime != nil {
+				activeKey, _ = dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: *tc.activeTime,
+					TokenName: "active-key",
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
+			if tc.expectOldExpiredDeleted {
+				require.Error(t, err, "old expired key should be deleted")
+			} else {
+				require.NoError(t, err, "old expired key should NOT be deleted")
+			}
+
+			if tc.recentExpiredTime != nil && tc.expectRecentExpiredKept {
+				_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
+				require.NoError(t, err, "recently expired key should be kept")
+			}
+
+			if tc.activeTime != nil && tc.expectActiveKept {
+				_, err = db.GetAPIKeyByID(ctx, activeKey.ID)
+				require.NoError(t, err, "active key should be kept")
+			}
+		})
+	}
+}
+
+// ptr is a helper to create a pointer to a value.
+func ptr[T any](v T) *T {
+	return &v
 }
