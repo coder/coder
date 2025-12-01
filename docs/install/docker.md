@@ -47,8 +47,6 @@ Coder's [configuration options](../admin/setup/index.md).
 
 ## Install Coder via `docker run`
 
-</div>
-
 ### Built-in database (quick)
 
 For proof-of-concept deployments, you can run a complete Coder instance with the
@@ -80,6 +78,8 @@ docker run --rm -it \
   --group-add $DOCKER_GROUP \
   ghcr.io/coder/coder:latest
 ```
+
+</div>
 
 ## Install the preview release
 
