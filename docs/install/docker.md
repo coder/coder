@@ -17,9 +17,9 @@ You can install and run Coder using the official Docker images published on
 
 ## Install Coder via `docker compose`
 
-Coder's publishes a
+Coder publishes a
 [docker compose example](https://github.com/coder/coder/blob/main/compose.yaml)
-which includes an PostgreSQL container and volume.
+which includes a PostgreSQL container and volume.
 
 1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
    installed.
