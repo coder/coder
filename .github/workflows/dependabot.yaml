@@ -47,6 +47,13 @@ jobs:
 
       - name: Send Slack notification
         run: |
+          if [ "${{ steps.metadata.outputs.package-ecosystem }}" = "github-actions" ]; then
+            STATUS_TEXT=":pr-opened: Dependabot PR opened (not auto-merged)"
+            STATUS_EMOJI=":pr-opened:"
+          else
+            STATUS_TEXT=":pr-merged: Auto merge enabled for Dependabot PR #${PR_NUMBER}"
+            STATUS_EMOJI=":pr-merged:"
+          fi
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "username": "dependabot",
@@ -56,7 +63,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #'"${PR_NUMBER}"'",
+                  "text": "'"${STATUS_TEXT}"'",
                   "emoji": true
                 }
               },
