@@ -87,7 +87,7 @@
 		"file-saver": "2.0.5",
 		"formik": "2.4.6",
 		"front-matter": "4.0.2",
-		"humanize-duration": "3.32.2",
+		"humanize-duration": "3.33.1",
 		"jszip": "3.10.1",
 		"lodash": "4.17.21",
 		"lucide-react": "0.552.0",

@@ -176,8 +176,8 @@ importers:
         specifier: 4.0.2
         version: 4.0.2
       humanize-duration:
-        specifier: 3.32.2
-        version: 3.32.2
+        specifier: 3.33.1
+        version: 3.33.1
       jszip:
         specifier: 3.10.1
         version: 3.10.1
@@ -4143,8 +4143,8 @@ packages:
     resolution: {integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==, tarball: https://registry.npmjs.org/human-signals/-/human-signals-2.1.0.tgz}
     engines: {node: '>=10.17.0'}
 
-  humanize-duration@3.32.2:
-    resolution: {integrity: sha512-jcTwWYeCJf4dN5GJnjBmHd42bNyK94lY49QTkrsAQrMTUoIYLevvDpmQtg5uv8ZrdIRIbzdasmSNZ278HHUPEg==, tarball: https://registry.npmjs.org/humanize-duration/-/humanize-duration-3.32.2.tgz}
+  humanize-duration@3.33.1:
+    resolution: {integrity: sha512-hwzSCymnRdFx9YdRkQQ0OYequXiVAV6ZGQA2uzocwB0F4309Ke6pO8dg0P8LHhRQJyVjGteRTAA/zNfEcpXn8A==, tarball: https://registry.npmjs.org/humanize-duration/-/humanize-duration-3.33.1.tgz}
 
   iconv-lite@0.4.24:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==, tarball: https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.24.tgz}
@@ -10418,7 +10418,7 @@ snapshots:
 
   human-signals@2.1.0: {}
 
-  humanize-duration@3.32.2: {}
+  humanize-duration@3.33.1: {}
 
   iconv-lite@0.4.24:
     dependencies:
