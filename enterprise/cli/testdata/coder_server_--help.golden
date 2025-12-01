@@ -711,7 +711,9 @@ that data type.
 
       --audit-logs-retention duration, $CODER_AUDIT_LOGS_RETENTION (default: 0)
           How long audit log entries are retained. Set to 0 to use the global
-          retention value, or to disable if global is also 0.
+          retention value, or to disable if global is also 0. We advise keeping
+          audit logs for at least a year, and in accordance with your compliance
+          requirements.
 
       --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
           How long connection log entries are retained. Set to 0 to use the

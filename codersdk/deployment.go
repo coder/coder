@@ -3405,7 +3405,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Audit Logs Retention",
-			Description: "How long audit log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0.",
+			Description: "How long audit log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0. We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.",
 			Flag:        "audit-logs-retention",
 			Env:         "CODER_AUDIT_LOGS_RETENTION",
 			Value:       &c.Retention.AuditLogs,
