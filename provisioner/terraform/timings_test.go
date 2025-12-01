@@ -123,9 +123,9 @@ func TestTimingsFromProvision(t *testing.T) {
 	for _, ti := range timings {
 		totals[ti.Stage]++
 	}
-	require.Equal(t, totals["init"], len(initTimings), "init")
-	require.Equal(t, totals["plan"], len(planTimings), "plan")
-	require.Equal(t, totals["apply"], len(applyTimings), "apply")
+	require.Equal(t, len(initTimings), totals["init"], "init")
+	require.Equal(t, len(planTimings), totals["plan"], "plan")
+	require.Equal(t, len(applyTimings), totals["apply"], "apply")
 
 	// Lastly total
 	require.Len(t, timings, len(initTimings)+len(planTimings)+len(applyTimings))
