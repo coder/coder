@@ -697,6 +697,33 @@ updating, and deleting workspace resources.
           Number of provisioner daemons to create on start. If builds are stuck
           in queued state for a long time, consider increasing this.
 
+RETENTION OPTIONS: 
+Configure data retention policies for various database tables. Retention
+policies automatically purge old data to reduce database size and improve
+performance. Setting a retention duration to 0 disables automatic purging for
+that data type.
+
+      --api-keys-retention duration, $CODER_API_KEYS_RETENTION (default: 7d)
+          How long expired API keys are retained before being deleted. Keeping
+          expired keys allows the backend to return a more helpful error when a
+          user tries to use an expired key. Set to 0 to disable automatic
+          deletion of expired keys.
+
+      --audit-logs-retention duration, $CODER_AUDIT_LOGS_RETENTION (default: 0)
+          How long audit log entries are retained. Set to 0 to use the global
+          retention value, or to disable if global is also 0.
+
+      --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
+          How long connection log entries are retained. Set to 0 to use the
+          global retention value, or to disable if global is also 0.
+
+      --global-retention duration, $CODER_GLOBAL_RETENTION (default: 0)
+          Default retention policy for audit logs, connection logs, and API
+          keys. Individual retention settings override this value when set to a
+          non-zero duration. Does not affect AI Bridge retention. Set to 0 to
+          disable (data is kept indefinitely unless individual settings are
+          configured).
+
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal
 information before sending data to our servers. Please only disable telemetry

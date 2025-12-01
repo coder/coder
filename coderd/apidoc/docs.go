@@ -14302,6 +14302,9 @@ const docTemplate = `{
                 "redirect_to_access_url": {
                     "type": "boolean"
                 },
+                "retention": {
+                    "$ref": "#/definitions/codersdk.RetentionConfig"
+                },
                 "scim_api_key": {
                     "type": "string"
                 },
@@ -17725,6 +17728,27 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ValidationError"
                     }
+                }
+            }
+        },
+        "codersdk.RetentionConfig": {
+            "type": "object",
+            "properties": {
+                "api_keys": {
+                    "description": "APIKeys controls how long expired API keys are retained before being deleted.\nKeys are only deleted if they have been expired for at least this duration.\nDefaults to 7 days to preserve existing behavior.",
+                    "type": "integer"
+                },
+                "audit_logs": {
+                    "description": "AuditLogs controls how long audit log entries are retained.\nSet to 0 to use the global retention value.",
+                    "type": "integer"
+                },
+                "connection_logs": {
+                    "description": "ConnectionLogs controls how long connection log entries are retained.\nSet to 0 to use the global retention value.",
+                    "type": "integer"
+                },
+                "global": {
+                    "description": "Global is the default retention policy for audit logs, connection logs,\nand API keys. Individual retention settings override this value when set\nto a non-zero duration. Does not affect AI Bridge retention which has its\nown setting.",
+                    "type": "integer"
                 }
             }
         },

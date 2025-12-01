@@ -1774,3 +1774,47 @@ Whether to inject Coder's MCP tools into intercepted AI Bridge requests (require
 | Default     | <code>60d</code>                       |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
+
+### --global-retention
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>duration</code>                |
+| Environment | <code>$CODER_GLOBAL_RETENTION</code> |
+| YAML        | <code>retention.global</code>        |
+| Default     | <code>0</code>                       |
+
+Default retention policy for audit logs, connection logs, and API keys. Individual retention settings override this value when set to a non-zero duration. Does not affect AI Bridge retention. Set to 0 to disable (data is kept indefinitely unless individual settings are configured).
+
+### --audit-logs-retention
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>duration</code>                    |
+| Environment | <code>$CODER_AUDIT_LOGS_RETENTION</code> |
+| YAML        | <code>retention.audit_logs</code>        |
+| Default     | <code>0</code>                           |
+
+How long audit log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0.
+
+### --connection-logs-retention
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>duration</code>                         |
+| Environment | <code>$CODER_CONNECTION_LOGS_RETENTION</code> |
+| YAML        | <code>retention.connection_logs</code>        |
+| Default     | <code>0</code>                                |
+
+How long connection log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0.
+
+### --api-keys-retention
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>duration</code>                  |
+| Environment | <code>$CODER_API_KEYS_RETENTION</code> |
+| YAML        | <code>retention.api_keys</code>        |
+| Default     | <code>7d</code>                        |
+
+How long expired API keys are retained before being deleted. Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key. Set to 0 to disable automatic deletion of expired keys.
