@@ -90,8 +90,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			}
 			if apiKeysRetention > 0 {
 				// Delete keys that have been expired for at least the retention period.
-				// This allows the backend to return a more helpful error when a user
-				// tries to use an expired key.
+				// A higher retention period allows the backend to return a more helpful
+				// error message when a user tries to use an expired key.
 				deleteExpiredKeysBefore := start.Add(-apiKeysRetention)
 				expiredAPIKeys, err = tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
 					Before: dbtime.Time(deleteExpiredKeysBefore),
