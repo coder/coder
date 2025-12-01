@@ -651,7 +651,8 @@ const createTemplateVersionTar = async (
 	responses.init.forEach((response, index) => {
 		response.init = {
 			error: "",
-			...response.parse,
+			timings: [],
+			...response.init,
 		} as InitComplete;
 		tar.addFile(
 			`${index}.init.protobuf`,
@@ -661,6 +662,7 @@ const createTemplateVersionTar = async (
 	responses.plan.forEach((response, index) => {
 		response.plan = {
 			error: "",
+			timings: [],
 			...response.plan,
 		} as PlanComplete;
 		tar.addFile(
