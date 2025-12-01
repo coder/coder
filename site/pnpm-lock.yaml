@@ -218,8 +218,8 @@ importers:
         specifier: 3.0.6
         version: 3.0.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       react-router:
-        specifier: 7.9.5
-        version: 7.9.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 7.9.6
+        version: 7.9.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       react-syntax-highlighter:
         specifier: 15.6.1
         version: 15.6.1(react@19.2.0)
@@ -439,7 +439,7 @@ importers:
         version: 9.1.16(@testing-library/dom@10.4.0)(msw@2.4.8(typescript@5.6.3))(prettier@3.4.1)(vite@7.2.6(@types/node@20.17.16)(jiti@1.21.7)(yaml@2.7.0))
       storybook-addon-remix-react-router:
         specifier: 5.0.0
-        version: 5.0.0(react-dom@19.2.0(react@19.2.0))(react-router@7.9.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(storybook@9.1.16(@testing-library/dom@10.4.0)(msw@2.4.8(typescript@5.6.3))(prettier@3.4.1)(vite@7.2.6(@types/node@20.17.16)(jiti@1.21.7)(yaml@2.7.0)))
+        version: 5.0.0(react-dom@19.2.0(react@19.2.0))(react-router@7.9.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(storybook@9.1.16(@testing-library/dom@10.4.0)(msw@2.4.8(typescript@5.6.3))(prettier@3.4.1)(vite@7.2.6(@types/node@20.17.16)(jiti@1.21.7)(yaml@2.7.0)))
       tailwindcss:
         specifier: 3.4.18
         version: 3.4.18(yaml@2.7.0)
@@ -3368,8 +3368,8 @@ packages:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==, tarball: https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz}
     engines: {node: '>= 0.6'}
 
-  cookie@1.0.2:
-    resolution: {integrity: sha512-9Kr/j4O16ISv8zBBhJoi4bXOYNTkFLOqSL3UDB0njXxCXNezjeyVrJyGOWtgfs/q2km1gwBcfH8q1yEGoMYunA==, tarball: https://registry.npmjs.org/cookie/-/cookie-1.0.2.tgz}
+  cookie@1.1.1:
+    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==, tarball: https://registry.npmjs.org/cookie/-/cookie-1.1.1.tgz}
     engines: {node: '>=18'}
 
   core-util-is@1.0.3:
@@ -5465,8 +5465,8 @@ packages:
       react: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
       react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
-  react-router@7.9.5:
-    resolution: {integrity: sha512-JmxqrnBZ6E9hWmf02jzNn9Jm3UqyeimyiwzD69NjxGySG6lIz/1LVPsoTCwN7NBX2XjCEa1LIX5EMz1j2b6u6A==, tarball: https://registry.npmjs.org/react-router/-/react-router-7.9.5.tgz}
+  react-router@7.9.6:
+    resolution: {integrity: sha512-Y1tUp8clYRXpfPITyuifmSoE2vncSME18uVLgaqyxh9H35JWpIfzHo+9y3Fzh5odk/jxPW29IgLgzcdwxGqyNA==, tarball: https://registry.npmjs.org/react-router/-/react-router-7.9.6.tgz}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -9490,7 +9490,7 @@ snapshots:
 
   cookie@0.7.2: {}
 
-  cookie@1.0.2: {}
+  cookie@1.1.1: {}
 
   core-util-is@1.0.3: {}
 
@@ -12183,9 +12183,9 @@ snapshots:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  react-router@7.9.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  react-router@7.9.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
-      cookie: 1.0.2
+      cookie: 1.1.1
       react: 19.2.0
       set-cookie-parser: 2.7.2
     optionalDependencies:
@@ -12596,12 +12596,12 @@ snapshots:
     dependencies:
       internal-slot: 1.0.6
 
-  storybook-addon-remix-react-router@5.0.0(react-dom@19.2.0(react@19.2.0))(react-router@7.9.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(storybook@9.1.16(@testing-library/dom@10.4.0)(msw@2.4.8(typescript@5.6.3))(prettier@3.4.1)(vite@7.2.6(@types/node@20.17.16)(jiti@1.21.7)(yaml@2.7.0))):
+  storybook-addon-remix-react-router@5.0.0(react-dom@19.2.0(react@19.2.0))(react-router@7.9.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(storybook@9.1.16(@testing-library/dom@10.4.0)(msw@2.4.8(typescript@5.6.3))(prettier@3.4.1)(vite@7.2.6(@types/node@20.17.16)(jiti@1.21.7)(yaml@2.7.0))):
     dependencies:
       '@mjackson/form-data-parser': 0.4.0
       compare-versions: 6.1.0
       react-inspector: 6.0.2(react@19.2.0)
-      react-router: 7.9.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      react-router: 7.9.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       storybook: 9.1.16(@testing-library/dom@10.4.0)(msw@2.4.8(typescript@5.6.3))(prettier@3.4.1)(vite@7.2.6(@types/node@20.17.16)(jiti@1.21.7)(yaml@2.7.0))
     optionalDependencies:
       react: 19.2.0
