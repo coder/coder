@@ -263,16 +263,26 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	}
 
 	if err := cmd.Run(); err != nil {
-		_, err2 := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
+		result, err2 := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
 		if err2 != nil {
 			err = errors.Join(err, err2)
 		}
-		return "", err
+		// Return the container ID if available, even if there was an error.
+		// This can happen if the container was created successfully but a
+		// lifecycle script (e.g. postCreateCommand) failed.
+		return result.ContainerID, err
 	}
 
 	result, err := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
 	if err != nil {
 		return "", err
+	}
+
+	// Check if the result indicates an error (e.g. lifecycle script failure)
+	// but still has a container ID, allowing the caller to potentially
+	// continue with the container that was created.
+	if err := result.Err(); err != nil {
+		return result.ContainerID, err
 	}
 
 	return result.ContainerID, nil
@@ -394,7 +404,10 @@ func parseDevcontainerCLILastLine[T any](ctx context.Context, logger slog.Logger
 type devcontainerCLIResult struct {
 	Outcome string `json:"outcome"` // "error", "success".
 
-	// The following fields are set if outcome is success.
+	// The following fields are typically set if outcome is success, but
+	// ContainerID may also be present when outcome is error if the
+	// container was created but a lifecycle script (e.g. postCreateCommand)
+	// failed.
 	ContainerID           string `json:"containerId"`
 	RemoteUser            string `json:"remoteUser"`
 	RemoteWorkspaceFolder string `json:"remoteWorkspaceFolder"`
@@ -402,18 +415,6 @@ type devcontainerCLIResult struct {
 	// The following fields are set if outcome is error.
 	Message     string `json:"message"`
 	Description string `json:"description"`
-}
-
-func (r *devcontainerCLIResult) UnmarshalJSON(data []byte) error {
-	type wrapperResult devcontainerCLIResult
-
-	var wrappedResult wrapperResult
-	if err := json.Unmarshal(data, &wrappedResult); err != nil {
-		return err
-	}
-
-	*r = devcontainerCLIResult(wrappedResult)
-	return r.Err()
 }
 
 func (r devcontainerCLIResult) Err() error {
