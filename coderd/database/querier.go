@@ -106,6 +106,10 @@ type sqlcQuerier interface {
 	// Cumulative count.
 	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error)
 	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
+	// Deletes old audit logs based on retention policy, excluding deprecated
+	// connection events (connect, disconnect, open, close) which are handled
+	// separately by DeleteOldAuditLogConnectionEvents.
+	DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error

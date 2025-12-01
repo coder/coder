@@ -253,3 +253,24 @@ WHERE id IN (
     ORDER BY "time" ASC
     LIMIT @limit_count
 );
+
+-- name: DeleteOldAuditLogs :one
+-- Deletes old audit logs based on retention policy, excluding deprecated
+-- connection events (connect, disconnect, open, close) which are handled
+-- separately by DeleteOldAuditLogConnectionEvents.
+WITH old_logs AS (
+    SELECT id
+    FROM audit_logs
+    WHERE
+        "time" < @before_time::timestamp with time zone
+        AND action NOT IN ('connect', 'disconnect', 'open', 'close')
+    ORDER BY "time" ASC
+    LIMIT @limit_count
+),
+deleted_rows AS (
+    DELETE FROM audit_logs
+    USING old_logs
+    WHERE audit_logs.id = old_logs.id
+    RETURNING audit_logs.id
+)
+SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows;
