@@ -671,7 +671,7 @@ const createTemplateVersionTar = async (
 			...response.plan,
 		} as PlanComplete;
 		tar.addFile(
-			`${index}.init.protobuf`,
+			`${index}.plan.protobuf`,
 			Response.encode(response as Response).finish(),
 		);
 	});
@@ -783,7 +783,7 @@ const createTemplateVersionTar = async (
 		response.graph.resources = response.graph.resources?.map(fillResource);
 
 		tar.addFile(
-			`${index}.plan.protobuf`,
+			`${index}.graph.protobuf`,
 			Response.encode(response as Response).finish(),
 		);
 	});
