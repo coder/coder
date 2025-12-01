@@ -324,6 +324,10 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		dbm.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), database.DeleteOldAuditLogConnectionEventsParams{}).Return(nil).AnyTimes()
 		check.Args(database.DeleteOldAuditLogConnectionEventsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("DeleteOldAuditLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldAuditLogs(gomock.Any(), database.DeleteOldAuditLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldAuditLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 }
 
 func (s *MethodTestSuite) TestConnectionLogs() {
