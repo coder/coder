@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -180,7 +181,7 @@ func TestProvision_Cancel(t *testing.T) {
 			// Provisioner requires a plan before an apply, so test cancel with plan.
 			name:          "Cancel plan",
 			mode:          "plan",
-			startSequence: []string{"init", "plan_start"},
+			startSequence: []string{"init_start", "plan_start"},
 			wantLog:       []string{"interrupt", "exit"},
 		},
 	}
@@ -202,10 +203,11 @@ func TestProvision_Cancel(t *testing.T) {
 				binaryPath: binPath,
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
-			_ = initDo(t, sess, testutil.CreateTar(t, nil))
 
-			err = sendPlan(sess, proto.WorkspaceTransition_START)
+			err = sendInit(sess, testutil.CreateTar(t, nil))
 			require.NoError(t, err)
+
+			var planOnce sync.Once
 
 			for _, line := range tt.startSequence {
 			LoopStart:
@@ -213,14 +215,25 @@ func TestProvision_Cancel(t *testing.T) {
 				require.NoError(t, err)
 
 				t.Log(msg.Type)
+				if msg.GetInit() != nil && msg.GetInit().GetError() == "" {
+					planOnce.Do(func() {
+						t.Log("Sending terraform plan request")
+						// Send plan after init
+						err = sendPlan(sess, proto.WorkspaceTransition_START)
+						require.NoError(t, err)
+					})
+					continue
+				}
 
 				log := msg.GetLog()
 				if log == nil {
 					goto LoopStart
 				}
+
 				require.Equal(t, line, log.Output)
 			}
 
+			t.Log("Sending the cancel request")
 			err = sess.Send(&proto.Request{
 				Type: &proto.Request_Cancel{
 					Cancel: &proto.CancelRequest{},
