@@ -143,7 +143,7 @@
 		"@types/humanize-duration": "3.27.4",
 		"@types/jest": "29.5.14",
 		"@types/lodash": "4.17.21",
-		"@types/node": "20.17.16",
+		"@types/node": "20.19.25",
 		"@types/react": "19.2.7",
 		"@types/react-color": "3.0.13",
 		"@types/react-date-range": "1.4.4",
