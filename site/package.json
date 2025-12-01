@@ -169,7 +169,7 @@
 		"jest_workaround": "0.1.14",
 		"jsdom": "27.2.0",
 		"knip": "5.71.0",
-		"msw": "2.4.8",
+		"msw": "2.12.3",
 		"postcss": "8.5.6",
 		"protobufjs": "7.5.4",
 		"rollup-plugin-visualizer": "5.14.0",
