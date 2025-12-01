@@ -2685,61 +2685,6 @@ func convertWorkspace(
 			}
 		}
 	}
-	// TODO(geokat): using a pointer that's serialized with
-	// "omitempty" so that we can hide it behind an experiment. This
-	// won't be necessary once workspace sharing is in GA.
-	var sharedWith *[]codersdk.SharedWorkspaceActor
-	if experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
-		out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
-
-		// Members
-		for id, aclEntry := range workspace.UserACL {
-			userID, err := uuid.Parse(id)
-			if err != nil {
-				logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
-				continue
-			}
-
-			actor := codersdk.SharedWorkspaceActor{
-				ID:        userID,
-				ActorType: codersdk.SharedWorkspaceActorTypeUser,
-				Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-			}
-
-			// Member data is only available if user has access to it
-			if member, ok := memberData[userID]; ok {
-				actor.Name = member.Name
-				actor.AvatarURL = member.AvatarURL
-			}
-
-			out = append(out, actor)
-		}
-
-		// Groups
-		for id, aclEntry := range workspace.GroupACL {
-			groupID, err := uuid.Parse(id)
-			if err != nil {
-				logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
-				continue
-			}
-
-			actor := codersdk.SharedWorkspaceActor{
-				ID:        groupID,
-				ActorType: codersdk.SharedWorkspaceActorTypeGroup,
-				Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-			}
-
-			// Group data is only available if user has access to it
-			if group, ok := groupData[groupID]; ok {
-				actor.Name = group.Name
-				actor.AvatarURL = group.AvatarURL
-			}
-
-			out = append(out, actor)
-		}
-
-		sharedWith = &out
-	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	// If the template doesn't allow a workspace-configured value, then report the
@@ -2755,6 +2700,8 @@ func convertWorkspace(
 	if latestAppStatus.ID == uuid.Nil {
 		appStatus = nil
 	}
+
+	sharedWith := sharedWorkspaceActors(ctx, experiments, logger, workspace, memberData, groupData)
 
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
@@ -2792,8 +2739,74 @@ func convertWorkspace(
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
 		TaskID:           workspace.TaskID,
-		SharedWith:       sharedWith,
+		// TODO(geokat): using a pointer that's serialized with
+		// "omitempty" so that we can hide it behind an experiment. This
+		// won't be necessary once workspace sharing is in GA.
+		SharedWith: sharedWith,
 	}, nil
+}
+
+func sharedWorkspaceActors(
+	ctx context.Context,
+	experiments codersdk.Experiments,
+	logger slog.Logger,
+	workspace database.Workspace,
+	memberData map[uuid.UUID]database.OrganizationMembersRow,
+	groupData map[uuid.UUID]database.Group,
+) *[]codersdk.SharedWorkspaceActor {
+	if !experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
+		return nil
+	}
+
+	out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
+
+	// Members
+	for id, aclEntry := range workspace.UserACL {
+		userID, err := uuid.Parse(id)
+		if err != nil {
+			logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+			continue
+		}
+
+		actor := codersdk.SharedWorkspaceActor{
+			ID:        userID,
+			ActorType: codersdk.SharedWorkspaceActorTypeUser,
+			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
+		}
+
+		// Member data is only available if user has access to it
+		if member, ok := memberData[userID]; ok {
+			actor.Name = member.Name
+			actor.AvatarURL = member.AvatarURL
+		}
+
+		out = append(out, actor)
+	}
+
+	// Groups
+	for id, aclEntry := range workspace.GroupACL {
+		groupID, err := uuid.Parse(id)
+		if err != nil {
+			logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+			continue
+		}
+
+		actor := codersdk.SharedWorkspaceActor{
+			ID:        groupID,
+			ActorType: codersdk.SharedWorkspaceActorTypeGroup,
+			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
+		}
+
+		// Group data is only available if user has access to it
+		if group, ok := groupData[groupID]; ok {
+			actor.Name = group.Name
+			actor.AvatarURL = group.AvatarURL
+		}
+
+		out = append(out, actor)
+	}
+
+	return &out
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
