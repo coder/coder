@@ -399,8 +399,8 @@ importers:
         specifier: 29.5.0
         version: 29.5.0
       jest-fixed-jsdom:
-        specifier: 0.0.10
-        version: 0.0.10(jest-environment-jsdom@29.5.0)
+        specifier: 0.0.11
+        version: 0.0.11(jest-environment-jsdom@29.5.0)
       jest-location-mock:
         specifier: 2.0.0
         version: 2.0.0
@@ -4448,8 +4448,8 @@ packages:
     resolution: {integrity: sha512-DOSwCRqXirTOyheM+4d5YZOrWcdu0LNZ87ewUoywbcb2XR4wKgqiG8vNeYwhjFMbEkfju7wx2GYH0P2gevGvFw==, tarball: https://registry.npmjs.org/jest-environment-node/-/jest-environment-node-29.7.0.tgz}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  jest-fixed-jsdom@0.0.10:
-    resolution: {integrity: sha512-WaEVX+FripJh+Hn/7dysIgqP66h0KT1NNC22NGmNYANExtCoYNk1q2yjwwcdSboBMkkhn0NtmvKad/cmisnCLg==, tarball: https://registry.npmjs.org/jest-fixed-jsdom/-/jest-fixed-jsdom-0.0.10.tgz}
+  jest-fixed-jsdom@0.0.11:
+    resolution: {integrity: sha512-3UkjgM79APnmLVDnelrxdwz4oybD5qw6NLyayl7iCX8C8tJHeqjL9fmNrRlIrNiVJSXkF5t9ZPJ+xlM0kSwwYg==, tarball: https://registry.npmjs.org/jest-fixed-jsdom/-/jest-fixed-jsdom-0.0.11.tgz}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       jest-environment-jsdom: '>=28.0.0'
@@ -10776,7 +10776,7 @@ snapshots:
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
-  jest-fixed-jsdom@0.0.10(jest-environment-jsdom@29.5.0):
+  jest-fixed-jsdom@0.0.11(jest-environment-jsdom@29.5.0):
     dependencies:
       jest-environment-jsdom: 29.5.0
 
