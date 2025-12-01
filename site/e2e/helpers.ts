@@ -562,6 +562,33 @@ const emptyPlan = new TextEncoder().encode("{}");
 const createTemplateVersionTar = async (
 	responses: EchoProvisionerResponses = {},
 ): Promise<Buffer> => {
+	if (responses.graph) {
+		if(!responses.apply) {
+			responses.apply = responses.graph.map((response) => {
+				if (response.log) {
+					return response;
+				}
+				return {
+					apply: {
+						error: response.graph?.error ?? "",
+					},
+				};
+			});
+		}
+		if(!responses.plan) {
+			responses.plan = responses.graph.map((response) => {
+				if (response.log) {
+					return response;
+				}
+				return {
+					plan: {
+						error: response.graph?.error ?? "",
+					},
+				};
+			});
+		}
+	}
+
 	if (!responses.init) {
 		responses.init = [
 			{
@@ -591,25 +618,11 @@ const createTemplateVersionTar = async (
 		];
 	}
 	if (!responses.graph) {
-		responses.graph = responses.apply.map((response) => {
-			if (response.log) {
-				return response;
+		responses.graph = [
+			{
+				graph: {},
 			}
-			return {
-				graph: {
-					error: response.graph?.error ?? "",
-					resources: response.graph?.resources ?? [],
-					parameters: response.graph?.parameters ?? [],
-					externalAuthProviders: response.graph?.externalAuthProviders ?? [],
-					timings: response.graph?.timings ?? [],
-					presets: [],
-					resourceReplacements: [],
-					plan: emptyPlan,
-					moduleFiles: new Uint8Array(),
-					moduleFilesHash: new Uint8Array(),
-				},
-			};
-		});
+		]
 	}
 
 	const tar = new TarWriter();
@@ -900,6 +913,11 @@ ${options}}
 	}
 
 	return {
+		init: [
+			{
+				init: {},
+			}
+		],
 		parse: [
 			{
 				parse: {},
@@ -930,6 +948,11 @@ export const echoResponsesWithExternalAuth = (
 	providers: ExternalAuthProviderResource[],
 ): EchoProvisionerResponses => {
 	return {
+		init: [
+			{
+				init: {},
+			}
+		],
 		parse: [
 			{
 				parse: {},
