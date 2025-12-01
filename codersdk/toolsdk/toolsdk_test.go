@@ -1017,7 +1017,6 @@ func TestTools(t *testing.T) {
 			ProvisionApply: echo.ApplyComplete,
 			ProvisionPlan: []*proto.Response{
 				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
 					HasAiTasks: true,
 				}}},
 			},
