@@ -25,11 +25,12 @@
 			}
 
 			:root {
-				--color-black: #090B0B;
 				--color-white: #FFFFFF;
-				--color-dark-gray: #18181B;
-				--color-light-gray: #A1A1AA;
-				--color-orange: #F3722C;
+				--color-warning: #F3722C;
+				--color-surface-primary: #090B0B;
+				--color-zinc-900: #18181B;
+				--color-zinc-400: #A1A1AA;
+				--color-zinc-800: #27272A;
 			}
 
 			html,
@@ -40,7 +41,7 @@
 				height: 100%;
 
 				background: var(--color-black);
-				color: var(--color-light-gray);
+				color: var(--color-zinc-400);
 
 				font-family: system-ui, sans-serif;
 				font-size: 16px;
@@ -94,10 +95,10 @@
 				padding: 0.5rem 1rem;
 
 				border-radius: 0.375rem;
-				border: 1px solid #27272a;
+				border: 1px solid var(--color-zinc-800);
 				background: none;
 
-				color: #ffffff;
+				color: var(--color-white);
 				text-decoration: none;
 				font-size: 0.875rem;
 				font-weight: 400;
@@ -110,13 +111,13 @@
 
 			.button-group a:hover,
 			.button-group button:hover {
-				background-color: var(--color-dark-gray);
-				border-color: #27272a;
+				background-color: var(--color-zinc-900);
+				border-color: var(--color-zinc-800);
 			}
 
 			.warning {
-				border: 1px solid var(--color-orange);
-				background: var(--color-dark-gray);
+				border: 1px solid var(--color-warning);
+				background: var(--color-zinc-900);
 				width: 100%;
 
 				margin: 1.5rem 0 0;
