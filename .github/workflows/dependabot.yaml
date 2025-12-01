@@ -49,10 +49,8 @@ jobs:
         run: |
           if [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
             STATUS_TEXT=":pr-opened: Dependabot opened PR #${PR_NUMBER} (GitHub Actions changes are not auto-merged)"
-            STATUS_EMOJI=":pr-opened:"
           else
             STATUS_TEXT=":pr-merged: Auto merge enabled for Dependabot PR #${PR_NUMBER}"
-            STATUS_EMOJI=":pr-merged:"
           fi
           curl -X POST -H 'Content-type: application/json' \
           --data '{
