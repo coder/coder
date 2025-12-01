@@ -181,7 +181,7 @@ func TestProvision_Cancel(t *testing.T) {
 			// Provisioner requires a plan before an apply, so test cancel with plan.
 			name:          "Cancel plan",
 			mode:          "plan",
-			startSequence: []string{"init_start", "plan_start"},
+			startSequence: []string{"init", "plan_start"},
 			wantLog:       []string{"interrupt", "exit"},
 		},
 	}
@@ -222,7 +222,7 @@ func TestProvision_Cancel(t *testing.T) {
 						err = sendPlan(sess, proto.WorkspaceTransition_START)
 						require.NoError(t, err)
 					})
-					continue
+					goto LoopStart
 				}
 
 				log := msg.GetLog()
