@@ -106,6 +106,7 @@ type sqlcQuerier interface {
 	// Cumulative count.
 	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error)
 	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
+	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error
 	// Delete provisioner daemons that have been created at least a week ago

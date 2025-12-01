@@ -759,6 +759,223 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old telemetry heartbeats")
 }
 
+func TestDeleteOldConnectionLogs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RetentionEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
+		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
+		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+		tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tmpl.ID,
+		})
+
+		// Create old connection log (should be deleted)
+		oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             afterThreshold,
+			OrganizationID:   org.ID,
+			WorkspaceOwnerID: user.ID,
+			WorkspaceID:      workspace.ID,
+			WorkspaceName:    workspace.Name,
+			AgentName:        "agent1",
+			Type:             database.ConnectionTypeSsh,
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+
+		// Create recent connection log (should be kept)
+		recentLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             beforeThreshold,
+			OrganizationID:   org.ID,
+			WorkspaceOwnerID: user.ID,
+			WorkspaceID:      workspace.ID,
+			WorkspaceName:    workspace.Name,
+			AgentName:        "agent2",
+			Type:             database.ConnectionTypeSsh,
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+
+		// Run the purge with configured retention period
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				ConnectionLogs: serpent.Duration(retentionPeriod),
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify results by querying all connection logs
+		logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+			LimitOpt: 100,
+		})
+		require.NoError(t, err)
+
+		logIDs := make([]uuid.UUID, len(logs))
+		for i, log := range logs {
+			logIDs[i] = log.ConnectionLog.ID
+		}
+
+		require.NotContains(t, logIDs, oldLog.ID, "old connection log should be deleted")
+		require.Contains(t, logIDs, recentLog.ID, "recent connection log should be kept")
+	})
+
+	t.Run("RetentionDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		oldTime := now.Add(-365 * 24 * time.Hour) // 1 year ago
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+		tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tmpl.ID,
+		})
+
+		// Create old connection log (should NOT be deleted when retention is 0)
+		oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             oldTime,
+			OrganizationID:   org.ID,
+			WorkspaceOwnerID: user.ID,
+			WorkspaceID:      workspace.ID,
+			WorkspaceName:    workspace.Name,
+			AgentName:        "agent1",
+			Type:             database.ConnectionTypeSsh,
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+
+		// Run the purge with retention disabled (0)
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				ConnectionLogs: serpent.Duration(0), // disabled
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify old log is still present
+		logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+			LimitOpt: 100,
+		})
+		require.NoError(t, err)
+
+		logIDs := make([]uuid.UUID, len(logs))
+		for i, log := range logs {
+			logIDs[i] = log.ConnectionLog.ID
+		}
+
+		require.Contains(t, logIDs, oldLog.ID, "old connection log should NOT be deleted when retention is disabled")
+	})
+
+	t.Run("GlobalRetentionFallback", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
+		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
+		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+		tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tmpl.ID,
+		})
+
+		// Create old connection log (should be deleted)
+		oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             afterThreshold,
+			OrganizationID:   org.ID,
+			WorkspaceOwnerID: user.ID,
+			WorkspaceID:      workspace.ID,
+			WorkspaceName:    workspace.Name,
+			AgentName:        "agent1",
+			Type:             database.ConnectionTypeSsh,
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+
+		// Create recent connection log (should be kept)
+		recentLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             beforeThreshold,
+			OrganizationID:   org.ID,
+			WorkspaceOwnerID: user.ID,
+			WorkspaceID:      workspace.ID,
+			WorkspaceName:    workspace.Name,
+			AgentName:        "agent2",
+			Type:             database.ConnectionTypeSsh,
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+
+		// Run the purge with global retention (connection logs retention is 0, so it falls back)
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				Global:         serpent.Duration(retentionPeriod), // Use global
+				ConnectionLogs: serpent.Duration(0),               // Not set, should fall back to global
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify results
+		logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+			LimitOpt: 100,
+		})
+		require.NoError(t, err)
+
+		logIDs := make([]uuid.UUID, len(logs))
+		for i, log := range logs {
+			logIDs[i] = log.ConnectionLog.ID
+		}
+
+		require.NotContains(t, logIDs, oldLog.ID, "old connection log should be deleted via global retention")
+		require.Contains(t, logIDs, recentLog.ID, "recent connection log should be kept")
+	})
+}
+
 func TestDeleteOldAIBridgeRecords(t *testing.T) {
 	t.Parallel()
 

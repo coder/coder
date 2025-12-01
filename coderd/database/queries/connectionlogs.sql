@@ -239,6 +239,22 @@ WHERE
 	-- @authorize_filter
 ;
 
+-- name: DeleteOldConnectionLogs :one
+WITH old_logs AS (
+	SELECT id
+	FROM connection_logs
+	WHERE connect_time < @before_time::timestamp with time zone
+	ORDER BY connect_time ASC
+	LIMIT @limit_count
+),
+deleted_rows AS (
+	DELETE FROM connection_logs
+	USING old_logs
+	WHERE connection_logs.id = old_logs.id
+	RETURNING connection_logs.id
+)
+SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows;
+
 -- name: UpsertConnectionLog :one
 INSERT INTO connection_logs (
 	id,
