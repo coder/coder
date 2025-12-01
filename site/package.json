@@ -119,7 +119,7 @@
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
 		"websocket-ts": "2.2.1",
-		"yup": "1.6.1"
+		"yup": "1.7.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.4",
