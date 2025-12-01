@@ -148,7 +148,7 @@ your PostgreSQL database to reclaim disk space. See
 [Maintenance Procedures](../security/audit-logs.md#maintenance-procedures-for-the-audit-logs-table)
 for guidance.
 
-## Disabling Retention
+## Keeping Data Indefinitely
 
 Setting a retention value to `0` means "use global retention", not "disable".
 To disable all automatic purging, set global to `0` and leave individual
