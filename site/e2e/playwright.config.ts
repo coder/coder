@@ -143,6 +143,6 @@ export default defineConfig({
 			CODER_OIDC_SIGN_IN_TEXT: "Hello",
 			CODER_OIDC_ICON_URL: "/icon/google.svg",
 		},
-		reuseExistingServer: false,
+		reuseExistingServer: true,
 	},
 });

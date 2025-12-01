@@ -652,6 +652,9 @@ const createTemplateVersionTar = async (
 		response.init = {
 			error: "",
 			timings: [],
+			modules: [],
+			moduleFiles: new Uint8Array(),
+			moduleFilesHash: new Uint8Array(),
 			...response.init,
 		} as InitComplete;
 		tar.addFile(
@@ -663,6 +666,8 @@ const createTemplateVersionTar = async (
 		response.plan = {
 			error: "",
 			timings: [],
+			plan: emptyPlan,
+			resourceReplacements: [],
 			...response.plan,
 		} as PlanComplete;
 		tar.addFile(
@@ -770,12 +775,8 @@ const createTemplateVersionTar = async (
 			parameters: [],
 			externalAuthProviders: [],
 			timings: [],
-			modules: [],
 			presets: [],
 			resourceReplacements: [],
-			plan: emptyPlan,
-			moduleFiles: new Uint8Array(),
-			moduleFilesHash: new Uint8Array(),
 			aiTasks: [],
 			...response.graph,
 		} as GraphComplete;
