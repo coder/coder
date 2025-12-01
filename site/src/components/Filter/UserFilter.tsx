@@ -80,6 +80,79 @@ export const useUserFilterMenu = ({
 
 export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
+export const useWorkspaceUserFilterMenu = ({
+	value,
+	onChange,
+	enabled,
+}: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
+	const { user: me } = useAuthenticated();
+
+	const addMeAsFirstOption = (options: readonly SelectFilterOption[]) => {
+		const filtered = options.filter((o) => o.value !== me.email);
+		return [
+			{
+				label: me.email,
+				value: me.email,
+				startIcon: (
+					<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
+				),
+			},
+			...filtered,
+		];
+	};
+
+	return useFilterMenu({
+		onChange,
+		enabled,
+		value,
+		id: "owner",
+		getSelectedOption: async () => {
+			if (value === "me") {
+				return {
+					label: me.email,
+					value: me.email,
+					startIcon: (
+						<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
+					),
+				};
+			}
+
+			const usersRes = await API.getUsers({ q: value, limit: 1 });
+			const firstUser = usersRes.users.at(0);
+			if (firstUser && (firstUser.email === value || firstUser.username === value)) {
+				return {
+					label: firstUser.email,
+					value: firstUser.email,
+					startIcon: (
+						<Avatar
+							fallback={firstUser.username}
+							src={firstUser.avatar_url}
+							size="sm"
+						/>
+					),
+				};
+			}
+			return null;
+		},
+		getOptions: async (query) => {
+			const usersRes = await API.getUsers({ q: query, limit: 25 });
+			let options = usersRes.users.map<SelectFilterOption>((user) => ({
+				label: user.email,
+				value: user.email,
+				startIcon: (
+					<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
+				),
+			}));
+			options = addMeAsFirstOption(options);
+			return options;
+		},
+	});
+};
+
+export type WorkspaceUserFilterMenu = ReturnType<
+	typeof useWorkspaceUserFilterMenu
+>;
+
 interface UserMenuProps {
 	menu: UserFilterMenu;
 	width?: number;
