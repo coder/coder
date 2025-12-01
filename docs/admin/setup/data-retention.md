@@ -25,12 +25,12 @@ a YAML configuration file.
 
 ### Settings
 
-| Setting         | CLI Flag                      | Environment Variable              | Default          | Description                                                               |
-| --------------- | ----------------------------- | --------------------------------- | ---------------- | ------------------------------------------------------------------------- |
-| Global          | `--global-retention`          | `CODER_GLOBAL_RETENTION`          | `0` (disabled)   | Default retention for all data types. Individual settings override this.  |
-| Audit Logs      | `--audit-logs-retention`      | `CODER_AUDIT_LOGS_RETENTION`      | `0` (use global) | How long to retain Audit Log entries.                                     |
-| Connection Logs | `--connection-logs-retention` | `CODER_CONNECTION_LOGS_RETENTION` | `0` (use global) | How long to retain Connection Log entries.                                |
-| API Keys        | `--api-keys-retention`        | `CODER_API_KEYS_RETENTION`        | `7d`             | How long to retain expired API keys.                                      |
+| Setting         | CLI Flag                      | Environment Variable              | Default          | Description                                                              |
+|-----------------|-------------------------------|-----------------------------------|------------------|--------------------------------------------------------------------------|
+| Global          | `--global-retention`          | `CODER_GLOBAL_RETENTION`          | `0` (disabled)   | Default retention for all data types. Individual settings override this. |
+| Audit Logs      | `--audit-logs-retention`      | `CODER_AUDIT_LOGS_RETENTION`      | `0` (use global) | How long to retain Audit Log entries.                                    |
+| Connection Logs | `--connection-logs-retention` | `CODER_CONNECTION_LOGS_RETENTION` | `0` (use global) | How long to retain Connection Log entries.                               |
+| API Keys        | `--api-keys-retention`        | `CODER_API_KEYS_RETENTION`        | `7d`             | How long to retain expired API keys.                                     |
 
 ### Duration Format
 
