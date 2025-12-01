@@ -2997,34 +2997,44 @@ func findWorkspaceMembersAndGroups(
 		}
 	}
 
+	var eg errgroup.Group
+
 	// Fetch org members
 	if fetchMembers {
-		params := database.OrganizationMembersParams{
-			OrganizationID: workspaces[0].OrganizationID,
-		}
-		members, err := api.Database.OrganizationMembers(ctx, params)
-		if err != nil && !httpapi.Is404Error(err) {
-			return nil, nil, xerrors.Errorf("get organization members: %w", err)
-		}
-		memberData = make(map[uuid.UUID]database.OrganizationMembersRow, len(members))
-		for _, member := range members {
-			memberData[member.OrganizationMember.UserID] = member
-		}
+		eg.Go(func() (err error) {
+			params := database.OrganizationMembersParams{
+				OrganizationID: workspaces[0].OrganizationID,
+			}
+			members, err := api.Database.OrganizationMembers(ctx, params)
+			if err != nil && !httpapi.Is404Error(err) {
+				return xerrors.Errorf("get organization members: %w", err)
+			}
+			memberData = make(map[uuid.UUID]database.OrganizationMembersRow, len(members))
+			for _, member := range members {
+				memberData[member.OrganizationMember.UserID] = member
+			}
+			return nil
+		})
 	}
-
 	// Fetch the groups
-	if groupIDs != nil {
-		groupIDs = slice.Unique(groupIDs)
+	if len(groupIDs) > 0 {
+		eg.Go(func() (err error) {
+			groupIDs = slice.Unique(groupIDs)
 
-		groupRows, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: groupIDs})
-		if err != nil && !httpapi.Is404Error(err) {
-			return nil, nil, xerrors.Errorf("get groups: %w", err)
-		}
+			groupRows, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: groupIDs})
+			if err != nil && !httpapi.Is404Error(err) {
+				return xerrors.Errorf("get groups: %w", err)
+			}
 
-		groupData = make(map[uuid.UUID]database.Group, len(groupIDs))
-		for _, groupRow := range groupRows {
-			groupData[groupRow.Group.ID] = groupRow.Group
-		}
+			groupData = make(map[uuid.UUID]database.Group, len(groupIDs))
+			for _, groupRow := range groupRows {
+				groupData[groupRow.Group.ID] = groupRow.Group
+			}
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return nil, nil, err
 	}
 
 	return memberData, groupData, nil
