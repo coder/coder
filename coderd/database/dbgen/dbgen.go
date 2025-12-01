@@ -173,6 +173,13 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 		}
 	}
 
+	// It does not make sense for the created_at to be after the expires_at.
+	// So if expires is set, change the default created_at to be 24 hours before.
+	var createdAt time.Time
+	if !seed.ExpiresAt.IsZero() && seed.CreatedAt.IsZero() {
+		createdAt = seed.ExpiresAt.Add(-24 * time.Hour)
+	}
+
 	params := database.InsertAPIKeyParams{
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
@@ -182,7 +189,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 		UserID:          takeFirst(seed.UserID, uuid.New()),
 		LastUsed:        takeFirst(seed.LastUsed, dbtime.Now()),
 		ExpiresAt:       takeFirst(seed.ExpiresAt, dbtime.Now().Add(time.Hour)),
-		CreatedAt:       takeFirst(seed.CreatedAt, dbtime.Now()),
+		CreatedAt:       takeFirst(seed.CreatedAt, createdAt, dbtime.Now()),
 		UpdatedAt:       takeFirst(seed.UpdatedAt, dbtime.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
