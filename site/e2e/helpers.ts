@@ -563,7 +563,7 @@ const createTemplateVersionTar = async (
 	responses: EchoProvisionerResponses = {},
 ): Promise<Buffer> => {
 	if (responses.graph) {
-		if(!responses.apply) {
+		if (!responses.apply) {
 			responses.apply = responses.graph.map((response) => {
 				if (response.log) {
 					return response;
@@ -575,7 +575,7 @@ const createTemplateVersionTar = async (
 				};
 			});
 		}
-		if(!responses.plan) {
+		if (!responses.plan) {
 			responses.plan = responses.graph.map((response) => {
 				if (response.log) {
 					return response;
@@ -621,8 +621,8 @@ const createTemplateVersionTar = async (
 		responses.graph = [
 			{
 				graph: {},
-			}
-		]
+			},
+		];
 	}
 
 	const tar = new TarWriter();
@@ -727,17 +727,12 @@ const createTemplateVersionTar = async (
 	};
 
 	responses.apply.forEach((response, index) => {
-		response.graph = {
+		response.apply = {
 			error: "",
 			state: new Uint8Array(),
-			resources: [],
-			parameters: [],
-			externalAuthProviders: [],
 			timings: [],
-			aiTasks: [],
-			...response.graph,
+			...response.apply,
 		} as ApplyComplete;
-		response.graph.resources = response.graph.resources?.map(fillResource);
 
 		tar.addFile(
 			`${index}.apply.protobuf`,
@@ -916,7 +911,7 @@ ${options}}
 		init: [
 			{
 				init: {},
-			}
+			},
 		],
 		parse: [
 			{
@@ -951,7 +946,7 @@ export const echoResponsesWithExternalAuth = (
 		init: [
 			{
 				init: {},
-			}
+			},
 		],
 		parse: [
 			{
