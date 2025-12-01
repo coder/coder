@@ -84,6 +84,20 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
+		// We don't want these to be configurable via YAML because they are secrets.
+		// However, we do want to allow them to be shown in documentation.
+		"AI Bridge OpenAI Key": {
+			yaml: true,
+		},
+		"AI Bridge Anthropic Key": {
+			yaml: true,
+		},
+		"AI Bridge Bedrock Access Key": {
+			yaml: true,
+		},
+		"AI Bridge Bedrock Access Key Secret": {
+			yaml: true,
+		},
 	}
 
 	set := (&codersdk.DeploymentValues{}).Options()
