@@ -37,7 +37,7 @@
 		"@types/sanitize-html": "2.16.0",
 		"eslint": "8.57.1",
 		"eslint-config-next": "14.2.33",
-		"prettier": "3.6.2",
+		"prettier": "3.7.3",
 		"typescript": "5.9.3"
 	},
 	"engines": {
