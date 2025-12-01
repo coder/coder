@@ -33,7 +33,9 @@ import {
 	AppSharingLevel,
 	type ExternalAuthProviderResource,
 	type GraphComplete,
+	type InitComplete,
 	type ParseComplete,
+	type PlanComplete,
 	type Resource,
 	Response,
 	type RichParameter,
@@ -646,6 +648,26 @@ const createTemplateVersionTar = async (
 			Response.encode(response as Response).finish(),
 		);
 	});
+	responses.init.forEach((response, index) => {
+		response.init = {
+			error: "",
+			...response.parse,
+		} as InitComplete;
+		tar.addFile(
+			`${index}.init.protobuf`,
+			Response.encode(response as Response).finish(),
+		);
+	});
+	responses.plan.forEach((response, index) => {
+		response.plan = {
+			error: "",
+			...response.plan,
+		} as PlanComplete;
+		tar.addFile(
+			`${index}.init.protobuf`,
+			Response.encode(response as Response).finish(),
+		);
+	});
 
 	const fillResource = (resource: RecursivePartial<Resource>) => {
 		if (resource.agents) {
@@ -908,14 +930,19 @@ ${options}}
 	}
 
 	return {
+		parse: [
+			{
+				parse: {},
+			},
+		],
 		init: [
 			{
 				init: {},
 			},
 		],
-		parse: [
+		plan: [
 			{
-				parse: {},
+				plan: {},
 			},
 		],
 		graph: [
