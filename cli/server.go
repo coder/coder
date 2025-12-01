@@ -442,7 +442,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file flags")
 				}
 				// Read the URL once for initial validation and migrations.
-				logger.Debug(ctx, "database connection URL sourced from file")
+				logger.Debug(ctx, "coderd: database connection URL sourced from file")
 				postgresURL, err := ReadPostgresURLFromFile(vals.PostgresURLFile.String())
 				if err != nil {
 					return err

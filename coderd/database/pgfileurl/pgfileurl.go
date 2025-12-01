@@ -86,7 +86,7 @@ func (d *fileURLDriver) Open(_ string) (driver.Conn, error) {
 	}
 	dbURL := strings.TrimSpace(string(content))
 
-	d.logger.Debug(context.Background(), "re-reading database connection URL from file")
+	d.logger.Debug(context.Background(), "coderd: re-reading database connection URL from file")
 
 	conn, err := d.parent.Open(dbURL)
 	if err != nil {
