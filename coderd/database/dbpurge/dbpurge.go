@@ -82,18 +82,27 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
 				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
 			}
-			expiredAPIKeys, err := tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
-				// Leave expired keys for a week to allow the backend to know the difference
-				// between a 404 and an expired key. This purge code is just to bound the size of
-				// the table to something more reasonable.
-				Before: dbtime.Time(start.Add(time.Hour * 24 * 7 * -1)),
-				// There could be a lot of expired keys here, so set a limit to prevent this
-				// taking too long.
-				// This runs every 10 minutes, so it deletes ~1.5m keys per day at most.
-				LimitCount: 10000,
-			})
-			if err != nil {
-				return xerrors.Errorf("failed to delete expired api keys: %w", err)
+
+			var expiredAPIKeys int64
+			apiKeysRetention := vals.Retention.APIKeys.Value()
+			if apiKeysRetention == 0 {
+				apiKeysRetention = vals.Retention.Global.Value()
+			}
+			if apiKeysRetention > 0 {
+				// Delete keys that have been expired for at least the retention period.
+				// This allows the backend to return a more helpful error when a user
+				// tries to use an expired key.
+				deleteExpiredKeysBefore := start.Add(-apiKeysRetention)
+				expiredAPIKeys, err = tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+					Before: dbtime.Time(deleteExpiredKeysBefore),
+					// There could be a lot of expired keys here, so set a limit to prevent
+					// this taking too long. This runs every 10 minutes, so it deletes
+					// ~1.5m keys per day at most.
+					LimitCount: 10000,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to delete expired api keys: %w", err)
+				}
 			}
 			deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
 			if err := tx.DeleteOldTelemetryLocks(ctx, deleteOldTelemetryLocksBefore); err != nil {
