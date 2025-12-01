@@ -373,7 +373,7 @@ module "personalize" {
 module "mux" {
   count     = data.coder_workspace.me.start_count
   source    = "registry.coder.com/coder/mux/coder"
-  version   = "1.0.1"
+  version   = "1.0.2"
   agent_id  = coder_agent.dev.id
   subdomain = true
 }
