@@ -1037,6 +1037,7 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 		OAuthAccessTokenKeyID:  takeFirst(orig.OAuthAccessTokenKeyID, sql.NullString{}),
 		OAuthRefreshToken:      takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
 		OAuthRefreshTokenKeyID: takeFirst(orig.OAuthRefreshTokenKeyID, sql.NullString{}),
+		OAuthIDToken:           takeFirst(orig.OAuthIDToken),
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
 		Claims:                 orig.Claims,
 	})

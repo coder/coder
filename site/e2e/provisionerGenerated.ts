@@ -391,6 +391,7 @@ export interface Metadata {
   templateName: string;
   templateVersion: string;
   workspaceOwnerOidcAccessToken: string;
+  workspaceOwnerOidcIdToken: string;
   workspaceOwnerSessionToken: string;
   templateId: string;
   workspaceOwnerName: string;
@@ -1269,6 +1270,9 @@ export const Metadata = {
     }
     if (message.workspaceOwnerOidcAccessToken !== "") {
       writer.uint32(82).string(message.workspaceOwnerOidcAccessToken);
+    }
+    if (message.workspaceOwnerOidcIdToken !== "") {
+      writer.uint32(202).string(message.workspaceOwnerOidcIdToken);
     }
     if (message.workspaceOwnerSessionToken !== "") {
       writer.uint32(90).string(message.workspaceOwnerSessionToken);

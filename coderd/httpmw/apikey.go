@@ -354,6 +354,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
 				OAuthRefreshToken:      link.OAuthRefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthIDToken:           link.OAuthIDToken,
 				OAuthExpiry:            link.OAuthExpiry,
 				// Refresh should keep the same debug context because we use
 				// the original claims for the group/role sync.

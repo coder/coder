@@ -1450,6 +1450,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			UserInfoClaims: supplementaryClaims,
 			MergedClaims:   mergedClaims,
 		},
+		RawOIDCIdToken: rawIDToken,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -1602,6 +1603,11 @@ type oauthLoginParams struct {
 	// UserClaims should only be populated for OIDC logins.
 	// It is used to save the user's claims on login.
 	UserClaims database.UserLinkClaims
+
+	// RawOIDCIdToken is the raw ID token string from the OIDC provider.
+	// This is stored separately from the access token for providers like Azure
+	// that require the ID token for authentication.
+	RawOIDCIdToken string
 
 	commitLock       sync.Mutex
 	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
@@ -1808,6 +1814,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				OAuthRefreshToken:      params.State.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 				OAuthExpiry:            params.State.Token.Expiry,
+				OAuthIDToken:           params.RawOIDCIdToken,
 				Claims:                 params.UserClaims,
 			})
 			if err != nil {
@@ -1825,6 +1832,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				OAuthRefreshToken:      params.State.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 				OAuthExpiry:            params.State.Token.Expiry,
+				OAuthIDToken:           params.RawOIDCIdToken,
 				Claims:                 params.UserClaims,
 			})
 			if err != nil {

@@ -2933,6 +2933,7 @@ type Metadata struct {
 	TemplateName                  string                      `protobuf:"bytes,8,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"`
 	TemplateVersion               string                      `protobuf:"bytes,9,opt,name=template_version,json=templateVersion,proto3" json:"template_version,omitempty"`
 	WorkspaceOwnerOidcAccessToken string                      `protobuf:"bytes,10,opt,name=workspace_owner_oidc_access_token,json=workspaceOwnerOidcAccessToken,proto3" json:"workspace_owner_oidc_access_token,omitempty"`
+	WorkspaceOwnerOidcIdToken     string                      `protobuf:"bytes,25,opt,name=workspace_owner_oidc_id_token,json=workspaceOwnerOidcIdToken,proto3" json:"workspace_owner_oidc_id_token,omitempty"`
 	WorkspaceOwnerSessionToken    string                      `protobuf:"bytes,11,opt,name=workspace_owner_session_token,json=workspaceOwnerSessionToken,proto3" json:"workspace_owner_session_token,omitempty"`
 	TemplateId                    string                      `protobuf:"bytes,12,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 	WorkspaceOwnerName            string                      `protobuf:"bytes,13,opt,name=workspace_owner_name,json=workspaceOwnerName,proto3" json:"workspace_owner_name,omitempty"`
@@ -3044,9 +3045,18 @@ func (x *Metadata) GetTemplateVersion() string {
 	return ""
 }
 
+
+
 func (x *Metadata) GetWorkspaceOwnerOidcAccessToken() string {
 	if x != nil {
 		return x.WorkspaceOwnerOidcAccessToken
+	}
+	return ""
+}
+
+func (x *Metadata) GetWorkspaceOwnerOidcIdToken() string {
+	if x != nil {
+		return x.WorkspaceOwnerOidcIdToken
 	}
 	return ""
 }

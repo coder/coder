@@ -544,12 +544,17 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		var workspaceOwnerOIDCAccessToken string
+		var workspaceOwnerOIDCIdToken string
 		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
 		// pointing to a typed nil.
 		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
 			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
+			}
+			workspaceOwnerOIDCIdToken, err = obtainOIDCIdToken(ctx, s.Database, s.OIDCConfig, owner.ID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("obtain OIDC ID token: %s", err))
 			}
 		}
 
@@ -724,6 +729,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerName:            owner.Name,
 					WorkspaceOwnerGroups:          ownerGroupNames,
 					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
+					WorkspaceOwnerOidcIdToken:     workspaceOwnerOIDCIdToken,
 					WorkspaceId:                   workspace.ID.String(),
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateId:                    template.ID.String(),
@@ -3145,6 +3151,9 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 		link.OAuthRefreshToken = token.RefreshToken
 		link.OAuthExpiry = token.Expiry
 
+		// Extract the ID token from the refreshed token if available
+		idToken, _ := token.Extra("id_token").(string)
+
 		link, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			UserID:                 userID,
 			LoginType:              database.LoginTypeOIDC,
@@ -3153,6 +3162,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 			OAuthRefreshToken:      link.OAuthRefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 			OAuthExpiry:            link.OAuthExpiry,
+			OAuthIDToken:           idToken,
 			Claims:                 link.Claims,
 		})
 		if err != nil {
@@ -3161,6 +3171,61 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 	}
 
 	return link.OAuthAccessToken, nil
+}
+
+// obtainOIDCIdToken returns a valid OpenID Connect ID token
+// for the user if it's able to obtain one, otherwise it returns an empty string.
+// The ID token is used by some providers like Azure for authentication.
+func obtainOIDCIdToken(ctx context.Context, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
+	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    userID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", xerrors.Errorf("get owner oidc link: %w", err)
+	}
+
+	// If the token is expired and we have a refresh token, refresh it
+	if link.OAuthExpiry.Before(dbtime.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		token, err := oidcConfig.TokenSource(ctx, &oauth2.Token{
+			AccessToken:  link.OAuthAccessToken,
+			RefreshToken: link.OAuthRefreshToken,
+			Expiry:       link.OAuthExpiry,
+		}).Token()
+		if err != nil {
+			// If OIDC fails to refresh, we return an empty string and don't fail.
+			// There isn't a way to hard-opt in to OIDC from a template, so we don't
+			// want to fail builds if users haven't authenticated for a while or something.
+			return "", nil
+		}
+
+		// Extract the ID token from the refreshed token
+		idToken, _ := token.Extra("id_token").(string)
+		link.OAuthAccessToken = token.AccessToken
+		link.OAuthRefreshToken = token.RefreshToken
+		link.OAuthExpiry = token.Expiry
+		link.OAuthIDToken = idToken
+
+		link, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			UserID:                 userID,
+			LoginType:              database.LoginTypeOIDC,
+			OAuthAccessToken:       link.OAuthAccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // set by dbcrypt if required
+			OAuthRefreshToken:      link.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
+			OAuthExpiry:            link.OAuthExpiry,
+			OAuthIDToken:           link.OAuthIDToken,
+			Claims:                 link.Claims,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("update user link: %w", err)
+		}
+	}
+
+	return link.OAuthIDToken, nil
 }
 
 func convertLogLevel(logLevel sdkproto.LogLevel) (database.LogLevel, error) {
