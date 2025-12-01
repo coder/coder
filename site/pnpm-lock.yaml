@@ -170,8 +170,8 @@ importers:
         specifier: 2.0.5
         version: 2.0.5
       formik:
-        specifier: 2.4.6
-        version: 2.4.6(react@19.2.0)
+        specifier: 2.4.9
+        version: 2.4.9(@types/react@19.2.7)(react@19.2.0)
       front-matter:
         specifier: 4.0.2
         version: 4.0.2
@@ -2644,8 +2644,10 @@ packages:
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==, tarball: https://registry.npmjs.org/@types/hast/-/hast-3.0.4.tgz}
 
-  '@types/hoist-non-react-statics@3.3.5':
-    resolution: {integrity: sha512-SbcrWzkKBw2cdwRTwQAswfpB9g9LJWfjtUeW/jvNwbhC8cpmmNYVePa+ncbUe0rGTQ7G3Ff6mYUN2VMfLVr+Sg==, tarball: https://registry.npmjs.org/@types/hoist-non-react-statics/-/hoist-non-react-statics-3.3.5.tgz}
+  '@types/hoist-non-react-statics@3.3.7':
+    resolution: {integrity: sha512-PQTyIulDkIDro8P+IHbKCsw7U2xxBYflVzW/FgWdCAePD9xGSidgA76/GeJ6lBKoblyhf9pBY763gbrN+1dI8g==, tarball: https://registry.npmjs.org/@types/hoist-non-react-statics/-/hoist-non-react-statics-3.3.7.tgz}
+    peerDependencies:
+      '@types/react': '*'
 
   '@types/http-errors@2.0.1':
     resolution: {integrity: sha512-/K3ds8TRAfBvi5vfjuz8y6+GiAYBZ0x4tXv1Av6CWBWn0IlADc+ZX9pMq7oU0fNQPnBwIZl3rmeLp6SBApbxSQ==, tarball: https://registry.npmjs.org/@types/http-errors/-/http-errors-2.0.1.tgz}
@@ -3946,8 +3948,8 @@ packages:
     engines: {node: '>=18.3.0'}
     hasBin: true
 
-  formik@2.4.6:
-    resolution: {integrity: sha512-A+2EI7U7aG296q2TLGvNapDNTZp1khVt5Vk0Q/fyfSROss0V/V6+txt2aJnwEos44IxTCW/LYAi/zgWzlevj+g==, tarball: https://registry.npmjs.org/formik/-/formik-2.4.6.tgz}
+  formik@2.4.9:
+    resolution: {integrity: sha512-5nI94BMnlFDdQRBY4Sz39WkhxajZJ57Fzs8wVbtsQlm5ScKIR1QLYqv/ultBnobObtlUyxpxoLodpixrsf36Og==, tarball: https://registry.npmjs.org/formik/-/formik-2.4.9.tgz}
     peerDependencies:
       react: '>=16.8.0'
 
@@ -6060,9 +6062,6 @@ packages:
   tsconfig-paths@4.2.0:
     resolution: {integrity: sha512-NoZ4roiN7LnbKn9QqE1amc9DJfzvZXxF4xDavcOWt1BPkdx+m+0gJuPM+S0vCe7zTJMYUP0R8pO2XMr+Y8oLIg==, tarball: https://registry.npmjs.org/tsconfig-paths/-/tsconfig-paths-4.2.0.tgz}
     engines: {node: '>=6'}
-
-  tslib@2.6.2:
-    resolution: {integrity: sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q==, tarball: https://registry.npmjs.org/tslib/-/tslib-2.6.2.tgz}
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==, tarball: https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz}
@@ -8737,7 +8736,7 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
-  '@types/hoist-non-react-statics@3.3.5':
+  '@types/hoist-non-react-statics@3.3.7(@types/react@19.2.7)':
     dependencies:
       '@types/react': 19.2.7
       hoist-non-react-statics: 3.3.2
@@ -10165,9 +10164,9 @@ snapshots:
     dependencies:
       fd-package-json: 2.0.0
 
-  formik@2.4.6(react@19.2.0):
+  formik@2.4.9(@types/react@19.2.7)(react@19.2.0):
     dependencies:
-      '@types/hoist-non-react-statics': 3.3.5
+      '@types/hoist-non-react-statics': 3.3.7(@types/react@19.2.7)
       deepmerge: 2.2.1
       hoist-non-react-statics: 3.3.2
       lodash: 4.17.21
@@ -10175,7 +10174,9 @@ snapshots:
       react: 19.2.0
       react-fast-compare: 2.0.4
       tiny-warning: 1.0.3
-      tslib: 2.6.2
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - '@types/react'
 
   forwarded@0.2.0: {}
 
@@ -12867,8 +12868,6 @@ snapshots:
       json5: 2.2.3
       minimist: 1.2.8
       strip-bom: 3.0.0
-
-  tslib@2.6.2: {}
 
   tslib@2.8.1: {}
 
