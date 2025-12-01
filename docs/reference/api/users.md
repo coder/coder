@@ -1241,6 +1241,90 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user preference settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/preferences`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+|--------|------|--------|----------|----------------------|
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "task_notification_alert_dismissed": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserPreferenceSettings](schemas.md#codersdkuserpreferencesettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update user preference settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /users/{user}/preferences`
+
+> Body parameter
+
+```json
+{
+  "task_notification_alert_dismissed": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                   | Required | Description             |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|-------------------------|
+| `user` | path | string                                                                                                 | true     | User ID, name, or me    |
+| `body` | body | [codersdk.UpdateUserPreferenceSettingsRequest](schemas.md#codersdkupdateuserpreferencesettingsrequest) | true     | New preference settings |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "task_notification_alert_dismissed": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserPreferenceSettings](schemas.md#codersdkuserpreferencesettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update user profile
 
 ### Code samples

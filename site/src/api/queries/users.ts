@@ -6,9 +6,11 @@ import type {
 	RequestOneTimePasscodeRequest,
 	UpdateUserAppearanceSettingsRequest,
 	UpdateUserPasswordRequest,
+	UpdateUserPreferenceSettingsRequest,
 	UpdateUserProfileRequest,
 	User,
 	UserAppearanceSettings,
+	UserPreferenceSettings,
 	UsersRequest,
 } from "api/typesGenerated";
 import {
@@ -273,6 +275,33 @@ export const updateAppearanceSettings = (
 			// `theme_preference` for the `me` query.
 			await queryClient.invalidateQueries({
 				queryKey: myAppearanceKey,
+			}),
+	};
+};
+
+const myPreferencesKey = ["me", "preferences"];
+
+export const preferenceSettings =
+	(): UseQueryOptions<UserPreferenceSettings> => {
+		return {
+			queryKey: myPreferencesKey,
+			queryFn: () => API.getUserPreferenceSettings(),
+		};
+	};
+
+export const updatePreferenceSettings = (
+	queryClient: QueryClient,
+): UseMutationOptions<
+	UserPreferenceSettings,
+	unknown,
+	UpdateUserPreferenceSettingsRequest,
+	unknown
+> => {
+	return {
+		mutationFn: (req) => API.updateUserPreferenceSettings(req),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries({
+				queryKey: myPreferencesKey,
 			}),
 	};
 };
