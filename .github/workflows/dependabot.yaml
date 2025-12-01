@@ -28,6 +28,7 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Approve the PR
+        if: steps.metadata.outputs.package-ecosystem != 'github-actions'
         run: |
           echo "Approving $PR_URL"
           gh pr review --approve "$PR_URL"
@@ -36,6 +37,7 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Enable auto-merge
+        if: steps.metadata.outputs.package-ecosystem != 'github-actions'
         run: |
           echo "Enabling auto-merge for $PR_URL"
           gh pr merge --auto --squash "$PR_URL"
@@ -45,6 +47,11 @@ jobs:
 
       - name: Send Slack notification
         run: |
+          if [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+            STATUS_TEXT=":pr-opened: Dependabot opened PR #${PR_NUMBER} (GitHub Actions changes are not auto-merged)"
+          else
+            STATUS_TEXT=":pr-merged: Auto merge enabled for Dependabot PR #${PR_NUMBER}"
+          fi
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "username": "dependabot",
@@ -54,7 +61,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #'"${PR_NUMBER}"'",
+                  "text": "'"${STATUS_TEXT}"'",
                   "emoji": true
                 }
               },
@@ -84,6 +91,7 @@ jobs:
           }' "${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}"
         env:
           SLACK_WEBHOOK: ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}

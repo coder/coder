@@ -1177,6 +1177,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	invalidateTemplatePresets = async (
+		templateId: string,
+	): Promise<TypesGen.InvalidatePresetsResponse> => {
+		const response = await this.axios.post<TypesGen.InvalidatePresetsResponse>(
+			`/api/v2/templates/${templateId}/prebuilds/invalidate`,
+		);
+		return response.data;
+	};
+
 	getWorkspace = async (
 		workspaceId: string,
 		params?: TypesGen.WorkspaceOptions,
@@ -1471,6 +1480,19 @@ class ApiMethods {
 		data: TypesGen.UpdateUserAppearanceSettingsRequest,
 	): Promise<TypesGen.UserAppearanceSettings> => {
 		const response = await this.axios.put("/api/v2/users/me/appearance", data);
+		return response.data;
+	};
+
+	getUserPreferenceSettings =
+		async (): Promise<TypesGen.UserPreferenceSettings> => {
+			const response = await this.axios.get("/api/v2/users/me/preferences");
+			return response.data;
+		};
+
+	updateUserPreferenceSettings = async (
+		req: TypesGen.UpdateUserPreferenceSettingsRequest,
+	): Promise<TypesGen.UserPreferenceSettings> => {
+		const response = await this.axios.put("/api/v2/users/me/preferences", req);
 		return response.data;
 	};
 

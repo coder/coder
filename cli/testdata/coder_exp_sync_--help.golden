@@ -1,0 +1,27 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync [flags]
+
+  Manage unit dependencies for coordinated startup
+
+  Commands for orchestrating unit startup order in workspaces. Units are most
+  commonly coder scripts. Use these commands to declare dependencies between
+  units, coordinate their startup sequence, and ensure units start only after
+  their dependencies are ready. This helps prevent race conditions and startup
+  failures.
+
+SUBCOMMANDS:
+    complete    Mark a unit as complete
+    ping        Test agent socket connectivity and health
+    start       Wait until all unit dependencies are satisfied
+    status      Show unit status and dependency state
+    want        Declare that a unit depends on another unit completing before it
+                can start
+
+OPTIONS:
+      --socket-path string, $CODER_AGENT_SOCKET_PATH
+          Specify the path for the agent socket.
+
+———
+Run `coder --help` for a list of global options.

@@ -2103,6 +2103,7 @@ export type FeatureName =
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
+	| "task_batch_actions"
 	| "template_rbac"
 	| "user_limit"
 	| "user_role_management"
@@ -2128,6 +2129,7 @@ export const FeatureNames: FeatureName[] = [
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
+	"task_batch_actions",
 	"template_rbac",
 	"user_limit",
 	"user_role_management",
@@ -5478,6 +5480,11 @@ export interface UpdateUserPasswordRequest {
 }
 
 // From codersdk/users.go
+export interface UpdateUserPreferenceSettingsRequest {
+	readonly task_notification_alert_dismissed: boolean;
+}
+
+// From codersdk/users.go
 export interface UpdateUserProfileRequest {
 	readonly username: string;
 	readonly name: string;
@@ -5703,6 +5710,11 @@ export interface UserLoginType {
 export interface UserParameter {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/users.go
+export interface UserPreferenceSettings {
+	readonly task_notification_alert_dismissed: boolean;
 }
 
 // From codersdk/deployment.go

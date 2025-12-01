@@ -1,23 +1,28 @@
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
+	MockSystemNotificationTemplates,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
-import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { getTemplatesQueryKey } from "api/queries/templates";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { getTemplatesQueryKey } from "../../api/queries/templates";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
 	title: "pages/TasksPage",
 	component: TasksPage,
-	decorators: [withAuthProvider, withProxyProvider()],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		user: MockUserOwner,
 		permissions: {
@@ -251,6 +256,243 @@ export const InitializingTasks: Story = {
 			{
 				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
 				data: [MockTemplate],
+			},
+		],
+	},
+};
+
+export const BatchActionsEnabled: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+};
+
+export const BatchActionsSomeSelected: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select first two tasks", async () => {
+			await canvas.findByRole("table");
+			const checkboxes = await canvas.findAllByRole("checkbox");
+			// Skip the "select all" checkbox (first one) and select the next two
+			await userEvent.click(checkboxes[1]);
+			await userEvent.click(checkboxes[2]);
+		});
+	},
+};
+
+export const BatchActionsAllSelected: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select all tasks using header checkbox", async () => {
+			await canvas.findByRole("table");
+			const checkboxes = await canvas.findAllByRole("checkbox");
+			// Click the first checkbox (select all)
+			await userEvent.click(checkboxes[0]);
+		});
+	},
+};
+
+export const BatchActionsDropdownOpen: Story = {
+	parameters: {
+		features: ["task_batch_actions"],
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select some tasks", async () => {
+			await canvas.findByRole("table");
+			const checkboxes = await canvas.findAllByRole("checkbox");
+			await userEvent.click(checkboxes[1]);
+			await userEvent.click(checkboxes[2]);
+		});
+
+		await step("Open bulk actions dropdown", async () => {
+			const bulkActionsButton = await canvas.findByRole("button", {
+				name: /bulk actions/i,
+			});
+			await userEvent.click(bulkActionsButton);
+		});
+	},
+};
+
+export const AllTaskNotificationsDisabledAlertVisible: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User notification preferences: empty because user hasn't changed defaults
+				// Task notifications are disabled by default (enabled_by_default: false)
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				// User preferences: alert NOT dismissed
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: false },
+			},
+		],
+	},
+};
+
+export const AllTaskNotificationsDisabledAlertDismissed: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User notification preferences: empty because user hasn't changed defaults
+				// Task notifications are disabled by default (enabled_by_default: false)
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				// User preferences: alert IS dismissed
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: true },
+			},
+		],
+	},
+};
+
+export const OneTaskNotificationEnabledAlertHidden: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User has explicitly enabled one task notification (Task Working)
+				// Since at least one task notification is enabled, the warning alert should not appear
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [
+					{
+						id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f", // Task Working
+						disabled: false,
+						updated_at: new Date().toISOString(),
+					},
+				],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				// User preferences: doesn't matter since alert shouldn't show anyway
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: false },
+			},
+		],
+	},
+};
+
+export const AllTaskNotificationsExplicitlyDisabledAlertVisible: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User has explicitly disabled a task notification
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [
+					{
+						id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799", // Task Idle
+						disabled: true,
+						updated_at: "2024-08-06T11:58:37.755053Z",
+					},
+				],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				// User preferences: alert NOT dismissed
+				key: ["me", "preferences"],
+				data: { task_notification_alert_dismissed: false },
 			},
 		],
 	},
