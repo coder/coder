@@ -236,6 +236,12 @@ WHERE
 			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower(@owner_username) AND deleted = false)
 		ELSE true
 	END
+	-- Filter by owner_email
+	AND CASE
+		WHEN @owner_email :: text != '' THEN
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.email) = lower(@owner_email) AND deleted = false)
+		ELSE true
+	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
