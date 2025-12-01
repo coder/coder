@@ -891,25 +891,21 @@
 					"title": "Coder Tasks",
 					"description": "Run Coding Agents on your Own Infrastructure",
 					"path": "./ai-coder/tasks.md",
-					"state": ["beta"],
 					"children": [
 						{
 							"title": "Understanding Coder Tasks",
 							"description": "Core principles and concepts behind Coder Tasks",
-							"path": "./ai-coder/tasks-core-principles.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-core-principles.md"
 						},
 						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
-							"path": "./ai-coder/custom-agents.md",
-							"state": ["beta"]
+							"path": "./ai-coder/custom-agents.md"
 						},
 						{
 							"title": "Tasks Migration Guide",
 							"description": "Changes to Coder Tasks made in v2.28",
-							"path": "./ai-coder/tasks-migration.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
 							"title": "Security \u0026 Boundaries",
@@ -919,8 +915,7 @@
 						{
 							"title": "Create a GitHub to Coder Tasks Workflow",
 							"description": "How to setup Coder Tasks to run in GitHub",
-							"path": "./ai-coder/github-to-tasks.md",
-							"state": ["beta"]
+							"path": "./ai-coder/github-to-tasks.md"
 						}
 					]
 				},
