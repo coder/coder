@@ -185,8 +185,8 @@ importers:
         specifier: 4.17.21
         version: 4.17.21
       lucide-react:
-        specifier: 0.552.0
-        version: 0.552.0(react@19.2.0)
+        specifier: 0.555.0
+        version: 0.555.0(react@19.2.0)
       monaco-editor:
         specifier: 0.55.1
         version: 0.55.1
@@ -4728,8 +4728,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==, tarball: https://registry.npmjs.org/lru-cache/-/lru-cache-5.1.1.tgz}
 
-  lucide-react@0.552.0:
-    resolution: {integrity: sha512-g9WCjmfwqbexSnZE+2cl21PCfXOcqnGeWeMTNAOGEfpPbm/ZF4YIq77Z8qWrxbu660EKuLB4nSLggoKnCb+isw==, tarball: https://registry.npmjs.org/lucide-react/-/lucide-react-0.552.0.tgz}
+  lucide-react@0.555.0:
+    resolution: {integrity: sha512-D8FvHUGbxWBRQM90NZeIyhAvkFfsh3u9ekrMvJ30Z6gnpBHS6HC6ldLg7tL45hwiIz/u66eKDtdA23gwwGsAHA==, tarball: https://registry.npmjs.org/lucide-react/-/lucide-react-0.555.0.tgz}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -11222,7 +11222,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@0.552.0(react@19.2.0):
+  lucide-react@0.555.0(react@19.2.0):
     dependencies:
       react: 19.2.0
 
