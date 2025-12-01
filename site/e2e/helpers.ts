@@ -207,8 +207,7 @@ export const verifyParameters = async (
 			case "number":
 				{
 					const parameterField = parameterLabel.locator("input");
-					const value = await parameterField.inputValue();
-					expect(value).toEqual(buildParameter.value);
+					await expect(parameterField).toHaveValue(buildParameter.value);
 				}
 				break;
 			default:
