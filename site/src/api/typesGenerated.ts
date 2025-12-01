@@ -1778,6 +1778,7 @@ export interface DeploymentValues {
 	readonly web_terminal_renderer?: string;
 	readonly allow_workspace_renames?: boolean;
 	readonly healthcheck?: HealthcheckConfig;
+	readonly retention?: RetentionConfig;
 	readonly cli_upgrade_message?: string;
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
@@ -4154,6 +4155,39 @@ export interface Response {
 	 * context if there is a set of errors in the primary 'Message'.
 	 */
 	readonly validations?: readonly ValidationError[];
+}
+
+// From codersdk/deployment.go
+/**
+ * RetentionConfig contains configuration for data retention policies.
+ * These settings control how long various types of data are retained in the database
+ * before being automatically purged. Setting a value to 0 disables retention for that
+ * data type (data is kept indefinitely).
+ */
+export interface RetentionConfig {
+	/**
+	 * Global is the default retention policy for audit logs, connection logs,
+	 * and API keys. Individual retention settings override this value when set
+	 * to a non-zero duration. Does not affect AI Bridge retention which has its
+	 * own setting.
+	 */
+	readonly global: number;
+	/**
+	 * AuditLogs controls how long audit log entries are retained.
+	 * Set to 0 to use the global retention value.
+	 */
+	readonly audit_logs: number;
+	/**
+	 * ConnectionLogs controls how long connection log entries are retained.
+	 * Set to 0 to use the global retention value.
+	 */
+	readonly connection_logs: number;
+	/**
+	 * APIKeys controls how long expired API keys are retained before being deleted.
+	 * Keys are only deleted if they have been expired for at least this duration.
+	 * Defaults to 7 days to preserve existing behavior.
+	 */
+	readonly api_keys: number;
 }
 
 // From codersdk/roles.go

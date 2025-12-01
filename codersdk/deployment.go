@@ -501,6 +501,7 @@ type DeploymentValues struct {
 	WebTerminalRenderer             serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	AllowWorkspaceRenames           serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
+	Retention                       RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
@@ -811,6 +812,28 @@ type UserQuietHoursScheduleConfig struct {
 type HealthcheckConfig struct {
 	Refresh           serpent.Duration `json:"refresh" typescript:",notnull"`
 	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
+}
+
+// RetentionConfig contains configuration for data retention policies.
+// These settings control how long various types of data are retained in the database
+// before being automatically purged. Setting a value to 0 disables retention for that
+// data type (data is kept indefinitely).
+type RetentionConfig struct {
+	// Global is the default retention policy for audit logs, connection logs,
+	// and API keys. Individual retention settings override this value when set
+	// to a non-zero duration. Does not affect AI Bridge retention which has its
+	// own setting.
+	Global serpent.Duration `json:"global" typescript:",notnull"`
+	// AuditLogs controls how long audit log entries are retained.
+	// Set to 0 to use the global retention value.
+	AuditLogs serpent.Duration `json:"audit_logs" typescript:",notnull"`
+	// ConnectionLogs controls how long connection log entries are retained.
+	// Set to 0 to use the global retention value.
+	ConnectionLogs serpent.Duration `json:"connection_logs" typescript:",notnull"`
+	// APIKeys controls how long expired API keys are retained before being deleted.
+	// Keys are only deleted if they have been expired for at least this duration.
+	// Defaults to 7 days to preserve existing behavior.
+	APIKeys serpent.Duration `json:"api_keys" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -1179,6 +1202,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge",
 			YAML: "aibridge",
+		}
+		deploymentGroupRetention = serpent.Group{
+			Name:        "Retention",
+			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
+			YAML:        "retention",
 		}
 	)
 
@@ -3361,6 +3389,51 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "60d",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "retention",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		// Retention settings
+		{
+			Name:        "Global Retention",
+			Description: "Default retention policy for audit logs, connection logs, and API keys. Individual retention settings override this value when set to a non-zero duration. Does not affect AI Bridge retention. Set to 0 to disable (data is kept indefinitely unless individual settings are configured).",
+			Flag:        "global-retention",
+			Env:         "CODER_GLOBAL_RETENTION",
+			Value:       &c.Retention.Global,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "global",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Audit Logs Retention",
+			Description: "How long audit log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0.",
+			Flag:        "audit-logs-retention",
+			Env:         "CODER_AUDIT_LOGS_RETENTION",
+			Value:       &c.Retention.AuditLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "audit_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Connection Logs Retention",
+			Description: "How long connection log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0.",
+			Flag:        "connection-logs-retention",
+			Env:         "CODER_CONNECTION_LOGS_RETENTION",
+			Value:       &c.Retention.ConnectionLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "connection_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "API Keys Retention",
+			Description: "How long expired API keys are retained before being deleted. Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key. Set to 0 to disable automatic deletion of expired keys.",
+			Flag:        "api-keys-retention",
+			Env:         "CODER_API_KEYS_RETENTION",
+			Value:       &c.Retention.APIKeys,
+			Default:     "7d",
+			Group:       &deploymentGroupRetention,
+			YAML:        "api_keys",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{

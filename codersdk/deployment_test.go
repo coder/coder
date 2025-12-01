@@ -703,3 +703,81 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 		})
 	}
 }
+
+func TestRetentionConfigParsing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                   string
+		environment            []serpent.EnvVar
+		expectedGlobal         time.Duration
+		expectedAuditLogs      time.Duration
+		expectedConnectionLogs time.Duration
+		expectedAPIKeys        time.Duration
+	}{
+		{
+			name:                   "Defaults",
+			environment:            []serpent.EnvVar{},
+			expectedGlobal:         0,
+			expectedAuditLogs:      0,
+			expectedConnectionLogs: 0,
+			expectedAPIKeys:        7 * 24 * time.Hour, // 7 days default
+		},
+		{
+			name: "GlobalRetentionSet",
+			environment: []serpent.EnvVar{
+				{Name: "CODER_GLOBAL_RETENTION", Value: "90d"},
+			},
+			expectedGlobal:         90 * 24 * time.Hour,
+			expectedAuditLogs:      0,
+			expectedConnectionLogs: 0,
+			expectedAPIKeys:        7 * 24 * time.Hour,
+		},
+		{
+			name: "IndividualRetentionSet",
+			environment: []serpent.EnvVar{
+				{Name: "CODER_AUDIT_LOGS_RETENTION", Value: "30d"},
+				{Name: "CODER_CONNECTION_LOGS_RETENTION", Value: "60d"},
+				{Name: "CODER_API_KEYS_RETENTION", Value: "14d"},
+			},
+			expectedGlobal:         0,
+			expectedAuditLogs:      30 * 24 * time.Hour,
+			expectedConnectionLogs: 60 * 24 * time.Hour,
+			expectedAPIKeys:        14 * 24 * time.Hour,
+		},
+		{
+			name: "AllRetentionSet",
+			environment: []serpent.EnvVar{
+				{Name: "CODER_GLOBAL_RETENTION", Value: "90d"},
+				{Name: "CODER_AUDIT_LOGS_RETENTION", Value: "365d"},
+				{Name: "CODER_CONNECTION_LOGS_RETENTION", Value: "30d"},
+				{Name: "CODER_API_KEYS_RETENTION", Value: "0"},
+			},
+			expectedGlobal:         90 * 24 * time.Hour,
+			expectedAuditLogs:      365 * 24 * time.Hour,
+			expectedConnectionLogs: 30 * 24 * time.Hour,
+			expectedAPIKeys:        0, // Explicitly disabled
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := codersdk.DeploymentValues{}
+			opts := dv.Options()
+
+			err := opts.SetDefaults()
+			require.NoError(t, err)
+
+			err = opts.ParseEnv(tt.environment)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedGlobal, dv.Retention.Global.Value(), "global retention mismatch")
+			assert.Equal(t, tt.expectedAuditLogs, dv.Retention.AuditLogs.Value(), "audit logs retention mismatch")
+			assert.Equal(t, tt.expectedConnectionLogs, dv.Retention.ConnectionLogs.Value(), "connection logs retention mismatch")
+			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
+		})
+	}
+}

@@ -742,3 +742,27 @@ aibridge:
   # (token, prompt, tool use).
   # (default: 60d, type: duration)
   retention: 1440h0m0s
+# Configure data retention policies for various database tables. Retention
+# policies automatically purge old data to reduce database size and improve
+# performance. Setting a retention duration to 0 disables automatic purging for
+# that data type.
+retention:
+  # Default retention policy for audit logs, connection logs, and API keys.
+  # Individual retention settings override this value when set to a non-zero
+  # duration. Does not affect AI Bridge retention. Set to 0 to disable (data is kept
+  # indefinitely unless individual settings are configured).
+  # (default: 0, type: duration)
+  global: 0s
+  # How long audit log entries are retained. Set to 0 to use the global retention
+  # value, or to disable if global is also 0.
+  # (default: 0, type: duration)
+  audit_logs: 0s
+  # How long connection log entries are retained. Set to 0 to use the global
+  # retention value, or to disable if global is also 0.
+  # (default: 0, type: duration)
+  connection_logs: 0s
+  # How long expired API keys are retained before being deleted. Keeping expired
+  # keys allows the backend to return a more helpful error when a user tries to use
+  # an expired key. Set to 0 to disable automatic deletion of expired keys.
+  # (default: 7d, type: duration)
+  api_keys: 168h0m0s
