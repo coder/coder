@@ -281,13 +281,13 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	})
 
 	sess := configure(ctx, t, api, &proto.Config{})
-	_ = initDo(t, sess, testutil.CreateTar(t, nil))
+	initDo(t, sess, testutil.CreateTar(t, nil))
 
 	// provisioner requires plan before apply, so test cancel with plan.
 	err = sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	for _, line := range []string{"init", "plan_start"} {
+	for _, line := range []string{"plan_start"} {
 	LoopStart:
 		msg, err := sess.Recv()
 		require.NoError(t, err)
