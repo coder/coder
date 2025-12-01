@@ -114,7 +114,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	w, err := convertWorkspace(
+		ctx,
 		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -239,15 +241,15 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		userData  map[string]database.User
-		groupData map[string]database.Group
+		memberData map[uuid.UUID]database.OrganizationMembersRow
+		groupData  map[uuid.UUID]database.Group
 	)
 	if api.Experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
 		var err error
-		userData, groupData, err = findWorkspaceUsersAndGroups(ctx, api, workspaces)
+		memberData, groupData, err = findWorkspaceMembersAndGroups(ctx, api, workspaces)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching users and groups for workspaces.",
+				Message: "Internal error fetching members and groups for workspaces.",
 				Detail:  err.Error(),
 			})
 			return
@@ -255,11 +257,13 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	wss, err := convertWorkspaces(
+		ctx,
 		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspaces,
 		data,
-		userData,
+		memberData,
 		groupData,
 	)
 	if err != nil {
@@ -351,7 +355,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 
 	w, err := convertWorkspace(
+		ctx,
 		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -882,7 +888,9 @@ func createWorkspace(
 	}
 
 	w, err := convertWorkspace(
+		ctx,
 		api.Experiments,
+		api.Logger,
 		initiatorID,
 		workspace,
 		apiBuild,
@@ -1528,7 +1536,9 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	w, err := convertWorkspace(
+		ctx,
 		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -2108,7 +2118,9 @@ func (api *API) watchWorkspace(
 			appStatus = data.appStatuses[0]
 		}
 		w, err := convertWorkspace(
+			ctx,
 			api.Experiments,
+			api.Logger,
 			apiKey.UserID,
 			workspace,
 			data.builds[0],
@@ -2561,12 +2573,14 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 }
 
 func convertWorkspaces(
+	ctx context.Context,
 	experiments codersdk.Experiments,
+	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspaces []database.Workspace,
 	data workspaceData,
-	userData map[string]database.User,
-	groupData map[string]database.Group,
+	memberData map[uuid.UUID]database.OrganizationMembersRow,
+	groupData map[uuid.UUID]database.Group,
 ) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {
@@ -2599,14 +2613,16 @@ func convertWorkspaces(
 		appStatus := appStatusesByWorkspaceID[workspace.ID]
 
 		w, err := convertWorkspace(
+			ctx,
 			experiments,
+			logger,
 			requesterID,
 			workspace,
 			build,
 			template,
 			data.allowRenames,
 			appStatus,
-			userData,
+			memberData,
 			groupData,
 		)
 		if err != nil {
@@ -2619,15 +2635,17 @@ func convertWorkspaces(
 }
 
 func convertWorkspace(
+	ctx context.Context,
 	experiments codersdk.Experiments,
+	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
 	allowRenames bool,
 	latestAppStatus codersdk.WorkspaceAppStatus,
-	userData map[string]database.User,
-	groupData map[string]database.Group,
+	memberData map[uuid.UUID]database.OrganizationMembersRow,
+	groupData map[uuid.UUID]database.Group,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
 		return codersdk.Workspace{}, xerrors.Errorf("developer error: requesterID cannot be uuid.Nil!")
@@ -2674,28 +2692,50 @@ func convertWorkspace(
 	if experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
 		out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
 
-		// Users
-		for uid, aclEntry := range workspace.UserACL {
-			user := userData[uid]
-			out = append(out, codersdk.SharedWorkspaceActor{
-				ID:        user.ID,
+		// Members
+		for id, aclEntry := range workspace.UserACL {
+			userID, err := uuid.Parse(id)
+			if err != nil {
+				logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+				continue
+			}
+
+			actor := codersdk.SharedWorkspaceActor{
+				ID:        userID,
 				ActorType: codersdk.SharedWorkspaceActorTypeUser,
-				Name:      user.Name,
-				AvatarURL: user.AvatarURL,
 				Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-			})
+			}
+
+			// Member data is only available if user has access to it
+			if member, ok := memberData[userID]; ok {
+				actor.Name = member.Name
+				actor.AvatarURL = member.AvatarURL
+			}
+
+			out = append(out, actor)
 		}
 
 		// Groups
-		for gid, aclEntry := range workspace.GroupACL {
-			group := groupData[gid]
-			out = append(out, codersdk.SharedWorkspaceActor{
-				ID:        group.ID,
+		for id, aclEntry := range workspace.GroupACL {
+			groupID, err := uuid.Parse(id)
+			if err != nil {
+				logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+				continue
+			}
+
+			actor := codersdk.SharedWorkspaceActor{
+				ID:        groupID,
 				ActorType: codersdk.SharedWorkspaceActorTypeGroup,
-				Name:      group.Name,
-				AvatarURL: group.AvatarURL,
 				Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-			})
+			}
+
+			// Group data is only available if user has access to it
+			if group, ok := groupData[groupID]; ok {
+				actor.Name = group.Name
+				actor.AvatarURL = group.AvatarURL
+			}
+
+			out = append(out, actor)
 		}
 
 		sharedWith = &out
@@ -2904,71 +2944,75 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 	return codersdk.WorkspaceRoleDeleted
 }
 
-// findWorkspaceUsersAndGroups fetches all users and groups present in
-// workspaces' ACLs.
-func findWorkspaceUsersAndGroups(
+// findWorkspaceMembersAndGroups fetches all organization members and
+// groups present in workspaces' ACLs. All workspaces must belong to
+// the same organization.
+func findWorkspaceMembersAndGroups(
 	ctx context.Context,
 	api *API,
 	workspaces []database.Workspace,
 ) (
-	userData map[string]database.User,
-	groupData map[string]database.Group,
+	memberData map[uuid.UUID]database.OrganizationMembersRow,
+	groupData map[uuid.UUID]database.Group,
 	err error,
 ) {
-	// Get all the user IDs and group IDs that we need to fetch
+	if len(workspaces) == 0 {
+		return
+	}
+
+	// Get all the group IDs that we need to fetch.
+	// TODO(geokat): Implement a way to fetch org members by IDs. For
+	// now we have to fetch all of them even if we only need one.
 	var (
-		uids []uuid.UUID
-		gids []uuid.UUID
+		groupIDs     []uuid.UUID
+		fetchMembers bool
 	)
 	for _, ws := range workspaces {
-		// ws.UserACL is a map[id]...
-		for id := range ws.UserACL {
-			uid, err := uuid.Parse(id)
-			if err != nil {
-				api.Logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", ws.ID))
-				continue
-			}
-			uids = append(uids, uid)
+		if ws.OrganizationID != workspaces[0].OrganizationID {
+			return nil, nil, xerrors.New("all workspaces must belong to the same organization")
+		}
+		if len(ws.UserACL) != 0 {
+			fetchMembers = true
 		}
 		for id := range ws.GroupACL {
-			gid, err := uuid.Parse(id)
+			groupID, err := uuid.Parse(id)
 			if err != nil {
 				api.Logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", ws.ID))
 				continue
 			}
-			gids = append(gids, gid)
+			groupIDs = append(groupIDs, groupID)
 		}
 	}
 
-	// Fetch the users
-	if uids != nil {
-		uids = slice.Unique(uids)
-
-		users, err := api.Database.GetUsersByIDs(ctx, uids)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, xerrors.Errorf("get users by IDs: %w", err)
+	// Fetch org members
+	if fetchMembers {
+		params := database.OrganizationMembersParams{
+			OrganizationID: workspaces[0].OrganizationID,
 		}
-
-		userData = make(map[string]database.User, len(uids))
-		for _, user := range users {
-			userData[user.ID.String()] = user
+		members, err := api.Database.OrganizationMembers(ctx, params)
+		if err != nil && !httpapi.Is404Error(err) {
+			return nil, nil, xerrors.Errorf("get organization members: %w", err)
+		}
+		memberData = make(map[uuid.UUID]database.OrganizationMembersRow, len(members))
+		for _, member := range members {
+			memberData[member.OrganizationMember.UserID] = member
 		}
 	}
 
 	// Fetch the groups
-	if gids != nil {
-		gids = slice.Unique(gids)
+	if groupIDs != nil {
+		groupIDs = slice.Unique(groupIDs)
 
-		groupRows, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: gids})
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		groupRows, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: groupIDs})
+		if err != nil && !httpapi.Is404Error(err) {
 			return nil, nil, xerrors.Errorf("get groups: %w", err)
 		}
 
-		groupData = make(map[string]database.Group, len(gids))
+		groupData = make(map[uuid.UUID]database.Group, len(groupIDs))
 		for _, groupRow := range groupRows {
-			groupData[groupRow.Group.ID.String()] = groupRow.Group
+			groupData[groupRow.Group.ID] = groupRow.Group
 		}
 	}
 
-	return userData, groupData, nil
+	return memberData, groupData, nil
 }

@@ -480,7 +480,16 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 		return nil, xerrors.Errorf("fetch workspace data: %w", err)
 	}
 
-	apiWorkspaces, err := convertWorkspaces(api.Experiments, requesterID, workspaces, data, nil, nil)
+	apiWorkspaces, err := convertWorkspaces(
+		ctx,
+		api.Experiments,
+		api.Logger,
+		requesterID,
+		workspaces,
+		data,
+		nil,
+		nil,
+	)
 	if err != nil {
 		return nil, xerrors.Errorf("convert workspaces: %w", err)
 	}
@@ -554,7 +563,9 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ws, err := convertWorkspace(
+		ctx,
 		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
