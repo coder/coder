@@ -1406,3 +1406,199 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		require.NotContains(t, logIDs, oldCreateLog.ID, "old create log should be deleted by audit logs retention")
 	})
 }
+
+func TestDeleteExpiredAPIKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RetentionEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		retentionPeriod := 7 * 24 * time.Hour                            // 7 days
+		expiredLongAgo := now.Add(-retentionPeriod).Add(-24 * time.Hour) // Expired 8 days ago (should be deleted)
+		expiredRecently := now.Add(-retentionPeriod).Add(24 * time.Hour) // Expired 6 days ago (should be kept)
+		notExpired := now.Add(24 * time.Hour)                            // Expires tomorrow (should be kept)
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+
+		// Create API key that expired long ago (should be deleted)
+		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: expiredLongAgo,
+			TokenName: "old-expired-key",
+		})
+
+		// Create API key that expired recently (should be kept)
+		recentExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: expiredRecently,
+			TokenName: "recent-expired-key",
+		})
+
+		// Create API key that hasn't expired yet (should be kept)
+		activeKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: notExpired,
+			TokenName: "active-key",
+		})
+
+		// Run the purge with configured retention period
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(retentionPeriod),
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify results
+		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
+		require.Error(t, err, "old expired key should be deleted")
+
+		_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
+		require.NoError(t, err, "recently expired key should be kept")
+
+		_, err = db.GetAPIKeyByID(ctx, activeKey.ID)
+		require.NoError(t, err, "active key should be kept")
+	})
+
+	t.Run("RetentionDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		expiredLongAgo := now.Add(-365 * 24 * time.Hour) // Expired 1 year ago
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+
+		// Create API key that expired long ago (should NOT be deleted when retention is 0)
+		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: expiredLongAgo,
+			TokenName: "old-expired-key",
+		})
+
+		// Run the purge with retention disabled (0)
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(0), // disabled
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify old expired key is still present
+		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
+		require.NoError(t, err, "old expired key should NOT be deleted when retention is disabled")
+	})
+
+	t.Run("GlobalRetentionFallback", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		retentionPeriod := 14 * 24 * time.Hour                           // 14 days global
+		expiredLongAgo := now.Add(-retentionPeriod).Add(-24 * time.Hour) // Expired 15 days ago (should be deleted)
+		expiredRecently := now.Add(-retentionPeriod).Add(24 * time.Hour) // Expired 13 days ago (should be kept)
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+
+		// Create API key that expired long ago (should be deleted)
+		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: expiredLongAgo,
+			TokenName: "old-expired-key",
+		})
+
+		// Create API key that expired recently (should be kept)
+		recentExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: expiredRecently,
+			TokenName: "recent-expired-key",
+		})
+
+		// Run the purge with global retention (API keys retention is 0, so it falls back)
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				Global:  serpent.Duration(retentionPeriod), // Use global
+				APIKeys: serpent.Duration(0),               // Not set, should fall back to global
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify results
+		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
+		require.Error(t, err, "old expired key should be deleted via global retention")
+
+		_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
+		require.NoError(t, err, "recently expired key should be kept")
+	})
+
+	t.Run("CustomRetention30Days", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
+		expiredLongAgo := now.Add(-retentionPeriod).Add(-24 * time.Hour) // Expired 31 days ago (should be deleted)
+		expiredRecently := now.Add(-retentionPeriod).Add(24 * time.Hour) // Expired 29 days ago (should be kept)
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+
+		// Create API key that expired long ago (should be deleted)
+		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: expiredLongAgo,
+			TokenName: "old-expired-key",
+		})
+
+		// Create API key that expired recently (should be kept)
+		recentExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    user.ID,
+			ExpiresAt: expiredRecently,
+			TokenName: "recent-expired-key",
+		})
+
+		// Run the purge with 30-day retention
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(retentionPeriod),
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify results
+		_, err := db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
+		require.Error(t, err, "old expired key should be deleted with 30-day retention")
+
+		_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
+		require.NoError(t, err, "recently expired key should be kept with 30-day retention")
+	})
+}
