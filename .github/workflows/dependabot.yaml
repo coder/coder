@@ -47,7 +47,7 @@ jobs:
 
       - name: Send Slack notification
         run: |
-          if [ "${{ steps.metadata.outputs.package-ecosystem }}" = "github-actions" ]; then
+          if [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
             STATUS_TEXT=":pr-opened: Dependabot opened PR #${PR_NUMBER} (GitHub Actions changes are not auto-merged)"
             STATUS_EMOJI=":pr-opened:"
           else
@@ -93,6 +93,7 @@ jobs:
           }' "${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}"
         env:
           SLACK_WEBHOOK: ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
