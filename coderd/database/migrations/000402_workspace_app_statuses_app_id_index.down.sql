@@ -1,0 +1,1 @@
+DROP INDEX idx_workspace_app_statuses_app_id;

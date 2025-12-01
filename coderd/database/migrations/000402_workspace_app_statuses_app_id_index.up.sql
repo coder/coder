@@ -1,0 +1,1 @@
+CREATE INDEX idx_workspace_app_statuses_app_id ON workspace_app_statuses(app_id);
