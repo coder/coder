@@ -119,9 +119,9 @@ updates:
     commit-message:
       prefix: "chore"
     groups:
-      coder:
+      coder-modules:
         patterns:
-          - "registry.coder.com/coder/*/coder"
+          - "coder/*/coder"
     labels: []
     ignore:
       - dependency-name: "*"
