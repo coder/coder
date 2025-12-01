@@ -283,7 +283,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uint32 {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		logger.Debug(ctx, "file %s does not exist or can't be read, skip checksum calculation")
+		logger.Debug(ctx, fmt.Sprintf("file %s does not exist or can't be read, skip checksum calculation", path))
 		return 0
 	}
 	return crc32.ChecksumIEEE(content)
