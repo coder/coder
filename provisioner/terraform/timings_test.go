@@ -4,6 +4,8 @@ package terraform_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,11 +124,12 @@ func TestTimingsFromProvision(t *testing.T) {
 	totals := make(map[string]int)
 	for _, ti := range timings {
 		totals[ti.Stage]++
+		data, _ := json.Marshal(ti) // for debugging
+		t.Log(fmt.Sprintf("Timings log :: %s", string(data)))
 	}
 	require.Equal(t, len(initTimings), totals["init"], "init")
 	require.Equal(t, len(planTimings), totals["plan"], "plan")
 	require.Equal(t, len(applyTimings), totals["apply"], "apply")
-
 	// Lastly total
 	require.Len(t, timings, len(initTimings)+len(planTimings)+len(applyTimings))
 
