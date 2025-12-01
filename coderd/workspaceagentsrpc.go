@@ -271,6 +271,8 @@ type agentConnectionMonitor struct {
 	logger         slog.Logger
 	pingPeriod     time.Duration
 
+	cachedWs *agentapi.CachedWorkspaceFields
+
 	// state manipulated by both sendPings() and monitor() goroutines: needs to be threadsafe
 	lastPing atomic.Pointer[time.Time]
 
@@ -452,6 +454,13 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 				WorkspaceID: m.workspaceBuild.WorkspaceID,
 				AgentID:     &m.workspaceAgent.ID,
 			})
+		}
+
+		ctx, err := m.cachedWs.ContextInject(ctx)
+		if err != nil {
+			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
+			//nolint:gocritic
+			m.logger.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
 		}
 		err = checkBuildIsLatest(ctx, m.db, m.workspaceBuild)
 		if err != nil {

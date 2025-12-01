@@ -2441,6 +2441,18 @@ func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Contex
 }
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+	// Fast path: Check if we have a workspace RBAC object in context.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Errors here will result in falling back to GetWorkspaceByAgentID,
+		// in case the cached data is stale.
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
+			return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+		}
+
+		q.log.Debug(ctx, "fast path authorization failed for GetLatestWorkspaceBuildByWorkspaceID, using slow path",
+			slog.F("workspace_id", workspaceID))
+	}
+
 	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
