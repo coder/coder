@@ -1054,184 +1054,127 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 func TestDeleteOldAuditLogs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RetentionEnabled", func(t *testing.T) {
-		t.Parallel()
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 30 * 24 * time.Hour
+	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
+	beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
-		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		// Create old audit log (should be deleted)
-		oldLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           afterThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Create recent audit log (should be kept)
-		recentLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           beforeThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Run the purge with configured retention period
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
+	testCases := []struct {
+		name                  string
+		retentionConfig       codersdk.RetentionConfig
+		oldLogTime            time.Time
+		recentLogTime         *time.Time // nil means no recent log created
+		expectOldDeleted      bool
+		expectedLogsRemaining int
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify results by querying all audit logs
-		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-			LimitOpt: 100,
-		})
-		require.NoError(t, err)
-
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.AuditLog.ID
-		}
-
-		require.NotContains(t, logIDs, oldLog.ID, "old audit log should be deleted")
-		require.Contains(t, logIDs, recentLog.ID, "recent audit log should be kept")
-	})
-
-	t.Run("RetentionDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		oldTime := now.Add(-365 * 24 * time.Hour) // 1 year ago
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		// Create old audit log (should NOT be deleted when retention is 0)
-		oldLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           oldTime,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Run the purge with retention disabled (0)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				AuditLogs: serpent.Duration(0), // disabled
+			oldLogTime:            afterThreshold,
+			recentLogTime:         &beforeThreshold,
+			expectOldDeleted:      true,
+			expectedLogsRemaining: 1, // only recent log remains
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				AuditLogs: serpent.Duration(0),
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
-
-		// Verify old log is still present
-		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-			LimitOpt: 100,
-		})
-		require.NoError(t, err)
-
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.AuditLog.ID
-		}
-
-		require.Contains(t, logIDs, oldLog.ID, "old audit log should NOT be deleted when retention is disabled")
-	})
-
-	t.Run("GlobalRetentionFallback", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
-		beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
-		clk.Set(now).MustWait(ctx)
-
-		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		// Create old audit log (should be deleted)
-		oldLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           afterThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Create recent audit log (should be kept)
-		recentLog := dbgen.AuditLog(t, db, database.AuditLog{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-			Time:           beforeThreshold,
-			Action:         database.AuditActionCreate,
-			ResourceType:   database.ResourceTypeWorkspace,
-		})
-
-		// Run the purge with global retention (audit logs retention is 0, so it falls back)
-		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				Global:    serpent.Duration(retentionPeriod), // Use global
-				AuditLogs: serpent.Duration(0),               // Not set, should fall back to global
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+		{
+			name: "GlobalRetentionFallback",
+			retentionConfig: codersdk.RetentionConfig{
+				Global:    serpent.Duration(retentionPeriod),
+				AuditLogs: serpent.Duration(0), // Not set, should fall back to global
 			},
-		}, clk)
-		defer closer.Close()
-		testutil.TryReceive(ctx, t, done)
+			oldLogTime:            afterThreshold,
+			recentLogTime:         &beforeThreshold,
+			expectOldDeleted:      true,
+			expectedLogsRemaining: 1, // only recent log remains
+		},
+	}
 
-		// Verify results
-		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-			LimitOpt: 100,
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Setup test fixtures.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+
+			// Create old audit log.
+			oldLog := dbgen.AuditLog(t, db, database.AuditLog{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+				Time:           tc.oldLogTime,
+				Action:         database.AuditActionCreate,
+				ResourceType:   database.ResourceTypeWorkspace,
+			})
+
+			// Create recent audit log if specified.
+			var recentLog database.AuditLog
+			if tc.recentLogTime != nil {
+				recentLog = dbgen.AuditLog(t, db, database.AuditLog{
+					UserID:         user.ID,
+					OrganizationID: org.ID,
+					Time:           *tc.recentLogTime,
+					Action:         database.AuditActionCreate,
+					ResourceType:   database.ResourceTypeWorkspace,
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
+				LimitOpt: 100,
+			})
+			require.NoError(t, err)
+			require.Len(t, logs, tc.expectedLogsRemaining, "unexpected number of logs remaining")
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, log := range logs {
+				logIDs[i] = log.AuditLog.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old audit log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old audit log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent audit log should be kept")
+			}
 		})
-		require.NoError(t, err)
+	}
 
-		logIDs := make([]uuid.UUID, len(logs))
-		for i, log := range logs {
-			logIDs[i] = log.AuditLog.ID
-		}
-
-		require.NotContains(t, logIDs, oldLog.ID, "old audit log should be deleted via global retention")
-		require.Contains(t, logIDs, recentLog.ID, "recent audit log should be kept")
-	})
-
+	// ConnectionEventsNotDeleted is a special case that tests multiple audit
+	// action types, so it's kept as a separate subtest.
 	t.Run("ConnectionEventsNotDeleted", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-
 		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		retentionPeriod := 30 * 24 * time.Hour                           // 30 days
-		afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
 		clk.Set(now).MustWait(ctx)
 
 		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
@@ -1239,7 +1182,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		org := dbgen.Organization(t, db, database.Organization{})
 
-		// Create old connection events (should NOT be deleted by audit logs retention)
+		// Create old connection events (should NOT be deleted by audit logs retention).
 		oldConnectLog := dbgen.AuditLog(t, db, database.AuditLog{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
@@ -1272,7 +1215,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			ResourceType:   database.ResourceTypeWorkspace,
 		})
 
-		// Create old non-connection audit log (should be deleted)
+		// Create old non-connection audit log (should be deleted).
 		oldCreateLog := dbgen.AuditLog(t, db, database.AuditLog{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
@@ -1281,7 +1224,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			ResourceType:   database.ResourceTypeWorkspace,
 		})
 
-		// Run the purge with audit logs retention enabled
+		// Run the purge with audit logs retention enabled.
 		done := awaitDoTick(ctx, t, clk)
 		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 			Retention: codersdk.RetentionConfig{
@@ -1291,24 +1234,25 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
-		// Verify results
+		// Verify results.
 		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
 			LimitOpt: 100,
 		})
 		require.NoError(t, err)
+		require.Len(t, logs, 4, "should have 4 connection event logs remaining")
 
 		logIDs := make([]uuid.UUID, len(logs))
 		for i, log := range logs {
 			logIDs[i] = log.AuditLog.ID
 		}
 
-		// Connection events should NOT be deleted by audit logs retention
+		// Connection events should NOT be deleted by audit logs retention.
 		require.Contains(t, logIDs, oldConnectLog.ID, "old connect log should NOT be deleted by audit logs retention")
 		require.Contains(t, logIDs, oldDisconnectLog.ID, "old disconnect log should NOT be deleted by audit logs retention")
 		require.Contains(t, logIDs, oldOpenLog.ID, "old open log should NOT be deleted by audit logs retention")
 		require.Contains(t, logIDs, oldCloseLog.ID, "old close log should NOT be deleted by audit logs retention")
 
-		// Non-connection event should be deleted
+		// Non-connection event should be deleted.
 		require.NotContains(t, logIDs, oldCreateLog.ID, "old create log should be deleted by audit logs retention")
 	})
 }
