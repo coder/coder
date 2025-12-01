@@ -373,6 +373,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("convert plan state: %w", err)
 	}
 
+	// DoneOut must be completed before we aggregate timings to ensure all logs have been processed.
+	<-doneOut
 	msg := &proto.PlanComplete{
 		Timings:              e.timings.aggregate(),
 		Plan:                 planJSON,
@@ -559,6 +561,8 @@ func (e *executor) apply(
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 
+	// DoneOut must be completed before we aggregate timings to ensure all logs have been processed.
+	<-doneOut
 	agg := e.timings.aggregate()
 	return &proto.ApplyComplete{
 		State:   stateContent,
