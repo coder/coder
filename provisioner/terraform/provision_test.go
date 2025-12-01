@@ -199,8 +199,13 @@ func TestProvision_Cancel(t *testing.T) {
 			require.NoError(t, err)
 			t.Logf("wrote fake terraform script to %s", binPath)
 
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+				With(slog.F("source", "provisioner")).
+				Leveled(slog.LevelDebug)
+
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binPath,
+				logger:     &logger,
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 
