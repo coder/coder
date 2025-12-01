@@ -754,7 +754,8 @@ retention:
   # (default: 0, type: duration)
   global: 0s
   # How long audit log entries are retained. Set to 0 to use the global retention
-  # value, or to disable if global is also 0.
+  # value, or to disable if global is also 0. We advise keeping audit logs for at
+  # least a year, and in accordance with your compliance requirements.
   # (default: 0, type: duration)
   audit_logs: 0s
   # How long connection log entries are retained. Set to 0 to use the global

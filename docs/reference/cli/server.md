@@ -1791,7 +1791,7 @@ Default retention policy for audit logs, connection logs, and API keys. Individu
 | YAML        | <code>retention.audit_logs</code>        |
 | Default     | <code>0</code>                           |
 
-How long audit log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0.
+How long audit log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0. We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.
 
 ### --connection-logs-retention
 
