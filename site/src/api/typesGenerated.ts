@@ -4181,6 +4181,11 @@ export interface RetentionConfig {
 	 * Defaults to 7 days to preserve existing behavior.
 	 */
 	readonly api_keys: number;
+	/**
+	 * WorkspaceAgentLogs controls how long workspace agent logs are retained.
+	 * Defaults to 7 days to preserve existing behavior.
+	 */
+	readonly workspace_agent_logs: number;
 }
 
 // From codersdk/roles.go

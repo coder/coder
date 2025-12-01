@@ -717,6 +717,11 @@ that data type.
           How long connection log entries are retained. Set to 0 to disable
           (keep indefinitely).
 
+      --workspace-agent-logs-retention duration, $CODER_WORKSPACE_AGENT_LOGS_RETENTION (default: 7d)
+          How long workspace agent logs are retained. Logs from non-latest
+          workspace builds are deleted after this period to free up storage
+          space. Set to 0 to disable automatic deletion of workspace agent logs.
+
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal
 information before sending data to our servers. Please only disable telemetry

@@ -1803,3 +1803,14 @@ How long connection log entries are retained. Set to 0 to disable (keep indefini
 | Default     | <code>7d</code>                        |
 
 How long expired API keys are retained before being deleted. Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key. Set to 0 to disable automatic deletion of expired keys.
+
+### --workspace-agent-logs-retention
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_WORKSPACE_AGENT_LOGS_RETENTION</code> |
+| YAML        | <code>retention.workspace_agent_logs</code>        |
+| Default     | <code>7d</code>                                    |
+
+How long workspace agent logs are retained. Logs from non-latest workspace builds are deleted after this period to free up storage space. Set to 0 to disable automatic deletion of workspace agent logs.
