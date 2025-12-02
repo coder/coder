@@ -231,6 +231,8 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 		workspace:         workspace,
 		workspaceAgent:    workspaceAgent,
 		workspaceBuild:    workspaceBuild,
+		cachedWs: &agentapi.CachedWorkspaceFields{},
+
 		conn:              &yamuxPingerCloser{mux: mux},
 		pingPeriod:        api.AgentConnectionUpdateFrequency,
 		db:                api.Database,
@@ -242,6 +244,7 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 			slog.F("agent_id", workspaceAgent.ID),
 		),
 	}
+	monitor.cachedWs.UpdateValues(workspace)
 	monitor.init()
 	monitor.start(ctx)
 

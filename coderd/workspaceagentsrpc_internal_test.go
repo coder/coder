@@ -13,6 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -47,6 +48,7 @@ func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 		apiCtx:            ctx,
 		workspaceAgent:    agent,
 		workspaceBuild:    build,
+		cachedWs: &agentapi.CachedWorkspaceFields{},
 		conn:              fConn,
 		db:                mDB,
 		replicaID:         replicaID,
@@ -121,6 +123,7 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 		apiCtx:            ctx,
 		workspaceAgent:    agent,
 		workspaceBuild:    build,
+		cachedWs: &agentapi.CachedWorkspaceFields{},
 		conn:              fConn,
 		db:                mDB,
 		replicaID:         replicaID,
@@ -186,6 +189,7 @@ func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
 		apiCtx:            ctx,
 		workspaceAgent:    agent,
 		workspaceBuild:    build,
+		cachedWs: &agentapi.CachedWorkspaceFields{},
 		conn:              fConn,
 		db:                mDB,
 		replicaID:         replicaID,
