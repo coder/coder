@@ -1559,6 +1559,15 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
 			}
+			tracer := tracerProvider.Tracer(scaletestTracerName)
+			outputs, err := output.parse()
+			if err != nil {
+				return xerrors.Errorf("could not parse --output flags")
+			}
+			reg := prometheus.NewRegistry()
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+
 			defer func() {
 				// Allow time for traces to flush even if command context is
 				// canceled. This is a no-op if tracing is not enabled.
@@ -1570,14 +1579,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
 				<-time.After(prometheusFlags.Wait)
 			}()
-			tracer := tracerProvider.Tracer(scaletestTracerName)
-			outputs, err := output.parse()
-			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
-			}
-			reg := prometheus.NewRegistry()
-			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
-			defer prometheusSrvClose()
+
 			metrics := dashboard.NewMetrics(reg)
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())

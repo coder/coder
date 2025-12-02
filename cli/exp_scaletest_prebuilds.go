@@ -84,14 +84,6 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
 			}
-			defer func() {
-				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
-				if err := closeTracing(ctx); err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
-				}
-				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
-				<-time.After(prometheusFlags.Wait)
-			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
 			reg := prometheus.NewRegistry()
@@ -100,6 +92,15 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 			logger := inv.Logger
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
 			defer prometheusSrvClose()
+
+			defer func() {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
+			}()
 
 			err = client.PutPrebuildsSettings(ctx, codersdk.PrebuildsSettings{
 				ReconciliationPaused: true,
