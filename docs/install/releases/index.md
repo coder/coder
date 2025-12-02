@@ -12,7 +12,7 @@ deployment.
 We support four release channels:
 
 - **Mainline:** The bleeding edge version of Coder
-- **Stable:** N-1 of the mainline release 
+- **Stable:** N-1 of the mainline release
 - **Security Support:** N-2 of the mainline release
 - **Extended Support Release:** Biannually released version of Coder
 
@@ -45,9 +45,9 @@ For more information on feature rollout, see our
 - Receives only critical bugfixes and security patches
 - Ideal for regulated environments or large deployments with strict upgrade cycles
 
-ESR releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.29](https://github.com/coder/coder/releases/tag/v2.29.0). 
+ESR releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.29](https://github.com/coder/coder/releases/tag/v2.29.0).
 
-For more information, see the [Coder ESR announcement](https://coder.com/blog/esr). 
+For more information, see the [Coder ESR announcement](https://coder.com/blog/esr).
 
 ## Installing stable
 
