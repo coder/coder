@@ -795,17 +795,6 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			expectOldDeleted:      false,
 			expectedLogsRemaining: 1, // old log is kept
 		},
-		{
-			name: "GlobalRetentionFallback",
-			retentionConfig: codersdk.RetentionConfig{
-				Global:         serpent.Duration(retentionPeriod),
-				ConnectionLogs: serpent.Duration(0), // Not set, should fall back to global
-			},
-			oldLogTime:            afterThreshold,
-			recentLogTime:         &beforeThreshold,
-			expectOldDeleted:      true,
-			expectedLogsRemaining: 1, // only recent log remains
-		},
 	}
 
 	for _, tc := range testCases {

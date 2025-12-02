@@ -21,8 +21,8 @@ const (
 	delay          = 10 * time.Minute
 	maxAgentLogAge = 7 * 24 * time.Hour
 	// Connection events are now inserted into the `connection_logs` table.
-	// We'll slowly remove old connection events from the `audit_logs` table,
-	// but we won't touch the `connection_logs` table.
+	// We'll slowly remove old connection events from the `audit_logs` table.
+	// The `connection_logs` table is purged based on the configured retention.
 	maxAuditLogConnectionEventAge    = 90 * 24 * time.Hour // 90 days
 	auditLogConnectionEventBatchSize = 1000
 	// Batch size for connection log deletion. Smaller batches prevent long-held
@@ -116,9 +116,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 
 			var purgedConnectionLogs int64
 			connectionLogsRetention := vals.Retention.ConnectionLogs.Value()
-			if connectionLogsRetention == 0 {
-				connectionLogsRetention = vals.Retention.Global.Value()
-			}
 			if connectionLogsRetention > 0 {
 				deleteConnectionLogsBefore := start.Add(-connectionLogsRetention)
 				purgedConnectionLogs, err = tx.DeleteOldConnectionLogs(ctx, database.DeleteOldConnectionLogsParams{
