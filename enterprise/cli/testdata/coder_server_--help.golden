@@ -720,8 +720,9 @@ that data type.
 
       --workspace-agent-logs-retention duration, $CODER_WORKSPACE_AGENT_LOGS_RETENTION (default: 7d)
           How long workspace agent logs are retained. Logs from non-latest
-          workspace builds are deleted after this period to free up storage
-          space. Set to 0 to disable automatic deletion of workspace agent logs.
+          builds are deleted if the agent hasn't connected within this period.
+          Logs from the latest build are always retained. Set to 0 to disable
+          automatic deletion.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal

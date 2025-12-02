@@ -1813,4 +1813,4 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | YAML        | <code>retention.workspace_agent_logs</code>        |
 | Default     | <code>7d</code>                                    |
 
-How long workspace agent logs are retained. Logs from non-latest workspace builds are deleted after this period to free up storage space. Set to 0 to disable automatic deletion of workspace agent logs.
+How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
