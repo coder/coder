@@ -1770,3 +1770,36 @@ Whether to inject Coder's MCP tools into intercepted AI Bridge requests (require
 | Default     | <code>60d</code>                       |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
+
+### --audit-logs-retention
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>duration</code>                    |
+| Environment | <code>$CODER_AUDIT_LOGS_RETENTION</code> |
+| YAML        | <code>retention.audit_logs</code>        |
+| Default     | <code>0</code>                           |
+
+How long audit log entries are retained. Set to 0 to disable (keep indefinitely). We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.
+
+### --connection-logs-retention
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>duration</code>                         |
+| Environment | <code>$CODER_CONNECTION_LOGS_RETENTION</code> |
+| YAML        | <code>retention.connection_logs</code>        |
+| Default     | <code>0</code>                                |
+
+How long connection log entries are retained. Set to 0 to disable (keep indefinitely).
+
+### --api-keys-retention
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>duration</code>                  |
+| Environment | <code>$CODER_API_KEYS_RETENTION</code> |
+| YAML        | <code>retention.api_keys</code>        |
+| Default     | <code>7d</code>                        |
+
+How long expired API keys are retained before being deleted. Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key. Set to 0 to disable automatic deletion of expired keys.
