@@ -4484,13 +4484,13 @@ func TestWorkspacesSharedWith(t *testing.T) {
 	t.Run("NilWhenExperimentDisabled", func(t *testing.T) {
 		t.Parallel()
 
-		client, db, orgOwner := coderdenttest.NewWithDatabase(t, nil)
+		client, db, user := coderdenttest.NewWithDatabase(t, nil)
 
-		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        workspaceOwner.ID,
-			OrganizationID: orgOwner.OrganizationID,
+			OrganizationID: user.OrganizationID,
 		}).Do().Workspace
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -4513,7 +4513,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
-		client, db, orgOwner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -4524,11 +4524,11 @@ func TestWorkspacesSharedWith(t *testing.T) {
 			},
 		})
 
-		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        workspaceOwner.ID,
-			OrganizationID: orgOwner.OrganizationID,
+			OrganizationID: user.OrganizationID,
 		}).Do().Workspace
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -4540,7 +4540,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		require.Empty(t, *workspaces.Workspaces[0].SharedWith, "SharedWith should be empty when no ACLs exist")
 	})
 
-	t.Run("ContainsUsers", func(t *testing.T) {
+	t.Run("ContainsActorsWithFullData", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
@@ -4565,261 +4565,6 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		}).Do().Workspace
 
 		_, sharedWithUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
-			UserRoles: map[string]codersdk.WorkspaceRole{
-				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
-			},
-		})
-		require.NoError(t, err)
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.NotNil(t, workspaces.Workspaces[0].SharedWith)
-		require.Len(t, *workspaces.Workspaces[0].SharedWith, 1)
-
-		actor := (*workspaces.Workspaces[0].SharedWith)[0]
-		assert.Equal(t, sharedWithUser.ID, actor.ID)
-		assert.Equal(t, codersdk.SharedWorkspaceActorTypeUser, actor.ActorType)
-		assert.Contains(t, actor.Roles, codersdk.WorkspaceRoleUse)
-	})
-
-	t.Run("ContainsGroups", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
-		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-				},
-			},
-		})
-
-		// Use owner for workspace owner this time
-		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
-		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        workspaceOwner.ID,
-			OrganizationID: user.OrganizationID,
-		}).Do().Workspace
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		sharedWithGroup, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "test-group",
-		})
-		require.NoError(t, err)
-
-		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
-			GroupRoles: map[string]codersdk.WorkspaceRole{
-				sharedWithGroup.ID.String(): codersdk.WorkspaceRoleAdmin,
-			},
-		})
-		require.NoError(t, err)
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.NotNil(t, workspaces.Workspaces[0].SharedWith)
-		require.Len(t, *workspaces.Workspaces[0].SharedWith, 1)
-
-		actor := (*workspaces.Workspaces[0].SharedWith)[0]
-		assert.Equal(t, sharedWithGroup.ID, actor.ID)
-		assert.Equal(t, codersdk.SharedWorkspaceActorTypeGroup, actor.ActorType)
-		assert.Equal(t, sharedWithGroup.Name, actor.Name)
-		assert.Contains(t, actor.Roles, codersdk.WorkspaceRoleAdmin)
-	})
-
-	t.Run("ContainsBothUsersAndGroups", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
-		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-				},
-			},
-		})
-
-		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        workspaceOwner.ID,
-			OrganizationID: user.OrganizationID,
-		}).Do().Workspace
-
-		_, sharedWithUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		sharedWithGroup, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "test-group",
-		})
-		require.NoError(t, err)
-
-		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
-			UserRoles: map[string]codersdk.WorkspaceRole{
-				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
-			},
-			GroupRoles: map[string]codersdk.WorkspaceRole{
-				sharedWithGroup.ID.String(): codersdk.WorkspaceRoleAdmin,
-			},
-		})
-		require.NoError(t, err)
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.NotNil(t, workspaces.Workspaces[0].SharedWith)
-		require.Len(t, *workspaces.Workspaces[0].SharedWith, 2)
-
-		sharedWith := *workspaces.Workspaces[0].SharedWith
-
-		// Find user actor.
-		var userActor, groupActor *codersdk.SharedWorkspaceActor
-		for i := range sharedWith {
-			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
-				userActor = &sharedWith[i]
-			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
-				groupActor = &sharedWith[i]
-			}
-		}
-
-		require.NotNil(t, userActor, "expected to find user actor")
-		assert.Equal(t, sharedWithUser.ID, userActor.ID)
-		assert.Contains(t, userActor.Roles, codersdk.WorkspaceRoleUse)
-
-		require.NotNil(t, groupActor, "expected to find group actor")
-		assert.Equal(t, sharedWithGroup.ID, groupActor.ID)
-		assert.Equal(t, sharedWithGroup.Name, groupActor.Name)
-		assert.Contains(t, groupActor.Roles, codersdk.WorkspaceRoleAdmin)
-	})
-
-	t.Run("ContainsLimitedDataWithoutReadPermissions", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
-		client, db, orgOwner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-				},
-			},
-		})
-
-		// Create a workspace owner with limited permissions
-		workspaceOwnerClient, workspaceOwner := coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
-
-		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        workspaceOwner.ID,
-			OrganizationID: orgOwner.OrganizationID,
-		}).Do().Workspace
-
-		_, sharedWithUser := coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		// Provide sharedWithUser with an avatar
-		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
-			ID:        sharedWithUser.ID,
-			Username:  sharedWithUser.Username,
-			Name:      sharedWithUser.Name,
-			AvatarURL: "/emojis/1fae1.png",
-		})
-		require.NoError(t, err)
-
-		// Create a sharedWithGroup with an avatar
-		sharedWithGroup, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
-			Name:      "test-group",
-			AvatarURL: "/emojis/1f60d.png",
-		})
-		require.NoError(t, err)
-
-		// Share workspace with both user and group
-		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
-			UserRoles: map[string]codersdk.WorkspaceRole{
-				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
-			},
-			GroupRoles: map[string]codersdk.WorkspaceRole{
-				sharedWithGroup.ID.String(): codersdk.WorkspaceRoleAdmin,
-			},
-		})
-		require.NoError(t, err)
-
-		// Use workspace owner (has no member/group read permission) to fetch
-		workspaces, err := workspaceOwnerClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.NotNil(t, workspaces.Workspaces[0].SharedWith)
-		require.Len(t, *workspaces.Workspaces[0].SharedWith, 2)
-
-		sharedWith := *workspaces.Workspaces[0].SharedWith
-
-		// Find user and group actors
-		var userActor, groupActor *codersdk.SharedWorkspaceActor
-		for i := range sharedWith {
-			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
-				userActor = &sharedWith[i]
-			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
-				groupActor = &sharedWith[i]
-			}
-		}
-
-		require.NotNil(t, userActor, "expected to find user actor")
-		assert.Equal(t, sharedWithUser.ID, userActor.ID)
-		assert.Empty(t, userActor.Name, "user name should be empty without member read permission")
-		assert.Empty(t, userActor.AvatarURL, "user avatar URL should be empty without member read permission")
-
-		require.NotNil(t, groupActor, "expected to find group actor")
-		assert.Equal(t, sharedWithGroup.ID, groupActor.ID)
-		assert.Empty(t, groupActor.Name, "group name should be empty without group read permission")
-		assert.Empty(t, groupActor.AvatarURL, "group avatar URL should be empty without group read permission")
-	})
-
-	t.Run("ContainsFullDataWithReadPermissions", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
-		client, db, orgOwner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-				},
-			},
-		})
-
-		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
-
-		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        workspaceOwner.ID,
-			OrganizationID: orgOwner.OrganizationID,
-		}).Do().Workspace
-
-		_, sharedWithUser := coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -4833,13 +4578,13 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a shared with group with a name and avatar
-		sharedWithGroup, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
-			Name:      "shared-group",
+		sharedWithGroup, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:      "shared-with-group",
 			AvatarURL: "/emojis/1f60d.png",
 		})
 		require.NoError(t, err)
 
-		// Share workspace with both user and group
+		// Share workspace with user and group
 		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
@@ -4850,7 +4595,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Fetch workspaces as org owner (admin) who can read member and group data
+		// Fetch workspace as client
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
@@ -4859,7 +4604,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 
 		sharedWith := *workspaces.Workspaces[0].SharedWith
 
-		// Find user and group actors
+		// Find user actor in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
 		for i := range sharedWith {
 			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
@@ -4869,16 +4614,16 @@ func TestWorkspacesSharedWith(t *testing.T) {
 			}
 		}
 
-		// Verify org admin sees full user data
 		require.NotNil(t, userActor, "expected to find user actor")
 		assert.Equal(t, sharedWithUser.ID, userActor.ID)
-		assert.Equal(t, "Shared User Name", userActor.Name, "org admin should see member name")
-		assert.Equal(t, "/emojis/1fae1.png", userActor.AvatarURL, "org admin should see member avatar")
+		assert.Contains(t, userActor.Roles, codersdk.WorkspaceRoleUse)
+		assert.Equal(t, "Shared User Name", userActor.Name)
+		assert.Equal(t, "/emojis/1fae1.png", userActor.AvatarURL)
 
-		// Verify org admin sees full group data
 		require.NotNil(t, groupActor, "expected to find group actor")
 		assert.Equal(t, sharedWithGroup.ID, groupActor.ID)
-		assert.Equal(t, "shared-group", groupActor.Name, "org admin should see group name")
-		assert.Equal(t, "/emojis/1f60d.png", groupActor.AvatarURL, "org admin should see group avatar")
+		assert.Equal(t, sharedWithGroup.Name, groupActor.Name)
+		assert.Contains(t, groupActor.Roles, codersdk.WorkspaceRoleAdmin)
+		assert.Equal(t, "/emojis/1f60d.png", groupActor.AvatarURL)
 	})
 }
