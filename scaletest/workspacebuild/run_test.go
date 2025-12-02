@@ -58,7 +58,14 @@ func Test_Runner(t *testing.T) {
 				},
 				{
 					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+						Apply: &proto.ApplyComplete{},
+					},
+				},
+			},
+			ProvisionGraph: []*proto.Response{
+				{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{
 								{
 									Name: "example1",
@@ -245,8 +252,10 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Apply{

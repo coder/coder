@@ -56,7 +56,8 @@ func TestEcho(t *testing.T) {
 			},
 		}
 		data, err := echo.Tar(&echo.Responses{
-			Parse: responses,
+			Parse:         responses,
+			ProvisionInit: echo.InitComplete,
 		})
 		require.NoError(t, err)
 		client, err := api.Session(ctx)
@@ -65,13 +66,19 @@ func TestEcho(t *testing.T) {
 			err := client.Close()
 			require.NoError(t, err)
 		}()
-		err = client.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{
+		err = client.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{}}})
+		require.NoError(t, err)
+
+		err = client.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
 			TemplateSourceArchive: data,
 		}}})
+		require.NoError(t, err)
+		_, err = client.Recv()
 		require.NoError(t, err)
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})
 		require.NoError(t, err)
+
 		log, err := client.Recv()
 		require.NoError(t, err)
 		require.Equal(t, responses[0].GetLog().Output, log.GetLog().Output)
@@ -85,7 +92,7 @@ func TestEcho(t *testing.T) {
 		ctx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
 		defer cancel()
 
-		planResponses := []*proto.Response{
+		graphResponses := []*proto.Response{
 			{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{
@@ -95,8 +102,8 @@ func TestEcho(t *testing.T) {
 				},
 			},
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "resource",
 						}},
@@ -104,28 +111,12 @@ func TestEcho(t *testing.T) {
 				},
 			},
 		}
-		applyResponses := []*proto.Response{
-			{
-				Type: &proto.Response_Log{
-					Log: &proto.Log{
-						Level:  proto.LogLevel_INFO,
-						Output: "log-output",
-					},
-				},
-			},
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
-							Name: "resource",
-						}},
-					},
-				},
-			},
-		}
+
 		data, err := echo.Tar(&echo.Responses{
-			ProvisionPlan:  planResponses,
-			ProvisionApply: applyResponses,
+			ProvisionGraph: graphResponses,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionInit:  echo.InitComplete,
 		})
 		require.NoError(t, err)
 		client, err := api.Session(ctx)
@@ -134,30 +125,38 @@ func TestEcho(t *testing.T) {
 			err := client.Close()
 			require.NoError(t, err)
 		}()
-		err = client.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{
+		err = client.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{}}})
+		require.NoError(t, err)
+
+		err = client.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
 			TemplateSourceArchive: data,
 		}}})
+		require.NoError(t, err)
+		_, err = client.Recv()
 		require.NoError(t, err)
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{}}})
 		require.NoError(t, err)
-		log, err := client.Recv()
+		_, err = client.Recv()
 		require.NoError(t, err)
-		require.Equal(t, planResponses[0].GetLog().Output, log.GetLog().Output)
-		complete, err := client.Recv()
-		require.NoError(t, err)
-		require.Equal(t, planResponses[1].GetPlan().Resources[0].Name,
-			complete.GetPlan().Resources[0].Name)
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Apply{Apply: &proto.ApplyRequest{}}})
 		require.NoError(t, err)
-		log, err = client.Recv()
+		_, err = client.Recv()
 		require.NoError(t, err)
-		require.Equal(t, applyResponses[0].GetLog().Output, log.GetLog().Output)
-		complete, err = client.Recv()
+
+		err = client.Send(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+			Source: proto.GraphSource_SOURCE_STATE,
+		}}})
 		require.NoError(t, err)
-		require.Equal(t, applyResponses[1].GetApply().Resources[0].Name,
-			complete.GetApply().Resources[0].Name)
+
+		log, err := client.Recv()
+		require.NoError(t, err)
+		require.Equal(t, graphResponses[0].GetLog().Output, log.GetLog().Output)
+		complete, err := client.Recv()
+		require.NoError(t, err)
+		require.Equal(t, graphResponses[1].GetGraph().Resources[0].Name,
+			complete.GetGraph().Resources[0].Name)
 	})
 
 	t.Run("ProvisionStop", func(t *testing.T) {
@@ -165,13 +164,11 @@ func TestEcho(t *testing.T) {
 
 		// Stop responses should be returned when the workspace is being stopped.
 		data, err := echo.Tar(&echo.Responses{
-			ProvisionApply: applyCompleteResource("DEFAULT"),
-			ProvisionPlan:  planCompleteResource("DEFAULT"),
-			ProvisionPlanMap: map[proto.WorkspaceTransition][]*proto.Response{
-				proto.WorkspaceTransition_STOP: planCompleteResource("STOP"),
-			},
-			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
-				proto.WorkspaceTransition_STOP: applyCompleteResource("STOP"),
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionGraph: graphCompleteResource("DEFAULT"),
+			ProvisionGraphMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_STOP: graphCompleteResource("STOP"),
 			},
 		})
 		require.NoError(t, err)
@@ -182,9 +179,14 @@ func TestEcho(t *testing.T) {
 			err := client.Close()
 			require.NoError(t, err)
 		}()
-		err = client.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{
+		err = client.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{}}})
+		require.NoError(t, err)
+
+		err = client.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
 			TemplateSourceArchive: data,
 		}}})
+		require.NoError(t, err)
+		_, err = client.Recv()
 		require.NoError(t, err)
 
 		// Do stop.
@@ -199,17 +201,32 @@ func TestEcho(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		_, err = client.Recv()
+		require.NoError(t, err)
+
+		err = client.Send(&proto.Request{
+			Type: &proto.Request_Graph{
+				Graph: &proto.GraphRequest{
+					Metadata: &proto.Metadata{
+						WorkspaceTransition: proto.WorkspaceTransition_STOP,
+					},
+					Source: proto.GraphSource_SOURCE_STATE,
+				},
+			},
+		})
+		require.NoError(t, err)
+
 		complete, err := client.Recv()
 		require.NoError(t, err)
 		require.Equal(t,
 			"STOP",
-			complete.GetPlan().Resources[0].Name,
+			complete.GetGraph().Resources[0].Name,
 		)
 
 		// Do start.
 		err = client.Send(&proto.Request{
-			Type: &proto.Request_Plan{
-				Plan: &proto.PlanRequest{
+			Type: &proto.Request_Graph{
+				Graph: &proto.GraphRequest{
 					Metadata: &proto.Metadata{
 						WorkspaceTransition: proto.WorkspaceTransition_START,
 					},
@@ -222,7 +239,7 @@ func TestEcho(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			"DEFAULT",
-			complete.GetPlan().Resources[0].Name,
+			complete.GetGraph().Resources[0].Name,
 		)
 	})
 
@@ -246,8 +263,8 @@ func TestEcho(t *testing.T) {
 				},
 			},
 		}, {
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "resource",
 					}},
@@ -256,7 +273,9 @@ func TestEcho(t *testing.T) {
 		}}
 		data, err := echo.Tar(&echo.Responses{
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: responses,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: responses,
 		})
 		require.NoError(t, err)
 		client, err := api.Session(ctx)
@@ -266,9 +285,15 @@ func TestEcho(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		err = client.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{
-			TemplateSourceArchive: data,
-			ProvisionerLogLevel:   "debug",
+			ProvisionerLogLevel: "debug",
 		}}})
+		require.NoError(t, err)
+
+		err = client.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
+			TemplateSourceArchive: data,
+		}}})
+		require.NoError(t, err)
+		_, err = client.Recv()
 		require.NoError(t, err)
 
 		// Plan is required before apply
@@ -280,33 +305,29 @@ func TestEcho(t *testing.T) {
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Apply{Apply: &proto.ApplyRequest{}}})
 		require.NoError(t, err)
+		_, err = client.Recv()
+		require.NoError(t, err)
+
+		err = client.Send(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+			Source: proto.GraphSource_SOURCE_STATE,
+		}}})
+		require.NoError(t, err)
+
 		log, err := client.Recv()
 		require.NoError(t, err)
 		// Skip responses[0] as it's trace level
 		require.Equal(t, responses[1].GetLog().Output, log.GetLog().Output)
 		complete, err = client.Recv()
 		require.NoError(t, err)
-		require.Equal(t, responses[2].GetApply().Resources[0].Name,
-			complete.GetApply().Resources[0].Name)
+		require.Equal(t, responses[2].GetGraph().Resources[0].Name,
+			complete.GetGraph().Resources[0].Name)
 	})
 }
 
-func planCompleteResource(name string) []*proto.Response {
+func graphCompleteResource(name string) []*proto.Response {
 	return []*proto.Response{{
-		Type: &proto.Response_Plan{
-			Plan: &proto.PlanComplete{
-				Resources: []*proto.Resource{{
-					Name: name,
-				}},
-			},
-		},
-	}}
-}
-
-func applyCompleteResource(name string) []*proto.Response {
-	return []*proto.Response{{
-		Type: &proto.Response_Apply{
-			Apply: &proto.ApplyComplete{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: name,
 				}},
