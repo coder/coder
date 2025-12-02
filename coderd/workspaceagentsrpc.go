@@ -231,7 +231,6 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 		workspace:         workspace,
 		workspaceAgent:    workspaceAgent,
 		workspaceBuild:    workspaceBuild,
-		cachedWs: &agentapi.CachedWorkspaceFields{},
 
 		conn:              &yamuxPingerCloser{mux: mux},
 		pingPeriod:        api.AgentConnectionUpdateFrequency,
@@ -244,7 +243,6 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 			slog.F("agent_id", workspaceAgent.ID),
 		),
 	}
-	monitor.cachedWs.UpdateValues(workspace)
 	monitor.init()
 	monitor.start(ctx)
 
@@ -273,8 +271,6 @@ type agentConnectionMonitor struct {
 	updater        workspaceUpdater
 	logger         slog.Logger
 	pingPeriod     time.Duration
-
-	cachedWs *agentapi.CachedWorkspaceFields
 
 	// state manipulated by both sendPings() and monitor() goroutines: needs to be threadsafe
 	lastPing atomic.Pointer[time.Time]
@@ -459,7 +455,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			})
 		}
 
-		ctx, err := m.cachedWs.ContextInject(ctx)
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, m.workspace.RBACObject())
 		if err != nil {
 			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
 			//nolint:gocritic
