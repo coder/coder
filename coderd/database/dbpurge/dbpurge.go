@@ -104,11 +104,15 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				return xerrors.Errorf("failed to delete old audit log connection events: %w", err)
 			}
 
-			deleteAIBridgeRecordsBefore := start.Add(-vals.AI.BridgeConfig.Retention.Value())
-			// nolint:gocritic // Needs to run as aibridge context.
-			purgedAIBridgeRecords, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
-			if err != nil {
-				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+			var purgedAIBridgeRecords int32
+			aibridgeRetention := vals.AI.BridgeConfig.Retention.Value()
+			if aibridgeRetention > 0 {
+				deleteAIBridgeRecordsBefore := start.Add(-aibridgeRetention)
+				// nolint:gocritic // Needs to run as aibridge context.
+				purgedAIBridgeRecords, err = tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
+				if err != nil {
+					return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+				}
 			}
 
 			logger.Debug(ctx, "purged old database entries",

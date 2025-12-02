@@ -759,171 +759,145 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old telemetry heartbeats")
 }
 
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldAIBridgeRecords(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	clk := quartz.NewMock(t)
 	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-	retentionPeriod := 30 * 24 * time.Hour                                // 30 days
-	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour)      // 31 days ago (older than threshold)
-	beforeThreshold := now.Add(-15 * 24 * time.Hour)                      // 15 days ago (newer than threshold)
-	closeBeforeThreshold := now.Add(-retentionPeriod).Add(24 * time.Hour) // 29 days ago
-	clk.Set(now).MustWait(ctx)
+	recentRecordAge := 1 * time.Hour // Always retained as a control.
 
-	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	user := dbgen.User(t, db, database.User{})
-
-	// Create old AI Bridge interception (should be deleted)
-	oldInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		ID:          uuid.New(),
-		APIKeyID:    sql.NullString{},
-		InitiatorID: user.ID,
-		Provider:    "anthropic",
-		Model:       "claude-3-5-sonnet",
-		StartedAt:   afterThreshold,
-	}, &afterThreshold)
-
-	// Create old interception with related records (should all be deleted)
-	oldInterceptionWithRelated := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		ID:          uuid.New(),
-		APIKeyID:    sql.NullString{},
-		InitiatorID: user.ID,
-		Provider:    "openai",
-		Model:       "gpt-4",
-		StartedAt:   afterThreshold,
-	}, &afterThreshold)
-
-	_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-		ID:                 uuid.New(),
-		InterceptionID:     oldInterceptionWithRelated.ID,
-		ProviderResponseID: "resp-1",
-		InputTokens:        100,
-		OutputTokens:       50,
-		CreatedAt:          afterThreshold,
-	})
-
-	_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
-		ID:                 uuid.New(),
-		InterceptionID:     oldInterceptionWithRelated.ID,
-		ProviderResponseID: "resp-1",
-		Prompt:             "test prompt",
-		CreatedAt:          afterThreshold,
-	})
-
-	_ = dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
-		ID:                 uuid.New(),
-		InterceptionID:     oldInterceptionWithRelated.ID,
-		ProviderResponseID: "resp-1",
-		Tool:               "test-tool",
-		ServerUrl:          sql.NullString{String: "http://test", Valid: true},
-		Input:              "{}",
-		Injected:           true,
-		CreatedAt:          afterThreshold,
-	})
-
-	// Create recent AI Bridge interception (should be kept)
-	recentInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		ID:          uuid.New(),
-		APIKeyID:    sql.NullString{},
-		InitiatorID: user.ID,
-		Provider:    "anthropic",
-		Model:       "claude-3-5-sonnet",
-		StartedAt:   beforeThreshold,
-	}, &beforeThreshold)
-
-	// Create interception close to threshold (should be kept)
-	nearThresholdInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		ID:          uuid.New(),
-		APIKeyID:    sql.NullString{},
-		InitiatorID: user.ID,
-		Provider:    "anthropic",
-		Model:       "claude-3-5-sonnet",
-		StartedAt:   closeBeforeThreshold,
-	}, &closeBeforeThreshold)
-
-	_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-		ID:                 uuid.New(),
-		InterceptionID:     nearThresholdInterception.ID,
-		ProviderResponseID: "resp-1",
-		InputTokens:        100,
-		OutputTokens:       50,
-		CreatedAt:          closeBeforeThreshold,
-	})
-
-	_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
-		ID:                 uuid.New(),
-		InterceptionID:     nearThresholdInterception.ID,
-		ProviderResponseID: "resp-1",
-		Prompt:             "test prompt",
-		CreatedAt:          closeBeforeThreshold,
-	})
-
-	_ = dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
-		ID:                 uuid.New(),
-		InterceptionID:     nearThresholdInterception.ID,
-		ProviderResponseID: "resp-1",
-		Tool:               "test-tool",
-		ServerUrl:          sql.NullString{String: "http://test", Valid: true},
-		Input:              "{}",
-		Injected:           true,
-		CreatedAt:          closeBeforeThreshold,
-	})
-
-	// Run the purge with configured retention period
-	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-		AI: codersdk.AIConfig{
-			BridgeConfig: codersdk.AIBridgeConfig{
-				Retention: serpent.Duration(retentionPeriod),
-			},
+	tests := []struct {
+		name           string
+		retention      time.Duration
+		recordAge      time.Duration
+		expectDeletion bool
+	}{
+		{
+			name:           "retention enabled, old records deleted",
+			retention:      30 * 24 * time.Hour, // 30 days
+			recordAge:      31 * 24 * time.Hour, // 31 days old
+			expectDeletion: true,
 		},
-	}, clk)
-	defer closer.Close()
-	// Wait for tick
-	testutil.TryReceive(ctx, t, done)
-
-	// Verify results by querying all AI Bridge records
-	interceptions, err := db.GetAIBridgeInterceptions(ctx)
-	require.NoError(t, err)
-
-	// Extract interception IDs for comparison
-	interceptionIDs := make([]uuid.UUID, len(interceptions))
-	for i, interception := range interceptions {
-		interceptionIDs[i] = interception.ID
+		{
+			name:           "retention enabled, recent records kept",
+			retention:      30 * 24 * time.Hour, // 30 days
+			recordAge:      15 * 24 * time.Hour, // 15 days old
+			expectDeletion: false,
+		},
+		{
+			name:           "retention disabled, old records kept",
+			retention:      0,                    // disabled
+			recordAge:      365 * 24 * time.Hour, // 1 year old
+			expectDeletion: false,
+		},
 	}
 
-	require.NotContains(t, interceptionIDs, oldInterception.ID, "old interception should be deleted")
-	require.NotContains(t, interceptionIDs, oldInterceptionWithRelated.ID, "old interception with related records should be deleted")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
 
-	// Verify related records were also deleted
-	oldTokenUsages, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, oldInterceptionWithRelated.ID)
-	require.NoError(t, err)
-	require.Empty(t, oldTokenUsages, "old token usages should be deleted")
+			clk := quartz.NewMock(t)
+			recordTime := now.Add(-tt.recordAge)
+			recentRecordTime := now.Add(-recentRecordAge)
+			clk.Set(now).MustWait(ctx)
 
-	oldUserPrompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, oldInterceptionWithRelated.ID)
-	require.NoError(t, err)
-	require.Empty(t, oldUserPrompts, "old user prompts should be deleted")
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			user := dbgen.User(t, db, database.User{})
 
-	oldToolUsages, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, oldInterceptionWithRelated.ID)
-	require.NoError(t, err)
-	require.Empty(t, oldToolUsages, "old tool usages should be deleted")
+			// Create AI Bridge interception with related records.
+			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				ID:          uuid.New(),
+				APIKeyID:    sql.NullString{},
+				InitiatorID: user.ID,
+				Provider:    "anthropic",
+				Model:       "claude-3-5-sonnet",
+				StartedAt:   recordTime,
+			}, &recordTime)
 
-	require.Contains(t, interceptionIDs, recentInterception.ID, "recent interception should be kept")
-	require.Contains(t, interceptionIDs, nearThresholdInterception.ID, "near threshold interception should be kept")
+			_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				ID:                 uuid.New(),
+				InterceptionID:     interception.ID,
+				ProviderResponseID: "resp-1",
+				InputTokens:        100,
+				OutputTokens:       50,
+				CreatedAt:          recordTime,
+			})
 
-	// Verify related records were NOT deleted
-	newTokenUsages, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, nearThresholdInterception.ID)
-	require.NoError(t, err)
-	require.Len(t, newTokenUsages, 1, "near threshold token usages should not be deleted")
+			_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+				ID:                 uuid.New(),
+				InterceptionID:     interception.ID,
+				ProviderResponseID: "resp-1",
+				Prompt:             "test prompt",
+				CreatedAt:          recordTime,
+			})
 
-	newUserPrompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, nearThresholdInterception.ID)
-	require.NoError(t, err)
-	require.Len(t, newUserPrompts, 1, "near threshold user prompts should not be deleted")
+			_ = dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+				ID:                 uuid.New(),
+				InterceptionID:     interception.ID,
+				ProviderResponseID: "resp-1",
+				Tool:               "test-tool",
+				ServerUrl:          sql.NullString{String: "http://test", Valid: true},
+				Input:              "{}",
+				Injected:           true,
+				CreatedAt:          recordTime,
+			})
 
-	newToolUsages, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, nearThresholdInterception.ID)
-	require.NoError(t, err)
-	require.Len(t, newToolUsages, 1, "near threshold tool usages should not be deleted")
+			// Create a recent interception that should always be retained.
+			recentInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				ID:          uuid.New(),
+				APIKeyID:    sql.NullString{},
+				InitiatorID: user.ID,
+				Provider:    "anthropic",
+				Model:       "claude-3-5-sonnet",
+				StartedAt:   recentRecordTime,
+			}, &recentRecordTime)
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				AI: codersdk.AIConfig{
+					BridgeConfig: codersdk.AIBridgeConfig{
+						Retention: serpent.Duration(tt.retention),
+					},
+				},
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify interceptions.
+			interceptions, err := db.GetAIBridgeInterceptions(ctx)
+			require.NoError(t, err)
+
+			interceptionIDs := make([]uuid.UUID, len(interceptions))
+			for i, ic := range interceptions {
+				interceptionIDs[i] = ic.ID
+			}
+
+			// Recent interception should always be retained.
+			require.Contains(t, interceptionIDs, recentInterception.ID, "recent interception should always be retained")
+
+			if tt.expectDeletion {
+				require.NotContains(t, interceptionIDs, interception.ID, "interception should be deleted")
+			} else {
+				require.Contains(t, interceptionIDs, interception.ID, "interception should be retained")
+			}
+
+			// Verify related records follow the same fate.
+			tokenUsages, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, interception.ID)
+			require.NoError(t, err)
+			userPrompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interception.ID)
+			require.NoError(t, err)
+			toolUsages, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, interception.ID)
+			require.NoError(t, err)
+
+			if tt.expectDeletion {
+				require.Empty(t, tokenUsages, "token usages should be deleted")
+				require.Empty(t, userPrompts, "user prompts should be deleted")
+				require.Empty(t, toolUsages, "tool usages should be deleted")
+			} else {
+				require.Len(t, tokenUsages, 1, "token usages should be retained")
+				require.Len(t, userPrompts, 1, "user prompts should be retained")
+				require.Len(t, toolUsages, 1, "tool usages should be retained")
+			}
+		})
+	}
 }
