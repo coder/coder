@@ -1,4 +1,5 @@
 import createCache from "@emotion/cache";
+/** @deprecated Emotion is deprecated. Migrate to Tailwind CSS. */
 import {
 	CacheProvider,
 	ThemeProvider as EmotionThemeProvider,
