@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/url"
 
+	"github.com/coder/coder/v2/enterprise/aiproxy"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
@@ -164,6 +165,18 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			// the API server is itself shutdown.
 			closers.Add(aibridgeDaemon)
 		}
+
+		// In-memory AI proxy
+		var aiProxyServer *aiproxy.Server
+		// TODO: add options.DeploymentValues.AI.BridgeConfig.Enabled
+		aiProxyServer, err = newAIProxy(api)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("create aiproxy: %w", err)
+		}
+
+		closers.Add(aiProxyServer)
+
+		_ = aiProxyServer
 
 		return api.AGPL, closers, nil
 	})
