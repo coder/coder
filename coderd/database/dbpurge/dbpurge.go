@@ -130,9 +130,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 
 			var purgedAuditLogs int64
 			auditLogsRetention := vals.Retention.AuditLogs.Value()
-			if auditLogsRetention == 0 {
-				auditLogsRetention = vals.Retention.Global.Value()
-			}
 			if auditLogsRetention > 0 {
 				deleteAuditLogsBefore := start.Add(-auditLogsRetention)
 				purgedAuditLogs, err = tx.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
