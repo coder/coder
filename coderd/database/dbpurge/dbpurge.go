@@ -25,9 +25,8 @@ const (
 	// The `connection_logs` table is purged based on the configured retention.
 	maxAuditLogConnectionEventAge    = 90 * 24 * time.Hour // 90 days
 	auditLogConnectionEventBatchSize = 1000
-	// Batch size for connection log deletion. Smaller batches prevent long-held
-	// locks that could impact concurrent database operations.
-	connectionLogsBatchSize = 1000
+	// Batch size for connection log deletion.
+	connectionLogsBatchSize = 10000
 	// Telemetry heartbeats are used to deduplicate events across replicas. We
 	// don't need to persist heartbeat rows for longer than 24 hours, as they
 	// are only used for deduplication across replicas. The time needs to be
