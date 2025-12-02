@@ -77,7 +77,9 @@ type Server struct {
 	coderMCPConfig *proto.MCPServerConfig // may be nil if not available
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments) (*Server, error) {
+func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
+	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
+) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
 
 	for _, cfg := range externalAuthConfigs {
@@ -88,18 +90,22 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		eac[cfg.ID] = cfg
 	}
 
-	coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
-	if err != nil {
-		logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
-	}
-
-	return &Server{
+	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
 		logger:              logger.Named("aibridgedserver"),
 		externalAuthConfigs: eac,
-		coderMCPConfig:      coderMCPConfig,
-	}, nil
+	}
+
+	if bridgeCfg.InjectCoderMCPTools {
+		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
+		if err != nil {
+			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
+		}
+		srv.coderMCPConfig = coderMCPConfig
+	}
+
+	return srv, nil
 }
 
 func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
@@ -114,9 +120,13 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	if err != nil {
 		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
 	}
+	if in.ApiKeyId == "" {
+		return nil, xerrors.Errorf("empty API key ID")
+	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:          intcID,
+		APIKeyID:    sql.NullString{String: in.ApiKeyId, Valid: true},
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
@@ -398,7 +408,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	return &proto.IsAuthorizedResponse{
-		OwnerId: key.UserID.String(),
+		OwnerId:  key.UserID.String(),
+		ApiKeyId: key.ID,
 	}, nil
 }
 

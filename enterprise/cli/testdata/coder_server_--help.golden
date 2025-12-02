@@ -81,7 +81,7 @@ OPTIONS:
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
-AIBRIDGE OPTIONS: 
+AI BRIDGE OPTIONS: 
       --aibridge-anthropic-base-url string, $CODER_AIBRIDGE_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
           The base URL of the Anthropic API.
 
@@ -107,8 +107,17 @@ AIBRIDGE OPTIONS:
           See
           https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
+      --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 60d)
+          Length of time to retain data such as interceptions and all related
+          records (token, prompt, tool use).
+
       --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
           Whether to start an in-memory aibridged instance.
+
+      --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS (default: false)
+          Whether to inject Coder's MCP tools into intercepted AI Bridge
+          requests (requires the "oauth2" and "mcp-server-http" experiments to
+          be enabled).
 
       --aibridge-openai-base-url string, $CODER_AIBRIDGE_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
           The base URL of the OpenAI API.
@@ -687,6 +696,33 @@ updating, and deleting workspace resources.
       --provisioner-daemons int, $CODER_PROVISIONER_DAEMONS (default: 3)
           Number of provisioner daemons to create on start. If builds are stuck
           in queued state for a long time, consider increasing this.
+
+RETENTION OPTIONS: 
+Configure data retention policies for various database tables. Retention
+policies automatically purge old data to reduce database size and improve
+performance. Setting a retention duration to 0 disables automatic purging for
+that data type.
+
+      --api-keys-retention duration, $CODER_API_KEYS_RETENTION (default: 7d)
+          How long expired API keys are retained before being deleted. Keeping
+          expired keys allows the backend to return a more helpful error when a
+          user tries to use an expired key. Set to 0 to disable automatic
+          deletion of expired keys.
+
+      --audit-logs-retention duration, $CODER_AUDIT_LOGS_RETENTION (default: 0)
+          How long audit log entries are retained. Set to 0 to disable (keep
+          indefinitely). We advise keeping audit logs for at least a year, and
+          in accordance with your compliance requirements.
+
+      --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
+          How long connection log entries are retained. Set to 0 to disable
+          (keep indefinitely).
+
+      --workspace-agent-logs-retention duration, $CODER_WORKSPACE_AGENT_LOGS_RETENTION (default: 7d)
+          How long workspace agent logs are retained. Logs from non-latest
+          builds are deleted if the agent hasn't connected within this period.
+          Logs from the latest build are always retained. Set to 0 to disable
+          automatic deletion.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal

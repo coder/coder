@@ -1039,6 +1039,10 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 					logger.Error(ctx, "inject subagent into container failed", slog.Error(err))
 					dc.Error = err.Error()
 				} else {
+					// TODO(mafredri): Preserve the error from devcontainer
+					// up if it was a lifecycle script error. Currently
+					// this results in a brief flicker for the user if
+					// injection is fast, as the error is shown then erased.
 					dc.Error = ""
 				}
 			}
@@ -1347,26 +1351,40 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
 	upOptions = append(upOptions, opts...)
 
-	_, err := api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
-	if err != nil {
+	containerID, upErr := api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
+	if upErr != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
-		if !errors.Is(err, context.Canceled) {
-			logger.Error(ctx, "devcontainer creation failed", slog.Error(err))
+		if !errors.Is(upErr, context.Canceled) {
+			logger.Error(ctx, "devcontainer creation failed", slog.Error(upErr))
 		}
 
-		api.mu.Lock()
-		dc = api.knownDevcontainers[dc.WorkspaceFolder]
-		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
-		dc.Error = err.Error()
-		api.knownDevcontainers[dc.WorkspaceFolder] = dc
-		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
-		api.mu.Unlock()
+		// If we don't have a container ID, the error is fatal, so we
+		// should mark the devcontainer as errored and return.
+		if containerID == "" {
+			api.mu.Lock()
+			dc = api.knownDevcontainers[dc.WorkspaceFolder]
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+			dc.Error = upErr.Error()
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
+			api.broadcastUpdatesLocked()
+			api.mu.Unlock()
 
-		return xerrors.Errorf("start devcontainer: %w", err)
+			return xerrors.Errorf("start devcontainer: %w", upErr)
+		}
+
+		// If we have a container ID, it means the container was created
+		// but a lifecycle script (e.g. postCreateCommand) failed. In this
+		// case, we still want to refresh containers to pick up the new
+		// container, inject the agent, and allow the user to debug the
+		// issue. We store the error to surface it to the user.
+		logger.Warn(ctx, "devcontainer created with errors (e.g. lifecycle script failure), container is available",
+			slog.F("container_id", containerID),
+		)
+	} else {
+		logger.Info(ctx, "devcontainer created successfully")
 	}
-
-	logger.Info(ctx, "devcontainer created successfully")
 
 	api.mu.Lock()
 	dc = api.knownDevcontainers[dc.WorkspaceFolder]
@@ -1376,13 +1394,18 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	// to minimize the time between API consistency, we guess the status
 	// based on the container state.
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
-	if dc.Container != nil {
-		if dc.Container.Running {
-			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
-		}
+	if dc.Container != nil && dc.Container.Running {
+		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
 	}
 	dc.Dirty = false
-	dc.Error = ""
+	if upErr != nil {
+		// If there was a lifecycle script error but we have a container ID,
+		// the container is running so we should set the status to Running.
+		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
+		dc.Error = upErr.Error()
+	} else {
+		dc.Error = ""
+	}
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.broadcastUpdatesLocked()

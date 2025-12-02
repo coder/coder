@@ -1077,6 +1077,74 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
+// @Summary Get user preference settings
+// @ID get-user-preference-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.UserPreferenceSettings
+// @Router /users/{user}/preferences [get]
+func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	taskAlertDismissed, err := api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user preference settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
+		TaskNotificationAlertDismissed: taskAlertDismissed,
+	})
+}
+
+// @Summary Update user preference settings
+// @ID update-user-preference-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserPreferenceSettingsRequest true "New preference settings"
+// @Success 200 {object} codersdk.UserPreferenceSettings
+// @Router /users/{user}/preferences [put]
+func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	var params codersdk.UpdateUserPreferenceSettingsRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updatedTaskAlertDismissed, err := api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
+		UserID:                         user.ID,
+		TaskNotificationAlertDismissed: params.TaskNotificationAlertDismissed,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user task notification alert dismissed.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
+		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
+	})
+}
+
 func isValidFontName(font codersdk.TerminalFontName) bool {
 	return slices.Contains(codersdk.TerminalFontNames, font)
 }
@@ -1537,21 +1605,13 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 // findUserAdmins fetches all users with user admin permission including owners.
 func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner, codersdk.RoleUserAdmin},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("get owners: %w", err)
 	}
-	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleUserAdmin},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get user admins: %w", err)
-	}
-	return append(owners, userAdmins...), nil
+	return userAdmins, nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {

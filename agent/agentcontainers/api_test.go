@@ -234,6 +234,8 @@ func (w *fakeWatcher) sendEventWaitNextCalled(ctx context.Context, event fsnotif
 // fakeSubAgentClient implements SubAgentClient for testing purposes.
 type fakeSubAgentClient struct {
 	logger slog.Logger
+
+	mu     sync.Mutex // Protects following.
 	agents map[uuid.UUID]agentcontainers.SubAgent
 
 	listErrC   chan error // If set, send to return error, close to return nil.
@@ -254,6 +256,8 @@ func (m *fakeSubAgentClient) List(ctx context.Context) ([]agentcontainers.SubAge
 			}
 		}
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var agents []agentcontainers.SubAgent
 	for _, agent := range m.agents {
 		agents = append(agents, agent)
@@ -282,6 +286,9 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 	if agent.OperatingSystem == "" {
 		return agentcontainers.SubAgent{}, xerrors.New("operating system must be set")
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	for _, a := range m.agents {
 		if a.Name == agent.Name {
@@ -314,6 +321,8 @@ func (m *fakeSubAgentClient) Delete(ctx context.Context, id uuid.UUID) error {
 			}
 		}
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.agents == nil {
 		m.agents = make(map[uuid.UUID]agentcontainers.SubAgent)
 	}
@@ -2068,6 +2077,122 @@ func TestAPI(t *testing.T) {
 			// Then: We also expect no error after running up..
 			require.Len(t, response.Devcontainers, 1)
 			require.Equal(t, "", response.Devcontainers[0].Error)
+		})
+
+		// This test verifies that when devcontainer up fails due to a
+		// lifecycle script error (such as postCreateCommand failing) but the
+		// container was successfully created, we still proceed with the
+		// devcontainer. The container should be available for use and the
+		// agent should be injected.
+		t.Run("DuringUpWithContainerID", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitMedium)
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				mClock = quartz.NewMock(t)
+
+				testContainer = codersdk.WorkspaceAgentContainer{
+					ID:           "test-container-id",
+					FriendlyName: "test-container",
+					Image:        "test-image",
+					Running:      true,
+					CreatedAt:    time.Now(),
+					Labels: map[string]string{
+						agentcontainers.DevcontainerLocalFolderLabel: "/workspaces/project",
+						agentcontainers.DevcontainerConfigFileLabel:  "/workspaces/project/.devcontainer/devcontainer.json",
+					},
+				}
+				fCCLI = &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+					},
+					arch: "amd64",
+				}
+				fDCCLI = &fakeDevcontainerCLI{
+					upID:   testContainer.ID,
+					upErrC: make(chan func() error, 1),
+				}
+				fSAC = &fakeSubAgentClient{
+					logger: logger.Named("fakeSubAgentClient"),
+				}
+
+				testDevcontainer = codersdk.WorkspaceAgentDevcontainer{
+					ID:              uuid.New(),
+					Name:            "test-devcontainer",
+					WorkspaceFolder: "/workspaces/project",
+					ConfigPath:      "/workspaces/project/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				}
+			)
+
+			mClock.Set(time.Now()).MustWait(ctx)
+			tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+			nowRecreateSuccessTrap := mClock.Trap().Now("recreate", "successTimes")
+
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithContainerCLI(fCCLI),
+				agentcontainers.WithDevcontainerCLI(fDCCLI),
+				agentcontainers.WithDevcontainers(
+					[]codersdk.WorkspaceAgentDevcontainer{testDevcontainer},
+					[]codersdk.WorkspaceAgentScript{{ID: testDevcontainer.ID, LogSourceID: uuid.New()}},
+				),
+				agentcontainers.WithSubAgentClient(fSAC),
+				agentcontainers.WithSubAgentURL("test-subagent-url"),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+			)
+			api.Start()
+			defer func() {
+				close(fDCCLI.upErrC)
+				api.Close()
+			}()
+
+			r := chi.NewRouter()
+			r.Mount("/", api.Routes())
+
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
+
+			// Send a recreate request to trigger devcontainer up.
+			req := httptest.NewRequest(http.MethodPost, "/devcontainers/"+testDevcontainer.ID.String()+"/recreate", nil)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusAccepted, rec.Code)
+
+			// Simulate a lifecycle script failure. The devcontainer CLI
+			// will return an error but also provide a container ID since
+			// the container was created before the script failed.
+			simulatedError := xerrors.New("postCreateCommand failed with exit code 1")
+			testutil.RequireSend(ctx, t, fDCCLI.upErrC, func() error { return simulatedError })
+
+			// Wait for the recreate operation to complete. We expect it to
+			// record a success time because the container was created.
+			nowRecreateSuccessTrap.MustWait(ctx).MustRelease(ctx)
+			nowRecreateSuccessTrap.Close()
+
+			// Advance the clock to run the devcontainer state update routine.
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			req = httptest.NewRequest(http.MethodGet, "/", nil)
+			rec = httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var response codersdk.WorkspaceAgentListContainersResponse
+			err := json.NewDecoder(rec.Body).Decode(&response)
+			require.NoError(t, err)
+
+			// Verify that the devcontainer is running and has the container
+			// associated with it despite the lifecycle script error. The
+			// error may be cleared during refresh if agent injection
+			// succeeds, but the important thing is that the container is
+			// available for use.
+			require.Len(t, response.Devcontainers, 1)
+			assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, response.Devcontainers[0].Status)
+			require.NotNil(t, response.Devcontainers[0].Container)
+			assert.Equal(t, testContainer.ID, response.Devcontainers[0].Container.ID)
 		})
 
 		t.Run("DuringInjection", func(t *testing.T) {

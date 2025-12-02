@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -106,8 +107,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			return agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+			return agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 				AppSlug: "some-agent-app",
 				Message: args.Summary,
 				URI:     args.Link,
@@ -1023,11 +1025,8 @@ func TestTools(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		expClient := codersdk.NewExperimentalClient(client)
-		taskExpClient := codersdk.NewExperimentalClient(taskClient)
-
 		// This task should not show up since listing is user-scoped.
-		_, err := expClient.CreateTask(ctx, member.Username, codersdk.CreateTaskRequest{
+		_, err := client.CreateTask(ctx, member.Username, codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Input:             "task for member",
 			Name:              "list-task-workspace-member",
@@ -1037,7 +1036,7 @@ func TestTools(t *testing.T) {
 		// Create tasks for taskUser. These should show up in the list.
 		for i := range 5 {
 			taskName := fmt.Sprintf("list-task-workspace-%d", i)
-			task, err := taskExpClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			task, err := taskClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 				TemplateVersionID: template.ActiveVersionID,
 				Input:             fmt.Sprintf("task %d", i),
 				Name:              taskName,
@@ -1393,7 +1392,17 @@ func TestTools(t *testing.T) {
 		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to send task input).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
 
 		tests := []struct {
 			name  string
@@ -1454,8 +1463,6 @@ func TestTools(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				tb, err := toolsdk.NewDeps(memberClient)
 				require.NoError(t, err)
 
@@ -1525,7 +1532,17 @@ func TestTools(t *testing.T) {
 		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to read task logs).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
 
 		tests := []struct {
 			name     string
@@ -1577,8 +1594,6 @@ func TestTools(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				tb, err := toolsdk.NewDeps(memberClient)
 				require.NoError(t, err)
 

@@ -7,7 +7,6 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "contexts/ProxyContext";
@@ -35,6 +34,7 @@ interface NavbarViewProps {
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
+	canViewAIBridge: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -55,6 +55,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewHealth,
 	canViewAuditLog,
 	canViewConnectionLog,
+	canViewAIBridge,
 	proxyContextValue,
 }) => {
 	const webPush = useWebpushNotifications();
@@ -95,6 +96,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
 						canViewConnectionLog={canViewConnectionLog}
+						canViewAIBridge={canViewAIBridge}
 					/>
 				</div>
 
@@ -205,7 +207,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 	};
 	const { data: idleCount } = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => API.experimental.getTasks(filter),
+		queryFn: () => API.getTasks(filter),
 		refetchInterval: 1_000 * 60,
 		enabled: canSeeTasks,
 		refetchOnWindowFocus: true,
@@ -227,21 +229,19 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		>
 			Tasks
 			{idleCount > 0 && (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Badge
-								variant="info"
-								size="xs"
-								className="ml-2"
-								aria-label={idleTasksLabel(idleCount)}
-							>
-								{idleCount}
-							</Badge>
-						</TooltipTrigger>
-						<TooltipContent>{idleTasksLabel(idleCount)}</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Badge
+							variant="info"
+							size="xs"
+							className="ml-2"
+							aria-label={idleTasksLabel(idleCount)}
+						>
+							{idleCount}
+						</Badge>
+					</TooltipTrigger>
+					<TooltipContent>{idleTasksLabel(idleCount)}</TooltipContent>
+				</Tooltip>
 			)}
 		</NavLink>
 	);

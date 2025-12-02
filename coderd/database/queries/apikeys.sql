@@ -85,6 +85,21 @@ DELETE FROM
 WHERE
 	user_id = $1;
 
+-- name: DeleteExpiredAPIKeys :execrows
+WITH expired_keys AS (
+	SELECT id
+	FROM api_keys
+	-- expired keys only
+	WHERE expires_at < @before::timestamptz
+	LIMIT @limit_count
+)
+DELETE FROM
+	api_keys
+USING
+	expired_keys
+WHERE
+	api_keys.id = expired_keys.id;
+
 -- name: ExpirePrebuildsAPIKeys :exec
 -- Firstly, collect api_keys owned by the prebuilds user that correlate
 -- to workspaces no longer owned by the prebuilds user.

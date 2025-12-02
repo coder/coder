@@ -175,10 +175,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "small_fast_model": "string"
         },
         "enabled": true,
+        "inject_coder_mcp_tools": true,
         "openai": {
           "base_url": "string",
           "key": "string"
-        }
+        },
+        "retention": 0
       }
     },
     "allow_workspace_renames": true,
@@ -461,6 +463,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "disable_all": true
     },
     "redirect_to_access_url": true,
+    "retention": {
+      "api_keys": 0,
+      "audit_logs": 0,
+      "connection_logs": 0,
+      "workspace_agent_logs": 0
+    },
     "scim_api_key": "string",
     "session_lifetime": {
       "default_duration": 0,

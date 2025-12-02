@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	sharedhttpmw "github.com/coder/coder/v2/httpmw"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -328,7 +329,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// Persistent middlewares to all routes
 	r.Use(
 		// TODO: @emyrk Should we standardize these in some other package?
-		httpmw.Recover(s.Logger),
+		sharedhttpmw.Recover(s.Logger),
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(s.TracerProvider),

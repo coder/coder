@@ -720,25 +720,12 @@ aibridge:
   # The base URL of the OpenAI API.
   # (default: https://api.openai.com/v1/, type: string)
   openai_base_url: https://api.openai.com/v1/
-  # The key to authenticate against the OpenAI API.
-  # (default: <unset>, type: string)
-  openai_key: ""
   # The base URL of the Anthropic API.
   # (default: https://api.anthropic.com/, type: string)
   anthropic_base_url: https://api.anthropic.com/
-  # The key to authenticate against the Anthropic API.
-  # (default: <unset>, type: string)
-  anthropic_key: ""
   # The AWS Bedrock API region.
   # (default: <unset>, type: string)
   bedrock_region: ""
-  # The access key to authenticate against the AWS Bedrock API.
-  # (default: <unset>, type: string)
-  bedrock_access_key: ""
-  # The access key secret to use with the access key to authenticate against the AWS
-  # Bedrock API.
-  # (default: <unset>, type: string)
-  bedrock_access_key_secret: ""
   # The model to use when making requests to the AWS Bedrock API.
   # (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0, type: string)
   bedrock_model: global.anthropic.claude-sonnet-4-5-20250929-v1:0
@@ -747,3 +734,35 @@ aibridge:
   # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
   # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
   bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+  # Whether to inject Coder's MCP tools into intercepted AI Bridge requests
+  # (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
+  # (default: false, type: bool)
+  inject_coder_mcp_tools: false
+  # Length of time to retain data such as interceptions and all related records
+  # (token, prompt, tool use).
+  # (default: 60d, type: duration)
+  retention: 1440h0m0s
+# Configure data retention policies for various database tables. Retention
+# policies automatically purge old data to reduce database size and improve
+# performance. Setting a retention duration to 0 disables automatic purging for
+# that data type.
+retention:
+  # How long audit log entries are retained. Set to 0 to disable (keep
+  # indefinitely). We advise keeping audit logs for at least a year, and in
+  # accordance with your compliance requirements.
+  # (default: 0, type: duration)
+  audit_logs: 0s
+  # How long connection log entries are retained. Set to 0 to disable (keep
+  # indefinitely).
+  # (default: 0, type: duration)
+  connection_logs: 0s
+  # How long expired API keys are retained before being deleted. Keeping expired
+  # keys allows the backend to return a more helpful error when a user tries to use
+  # an expired key. Set to 0 to disable automatic deletion of expired keys.
+  # (default: 7d, type: duration)
+  api_keys: 168h0m0s
+  # How long workspace agent logs are retained. Logs from non-latest builds are
+  # deleted if the agent hasn't connected within this period. Logs from the latest
+  # build are always retained. Set to 0 to disable automatic deletion.
+  # (default: 7d, type: duration)
+  workspace_agent_logs: 168h0m0s

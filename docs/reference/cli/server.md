@@ -1676,7 +1676,6 @@ The base URL of the OpenAI API.
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_AIBRIDGE_OPENAI_KEY</code> |
-| YAML        | <code>aibridge.openai_key</code>        |
 
 The key to authenticate against the OpenAI API.
 
@@ -1697,7 +1696,6 @@ The base URL of the Anthropic API.
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_KEY</code> |
-| YAML        | <code>aibridge.anthropic_key</code>        |
 
 The key to authenticate against the Anthropic API.
 
@@ -1717,7 +1715,6 @@ The AWS Bedrock API region.
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY</code> |
-| YAML        | <code>aibridge.bedrock_access_key</code>        |
 
 The access key to authenticate against the AWS Bedrock API.
 
@@ -1727,7 +1724,6 @@ The access key to authenticate against the AWS Bedrock API.
 |-------------|--------------------------------------------------------|
 | Type        | <code>string</code>                                    |
 | Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET</code> |
-| YAML        | <code>aibridge.bedrock_access_key_secret</code>        |
 
 The access key secret to use with the access key to authenticate against the AWS Bedrock API.
 
@@ -1752,3 +1748,69 @@ The model to use when making requests to the AWS Bedrock API.
 | Default     | <code>global.anthropic.claude-haiku-4-5-20251001-v1:0</code> |
 
 The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+
+### --aibridge-inject-coder-mcp-tools
+
+|             |                                                     |
+|-------------|-----------------------------------------------------|
+| Type        | <code>bool</code>                                   |
+| Environment | <code>$CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS</code> |
+| YAML        | <code>aibridge.inject_coder_mcp_tools</code>        |
+| Default     | <code>false</code>                                  |
+
+Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
+
+### --aibridge-retention
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>duration</code>                  |
+| Environment | <code>$CODER_AIBRIDGE_RETENTION</code> |
+| YAML        | <code>aibridge.retention</code>        |
+| Default     | <code>60d</code>                       |
+
+Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
+
+### --audit-logs-retention
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>duration</code>                    |
+| Environment | <code>$CODER_AUDIT_LOGS_RETENTION</code> |
+| YAML        | <code>retention.audit_logs</code>        |
+| Default     | <code>0</code>                           |
+
+How long audit log entries are retained. Set to 0 to disable (keep indefinitely). We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.
+
+### --connection-logs-retention
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>duration</code>                         |
+| Environment | <code>$CODER_CONNECTION_LOGS_RETENTION</code> |
+| YAML        | <code>retention.connection_logs</code>        |
+| Default     | <code>0</code>                                |
+
+How long connection log entries are retained. Set to 0 to disable (keep indefinitely).
+
+### --api-keys-retention
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>duration</code>                  |
+| Environment | <code>$CODER_API_KEYS_RETENTION</code> |
+| YAML        | <code>retention.api_keys</code>        |
+| Default     | <code>7d</code>                        |
+
+How long expired API keys are retained before being deleted. Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key. Set to 0 to disable automatic deletion of expired keys.
+
+### --workspace-agent-logs-retention
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_WORKSPACE_AGENT_LOGS_RETENTION</code> |
+| YAML        | <code>retention.workspace_agent_logs</code>        |
+| Default     | <code>7d</code>                                    |
+
+How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.

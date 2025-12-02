@@ -1,0 +1,69 @@
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/agent/agentsocket/proto";
+
+package coder.agentsocket.v1;
+
+message PingRequest {}
+
+message PingResponse {}
+
+message SyncStartRequest {
+  string unit = 1;
+}
+
+message SyncStartResponse {}
+
+message SyncWantRequest {
+  string unit = 1;
+  string depends_on = 2;
+}
+
+message SyncWantResponse {}
+
+message SyncCompleteRequest {
+  string unit = 1;
+}
+
+message SyncCompleteResponse {}
+
+message SyncReadyRequest {
+  string unit = 1;
+}
+
+message SyncReadyResponse {
+  bool ready = 1;
+}
+
+message SyncStatusRequest {
+  string unit = 1;
+}
+
+message DependencyInfo {
+  string unit = 1;
+  string depends_on = 2;
+  string required_status = 3;
+  string current_status = 4;
+  bool is_satisfied = 5;
+}
+
+message SyncStatusResponse {
+  string status = 1;
+  bool is_ready = 2;
+  repeated DependencyInfo dependencies = 3;
+}
+
+// AgentSocket provides direct access to the agent over local IPC.
+service AgentSocket {
+  // Ping the agent to check if it is alive.
+  rpc Ping(PingRequest) returns (PingResponse);
+  // Report the start of a unit.
+  rpc SyncStart(SyncStartRequest) returns (SyncStartResponse);
+  // Declare a dependency between units.
+  rpc SyncWant(SyncWantRequest) returns (SyncWantResponse);
+  // Report the completion of a unit.
+  rpc SyncComplete(SyncCompleteRequest) returns (SyncCompleteResponse);
+  // Request whether a unit is ready to be started. That is, all dependencies are satisfied.
+  rpc SyncReady(SyncReadyRequest) returns (SyncReadyResponse);
+  // Get the status of a unit and list its dependencies.
+  rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
+}

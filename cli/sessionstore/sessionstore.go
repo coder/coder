@@ -46,6 +46,12 @@ var (
 	ErrNotImplemented = xerrors.New("not implemented")
 )
 
+const (
+	// DefaultServiceName is the service name used in keyrings for storing Coder CLI session
+	// tokens.
+	DefaultServiceName = "coder-v2-credentials"
+)
+
 // keyringProvider represents an operating system keyring. The expectation
 // is these methods operate on the user/login keyring.
 type keyringProvider interface {
@@ -102,17 +108,9 @@ type Keyring struct {
 	serviceName string
 }
 
-// NewKeyring creates a Keyring with the default service name for production use.
-func NewKeyring() Keyring {
-	return Keyring{
-		provider:    operatingSystemKeyring{},
-		serviceName: defaultServiceName,
-	}
-}
-
 // NewKeyringWithService creates a Keyring Backend that stores credentials under the
-// specified service name. This is primarily intended for testing to avoid conflicts
-// with production credentials and collisions between tests.
+// specified service name. Generally, DefaultServiceName should be provided as the service
+// name except in tests which may need parameterization to avoid conflicting keyring use.
 func NewKeyringWithService(serviceName string) Keyring {
 	return Keyring{
 		provider:    operatingSystemKeyring{},

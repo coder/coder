@@ -117,6 +117,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"activity_bump":                     ActionTrack,
 		"use_classic_parameter_flow":        ActionTrack,
 		"cors_behavior":                     ActionTrack,
+		"use_terraform_workspace_cache":     ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -198,7 +199,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
-		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
@@ -353,6 +353,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"organization_id":     ActionIgnore, // Never changes.
 		"owner_id":            ActionTrack,
 		"name":                ActionTrack,
+		"display_name":        ActionTrack,
 		"workspace_id":        ActionTrack,
 		"template_version_id": ActionTrack,
 		"template_parameters": ActionTrack,

@@ -141,6 +141,13 @@ export const BunchOfApps: Story = {
 	},
 };
 
+export const Disconnected: Story = {
+	args: {
+		agent: M.MockWorkspaceAgentDisconnected,
+		initialMetadata: [],
+	},
+};
+
 export const Connecting: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentConnecting,

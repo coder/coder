@@ -9,6 +9,7 @@ IST = "IST"
 MacOS = "macOS"
 AKS = "AKS"
 O_WRONLY = "O_WRONLY"
+AIBridge = "AI Bridge"
 
 [default.extend-words]
 AKS = "AKS"

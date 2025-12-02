@@ -31,11 +31,14 @@ export interface AIBridgeConfig {
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
 	readonly bedrock: AIBridgeBedrockConfig;
+	readonly inject_coder_mcp_tools: boolean;
+	readonly retention: number;
 }
 
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
+	readonly api_key_id: string | null;
 	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
@@ -1192,14 +1195,13 @@ export interface CreateProvisionerKeyResponse {
 // From codersdk/aitasks.go
 /**
  * CreateTaskRequest represents the request to create a new task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface CreateTaskRequest {
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
 	readonly input: string;
 	readonly name?: string;
+	readonly display_name?: string;
 }
 
 // From codersdk/organizations.go
@@ -1776,6 +1778,7 @@ export interface DeploymentValues {
 	readonly web_terminal_renderer?: string;
 	readonly allow_workspace_renames?: boolean;
 	readonly healthcheck?: HealthcheckConfig;
+	readonly retention?: RetentionConfig;
 	readonly cli_upgrade_message?: string;
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
@@ -1893,6 +1896,7 @@ export type Experiment =
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
+	| "terraform-directory-reuse"
 	| "web-push"
 	| "workspace-sharing"
 	| "workspace-usage";
@@ -1903,6 +1907,7 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
+	"terraform-directory-reuse",
 	"web-push",
 	"workspace-sharing",
 	"workspace-usage",
@@ -2099,6 +2104,7 @@ export type FeatureName =
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
+	| "task_batch_actions"
 	| "template_rbac"
 	| "user_limit"
 	| "user_role_management"
@@ -2124,6 +2130,7 @@ export const FeatureNames: FeatureName[] = [
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
+	"task_batch_actions",
 	"template_rbac",
 	"user_limit",
 	"user_role_management",
@@ -2476,6 +2483,18 @@ export const InsightsReportIntervals: InsightsReportInterval[] = [
 	"day",
 	"week",
 ];
+
+// From codersdk/templates.go
+export interface InvalidatePresetsResponse {
+	readonly invalidated: readonly InvalidatedPreset[];
+}
+
+// From codersdk/templates.go
+export interface InvalidatedPreset {
+	readonly template_name: string;
+	readonly template_version_name: string;
+	readonly preset_name: string;
+}
 
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
@@ -4138,6 +4157,39 @@ export interface Response {
 	readonly validations?: readonly ValidationError[];
 }
 
+// From codersdk/deployment.go
+/**
+ * RetentionConfig contains configuration for data retention policies.
+ * These settings control how long various types of data are retained in the database
+ * before being automatically purged. Setting a value to 0 disables retention for that
+ * data type (data is kept indefinitely).
+ */
+export interface RetentionConfig {
+	/**
+	 * AuditLogs controls how long audit log entries are retained.
+	 * Set to 0 to disable (keep indefinitely).
+	 */
+	readonly audit_logs: number;
+	/**
+	 * ConnectionLogs controls how long connection log entries are retained.
+	 * Set to 0 to disable (keep indefinitely).
+	 */
+	readonly connection_logs: number;
+	/**
+	 * APIKeys controls how long expired API keys are retained before being deleted.
+	 * Keys are only deleted if they have been expired for at least this duration.
+	 * Defaults to 7 days to preserve existing behavior.
+	 */
+	readonly api_keys: number;
+	/**
+	 * WorkspaceAgentLogs controls how long workspace agent logs are retained.
+	 * Logs are deleted if the agent hasn't connected within this period.
+	 * Logs from the latest build are always retained regardless of age.
+	 * Defaults to 7 days to preserve existing behavior.
+	 */
+	readonly workspace_agent_logs: number;
+}
+
 // From codersdk/roles.go
 /**
  * Role is a longer form of SlimRole that includes permissions details.
@@ -4705,8 +4757,6 @@ export interface TailDERPRegion {
 // From codersdk/aitasks.go
 /**
  * Task represents a task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface Task {
 	readonly id: string;
@@ -4715,6 +4765,7 @@ export interface Task {
 	readonly owner_name: string;
 	readonly owner_avatar_url?: string;
 	readonly name: string;
+	readonly display_name: string;
 	readonly template_id: string;
 	readonly template_version_id: string;
 	readonly template_name: string;
@@ -4738,8 +4789,6 @@ export interface Task {
 // From codersdk/aitasks.go
 /**
  * TaskLogEntry represents a single log entry for a task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskLogEntry {
 	readonly id: number;
@@ -4756,8 +4805,6 @@ export const TaskLogTypes: TaskLogType[] = ["input", "output"];
 // From codersdk/aitasks.go
 /**
  * TaskLogsResponse contains the logs for a task.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskLogsResponse {
 	readonly logs: readonly TaskLogEntry[];
@@ -4766,8 +4813,6 @@ export interface TaskLogsResponse {
 // From codersdk/aitasks.go
 /**
  * TaskSendRequest is used to send task input to the tasks sidebar app.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskSendRequest {
 	readonly input: string;
@@ -4779,8 +4824,6 @@ export type TaskState = "complete" | "failed" | "idle" | "working";
 // From codersdk/aitasks.go
 /**
  * TaskStateEntry represents a single entry in the task's state history.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TaskStateEntry {
 	readonly timestamp: string;
@@ -4817,8 +4860,6 @@ export const TaskStatuses: TaskStatus[] = [
 // From codersdk/aitasks.go
 /**
  * TasksFilter filters the list of tasks.
- *
- * Experimental: This type is experimental and may change in the future.
  */
 export interface TasksFilter {
 	/**
@@ -4842,8 +4883,6 @@ export interface TasksFilter {
 // From codersdk/aitasks.go
 /**
  * TaskListResponse is the response shape for tasks list.
- *
- * Experimental response shape for tasks list (server returns []Task).
  */
 export interface TasksListResponse {
 	readonly tasks: readonly Task[];
@@ -4918,6 +4957,7 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
+	readonly use_terraform_workspace_cache: boolean;
 }
 
 // From codersdk/templates.go
@@ -5353,6 +5393,14 @@ export interface UpdateRoles {
 	readonly roles: readonly string[];
 }
 
+// From codersdk/aitasks.go
+/**
+ * UpdateTaskInputRequest is used to update a task's input.
+ */
+export interface UpdateTaskInputRequest {
+	readonly input: string;
+}
+
 // From codersdk/templates.go
 export interface UpdateTemplateACL {
 	/**
@@ -5439,6 +5487,13 @@ export interface UpdateTemplateMeta {
 	 * An "opt-out" is present in case the new feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
+	/**
+	 * UseTerraformWorkspaceCache allows optionally specifying whether to use cached
+	 * terraform directories for workspaces created from this template. This field
+	 * only applies when the correct experiment is enabled. This field is subject to
+	 * being removed in the future.
+	 */
+	readonly use_terraform_workspace_cache?: boolean;
 }
 
 // From codersdk/users.go
@@ -5456,6 +5511,11 @@ export interface UpdateUserNotificationPreferences {
 export interface UpdateUserPasswordRequest {
 	readonly old_password: string;
 	readonly password: string;
+}
+
+// From codersdk/users.go
+export interface UpdateUserPreferenceSettingsRequest {
+	readonly task_notification_alert_dismissed: boolean;
 }
 
 // From codersdk/users.go
@@ -5684,6 +5744,11 @@ export interface UserLoginType {
 export interface UserParameter {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/users.go
+export interface UserPreferenceSettings {
+	readonly task_notification_alert_dismissed: boolean;
 }
 
 // From codersdk/deployment.go
@@ -6392,11 +6457,10 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
-	readonly has_ai_task?: boolean;
 	/**
-	 * Deprecated: This field has been replaced with `Task.WorkspaceAppID`
+	 * Deprecated: This field has been deprecated in favor of Task WorkspaceID.
 	 */
-	readonly ai_task_sidebar_app_id?: string;
+	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
 }
 

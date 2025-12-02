@@ -1,0 +1,19 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder task
+
+  Manage tasks
+
+  Aliases: tasks
+
+SUBCOMMANDS:
+    create    Create a task
+    delete    Delete tasks
+    list      List tasks
+    logs      Show a task's logs
+    send      Send input to a task
+    status    Show the status of a task.
+
+———
+Run `coder --help` for a list of global options.

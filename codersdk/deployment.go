@@ -80,6 +80,7 @@ const (
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
+	FeatureTaskBatchActions           FeatureName = "task_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
@@ -111,6 +112,7 @@ var (
 		FeatureUserRoleManagement,
 		FeatureExternalTokenEncryption,
 		FeatureWorkspaceBatchActions,
+		FeatureTaskBatchActions,
 		FeatureAccessControl,
 		FeatureControlSharedPorts,
 		FeatureCustomRoles,
@@ -157,6 +159,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
+		FeatureTaskBatchActions:           true,
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
@@ -498,6 +501,7 @@ type DeploymentValues struct {
 	WebTerminalRenderer             serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	AllowWorkspaceRenames           serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
+	Retention                       RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
@@ -808,6 +812,28 @@ type UserQuietHoursScheduleConfig struct {
 type HealthcheckConfig struct {
 	Refresh           serpent.Duration `json:"refresh" typescript:",notnull"`
 	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
+}
+
+// RetentionConfig contains configuration for data retention policies.
+// These settings control how long various types of data are retained in the database
+// before being automatically purged. Setting a value to 0 disables retention for that
+// data type (data is kept indefinitely).
+type RetentionConfig struct {
+	// AuditLogs controls how long audit log entries are retained.
+	// Set to 0 to disable (keep indefinitely).
+	AuditLogs serpent.Duration `json:"audit_logs" typescript:",notnull"`
+	// ConnectionLogs controls how long connection log entries are retained.
+	// Set to 0 to disable (keep indefinitely).
+	ConnectionLogs serpent.Duration `json:"connection_logs" typescript:",notnull"`
+	// APIKeys controls how long expired API keys are retained before being deleted.
+	// Keys are only deleted if they have been expired for at least this duration.
+	// Defaults to 7 days to preserve existing behavior.
+	APIKeys serpent.Duration `json:"api_keys" typescript:",notnull"`
+	// WorkspaceAgentLogs controls how long workspace agent logs are retained.
+	// Logs are deleted if the agent hasn't connected within this period.
+	// Logs from the latest build are always retained regardless of age.
+	// Defaults to 7 days to preserve existing behavior.
+	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -1174,8 +1200,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:   "inbox",
 		}
 		deploymentGroupAIBridge = serpent.Group{
-			Name: "AIBridge",
+			Name: "AI Bridge",
 			YAML: "aibridge",
+		}
+		deploymentGroupRetention = serpent.Group{
+			Name:        "Retention",
+			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
+			YAML:        "retention",
 		}
 	)
 
@@ -3238,9 +3269,9 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hideAITasks",
 		},
 
-		// AIBridge Options
+		// AI Bridge Options
 		{
-			Name:        "AIBridge Enabled",
+			Name:        "AI Bridge Enabled",
 			Description: "Whether to start an in-memory aibridged instance.",
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
@@ -3250,7 +3281,7 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "enabled",
 		},
 		{
-			Name:        "AIBridge OpenAI Base URL",
+			Name:        "AI Bridge OpenAI Base URL",
 			Description: "The base URL of the OpenAI API.",
 			Flag:        "aibridge-openai-base-url",
 			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
@@ -3260,17 +3291,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "openai_base_url",
 		},
 		{
-			Name:        "AIBridge OpenAI Key",
+			Name:        "AI Bridge OpenAI Key",
 			Description: "The key to authenticate against the OpenAI API.",
 			Flag:        "aibridge-openai-key",
 			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
 			Value:       &c.AI.BridgeConfig.OpenAI.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "openai_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AIBridge Anthropic Base URL",
+			Name:        "AI Bridge Anthropic Base URL",
 			Description: "The base URL of the Anthropic API.",
 			Flag:        "aibridge-anthropic-base-url",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
@@ -3280,17 +3311,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "anthropic_base_url",
 		},
 		{
-			Name:        "AIBridge Anthropic Key",
+			Name:        "AI Bridge Anthropic Key",
 			Description: "The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "anthropic_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AIBridge Bedrock Region",
+			Name:        "AI Bridge Bedrock Region",
 			Description: "The AWS Bedrock API region.",
 			Flag:        "aibridge-bedrock-region",
 			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
@@ -3300,27 +3331,27 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "bedrock_region",
 		},
 		{
-			Name:        "AIBridge Bedrock Access Key",
+			Name:        "AI Bridge Bedrock Access Key",
 			Description: "The access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
 			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_access_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AIBridge Bedrock Access Key Secret",
+			Name:        "AI Bridge Bedrock Access Key Secret",
 			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key-secret",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
 			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_access_key_secret",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AIBridge Bedrock Model",
+			Name:        "AI Bridge Bedrock Model",
 			Description: "The model to use when making requests to the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-model",
 			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
@@ -3330,7 +3361,7 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "bedrock_model",
 		},
 		{
-			Name:        "AIBridge Bedrock Small Fast Model",
+			Name:        "AI Bridge Bedrock Small Fast Model",
 			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
 			Flag:        "aibridge-bedrock-small-fastmodel",
 			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
@@ -3338,6 +3369,72 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_small_fast_model",
+		},
+		{
+			Name:        "AI Bridge Inject Coder MCP tools",
+			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Flag:        "aibridge-inject-coder-mcp-tools",
+			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
+			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "inject_coder_mcp_tools",
+		},
+		{
+			Name:        "AI Bridge Data Retention Duration",
+			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Flag:        "aibridge-retention",
+			Env:         "CODER_AIBRIDGE_RETENTION",
+			Value:       &c.AI.BridgeConfig.Retention,
+			Default:     "60d",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "retention",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		// Retention settings
+		{
+			Name:        "Audit Logs Retention",
+			Description: "How long audit log entries are retained. Set to 0 to disable (keep indefinitely). We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.",
+			Flag:        "audit-logs-retention",
+			Env:         "CODER_AUDIT_LOGS_RETENTION",
+			Value:       &c.Retention.AuditLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "audit_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Connection Logs Retention",
+			Description: "How long connection log entries are retained. Set to 0 to disable (keep indefinitely).",
+			Flag:        "connection-logs-retention",
+			Env:         "CODER_CONNECTION_LOGS_RETENTION",
+			Value:       &c.Retention.ConnectionLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "connection_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "API Keys Retention",
+			Description: "How long expired API keys are retained before being deleted. Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key. Set to 0 to disable automatic deletion of expired keys.",
+			Flag:        "api-keys-retention",
+			Env:         "CODER_API_KEYS_RETENTION",
+			Value:       &c.Retention.APIKeys,
+			Default:     "7d",
+			Group:       &deploymentGroupRetention,
+			YAML:        "api_keys",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Workspace Agent Logs Retention",
+			Description: "How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.",
+			Flag:        "workspace-agent-logs-retention",
+			Env:         "CODER_WORKSPACE_AGENT_LOGS_RETENTION",
+			Value:       &c.Retention.WorkspaceAgentLogs,
+			Default:     "7d",
+			Group:       &deploymentGroupRetention,
+			YAML:        "workspace_agent_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name: "Enable Authorization Recordings",
@@ -3358,10 +3455,12 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3635,6 +3734,8 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
+	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
 
 func (e Experiment) DisplayName() string {
@@ -3655,6 +3756,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
+	case ExperimentTerraformWorkspace:
+		return "Terraform Directory Reuse"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"

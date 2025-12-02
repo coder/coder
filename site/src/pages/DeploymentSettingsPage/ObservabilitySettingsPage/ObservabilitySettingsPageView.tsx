@@ -15,7 +15,6 @@ import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { FC } from "react";
@@ -26,12 +25,18 @@ import OptionsTable from "../OptionsTable";
 type ObservabilitySettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAuditLogEnabled: boolean;
+	featureAIBridgeEnabled: boolean;
 	isPremium: boolean;
 };
 
 export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
-> = ({ options, featureAuditLogEnabled, isPremium }) => {
+> = ({
+	options,
+	featureAuditLogEnabled,
+	isPremium,
+	featureAIBridgeEnabled,
+}) => {
 	return (
 		<Stack direction="column" spacing={6}>
 			<div>
@@ -53,31 +58,29 @@ export const ObservabilitySettingsPageView: FC<
 				</SettingsHeader>
 
 				<Badges>
-					<TooltipProvider>
-						<Tooltip delayDuration={0}>
-							{featureAuditLogEnabled && !isPremium ? (
-								<EnterpriseBadge />
-							) : (
-								<TooltipTrigger asChild>
-									<span>
-										<PremiumBadge />
-									</span>
-								</TooltipTrigger>
-							)}
+					<Tooltip>
+						{featureAuditLogEnabled && !isPremium ? (
+							<EnterpriseBadge />
+						) : (
+							<TooltipTrigger asChild>
+								<span>
+									<PremiumBadge />
+								</span>
+							</TooltipTrigger>
+						)}
 
-							<TooltipContent
-								sideOffset={-28}
-								collisionPadding={16}
-								className="p-0"
-							>
-								<PopoverPaywall
-									message="Observability"
-									description="With a Premium license, you can monitor your application with logs and metrics."
-									documentationLink="https://coder.com/docs/admin/appearance"
-								/>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+						<TooltipContent
+							sideOffset={-28}
+							collisionPadding={16}
+							className="p-0"
+						>
+							<PopoverPaywall
+								message="Observability"
+								description="With a Premium license, you can monitor your application with logs and metrics."
+								documentationLink="https://coder.com/docs/admin/appearance"
+							/>
+						</TooltipContent>
+					</Tooltip>
 				</Badges>
 			</div>
 
@@ -97,6 +100,29 @@ export const ObservabilitySettingsPageView: FC<
 					)}
 				/>
 			</div>
+
+			{featureAIBridgeEnabled && (
+				<div>
+					<SettingsHeader
+						actions={
+							<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+						}
+					>
+						<SettingsHeaderTitle hierarchy="secondary" level="h2">
+							AI Bridge
+						</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Monitor and manage AI requests across your deployment.
+						</SettingsHeaderDescription>
+					</SettingsHeader>
+
+					<OptionsTable
+						options={options
+							.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
+							.filter((o) => !o.annotations?.secret === true)}
+					/>
+				</div>
+			)}
 		</Stack>
 	);
 };

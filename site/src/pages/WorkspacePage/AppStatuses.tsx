@@ -10,7 +10,6 @@ import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import capitalize from "lodash/capitalize";
@@ -99,19 +98,17 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 
 					{latestStatus.uri &&
 						(latestStatus.uri.startsWith("file://") ? (
-							<TooltipProvider>
-								<Tooltip>
-									<TooltipTrigger>
-										<span className="flex items-center gap-1">
-											<FileIcon className="size-icon-xs" />
-											{truncateURI(latestStatus.uri)}
-										</span>
-									</TooltipTrigger>
-									<TooltipContent>
-										This file is located in your workspace
-									</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger>
+									<span className="flex items-center gap-1">
+										<FileIcon className="size-icon-xs" />
+										{truncateURI(latestStatus.uri)}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent>
+									This file is located in your workspace
+								</TooltipContent>
+							</Tooltip>
 						) : (
 							<Button asChild variant="outline" size="sm">
 								<a href={latestStatus.uri} target="_blank" rel="noreferrer">
@@ -132,25 +129,23 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						</Button>
 					)}
 
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									disabled={otherStatuses.length === 0}
-									size="icon"
-									variant="subtle"
-									onClick={() => {
-										setDisplayStatuses((display) => !display);
-									}}
-								>
-									{displayStatuses ? <ChevronUpIcon /> : <ChevronDownIcon />}
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>
-								{displayStatuses ? "Hide statuses" : "Show statuses"}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								disabled={otherStatuses.length === 0}
+								size="icon"
+								variant="subtle"
+								onClick={() => {
+									setDisplayStatuses((display) => !display);
+								}}
+							>
+								{displayStatuses ? <ChevronUpIcon /> : <ChevronDownIcon />}
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{displayStatuses ? "Hide statuses" : "Show statuses"}
+						</TooltipContent>
+					</Tooltip>
 				</div>
 			</div>
 

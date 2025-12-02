@@ -95,9 +95,6 @@ func TestTailnet(t *testing.T) {
 		node := testutil.TryReceive(ctx, t, nodes)
 		// Ensure this connected over raw (not websocket) DERP!
 		require.Len(t, node.DERPForcedWebsocket, 0)
-
-		w1.Close()
-		w2.Close()
 	})
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
@@ -163,9 +160,6 @@ func TestTailnet(t *testing.T) {
 		require.Len(t, node.DERPForcedWebsocket, 1)
 		// Ensure the reason is valid!
 		require.Equal(t, `GET failed with status code 400 (a proxy could be disallowing the use of 'Upgrade: derp'): Invalid "Upgrade" header: DERP`, node.DERPForcedWebsocket[derpMap.RegionIDs()[0]])
-
-		w1.Close()
-		w2.Close()
 	})
 
 	t.Run("PingDirect", func(t *testing.T) {
@@ -206,9 +200,6 @@ func TestTailnet(t *testing.T) {
 			}
 			return true
 		}, testutil.WaitShort, testutil.IntervalFast)
-
-		w1.Close()
-		w2.Close()
 	})
 
 	t.Run("PingDERPOnly", func(t *testing.T) {
@@ -251,9 +242,6 @@ func TestTailnet(t *testing.T) {
 			}
 			return true
 		}, testutil.WaitShort, testutil.IntervalFast)
-
-		w1.Close()
-		w2.Close()
 	})
 }
 
@@ -302,10 +290,10 @@ func TestConn_UpdateDERP(t *testing.T) {
 		BlockEndpoints: true,
 	})
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		err := conn.Close()
 		assert.NoError(t, err)
-	}()
+	})
 
 	// Buffer channel so callback doesn't block
 	nodes := make(chan *tailnet.Node, 50)
@@ -314,7 +302,7 @@ func TestConn_UpdateDERP(t *testing.T) {
 	})
 
 	ctx1, cancel1 := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel1()
+	t.Cleanup(cancel1)
 	select {
 	case node := <-nodes:
 		require.Equal(t, 1, node.PreferredDERP)
@@ -330,10 +318,10 @@ func TestConn_UpdateDERP(t *testing.T) {
 		BlockEndpoints: true,
 	})
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		err := client1.Close()
 		assert.NoError(t, err)
-	}()
+	})
 	stitch(t, conn, client1)
 	pn, err := tailnet.NodeToProto(conn.Node())
 	require.NoError(t, err)
@@ -346,7 +334,7 @@ func TestConn_UpdateDERP(t *testing.T) {
 	require.NoError(t, err)
 
 	awaitReachableCtx1, awaitReachableCancel1 := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer awaitReachableCancel1()
+	t.Cleanup(awaitReachableCancel1)
 	require.True(t, client1.AwaitReachable(awaitReachableCtx1, ip))
 
 	// Update the DERP map and wait for the preferred DERP server to change.
@@ -361,7 +349,7 @@ func TestConn_UpdateDERP(t *testing.T) {
 	conn.SetDERPMap(derpMap2)
 
 	ctx2, cancel2 := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel2()
+	t.Cleanup(cancel2)
 parentLoop:
 	for {
 		select {
@@ -379,7 +367,7 @@ parentLoop:
 
 	// Client1 should be dropped...
 	awaitReachableCtx2, awaitReachableCancel2 := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer awaitReachableCancel2()
+	t.Cleanup(awaitReachableCancel2)
 	require.False(t, client1.AwaitReachable(awaitReachableCtx2, ip))
 
 	// ... unless the client updates it's derp map and nodes.
@@ -392,7 +380,7 @@ parentLoop:
 		Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 	}})
 	awaitReachableCtx3, awaitReachableCancel3 := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer awaitReachableCancel3()
+	t.Cleanup(awaitReachableCancel3)
 	require.True(t, client1.AwaitReachable(awaitReachableCtx3, ip))
 
 	// Connect from a different different client with up-to-date derp map and
@@ -404,10 +392,10 @@ parentLoop:
 		BlockEndpoints: true,
 	})
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		err := client2.Close()
 		assert.NoError(t, err)
-	}()
+	})
 	stitch(t, conn, client2)
 	pn, err = tailnet.NodeToProto(conn.Node())
 	require.NoError(t, err)
@@ -418,7 +406,7 @@ parentLoop:
 	}})
 
 	awaitReachableCtx4, awaitReachableCancel4 := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer awaitReachableCancel4()
+	t.Cleanup(awaitReachableCancel4)
 	require.True(t, client2.AwaitReachable(awaitReachableCtx4, ip))
 }
 
@@ -437,10 +425,10 @@ func TestConn_BlockEndpoints(t *testing.T) {
 		BlockEndpoints: true,
 	})
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		err := conn1.Close()
 		assert.NoError(t, err)
-	}()
+	})
 
 	// Setup conn 2.
 	ip2 := tailnet.TailscaleServicePrefix.RandomAddr()
@@ -451,16 +439,16 @@ func TestConn_BlockEndpoints(t *testing.T) {
 		BlockEndpoints: true,
 	})
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		err := conn2.Close()
 		assert.NoError(t, err)
-	}()
+	})
 
 	// Connect them together and wait for them to be reachable.
 	stitch(t, conn2, conn1)
 	stitch(t, conn1, conn2)
 	awaitReachableCtx, awaitReachableCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer awaitReachableCancel()
+	t.Cleanup(awaitReachableCancel)
 	require.True(t, conn1.AwaitReachable(awaitReachableCtx, ip2))
 
 	// Wait 10s for endpoints to potentially be sent over Disco. There's no way
@@ -494,6 +482,10 @@ func stitch(t *testing.T, dst, src *tailnet.Conn) {
 			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 		}})
 		assert.NoError(t, err)
+	})
+	// ensures we don't send callbacks after the test ends and connections are closed.
+	t.Cleanup(func() {
+		src.SetNodeCallback(nil)
 	})
 }
 

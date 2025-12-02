@@ -199,10 +199,10 @@ INSERT INTO
 -- name: GetWorkspaceAgentLogSourcesByAgentIDs :many
 SELECT * FROM workspace_agent_log_sources WHERE workspace_agent_id = ANY(@ids :: uuid [ ]);
 
--- If an agent hasn't connected in the last 7 days, we purge it's logs.
+-- If an agent hasn't connected within the retention period, we purge its logs.
 -- Exception: if the logs are related to the latest build, we keep those around.
 -- Logs can take up a lot of space, so it's important we clean up frequently.
--- name: DeleteOldWorkspaceAgentLogs :exec
+-- name: DeleteOldWorkspaceAgentLogs :execrows
 WITH
 	latest_builds AS (
 		SELECT

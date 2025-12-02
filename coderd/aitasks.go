@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/taskname"
+
+	aiagentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -22,25 +25,21 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
-	"github.com/coder/coder/v2/coderd/taskname"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
-
-	aiagentapi "github.com/coder/agentapi-sdk-go"
 )
 
 // @Summary Create a new AI task
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID create-task
+// @ID create-a-new-ai-task
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Accept json
+// @Produce json
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param request body codersdk.CreateTaskRequest true "Create task request"
 // @Success 201 {object} codersdk.Task
-// @Router /api/experimental/tasks/{user} [post]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// This endpoint creates a new task for the given user.
+// @Router /tasks/{user} [post]
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -108,18 +107,25 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if taskName == "" {
-		taskName = taskname.GenerateFallback()
+	taskDisplayName := strings.TrimSpace(req.DisplayName)
+	if taskDisplayName != "" {
+		if len(taskDisplayName) > 64 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Display name must be 64 characters or less.",
+			})
+			return
+		}
+	}
 
-		if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
-			anthropicModel := taskname.GetAnthropicModelFromEnv()
+	// Generate task name and display name if either is not provided
+	if taskName == "" || taskDisplayName == "" {
+		generatedTaskName := taskname.Generate(ctx, api.Logger, req.Input)
 
-			generatedName, err := taskname.Generate(ctx, req.Input, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
-			if err != nil {
-				api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
-			} else {
-				taskName = generatedName
-			}
+		if taskName == "" {
+			taskName = generatedTaskName.Name
+		}
+		if taskDisplayName == "" {
+			taskDisplayName = generatedTaskName.DisplayName
 		}
 	}
 
@@ -212,6 +218,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 				OrganizationID:     templateVersion.OrganizationID,
 				OwnerID:            owner.ID,
 				Name:               taskName,
+				DisplayName:        taskDisplayName,
 				WorkspaceID:        uuid.NullUUID{}, // Will be set after workspace creation.
 				TemplateVersionID:  templateVersion.ID,
 				TemplateParameters: []byte("{}"),
@@ -270,15 +277,21 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) codersdk.Task {
 	var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
 	var taskAgentHealth *codersdk.WorkspaceAgentHealth
+	var taskAppHealth *codersdk.WorkspaceAppHealth
 
-	// If we have an agent ID from the task, find the agent details in the
-	// workspace.
+	if dbTask.WorkspaceAgentLifecycleState.Valid {
+		taskAgentLifecycle = ptr.Ref(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
+	}
+	if dbTask.WorkspaceAppHealth.Valid {
+		taskAppHealth = ptr.Ref(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
+	}
+
+	// If we have an agent ID from the task, find the agent health info
 	if dbTask.WorkspaceAgentID.Valid {
 	findTaskAgentLoop:
 		for _, resource := range ws.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.ID == dbTask.WorkspaceAgentID.UUID {
-					taskAgentLifecycle = &agent.LifecycleState
 					taskAgentHealth = &agent.Health
 					break findTaskAgentLoop
 				}
@@ -286,21 +299,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		}
 	}
 
-	// Ignore 'latest app status' if it is older than the latest build and the
-	// latest build is a 'start' transition. This ensures that you don't show a
-	// stale app status from a previous build. For stop transitions, there is
-	// still value in showing the latest app status.
-	var currentState *codersdk.TaskStateEntry
-	if ws.LatestAppStatus != nil {
-		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
-			currentState = &codersdk.TaskStateEntry{
-				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
-				Message:   ws.LatestAppStatus.Message,
-				URI:       ws.LatestAppStatus.URI,
-			}
-		}
-	}
+	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle, taskAppHealth)
 
 	return codersdk.Task{
 		ID:                      dbTask.ID,
@@ -309,6 +308,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		OwnerName:               dbTask.OwnerUsername,
 		OwnerAvatarURL:          dbTask.OwnerAvatarUrl,
 		Name:                    dbTask.Name,
+		DisplayName:             dbTask.DisplayName,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,
 		TemplateName:            ws.TemplateName,
@@ -330,17 +330,81 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 }
 
+// deriveTaskCurrentState determines the current state of a task based on the
+// workspace's latest app status and initialization phase.
+// Returns nil if no valid state can be determined.
+func deriveTaskCurrentState(
+	dbTask database.Task,
+	ws codersdk.Workspace,
+	taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle,
+	taskAppHealth *codersdk.WorkspaceAppHealth,
+) *codersdk.TaskStateEntry {
+	var currentState *codersdk.TaskStateEntry
+
+	// Ignore 'latest app status' if it is older than the latest build and the
+	// latest build is a 'start' transition. This ensures that you don't show a
+	// stale app status from a previous build. For stop transitions, there is
+	// still value in showing the latest app status.
+	if ws.LatestAppStatus != nil {
+		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			currentState = &codersdk.TaskStateEntry{
+				Timestamp: ws.LatestAppStatus.CreatedAt,
+				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				Message:   ws.LatestAppStatus.Message,
+				URI:       ws.LatestAppStatus.URI,
+			}
+		}
+	}
+
+	// If no valid agent state was found for the current build and the task is initializing,
+	// provide a descriptive initialization message.
+	if currentState == nil && dbTask.Status == database.TaskStatusInitializing {
+		message := "Initializing workspace"
+
+		switch {
+		case ws.LatestBuild.Status == codersdk.WorkspaceStatusPending ||
+			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
+			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
+		case taskAgentLifecycle != nil:
+			switch {
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
+				message = "Agent is connecting"
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
+				message = "Agent is starting"
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
+					message = "App is initializing"
+				} else {
+					// In case the workspace app is not initializing,
+					// the overall task status should be updated accordingly
+					message = "Initializing workspace applications"
+				}
+			default:
+				// In case the workspace agent is not initializing,
+				// the overall task status should be updated accordingly
+				message = "Initializing workspace agent"
+			}
+		}
+
+		currentState = &codersdk.TaskStateEntry{
+			Timestamp: ws.LatestBuild.CreatedAt,
+			State:     codersdk.TaskStateWorking,
+			Message:   message,
+			URI:       "",
+		}
+	}
+
+	return currentState
+}
+
 // @Summary List AI tasks
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID list-tasks
+// @ID list-ai-tasks
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Produce json
+// @Tags Tasks
 // @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
 // @Success 200 {object} codersdk.TasksListResponse
-// @Router /api/experimental/tasks [get]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// tasksList is an experimental endpoint to list tasks.
+// @Router /tasks [get]
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -433,20 +497,15 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	return result, nil
 }
 
-// @Summary Get AI task by ID
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID get-task
+// @Summary Get AI task by ID or name
+// @ID get-ai-task-by-id-or-name
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Produce json
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.Task
-// @Router /api/experimental/tasks/{user}/{task} [get]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskGet is an experimental endpoint to fetch a single AI task by ID
-// (workspace ID). It returns a synthesized task response including
-// prompt and status.
+// @Router /tasks/{user}/{task} [get]
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -511,20 +570,14 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
-// @Summary Delete AI task by ID
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID delete-task
+// @Summary Delete AI task
+// @ID delete-ai-task
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
-// @Success 202 "Task deletion initiated"
-// @Router /api/experimental/tasks/{user}/{task} [delete]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskDelete is an experimental endpoint to delete a task by ID.
-// It creates a delete workspace build and returns 202 Accepted if the build was
-// created.
+// @Param task path string true "Task ID, or task name"
+// @Success 202
+// @Router /tasks/{user}/{task} [delete]
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -585,21 +638,96 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
-// @Summary Send input to AI task
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID send-task-input
+// @Summary Update AI task input
+// @ID update-ai-task-input
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Accept json
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
+// @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
+// @Success 204
+// @Router /tasks/{user}/{task}/input [patch]
+func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx              = r.Context()
+		task             = httpmw.TaskParam(r)
+		auditor          = api.Auditor.Load()
+		taskResourceInfo = audit.AdditionalFields{}
+	)
+
+	aReq, commitAudit := audit.InitRequest[database.TaskTable](rw, &audit.RequestParams{
+		Audit:            *auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionWrite,
+		AdditionalFields: taskResourceInfo,
+	})
+	defer commitAudit()
+	aReq.Old = task.TaskTable()
+	aReq.UpdateOrganizationID(task.OrganizationID)
+
+	var req codersdk.UpdateTaskInputRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if strings.TrimSpace(req.Input) == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Task input is required.",
+		})
+		return
+	}
+
+	var updatedTask database.TaskTable
+	if err := api.Database.InTx(func(tx database.Store) error {
+		task, err := tx.GetTaskByID(ctx, task.ID)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to fetch task.",
+				Detail:  err.Error(),
+			})
+		}
+
+		if task.Status != database.TaskStatusPaused {
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: "Unable to update task input, task must be paused.",
+				Detail:  "Please stop the task's workspace before updating the input.",
+			})
+		}
+
+		updatedTask, err = tx.UpdateTaskPrompt(ctx, database.UpdateTaskPromptParams{
+			ID:     task.ID,
+			Prompt: req.Input,
+		})
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update task input.",
+				Detail:  err.Error(),
+			})
+		}
+
+		return nil
+	}, nil); err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	aReq.New = updatedTask
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary Send input to AI task
+// @ID send-input-to-ai-task
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Tasks
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
-// @Success 204 "Input sent successfully"
-// @Router /api/experimental/tasks/{user}/{task}/send [post]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskSend submits task input to the task app by dialing the agent
-// directly over the tailnet. We enforce ApplicationConnect RBAC on the
-// workspace and validate the task app health.
+// @Success 204
+// @Router /tasks/{user}/{task}/send [post]
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -660,18 +788,14 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get AI task logs
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID get-task-logs
+// @ID get-ai-task-logs
 // @Security CoderSessionToken
-// @Tags Experimental
+// @Produce json
+// @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.TaskLogsResponse
-// @Router /api/experimental/tasks/{user}/{task}/logs [get]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskLogs reads task output by dialing the agent directly over the tailnet.
-// We enforce ApplicationConnect RBAC on the workspace and validate the task app health.
+// @Router /tasks/{user}/{task}/logs [get]
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)

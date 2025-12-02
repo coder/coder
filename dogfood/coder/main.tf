@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = ">= 2.12.0"
+      version = ">= 2.13.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -37,7 +37,6 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  has_ai_prompt  = data.coder_parameter.ai_prompt.value != ""
 }
 
 data "coder_workspace_preset" "cpt" {
@@ -218,12 +217,22 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
-data "coder_parameter" "ai_prompt" {
-  type        = "string"
-  name        = "AI Prompt"
+data "coder_parameter" "use_ai_bridge" {
+  type        = "bool"
+  name        = "Use AI Bridge"
+  default     = true
+  description = "If enabled, AI requests will be sent via AI Bridge."
+  mutable     = true
+}
+
+# Only used if AI Bridge is disabled.
+# dogfood/main.tf injects this value from a GH Actions secret;
+# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY`.
+variable "anthropic_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
   default     = ""
-  description = "Prompt for Claude Code"
-  mutable     = true // Workaround for issue with claiming a prebuild from a preset that does not include this parameter.
+  sensitive   = true
 }
 
 provider "docker" {
@@ -238,6 +247,7 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -323,7 +333,7 @@ data "coder_parameter" "vscode_channel" {
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
-  version          = "1.0.31"
+  version          = "1.0.32"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
@@ -331,14 +341,14 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.1"
+  version  = "1.2.2"
   agent_id = coder_agent.dev.id
 }
 
 module "git-config" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-config/coder"
-  version  = "1.0.31"
+  version  = "1.0.32"
   agent_id = coder_agent.dev.id
   # If you prefer to commit with a different email, this allows you to do so.
   allow_email_change = true
@@ -347,7 +357,7 @@ module "git-config" {
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.2.0"
+  version  = "1.2.1"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -356,14 +366,22 @@ module "git-clone" {
 module "personalize" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.31"
+  version  = "1.0.32"
   agent_id = coder_agent.dev.id
+}
+
+module "mux" {
+  count     = data.coder_workspace.me.start_count
+  source    = "registry.coder.com/coder/mux/coder"
+  version   = "1.0.2"
+  agent_id  = coder_agent.dev.id
+  subdomain = true
 }
 
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.3.1"
+  version                 = "1.4.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -373,7 +391,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.4.1"
+  version                 = "1.4.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -385,7 +403,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.1.1"
+  version       = "1.2.1"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -396,7 +414,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.2"
+  version    = "1.1.3"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -404,14 +422,14 @@ module "filebrowser" {
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "1.1.0"
+  version  = "1.1.1"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.3.2"
+  version  = "1.3.3"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -419,7 +437,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.2.0"
+  version  = "1.2.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -427,7 +445,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.1"
+  version    = "1.1.2"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -436,7 +454,7 @@ module "zed" {
 module "jetbrains-fleet" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "fleet") ? data.coder_workspace.me.start_count : 0
   source     = "registry.coder.com/coder/jetbrains-fleet/coder"
-  version    = "1.0.1"
+  version    = "1.0.2"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -453,11 +471,15 @@ resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
   dir  = local.repo_dir
-  env = {
-    OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
-    ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
-    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
-  }
+  env = merge(
+    {
+      OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+    },
+    data.coder_parameter.use_ai_bridge.value ? {
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+      ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
+    } : {}
+  )
   startup_script_behavior = "blocking"
 
   display_apps {
@@ -790,7 +812,7 @@ resource "coder_metadata" "container_info" {
   }
   item {
     key   = "ai_task"
-    value = local.has_ai_prompt ? "yes" : "no"
+    value = data.coder_task.me.enabled ? "yes" : "no"
   }
 }
 
@@ -806,14 +828,8 @@ locals {
     -- Tool Selection --
     - playwright: previewing your changes after you made them
       to confirm it worked as expected
-    -	desktop-commander - use only for commands that keep running
-      (servers, dev watchers, GUI apps).
     -	Built-in tools - use for everything else:
       (file operations, git commands, builds & installs, one-off shell commands)
-
-    Remember this decision rule:
-    - Stays running? → desktop-commander
-    - Finishes immediately? → built-in tools
 
     -- Context --
     There is an existing application in the current directory.
@@ -823,27 +839,46 @@ locals {
   EOT
 }
 
+resource "coder_script" "boundary_config_setup" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Boundary Setup Configuration"
+  run_on_start = true
+
+  script = <<-EOF
+    #!/bin/sh
+    mkdir -p ~/.config/coder_boundary
+    echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
+    chmod 600 ~/.config/coder_boundary/config.yaml
+  EOF
+}
+
 module "claude-code" {
-  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "3.4.4"
+  version             = "4.2.3"
+  enable_boundary     = true
+  boundary_version    = "v0.2.1"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
   order               = 999
-  claude_api_key      = data.coder_workspace_owner.me.session_token # To Enable AI Bridge integration
+  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
   agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
-  ai_prompt           = data.coder_parameter.ai_prompt.value
+  ai_prompt           = data.coder_task.me.prompt
   post_install_script = <<-EOT
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
-    claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
   EOT
 }
 
+resource "coder_ai_task" "task" {
+  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  app_id = module.claude-code[count.index].task_app_id
+}
+
 resource "coder_app" "develop_sh" {
-  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   agent_id     = coder_agent.dev.id
   slug         = "develop-sh"
   display_name = "develop.sh"
@@ -856,7 +891,7 @@ resource "coder_app" "develop_sh" {
 }
 
 resource "coder_script" "develop_sh" {
-  count              = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count              = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   display_name       = "develop.sh"
   agent_id           = coder_agent.dev.id
   run_on_start       = true
@@ -879,7 +914,7 @@ resource "coder_script" "develop_sh" {
 }
 
 resource "coder_app" "preview" {
-  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   agent_id     = coder_agent.dev.id
   slug         = "preview"
   display_name = "Preview"

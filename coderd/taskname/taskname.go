@@ -2,11 +2,15 @@ package taskname
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand/v2"
 	"os"
+	"regexp"
 	"strings"
+
+	"cdr.dev/slog"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
@@ -14,27 +18,66 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
+	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
 	defaultModel = anthropic.ModelClaude3_5HaikuLatest
-	systemPrompt = `Generate a short workspace name from this AI task prompt.
+	systemPrompt = `Generate a short task display name and name from this AI task prompt.
+Identify the main task (the core action and subject) and base both names on it.
+The task display name and name should be as similar as possible so a human can easily associate them.
 
-Requirements:
+Requirements for task display name (generate this first):
+- Human-readable description
+- Maximum 64 characters total
+- Should concisely describe the main task
+
+Requirements for task name:
+- Should be derived from the display name
 - Only lowercase letters, numbers, and hyphens
-- Start with "task-"
+- No spaces or underscores
 - Maximum 27 characters total
-- Descriptive of the main task
+- Should concisely describe the main task
+
+Output format (must be valid JSON):
+{
+	"display_name": "<display_name>",
+	"task_name": "<task_name>"
+}
 
 Examples:
-- "Help me debug a Python script" → "task-python-debug"
-- "Create a React dashboard component" → "task-react-dashboard"
-- "Analyze sales data from Q3" → "task-analyze-q3-sales"
-- "Set up CI/CD pipeline" → "task-setup-cicd"
+Prompt: "Help me debug a Python script" →
+{
+	"display_name": "Debug Python script",
+	"task_name": "python-debug"
+}
 
-If you cannot create a suitable name:
-- Respond with "task-unnamed"`
+Prompt: "Create a React dashboard component" →
+{
+	"display_name": "React dashboard component",
+	"task_name": "react-dashboard"
+}
+
+Prompt: "Analyze sales data from Q3" →
+{
+	"display_name": "Analyze Q3 sales data",
+	"task_name": "analyze-q3-sales"
+}
+
+Prompt: "Set up CI/CD pipeline" →
+{
+	"display_name": "CI/CD pipeline setup",
+	"task_name": "setup-cicd"
+}
+
+If a suitable name cannot be created, output exactly:
+{
+	"display_name": "Task Unnamed",
+	"task_name": "task-unnamed"
+}
+
+Do not include any additional keys, explanations, or text outside the JSON.`
 )
 
 var (
@@ -42,30 +85,16 @@ var (
 	ErrNoNameGenerated = xerrors.New("no task name generated")
 )
 
-type options struct {
-	apiKey string
-	model  anthropic.Model
+type TaskName struct {
+	Name        string `json:"task_name"`
+	DisplayName string `json:"display_name"`
 }
 
-type Option func(o *options)
-
-func WithAPIKey(apiKey string) Option {
-	return func(o *options) {
-		o.apiKey = apiKey
-	}
-}
-
-func WithModel(model anthropic.Model) Option {
-	return func(o *options) {
-		o.model = model
-	}
-}
-
-func GetAnthropicAPIKeyFromEnv() string {
+func getAnthropicAPIKeyFromEnv() string {
 	return os.Getenv("ANTHROPIC_API_KEY")
 }
 
-func GetAnthropicModelFromEnv() anthropic.Model {
+func getAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
 }
 
@@ -79,33 +108,85 @@ func generateSuffix() string {
 	return fmt.Sprintf("%04x", num)
 }
 
-func GenerateFallback() string {
+// generateFallback generates a random task name when other methods fail.
+// Uses Docker-style name generation with a collision-resistant suffix.
+func generateFallback() TaskName {
 	// We have a 32 character limit for the name.
-	// We have a 5 character prefix `task-`.
 	// We have a 5 character suffix `-ffff`.
-	// This leaves us with 22 characters for the middle.
+	// This leaves us with 27 characters for the name.
 	//
-	// Unfortunately, `namesgenerator.GetRandomName(0)` will
-	// generate names that are longer than 22 characters, so
-	// we just trim these down to length.
+	// `namesgenerator.GetRandomName(0)` can generate names
+	// up to 27 characters, but we truncate defensively.
 	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
-	name = name[:min(len(name), 22)]
+	name = name[:min(len(name), 27)]
 	name = strings.TrimSuffix(name, "-")
 
-	return fmt.Sprintf("task-%s-%s", name, generateSuffix())
+	taskName := fmt.Sprintf("%s-%s", name, generateSuffix())
+	displayName := strings.ReplaceAll(name, "-", " ")
+	if len(displayName) > 0 {
+		displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+	}
+
+	return TaskName{
+		Name:        taskName,
+		DisplayName: displayName,
+	}
 }
 
-func Generate(ctx context.Context, prompt string, opts ...Option) (string, error) {
-	o := options{}
-	for _, opt := range opts {
-		opt(&o)
+// generateFromPrompt creates a task name directly from the prompt by sanitizing it.
+// This is used as a fallback when Claude fails to generate a name.
+func generateFromPrompt(prompt string) (TaskName, error) {
+	// Normalize newlines and tabs to spaces
+	prompt = regexp.MustCompile(`[\n\r\t]+`).ReplaceAllString(prompt, " ")
+
+	// Truncate prompt to 27 chars with full words for task name generation
+	truncatedForName := prompt
+	if len(prompt) > 27 {
+		truncatedForName = strutil.Truncate(prompt, 27, strutil.TruncateWithFullWords)
 	}
 
-	if o.model == "" {
-		o.model = defaultModel
+	// Generate task name from truncated prompt
+	name := strings.ToLower(truncatedForName)
+	// Replace whitespace (\t \r \n and spaces) sequences with hyphens
+	name = regexp.MustCompile(`\s+`).ReplaceAllString(name, "-")
+	// Remove all characters except lowercase letters, numbers, and hyphens
+	name = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(name, "")
+	// Collapse multiple consecutive hyphens into a single hyphen
+	name = regexp.MustCompile(`-+`).ReplaceAllString(name, "-")
+	// Remove leading and trailing hyphens
+	name = strings.Trim(name, "-")
+
+	if len(name) == 0 {
+		return TaskName{}, ErrNoNameGenerated
 	}
-	if o.apiKey == "" {
-		return "", ErrNoAPIKey
+
+	taskName := fmt.Sprintf("%s-%s", name, generateSuffix())
+
+	// Use the initial prompt as display name, truncated to 64 chars with full words
+	displayName := strutil.Truncate(prompt, 64, strutil.TruncateWithFullWords, strutil.TruncateWithEllipsis)
+	displayName = strings.TrimSpace(displayName)
+	if len(displayName) == 0 {
+		// Ensure display name is never empty
+		displayName = strings.ReplaceAll(name, "-", " ")
+	}
+	displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+
+	return TaskName{
+		Name:        taskName,
+		DisplayName: displayName,
+	}, nil
+}
+
+// generateFromAnthropic uses Claude (Anthropic) to generate semantic task and display names from a user prompt.
+// It sends the prompt to Claude with a structured system prompt requesting JSON output containing both names.
+// Returns an error if the API call fails, the response is invalid, or Claude returns an "unnamed" placeholder.
+func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, model anthropic.Model) (TaskName, error) {
+	anthropicModel := model
+	if anthropicModel == "" {
+		anthropicModel = defaultModel
+	}
+	if apiKey == "" {
+		return TaskName{}, ErrNoAPIKey
 	}
 
 	conversation := []aisdk.Message{
@@ -126,42 +207,95 @@ func Generate(ctx context.Context, prompt string, opts ...Option) (string, error
 	}
 
 	anthropicOptions := anthropic.DefaultClientOptions()
-	anthropicOptions = append(anthropicOptions, anthropicoption.WithAPIKey(o.apiKey))
+	anthropicOptions = append(anthropicOptions, anthropicoption.WithAPIKey(apiKey))
 	anthropicClient := anthropic.NewClient(anthropicOptions...)
 
-	stream, err := anthropicDataStream(ctx, anthropicClient, o.model, conversation)
+	stream, err := anthropicDataStream(ctx, anthropicClient, anthropicModel, conversation)
 	if err != nil {
-		return "", xerrors.Errorf("create anthropic data stream: %w", err)
+		return TaskName{}, xerrors.Errorf("create anthropic data stream: %w", err)
 	}
 
 	var acc aisdk.DataStreamAccumulator
 	stream = stream.WithAccumulator(&acc)
 
 	if err := stream.Pipe(io.Discard); err != nil {
-		return "", xerrors.Errorf("pipe data stream")
+		return TaskName{}, xerrors.Errorf("pipe data stream")
 	}
 
 	if len(acc.Messages()) == 0 {
-		return "", ErrNoNameGenerated
+		return TaskName{}, ErrNoNameGenerated
 	}
 
-	taskName := acc.Messages()[0].Content
-	if taskName == "task-unnamed" {
-		return "", ErrNoNameGenerated
+	// Parse the JSON response
+	var taskNameResponse TaskName
+	if err := json.Unmarshal([]byte(acc.Messages()[0].Content), &taskNameResponse); err != nil {
+		return TaskName{}, xerrors.Errorf("failed to parse anthropic response: %w", err)
+	}
+
+	taskNameResponse.Name = strings.TrimSpace(taskNameResponse.Name)
+	taskNameResponse.DisplayName = strings.TrimSpace(taskNameResponse.DisplayName)
+
+	if taskNameResponse.Name == "" || taskNameResponse.Name == "task-unnamed" {
+		return TaskName{}, xerrors.Errorf("anthropic returned invalid task name: %q", taskNameResponse.Name)
+	}
+
+	if taskNameResponse.DisplayName == "" || taskNameResponse.DisplayName == "Task Unnamed" {
+		return TaskName{}, xerrors.Errorf("anthropic returned invalid task display name: %q", taskNameResponse.DisplayName)
 	}
 
 	// We append a suffix to the end of the task name to reduce
 	// the chance of collisions. We truncate the task name to
-	// to a maximum of 27 bytes, so that when we append the
+	// a maximum of 27 bytes, so that when we append the
 	// 5 byte suffix (`-` and 4 byte hex slug), it should
 	// remain within the 32 byte workspace name limit.
-	taskName = taskName[:min(len(taskName), 27)]
-	taskName = fmt.Sprintf("%s-%s", taskName, generateSuffix())
-	if err := codersdk.NameValid(taskName); err != nil {
-		return "", xerrors.Errorf("generated name %v not valid: %w", taskName, err)
+	name := taskNameResponse.Name[:min(len(taskNameResponse.Name), 27)]
+	name = strings.TrimSuffix(name, "-")
+	name = fmt.Sprintf("%s-%s", name, generateSuffix())
+	if err := codersdk.NameValid(name); err != nil {
+		return TaskName{}, xerrors.Errorf("generated name %v not valid: %w", name, err)
 	}
 
-	return taskName, nil
+	displayName := taskNameResponse.DisplayName
+	displayName = strings.TrimSpace(displayName)
+	if len(displayName) == 0 {
+		// Ensure display name is never empty
+		displayName = strings.ReplaceAll(taskNameResponse.Name, "-", " ")
+	}
+	displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+
+	return TaskName{
+		Name:        name,
+		DisplayName: displayName,
+	}, nil
+}
+
+// Generate creates a task name and display name from a user prompt.
+// It attempts multiple strategies in order of preference:
+//  1. Use Claude (Anthropic) to generate semantic names from the prompt if an API key is available
+//  2. Sanitize the prompt directly into a valid task name
+//  3. Generate a random name as a final fallback
+//
+// A suffix is always appended to task names to reduce collision risk.
+// This function always succeeds and returns a valid TaskName.
+func Generate(ctx context.Context, logger slog.Logger, prompt string) TaskName {
+	if anthropicAPIKey := getAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
+		taskName, err := generateFromAnthropic(ctx, prompt, anthropicAPIKey, getAnthropicModelFromEnv())
+		if err == nil {
+			return taskName
+		}
+		// Anthropic failed, fall through to next fallback
+		logger.Error(ctx, "unable to generate task name and display name from Anthropic", slog.Error(err))
+	}
+
+	// Try generating from prompt
+	taskName, err := generateFromPrompt(prompt)
+	if err == nil {
+		return taskName
+	}
+	logger.Warn(ctx, "unable to generate task name and display name from prompt", slog.Error(err))
+
+	// Final fallback
+	return generateFallback()
 }
 
 func anthropicDataStream(ctx context.Context, client anthropic.Client, model anthropic.Model, input []aisdk.Message) (aisdk.DataStream, error) {
@@ -171,8 +305,15 @@ func anthropicDataStream(ctx context.Context, client anthropic.Client, model ant
 	}
 
 	return aisdk.AnthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model:     model,
-		MaxTokens: 24,
+		Model: model,
+		// MaxTokens is set to 100 based on the maximum expected output size.
+		// The worst-case JSON output is 134 characters:
+		//   - Base structure: 43 chars (including formatting)
+		//   - task_name: 27 chars max
+		//   - display_name: 64 chars max
+		// Using Anthropic's token counting API, this worst-case output tokenizes to 70 tokens.
+		// We set MaxTokens to 100 to provide a safety buffer.
+		MaxTokens: 100,
 		System:    system,
 		Messages:  messages,
 	})), nil

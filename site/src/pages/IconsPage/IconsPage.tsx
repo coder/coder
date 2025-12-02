@@ -3,7 +3,6 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
@@ -12,7 +11,11 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import {
@@ -76,26 +79,18 @@ const IconsPage: FC = () => {
 			<Margins>
 				<PageHeader
 					actions={
-						<Tooltip
-							placement="bottom-end"
-							title={
-								<p
-									css={{
-										padding: 8,
-										fontSize: 13,
-										lineHeight: 1.5,
-									}}
-								>
-									You can suggest a new icon by submitting a Pull Request to our
-									public GitHub repository. Just keep in mind that it should be
-									relevant to many Coder users, and redistributable under a
-									permissive license.
-								</p>
-							}
-						>
-							<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
-								Suggest an icon
-							</Link>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
+									Suggest an icon
+								</Link>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" align="end" className="max-w-xs">
+								You can suggest a new icon by submitting a Pull Request to our
+								public GitHub repository. Just keep in mind that it should be
+								relevant to many Coder users, and redistributable under a
+								permissive license.
+							</TooltipContent>
 						</Tooltip>
 					}
 				>
@@ -124,42 +119,34 @@ const IconsPage: FC = () => {
 						},
 						startAdornment: (
 							<InputAdornment position="start">
-								<SearchIcon
-									className="size-icon-xs"
-									css={{
-										color: theme.palette.text.secondary,
-									}}
-								/>
+								<SearchIcon className="size-icon-xs text-content-secondary" />
 							</InputAdornment>
 						),
 						endAdornment: searchInputText && (
 							<InputAdornment position="end">
-								<Tooltip title="Clear filter">
-									<IconButton
-										size="small"
-										onClick={() => setSearchInputText("")}
-									>
-										<XIcon className="size-icon-xs" />
-									</IconButton>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<IconButton
+											size="small"
+											onClick={() => setSearchInputText("")}
+										>
+											<XIcon className="size-icon-xs" />
+										</IconButton>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">Clear filter</TooltipContent>
 								</Tooltip>
 							</InputAdornment>
 						),
 					}}
 				/>
 
-				<Stack
-					direction="row"
-					wrap="wrap"
-					spacing={1}
-					justifyContent="center"
-					css={{ marginTop: 32 }}
-				>
+				<div className="flex flex-row gap-2 justify-center flex-wrap max-w-full mt-8">
 					{searchedIcons.length === 0 && (
 						<EmptyState message="No results matched your search" />
 					)}
 					{searchedIcons.map((icon) => (
-						<CopyableValue key={icon.url} value={icon.url} placement="bottom">
-							<Stack alignItems="center" css={{ margin: 12 }}>
+						<CopyableValue key={icon.url} value={icon.url}>
+							<div className="flex flex-col gap-4 items-center max-w-full p-3">
 								<img
 									alt={icon.url}
 									src={icon.url}
@@ -189,10 +176,10 @@ const IconsPage: FC = () => {
 								>
 									{icon.description}
 								</figcaption>
-							</Stack>
+							</div>
 						</CopyableValue>
 					))}
-				</Stack>
+				</div>
 			</Margins>
 		</>
 	);

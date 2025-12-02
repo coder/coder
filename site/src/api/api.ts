@@ -1177,6 +1177,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	invalidateTemplatePresets = async (
+		templateId: string,
+	): Promise<TypesGen.InvalidatePresetsResponse> => {
+		const response = await this.axios.post<TypesGen.InvalidatePresetsResponse>(
+			`/api/v2/templates/${templateId}/prebuilds/invalidate`,
+		);
+		return response.data;
+	};
+
 	getWorkspace = async (
 		workspaceId: string,
 		params?: TypesGen.WorkspaceOptions,
@@ -1471,6 +1480,19 @@ class ApiMethods {
 		data: TypesGen.UpdateUserAppearanceSettingsRequest,
 	): Promise<TypesGen.UserAppearanceSettings> => {
 		const response = await this.axios.put("/api/v2/users/me/appearance", data);
+		return response.data;
+	};
+
+	getUserPreferenceSettings =
+		async (): Promise<TypesGen.UserPreferenceSettings> => {
+			const response = await this.axios.get("/api/v2/users/me/preferences");
+			return response.data;
+		};
+
+	updateUserPreferenceSettings = async (
+		req: TypesGen.UpdateUserPreferenceSettingsRequest,
+	): Promise<TypesGen.UserPreferenceSettings> => {
+		const response = await this.axios.put("/api/v2/users/me/preferences", req);
 		return response.data;
 	};
 
@@ -2644,29 +2666,13 @@ class ApiMethods {
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
-}
-
-// Experimental API methods call endpoints under the /api/experimental/ prefix.
-// These endpoints are not stable and may change or be removed at any time.
-//
-// All methods must be defined with arrow function syntax. See the docstring
-// above the ApiMethods class for a full explanation.
-
-export type TaskFeedbackRating = "good" | "okay" | "bad";
-
-export type CreateTaskFeedbackRequest = {
-	rate: TaskFeedbackRating;
-	comment?: string;
-};
-class ExperimentalApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
 
 	createTask = async (
 		user: string,
 		req: TypesGen.CreateTaskRequest,
 	): Promise<TypesGen.Task> => {
 		const response = await this.axios.post<TypesGen.Task>(
-			`/api/experimental/tasks/${user}`,
+			`/api/v2/tasks/${user}`,
 			req,
 		);
 
@@ -2685,7 +2691,7 @@ class ExperimentalApiMethods {
 		}
 
 		const res = await this.axios.get<TypesGen.TasksListResponse>(
-			"/api/experimental/tasks",
+			"/api/v2/tasks",
 			{
 				params: {
 					q: query.join(", "),
@@ -2698,14 +2704,14 @@ class ExperimentalApiMethods {
 
 	getTask = async (user: string, id: string): Promise<TypesGen.Task> => {
 		const response = await this.axios.get<TypesGen.Task>(
-			`/api/experimental/tasks/${user}/${id}`,
+			`/api/v2/tasks/${user}/${id}`,
 		);
 
 		return response.data;
 	};
 
 	deleteTask = async (user: string, id: string): Promise<void> => {
-		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
+		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
 	};
 
 	createTaskFeedback = async (
@@ -2715,6 +2721,32 @@ class ExperimentalApiMethods {
 		return new Promise<void>((res) => {
 			setTimeout(() => res(), 500);
 		});
+	};
+}
+
+export type TaskFeedbackRating = "good" | "okay" | "bad";
+
+export type CreateTaskFeedbackRequest = {
+	rate: TaskFeedbackRating;
+	comment?: string;
+};
+
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
+
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/aibridge/interceptions",
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
 	};
 }
 

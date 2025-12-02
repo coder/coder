@@ -90,4 +90,10 @@ __debug_bin*
 
 **/.claude/settings.local.json
 
+# Local agent configuration
+AGENTS.local.md
+
 /.env
+
+# Ignore plans written by AI agents.
+PLAN.md

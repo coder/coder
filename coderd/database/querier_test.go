@@ -6664,6 +6664,23 @@ func TestTasksWithStatusView(t *testing.T) {
 				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
 				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
 			}
+		case database.ProvisionerJobStatusCanceling:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CanceledAt:     sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
+		case database.ProvisionerJobStatusCanceled:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CanceledAt:     sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
 		default:
 			t.Errorf("invalid build status: %v", buildStatus)
 		}
@@ -6817,6 +6834,28 @@ func TestTasksWithStatusView(t *testing.T) {
 			expectWorkspaceAppValid:   false,
 		},
 		{
+			name:                      "CancelingBuild",
+			buildStatus:               database.ProvisionerJobStatusCanceling,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusError,
+			description:               "Latest workspace build is canceling",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "CanceledBuild",
+			buildStatus:               database.ProvisionerJobStatusCanceled,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusError,
+			description:               "Latest workspace build was canceled",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
 			name:                      "StoppedWorkspace",
 			buildStatus:               database.ProvisionerJobStatusSucceeded,
 			buildTransition:           database.WorkspaceTransitionStop,
@@ -6943,24 +6982,26 @@ func TestTasksWithStatusView(t *testing.T) {
 			buildStatus:               database.ProvisionerJobStatusSucceeded,
 			buildTransition:           database.WorkspaceTransitionStart,
 			agentState:                database.WorkspaceAgentLifecycleStateStartTimeout,
-			expectedStatus:            database.TaskStatusUnknown,
-			description:               "Agent start timed out",
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent start timed out but app is healthy, defer to app",
 			expectBuildNumberValid:    true,
 			expectBuildNumber:         1,
 			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   false,
+			expectWorkspaceAppValid:   true,
 		},
 		{
 			name:                      "AgentStartError",
 			buildStatus:               database.ProvisionerJobStatusSucceeded,
 			buildTransition:           database.WorkspaceTransitionStart,
 			agentState:                database.WorkspaceAgentLifecycleStateStartError,
-			expectedStatus:            database.TaskStatusUnknown,
-			description:               "Agent failed to start",
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent start failed but app is healthy, defer to app",
 			expectBuildNumberValid:    true,
 			expectBuildNumber:         1,
 			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   false,
+			expectWorkspaceAppValid:   true,
 		},
 		{
 			name:                      "AgentShuttingDown",
@@ -7080,6 +7121,8 @@ func TestTasksWithStatusView(t *testing.T) {
 
 			got, err := db.GetTaskByID(ctx, task.ID)
 			require.NoError(t, err)
+
+			t.Logf("Task status debug: %s", got.StatusDebug)
 
 			require.Equal(t, tt.expectedStatus, got.Status)
 
@@ -7791,4 +7834,82 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 			require.False(t, got.EndedAt.Valid)
 		}
 	})
+}
+
+func TestDeleteExpiredAPIKeys(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	// Constant time for testing
+	now := time.Date(2025, 11, 20, 12, 0, 0, 0, time.UTC)
+	expiredBefore := now.Add(-time.Hour) // Anything before this is expired
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+
+	expiredTimes := []time.Time{
+		expiredBefore.Add(-time.Hour * 24 * 365),
+		expiredBefore.Add(-time.Hour * 24),
+		expiredBefore.Add(-time.Hour),
+		expiredBefore.Add(-time.Minute),
+		expiredBefore.Add(-time.Second),
+	}
+	for _, exp := range expiredTimes {
+		// Expired api keys
+		dbgen.APIKey(t, db, database.APIKey{UserID: user.ID, ExpiresAt: exp})
+	}
+
+	unexpiredTimes := []time.Time{
+		expiredBefore.Add(time.Hour * 24 * 365),
+		expiredBefore.Add(time.Hour * 24),
+		expiredBefore.Add(time.Hour),
+		expiredBefore.Add(time.Minute),
+		expiredBefore.Add(time.Second),
+	}
+	for _, unexp := range unexpiredTimes {
+		// Unexpired api keys
+		dbgen.APIKey(t, db, database.APIKey{UserID: user.ID, ExpiresAt: unexp})
+	}
+
+	// All keys are present before deletion
+	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		LoginType: user.LoginType,
+		UserID:    user.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, keys, len(expiredTimes)+len(unexpiredTimes))
+
+	// Delete expired keys
+	// First verify the limit works by deleting one at a time
+	deletedCount, err := db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+		Before:     expiredBefore,
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), deletedCount)
+
+	// Ensure it was deleted
+	remaining, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		LoginType: user.LoginType,
+		UserID:    user.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, remaining, len(expiredTimes)+len(unexpiredTimes)-1)
+
+	// Delete the rest of the expired keys
+	deletedCount, err = db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+		Before:     expiredBefore,
+		LimitCount: 100,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(len(expiredTimes)-1), deletedCount)
+
+	// Ensure only unexpired keys remain
+	remaining, err = db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		LoginType: user.LoginType,
+		UserID:    user.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, remaining, len(unexpiredTimes))
 }

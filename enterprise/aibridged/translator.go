@@ -20,12 +20,14 @@ var _ aibridge.Recorder = &recorderTranslation{}
 
 // recorderTranslation satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
 type recorderTranslation struct {
-	client proto.DRPCRecorderClient
+	apiKeyID string
+	client   proto.DRPCRecorderClient
 }
 
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 		Id:          req.ID,
+		ApiKeyId:    t.apiKeyID,
 		InitiatorId: req.InitiatorID,
 		Provider:    req.Provider,
 		Model:       req.Model,
@@ -55,12 +57,22 @@ func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibrid
 }
 
 func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
+	merged := req.Metadata
+	if merged == nil {
+		merged = aibridge.Metadata{}
+	}
+
+	// Merge the token usage values into metadata; later we might want to store some of these in their own fields.
+	for k, v := range req.ExtraTokenTypes {
+		merged[k] = v
+	}
+
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 		InterceptionId: req.InterceptionID,
 		MsgId:          req.MsgID,
 		InputTokens:    req.Input,
 		OutputTokens:   req.Output,
-		Metadata:       marshalForProto(req.Metadata),
+		Metadata:       marshalForProto(merged),
 		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err

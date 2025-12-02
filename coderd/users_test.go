@@ -599,21 +599,28 @@ func TestNotifyDeletedUser(t *testing.T) {
 		// then
 		sent := notifyEnq.Sent()
 		require.Len(t, sent, 5)
-		// sent[0]: "User admin" account created, "owner" notified
-		// sent[1]: "Member" account created, "owner" notified
-		// sent[2]: "Member" account created, "user admin" notified
+		// Other notifications:
+		// "User admin" account created, "owner" notified
+		// "Member" account created, "owner" notified
+		// "Member" account created, "user admin" notified
 
 		// "Member" account deleted, "owner" notified
-		require.Equal(t, notifications.TemplateUserAccountDeleted, sent[3].TemplateID)
-		require.Equal(t, firstUser.UserID, sent[3].UserID)
-		require.Contains(t, sent[3].Targets, member.ID)
-		require.Equal(t, member.Username, sent[3].Labels["deleted_account_name"])
+		ownerNotifications := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountDeleted &&
+				n.UserID == firstUser.UserID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["deleted_account_name"] == member.Username
+		})
+		require.Len(t, ownerNotifications, 1)
 
 		// "Member" account deleted, "user admin" notified
-		require.Equal(t, notifications.TemplateUserAccountDeleted, sent[4].TemplateID)
-		require.Equal(t, userAdmin.ID, sent[4].UserID)
-		require.Contains(t, sent[4].Targets, member.ID)
-		require.Equal(t, member.Username, sent[4].Labels["deleted_account_name"])
+		adminNotifications := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountDeleted &&
+				n.UserID == userAdmin.ID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["deleted_account_name"] == member.Username
+		})
+		require.Len(t, adminNotifications, 1)
 	})
 }
 
@@ -960,22 +967,31 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Len(t, sent, 3)
 
 		// "User admin" account created, "owner" notified
-		require.Equal(t, notifications.TemplateUserAccountCreated, sent[0].TemplateID)
-		require.Equal(t, firstUser.UserID, sent[0].UserID)
-		require.Contains(t, sent[0].Targets, userAdmin.ID)
-		require.Equal(t, userAdmin.Username, sent[0].Labels["created_account_name"])
+		ownerNotifiedAboutUserAdmin := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+				n.UserID == firstUser.UserID &&
+				slices.Contains(n.Targets, userAdmin.ID) &&
+				n.Labels["created_account_name"] == userAdmin.Username
+		})
+		require.Len(t, ownerNotifiedAboutUserAdmin, 1)
 
 		// "Member" account created, "owner" notified
-		require.Equal(t, notifications.TemplateUserAccountCreated, sent[1].TemplateID)
-		require.Equal(t, firstUser.UserID, sent[1].UserID)
-		require.Contains(t, sent[1].Targets, member.ID)
-		require.Equal(t, member.Username, sent[1].Labels["created_account_name"])
+		ownerNotifiedAboutMember := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+				n.UserID == firstUser.UserID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["created_account_name"] == member.Username
+		})
+		require.Len(t, ownerNotifiedAboutMember, 1)
 
 		// "Member" account created, "user admin" notified
-		require.Equal(t, notifications.TemplateUserAccountCreated, sent[1].TemplateID)
-		require.Equal(t, userAdmin.ID, sent[2].UserID)
-		require.Contains(t, sent[2].Targets, member.ID)
-		require.Equal(t, member.Username, sent[2].Labels["created_account_name"])
+		userAdminNotifiedAboutMember := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
+			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+				n.UserID == userAdmin.ID &&
+				slices.Contains(n.Targets, member.ID) &&
+				n.Labels["created_account_name"] == member.Username
+		})
+		require.Len(t, userAdminNotifiedAboutMember, 1)
 	})
 }
 
@@ -2176,16 +2192,16 @@ func TestUserTerminalFont(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// given
-		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
-		updated, err := client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 			ThemePreference: "light",
 			TerminalFont:    "fira-code",
 		})
@@ -2202,16 +2218,16 @@ func TestUserTerminalFont(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// given
-		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
-		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+		_, err = client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 			ThemePreference: "light",
 			TerminalFont:    "foobar",
 		})
@@ -2227,22 +2243,91 @@ func TestUserTerminalFont(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// given
-		initial, err := client.GetUserAppearanceSettings(ctx, "me")
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TerminalFontName(""), initial.TerminalFont)
 
 		// when
-		_, err = client.UpdateUserAppearanceSettings(ctx, "me", codersdk.UpdateUserAppearanceSettingsRequest{
+		_, err = client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 			ThemePreference: "light",
 			TerminalFont:    "",
 		})
 
 		// then
 		require.Error(t, err)
+	})
+}
+
+func TestUserTaskNotificationAlertDismissed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults to false", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// When: getting user preference settings for a user
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		// Then: the task notification alert dismissed should default to false
+		require.False(t, settings.TaskNotificationAlertDismissed)
+	})
+
+	t.Run("update to true", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// When: user dismisses the task notification alert
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: true,
+		})
+		require.NoError(t, err)
+
+		// Then: the setting is updated to true
+		require.True(t, updated.TaskNotificationAlertDismissed)
+	})
+
+	t.Run("update to false", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// Given: user has dismissed the task notification alert
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: true,
+		})
+		require.NoError(t, err)
+
+		// When: the task notification alert dismissal is cleared
+		// (e.g., when user enables a task notification in the UI settings)
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: false,
+		})
+		require.NoError(t, err)
+
+		// Then: the setting is updated to false
+		require.False(t, updated.TaskNotificationAlertDismissed)
 	})
 }
 

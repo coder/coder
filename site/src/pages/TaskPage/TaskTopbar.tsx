@@ -16,13 +16,14 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";
 
 type TaskTopbarProps = { task: Task; workspace: Workspace };
 
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 	return (
-		<header className="flex flex-shrink-0 items-center p-3 border-solid border-border border-0 border-b">
+		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -37,7 +38,9 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 				</Tooltip>
 			</TooltipProvider>
 
-			<h1 className="m-0 pl-2 text-base font-medium truncate">{task.name}</h1>
+			<h1 className="m-0 pl-2 text-base font-medium max-w-[520px] truncate">
+				{task.display_name}
+			</h1>
 
 			{task.current_state?.uri && (
 				<div className="flex items-center gap-2 flex-wrap ml-4">
@@ -46,6 +49,10 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 			)}
 
 			<div className="ml-auto gap-2 flex items-center">
+				<TaskStartupWarningButton
+					lifecycleState={task.workspace_agent_lifecycle}
+				/>
+
 				<TooltipProvider delayDuration={250}>
 					<Tooltip>
 						<TooltipTrigger asChild>

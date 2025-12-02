@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/netip"
@@ -40,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
@@ -70,16 +72,21 @@ const (
 )
 
 type Options struct {
-	Filesystem                   afero.Fs
-	LogDir                       string
-	TempDir                      string
-	ScriptDataDir                string
-	Client                       Client
-	ReconnectingPTYTimeout       time.Duration
-	EnvironmentVariables         map[string]string
-	Logger                       slog.Logger
-	IgnorePorts                  map[int]string
-	PortCacheDuration            time.Duration
+	Filesystem             afero.Fs
+	LogDir                 string
+	TempDir                string
+	ScriptDataDir          string
+	Client                 Client
+	ReconnectingPTYTimeout time.Duration
+	EnvironmentVariables   map[string]string
+	Logger                 slog.Logger
+	// IgnorePorts tells the api handler which ports to ignore when
+	// listing all listening ports. This is helpful to hide ports that
+	// are used by the agent, that the user does not care about.
+	IgnorePorts map[int]string
+	// ListeningPortsGetter is used to get the list of listening ports. Only
+	// tests should set this. If unset, a default that queries the OS will be used.
+	ListeningPortsGetter         ListeningPortsGetter
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
 	Subsystems                   []codersdk.AgentSubsystem
@@ -91,6 +98,8 @@ type Options struct {
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
 	Clock                        quartz.Clock
+	SocketServerEnabled          bool
+	SocketPath                   string // Path for the agent socket server socket
 }
 
 type Client interface {
@@ -137,9 +146,7 @@ func New(options Options) Agent {
 	if options.ServiceBannerRefreshInterval == 0 {
 		options.ServiceBannerRefreshInterval = 2 * time.Minute
 	}
-	if options.PortCacheDuration == 0 {
-		options.PortCacheDuration = 1 * time.Second
-	}
+
 	if options.Clock == nil {
 		options.Clock = quartz.NewReal()
 	}
@@ -153,30 +160,38 @@ func New(options Options) Agent {
 		options.Execer = agentexec.DefaultExecer
 	}
 
+	if options.ListeningPortsGetter == nil {
+		options.ListeningPortsGetter = &osListeningPortsGetter{
+			cacheDuration: 1 * time.Second,
+		}
+	}
+
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
-		clock:                              options.Clock,
-		tailnetListenPort:                  options.TailnetListenPort,
-		reconnectingPTYTimeout:             options.ReconnectingPTYTimeout,
-		logger:                             options.Logger,
-		gracefulCtx:                        gracefulCtx,
-		gracefulCancel:                     gracefulCancel,
-		hardCtx:                            hardCtx,
-		hardCancel:                         hardCancel,
-		coordDisconnected:                  make(chan struct{}),
-		environmentVariables:               options.EnvironmentVariables,
-		client:                             options.Client,
-		filesystem:                         options.Filesystem,
-		logDir:                             options.LogDir,
-		tempDir:                            options.TempDir,
-		scriptDataDir:                      options.ScriptDataDir,
-		lifecycleUpdate:                    make(chan struct{}, 1),
-		lifecycleReported:                  make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:                    []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		reportConnectionsUpdate:            make(chan struct{}, 1),
-		ignorePorts:                        options.IgnorePorts,
-		portCacheDuration:                  options.PortCacheDuration,
+		clock:                   options.Clock,
+		tailnetListenPort:       options.TailnetListenPort,
+		reconnectingPTYTimeout:  options.ReconnectingPTYTimeout,
+		logger:                  options.Logger,
+		gracefulCtx:             gracefulCtx,
+		gracefulCancel:          gracefulCancel,
+		hardCtx:                 hardCtx,
+		hardCancel:              hardCancel,
+		coordDisconnected:       make(chan struct{}),
+		environmentVariables:    options.EnvironmentVariables,
+		client:                  options.Client,
+		filesystem:              options.Filesystem,
+		logDir:                  options.LogDir,
+		tempDir:                 options.TempDir,
+		scriptDataDir:           options.ScriptDataDir,
+		lifecycleUpdate:         make(chan struct{}, 1),
+		lifecycleReported:       make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:         []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		reportConnectionsUpdate: make(chan struct{}, 1),
+		listeningPortsHandler: listeningPortsHandler{
+			getter:      options.ListeningPortsGetter,
+			ignorePorts: maps.Clone(options.IgnorePorts),
+		},
 		reportMetadataInterval:             options.ReportMetadataInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
@@ -190,6 +205,8 @@ func New(options Options) Agent {
 
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
+		socketPath:          options.SocketPath,
+		socketServerEnabled: options.SocketServerEnabled,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -202,20 +219,16 @@ func New(options Options) Agent {
 }
 
 type agent struct {
-	clock             quartz.Clock
-	logger            slog.Logger
-	client            Client
-	tailnetListenPort uint16
-	filesystem        afero.Fs
-	logDir            string
-	tempDir           string
-	scriptDataDir     string
-	// ignorePorts tells the api handler which ports to ignore when
-	// listing all listening ports. This is helpful to hide ports that
-	// are used by the agent, that the user does not care about.
-	ignorePorts       map[int]string
-	portCacheDuration time.Duration
-	subsystems        []codersdk.AgentSubsystem
+	clock                 quartz.Clock
+	logger                slog.Logger
+	client                Client
+	tailnetListenPort     uint16
+	filesystem            afero.Fs
+	logDir                string
+	tempDir               string
+	scriptDataDir         string
+	listeningPortsHandler listeningPortsHandler
+	subsystems            []codersdk.AgentSubsystem
 
 	reconnectingPTYTimeout time.Duration
 	reconnectingPTYServer  *reconnectingpty.Server
@@ -271,6 +284,10 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+
+	socketServerEnabled bool
+	socketPath          string
+	socketServer        *agentsocket.Server
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -350,7 +367,30 @@ func (a *agent) init() {
 			s.ExperimentalContainers = a.devcontainers
 		},
 	)
+
+	a.initSocketServer()
+
 	go a.runLoop()
+}
+
+// initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
+func (a *agent) initSocketServer() {
+	if !a.socketServerEnabled {
+		a.logger.Info(a.hardCtx, "socket server is disabled")
+		return
+	}
+
+	server, err := agentsocket.NewServer(
+		a.logger.Named("socket"),
+		agentsocket.WithPath(a.socketPath),
+	)
+	if err != nil {
+		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
+		return
+	}
+
+	a.socketServer = server
+	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -1087,7 +1127,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if err != nil {
 			return xerrors.Errorf("fetch metadata: %w", err)
 		}
-		a.logger.Info(ctx, "fetched manifest", slog.F("manifest", mp))
+		a.logger.Info(ctx, "fetched manifest")
 		manifest, err := agentsdk.ManifestFromProto(mp)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
@@ -1920,11 +1960,18 @@ func (a *agent) Close() error {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
 		}
 	}
+
 	a.setLifecycle(lifecycleState)
 
 	err = a.scriptRunner.Close()
 	if err != nil {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
+	}
+
+	if a.socketServer != nil {
+		if err := a.socketServer.Close(); err != nil {
+			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
+		}
 	}
 
 	if err := a.containerAPI.Close(); err != nil {

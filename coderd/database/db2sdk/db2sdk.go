@@ -974,6 +974,9 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		UserPrompts: sdkUserPrompts,
 		ToolUsages:  sdkToolUsages,
 	}
+	if interception.APIKeyID.Valid {
+		intc.APIKeyID = &interception.APIKeyID.String
+	}
 	if interception.EndedAt.Valid {
 		intc.EndedAt = &interception.EndedAt.Time
 	}
@@ -1016,6 +1019,18 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 		Metadata:           jsonOrEmptyMap(usage.Metadata),
 		CreatedAt:          usage.CreatedAt,
 	}
+}
+
+func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
+	var presets []codersdk.InvalidatedPreset
+	for _, p := range invalidatedPresets {
+		presets = append(presets, codersdk.InvalidatedPreset{
+			TemplateName:        p.TemplateName,
+			TemplateVersionName: p.TemplateVersionName,
+			PresetName:          p.TemplateVersionPresetName,
+		})
+	}
+	return presets
 }
 
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
