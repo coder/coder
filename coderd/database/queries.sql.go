@@ -1637,6 +1637,37 @@ func (q *sqlQuerier) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg 
 	return err
 }
 
+const deleteOldAuditLogs = `-- name: DeleteOldAuditLogs :execrows
+WITH old_logs AS (
+    SELECT id
+    FROM audit_logs
+    WHERE
+        "time" < $1::timestamp with time zone
+        AND action NOT IN ('connect', 'disconnect', 'open', 'close')
+    ORDER BY "time" ASC
+    LIMIT $2
+)
+DELETE FROM audit_logs
+USING old_logs
+WHERE audit_logs.id = old_logs.id
+`
+
+type DeleteOldAuditLogsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes old audit logs based on retention policy, excluding deprecated
+// connection events (connect, disconnect, open, close) which are handled
+// separately by DeleteOldAuditLogConnectionEvents.
+func (q *sqlQuerier) DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldAuditLogs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with

@@ -1050,3 +1050,198 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, newToolUsages, 1, "near threshold tool usages should not be deleted")
 }
+
+func TestDeleteOldAuditLogs(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 30 * 24 * time.Hour
+	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
+	beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
+
+	testCases := []struct {
+		name                  string
+		retentionConfig       codersdk.RetentionConfig
+		oldLogTime            time.Time
+		recentLogTime         *time.Time // nil means no recent log created
+		expectOldDeleted      bool
+		expectedLogsRemaining int
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				AuditLogs: serpent.Duration(retentionPeriod),
+			},
+			oldLogTime:            afterThreshold,
+			recentLogTime:         &beforeThreshold,
+			expectOldDeleted:      true,
+			expectedLogsRemaining: 1, // only recent log remains
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				AuditLogs: serpent.Duration(0),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Setup test fixtures.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+
+			// Create old audit log.
+			oldLog := dbgen.AuditLog(t, db, database.AuditLog{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+				Time:           tc.oldLogTime,
+				Action:         database.AuditActionCreate,
+				ResourceType:   database.ResourceTypeWorkspace,
+			})
+
+			// Create recent audit log if specified.
+			var recentLog database.AuditLog
+			if tc.recentLogTime != nil {
+				recentLog = dbgen.AuditLog(t, db, database.AuditLog{
+					UserID:         user.ID,
+					OrganizationID: org.ID,
+					Time:           *tc.recentLogTime,
+					Action:         database.AuditActionCreate,
+					ResourceType:   database.ResourceTypeWorkspace,
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
+				LimitOpt: 100,
+			})
+			require.NoError(t, err)
+			require.Len(t, logs, tc.expectedLogsRemaining, "unexpected number of logs remaining")
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, log := range logs {
+				logIDs[i] = log.AuditLog.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old audit log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old audit log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent audit log should be kept")
+			}
+		})
+	}
+
+	// ConnectionEventsNotDeleted is a special case that tests multiple audit
+	// action types, so it's kept as a separate subtest.
+	t.Run("ConnectionEventsNotDeleted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// Create old connection events (should NOT be deleted by audit logs retention).
+		oldConnectLog := dbgen.AuditLog(t, db, database.AuditLog{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+			Time:           afterThreshold,
+			Action:         database.AuditActionConnect,
+			ResourceType:   database.ResourceTypeWorkspace,
+		})
+
+		oldDisconnectLog := dbgen.AuditLog(t, db, database.AuditLog{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+			Time:           afterThreshold,
+			Action:         database.AuditActionDisconnect,
+			ResourceType:   database.ResourceTypeWorkspace,
+		})
+
+		oldOpenLog := dbgen.AuditLog(t, db, database.AuditLog{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+			Time:           afterThreshold,
+			Action:         database.AuditActionOpen,
+			ResourceType:   database.ResourceTypeWorkspace,
+		})
+
+		oldCloseLog := dbgen.AuditLog(t, db, database.AuditLog{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+			Time:           afterThreshold,
+			Action:         database.AuditActionClose,
+			ResourceType:   database.ResourceTypeWorkspace,
+		})
+
+		// Create old non-connection audit log (should be deleted).
+		oldCreateLog := dbgen.AuditLog(t, db, database.AuditLog{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+			Time:           afterThreshold,
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeWorkspace,
+		})
+
+		// Run the purge with audit logs retention enabled.
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				AuditLogs: serpent.Duration(retentionPeriod),
+			},
+		}, clk)
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		// Verify results.
+		logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
+			LimitOpt: 100,
+		})
+		require.NoError(t, err)
+		require.Len(t, logs, 4, "should have 4 connection event logs remaining")
+
+		logIDs := make([]uuid.UUID, len(logs))
+		for i, log := range logs {
+			logIDs[i] = log.AuditLog.ID
+		}
+
+		// Connection events should NOT be deleted by audit logs retention.
+		require.Contains(t, logIDs, oldConnectLog.ID, "old connect log should NOT be deleted by audit logs retention")
+		require.Contains(t, logIDs, oldDisconnectLog.ID, "old disconnect log should NOT be deleted by audit logs retention")
+		require.Contains(t, logIDs, oldOpenLog.ID, "old open log should NOT be deleted by audit logs retention")
+		require.Contains(t, logIDs, oldCloseLog.ID, "old close log should NOT be deleted by audit logs retention")
+
+		// Non-connection event should be deleted.
+		require.NotContains(t, logIDs, oldCreateLog.ID, "old create log should be deleted by audit logs retention")
+	})
+}

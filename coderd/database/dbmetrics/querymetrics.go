@@ -410,6 +410,13 @@ func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOldAuditLogsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldAuditLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldConnectionLogs(ctx, arg)
