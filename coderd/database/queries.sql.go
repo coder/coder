@@ -1637,7 +1637,7 @@ func (q *sqlQuerier) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg 
 	return err
 }
 
-const deleteOldAuditLogs = `-- name: DeleteOldAuditLogs :one
+const deleteOldAuditLogs = `-- name: DeleteOldAuditLogs :execrows
 WITH old_logs AS (
     SELECT id
     FROM audit_logs
@@ -1646,14 +1646,10 @@ WITH old_logs AS (
         AND action NOT IN ('connect', 'disconnect', 'open', 'close')
     ORDER BY "time" ASC
     LIMIT $2
-),
-deleted_rows AS (
-    DELETE FROM audit_logs
-    USING old_logs
-    WHERE audit_logs.id = old_logs.id
-    RETURNING audit_logs.id
 )
-SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows
+DELETE FROM audit_logs
+USING old_logs
+WHERE audit_logs.id = old_logs.id
 `
 
 type DeleteOldAuditLogsParams struct {
@@ -1665,10 +1661,11 @@ type DeleteOldAuditLogsParams struct {
 // connection events (connect, disconnect, open, close) which are handled
 // separately by DeleteOldAuditLogConnectionEvents.
 func (q *sqlQuerier) DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteOldAuditLogs, arg.BeforeTime, arg.LimitCount)
-	var deleted_count int64
-	err := row.Scan(&deleted_count)
-	return deleted_count, err
+	result, err := q.db.ExecContext(ctx, deleteOldAuditLogs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
