@@ -91,7 +91,7 @@ OPTIONS:
           for more details.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

@@ -89,7 +89,7 @@ Specify the source workspace name to copy parameters from.
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### --parameter
 

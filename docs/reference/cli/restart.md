@@ -17,7 +17,7 @@ coder restart [flags] <workspace>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### --build-option
 

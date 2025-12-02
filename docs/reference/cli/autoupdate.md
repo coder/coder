@@ -17,4 +17,4 @@ coder autoupdate [flags] <workspace> <always|never>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
