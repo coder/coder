@@ -21,10 +21,12 @@ const (
 	delay          = 10 * time.Minute
 	maxAgentLogAge = 7 * 24 * time.Hour
 	// Connection events are now inserted into the `connection_logs` table.
-	// We'll slowly remove old connection events from the `audit_logs` table,
-	// but we won't touch the `connection_logs` table.
+	// We'll slowly remove old connection events from the `audit_logs` table.
+	// The `connection_logs` table is purged based on the configured retention.
 	maxAuditLogConnectionEventAge    = 90 * 24 * time.Hour // 90 days
 	auditLogConnectionEventBatchSize = 1000
+	// Batch size for connection log deletion.
+	connectionLogsBatchSize = 10000
 	// Telemetry heartbeats are used to deduplicate events across replicas. We
 	// don't need to persist heartbeat rows for longer than 24 hours, as they
 	// are only used for deduplication across replicas. The time needs to be
@@ -111,9 +113,23 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
 			}
 
+			var purgedConnectionLogs int64
+			connectionLogsRetention := vals.Retention.ConnectionLogs.Value()
+			if connectionLogsRetention > 0 {
+				deleteConnectionLogsBefore := start.Add(-connectionLogsRetention)
+				purgedConnectionLogs, err = tx.DeleteOldConnectionLogs(ctx, database.DeleteOldConnectionLogsParams{
+					BeforeTime: deleteConnectionLogsBefore,
+					LimitCount: connectionLogsBatchSize,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to delete old connection logs: %w", err)
+				}
+			}
+
 			logger.Debug(ctx, "purged old database entries",
 				slog.F("expired_api_keys", expiredAPIKeys),
 				slog.F("aibridge_records", purgedAIBridgeRecords),
+				slog.F("connection_logs", purgedConnectionLogs),
 				slog.F("duration", clk.Since(start)),
 			)
 

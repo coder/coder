@@ -759,6 +759,129 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old telemetry heartbeats")
 }
 
+func TestDeleteOldConnectionLogs(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 30 * 24 * time.Hour
+	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 31 days ago (older than threshold)
+	beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
+
+	testCases := []struct {
+		name                  string
+		retentionConfig       codersdk.RetentionConfig
+		oldLogTime            time.Time
+		recentLogTime         *time.Time // nil means no recent log created
+		expectOldDeleted      bool
+		expectedLogsRemaining int
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				ConnectionLogs: serpent.Duration(retentionPeriod),
+			},
+			oldLogTime:            afterThreshold,
+			recentLogTime:         &beforeThreshold,
+			expectOldDeleted:      true,
+			expectedLogsRemaining: 1, // only recent log remains
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				ConnectionLogs: serpent.Duration(0),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Setup test fixtures.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+
+			// Create old connection log.
+			oldLog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+				ID:               uuid.New(),
+				Time:             tc.oldLogTime,
+				OrganizationID:   org.ID,
+				WorkspaceOwnerID: user.ID,
+				WorkspaceID:      workspace.ID,
+				WorkspaceName:    workspace.Name,
+				AgentName:        "agent1",
+				Type:             database.ConnectionTypeSsh,
+				ConnectionStatus: database.ConnectionStatusConnected,
+			})
+
+			// Create recent connection log if specified.
+			var recentLog database.ConnectionLog
+			if tc.recentLogTime != nil {
+				recentLog = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+					ID:               uuid.New(),
+					Time:             *tc.recentLogTime,
+					OrganizationID:   org.ID,
+					WorkspaceOwnerID: user.ID,
+					WorkspaceID:      workspace.ID,
+					WorkspaceName:    workspace.Name,
+					AgentName:        "agent2",
+					Type:             database.ConnectionTypeSsh,
+					ConnectionStatus: database.ConnectionStatusConnected,
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+				LimitOpt: 100,
+			})
+			require.NoError(t, err)
+			require.Len(t, logs, tc.expectedLogsRemaining, "unexpected number of logs remaining")
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, log := range logs {
+				logIDs[i] = log.ConnectionLog.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old connection log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old connection log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent connection log should be kept")
+			}
+		})
+	}
+}
+
 func TestDeleteOldAIBridgeRecords(t *testing.T) {
 	t.Parallel()
 

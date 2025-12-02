@@ -1749,6 +1749,13 @@ func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, thresho
 	return q.db.DeleteOldAuditLogConnectionEvents(ctx, threshold)
 }
 
+func (q *querier) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldConnectionLogs(ctx, arg)
+}
+
 func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceNotificationMessage); err != nil {
 		return err
