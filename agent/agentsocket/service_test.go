@@ -5,21 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
-	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentsocket"
-	"github.com/coder/coder/v2/agent/agentsocket/proto"
 	"github.com/coder/coder/v2/agent/unit"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // tempDirUnixSocket returns a temporary directory that can safely hold unix
@@ -47,23 +44,15 @@ func tempDirUnixSocket(t *testing.T) string {
 }
 
 // newSocketClient creates a DRPC client connected to the Unix socket at the given path.
-func newSocketClient(t *testing.T, socketPath string) proto.DRPCAgentSocketClient {
+func newSocketClient(ctx context.Context, t *testing.T, socketPath string) *agentsocket.Client {
 	t.Helper()
 
-	conn, err := net.Dial("unix", socketPath)
-	require.NoError(t, err)
-
-	config := yamux.DefaultConfig()
-	config.Logger = nil
-	session, err := yamux.Client(conn, config)
-	require.NoError(t, err)
-
-	client := proto.NewDRPCAgentSocketClient(drpcsdk.MultiplexedConn(session))
-
+	client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(socketPath))
 	t.Cleanup(func() {
-		_ = session.Close()
-		_ = conn.Close()
+		_ = client.Close()
 	})
+	require.NoError(t, err)
+
 	return client
 }
 
@@ -78,17 +67,17 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Parallel()
 
 		socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := agentsocket.NewServer(
-			socketPath,
 			slog.Make().Leveled(slog.LevelDebug),
+			agentsocket.WithPath(socketPath),
 		)
 		require.NoError(t, err)
 		defer server.Close()
 
-		client := newSocketClient(t, socketPath)
+		client := newSocketClient(ctx, t, socketPath)
 
-		_, err = client.Ping(context.Background(), &proto.PingRequest{})
+		err = client.Ping(ctx)
 		require.NoError(t, err)
 	})
 
@@ -98,147 +87,116 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("NewUnit", func(t *testing.T) {
 			t.Parallel()
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.NoError(t, err)
 
-			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 		})
 
 		t.Run("UnitAlreadyStarted", func(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
 			// First Start
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.NoError(t, err)
-			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Second Start
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.ErrorContains(t, err, unit.ErrSameStatusAlreadySet.Error())
 
-			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 		})
 
 		t.Run("UnitAlreadyCompleted", func(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
 			// First start
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.NoError(t, err)
 
-			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Complete the unit
-			_, err = client.SyncComplete(context.Background(), &proto.SyncCompleteRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncComplete(ctx, "test-unit")
 			require.NoError(t, err)
 
-			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "completed", status.Status)
+			require.Equal(t, unit.StatusComplete, status.Status)
 
 			// Second start
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.NoError(t, err)
 
-			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 		})
 
 		t.Run("UnitNotReady", func(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
-			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
-				Unit:      "test-unit",
-				DependsOn: "dependency-unit",
-			})
+			err = client.SyncWant(ctx, "test-unit", "dependency-unit")
 			require.NoError(t, err)
 
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.ErrorContains(t, err, "unit not ready")
 
-			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, string(unit.StatusPending), status.Status)
+			require.Equal(t, unit.StatusPending, status.Status)
 			require.False(t, status.IsReady)
 		})
 	})
@@ -250,107 +208,86 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
 			// If dependency units are not registered, they are registered automatically
-			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
-				Unit:      "test-unit",
-				DependsOn: "dependency-unit",
-			})
+			err = client.SyncWant(ctx, "test-unit", "dependency-unit")
 			require.NoError(t, err)
 
-			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
 			require.Len(t, status.Dependencies, 1)
-			require.Equal(t, "dependency-unit", status.Dependencies[0].DependsOn)
-			require.Equal(t, "completed", status.Dependencies[0].RequiredStatus)
+			require.Equal(t, unit.ID("dependency-unit"), status.Dependencies[0].DependsOn)
+			require.Equal(t, unit.StatusComplete, status.Dependencies[0].RequiredStatus)
 		})
 
 		t.Run("DependencyAlreadyRegistered", func(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
 			// Start the dependency unit
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "dependency-unit",
-			})
+			err = client.SyncStart(ctx, "dependency-unit")
 			require.NoError(t, err)
 
-			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "dependency-unit",
-			})
+			status, err := client.SyncStatus(ctx, "dependency-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Add the dependency after the dependency unit has already started
-			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
-				Unit:      "test-unit",
-				DependsOn: "dependency-unit",
-			})
+			err = client.SyncWant(ctx, "test-unit", "dependency-unit")
 
 			// Dependencies can be added even if the dependency unit has already started
 			require.NoError(t, err)
 
 			// The dependency is now reflected in the test unit's status
-			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "dependency-unit", status.Dependencies[0].DependsOn)
-			require.Equal(t, "completed", status.Dependencies[0].RequiredStatus)
+			require.Equal(t, unit.ID("dependency-unit"), status.Dependencies[0].DependsOn)
+			require.Equal(t, unit.StatusComplete, status.Dependencies[0].RequiredStatus)
 		})
 
 		t.Run("DependencyAddedAfterDependentStarted", func(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
 			// Start the dependent unit
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.NoError(t, err)
 
-			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err := client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
+			require.Equal(t, unit.StatusStarted, status.Status)
 
 			// Add the dependency after the dependency unit has already started
-			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
-				Unit:      "test-unit",
-				DependsOn: "dependency-unit",
-			})
+			err = client.SyncWant(ctx, "test-unit", "dependency-unit")
 
 			// Dependencies can be added even if the dependent unit has already started.
 			// The dependency applies the next time a unit is started. The current status is not updated.
@@ -359,12 +296,10 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			require.NoError(t, err)
 
 			// The dependency is now reflected in the test unit's status
-			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
+			status, err = client.SyncStatus(ctx, "test-unit")
 			require.NoError(t, err)
-			require.Equal(t, "dependency-unit", status.Dependencies[0].DependsOn)
-			require.Equal(t, "completed", status.Dependencies[0].RequiredStatus)
+			require.Equal(t, unit.ID("dependency-unit"), status.Dependencies[0].DependsOn)
+			require.Equal(t, unit.StatusComplete, status.Dependencies[0].RequiredStatus)
 		})
 	})
 
@@ -375,96 +310,80 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
-			response, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
-				Unit: "unregistered-unit",
-			})
+			ready, err := client.SyncReady(ctx, "unregistered-unit")
 			require.NoError(t, err)
-			require.False(t, response.Ready)
+			require.True(t, ready)
 		})
 
 		t.Run("UnitNotReady", func(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
 			// Register a unit with an unsatisfied dependency
-			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
-				Unit:      "test-unit",
-				DependsOn: "dependency-unit",
-			})
+			err = client.SyncWant(ctx, "test-unit", "dependency-unit")
 			require.NoError(t, err)
 
 			// Check readiness - should be false because dependency is not satisfied
-			response, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
-				Unit: "test-unit",
-			})
+			ready, err := client.SyncReady(ctx, "test-unit")
 			require.NoError(t, err)
-			require.False(t, response.Ready)
+			require.False(t, ready)
 		})
 
 		t.Run("UnitReady", func(t *testing.T) {
 			t.Parallel()
 
 			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
+			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
-				socketPath,
 				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
 			defer server.Close()
 
-			client := newSocketClient(t, socketPath)
+			client := newSocketClient(ctx, t, socketPath)
 
 			// Register a unit with no dependencies - should be ready immediately
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncStart(ctx, "test-unit")
 			require.NoError(t, err)
 
 			// Check readiness - should be true
-			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
-				Unit: "test-unit",
-			})
+			ready, err := client.SyncReady(ctx, "test-unit")
 			require.NoError(t, err)
+			require.True(t, ready)
 
 			// Also test a unit with satisfied dependencies
-			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
-				Unit:      "dependent-unit",
-				DependsOn: "test-unit",
-			})
+			err = client.SyncWant(ctx, "dependent-unit", "test-unit")
 			require.NoError(t, err)
 
 			// Complete the dependency
-			_, err = client.SyncComplete(context.Background(), &proto.SyncCompleteRequest{
-				Unit: "test-unit",
-			})
+			err = client.SyncComplete(ctx, "test-unit")
 			require.NoError(t, err)
 
 			// Now dependent-unit should be ready
-			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
-				Unit: "dependent-unit",
-			})
+			ready, err = client.SyncReady(ctx, "dependent-unit")
 			require.NoError(t, err)
+			require.True(t, ready)
 		})
 	})
 }

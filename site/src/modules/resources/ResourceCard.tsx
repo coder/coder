@@ -1,11 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { Children, type FC, type JSX, useState } from "react";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
@@ -162,19 +166,23 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 					})}
 				</div>
 				{mLength > 4 && (
-					<Tooltip
-						title={
-							shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"
-						}
-					>
-						<IconButton
-							onClick={() => {
-								setShouldDisplayAllMetadata((value) => !value);
-							}}
-							size="large"
-						>
-							<DropdownArrow margin={false} close={shouldDisplayAllMetadata} />
-						</IconButton>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<IconButton
+								onClick={() => {
+									setShouldDisplayAllMetadata((value) => !value);
+								}}
+								size="large"
+							>
+								<DropdownArrow
+									margin={false}
+									close={shouldDisplayAllMetadata}
+								/>
+							</IconButton>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"}
+						</TooltipContent>
 					</Tooltip>
 				)}
 			</Stack>

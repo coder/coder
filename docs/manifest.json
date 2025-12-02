@@ -891,30 +891,31 @@
 					"title": "Coder Tasks",
 					"description": "Run Coding Agents on your Own Infrastructure",
 					"path": "./ai-coder/tasks.md",
-					"state": ["beta"],
 					"children": [
 						{
 							"title": "Understanding Coder Tasks",
 							"description": "Core principles and concepts behind Coder Tasks",
-							"path": "./ai-coder/tasks-core-principles.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-core-principles.md"
 						},
 						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
-							"path": "./ai-coder/custom-agents.md",
-							"state": ["beta"]
+							"path": "./ai-coder/custom-agents.md"
 						},
 						{
 							"title": "Tasks Migration Guide",
 							"description": "Changes to Coder Tasks made in v2.28",
-							"path": "./ai-coder/tasks-migration.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
 							"title": "Security \u0026 Boundaries",
 							"description": "Learn about security and boundaries when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
+						},
+						{
+							"title": "Create a GitHub to Coder Tasks Workflow",
+							"description": "How to setup Coder Tasks to run in GitHub",
+							"path": "./ai-coder/github-to-tasks.md"
 						}
 					]
 				},
@@ -935,7 +936,7 @@
 					"description": "Centralized LLM and MCP proxy for platform teams",
 					"path": "./ai-coder/ai-bridge/index.md",
 					"icon_path": "./images/icons/api.svg",
-					"state": ["premium", "early access"],
+					"state": ["premium", "beta"],
 					"children": [
 						{
 							"title": "Setup",
@@ -1167,10 +1168,6 @@
 							"path": "./reference/api/enterprise.md"
 						},
 						{
-							"title": "Experimental",
-							"path": "./reference/api/experimental.md"
-						},
-						{
 							"title": "Files",
 							"path": "./reference/api/files.md"
 						},
@@ -1213,6 +1210,10 @@
 						{
 							"title": "Schemas",
 							"path": "./reference/api/schemas.md"
+						},
+						{
+							"title": "Tasks",
+							"path": "./reference/api/tasks.md"
 						},
 						{
 							"title": "Templates",
@@ -1770,6 +1771,41 @@
 							"title": "support bundle",
 							"description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 							"path": "reference/cli/support_bundle.md"
+						},
+						{
+							"title": "task",
+							"description": "Manage tasks",
+							"path": "reference/cli/task.md"
+						},
+						{
+							"title": "task create",
+							"description": "Create a task",
+							"path": "reference/cli/task_create.md"
+						},
+						{
+							"title": "task delete",
+							"description": "Delete tasks",
+							"path": "reference/cli/task_delete.md"
+						},
+						{
+							"title": "task list",
+							"description": "List tasks",
+							"path": "reference/cli/task_list.md"
+						},
+						{
+							"title": "task logs",
+							"description": "Show a task's logs",
+							"path": "reference/cli/task_logs.md"
+						},
+						{
+							"title": "task send",
+							"description": "Send input to a task",
+							"path": "reference/cli/task_send.md"
+						},
+						{
+							"title": "task status",
+							"description": "Show the status of a task.",
+							"path": "reference/cli/task_status.md"
 						},
 						{
 							"title": "templates",

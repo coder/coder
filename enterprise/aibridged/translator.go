@@ -72,7 +72,7 @@ func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridg
 		MsgId:          req.MsgID,
 		InputTokens:    req.Input,
 		OutputTokens:   req.Output,
-		Metadata:       marshalForProto(req.Metadata),
+		Metadata:       marshalForProto(merged),
 		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err

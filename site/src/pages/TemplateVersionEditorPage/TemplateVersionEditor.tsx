@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	ProvisionerJobLog,
@@ -23,6 +22,11 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -217,10 +221,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					data-testid="topbar"
 				>
 					<div>
-						<Tooltip title="Back to the template">
-							<TopbarIconButton component={RouterLink} to={templateLink}>
-								<ChevronLeftIcon className="size-icon-sm" />
-							</TopbarIconButton>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<TopbarIconButton component={RouterLink} to={templateLink}>
+									<ChevronLeftIcon className="size-icon-sm" />
+								</TopbarIconButton>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">
+								Back to the template
+							</TooltipContent>
 						</Tooltip>
 					</div>
 
@@ -367,16 +376,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									},
 								}}
 							>
-								<Tooltip title="Create File" placement="top">
-									<IconButton
-										aria-label="Create File"
-										onClick={(event) => {
-											setCreateFileOpen(true);
-											event.currentTarget.blur();
-										}}
-									>
-										<PlusIcon className="size-icon-xs" />
-									</IconButton>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<IconButton
+											aria-label="Create File"
+											onClick={(event) => {
+												setCreateFileOpen(true);
+												event.currentTarget.blur();
+											}}
+										>
+											<PlusIcon className="size-icon-xs" />
+										</IconButton>
+									</TooltipTrigger>
+									<TooltipContent>Create File</TooltipContent>
 								</Tooltip>
 							</div>
 							<CreateFileDialog

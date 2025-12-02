@@ -80,6 +80,7 @@ const (
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
+	FeatureTaskBatchActions           FeatureName = "task_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
@@ -111,6 +112,7 @@ var (
 		FeatureUserRoleManagement,
 		FeatureExternalTokenEncryption,
 		FeatureWorkspaceBatchActions,
+		FeatureTaskBatchActions,
 		FeatureAccessControl,
 		FeatureControlSharedPorts,
 		FeatureCustomRoles,
@@ -157,6 +159,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
+		FeatureTaskBatchActions:           true,
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
@@ -3267,7 +3270,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.OpenAI.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "openai_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
 			Name:        "AI Bridge Anthropic Base URL",
@@ -3287,7 +3290,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "anthropic_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
 			Name:        "AI Bridge Bedrock Region",
@@ -3307,7 +3310,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_access_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key Secret",
@@ -3317,7 +3320,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_access_key_secret",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
 			Name:        "AI Bridge Bedrock Model",

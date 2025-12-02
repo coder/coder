@@ -6,7 +6,6 @@ import ListItem from "@mui/material/ListItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
-import Tooltip from "@mui/material/Tooltip";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -16,22 +15,31 @@ import {
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "api/queries/notifications";
-import type {
-	NotificationPreference,
-	NotificationTemplate,
-} from "api/typesGenerated";
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "api/queries/users";
+import type { NotificationTemplate } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import {
 	castNotificationMethod,
+	isTaskNotification,
 	methodIcons,
 	methodLabels,
+	notificationIsDisabled,
+	selectDisabledPreferences,
 } from "modules/notifications/utils";
 import type { Permissions } from "modules/permissions";
 import { type FC, Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQueryClient } from "react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
@@ -98,6 +106,11 @@ const NotificationsPage: FC = () => {
 		...systemTemplatesByGroup.data,
 		...customTemplatesByGroup.data,
 	};
+
+	const preferencesQuery = useQuery(preferenceSettings());
+	const updatePreferencesMutation = useMutation(
+		updatePreferenceSettings(queryClient),
+	);
 
 	return (
 		<>
@@ -181,6 +194,20 @@ const NotificationsPage: FC = () => {
 																			[tmpl.id]: !checked,
 																		},
 																	});
+
+																	// Clear the Tasks page warning dismissal when enabling a task notification
+																	// This ensures that if the user disables task notifications again later,
+																	// they will see the warning alert again.
+																	if (
+																		isTaskNotification(tmpl) &&
+																		checked &&
+																		preferencesQuery.data
+																	) {
+																		updatePreferencesMutation.mutate({
+																			task_notification_alert_dismissed: false,
+																		});
+																	}
+
 																	displaySuccess(
 																		"Notification preferences updated",
 																	);
@@ -199,8 +226,13 @@ const NotificationsPage: FC = () => {
 															css={styles.listItemEndIcon}
 															aria-label="Delivery method"
 														>
-															<Tooltip title={`Delivery via ${label}`}>
-																<Icon aria-label={label} />
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Icon aria-label={label} />
+																</TooltipTrigger>
+																<TooltipContent side="bottom">
+																	Delivery via {label}
+																</TooltipContent>
 															</Tooltip>
 														</ListItemIcon>
 													</ListItem>
@@ -239,26 +271,6 @@ function canSeeNotificationGroup(
 		default:
 			return false;
 	}
-}
-
-function notificationIsDisabled(
-	disabledPreferences: Record<string, boolean>,
-	tmpl: NotificationTemplate,
-): boolean {
-	return (
-		(!tmpl.enabled_by_default && disabledPreferences[tmpl.id] === undefined) ||
-		!!disabledPreferences[tmpl.id]
-	);
-}
-
-function selectDisabledPreferences(data: NotificationPreference[]) {
-	return data.reduce(
-		(acc, pref) => {
-			acc[pref.id] = pref.disabled;
-			return acc;
-		},
-		{} as Record<string, boolean>,
-	);
 }
 
 const styles = {

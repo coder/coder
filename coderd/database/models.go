@@ -4218,6 +4218,7 @@ type Task struct {
 	Prompt                       string                           `db:"prompt" json:"prompt"`
 	CreatedAt                    time.Time                        `db:"created_at" json:"created_at"`
 	DeletedAt                    sql.NullTime                     `db:"deleted_at" json:"deleted_at"`
+	DisplayName                  string                           `db:"display_name" json:"display_name"`
 	Status                       TaskStatus                       `db:"status" json:"status"`
 	StatusDebug                  json.RawMessage                  `db:"status_debug" json:"status_debug"`
 	WorkspaceBuildNumber         sql.NullInt32                    `db:"workspace_build_number" json:"workspace_build_number"`
@@ -4241,6 +4242,8 @@ type TaskTable struct {
 	Prompt             string          `db:"prompt" json:"prompt"`
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	// Display name is a custom, human-friendly task name.
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 type TaskWorkspaceApp struct {

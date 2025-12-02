@@ -217,6 +217,14 @@ type UpdateUserAppearanceSettingsRequest struct {
 	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
+type UserPreferenceSettings struct {
+	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+}
+
+type UpdateUserPreferenceSettingsRequest struct {
+	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+}
+
 type UpdateUserPasswordRequest struct {
 	OldPassword string `json:"old_password" validate:""`
 	Password    string `json:"password" validate:"required"`
@@ -511,6 +519,34 @@ func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, 
 		return UserAppearanceSettings{}, ReadBodyAsError(res)
 	}
 	var resp UserAppearanceSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetUserPreferenceSettings fetches the preference settings for a user.
+func (c *Client) GetUserPreferenceSettings(ctx context.Context, user string) (UserPreferenceSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/preferences", user), nil)
+	if err != nil {
+		return UserPreferenceSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserPreferenceSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserPreferenceSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserPreferenceSettings updates the preference settings for a user.
+func (c *Client) UpdateUserPreferenceSettings(ctx context.Context, user string, req UpdateUserPreferenceSettingsRequest) (UserPreferenceSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/preferences", user), req)
+	if err != nil {
+		return UserPreferenceSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserPreferenceSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserPreferenceSettings
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

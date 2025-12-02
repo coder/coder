@@ -56,7 +56,7 @@ var (
 	// anything.
 	ErrSilent = xerrors.New("silent error")
 
-	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; remove the --use-keyring flag to use file-based storage")
+	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage")
 )
 
 const (
@@ -104,6 +104,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.resetPassword(),
 		r.sharing(),
 		r.state(),
+		r.tasksCommand(),
 		r.templates(),
 		r.tokens(),
 		r.users(),
@@ -149,7 +150,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.mcpCommand(),
 		r.promptExample(),
 		r.rptyCommand(),
-		r.tasksCommand(),
+		r.syncCommand(),
 		r.boundary(),
 	}
 }
@@ -483,10 +484,12 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Flag: varUseKeyring,
 			Env:  envUseKeyring,
 			Description: "Store and retrieve session tokens using the operating system " +
-				"keyring. Currently only supported on Windows. By default, tokens are " +
-				"stored in plain text files.",
-			Value: serpent.BoolOf(&r.useKeyring),
-			Group: globalGroup,
+				"keyring. This flag is ignored and file-based storage is used when " +
+				"--global-config is set or keyring usage is not supported on the current " +
+				"platform. Set to false to force file-based storage on supported platforms.",
+			Default: "true",
+			Value:   serpent.BoolOf(&r.useKeyring),
+			Group:   globalGroup,
 		},
 		{
 			Flag:        "debug-http",
@@ -534,10 +537,12 @@ type RootCmd struct {
 	disableDirect bool
 	debugHTTP     bool
 
-	disableNetworkTelemetry bool
-	noVersionCheck          bool
-	noFeatureWarning        bool
-	useKeyring              bool
+	disableNetworkTelemetry    bool
+	noVersionCheck             bool
+	noFeatureWarning           bool
+	useKeyring                 bool
+	keyringServiceName         string
+	useKeyringWithGlobalConfig bool
 }
 
 // InitClient creates and configures a new client with authentication, telemetry,
@@ -718,8 +723,19 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 // flag.
 func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	if r.tokenBackend == nil {
-		if r.useKeyring {
-			r.tokenBackend = sessionstore.NewKeyring()
+		// Checking for the --global-config directory being set is a bit wonky but necessary
+		// to allow extensions that invoke the CLI with this flag (e.g. VS code) to continue
+		// working without modification. In the future we should modify these extensions to
+		// either access the credential in the keyring (like Coder Desktop) or some other
+		// approach that doesn't rely on the session token being stored on disk.
+		assumeExtensionInUse := r.globalConfig != config.DefaultDir() && !r.useKeyringWithGlobalConfig
+		keyringSupported := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+		if r.useKeyring && !assumeExtensionInUse && keyringSupported {
+			serviceName := sessionstore.DefaultServiceName
+			if r.keyringServiceName != "" {
+				serviceName = r.keyringServiceName
+			}
+			r.tokenBackend = sessionstore.NewKeyringWithService(serviceName)
 		} else {
 			r.tokenBackend = sessionstore.NewFile(r.createConfig)
 		}
@@ -727,8 +743,18 @@ func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	return r.tokenBackend
 }
 
-func (r *RootCmd) WithSessionStorageBackend(backend sessionstore.Backend) {
-	r.tokenBackend = backend
+// WithKeyringServiceName sets a custom keyring service name for testing purposes.
+// This allows tests to use isolated keyring storage while still exercising the
+// genuine storage backend selection logic in ensureTokenBackend().
+func (r *RootCmd) WithKeyringServiceName(serviceName string) {
+	r.keyringServiceName = serviceName
+}
+
+// UseKeyringWithGlobalConfig enables the use of the keyring storage backend
+// when the --global-config directory is set. This is only intended as an override
+// for tests, which require specifying the global config directory for test isolation.
+func (r *RootCmd) UseKeyringWithGlobalConfig() {
+	r.useKeyringWithGlobalConfig = true
 }
 
 type AgentAuth struct {

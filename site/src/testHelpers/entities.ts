@@ -1043,7 +1043,7 @@ export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
 	icon: "",
 };
 
-const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
+export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "test-workspace-agent-2",
 	name: "another-workspace-agent",
@@ -1792,31 +1792,6 @@ export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
 	sensitive: false,
 };
 
-export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
-	name: "test",
-	template_version_id: "test-template-version",
-	rich_parameter_values: [],
-};
-
-export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest =
-	{
-		name: "test",
-		template_version_id: "test-template-version",
-		rich_parameter_values: [
-			{
-				name: MockTemplateVersionParameter1.name,
-				value: MockTemplateVersionParameter1.default_value,
-			},
-		],
-	};
-
-const _MockUserAgent = {
-	browser: "Chrome 99.0.4844",
-	device: "Other",
-	ip_address: "11.22.33.44",
-	os: "Windows 10",
-};
-
 export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
 	password: { enabled: true },
 	github: { enabled: false, default_provider_configured: true },
@@ -2483,6 +2458,10 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	has_license: false,
 	features: withDefaultFeatures({
 		workspace_batch_actions: {
+			enabled: true,
+			entitlement: "entitled",
+		},
+		task_batch_actions: {
 			enabled: true,
 			entitlement: "entitled",
 		},
@@ -4717,6 +4696,31 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			enabled_by_default: true,
 		},
 		{
+			id: "8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c",
+			name: "Task Completed",
+			title_template: "Task '{{.Labels.workspace}}' completed",
+			body_template: "The task '{{.Labels.task}}' has completed successfully.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: false,
+		},
+		{
+			id: "3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e",
+			name: "Task Failed",
+			title_template: "Task '{{.Labels.workspace}}' failed",
+			body_template:
+				"The task '{{.Labels.task}}' has failed. Check the logs for more details.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: false,
+		},
+		{
 			id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
 			name: "Task Idle",
 			title_template: "Task '{{.Labels.workspace}}' is idle",
@@ -4726,7 +4730,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			group: "Task Events",
 			method: "",
 			kind: "system",
-			enabled_by_default: true,
+			enabled_by_default: false,
 		},
 		{
 			id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
@@ -4739,7 +4743,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			group: "Task Events",
 			method: "",
 			kind: "system",
-			enabled_by_default: true,
+			enabled_by_default: false,
 		},
 	];
 
@@ -4996,7 +5000,8 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 
 export const MockTask = {
 	id: "test-task",
-	name: "task-wild-test-123",
+	name: "perform-some-task-123",
+	display_name: "Perform some task",
 	organization_id: MockOrganization.id,
 	owner_id: MockUserOwner.id,
 	owner_name: MockUserOwner.username,
@@ -5037,6 +5042,7 @@ export const MockTasks = [
 		...MockTask,
 		id: "task-2",
 		name: "fix-avatar-size",
+		display_name: "Fix avatar size",
 		current_state: {
 			...MockTask.current_state,
 			message: "Avatar size fixed!",
@@ -5047,6 +5053,7 @@ export const MockTasks = [
 		...MockTask,
 		id: "task-3",
 		name: "fix-accessibility-issues",
+		display_name: "Fix accessibility issues",
 		current_state: {
 			...MockTask.current_state,
 			message: "Accessibility issues fixed!",
@@ -5059,7 +5066,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-1",
-		name: "task-workspace-pending",
+		name: "workspace-pending",
+		display_name: "Workspace pending",
 		initial_prompt: "Task Workspace Pending",
 		status: "initializing",
 		current_state: {
@@ -5072,7 +5080,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-2",
-		name: "task-workspace-starting",
+		name: "workspace-starting",
+		display_name: "Workspace starting",
 		initial_prompt: "Task Workspace Starting",
 		status: "initializing",
 		current_state: {
@@ -5085,7 +5094,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-3",
-		name: "task-agent-connecting",
+		name: "agent-connecting",
+		display_name: "Agent connecting",
 		initial_prompt: "Task Agent Connecting",
 		status: "initializing",
 		current_state: {
@@ -5098,7 +5108,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-4",
-		name: "task-agent-starting",
+		name: "agent-starting",
+		display_name: "Agent Starting",
 		initial_prompt: "Task Agent Starting",
 		status: "initializing",
 		current_state: {
@@ -5111,7 +5122,8 @@ export const MockInitializingTasks = [
 	{
 		...MockTask,
 		id: "task-5",
-		name: "task-app-initializing",
+		name: "app-initializing",
+		display_name: "App Initializing",
 		initial_prompt: "Task App Initializing",
 		status: "initializing",
 		current_state: {
@@ -5119,6 +5131,38 @@ export const MockInitializingTasks = [
 			state: "working",
 			message: "App is initializing",
 			uri: "",
+		},
+	},
+] satisfies TypesGen.Task[];
+
+export const MockDisplayNameTasks = [
+	{
+		...MockTask,
+	},
+	{
+		...MockTask,
+		id: "task-4",
+		name: "validate-email-regex",
+		// Display name with 64 characters with ellipsis
+		display_name:
+			"Write a function to validate email addresses using regular expr…",
+		current_state: {
+			...MockTask.current_state,
+			message: "Email validation complete!",
+			state: "complete",
+		},
+	},
+	{
+		...MockTask,
+		id: "payment-api-tests",
+		name: "payment-api-tests",
+		// Display name with 81 characters
+		display_name:
+			"Create a comprehensive test suite for the new payment processing microservice API",
+		current_state: {
+			...MockTask.current_state,
+			message: "Test suite created!",
+			state: "complete",
 		},
 	},
 ] satisfies TypesGen.Task[];
