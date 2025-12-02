@@ -183,7 +183,7 @@ ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 
 ## Local Configuration
 
-This files may be gitignored, read manually if not auto-loaded.
+These files may be gitignored, read manually if not auto-loaded.
 
 @AGENTS.local.md
 
