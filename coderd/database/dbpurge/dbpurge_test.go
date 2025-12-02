@@ -423,15 +423,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			logsAge:       60 * 24 * time.Hour, // 60 days ago
 			expectDeleted: false,
 		},
-		{
-			name: "GlobalRetentionFallback",
-			retentionConfig: codersdk.RetentionConfig{
-				Global:             serpent.Duration(14 * 24 * time.Hour), // 14 days global
-				WorkspaceAgentLogs: serpent.Duration(0),                   // Not set, falls back to global
-			},
-			logsAge:       15 * 24 * time.Hour, // 15 days ago
-			expectDeleted: true,
-		},
+
 		{
 			name: "CustomRetention30Days",
 			retentionConfig: codersdk.RetentionConfig{

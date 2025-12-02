@@ -65,13 +65,12 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				return nil
 			}
 
+			var purgedWorkspaceAgentLogs int64
 			workspaceAgentLogsRetention := vals.Retention.WorkspaceAgentLogs.Value()
-			if workspaceAgentLogsRetention == 0 {
-				workspaceAgentLogsRetention = vals.Retention.Global.Value()
-			}
 			if workspaceAgentLogsRetention > 0 {
 				deleteOldWorkspaceAgentLogsBefore := start.Add(-workspaceAgentLogsRetention)
-				if err := tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore); err != nil {
+				purgedWorkspaceAgentLogs, err = tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore)
+				if err != nil {
 					return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
 				}
 			}
@@ -153,6 +152,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			}
 
 			logger.Debug(ctx, "purged old database entries",
+				slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 				slog.F("expired_api_keys", expiredAPIKeys),
 				slog.F("aibridge_records", purgedAIBridgeRecords),
 				slog.F("connection_logs", purgedConnectionLogs),

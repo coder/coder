@@ -467,7 +467,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "api_keys": 0,
       "audit_logs": 0,
       "connection_logs": 0,
-      "global": 0,
       "workspace_agent_logs": 0
     },
     "scim_api_key": "string",

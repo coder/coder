@@ -26,12 +26,12 @@ a YAML configuration file.
 
 ### Settings
 
-| Setting              | CLI Flag                           | Environment Variable                   | Default        | Description                              |
-|----------------------|------------------------------------|----------------------------------------|----------------|------------------------------------------|
-| Audit Logs           | `--audit-logs-retention`           | `CODER_AUDIT_LOGS_RETENTION`           | `0` (disabled) | How long to retain Audit Log entries     |
-| Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs       |
-| API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys      |
-| Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs  |
+| Setting              | CLI Flag                           | Environment Variable                   | Default        | Description                             |
+|----------------------|------------------------------------|----------------------------------------|----------------|-----------------------------------------|
+| Audit Logs           | `--audit-logs-retention`           | `CODER_AUDIT_LOGS_RETENTION`           | `0` (disabled) | How long to retain Audit Log entries    |
+| Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs      |
+| API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys     |
+| Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs |
 
 ### Duration Format
 
@@ -107,13 +107,14 @@ error message when users attempt to use an expired key.
 
 ### Workspace Agent Logs Behavior
 
-Workspace agent logs are retained based on the retention period, but **logs from
-the latest build of each workspace are always retained** regardless of age. This
-ensures you can always debug issues with active workspaces.
+Workspace agent logs are deleted based on when the agent last connected, not the
+age of the logs themselves. **Logs from the latest build of each workspace are
+always retained** regardless of when the agent last connected. This ensures you
+can always debug issues with active workspaces.
 
-Only logs from non-latest workspace builds that are older than the retention
-period are deleted. Setting `--workspace-agent-logs-retention=7d` keeps all logs
-from the latest build plus logs from previous builds for up to 7 days.
+For non-latest builds, logs are deleted if the agent hasn't connected within the
+retention period. Setting `--workspace-agent-logs-retention=7d` deletes logs for
+agents that haven't connected in 7 days (excluding those from the latest build).
 
 ## Best Practices
 
