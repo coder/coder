@@ -37,4 +37,4 @@ coder task delete [flags] <task> [<task> ...]
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

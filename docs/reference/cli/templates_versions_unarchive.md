@@ -17,7 +17,7 @@ coder templates versions unarchive [flags] <template-name> [template-version-nam
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### -O, --org
 
