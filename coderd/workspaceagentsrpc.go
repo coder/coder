@@ -227,10 +227,10 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 	mux *yamux.Session,
 ) *agentConnectionMonitor {
 	monitor := &agentConnectionMonitor{
-		apiCtx:            api.ctx,
-		workspace:         workspace,
-		workspaceAgent:    workspaceAgent,
-		workspaceBuild:    workspaceBuild,
+		apiCtx:         api.ctx,
+		workspace:      workspace,
+		workspaceAgent: workspaceAgent,
+		workspaceBuild: workspaceBuild,
 
 		conn:              &yamuxPingerCloser{mux: mux},
 		pingPeriod:        api.AgentConnectionUpdateFrequency,
