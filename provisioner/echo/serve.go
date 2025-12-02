@@ -12,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -21,12 +22,12 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// ProvisionGraphWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
 func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string) []*proto.Response {
 	return []*proto.Response{{
-		Type: &proto.Response_Apply{
-			Apply: &proto.ApplyComplete{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name: "example_with_scope",
 					Type: "aws_instance",
@@ -44,24 +45,29 @@ func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string)
 	}}
 }
 
-// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// ProvisionGraphWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
-func ProvisionApplyWithAgent(authToken string) []*proto.Response {
+func ProvisionGraphWithAgent(authToken string, muts ...func(g *proto.GraphComplete)) []*proto.Response {
+	gc := &proto.GraphComplete{
+		Resources: []*proto.Resource{{
+			Name: "example",
+			Type: "aws_instance",
+			Agents: []*proto.Agent{{
+				Id:   uuid.NewString(),
+				Name: "example",
+				Auth: &proto.Agent_Token{
+					Token: authToken,
+				},
+			}},
+		}},
+	}
+	for _, mut := range muts {
+		mut(gc)
+	}
+
 	return []*proto.Response{{
-		Type: &proto.Response_Apply{
-			Apply: &proto.ApplyComplete{
-				Resources: []*proto.Resource{{
-					Name: "example",
-					Type: "aws_instance",
-					Agents: []*proto.Agent{{
-						Id:   uuid.NewString(),
-						Name: "example",
-						Auth: &proto.Agent_Token{
-							Token: authToken,
-						},
-					}},
-				}},
-			},
+		Type: &proto.Response_Graph{
+			Graph: gc,
 		},
 	}}
 }
@@ -73,12 +79,19 @@ var (
 			Parse: &proto.ParseComplete{},
 		},
 	}}
+	// InitComplete is a helper to indicate an empty init completion.
+	InitComplete = []*proto.Response{{
+		Type: &proto.Response_Init{
+			Init: &proto.InitComplete{
+				ModuleFiles: []byte{},
+			},
+		},
+	}}
 	// PlanComplete is a helper to indicate an empty provision completion.
 	PlanComplete = []*proto.Response{{
 		Type: &proto.Response_Plan{
 			Plan: &proto.PlanComplete{
-				Plan:        []byte("{}"),
-				ModuleFiles: []byte{},
+				Plan: []byte("{}"),
 			},
 		},
 	}}
@@ -88,7 +101,19 @@ var (
 			Apply: &proto.ApplyComplete{},
 		},
 	}}
+	GraphComplete = []*proto.Response{{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{},
+		},
+	}}
 
+	InitFailed = []*proto.Response{{
+		Type: &proto.Response_Init{
+			Init: &proto.InitComplete{
+				Error: "failed!",
+			},
+		},
+	}}
 	// PlanFailed is a helper to convey a failed plan operation
 	PlanFailed = []*proto.Response{{
 		Type: &proto.Response_Plan{
@@ -101,6 +126,13 @@ var (
 	ApplyFailed = []*proto.Response{{
 		Type: &proto.Response_Apply{
 			Apply: &proto.ApplyComplete{
+				Error: "failed!",
+			},
+		},
+	}}
+	GraphFailed = []*proto.Response{{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
 				Error: "failed!",
 			},
 		},
@@ -174,6 +206,59 @@ func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan
 	return provisionersdk.ParseErrorf("complete response missing")
 }
 
+func (*echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+	err := sess.Files.ExtractArchive(sess.Context(), sess.Logger, afero.NewOsFs(), req.TemplateSourceArchive)
+	if err != nil {
+		return provisionersdk.InitErrorf("extract archive: %s", err.Error())
+	}
+
+	responses, err := readResponses(
+		sess,
+		"", // transition not supported for echo graph responses
+		"init.protobuf")
+	if err != nil {
+		return &proto.InitComplete{Error: err.Error()}
+	}
+	for _, response := range responses {
+		if log := response.GetLog(); log != nil {
+			sess.ProvisionLog(log.Level, log.Output)
+		}
+		if complete := response.GetInit(); complete != nil {
+			return complete
+		}
+	}
+
+	// some tests use Echo without a complete response to test cancel
+	<-canceledOrComplete
+	return provisionersdk.InitErrorf("canceled")
+}
+
+func (*echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete {
+	responses, err := readResponses(
+		sess,
+		strings.ToLower(req.GetMetadata().GetWorkspaceTransition().String()),
+		"graph.protobuf")
+	if err != nil {
+		return &proto.GraphComplete{Error: err.Error()}
+	}
+	for _, response := range responses {
+		if log := response.GetLog(); log != nil {
+			sess.ProvisionLog(log.Level, log.Output)
+		}
+		if complete := response.GetGraph(); complete != nil {
+			if len(complete.AiTasks) > 0 {
+				// These two fields are linked; if there are AI tasks, indicate that.
+				complete.HasAiTasks = true
+			}
+			return complete
+		}
+	}
+
+	// some tests use Echo without a complete response to test cancel
+	<-canceledOrComplete
+	return provisionersdk.GraphError("canceled")
+}
+
 // Plan reads requests from the provided directory to stream responses.
 func (*echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete {
 	responses, err := readResponses(
@@ -228,17 +313,71 @@ func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 type Responses struct {
 	Parse []*proto.Response
 
-	// ProvisionApply and ProvisionPlan are used to mock ALL responses of
-	// Apply and Plan, regardless of transition.
-	ProvisionApply []*proto.Response
+	// Used to mock ALL responses regardless of transition.
+	ProvisionInit  []*proto.Response
 	ProvisionPlan  []*proto.Response
+	ProvisionApply []*proto.Response
+	ProvisionGraph []*proto.Response
 
-	// ProvisionApplyMap and ProvisionPlanMap are used to mock specific
-	// transition responses. They are prioritized over the generic responses.
-	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
+	// Used to mock specific transition responses. They are prioritized over the generic responses.
 	ProvisionPlanMap  map[proto.WorkspaceTransition][]*proto.Response
+	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
+	ProvisionGraphMap map[proto.WorkspaceTransition][]*proto.Response
 
 	ExtraFiles map[string][]byte
+}
+
+func isType[T any](x any) bool {
+	_, ok := x.(T)
+	return ok
+}
+
+func (r *Responses) Valid() error {
+	isLog := isType[*proto.Response_Log]
+	isParse := isType[*proto.Response_Parse]
+	isInit := isType[*proto.Response_Init]
+	isDataUpload := isType[*proto.Response_DataUpload]
+	isChunkPiece := isType[*proto.Response_ChunkPiece]
+	isPlan := isType[*proto.Response_Plan]
+	isApply := isType[*proto.Response_Apply]
+	isGraph := isType[*proto.Response_Graph]
+
+	for _, parse := range r.Parse {
+		ty := parse.Type
+		if !(isParse(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid parse response type: %T", ty)
+		}
+	}
+
+	for _, init := range r.ProvisionInit {
+		ty := init.Type
+		if !(isInit(ty) || isLog(ty) || isChunkPiece(ty) || isDataUpload(ty)) {
+			return xerrors.Errorf("invalid init response type: %T", ty)
+		}
+	}
+
+	for _, plan := range r.ProvisionPlan {
+		ty := plan.Type
+		if !(isPlan(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid plan response type: %T", ty)
+		}
+	}
+
+	for _, apply := range r.ProvisionApply {
+		ty := apply.Type
+		if !(isApply(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid apply response type: %T", ty)
+		}
+	}
+
+	for _, graph := range r.ProvisionGraph {
+		ty := graph.Type
+		if !(isGraph(ty) || isLog(ty)) {
+			return xerrors.Errorf("invalid graph response type: %T", ty)
+		}
+	}
+
+	return nil
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
@@ -255,27 +394,74 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 	if responses == nil {
 		responses = &Responses{
 			Parse:             ParseComplete,
-			ProvisionApply:    ApplyComplete,
+			ProvisionInit:     InitComplete,
 			ProvisionPlan:     PlanComplete,
+			ProvisionApply:    ApplyComplete,
+			ProvisionGraph:    GraphComplete,
 			ProvisionApplyMap: nil,
 			ProvisionPlanMap:  nil,
 			ExtraFiles:        nil,
 		}
 	}
-	if responses.ProvisionPlan == nil {
+	// source apply from the graph if graph exists
+	if responses.ProvisionApply == nil && len(responses.ProvisionGraph) > 0 {
+		for _, resp := range responses.ProvisionGraph {
+			if resp.GetLog() != nil {
+				responses.ProvisionApply = append(responses.ProvisionApply, resp)
+				continue
+			}
+			responses.ProvisionApply = append(responses.ProvisionApply, &proto.Response{
+				Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{
+					Error: resp.GetGraph().GetError(),
+				}},
+			})
+		}
+	}
+	if responses.ProvisionGraph == nil {
 		for _, resp := range responses.ProvisionApply {
+			if resp.GetLog() != nil {
+				responses.ProvisionGraph = append(responses.ProvisionGraph, resp)
+				continue
+			}
+			responses.ProvisionGraph = append(responses.ProvisionGraph, &proto.Response{
+				Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
+					Error: resp.GetApply().GetError(),
+				}},
+			})
+		}
+	}
+	if responses.ProvisionInit == nil {
+		for _, resp := range responses.ProvisionGraph {
+			if resp.GetLog() != nil {
+				responses.ProvisionInit = append(responses.ProvisionInit, resp)
+				continue
+			}
+			responses.ProvisionInit = append(responses.ProvisionInit, &proto.Response{
+				Type: &proto.Response_Init{
+					Init: &proto.InitComplete{
+						Error:           resp.GetGraph().GetError(),
+						Timings:         nil,
+						Modules:         nil,
+						ModuleFiles:     nil,
+						ModuleFilesHash: nil,
+					},
+				},
+			},
+			)
+		}
+	}
+	if responses.ProvisionPlan == nil {
+		for _, resp := range responses.ProvisionGraph {
 			if resp.GetLog() != nil {
 				responses.ProvisionPlan = append(responses.ProvisionPlan, resp)
 				continue
 			}
 			responses.ProvisionPlan = append(responses.ProvisionPlan, &proto.Response{
 				Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Error:                 resp.GetApply().GetError(),
-					Resources:             resp.GetApply().GetResources(),
-					Parameters:            resp.GetApply().GetParameters(),
-					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
-					Plan:                  []byte("{}"),
-					ModuleFiles:           []byte{},
+					Error: resp.GetGraph().GetError(),
+					Plan:  []byte("{}"),
+					//nolint:gosec // the number of resources will not exceed int32
+					AiTaskCount: int32(len(resp.GetGraph().GetAiTasks())),
 				}},
 			})
 		}
@@ -315,12 +501,25 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 		if err != nil {
 			return err
 		}
+
+		response := new(proto.Response)
+		err = protobuf.Unmarshal(data, response)
+		if err != nil {
+			return xerrors.Errorf("you must have saved the wrong type, the proto cannot unmarshal: %w", err)
+		}
+
 		logger.Debug(context.Background(), "proto written", slog.F("name", name), slog.F("bytes_written", n))
 
 		return nil
 	}
 	for index, response := range responses.Parse {
 		err := writeProto(fmt.Sprintf("%d.parse.protobuf", index), response)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for index, response := range responses.ProvisionInit {
+		err := writeProto(fmt.Sprintf("%d.init.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
@@ -333,6 +532,12 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 	}
 	for index, response := range responses.ProvisionPlan {
 		err := writeProto(fmt.Sprintf("%d.plan.protobuf", index), response)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for index, response := range responses.ProvisionGraph {
+		err := writeProto(fmt.Sprintf("%d.graph.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
@@ -355,6 +560,14 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 
 			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), resp)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	for trans, m := range responses.ProvisionGraphMap {
+		for i, resp := range m {
+			err := writeProto(fmt.Sprintf("%d.%s.graph.protobuf", i, strings.ToLower(trans.String())), resp)
 			if err != nil {
 				return nil, err
 			}
@@ -401,8 +614,8 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 	// that matches the parameters defined in the responses. Dynamic parameters
 	// parsed these, even in the echo provisioner.
 	var mainTF bytes.Buffer
-	for _, respPlan := range responses.ProvisionPlan {
-		plan := respPlan.GetPlan()
+	for _, respPlan := range responses.ProvisionGraph {
+		plan := respPlan.GetGraph()
 		if plan == nil {
 			continue
 		}
@@ -440,6 +653,11 @@ terraform {
 	if err != nil {
 		return nil, err
 	}
+
+	if err := responses.Valid(); err != nil {
+		return nil, xerrors.Errorf("responses invalid: %w", err)
+	}
+
 	return buffer.Bytes(), nil
 }
 
@@ -508,13 +726,14 @@ data "coder_parameter" "{{ .Name }}" {
 
 func WithResources(resources []*proto.Resource) *Responses {
 	return &Responses{
-		Parse: ParseComplete,
-		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{
+		Parse:          ParseComplete,
+		ProvisionInit:  InitComplete,
+		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{}}}},
+		ProvisionGraph: []*proto.Response{{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 			Resources: resources,
 		}}}},
 		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-			Resources: resources,
-			Plan:      []byte("{}"),
+			Plan: []byte("{}"),
 		}}}},
 	}
 }
@@ -522,8 +741,10 @@ func WithResources(resources []*proto.Resource) *Responses {
 func WithExtraFiles(extraFiles map[string][]byte) *Responses {
 	return &Responses{
 		Parse:          ParseComplete,
+		ProvisionInit:  InitComplete,
 		ProvisionApply: ApplyComplete,
 		ProvisionPlan:  PlanComplete,
+		ProvisionGraph: GraphComplete,
 		ExtraFiles:     extraFiles,
 	}
 }
