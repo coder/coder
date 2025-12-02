@@ -386,6 +386,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		}
 	}
 
+	// DoneOut must be completed before we aggregate timings to ensure all logs have been processed.
+	<-doneOut
 	msg := &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
@@ -617,6 +619,8 @@ func (e *executor) apply(
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 
+	// DoneOut must be completed before we aggregate timings to ensure all logs have been processed.
+	<-doneOut
 	agg := e.timings.aggregate()
 	return &proto.ApplyComplete{
 		Parameters:            state.Parameters,
