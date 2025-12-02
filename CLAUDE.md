@@ -181,6 +181,10 @@ ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 @.claude/docs/TROUBLESHOOTING.md
 @.claude/docs/DATABASE.md
 
+## Local Configuration
+
+This files may be gitignored, read manually if not auto-loaded.
+
 @AGENTS.local.md
 
 ## Common Pitfalls
