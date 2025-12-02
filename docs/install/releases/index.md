@@ -9,12 +9,14 @@ deployment.
 
 ## Release channels
 
-We support two release channels:
-[mainline](https://github.com/coder/coder/releases/tag/v2.24.2) for the bleeding
-edge version of Coder and
-[stable](https://github.com/coder/coder/releases/latest) for those with lower
-tolerance for fault. We field our mainline releases publicly for one month
-before promoting them to stable. The version prior to stable receives patches
+We support four release channels:
+
+- **Mainline:** The bleeding edge version of Coder
+- **Stable:** N-1 of the mainline release 
+- **Security Support:** N-2 of the mainline release
+- **Extended Support Release:** Biannually released version of Coder
+
+We field our mainline releases publicly for one month before promoting them to stable. The security support version, so n-2 from mainline, receives patches
 only for security issues or CVEs.
 
 ### Mainline releases
@@ -37,6 +39,16 @@ only for security issues or CVEs.
 For more information on feature rollout, see our
 [feature stages documentation](../releases/feature-stages.md).
 
+### Extended Support Release
+
+- Designed for organizations that prioritize long-term stability
+- Receives only critical bugfixes and security patches
+- Ideal for regulated environments or large deployments with strict upgrade cycles
+
+ESR releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.29](https://github.com/coder/coder/releases/tag/v2.29.0). 
+
+For more information, see the [Coder ESR announcement](https://coder.com/blog/esr). 
+
 ## Installing stable
 
 When installing Coder, we generally advise specifying the desired version from
@@ -58,7 +70,7 @@ pages.
 | Release name                                   | Release Date       | Status           | Latest Release                                                 |
 |------------------------------------------------|--------------------|------------------|----------------------------------------------------------------|
 | [2.23](https://coder.com/changelog/coder-2-23) | June 03, 2025      | Not Supported    | [v2.23.5](https://github.com/coder/coder/releases/tag/v2.23.5) |
-| [2.24](https://coder.com/changelog/coder-2-24) | July 01, 2025      | Not Supported    | [v2.24.4](https://github.com/coder/coder/releases/tag/v2.24.4) |
+| [2.24](https://coder.com/changelog/coder-2-24) | July 01, 2025      | ESR Support      | [v2.24.4](https://github.com/coder/coder/releases/tag/v2.24.4) |
 | [2.25](https://coder.com/changelog/coder-2-25) | August 05, 2025    | Not Supported    | [v2.25.3](https://github.com/coder/coder/releases/tag/v2.25.3) |
 | [2.26](https://coder.com/changelog/coder-2-26) | September 03, 2025 | Security Support | [v2.26.4](https://github.com/coder/coder/releases/tag/v2.26.4) |
 | [2.27](https://coder.com/changelog/coder-2-27) | October 02, 2025   | Stable           | [v2.27.6](https://github.com/coder/coder/releases/tag/v2.27.6) |
