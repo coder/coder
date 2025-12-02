@@ -132,7 +132,7 @@ log entry:
 > Audit Logs provide critical security and compliance information. Purging Audit Logs may impact your organization's ability
 > to investigate security incidents or meet compliance requirements. Consult your security and compliance teams before purging any audit data.
 
-### Automated Retention
+### Data Retention
 
 Coder supports configurable retention policies that automatically purge old
 Audit Logs. To enable automated purging, configure the

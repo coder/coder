@@ -25,12 +25,11 @@ a YAML configuration file.
 
 ### Settings
 
-| Setting         | CLI Flag                      | Environment Variable              | Default          | Description                                                              |
-|-----------------|-------------------------------|-----------------------------------|------------------|--------------------------------------------------------------------------|
-| Global          | `--global-retention`          | `CODER_GLOBAL_RETENTION`          | `0` (disabled)   | Default retention for all data types. Individual settings override this. |
-| Audit Logs      | `--audit-logs-retention`      | `CODER_AUDIT_LOGS_RETENTION`      | `0` (use global) | How long to retain Audit Log entries.                                    |
-| Connection Logs | `--connection-logs-retention` | `CODER_CONNECTION_LOGS_RETENTION` | `0` (use global) | How long to retain Connection Log entries.                               |
-| API Keys        | `--api-keys-retention`        | `CODER_API_KEYS_RETENTION`        | `7d`             | How long to retain expired API keys.                                     |
+| Setting         | CLI Flag                      | Environment Variable              | Default        | Description                          |
+|-----------------|-------------------------------|-----------------------------------|----------------|--------------------------------------|
+| Audit Logs      | `--audit-logs-retention`      | `CODER_AUDIT_LOGS_RETENTION`      | `0` (disabled) | How long to retain Audit Log entries |
+| Connection Logs | `--connection-logs-retention` | `CODER_CONNECTION_LOGS_RETENTION` | `0` (disabled) | How long to retain Connection Logs   |
+| API Keys        | `--api-keys-retention`        | `CODER_API_KEYS_RETENTION`        | `7d`           | How long to retain expired API keys  |
 
 ### Duration Format
 
@@ -47,16 +46,16 @@ Go duration units (`h`, `m`, `s`):
 
 ```bash
 coder server \
-  --global-retention=90d \
   --audit-logs-retention=365d \
+  --connection-logs-retention=90d \
   --api-keys-retention=7d
 ```
 
 ### Environment Variables Example
 
 ```bash
-export CODER_GLOBAL_RETENTION=90d
 export CODER_AUDIT_LOGS_RETENTION=365d
+export CODER_CONNECTION_LOGS_RETENTION=90d
 export CODER_API_KEYS_RETENTION=7d
 ```
 
@@ -64,9 +63,8 @@ export CODER_API_KEYS_RETENTION=7d
 
 ```yaml
 retention:
-  global: 90d
   audit_logs: 365d
-  connection_logs: 0s
+  connection_logs: 90d
   api_keys: 7d
 ```
 
@@ -84,11 +82,10 @@ purge process:
 
 ### Effective Retention
 
-For each data type, the effective retention is determined as follows:
+Each retention setting controls its data type independently:
 
-1. If the individual setting is non-zero, use that value.
-2. If the individual setting is zero, use the global retention value.
-3. If both are zero, retention is disabled (data is kept indefinitely).
+- When set to a non-zero duration, records older than that duration are deleted.
+- When set to `0`, retention is disabled and data is kept indefinitely.
 
 ### API Keys Special Behavior
 
@@ -111,9 +108,8 @@ For most deployments, we recommend:
 
 ```yaml
 retention:
-  global: 90d
   audit_logs: 365d
-  connection_logs: 0s # Use global
+  connection_logs: 90d
   api_keys: 7d
 ```
 
@@ -150,21 +146,14 @@ for guidance.
 
 ## Keeping Data Indefinitely
 
-Setting a retention value to `0` means "use global retention", not "disable".
-To disable all automatic purging, set global to `0` and leave individual
-settings at `0`:
+To keep data indefinitely for any data type, set its retention value to `0`:
 
 ```yaml
 retention:
-  global: 0s
-  audit_logs: 0s
-  connection_logs: 0s
-  api_keys: 0s
+  audit_logs: 0s    # Keep audit logs forever
+  connection_logs: 0s # Keep connection logs forever
+  api_keys: 0s      # Keep expired API keys forever
 ```
-
-There is no way to disable retention for a specific data type while global
-retention is enabled. If you need to retain one data type longer than others,
-set its individual retention to a larger value.
 
 ## Monitoring
 
