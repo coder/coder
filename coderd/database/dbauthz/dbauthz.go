@@ -1784,9 +1784,9 @@ func (q *querier) DeleteOldTelemetryLocks(ctx context.Context, beforeTime time.T
 	return q.db.DeleteOldTelemetryLocks(ctx, beforeTime)
 }
 
-func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
+func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.DeleteOldWorkspaceAgentLogs(ctx, threshold)
 }

@@ -1,8 +1,8 @@
 # Data Retention
 
 Coder supports configurable retention policies that automatically purge old
-Audit Logs, Connection Logs, and API keys. These policies help manage database
-growth by removing records older than a specified duration.
+Audit Logs, Connection Logs, Workspace Agent Logs, and API keys. These policies
+help manage database growth by removing records older than a specified duration.
 
 ## Overview
 
@@ -16,7 +16,8 @@ Retention policies help you:
 
 > [!NOTE]
 > Retention policies are disabled by default (set to `0`) to preserve existing
-> behavior. The only exception is API keys, which defaults to 7 days.
+> behavior. The exceptions are API keys and workspace agent logs, which default
+> to 7 days.
 
 ## Configuration
 
@@ -25,11 +26,12 @@ a YAML configuration file.
 
 ### Settings
 
-| Setting         | CLI Flag                      | Environment Variable              | Default        | Description                          |
-|-----------------|-------------------------------|-----------------------------------|----------------|--------------------------------------|
-| Audit Logs      | `--audit-logs-retention`      | `CODER_AUDIT_LOGS_RETENTION`      | `0` (disabled) | How long to retain Audit Log entries |
-| Connection Logs | `--connection-logs-retention` | `CODER_CONNECTION_LOGS_RETENTION` | `0` (disabled) | How long to retain Connection Logs   |
-| API Keys        | `--api-keys-retention`        | `CODER_API_KEYS_RETENTION`        | `7d`           | How long to retain expired API keys  |
+| Setting              | CLI Flag                           | Environment Variable                   | Default        | Description                             |
+|----------------------|------------------------------------|----------------------------------------|----------------|-----------------------------------------|
+| Audit Logs           | `--audit-logs-retention`           | `CODER_AUDIT_LOGS_RETENTION`           | `0` (disabled) | How long to retain Audit Log entries    |
+| Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs      |
+| API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys     |
+| Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs |
 
 ### Duration Format
 
@@ -48,7 +50,8 @@ Go duration units (`h`, `m`, `s`):
 coder server \
   --audit-logs-retention=365d \
   --connection-logs-retention=90d \
-  --api-keys-retention=7d
+  --api-keys-retention=7d \
+  --workspace-agent-logs-retention=7d
 ```
 
 ### Environment Variables Example
@@ -57,6 +60,7 @@ coder server \
 export CODER_AUDIT_LOGS_RETENTION=365d
 export CODER_CONNECTION_LOGS_RETENTION=90d
 export CODER_API_KEYS_RETENTION=7d
+export CODER_WORKSPACE_AGENT_LOGS_RETENTION=7d
 ```
 
 ### YAML Configuration Example
@@ -66,6 +70,7 @@ retention:
   audit_logs: 365d
   connection_logs: 90d
   api_keys: 7d
+  workspace_agent_logs: 7d
 ```
 
 ## How Retention Works
@@ -100,6 +105,17 @@ ago. Active keys are never deleted by the retention policy.
 Keeping expired keys for a short period allows Coder to return a more helpful
 error message when users attempt to use an expired key.
 
+### Workspace Agent Logs Behavior
+
+Workspace agent logs are deleted based on when the agent last connected, not the
+age of the logs themselves. **Logs from the latest build of each workspace are
+always retained** regardless of when the agent last connected. This ensures you
+can always debug issues with active workspaces.
+
+For non-latest builds, logs are deleted if the agent hasn't connected within the
+retention period. Setting `--workspace-agent-logs-retention=7d` deletes logs for
+agents that haven't connected in 7 days (excluding those from the latest build).
+
 ## Best Practices
 
 ### Recommended Starting Configuration
@@ -111,6 +127,7 @@ retention:
   audit_logs: 365d
   connection_logs: 90d
   api_keys: 7d
+  workspace_agent_logs: 7d
 ```
 
 ### Compliance Considerations
@@ -150,9 +167,10 @@ To keep data indefinitely for any data type, set its retention value to `0`:
 
 ```yaml
 retention:
-  audit_logs: 0s    # Keep audit logs forever
-  connection_logs: 0s # Keep connection logs forever
-  api_keys: 0s      # Keep expired API keys forever
+  audit_logs: 0s           # Keep audit logs forever
+  connection_logs: 0s      # Keep connection logs forever
+  api_keys: 0s             # Keep expired API keys forever
+  workspace_agent_logs: 0s # Keep workspace agent logs forever
 ```
 
 ## Monitoring

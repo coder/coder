@@ -246,7 +246,11 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	// After dbpurge completes, the ticker is reset. Trap this call.
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+		Retention: codersdk.RetentionConfig{
+			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
+		},
+	}, clk)
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -390,6 +394,90 @@ func mustCreateAgentLogs(ctx context.Context, t *testing.T, db database.Store, a
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, agentLogs, "agent logs must be present")
+}
+
+func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name            string
+		retentionConfig codersdk.RetentionConfig
+		logsAge         time.Duration
+		expectDeleted   bool
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour), // 7 days
+			},
+			logsAge:       8 * 24 * time.Hour, // 8 days ago
+			expectDeleted: true,
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				WorkspaceAgentLogs: serpent.Duration(0),
+			},
+			logsAge:       60 * 24 * time.Hour, // 60 days ago
+			expectDeleted: false,
+		},
+
+		{
+			name: "CustomRetention30Days",
+			retentionConfig: codersdk.RetentionConfig{
+				WorkspaceAgentLogs: serpent.Duration(30 * 24 * time.Hour), // 30 days
+			},
+			logsAge:       31 * 24 * time.Hour, // 31 days ago
+			expectDeleted: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			oldTime := now.Add(-tc.logsAge)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			org := dbgen.Organization(t, db, database.Organization{})
+			user := dbgen.User(t, db, database.User{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{Name: "test-ws", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+			wb1 := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, oldTime, 1)
+			wb2 := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, oldTime, 2)
+			agent1 := mustCreateAgent(t, db, wb1)
+			agent2 := mustCreateAgent(t, db, wb2)
+			mustCreateAgentLogs(ctx, t, db, agent1, &oldTime, "agent 1 logs")
+			mustCreateAgentLogs(ctx, t, db, agent2, &oldTime, "agent 2 logs")
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			if tc.expectDeleted {
+				assertNoWorkspaceAgentLogs(ctx, t, db, agent1.ID)
+			} else {
+				assertWorkspaceAgentLogs(ctx, t, db, agent1.ID, "agent 1 logs")
+			}
+			// Latest build logs are always retained.
+			assertWorkspaceAgentLogs(ctx, t, db, agent2.ID, "agent 2 logs")
+		})
+	}
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.

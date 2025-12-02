@@ -120,10 +120,10 @@ type sqlcQuerier interface {
 	DeleteOldProvisionerDaemons(ctx context.Context) error
 	// Deletes old telemetry locks from the telemetry_locks table.
 	DeleteOldTelemetryLocks(ctx context.Context, periodEndingAtBefore time.Time) error
-	// If an agent hasn't connected in the last 7 days, we purge it's logs.
+	// If an agent hasn't connected within the retention period, we purge its logs.
 	// Exception: if the logs are related to the latest build, we keep those around.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
-	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error
+	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error

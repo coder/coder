@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	delay          = 10 * time.Minute
-	maxAgentLogAge = 7 * 24 * time.Hour
+	delay = 10 * time.Minute
 	// Connection events are now inserted into the `connection_logs` table.
 	// We'll slowly remove old connection events from the `audit_logs` table.
 	// The `connection_logs` table is purged based on the configured retention.
@@ -66,9 +65,14 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				return nil
 			}
 
-			deleteOldWorkspaceAgentLogsBefore := start.Add(-maxAgentLogAge)
-			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore); err != nil {
-				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
+			var purgedWorkspaceAgentLogs int64
+			workspaceAgentLogsRetention := vals.Retention.WorkspaceAgentLogs.Value()
+			if workspaceAgentLogsRetention > 0 {
+				deleteOldWorkspaceAgentLogsBefore := start.Add(-workspaceAgentLogsRetention)
+				purgedWorkspaceAgentLogs, err = tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore)
+				if err != nil {
+					return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
+				}
 			}
 			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old workspace agent stats: %w", err)
@@ -148,6 +152,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			}
 
 			logger.Debug(ctx, "purged old database entries",
+				slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 				slog.F("expired_api_keys", expiredAPIKeys),
 				slog.F("aibridge_records", purgedAIBridgeRecords),
 				slog.F("connection_logs", purgedConnectionLogs),

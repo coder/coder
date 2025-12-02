@@ -17745,6 +17745,10 @@ const docTemplate = `{
                 "connection_logs": {
                     "description": "ConnectionLogs controls how long connection log entries are retained.\nSet to 0 to disable (keep indefinitely).",
                     "type": "integer"
+                },
+                "workspace_agent_logs": {
+                    "description": "WorkspaceAgentLogs controls how long workspace agent logs are retained.\nLogs are deleted if the agent hasn't connected within this period.\nLogs from the latest build are always retained regardless of age.\nDefaults to 7 days to preserve existing behavior.",
+                    "type": "integer"
                 }
             }
         },
