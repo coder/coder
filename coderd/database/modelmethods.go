@@ -795,7 +795,7 @@ func (s UserSecret) RBACObject() rbac.Object {
 }
 
 func (s AIBridgeInterception) RBACObject() rbac.Object {
-	return rbac.ResourceAibridgeInterception.WithOwner(s.InitiatorID.String())
+	return rbac.ResourceAibridgeInterception
 }
 
 // WorkspaceIdentity contains the minimal workspace fields needed for agent API metadata/stats reporting
