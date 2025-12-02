@@ -2562,7 +2562,7 @@ func convertWorkspaces(
 	requesterID uuid.UUID,
 	workspaces []database.Workspace,
 	data workspaceData,
-	memberData map[uuid.UUID]database.OrganizationMembersRow,
+	userData map[uuid.UUID]database.User,
 	groupData map[uuid.UUID]database.Group,
 ) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
@@ -2605,7 +2605,7 @@ func convertWorkspaces(
 			template,
 			data.allowRenames,
 			appStatus,
-			memberData,
+			userData,
 			groupData,
 		)
 		if err != nil {
@@ -2627,7 +2627,7 @@ func convertWorkspace(
 	template database.Template,
 	allowRenames bool,
 	latestAppStatus codersdk.WorkspaceAppStatus,
-	memberData map[uuid.UUID]database.OrganizationMembersRow,
+	userData map[uuid.UUID]database.User,
 	groupData map[uuid.UUID]database.Group,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
@@ -2684,7 +2684,7 @@ func convertWorkspace(
 		appStatus = nil
 	}
 
-	sharedWith := sharedWorkspaceActors(ctx, experiments, logger, workspace, memberData, groupData)
+	sharedWith := sharedWorkspaceActors(ctx, experiments, logger, workspace, userData, groupData)
 
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
@@ -2923,76 +2923,80 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 	return codersdk.WorkspaceRoleDeleted
 }
 
-// findWorkspaceMembersAndGroups fetches all organization members and
-// groups present in workspaces' ACLs. All workspaces must belong to
-// the same organization.
-func findWorkspaceMembersAndGroups(
+// findWorkspaceUsersAndGroups fetches all users and groups present in
+// workspaces' ACLs.
+func findWorkspaceUsersAndGroups(
 	ctx context.Context,
 	api *API,
 	workspaces []database.Workspace,
 ) (
-	memberData map[uuid.UUID]database.OrganizationMembersRow,
+	userData map[uuid.UUID]database.User,
 	groupData map[uuid.UUID]database.Group,
 	err error,
 ) {
 	if len(workspaces) == 0 {
-		return
+		return nil, nil, nil
 	}
 
-	// Get all the group IDs that we need to fetch.
-	// TODO(geokat): Implement a way to fetch org members by IDs. For
-	// now we have to fetch all of them even if we only need one.
+	// Get all the user IDs and group IDs that we need to fetch
 	var (
-		groupIDs     []uuid.UUID
-		fetchMembers bool
+		uids []uuid.UUID
+		gids []uuid.UUID
 	)
 	for _, ws := range workspaces {
-		if ws.OrganizationID != workspaces[0].OrganizationID {
-			return nil, nil, xerrors.New("all workspaces must belong to the same organization")
-		}
-		if len(ws.UserACL) != 0 {
-			fetchMembers = true
+		// ws.UserACL is a map[id]...
+		for id := range ws.UserACL {
+			uid, err := uuid.Parse(id)
+			if err != nil {
+				api.Logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", ws.ID))
+				continue
+			}
+			uids = append(uids, uid)
 		}
 		for id := range ws.GroupACL {
-			groupID, err := uuid.Parse(id)
+			gid, err := uuid.Parse(id)
 			if err != nil {
 				api.Logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", ws.ID))
 				continue
 			}
-			groupIDs = append(groupIDs, groupID)
+			gids = append(gids, gid)
 		}
 	}
 
 	var eg errgroup.Group
 
-	// Fetch org members
-	if fetchMembers {
+	// Fetch the users
+	if len(uids) > 0 {
 		eg.Go(func() (err error) {
-			params := database.OrganizationMembersParams{
-				OrganizationID: workspaces[0].OrganizationID,
+			uids = slice.Unique(uids)
+
+			// For context see https://github.com/coder/coder/pull/19375
+			// nolint:gocritic
+			users, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), uids)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get users by IDs: %w", err)
 			}
-			members, err := api.Database.OrganizationMembers(ctx, params)
-			if err != nil && !httpapi.Is404Error(err) {
-				return xerrors.Errorf("get organization members: %w", err)
-			}
-			memberData = make(map[uuid.UUID]database.OrganizationMembersRow, len(members))
-			for _, member := range members {
-				memberData[member.OrganizationMember.UserID] = member
+
+			userData = make(map[uuid.UUID]database.User, len(users))
+			for _, user := range users {
+				userData[user.ID] = user
 			}
 			return nil
 		})
 	}
 	// Fetch the groups
-	if len(groupIDs) > 0 {
+	if len(gids) > 0 {
 		eg.Go(func() (err error) {
-			groupIDs = slice.Unique(groupIDs)
+			gids = slice.Unique(gids)
 
-			groupRows, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: groupIDs})
-			if err != nil && !httpapi.Is404Error(err) {
+			// For context see https://github.com/coder/coder/pull/19375
+			// nolint:gocritic
+			groupRows, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: gids})
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return xerrors.Errorf("get groups: %w", err)
 			}
 
-			groupData = make(map[uuid.UUID]database.Group, len(groupIDs))
+			groupData = make(map[uuid.UUID]database.Group, len(groupRows))
 			for _, groupRow := range groupRows {
 				groupData[groupRow.Group.ID] = groupRow.Group
 			}
@@ -3003,5 +3007,5 @@ func findWorkspaceMembersAndGroups(
 		return nil, nil, err
 	}
 
-	return memberData, groupData, nil
+	return userData, groupData, nil
 }
