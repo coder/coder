@@ -1245,3 +1245,131 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		require.NotContains(t, logIDs, oldCreateLog.ID, "old create log should be deleted by audit logs retention")
 	})
 }
+
+func TestDeleteExpiredAPIKeys(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name                    string
+		retentionConfig         codersdk.RetentionConfig
+		oldExpiredTime          time.Time
+		recentExpiredTime       *time.Time // nil means no recent expired key created
+		activeTime              *time.Time // nil means no active key created
+		expectOldExpiredDeleted bool
+		expectedKeysRemaining   int
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(7 * 24 * time.Hour), // 7 days
+			},
+			oldExpiredTime:          now.Add(-8 * 24 * time.Hour),      // Expired 8 days ago
+			recentExpiredTime:       ptr(now.Add(-6 * 24 * time.Hour)), // Expired 6 days ago
+			activeTime:              ptr(now.Add(24 * time.Hour)),      // Expires tomorrow
+			expectOldExpiredDeleted: true,
+			expectedKeysRemaining:   2, // recent expired + active
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(0),
+			},
+			oldExpiredTime:          now.Add(-365 * 24 * time.Hour), // Expired 1 year ago
+			recentExpiredTime:       nil,
+			activeTime:              nil,
+			expectOldExpiredDeleted: false,
+			expectedKeysRemaining:   1, // old expired is kept
+		},
+
+		{
+			name: "CustomRetention30Days",
+			retentionConfig: codersdk.RetentionConfig{
+				APIKeys: serpent.Duration(30 * 24 * time.Hour), // 30 days
+			},
+			oldExpiredTime:          now.Add(-31 * 24 * time.Hour),      // Expired 31 days ago
+			recentExpiredTime:       ptr(now.Add(-29 * 24 * time.Hour)), // Expired 29 days ago
+			activeTime:              nil,
+			expectOldExpiredDeleted: true,
+			expectedKeysRemaining:   1, // only recent expired remains
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			user := dbgen.User(t, db, database.User{})
+
+			// Create API key that expired long ago.
+			oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: tc.oldExpiredTime,
+				TokenName: "old-expired-key",
+			})
+
+			// Create API key that expired recently if specified.
+			var recentExpiredKey database.APIKey
+			if tc.recentExpiredTime != nil {
+				recentExpiredKey, _ = dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: *tc.recentExpiredTime,
+					TokenName: "recent-expired-key",
+				})
+			}
+
+			// Create API key that hasn't expired yet if specified.
+			var activeKey database.APIKey
+			if tc.activeTime != nil {
+				activeKey, _ = dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: *tc.activeTime,
+					TokenName: "active-key",
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, clk)
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify total keys remaining.
+			keys, err := db.GetAPIKeysLastUsedAfter(ctx, time.Time{})
+			require.NoError(t, err)
+			require.Len(t, keys, tc.expectedKeysRemaining, "unexpected number of keys remaining")
+
+			// Verify results.
+			_, err = db.GetAPIKeyByID(ctx, oldExpiredKey.ID)
+			if tc.expectOldExpiredDeleted {
+				require.Error(t, err, "old expired key should be deleted")
+			} else {
+				require.NoError(t, err, "old expired key should NOT be deleted")
+			}
+
+			if tc.recentExpiredTime != nil {
+				_, err = db.GetAPIKeyByID(ctx, recentExpiredKey.ID)
+				require.NoError(t, err, "recently expired key should be kept")
+			}
+
+			if tc.activeTime != nil {
+				_, err = db.GetAPIKeyByID(ctx, activeKey.ID)
+				require.NoError(t, err, "active key should be kept")
+			}
+		})
+	}
+}
+
+// ptr is a helper to create a pointer to a value.
+func ptr[T any](v T) *T {
+	return &v
+}

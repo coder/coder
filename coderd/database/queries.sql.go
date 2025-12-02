@@ -1107,24 +1107,20 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 	return err
 }
 
-const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :one
+const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :execrows
 WITH expired_keys AS (
 	SELECT id
 	FROM api_keys
 	-- expired keys only
 	WHERE expires_at < $1::timestamptz
 	LIMIT $2
-),
-deleted_rows AS (
-	 DELETE FROM
-		 api_keys
-	 USING
-		 expired_keys
-	 WHERE
-		 api_keys.id = expired_keys.id
-	 RETURNING api_keys.id
- )
-SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows
+)
+DELETE FROM
+	api_keys
+USING
+	expired_keys
+WHERE
+	api_keys.id = expired_keys.id
 `
 
 type DeleteExpiredAPIKeysParams struct {
@@ -1133,10 +1129,11 @@ type DeleteExpiredAPIKeysParams struct {
 }
 
 func (q *sqlQuerier) DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
-	var deleted_count int64
-	err := row.Scan(&deleted_count)
-	return deleted_count, err
+	result, err := q.db.ExecContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
