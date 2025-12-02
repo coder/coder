@@ -111,7 +111,7 @@ func TestAgentGitSSHKey(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 	})
 	project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -149,7 +149,7 @@ func TestAgentGitSSHKey_APIKeyScopes(t *testing.T) {
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse:          echo.ParseComplete,
 				ProvisionPlan:  echo.PlanComplete,
-				ProvisionApply: echo.ProvisionApplyWithAgentAndAPIKeyScope(authToken, tt.apiKeyScope),
+				ProvisionGraph: echo.ProvisionApplyWithAgentAndAPIKeyScope(authToken, tt.apiKeyScope),
 			})
 			project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
