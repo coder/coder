@@ -235,7 +235,7 @@ func (w *fakeWatcher) sendEventWaitNextCalled(ctx context.Context, event fsnotif
 type fakeSubAgentClient struct {
 	logger slog.Logger
 
-	mu     sync.Mutex
+	mu     sync.Mutex // Protects following.
 	agents map[uuid.UUID]agentcontainers.SubAgent
 
 	listErrC   chan error // If set, send to return error, close to return nil.
