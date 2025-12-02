@@ -181,6 +181,8 @@ ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 @.claude/docs/TROUBLESHOOTING.md
 @.claude/docs/DATABASE.md
 
+@AGENTS.local.md
+
 ## Common Pitfalls
 
 1. **Audit table errors** → Update `enterprise/audit/table.go`
