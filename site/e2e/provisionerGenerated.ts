@@ -69,6 +69,13 @@ export enum PrebuiltWorkspaceBuildStage {
   UNRECOGNIZED = -1,
 }
 
+export enum GraphSource {
+  SOURCE_UNKNOWN = 0,
+  SOURCE_PLAN = 1,
+  SOURCE_STATE = 2,
+  UNRECOGNIZED = -1,
+}
+
 export enum TimingState {
   STARTED = 0,
   COMPLETED = 1,
@@ -410,10 +417,6 @@ export interface Metadata {
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
 export interface Config {
-  /** template_source_archive is a tar of the template source files */
-  templateSourceArchive: Uint8Array;
-  /** state is the provisioner state (if any) */
-  state: Uint8Array;
   provisionerLogLevel: string;
   /** Template imports can omit template id */
   templateId?:
@@ -444,6 +447,26 @@ export interface ParseComplete_WorkspaceTagsEntry {
   value: string;
 }
 
+export interface InitRequest {
+  /** template_source_archive is a tar of the template source files */
+  templateSourceArchive: Uint8Array;
+  /**
+   * If true, the provisioner can safely assume the caller does not need the
+   * module files downloaded by the `terraform init` command.
+   * Ideally this boolean would be flipped in its truthy value, however since
+   * this is costly, the zero value omitting the module files is preferred.
+   */
+  omitModuleFiles: boolean;
+}
+
+export interface InitComplete {
+  error: string;
+  timings: Timing[];
+  modules: Module[];
+  moduleFiles: Uint8Array;
+  moduleFilesHash: Uint8Array;
+}
+
 /** PlanRequest asks the provisioner to plan what resources & parameters it will create */
 export interface PlanRequest {
   metadata: Metadata | undefined;
@@ -451,29 +474,51 @@ export interface PlanRequest {
   variableValues: VariableValue[];
   externalAuthProviders: ExternalAuthProvider[];
   previousParameterValues: RichParameterValue[];
-  /**
-   * If true, the provisioner can safely assume the caller does not need the
-   * module files downloaded by the `terraform init` command.
-   * Ideally this boolean would be flipped in its truthy value, however for
-   * backwards compatibility reasons, the zero value should be the previous
-   * behavior of downloading the module files.
-   */
-  omitModuleFiles: boolean;
+  /** state is the provisioner state (if any) */
+  state: Uint8Array;
 }
 
 /** PlanComplete indicates a request to plan completed. */
 export interface PlanComplete {
   error: string;
+  timings: Timing[];
+  plan: Uint8Array;
+  dailyCost: number;
+  resourceReplacements: ResourceReplacement[];
+  aiTaskCount: number;
+}
+
+/**
+ * ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
+ * in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
+ */
+export interface ApplyRequest {
+  metadata:
+    | Metadata
+    | undefined;
+  /** state is the provisioner state (if any) */
+  state: Uint8Array;
+}
+
+/** ApplyComplete indicates a request to apply completed. */
+export interface ApplyComplete {
+  state: Uint8Array;
+  error: string;
+  timings: Timing[];
+}
+
+export interface GraphRequest {
+  metadata: Metadata | undefined;
+  source: GraphSource;
+}
+
+export interface GraphComplete {
+  error: string;
+  timings: Timing[];
   resources: Resource[];
   parameters: RichParameter[];
   externalAuthProviders: ExternalAuthProviderResource[];
-  timings: Timing[];
-  modules: Module[];
   presets: Preset[];
-  plan: Uint8Array;
-  resourceReplacements: ResourceReplacement[];
-  moduleFiles: Uint8Array;
-  moduleFilesHash: Uint8Array;
   /**
    * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
    * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
@@ -484,25 +529,6 @@ export interface PlanComplete {
   hasAiTasks: boolean;
   aiTasks: AITask[];
   hasExternalAgents: boolean;
-}
-
-/**
- * ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
- * in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
- */
-export interface ApplyRequest {
-  metadata: Metadata | undefined;
-}
-
-/** ApplyComplete indicates a request to apply completed. */
-export interface ApplyComplete {
-  state: Uint8Array;
-  error: string;
-  resources: Resource[];
-  parameters: RichParameter[];
-  externalAuthProviders: ExternalAuthProviderResource[];
-  timings: Timing[];
-  aiTasks: AITask[];
 }
 
 export interface Timing {
@@ -522,16 +548,20 @@ export interface CancelRequest {
 export interface Request {
   config?: Config | undefined;
   parse?: ParseRequest | undefined;
+  init?: InitRequest | undefined;
   plan?: PlanRequest | undefined;
   apply?: ApplyRequest | undefined;
+  graph?: GraphRequest | undefined;
   cancel?: CancelRequest | undefined;
 }
 
 export interface Response {
   log?: Log | undefined;
   parse?: ParseComplete | undefined;
+  init?: InitComplete | undefined;
   plan?: PlanComplete | undefined;
   apply?: ApplyComplete | undefined;
+  graph?: GraphComplete | undefined;
   dataUpload?: DataUpload | undefined;
   chunkPiece?: ChunkPiece | undefined;
 }
@@ -1318,23 +1348,17 @@ export const Metadata = {
 
 export const Config = {
   encode(message: Config, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.templateSourceArchive.length !== 0) {
-      writer.uint32(10).bytes(message.templateSourceArchive);
-    }
-    if (message.state.length !== 0) {
-      writer.uint32(18).bytes(message.state);
-    }
     if (message.provisionerLogLevel !== "") {
-      writer.uint32(26).string(message.provisionerLogLevel);
+      writer.uint32(10).string(message.provisionerLogLevel);
     }
     if (message.templateId !== undefined) {
-      writer.uint32(34).string(message.templateId);
+      writer.uint32(18).string(message.templateId);
     }
     if (message.templateVersionId !== undefined) {
-      writer.uint32(42).string(message.templateVersionId);
+      writer.uint32(26).string(message.templateVersionId);
     }
     if (message.expReuseTerraformWorkspace !== undefined) {
-      writer.uint32(48).bool(message.expReuseTerraformWorkspace);
+      writer.uint32(32).bool(message.expReuseTerraformWorkspace);
     }
     return writer;
   },
@@ -1376,6 +1400,39 @@ export const ParseComplete_WorkspaceTagsEntry = {
   },
 };
 
+export const InitRequest = {
+  encode(message: InitRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.templateSourceArchive.length !== 0) {
+      writer.uint32(10).bytes(message.templateSourceArchive);
+    }
+    if (message.omitModuleFiles !== false) {
+      writer.uint32(24).bool(message.omitModuleFiles);
+    }
+    return writer;
+  },
+};
+
+export const InitComplete = {
+  encode(message: InitComplete, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error);
+    }
+    for (const v of message.timings) {
+      Timing.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    for (const v of message.modules) {
+      Module.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.moduleFiles.length !== 0) {
+      writer.uint32(34).bytes(message.moduleFiles);
+    }
+    if (message.moduleFilesHash.length !== 0) {
+      writer.uint32(42).bytes(message.moduleFilesHash);
+    }
+    return writer;
+  },
+};
+
 export const PlanRequest = {
   encode(message: PlanRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.metadata !== undefined) {
@@ -1393,8 +1450,8 @@ export const PlanRequest = {
     for (const v of message.previousParameterValues) {
       RichParameterValue.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    if (message.omitModuleFiles !== false) {
-      writer.uint32(48).bool(message.omitModuleFiles);
+    if (message.state.length !== 0) {
+      writer.uint32(50).bytes(message.state);
     }
     return writer;
   },
@@ -1405,44 +1462,20 @@ export const PlanComplete = {
     if (message.error !== "") {
       writer.uint32(10).string(message.error);
     }
-    for (const v of message.resources) {
-      Resource.encode(v!, writer.uint32(18).fork()).ldelim();
-    }
-    for (const v of message.parameters) {
-      RichParameter.encode(v!, writer.uint32(26).fork()).ldelim();
-    }
-    for (const v of message.externalAuthProviders) {
-      ExternalAuthProviderResource.encode(v!, writer.uint32(34).fork()).ldelim();
-    }
     for (const v of message.timings) {
-      Timing.encode(v!, writer.uint32(50).fork()).ldelim();
-    }
-    for (const v of message.modules) {
-      Module.encode(v!, writer.uint32(58).fork()).ldelim();
-    }
-    for (const v of message.presets) {
-      Preset.encode(v!, writer.uint32(66).fork()).ldelim();
+      Timing.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     if (message.plan.length !== 0) {
-      writer.uint32(74).bytes(message.plan);
+      writer.uint32(26).bytes(message.plan);
+    }
+    if (message.dailyCost !== 0) {
+      writer.uint32(32).int32(message.dailyCost);
     }
     for (const v of message.resourceReplacements) {
-      ResourceReplacement.encode(v!, writer.uint32(82).fork()).ldelim();
+      ResourceReplacement.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    if (message.moduleFiles.length !== 0) {
-      writer.uint32(90).bytes(message.moduleFiles);
-    }
-    if (message.moduleFilesHash.length !== 0) {
-      writer.uint32(98).bytes(message.moduleFilesHash);
-    }
-    if (message.hasAiTasks !== false) {
-      writer.uint32(104).bool(message.hasAiTasks);
-    }
-    for (const v of message.aiTasks) {
-      AITask.encode(v!, writer.uint32(114).fork()).ldelim();
-    }
-    if (message.hasExternalAgents !== false) {
-      writer.uint32(120).bool(message.hasExternalAgents);
+    if (message.aiTaskCount !== 0) {
+      writer.uint32(48).int32(message.aiTaskCount);
     }
     return writer;
   },
@@ -1452,6 +1485,9 @@ export const ApplyRequest = {
   encode(message: ApplyRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.metadata !== undefined) {
       Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.state.length !== 0) {
+      writer.uint32(50).bytes(message.state);
     }
     return writer;
   },
@@ -1465,6 +1501,33 @@ export const ApplyComplete = {
     if (message.error !== "") {
       writer.uint32(18).string(message.error);
     }
+    for (const v of message.timings) {
+      Timing.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const GraphRequest = {
+  encode(message: GraphRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.source !== 0) {
+      writer.uint32(16).int32(message.source);
+    }
+    return writer;
+  },
+};
+
+export const GraphComplete = {
+  encode(message: GraphComplete, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error);
+    }
+    for (const v of message.timings) {
+      Timing.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
     for (const v of message.resources) {
       Resource.encode(v!, writer.uint32(26).fork()).ldelim();
     }
@@ -1474,11 +1537,17 @@ export const ApplyComplete = {
     for (const v of message.externalAuthProviders) {
       ExternalAuthProviderResource.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    for (const v of message.timings) {
-      Timing.encode(v!, writer.uint32(50).fork()).ldelim();
+    for (const v of message.presets) {
+      Preset.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.hasAiTasks !== false) {
+      writer.uint32(56).bool(message.hasAiTasks);
     }
     for (const v of message.aiTasks) {
-      AITask.encode(v!, writer.uint32(58).fork()).ldelim();
+      AITask.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.hasExternalAgents !== false) {
+      writer.uint32(72).bool(message.hasExternalAgents);
     }
     return writer;
   },
@@ -1525,14 +1594,20 @@ export const Request = {
     if (message.parse !== undefined) {
       ParseRequest.encode(message.parse, writer.uint32(18).fork()).ldelim();
     }
+    if (message.init !== undefined) {
+      InitRequest.encode(message.init, writer.uint32(26).fork()).ldelim();
+    }
     if (message.plan !== undefined) {
-      PlanRequest.encode(message.plan, writer.uint32(26).fork()).ldelim();
+      PlanRequest.encode(message.plan, writer.uint32(34).fork()).ldelim();
     }
     if (message.apply !== undefined) {
-      ApplyRequest.encode(message.apply, writer.uint32(34).fork()).ldelim();
+      ApplyRequest.encode(message.apply, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.graph !== undefined) {
+      GraphRequest.encode(message.graph, writer.uint32(50).fork()).ldelim();
     }
     if (message.cancel !== undefined) {
-      CancelRequest.encode(message.cancel, writer.uint32(42).fork()).ldelim();
+      CancelRequest.encode(message.cancel, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },
@@ -1546,17 +1621,23 @@ export const Response = {
     if (message.parse !== undefined) {
       ParseComplete.encode(message.parse, writer.uint32(18).fork()).ldelim();
     }
+    if (message.init !== undefined) {
+      InitComplete.encode(message.init, writer.uint32(26).fork()).ldelim();
+    }
     if (message.plan !== undefined) {
-      PlanComplete.encode(message.plan, writer.uint32(26).fork()).ldelim();
+      PlanComplete.encode(message.plan, writer.uint32(34).fork()).ldelim();
     }
     if (message.apply !== undefined) {
-      ApplyComplete.encode(message.apply, writer.uint32(34).fork()).ldelim();
+      ApplyComplete.encode(message.apply, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.graph !== undefined) {
+      GraphComplete.encode(message.graph, writer.uint32(50).fork()).ldelim();
     }
     if (message.dataUpload !== undefined) {
-      DataUpload.encode(message.dataUpload, writer.uint32(42).fork()).ldelim();
+      DataUpload.encode(message.dataUpload, writer.uint32(58).fork()).ldelim();
     }
     if (message.chunkPiece !== undefined) {
-      ChunkPiece.encode(message.chunkPiece, writer.uint32(50).fork()).ldelim();
+      ChunkPiece.encode(message.chunkPiece, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },

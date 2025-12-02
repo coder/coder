@@ -629,6 +629,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -680,6 +682,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -861,7 +865,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
@@ -1384,6 +1388,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
@@ -1397,6 +1403,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		}, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.TemplateID = template.ID
 		})
@@ -2579,21 +2587,11 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 		return r
 	}
 
-	applyResponse := func(withAgent bool) *proto.Response {
+	graphResponse := func(withAgent bool) *proto.Response {
 		return &proto.Response{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{resource(withAgent)},
-				},
-			},
-		}
-	}
-
-	return &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
 					Presets: []*proto.Preset{{
 						Name:       "preset-test",
 						Parameters: []*proto.PresetParameter{{Name: "k1", Value: "v1"}},
@@ -2601,10 +2599,19 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 					}},
 				},
 			},
+		}
+	}
+
+	return &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{},
+			},
 		}},
-		ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
-			proto.WorkspaceTransition_START: {applyResponse(true)},
-			proto.WorkspaceTransition_STOP:  {applyResponse(false)},
+		ProvisionGraphMap: map[proto.WorkspaceTransition][]*proto.Response{
+			proto.WorkspaceTransition_START: {graphResponse(true)},
+			proto.WorkspaceTransition_STOP:  {graphResponse(false)},
 		},
 	}
 }
@@ -2612,10 +2619,10 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 func templateWithFailedResponseAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Presets: []*proto.Preset{
 							{
 								Name: "preset-test",

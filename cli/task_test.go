@@ -285,19 +285,10 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 	taskAppID := uuid.New()
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						HasAiTasks: true,
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Name: "example",
@@ -321,6 +312,7 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 								},
 							},
 						},
+						HasAiTasks: true,
 						AiTasks: []*proto.AITask{
 							{
 								AppId: taskAppID.String(),

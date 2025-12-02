@@ -213,9 +213,9 @@ func TestWorkspace(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionApply: []*proto.Response{{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+				ProvisionGraph: []*proto.Response{{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{{
 								Name: "some",
 								Type: "example",
@@ -254,9 +254,9 @@ func TestWorkspace(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionApply: []*proto.Response{{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+				ProvisionGraph: []*proto.Response{{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{{
 								Name: "some",
 								Type: "example",
@@ -299,9 +299,9 @@ func TestWorkspace(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionApply: []*proto.Response{{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+				ProvisionGraph: []*proto.Response{{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{{
 								Name: "some",
 								Type: "example",
@@ -660,9 +660,9 @@ func TestWorkspace(t *testing.T) {
 				authz := coderdtest.AssertRBAC(t, api, client)
 
 				// Create a plan response with the specified presets and parameters
-				planResponse := &proto.Response{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
+				graphResponse := &proto.Response{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Presets:    tc.presets,
 							Parameters: tc.templateVersionParameters,
 						},
@@ -671,7 +671,7 @@ func TestWorkspace(t *testing.T) {
 
 				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 					Parse:          echo.ParseComplete,
-					ProvisionPlan:  []*proto.Response{planResponse},
+					ProvisionGraph: []*proto.Response{graphResponse},
 					ProvisionApply: echo.ApplyComplete,
 				})
 				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -2194,7 +2194,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -2222,7 +2222,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -2253,9 +2253,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
 			ProvisionPlan: echo.PlanComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "example",
 							Type: "aws_instance",
@@ -2345,7 +2345,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -2450,10 +2450,10 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		makeParameters := func(extra ...*proto.RichParameter) *echo.Responses {
 			return &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionPlan: []*proto.Response{
+				ProvisionGraph: []*proto.Response{
 					{
-						Type: &proto.Response_Plan{
-							Plan: &proto.PlanComplete{
+						Type: &proto.Response_Graph{
+							Graph: &proto.GraphComplete{
 								Parameters: append([]*proto.RichParameter{
 									{Name: paramOneName, Description: "", Mutable: true, Type: "string"},
 									{Name: paramTwoName, DisplayName: "", Description: "", Mutable: true, Type: "string"},
@@ -3307,9 +3307,9 @@ func TestWorkspaceWatcher(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.PlanComplete,
-		ProvisionApply: []*proto.Response{{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",
@@ -3392,8 +3392,10 @@ func TestWorkspaceWatcher(t *testing.T) {
 
 	// Add a new version that will fail.
 	badVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.PlanComplete,
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionInit:  echo.InitComplete,
+		ProvisionGraph: echo.GraphComplete,
 		ProvisionApply: []*proto.Response{{
 			Type: &proto.Response_Apply{
 				Apply: &proto.ApplyComplete{
@@ -3461,9 +3463,9 @@ func TestWorkspaceResource(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "beta",
 							Type: "example",
@@ -3529,9 +3531,9 @@ func TestWorkspaceResource(t *testing.T) {
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
@@ -3604,9 +3606,9 @@ func TestWorkspaceResource(t *testing.T) {
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
@@ -3648,9 +3650,9 @@ func TestWorkspaceResource(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
@@ -3728,10 +3730,10 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:        firstParameterName,
@@ -3832,10 +3834,10 @@ func TestWorkspaceWithMultiSelectFailure(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:         "param",
@@ -3911,10 +3913,10 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:         firstParameterName,
@@ -4002,10 +4004,10 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:         firstParameterName,
@@ -4804,8 +4806,8 @@ func TestWorkspaceListTasks(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionApply: echo.ApplyComplete,
-		ProvisionPlan: []*proto.Response{
-			{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+		ProvisionGraph: []*proto.Response{
+			{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 				HasAiTasks: true,
 			}}},
 		},
@@ -4874,9 +4876,9 @@ func TestWorkspaceAppUpsertRestart(t *testing.T) {
 	// Create template version with workspace app
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionApply: []*proto.Response{{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "test-resource",
 						Type: "example",
@@ -4948,9 +4950,9 @@ func TestMultipleAITasksDisallowed(t *testing.T) {
 
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 					AiTasks: []*proto.AITask{
 						{
@@ -5172,10 +5174,10 @@ func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 	createTemplateWithPresets := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, presets []*proto.Preset) (codersdk.Template, codersdk.TemplateVersion) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
+			ProvisionGraph: []*proto.Response{
 				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Presets: presets,
 						},
 					},
