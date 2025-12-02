@@ -1,5 +1,4 @@
 /** @deprecated MUI Theme type is deprecated. Migrate to Tailwind CSS theme system. */
-// biome-ignore lint/style/noRestrictedImports: We still use `Theme` as a basis for our actual theme, for now.
 import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
 import type { Branding } from "./branding";

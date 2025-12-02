@@ -4,7 +4,6 @@
  */
 
 /** @deprecated MUI createTheme is deprecated. Migrate to Tailwind CSS theme system. */
-// biome-ignore lint/style/noRestrictedImports: createTheme
 import { createTheme } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import { components } from "../mui";

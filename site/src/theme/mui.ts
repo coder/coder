@@ -4,10 +4,8 @@
  */
 
 /** @deprecated MUI Alert classes are deprecated. Use shadcn/ui Alert component instead. */
-// biome-ignore lint/style/noRestrictedImports: we use the classes for customization
 import { alertClasses } from "@mui/material/Alert";
 /** @deprecated MUI ThemeOptions is deprecated. Migrate to Tailwind CSS theme system. */
-// biome-ignore lint/style/noRestrictedImports: we use the MUI theme as a base
 import type { ThemeOptions } from "@mui/material/styles";
 import {
 	BODY_FONT_FAMILY,
