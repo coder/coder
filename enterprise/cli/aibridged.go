@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"os"
 
 	"golang.org/x/xerrors"
 
@@ -17,20 +18,24 @@ import (
 
 func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	ctx := context.Background()
-	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
+	coderAPI.Logger.Info(ctx, "starting in-memory aibridge daemon")
 
 	logger := coderAPI.Logger.Named("aibridged")
 
 	// Setup supported providers.
 	openai := aibridge.NewProviderConfig(coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(), coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(), "")
 	anthropic := aibridge.NewProviderConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(), coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(), "")
+	amp := aibridge.NewProviderConfig("https://ampcode.com/api/provider/anthropic", os.Getenv("AMP_API_KEY"), "")
 	openai.SetEnableUpstreamLogging(true)
 	anthropic.SetEnableUpstreamLogging(true)
+	amp.SetEnableUpstreamLogging(true)
 
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(openai),
 		aibridge.NewAnthropicProvider(anthropic,
 			getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
+		// TODO(ssncferreira): add provider to aibridge project
+		aibridged.NewAmpProvider(amp),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
