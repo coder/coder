@@ -1282,18 +1282,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			expectOldExpiredDeleted: false,
 			expectedKeysRemaining:   1, // old expired is kept
 		},
-		{
-			name: "GlobalRetentionFallback",
-			retentionConfig: codersdk.RetentionConfig{
-				Global:  serpent.Duration(14 * 24 * time.Hour), // 14 days global
-				APIKeys: serpent.Duration(0),                   // Not set, should fall back to global
-			},
-			oldExpiredTime:          now.Add(-15 * 24 * time.Hour),      // Expired 15 days ago
-			recentExpiredTime:       ptr(now.Add(-13 * 24 * time.Hour)), // Expired 13 days ago
-			activeTime:              nil,
-			expectOldExpiredDeleted: true,
-			expectedKeysRemaining:   1, // only recent expired remains
-		},
+
 		{
 			name: "CustomRetention30Days",
 			retentionConfig: codersdk.RetentionConfig{

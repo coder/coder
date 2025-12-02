@@ -85,9 +85,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 
 			var expiredAPIKeys int64
 			apiKeysRetention := vals.Retention.APIKeys.Value()
-			if apiKeysRetention == 0 {
-				apiKeysRetention = vals.Retention.Global.Value()
-			}
 			if apiKeysRetention > 0 {
 				// Delete keys that have been expired for at least the retention period.
 				// A higher retention period allows the backend to return a more helpful
