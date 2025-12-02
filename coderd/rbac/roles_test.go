@@ -931,15 +931,32 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "AIBridgeInterceptions",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Name:     "AIBridgeInterceptionsRead",
+			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, memberMe, orgMemberMe},
+				// Deployment admins (owner), site auditors, all org admins, and all org auditors can read.
+				// Since AIBridgeInterception is not org-scoped, all org admins/auditors have site-level read access.
+				true: {owner, auditor, orgAdmin, orgAuditor, otherOrgAdmin, otherOrgAuditor},
 				false: {
+					memberMe, orgMemberMe,
 					otherOrgMember,
-					orgAdmin, otherOrgAdmin,
-					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			Name:     "AIBridgeInterceptionsWrite",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				// Create and update are typically handled by the aibridged system actor.
+				// Among user roles, only owner has full admin permissions.
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, auditor,
+					otherOrgMember, orgAdmin, otherOrgAdmin, orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},

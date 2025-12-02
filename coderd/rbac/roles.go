@@ -295,7 +295,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
-		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember),
+		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceAibridgeInterception),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -414,6 +414,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// To assign organization members, we need to be able to read
 					// users at the site wide to know they exist.
 					ResourceUser.Type: {policy.ActionRead},
+					// Allow org admins to query aibridge interceptions.
+					ResourceAibridgeInterception.Type: {policy.ActionRead},
 				}),
 				User: []Permission{},
 				ByOrgID: map[string]OrgPermissions{
@@ -451,7 +453,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// Can read available roles.
 							ResourceAssignOrgRole.Type: {policy.ActionRead},
 						}),
-						Member: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
+						Member: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember, ResourceAibridgeInterception),
 							Permissions(map[string][]policy.Action{
 								// Reduced permission set on dormant workspaces. No build, ssh, or exec
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
@@ -469,8 +471,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgAuditor, OrganizationID: organizationID},
 				DisplayName: "Organization Auditor",
-				Site:        []Permission{},
-				User:        []Permission{},
+				Site: Permissions(map[string][]policy.Action{
+					// Allow org auditors to query aibridge interceptions.
+					ResourceAibridgeInterception.Type: {policy.ActionRead},
+				}),
+				User: []Permission{},
 				ByOrgID: map[string]OrgPermissions{
 					organizationID.String(): {
 						Org: Permissions(map[string][]policy.Action{
