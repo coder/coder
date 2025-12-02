@@ -710,21 +710,13 @@ that data type.
           deletion of expired keys.
 
       --audit-logs-retention duration, $CODER_AUDIT_LOGS_RETENTION (default: 0)
-          How long audit log entries are retained. Set to 0 to use the global
-          retention value, or to disable if global is also 0. We advise keeping
-          audit logs for at least a year, and in accordance with your compliance
-          requirements.
+          How long audit log entries are retained. Set to 0 to disable (keep
+          indefinitely). We advise keeping audit logs for at least a year, and
+          in accordance with your compliance requirements.
 
       --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
-          How long connection log entries are retained. Set to 0 to use the
-          global retention value, or to disable if global is also 0.
-
-      --global-retention duration, $CODER_GLOBAL_RETENTION (default: 0)
-          Default retention policy for audit logs, connection logs, and API
-          keys. Individual retention settings override this value when set to a
-          non-zero duration. Does not affect AI Bridge retention. Set to 0 to
-          disable (data is kept indefinitely unless individual settings are
-          configured).
+          How long connection log entries are retained. Set to 0 to disable
+          (keep indefinitely).
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal

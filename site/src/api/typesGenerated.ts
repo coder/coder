@@ -4166,20 +4166,13 @@ export interface Response {
  */
 export interface RetentionConfig {
 	/**
-	 * Global is the default retention policy for audit logs, connection logs,
-	 * and API keys. Individual retention settings override this value when set
-	 * to a non-zero duration. Does not affect AI Bridge retention which has its
-	 * own setting.
-	 */
-	readonly global: number;
-	/**
 	 * AuditLogs controls how long audit log entries are retained.
-	 * Set to 0 to use the global retention value.
+	 * Set to 0 to disable (keep indefinitely).
 	 */
 	readonly audit_logs: number;
 	/**
 	 * ConnectionLogs controls how long connection log entries are retained.
-	 * Set to 0 to use the global retention value.
+	 * Set to 0 to disable (keep indefinitely).
 	 */
 	readonly connection_logs: number;
 	/**

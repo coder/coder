@@ -747,19 +747,13 @@ aibridge:
 # performance. Setting a retention duration to 0 disables automatic purging for
 # that data type.
 retention:
-  # Default retention policy for audit logs, connection logs, and API keys.
-  # Individual retention settings override this value when set to a non-zero
-  # duration. Does not affect AI Bridge retention. Set to 0 to disable (data is kept
-  # indefinitely unless individual settings are configured).
-  # (default: 0, type: duration)
-  global: 0s
-  # How long audit log entries are retained. Set to 0 to use the global retention
-  # value, or to disable if global is also 0. We advise keeping audit logs for at
-  # least a year, and in accordance with your compliance requirements.
+  # How long audit log entries are retained. Set to 0 to disable (keep
+  # indefinitely). We advise keeping audit logs for at least a year, and in
+  # accordance with your compliance requirements.
   # (default: 0, type: duration)
   audit_logs: 0s
-  # How long connection log entries are retained. Set to 0 to use the global
-  # retention value, or to disable if global is also 0.
+  # How long connection log entries are retained. Set to 0 to disable (keep
+  # indefinitely).
   # (default: 0, type: duration)
   connection_logs: 0s
   # How long expired API keys are retained before being deleted. Keeping expired

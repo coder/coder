@@ -3150,8 +3150,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
-      "connection_logs": 0,
-      "global": 0
+      "connection_logs": 0
     },
     "scim_api_key": "string",
     "session_lifetime": {
@@ -3672,8 +3671,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "retention": {
     "api_keys": 0,
     "audit_logs": 0,
-    "connection_logs": 0,
-    "global": 0
+    "connection_logs": 0
   },
   "scim_api_key": "string",
   "session_lifetime": {
@@ -7525,19 +7523,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "api_keys": 0,
   "audit_logs": 0,
-  "connection_logs": 0,
-  "global": 0
+  "connection_logs": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                             |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_keys`        | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                            |
-| `audit_logs`      | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to use the global retention value.                                                                                                                                |
-| `connection_logs` | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to use the global retention value.                                                                                                                      |
-| `global`          | integer | false    |              | Global is the default retention policy for audit logs, connection logs, and API keys. Individual retention settings override this value when set to a non-zero duration. Does not affect AI Bridge retention which has its own setting. |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                  |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`        | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior. |
+| `audit_logs`      | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                        |
+| `connection_logs` | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                              |
 
 ## codersdk.Role
 

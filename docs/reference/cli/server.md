@@ -1771,17 +1771,6 @@ Whether to inject Coder's MCP tools into intercepted AI Bridge requests (require
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
 
-### --global-retention
-
-|             |                                      |
-|-------------|--------------------------------------|
-| Type        | <code>duration</code>                |
-| Environment | <code>$CODER_GLOBAL_RETENTION</code> |
-| YAML        | <code>retention.global</code>        |
-| Default     | <code>0</code>                       |
-
-Default retention policy for audit logs, connection logs, and API keys. Individual retention settings override this value when set to a non-zero duration. Does not affect AI Bridge retention. Set to 0 to disable (data is kept indefinitely unless individual settings are configured).
-
 ### --audit-logs-retention
 
 |             |                                          |
@@ -1791,7 +1780,7 @@ Default retention policy for audit logs, connection logs, and API keys. Individu
 | YAML        | <code>retention.audit_logs</code>        |
 | Default     | <code>0</code>                           |
 
-How long audit log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0. We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.
+How long audit log entries are retained. Set to 0 to disable (keep indefinitely). We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.
 
 ### --connection-logs-retention
 
@@ -1802,7 +1791,7 @@ How long audit log entries are retained. Set to 0 to use the global retention va
 | YAML        | <code>retention.connection_logs</code>        |
 | Default     | <code>0</code>                                |
 
-How long connection log entries are retained. Set to 0 to use the global retention value, or to disable if global is also 0.
+How long connection log entries are retained. Set to 0 to disable (keep indefinitely).
 
 ### --api-keys-retention
 
