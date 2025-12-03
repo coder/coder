@@ -6,6 +6,8 @@ updates:
       interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
+    cooldown:
+      default-days: 7
     labels: []
     commit-message:
       prefix: "ci"
@@ -70,6 +72,8 @@ updates:
       timezone: "America/Chicago"
     reviewers:
       - "coder/ts"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore"
     labels: []
