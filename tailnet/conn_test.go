@@ -2,6 +2,7 @@ package tailnet_test
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"strings"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -515,4 +518,13 @@ func TestCoderServicePrefix(t *testing.T) {
 	require.Equal(t, "fd60:627a:a42b:aaaa:aaaa:1234:5678:9abc", a.String())
 	p = tailnet.CoderServicePrefix.PrefixFromUUID(u)
 	require.Equal(t, "fd60:627a:a42b:aaaa:aaaa:1234:5678:9abc/128", p.String())
+}
+
+// TestSlogRemoteAddr tests that passing a nil net.Addr, as could be returned by conn.RemoteAddr(), does not cause a
+// problem when passed to slog.F
+func TestSlogRemoteAddr(t *testing.T) {
+	t.Parallel()
+	logger := testutil.Logger(t)
+	var a net.Addr
+	logger.Info(context.Background(), "this should not segfault", slog.F("addr", a))
 }

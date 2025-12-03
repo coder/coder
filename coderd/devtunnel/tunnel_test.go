@@ -153,7 +153,9 @@ func freeUDPPort(t *testing.T) uint16 {
 	})
 	require.NoError(t, err, "listen on random UDP port")
 
-	_, port, err := net.SplitHostPort(l.LocalAddr().String())
+	localAddr := l.LocalAddr()
+	require.NotNil(t, localAddr, "local address is nil")
+	_, port, err := net.SplitHostPort(localAddr.String())
 	require.NoError(t, err, "split host port")
 
 	portUint, err := strconv.ParseUint(port, 10, 16)
