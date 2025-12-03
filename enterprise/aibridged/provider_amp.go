@@ -18,20 +18,24 @@ const (
 	ampRouteMessages = "/amp/v1/messages" // How aibridge identifies this route
 )
 
-type AmpConfig struct {
-	BaseURL string
-	Key     string
-}
+//type AmpConfig struct {
+//	BaseURL string
+//	Key     string
+//}
+
+type (
+	AmpConfig = aibridge.ProviderConfig
+)
 
 type AmpProvider struct {
 	cfg AmpConfig
 }
 
-func NewAmpProvider(cfg AmpConfig) *AmpProvider {
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = "https://ampcode.com/api/provider/anthropic"
+func NewAmpProvider(cfg *aibridge.ProviderConfig) *AmpProvider {
+	if cfg.BaseURL() == "" {
+		cfg.SetBaseURL("https://ampcode.com/api/provider/anthropic")
 	}
-	return &AmpProvider{cfg: cfg}
+	return &AmpProvider{cfg: *cfg}
 }
 
 func (p *AmpProvider) Name() string {
@@ -39,7 +43,7 @@ func (p *AmpProvider) Name() string {
 }
 
 func (p *AmpProvider) BaseURL() string {
-	return p.cfg.BaseURL
+	return p.cfg.BaseURL()
 }
 
 // BridgedRoutes returns routes that will be intercepted.
@@ -62,10 +66,10 @@ func (p *AmpProvider) AuthHeader() string {
 }
 
 func (p *AmpProvider) InjectAuthHeader(h *http.Header) {
-	if h == nil || p.cfg.Key == "" {
+	if h == nil || p.cfg.Key() == "" {
 		return
 	}
-	h.Set(p.AuthHeader(), p.cfg.Key)
+	h.Set(p.AuthHeader(), p.cfg.Key())
 }
 
 // CreateInterceptor creates an interceptor for the request.
@@ -85,11 +89,14 @@ func (p *AmpProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request) 
 			return nil, fmt.Errorf("failed to unmarshal request: %w", err)
 		}
 
+		fmt.Printf("################ Amp request - Stream: %v, ToolChoice: %+v, Thinking: %+v\n",
+			req.Stream,
+			req.ToolChoice,
+			req.Thinking,
+		)
+
 		// Reuse Anthropic interceptors as Amp uses the same API format
-		ampCfg := aibridge.AnthropicConfig{
-			BaseURL: p.cfg.BaseURL,
-			Key:     p.cfg.Key,
-		}
+		ampCfg := aibridge.NewProviderConfig(p.cfg.BaseURL(), p.cfg.Key(), "")
 
 		if req.Stream {
 			return aibridge.NewAnthropicMessagesStreamingInterception(id, &req, ampCfg, nil), nil

@@ -136,6 +136,7 @@ func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, 
 	req := session.Request()
 
 	if req.Method == http.MethodConnect {
+		srv.logger.Info(srv.ctx, "connect request")
 		return req, nil
 	}
 
@@ -195,12 +196,27 @@ func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, 
 // For now, just passes through.
 func (srv *Server) responseHandler(session *gomitmproxy.Session) *http.Response {
 	req := session.Request()
+	resp := session.Response()
+
+	//// Read the response body
+	//var bodyBytes []byte
+	//if resp != nil && resp.Body != nil {
+	//	bodyBytes, _ = io.ReadAll(resp.Body)
+	//	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	//}
+	//
+	//srv.logger.Info(srv.ctx, "received response",
+	//	slog.F("url", req.URL.String()),
+	//	slog.F("method", req.Method),
+	//	slog.F("status", resp.StatusCode),
+	//	slog.F("body", string(bodyBytes)),
+	//)
 	srv.logger.Info(srv.ctx, "received response",
 		slog.F("url", req.URL.String()),
 		slog.F("method", req.Method),
-	)
+		slog.F("status", resp.StatusCode))
 
-	return session.Response()
+	return resp
 }
 
 // Close shuts down the proxy server.
