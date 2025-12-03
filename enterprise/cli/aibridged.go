@@ -22,15 +22,15 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	logger := coderAPI.Logger.Named("aibridged")
 
 	// Setup supported providers.
+	openai := aibridge.NewProviderConfig(coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(), coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(), "")
+	anthropic := aibridge.NewProviderConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(), coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(), "")
+	openai.SetEnableUpstreamLogging(true)
+	anthropic.SetEnableUpstreamLogging(true)
+
 	providers := []aibridge.Provider{
-		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
-		}),
-		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
-		}, getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
+		aibridge.NewOpenAIProvider(openai),
+		aibridge.NewAnthropicProvider(anthropic,
+			getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
