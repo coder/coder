@@ -160,14 +160,16 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
+	endPlanStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	endPlanStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
 	// Prepend init timings since they occur prior to plan timings.
 	// Order is irrelevant; this is merely indicative.
-	resp.Timings = append(initTimings.aggregate(), resp.Timings...) // mergeInitTimings(initTimings.aggregate(), resp.Timings)
+	resp.Timings = append(resp.Timings, append(initTimings.aggregate(), e.timings.aggregate()...)...)
 	resp.Modules = modules
 	return resp
 }
@@ -204,9 +206,11 @@ func (s *server) Apply(
 		return provisionersdk.ApplyErrorf("provision env: %s", err)
 	}
 	env = otelEnvInject(ctx, env)
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStageApply)
 	resp, err := e.apply(
 		ctx, killCtx, env, sess,
 	)
+	endStage(err)
 	if err != nil {
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
@@ -217,6 +221,7 @@ func (s *server) Apply(
 			Error: errorMessage,
 		}
 	}
+	resp.Timings = e.timings.aggregate()
 	return resp
 }
 
