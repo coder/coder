@@ -41,15 +41,16 @@ The CLI gained substantial improvements between the two versions. Most notably, 
 
 The following are changes introduced after 2.24.X that might break workflows, or require other manual effort to address:
 
-- **Workspace updates now forcibly stop workspaces before updating**: 
-Starting in 2.24.x, updates no longer occur in place. Anyone relying on seamless updates or scripted update flows will see interruptions, as users must now expect downtime during updates
-- **Connection events moved out of the Audit Log and older audit entries were pruned:** Beginning in 2.25, SSH/port-forward/browser-connection events are logged only in the Connection Log, and historical connection events older than 90 days were removed. This affects teams with compliance, audit, or ingestion pipelines that rely on older audit-log formats
-- **CLI session tokens are now stored in the OS keyring on macOS and Windows:** This begins in 2.29. Any scripts, automation, or SSO flows that directly read or modify the old plaintext token file will break unless users disable keyring usage via `--use-keyring=false`
-- **`task_app_id` was removed from codersdk.WorkspaceBuild:** Integrations or custom tools built against the 2.24 API that reference this field must migrate to Task.WorkspaceAppID. The old field no longer returns data and may break deserialization or lookups
-- **OIDC refresh-token behavior is more strict compared to 2.24:** Misconfigured OIDC providers may cause forced re-authentication or failed CLI logins after upgrading. Administrators should ensure refresh tokens are enabled and configured per the updated documentation
-- **Template behavior changed for devcontainers with multiple agents:** The devcontainer agent selection is no longer random and now requires explicit choice. Automated workflows that assumed the previous implicit behavior will need updating
-- **Terraform workflows now use persistent or cached directories when enabled:** Introduced after 2.24, these features can impact template authors who rely on clean Terraform execution directories or per-build isolation
-- **Several agent and task lifecycle behaviors have become more strict:** Although not breaking in isolation, workflows built on 2.24’s more permissive or inconsistent agent/task readiness may encounter stricter permission checks, readiness gating, or ordering differences after upgrading
+| Initial State (2.24 & before) | New State (2.25–2.29) | Change Required |
+|-------------------------------|-----------------------|-----------------|
+| Workspace updates occur in place without stopping | Workspace updates now forcibly stop workspaces before updating | Expect downtime during updates; update any scripted update flows that rely on seamless updates |
+| Connection events (SSH, port-forward, browser) logged in Audit Log | Connection events moved to Connection Log; historical entries older than 90 days pruned | Update compliance, audit, or ingestion pipelines that rely on older audit-log formats |
+| CLI session tokens stored in plaintext file | CLI session tokens stored in OS keyring (macOS/Windows) | Update scripts, automation, or SSO flows that read/modify the token file, or use `--use-keyring=false` |
+| `task_app_id` field available in `codersdk.WorkspaceBuild` | `task_app_id` removed from `codersdk.WorkspaceBuild` | Migrate integrations to use `Task.WorkspaceAppID` instead |
+| OIDC refresh-token behavior more permissive | OIDC refresh-token behavior is stricter | Ensure refresh tokens are enabled and configured per updated documentation to avoid forced re-authentication |
+| Devcontainer agent selection is random when multiple agents exist | Devcontainer agent selection requires explicit choice | Update automated workflows to explicitly specify agent selection |
+| Terraform execution uses clean directories per build | Terraform workflows use persistent or cached directories when enabled | Update templates that rely on clean execution directories or per-build isolation |
+| Agent and task lifecycle behaviors more permissive | Agent and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering | Review workflows for compatibility with stricter readiness and permission requirements |
 
 ## Upgrading
 
