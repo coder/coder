@@ -1,10 +1,12 @@
 package aiproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -96,7 +98,7 @@ func createMitmConfig(certFile, keyFile string) (*mitm.Config, error) {
 //	(TODO (ssncferreira): is this correct?)
 func providerFromHost(host string) string {
 	switch {
-	case strings.Contains(host, "anthropic.com"):
+	case strings.Contains(host, "api.anthropic.com"):
 		return "anthropic"
 	case strings.Contains(host, "openai.com"):
 		return "openai"
@@ -195,12 +197,34 @@ func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, 
 // For now, just passes through.
 func (srv *Server) responseHandler(session *gomitmproxy.Session) *http.Response {
 	req := session.Request()
-	srv.logger.Info(srv.ctx, "received response",
-		slog.F("url", req.URL.String()),
-		slog.F("method", req.Method),
-	)
+	resp := session.Response()
 
-	return session.Response()
+	// Read the response body
+	var bodyBytes []byte
+	if resp != nil && resp.Body != nil {
+		bodyBytes, _ = io.ReadAll(resp.Body)
+		resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	}
+
+	if resp.StatusCode == 200 {
+		srv.logger.Info(srv.ctx, "received response",
+			slog.F("url", req.URL.String()),
+			slog.F("method", req.Method),
+			slog.F("path", req.URL.Path),
+			slog.F("response_status", resp.StatusCode),
+			slog.F("body", string(bodyBytes)),
+		)
+	} else {
+		srv.logger.Warn(srv.ctx, "received response",
+			slog.F("url", req.URL.String()),
+			slog.F("method", req.Method),
+			slog.F("path", req.URL.Path),
+			slog.F("response_status", resp.StatusCode),
+			slog.F("body", string(bodyBytes)),
+		)
+	}
+
+	return resp
 }
 
 // Close shuts down the proxy server.
