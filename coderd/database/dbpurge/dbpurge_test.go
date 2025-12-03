@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -52,7 +53,7 @@ func TestPurge(t *testing.T) {
 	done := awaitDoTick(ctx, t, clk)
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk)
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
@@ -130,7 +131,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	})
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	defer closer.Close()
 
 	// then
@@ -155,7 +156,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// Start a new purger to immediately trigger delete after rollup.
 	_ = closer.Close()
-	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk)
+	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	defer closer.Close()
 
 	// then
@@ -246,7 +247,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	// After dbpurge completes, the ticker is reset. Trap this call.
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -467,7 +468,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	defer closer.Close()
 
 	// then
@@ -571,7 +572,7 @@ func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
 
 	// Run the purge
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	defer closer.Close()
 	// Wait for tick
 	testutil.TryReceive(ctx, t, done)
@@ -734,7 +735,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -853,7 +854,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk)
+			}, clk, prometheus.NewRegistry())
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1003,7 +1004,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 				Retention: serpent.Duration(retentionPeriod),
 			},
 		},
-	}, clk)
+	}, clk, prometheus.NewRegistry())
 	defer closer.Close()
 	// Wait for tick
 	testutil.TryReceive(ctx, t, done)
