@@ -1,9 +1,18 @@
-# Dev containers
+# Envbuilder
 
-A Development Container is an
-[open-source specification](https://containers.dev/implementors/spec/) for
-defining containerized development environments which are also called
-development containers (dev containers).
+Envbuilder is an open-source tool that builds development environments from
+[dev container](https://containers.dev/implementors/spec/) configuration files.
+Unlike the [native Dev Containers integration](../../extending-templates/devcontainers.md),
+Envbuilder transforms the workspace image itself rather than running containers
+inside the workspace.
+
+> [!NOTE]
+>
+> For most use cases, we recommend the
+> [native Dev Containers integration](../../extending-templates/devcontainers.md),
+> which uses the standard `@devcontainers/cli` and Docker. Envbuilder is an
+> alternative for environments where Docker is not available or for
+> administrator-controlled dev container workflows.
 
 Dev containers provide developers with increased autonomy and control over their
 Coder cloud development environments.
@@ -119,4 +128,4 @@ of the Coder control plane and even run within a CI/CD pipeline.
 
 ## Next steps
 
-- [Add a dev container template](./add-devcontainer.md)
+- [Add an Envbuilder template](./add-envbuilder.md)

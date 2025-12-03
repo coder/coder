@@ -36,7 +36,7 @@ to ensure the `@devcontainers/cli` is installed in your workspace:
 ```terraform
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  source   = "registry.coder.com/coder/devcontainers-cli/coder"
   agent_id = coder_agent.dev.id
 }
 ```
@@ -232,7 +232,7 @@ resource "coder_agent" "dev" {
 
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  source   = "registry.coder.com/coder/devcontainers-cli/coder"
   agent_id = coder_agent.dev.id
 }
 

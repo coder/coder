@@ -70,4 +70,5 @@ specific tooling for their projects. The [Dev Container](https://containers.dev)
 specification allows developers to define their projects dependencies within a
 `devcontainer.json` in their Git repository.
 
-- [Learn how to integrate Dev Containers with Coder](./devcontainers/index.md)
+- [Configure a template for Dev Containers](../extending-templates/devcontainers.md) (recommended)
+- [Learn about Envbuilder](./envbuilder/index.md) (alternative for environments without Docker)
