@@ -104,7 +104,7 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Cumulative count.
-	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error)
+	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
 	// Deletes old audit logs based on retention policy, excluding deprecated
 	// connection events (connect, disconnect, open, close) which are handled

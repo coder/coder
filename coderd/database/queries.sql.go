@@ -354,17 +354,18 @@ WITH
     WHERE id IN (SELECT id FROM to_delete)
     RETURNING 1
   )
-SELECT
+SELECT (
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
-  (SELECT COUNT(*) FROM interceptions) as total_deleted
+  (SELECT COUNT(*) FROM interceptions)
+)::bigint as total_deleted
 `
 
 // Cumulative count.
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
-	var total_deleted int32
+	var total_deleted int64
 	err := row.Scan(&total_deleted)
 	return total_deleted, err
 }
