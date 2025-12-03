@@ -327,6 +327,11 @@
 							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
 						},
 						{
+							"title": "Customizing dev containers",
+							"description": "Configure custom agent names, apps, and display options in devcontainer.json.",
+							"path": "./user-guides/devcontainers/customizing-dev-containers.md"
+						},
+						{
 							"title": "Troubleshooting dev containers",
 							"description": "Diagnose and resolve common issues with dev containers in your Coder workspace.",
 							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md"

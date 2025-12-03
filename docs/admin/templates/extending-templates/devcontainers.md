@@ -204,6 +204,13 @@ When `autoStart` is set to `false` or omitted:
 - The Dev Container is discovered and shown in the UI
 - Users must manually start it via the UI
 
+### Additional customizations
+
+Developers can further customize their dev containers with custom agent names,
+display apps, custom applications, and more. See
+[Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md)
+for the full reference.
+
 ## Complete Template Example
 
 Here's a simplified template example that uses Dev Containers with manual
@@ -276,5 +283,6 @@ With this configuration:
 ## Next Steps
 
 - [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
+- [Customizing Dev Containers](../../../user-guides/devcontainers/customizing-dev-containers.md)
 - [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
 - [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)

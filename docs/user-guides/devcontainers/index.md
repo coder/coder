@@ -92,7 +92,9 @@ path. For example, a dev container with workspace folder `/home/coder/my-app`
 will have an agent named `my-app`.
 
 Agent names are sanitized to contain only lowercase alphanumeric characters and
-hyphens.
+hyphens. You can also set a
+[custom agent name](./customizing-dev-containers.md#custom-agent-name)
+in your `devcontainer.json`.
 
 ## Limitations
 
@@ -114,6 +116,8 @@ hyphens.
 
 - [Working with dev containers](./working-with-dev-containers.md) — SSH, IDE
   integration, and port forwarding
+- [Customizing dev containers](./customizing-dev-containers.md) — Custom agent
+  names, apps, and display options
 - [Troubleshooting dev containers](./troubleshooting-dev-containers.md) —
   Diagnose common issues
 - [Dev Container specification](https://containers.dev/) — Advanced
