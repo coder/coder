@@ -1,29 +1,36 @@
 # Upgrading from ESR 2.24 to 2.29
 
-## Overview
+## Guide Overview
 
-This guide walks through upgrading from the initial Coder 2.24 ESR release to our new 2.29 ESR release. It will summarize key changes, highlight breaking updates, and provide a recommended upgrade process. 
+Coder provides Extended Support Releases (ESR) bianually. This guide walks through upgrading from the initial Coder 2.24 ESR to our new 2.29 ESR. It will summarize key changes, highlight breaking updates, and provide a recommended upgrade process.
+
+Read more about the ESR release process [here](./index.md#extended-support-release), and how Coder supports it.
 
 ## What's New in Coder 2.29
 
 ### Coder Tasks
 
-Beginning in Coder 2.24, Tasks were introduced as an experimental feature that allowed administrators and developers to run long-lived or automated operations from templates. Over the subsequent releases, Tasks matured significantly through UI refinement, improved reliability, and underlying task-status improvements in the server and database layers. By 2.29, Tasks were formally promoted to general availability, with full CLI support, task-specific UI displays (such as icons, display names, and startup-script error alerts), and consistent visibility of task states across the dashboard. This transition establishes Tasks as a stable automation and job-execution primitive within Coder. For more information, read our documentation [here](https://coder.com/docs/ai-coder/tasks). 
+Coder Tasks is an interface for running and interfacing with terminal-based coding agents like Claude Code and Codex, powered by Coder workspaces. Beginning in Coder 2.24, Tasks were introduced as an experimental feature that allowed administrators and developers to run long-lived or automated operations from templates. Over subsequent releases, Tasks matured significantly through UI refinement, improved reliability, and underlying task-status improvements in the server and database layers. By 2.29, Tasks were formally promoted to general availability, with full CLI support, a task-specific UI, and consistent visibility of task states across the dashboard. This transition establishes Tasks as a stable automation and job-execution primitive within Coder—particularly suited for long-running background operations like bug fixes, documentation generation, PR reviews, and testing/QA.For more information, read our documentation [here](https://coder.com/docs/ai-coder/tasks).
 
 ### AI Bridge
 
-Across releases 2.26 through 2.29, AI Bridge evolved from a limited preview into a production-ready system. Coder added a dedicated page for interception logs, introduced request-duration visibility for observability, implemented configurable log-retention settings, and exposed AI Bridge metrics for operational monitoring. The documentation was expanded with an AI Bridge client configuration guide, improved key-scopes documentation for OpenAI/Anthropic providers, and setup instructions for Amazon Bedrock. Terminology was standardized to "AI Bridge" across the product. For more information, read our documentation [here](https://coder.com/docs/ai-coder/ai-bridge).
+AI Bridge was introduced in 2.26, and is a smart gateway that acts as an intermediary between users' coding agents/IDEs and AI providers like OpenAI and Anthropic. It solves three key problems:
 
-### AI Boundaries
+- Centralized authentication/authorization management (users authenticate via Coder instead of managing individual API tokens)
+- Auditing and attribution of all AI interactions (whether autonomous or human-initiated)
+- Secure communication between the Coder control plane and upstream AI APIs
 
-From 2.24 to 2.29, agent boundaries themselves did not change, but the systems that enforce them became much more reliable. The introduction of the Agent Unit Manager, the Agent Socket API, and improvements to agent readiness, permission checks, and authorization handling make boundary evaluation more consistent and predictable. These upgrades strengthen how agents interact with workspaces and reduce the chances of unexpected agent behavior, resulting in a more stable and trustworthy boundary model for AI-driven workflows.
+This is a Premium/Beta feature that intercepts AI traffic to record prompts, token usage, and tool invocations. For more information, read our documentation [here](https://coder.com/docs/ai-coder/ai-bridge).
+
+### Agent Boundaries
+
+Agent Boundaries was introduced in 2.27 and is currently in Early Access. Agent Boundaries are process-level firewalls in Coder that restrict and audit what autonomous programs (like AI agents) can access and do within a workspace. They provide network policy enforcement—blocking specific domains and HTTP verbs to prevent data exfiltration—and write logs to the workspace for auditability. Boundaries support any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module. For more information, read our documentation [here](https://coder.com/docs/ai-coder/agent-boundary).
 
 ### Performance Enhancements
 
 Performance, particularly at scale, improved across nearly every system layer. Database queries were optimized, several new indexes were added, and expensive migrations—such as migration 371—were reworked to complete faster on large deployments. Caching was introduced for Terraform installer files and workspace/agent lookups, reducing repeated calls. Notification performance improved through more efficient connection pooling. These changes collectively enable deployments with hundreds or thousands of workspaces to operate more smoothly and with lower resource contention.
 
 ### Server and API Updates
-
 Core server capabilities expanded significantly across the releases. Prebuild workflows gained timestamp-driven invalidation via last_invalidated_at, expired API keys began being automatically purged, and new API key-scope documentation was introduced to help administrators understand authorization boundaries. New API endpoints were added, including the ability to modify a task prompt or look up tasks by name. Template developers benefited from new Terraform directory-persistence capabilities (opt-in on a per-template basis) and improved `protobuf` configuration metadata.
 
 ### CLI Enhancements
@@ -37,7 +44,7 @@ The following are changes introduced after 2.24.X that might break workflows, or
 - **Workspace updates now forcibly stop workspaces before updating**: 
 Starting in 2.24.x, updates no longer occur in place. Anyone relying on seamless updates or scripted update flows will see interruptions, as users must now expect downtime during updates
 - **Connection events moved out of the Audit Log and older audit entries were pruned:** Beginning in 2.25, SSH/port-forward/browser-connection events are logged only in the Connection Log, and historical connection events older than 90 days were removed. This affects teams with compliance, audit, or ingestion pipelines that rely on older audit-log formats
-- **:CLI session tokens are now stored in the OS keyring on macOS and Windows:** This begins in 2.29. Any scripts, automation, or SSO flows that directly read or modify the old plaintext token file will break unless users disable keyring usage via `--use-keyring=false`
+- **CLI session tokens are now stored in the OS keyring on macOS and Windows:** This begins in 2.29. Any scripts, automation, or SSO flows that directly read or modify the old plaintext token file will break unless users disable keyring usage via `--use-keyring=false`
 - **`task_app_id` was removed from codersdk.WorkspaceBuild:** Integrations or custom tools built against the 2.24 API that reference this field must migrate to Task.WorkspaceAppID. The old field no longer returns data and may break deserialization or lookups
 - **OIDC refresh-token behavior is more strict compared to 2.24:** Misconfigured OIDC providers may cause forced re-authentication or failed CLI logins after upgrading. Administrators should ensure refresh tokens are enabled and configured per the updated documentation
 - **Template behavior changed for devcontainers with multiple agents:** The devcontainer agent selection is no longer random and now requires explicit choice. Automated workflows that assumed the previous implicit behavior will need updating
