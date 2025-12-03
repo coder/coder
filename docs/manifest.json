@@ -191,7 +191,7 @@
 						{
 							"title": "Upgrading from ESR 2.24 to 2.29",
 							"description": "Upgrade Guide for ESR Releases",
-							"path": "./install/releases/esr-upgrade.md"
+							"path": "./install/releases/esr-2.24-2.29-upgrade.md"
 						}
 					]
 				}

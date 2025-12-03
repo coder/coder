@@ -6,7 +6,7 @@ This guide walks through upgrading from the initial Coder 2.24 ESR release to ou
 
 ## What's New in Coder 2.29
 
-### Coder Task
+### Coder Tasks
 
 Beginning in Coder 2.24, Tasks were introduced as an experimental feature that allowed administrators and developers to run long-lived or automated operations from templates. Over the subsequent releases, Tasks matured significantly through UI refinement, improved reliability, and underlying task-status improvements in the server and database layers. By 2.29, Tasks were formally promoted to general availability, with full CLI support, task-specific UI displays (such as icons, display names, and startup-script error alerts), and consistent visibility of task states across the dashboard. This transition establishes Tasks as a stable automation and job-execution primitive within Coder. For more information, read our documentation [here](https://coder.com/docs/ai-coder/tasks). 
 
