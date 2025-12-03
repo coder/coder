@@ -246,13 +246,6 @@ func (r *RootCmd) listTokens() *serpent.Command {
 				return xerrors.Errorf("list tokens: %w", err)
 			}
 
-			if len(tokens) == 0 {
-				cliui.Infof(
-					inv.Stdout,
-					"No tokens found.\n",
-				)
-			}
-
 			displayTokens = make([]tokenListRow, len(tokens))
 
 			for i, token := range tokens {
@@ -262,6 +255,11 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			out, err := formatter.Format(inv.Context(), displayTokens)
 			if err != nil {
 				return err
+			}
+
+			if out == "" {
+				cliui.Info(inv.Stderr, "No tokens found.")
+				return nil
 			}
 
 			_, err = fmt.Fprintln(inv.Stdout, out)
