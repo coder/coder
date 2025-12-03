@@ -4,6 +4,60 @@ Coder supports custom configuration in your `devcontainer.json` file through the
 `customizations.coder` block. These options let you control how Coder interacts
 with your dev container without requiring template changes.
 
+## Ignore a dev container
+
+Use the `ignore` option to hide a dev container from Coder completely:
+
+```json
+{
+  "name": "My Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "customizations": {
+    "coder": {
+      "ignore": true
+    }
+  }
+}
+```
+
+When `ignore` is set to `true`:
+
+- The dev container won't appear in the Coder UI
+- Coder won't manage or monitor the container
+
+This is useful for dev containers in your repository that you don't want Coder
+to manage.
+
+## Auto-start
+
+Control whether your dev container should auto-start using the `autoStart`
+option:
+
+```json
+{
+  "name": "My Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "customizations": {
+    "coder": {
+      "autoStart": true
+    }
+  }
+}
+```
+
+When `autoStart` is set to `true`, the dev container automatically builds and
+starts during workspace initialization.
+
+When `autoStart` is set to `false` or omitted, the dev container is discovered
+and shown in the UI, but users must manually start it.
+
+> [!NOTE]
+>
+> The `autoStart` option only takes effect when your template administrator has
+> enabled `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE`. If this
+> setting is disabled at the template level, containers won't auto-start
+> regardless of this option.
+
 ## Custom agent name
 
 Each dev container gets an agent name derived from the workspace folder path by
@@ -131,11 +185,11 @@ Configure health checks to monitor app availability:
 
 Health check properties:
 
-| Property    | Type   | Description                                      |
-|-------------|--------|--------------------------------------------------|
-| `url`       | string | URL to check for health status                   |
-| `interval`  | number | Seconds between health checks                    |
-| `threshold` | number | Number of failures before marking app unhealthy  |
+| Property    | Type   | Description                                     |
+|-------------|--------|-------------------------------------------------|
+| `url`       | string | URL to check for health status                  |
+| `interval`  | number | Seconds between health checks                   |
+| `threshold` | number | Number of failures before marking app unhealthy |
 
 ## Variable interpolation
 
