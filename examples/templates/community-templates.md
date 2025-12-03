@@ -34,7 +34,7 @@ templates.
 - [raulsh/coder-proxmox-qemu-template](https://github.com/raulsh/coder-proxmox-qemu-template) -
   Proxmox QEMU template with VS code server for Coder.
 - [brtmax/coder-template-ros2](https://github.com/brtmax/coder-template-ros2) -
-  template providing ROS2 robotics development environment.
+  Template providing ROS2 robotics development environment.
 
 ## Automation
 
