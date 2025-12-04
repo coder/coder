@@ -37,6 +37,12 @@ development environment. You can place it in:
 
 - `.devcontainer/devcontainer.json` (recommended)
 - `.devcontainer.json` (root of repository)
+- `.devcontainer/<folder>/devcontainer.json` (for multiple configurations)
+
+The third option allows monorepos to define multiple dev container
+configurations in separate sub-folders. See the
+[Dev Container specification](https://containers.dev/implementors/spec/#devcontainerjson)
+for details.
 
 Here's a minimal example:
 

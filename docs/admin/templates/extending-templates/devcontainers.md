@@ -25,7 +25,9 @@ This is the recommended approach for most use cases.
 
 ### Project Discovery
 
-Enable automatic discovery of Dev Containers in Git repositories. Project discovery automatically scans Git repositories for `.devcontainer/devcontainer.json` or `.devcontainer.json` files and surfaces them in the Coder UI. See the [Environment Variables](#environment-variables) section for detailed configuration options.
+Alternatively, enable automatic discovery of Dev Containers in Git repositories.
+The agent scans for `devcontainer.json` files and surfaces them in the Coder UI.
+See [Environment Variables](#environment-variables) for configuration options.
 
 ## Install the Dev Containers CLI
 
@@ -123,11 +125,10 @@ When enabled, the agent will:
 
 - Scan the agent directory for Git repositories
 - Look for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
-- Surface discovered Dev Containers automatically in the Coder UI
+- Surface discovered Dev Containers in the Coder UI
 - Respect `.gitignore` patterns during discovery
 
-You can disable automatic discovery by setting this to `false` if you prefer to
-use only the `coder_devcontainer` resource for explicit configuration.
+Set to `false` if you prefer explicit configuration via `coder_devcontainer`.
 
 ### CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE
 
@@ -194,9 +195,10 @@ resource "coder_devcontainer" "my-repository" {
 }
 ```
 
-### Alternative: Project Discovery Mode
+### Alternative: Project Discovery with Autostart
 
-You can enable automatic starting of discovered Dev Containers:
+By default, discovered containers appear in the dashboard but developers must
+manually start them. To have them start automatically, enable autostart:
 
 ```terraform
 resource "docker_container" "workspace" {
@@ -212,11 +214,11 @@ resource "docker_container" "workspace" {
 }
 ```
 
-With this configuration:
+With autostart enabled:
 
-- Project discovery is enabled (default behavior)
-- Discovered containers are automatically started (via the env var)
-- The `coder_devcontainer` resource is **not** required
+- Discovered containers automatically build and start during workspace
+  initialization
+- The `coder_devcontainer` resource is not required
 - Developers can work with multiple projects seamlessly
 
 > [!NOTE]

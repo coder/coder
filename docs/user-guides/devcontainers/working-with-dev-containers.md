@@ -57,8 +57,10 @@ For example:
 ssh my-project.my-workspace.alice.coder
 ```
 
-The hostname suffix defaults to `coder` but can be customized via
-`CODER_WORKSPACE_HOSTNAME_SUFFIX`.
+The hostname suffix defaults to `coder` but can be customized by your
+deployment administrator via the
+[`--workspace-hostname-suffix`](../../reference/cli/server.md#--workspace-hostname-suffix)
+server option.
 
 This method works with any SSH client, IDE remote extensions, `rsync`, `scp`,
 and other tools that use SSH.
