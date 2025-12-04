@@ -116,9 +116,9 @@ export const StagesChart: FC<StagesChartProps> = ({
 													</TooltipTrigger>
 													<TooltipContent
 														side="bottom"
-														className="max-w-xs border-surface-quaternary"
+														className="flex flex-col gap-1.5 max-w-xs border-surface-quaternary"
 													>
-														<p className="mt-0 mb-1.5 text-content-primary">
+														<p className="m-0 text-content-primary">
 															{stage.tooltip.heading}
 														</p>
 														<p className="m-0">{stage.tooltip.description}</p>
