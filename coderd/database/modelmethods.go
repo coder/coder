@@ -679,6 +679,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 			Favorite:                r.Favorite,
 			OwnerAvatarUrl:          r.OwnerAvatarUrl,
 			OwnerUsername:           r.OwnerUsername,
+			OwnerName:               r.OwnerName,
 			OrganizationName:        r.OrganizationName,
 			OrganizationDisplayName: r.OrganizationDisplayName,
 			OrganizationIcon:        r.OrganizationIcon,
