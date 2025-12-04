@@ -131,7 +131,7 @@ Git repositories. If the directory itself is a Git repository, it searches that
 project. Otherwise, it searches immediate subdirectories for Git repositories.
 
 For each repository found, the agent looks for `devcontainer.json` files in the
-[standard locations](../../../user-guides/devcontainers/index.md#1-add-a-devcontainerjson)
+[standard locations](../../../user-guides/devcontainers/index.md#add-a-devcontainerjson)
 and surfaces discovered Dev Containers in the Coder UI. Discovery respects
 `.gitignore` patterns.
 
