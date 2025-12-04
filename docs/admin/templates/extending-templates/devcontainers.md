@@ -74,6 +74,10 @@ resource "coder_devcontainer" "my-repository" {
 > module to ensure your repository is cloned into the workspace folder and ready
 > for automatic startup.
 
+For multi-repo workspaces, define multiple `coder_devcontainer` resources, each
+pointing to a different repository. Each one runs as a separate sub-agent with
+its own terminal and apps in the dashboard.
+
 ## Enable Dev Containers Integration
 
 Dev Containers integration is **enabled by default** in Coder 2.24.0 and later.
