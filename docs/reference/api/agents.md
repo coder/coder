@@ -900,7 +900,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/co
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Watch workspace agent for container updates
+## Watch workspace agent for container updates.
 
 ### Code samples
 
@@ -1239,3 +1239,4 @@ Status Code **200**
 | `level`  | `error` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

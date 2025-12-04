@@ -338,7 +338,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get Github device auth
+## Get Github device auth.
 
 ### Code samples
 
@@ -1632,3 +1632,4 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

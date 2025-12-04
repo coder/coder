@@ -99,3 +99,4 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuditLogResponse](schemas.md#codersdkauditlogresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

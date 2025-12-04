@@ -2022,3 +2022,4 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
