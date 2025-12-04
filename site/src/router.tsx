@@ -345,9 +345,7 @@ const AIBridgeLayout = lazy(
 const AIBridgeRequestLogsPage = lazy(
 	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
-const AIBridgeBoundaryLogsPage = lazy(
-	() => import("./pages/AIBridgePage/BoundaryLogsPage/BoundaryLogsPage"),
-);
+
 
 const RoutesWithSuspense = () => {
 	return (
