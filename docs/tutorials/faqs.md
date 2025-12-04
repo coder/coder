@@ -575,7 +575,7 @@ Examples of endpoint security products include:
 
 - [CrowdStrike Falcon](https://www.crowdstrike.com/products/endpoint-security/)
 - [Microsoft Defender for Endpoint](https://www.microsoft.com/en-us/security/business/endpoint-security/microsoft-defender-endpoint)
-- [VMware Carbon Black](https://www.vmware.com/products/carbon-black-cloud.html)
+- [Palo Alto Cortex XDR](https://www.paloaltonetworks.com/cortex/cortex-xdr)
 - [Symantec Endpoint Security](https://www.broadcom.com/products/cybersecurity/endpoint)
 
 These tools can enforce data protection policies regardless of how users attempt
