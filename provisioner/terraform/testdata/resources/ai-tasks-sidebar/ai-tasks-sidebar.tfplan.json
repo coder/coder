@@ -95,11 +95,11 @@
             "schema_version": 1,
             "values": {
               "access_port": 443,
-              "access_url": "https://dev.coder.com/",
+              "access_url": "https://mydeployment.coder.com",
               "id": "344575c1-55b9-43bb-89b5-35f547e2cf08",
               "is_prebuild": false,
               "is_prebuild_claim": false,
-              "name": "my-first-workspace",
+              "name": "default",
               "prebuild_count": 0,
               "start_count": 1,
               "template_id": "",
@@ -118,7 +118,7 @@
             "schema_version": 0,
             "values": {
               "email": "default@example.com",
-              "full_name": "jd",
+              "full_name": "default",
               "groups": [],
               "id": "acb465b5-2709-4392-9486-4ad6eb1c06e0",
               "login_type": null,
