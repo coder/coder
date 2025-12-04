@@ -199,30 +199,55 @@ func (srv *Server) responseHandler(session *gomitmproxy.Session) *http.Response 
 	req := session.Request()
 	resp := session.Response()
 
-	// Read the response body
-	var bodyBytes []byte
-	if resp != nil && resp.Body != nil {
-		bodyBytes, _ = io.ReadAll(resp.Body)
-		resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	contentType := resp.Header.Get("Content-Type")
+	contentEncoding := resp.Header.Get("Content-Encoding")
+
+	// Skip logging compressed responses
+	if contentEncoding == "" && strings.Contains(contentType, "text") {
+		// Read the response body
+		var bodyBytes []byte
+		if resp != nil && resp.Body != nil {
+			bodyBytes, _ = io.ReadAll(resp.Body)
+			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
+		if resp.StatusCode == 200 || resp.StatusCode == 202 {
+			srv.logger.Info(srv.ctx, "received response",
+				slog.F("url", req.URL.String()),
+				slog.F("method", req.Method),
+				slog.F("path", req.URL.Path),
+				slog.F("response_status", resp.StatusCode),
+				slog.F("response_body", string(bodyBytes)),
+			)
+		} else {
+			srv.logger.Warn(srv.ctx, "received response",
+				slog.F("url", req.URL.String()),
+				slog.F("method", req.Method),
+				slog.F("path", req.URL.Path),
+				slog.F("response_status", resp.StatusCode),
+				slog.F("response_body", string(bodyBytes)),
+			)
+		}
 	}
 
-	if resp.StatusCode == 200 {
-		srv.logger.Info(srv.ctx, "received response",
-			slog.F("url", req.URL.String()),
-			slog.F("method", req.Method),
-			slog.F("path", req.URL.Path),
-			slog.F("response_status", resp.StatusCode),
-			slog.F("body", string(bodyBytes)),
-		)
-	} else {
-		srv.logger.Warn(srv.ctx, "received response",
-			slog.F("url", req.URL.String()),
-			slog.F("method", req.Method),
-			slog.F("path", req.URL.Path),
-			slog.F("response_status", resp.StatusCode),
-			slog.F("body", string(bodyBytes)),
-		)
-	}
+	// Without response body log
+	//if resp.StatusCode == 200 || resp.StatusCode == 202 {
+	//	srv.logger.Info(srv.ctx, "received response",
+	//		slog.F("url", req.URL.String()),
+	//		slog.F("method", req.Method),
+	//		slog.F("path", req.URL.Path),
+	//		slog.F("response_status", resp.StatusCode),
+	//
+	//	)
+	//} else {
+	//	srv.logger.Warn(srv.ctx, "received response",
+	//		slog.F("url", req.URL.String()),
+	//		slog.F("method", req.Method),
+	//		slog.F("path", req.URL.Path),
+	//		slog.F("response_status", resp.StatusCode),
+	//
+	//	)
+	//}
 
 	return resp
 }
