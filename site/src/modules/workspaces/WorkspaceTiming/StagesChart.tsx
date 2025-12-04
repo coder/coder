@@ -11,11 +11,6 @@ import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
 import {
-	type TooltipProps,
-	TooltipShortDescription,
-	TooltipTitle,
-} from "./Chart/Tooltip";
-import {
 	calcDuration,
 	calcOffset,
 	formatTime,
@@ -49,7 +44,10 @@ export type Stage = {
 	/**
 	 * The tooltip is used to provide additional information about the stage.
 	 */
-	tooltip: Omit<TooltipProps, "children">;
+	tooltip: {
+		heading: string;
+		description: string;
+	};
 };
 
 type StageTiming = {
@@ -116,8 +114,14 @@ export const StagesChart: FC<StagesChartProps> = ({
 															css={styles.info}
 														/>
 													</TooltipTrigger>
-													<TooltipContent side="bottom" className="max-w-xs">
-														{stage.tooltip.title}
+													<TooltipContent
+														side="bottom"
+														className="max-w-xs border-surface-quaternary"
+													>
+														<p className="mt-0 mb-1.5 text-content-primary">
+															{stage.tooltip.heading}
+														</p>
+														<p className="m-0">{stage.tooltip.description}</p>
 													</TooltipContent>
 												</Tooltip>
 											</span>
@@ -228,14 +232,8 @@ export const provisioningStages: Stage[] = [
 		label: "init",
 		section: "provisioning",
 		tooltip: {
-			title: (
-				<>
-					<TooltipTitle>Terraform initialization</TooltipTitle>
-					<TooltipShortDescription>
-						Download providers & modules.
-					</TooltipShortDescription>
-				</>
-			),
+			heading: "Terraform initialization",
+			description: "Download providers & modules.",
 		},
 	},
 	{
@@ -243,15 +241,9 @@ export const provisioningStages: Stage[] = [
 		label: "plan",
 		section: "provisioning",
 		tooltip: {
-			title: (
-				<>
-					<TooltipTitle>Terraform plan</TooltipTitle>
-					<TooltipShortDescription>
-						Compare state of desired vs actual resources and compute changes to
-						be made.
-					</TooltipShortDescription>
-				</>
-			),
+			heading: "Terraform plan",
+			description:
+				"Compare state of desired vs actual resources and compute changes to be made.",
 		},
 	},
 	{
@@ -259,14 +251,9 @@ export const provisioningStages: Stage[] = [
 		label: "graph",
 		section: "provisioning",
 		tooltip: {
-			title: (
-				<>
-					<TooltipTitle>Terraform graph</TooltipTitle>
-					<TooltipShortDescription>
-						List all resources in plan, used to update coderd database.
-					</TooltipShortDescription>
-				</>
-			),
+			heading: "Terraform graph",
+			description:
+				"List all resources in plan, used to update coderd database.",
 		},
 	},
 	{
@@ -274,15 +261,9 @@ export const provisioningStages: Stage[] = [
 		label: "apply",
 		section: "provisioning",
 		tooltip: {
-			title: (
-				<>
-					<TooltipTitle>Terraform apply</TooltipTitle>
-					<TooltipShortDescription>
-						Execute Terraform plan to create/modify/delete resources into
-						desired states.
-					</TooltipShortDescription>
-				</>
-			),
+			heading: "Terraform apply",
+			description:
+				"Execute Terraform plan to create/modify/delete resources into desired states.",
 		},
 	},
 ];
@@ -294,14 +275,8 @@ export const agentStages = (section: string): Stage[] => {
 			label: "connect",
 			section,
 			tooltip: {
-				title: (
-					<>
-						<TooltipTitle>Connect</TooltipTitle>
-						<TooltipShortDescription>
-							Establish an RPC connection with the control plane.
-						</TooltipShortDescription>
-					</>
-				),
+				heading: "Connect",
+				description: "Establish an RPC connection with the control plane.",
 			},
 		},
 		{
@@ -309,14 +284,8 @@ export const agentStages = (section: string): Stage[] => {
 			label: "run startup scripts",
 			section,
 			tooltip: {
-				title: (
-					<>
-						<TooltipTitle>Run startup scripts</TooltipTitle>
-						<TooltipShortDescription>
-							Execute each agent startup script.
-						</TooltipShortDescription>
-					</>
-				),
+				heading: "Run startup scripts",
+				description: "Execute each agent startup script.",
 			},
 		},
 	];
