@@ -76,6 +76,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewAuditLog,
 	canViewHealth,
 	canViewConnectionLog,
+	canViewBoundaryLogs,
 	canViewAIBridge,
 }) => {
 	return (
