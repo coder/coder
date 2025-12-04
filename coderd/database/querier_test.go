@@ -4082,7 +4082,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 	t.Skip("https://github.com/coder/internal/issues/464")
 
 	timezones := []string{
-		"Canada/Newfoundland",
+		"America/St_Johns",
 		"Africa/Johannesburg",
 		"America/New_York",
 		"Europe/London",
