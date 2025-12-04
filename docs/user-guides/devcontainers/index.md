@@ -30,7 +30,7 @@ for setup details.
 
 ## Getting started
 
-### 1. Add a devcontainer.json
+### Add a devcontainer.json
 
 Add a `devcontainer.json` file to your repository. This file defines your
 development environment. You can place it in:
@@ -56,7 +56,7 @@ Here's a minimal example:
 For more configuration options, see the
 [Dev Container specification](https://containers.dev/).
 
-### 2. Start your dev container
+### Start your dev container
 
 Coder automatically discovers dev container configurations in your repositories
 and displays them in your workspace dashboard. From there, you can start a dev
@@ -66,7 +66,7 @@ If your template administrator has configured automatic startup (via the
 `coder_devcontainer` Terraform resource or autostart settings), your dev
 container will build and start automatically when the workspace starts.
 
-### 3. Connect to your dev container
+### Connect to your dev container
 
 Once running, your dev container appears as a sub-agent in your workspace
 dashboard. You can connect via:

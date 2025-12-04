@@ -43,24 +43,17 @@ You can also use standard OpenSSH tools after generating SSH config entries with
 coder config-ssh
 ```
 
-This creates SSH host entries for all your workspaces and their agents,
-including dev container sub-agents. You can then connect using the standard
-`ssh` command:
-
-```console
-ssh <agent>.<workspace>.<owner>.coder
-```
-
-For example:
+This creates a wildcard SSH host entry that matches all your workspaces and
+their agents, including dev container sub-agents. You can then connect using:
 
 ```console
 ssh my-project.my-workspace.me.coder
 ```
 
-The hostname suffix defaults to `coder` but can be customized by your
-deployment administrator via the
-[`--workspace-hostname-suffix`](../../reference/cli/server.md#--workspace-hostname-suffix)
-server option.
+The default hostname suffix is `.coder`. If your organization uses a different
+suffix, adjust the hostname accordingly. The suffix can be configured via
+[`coder config-ssh --hostname-suffix`](../../reference/cli/config-ssh.md) or
+by your deployment administrator.
 
 This method works with any SSH client, IDE remote extensions, `rsync`, `scp`,
 and other tools that use SSH.
