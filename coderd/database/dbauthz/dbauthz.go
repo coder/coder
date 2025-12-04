@@ -1517,7 +1517,11 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 }
 
 func (q *querier) CountBoundaryAuditLogs(ctx context.Context, arg database.CountBoundaryAuditLogsParams) (int64, error) {
-	panic("not implemented")
+	// Boundary audit logs are readable by users who can read audit logs.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+		return 0, err
+	}
+	return q.db.CountBoundaryAuditLogs(ctx, arg)
 }
 
 func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
@@ -2208,7 +2212,11 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetBoundaryAuditLogs(ctx context.Context, arg database.GetBoundaryAuditLogsParams) ([]database.GetBoundaryAuditLogsRow, error) {
-	panic("not implemented")
+	// Boundary audit logs are readable by users who can read audit logs.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+		return nil, err
+	}
+	return q.db.GetBoundaryAuditLogs(ctx, arg)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -4083,7 +4091,11 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertBoundaryAuditLogs(ctx context.Context, arg database.InsertBoundaryAuditLogsParams) error {
-	panic("not implemented")
+	// Inserting boundary audit logs is done by the agent, which uses system context.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertBoundaryAuditLogs(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
