@@ -121,12 +121,15 @@ by setting this to `false`.
 
 Enables automatic discovery of Dev Containers in Git repositories.
 
-When enabled, the agent will:
+When enabled, the agent scans the configured working directory (set via the
+`directory` attribute in `coder_agent`, typically the user's home directory) for
+Git repositories. If the directory itself is a Git repository, it searches that
+project. Otherwise, it searches immediate subdirectories for Git repositories.
 
-- Scan the agent directory for Git repositories
-- Look for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
-- Surface discovered Dev Containers in the Coder UI
-- Respect `.gitignore` patterns during discovery
+For each repository found, the agent looks for `devcontainer.json` files in the
+[standard locations](../../../user-guides/devcontainers/index.md#1-add-a-devcontainerjson)
+and surfaces discovered Dev Containers in the Coder UI. Discovery respects
+`.gitignore` patterns.
 
 Set to `false` if you prefer explicit configuration via `coder_devcontainer`.
 
@@ -153,8 +156,8 @@ block in their `devcontainer.json` file. Available options include:
 - `displayApps` — Control which built-in apps appear
 - `apps` — Define custom applications
 
-See [Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md)
-for the full reference.
+For the full reference, see
+[Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md).
 
 ## Complete Template Example
 

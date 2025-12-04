@@ -54,8 +54,8 @@ and shown in the UI, but users must manually start it.
 > [!NOTE]
 >
 > The `autoStart` option only takes effect when your template administrator has
-> enabled `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE`. If this
-> setting is disabled at the template level, containers won't auto-start
+> enabled [`CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE`](../../admin/templates/extending-templates/devcontainers.md#coder_agent_devcontainers_discovery_autostart_enable).
+> If this setting is disabled at the template level, containers won't auto-start
 > regardless of this option.
 
 ## Custom agent name

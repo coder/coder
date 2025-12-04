@@ -138,8 +138,9 @@ in your `devcontainer.json` file. Coder also maintains a
 [repository of features](https://github.com/coder/devcontainer-features) to
 enhance your development experience.
 
-Currently available Coder features include
-[code-server](https://github.com/coder/devcontainer-features/blob/main/src/code-server):
+For example, the
+[code-server](https://github.com/coder/devcontainer-features/blob/main/src/code-server)
+feature from the [Coder features repository](https://github.com/coder/devcontainer-features):
 
 ```json
 {
