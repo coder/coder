@@ -1576,8 +1576,8 @@ func (a *agent) createTailnet(
 				break
 			}
 			clog := a.logger.Named("speedtest").With(
-				slog.F("remote", conn.RemoteAddr().String()),
-				slog.F("local", conn.LocalAddr().String()))
+				slog.F("remote", conn.RemoteAddr()),
+				slog.F("local", conn.LocalAddr()))
 			clog.Info(ctx, "accepted conn")
 			wg.Add(1)
 			closed := make(chan struct{})

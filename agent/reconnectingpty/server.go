@@ -74,11 +74,21 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			break
 		}
 		clog := s.logger.With(
-			slog.F("remote", conn.RemoteAddr().String()),
-			slog.F("local", conn.LocalAddr().String()))
+			slog.F("remote", conn.RemoteAddr()),
+			slog.F("local", conn.LocalAddr()))
 		clog.Info(ctx, "accepted conn")
+
+		// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
+		// handles nil.
+		// c.f. https://github.com/coder/internal/issues/1143
+		remoteAddr := conn.RemoteAddr()
+		remoteAddrString := ""
+		if remoteAddr != nil {
+			remoteAddrString = remoteAddr.String()
+		}
+
 		wg.Add(1)
-		disconnected := s.reportConnection(uuid.New(), conn.RemoteAddr().String())
+		disconnected := s.reportConnection(uuid.New(), remoteAddrString)
 		closed := make(chan struct{})
 		go func() {
 			defer wg.Done()

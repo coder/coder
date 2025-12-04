@@ -368,6 +368,11 @@
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects",
 							"path": "./admin/setup/telemetry.md"
+						},
+						{
+							"title": "Data Retention",
+							"description": "Configure data retention policies for database tables",
+							"path": "./admin/setup/data-retention.md"
 						}
 					]
 				},

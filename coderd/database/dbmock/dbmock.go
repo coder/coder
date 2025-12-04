@@ -725,10 +725,10 @@ func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx
 }
 
 // DeleteOldAIBridgeRecords mocks base method.
-func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOldAIBridgeRecords", ctx, beforeTime)
-	ret0, _ := ret[0].(int32)
+	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -826,11 +826,12 @@ func (mr *MockStoreMockRecorder) DeleteOldTelemetryLocks(ctx, periodEndingAtBefo
 }
 
 // DeleteOldWorkspaceAgentLogs mocks base method.
-func (m *MockStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
+func (m *MockStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOldWorkspaceAgentLogs", ctx, threshold)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteOldWorkspaceAgentLogs indicates an expected call of DeleteOldWorkspaceAgentLogs.

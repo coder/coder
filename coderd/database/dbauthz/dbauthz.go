@@ -1732,7 +1732,7 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
-func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
 		return -1, err
 	}
@@ -1784,9 +1784,9 @@ func (q *querier) DeleteOldTelemetryLocks(ctx context.Context, beforeTime time.T
 	return q.db.DeleteOldTelemetryLocks(ctx, beforeTime)
 }
 
-func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
+func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.DeleteOldWorkspaceAgentLogs(ctx, threshold)
 }

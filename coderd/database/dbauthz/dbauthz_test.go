@@ -3227,7 +3227,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("DeleteOldWorkspaceAgentLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -4705,7 +4705,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t := dbtime.Now()
-		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
 	}))
 }

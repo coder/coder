@@ -354,17 +354,18 @@ WITH
     WHERE id IN (SELECT id FROM to_delete)
     RETURNING 1
   )
-SELECT
+SELECT (
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
-  (SELECT COUNT(*) FROM interceptions) as total_deleted
+  (SELECT COUNT(*) FROM interceptions)
+)::bigint as total_deleted
 `
 
 // Cumulative count.
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
-	var total_deleted int32
+	var total_deleted int64
 	err := row.Scan(&total_deleted)
 	return total_deleted, err
 }
@@ -1107,24 +1108,20 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 	return err
 }
 
-const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :one
+const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :execrows
 WITH expired_keys AS (
 	SELECT id
 	FROM api_keys
 	-- expired keys only
 	WHERE expires_at < $1::timestamptz
 	LIMIT $2
-),
-deleted_rows AS (
-	 DELETE FROM
-		 api_keys
-	 USING
-		 expired_keys
-	 WHERE
-		 api_keys.id = expired_keys.id
-	 RETURNING api_keys.id
- )
-SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows
+)
+DELETE FROM
+	api_keys
+USING
+	expired_keys
+WHERE
+	api_keys.id = expired_keys.id
 `
 
 type DeleteExpiredAPIKeysParams struct {
@@ -1133,10 +1130,11 @@ type DeleteExpiredAPIKeysParams struct {
 }
 
 func (q *sqlQuerier) DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
-	var deleted_count int64
-	err := row.Scan(&deleted_count)
-	return deleted_count, err
+	result, err := q.db.ExecContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
@@ -17849,7 +17847,7 @@ func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg Update
 	return err
 }
 
-const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
+const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :execrows
 WITH
 	latest_builds AS (
 		SELECT
@@ -17892,12 +17890,15 @@ WITH
 DELETE FROM workspace_agent_logs WHERE agent_id IN (SELECT id FROM old_agents)
 `
 
-// If an agent hasn't connected in the last 7 days, we purge it's logs.
+// If an agent hasn't connected within the retention period, we purge its logs.
 // Exception: if the logs are related to the latest build, we keep those around.
 // Logs can take up a lot of space, so it's important we clean up frequently.
-func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
-	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
-	return err
+func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec

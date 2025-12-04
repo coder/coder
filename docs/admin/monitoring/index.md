@@ -22,3 +22,4 @@ Learn how to install & read the docs on the
   Coder deployment, regardless of your monitoring stack.
 - [Health Check](./health-check.md): Learn about the periodic health check and
   error codes that run on Coder deployments.
+- [Connection Logs](./connection-logs.md): Monitor connections to workspaces.

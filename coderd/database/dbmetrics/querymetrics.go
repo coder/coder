@@ -396,7 +396,7 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldAIBridgeRecords(ctx, beforeTime)
 	m.queryLatencies.WithLabelValues("DeleteOldAIBridgeRecords").Observe(time.Since(start).Seconds())
@@ -445,11 +445,11 @@ func (m queryMetricsStore) DeleteOldTelemetryLocks(ctx context.Context, periodEn
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) error {
+func (m queryMetricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) (int64, error) {
 	start := time.Now()
-	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
+	r0, r1 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) error {

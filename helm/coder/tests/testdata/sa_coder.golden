@@ -11,6 +11,7 @@ metadata:
     app.kubernetes.io/name: coder
     app.kubernetes.io/part-of: coder
     app.kubernetes.io/version: 0.1.0
+    com.coder/sa-label: test-value
     helm.sh/chart: coder-0.1.0
   name: coder-service-account
   namespace: coder
