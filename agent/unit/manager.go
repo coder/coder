@@ -288,3 +288,15 @@ func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
 func (m *Manager) ExportDOT(name string) (string, error) {
 	return m.graph.ToDOT(name)
 }
+
+// GetAllUnits returns all registered units in the manager.
+func (m *Manager) GetAllUnits() []Unit {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	units := make([]Unit, 0, len(m.units))
+	for _, u := range m.units {
+		units = append(units, u)
+	}
+	return units
+}

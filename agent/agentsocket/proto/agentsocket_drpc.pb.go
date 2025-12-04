@@ -44,6 +44,7 @@ type DRPCAgentSocketClient interface {
 	SyncComplete(ctx context.Context, in *SyncCompleteRequest) (*SyncCompleteResponse, error)
 	SyncReady(ctx context.Context, in *SyncReadyRequest) (*SyncReadyResponse, error)
 	SyncStatus(ctx context.Context, in *SyncStatusRequest) (*SyncStatusResponse, error)
+	SyncList(ctx context.Context, in *SyncListRequest) (*SyncListResponse, error)
 }
 
 type drpcAgentSocketClient struct {
@@ -110,6 +111,15 @@ func (c *drpcAgentSocketClient) SyncStatus(ctx context.Context, in *SyncStatusRe
 	return out, nil
 }
 
+func (c *drpcAgentSocketClient) SyncList(ctx context.Context, in *SyncListRequest) (*SyncListResponse, error) {
+	out := new(SyncListResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/SyncList", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentSocketServer interface {
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	SyncStart(context.Context, *SyncStartRequest) (*SyncStartResponse, error)
@@ -117,6 +127,7 @@ type DRPCAgentSocketServer interface {
 	SyncComplete(context.Context, *SyncCompleteRequest) (*SyncCompleteResponse, error)
 	SyncReady(context.Context, *SyncReadyRequest) (*SyncReadyResponse, error)
 	SyncStatus(context.Context, *SyncStatusRequest) (*SyncStatusResponse, error)
+	SyncList(context.Context, *SyncListRequest) (*SyncListResponse, error)
 }
 
 type DRPCAgentSocketUnimplementedServer struct{}
@@ -145,9 +156,13 @@ func (s *DRPCAgentSocketUnimplementedServer) SyncStatus(context.Context, *SyncSt
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentSocketUnimplementedServer) SyncList(context.Context, *SyncListRequest) (*SyncListResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentSocketDescription struct{}
 
-func (DRPCAgentSocketDescription) NumMethods() int { return 6 }
+func (DRPCAgentSocketDescription) NumMethods() int { return 7 }
 
 func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -205,6 +220,15 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncStatusRequest),
 					)
 			}, DRPCAgentSocketServer.SyncStatus, true
+	case 6:
+		return "/coder.agentsocket.v1.AgentSocket/SyncList", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					SyncList(
+						ctx,
+						in1.(*SyncListRequest),
+					)
+			}, DRPCAgentSocketServer.SyncList, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -304,6 +328,22 @@ type drpcAgentSocket_SyncStatusStream struct {
 }
 
 func (x *drpcAgentSocket_SyncStatusStream) SendAndClose(m *SyncStatusResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_SyncListStream interface {
+	drpc.Stream
+	SendAndClose(*SyncListResponse) error
+}
+
+type drpcAgentSocket_SyncListStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_SyncListStream) SendAndClose(m *SyncListResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
 		return err
 	}

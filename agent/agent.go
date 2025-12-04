@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -288,6 +289,7 @@ type agent struct {
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
+	unitManager         *unit.Manager
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -330,12 +332,17 @@ func (a *agent) init() {
 		panic(err)
 	}
 	a.sshServer = sshSrv
+
+	// Create a shared unit manager for script ordering.
+	a.unitManager = unit.NewManager()
+
 	a.scriptRunner = agentscripts.New(agentscripts.Options{
 		LogDir:      a.logDir,
 		DataDirBase: a.scriptDataDir,
 		Logger:      a.logger,
 		SSHServer:   sshSrv,
 		Filesystem:  a.filesystem,
+		UnitManager: a.unitManager,
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
 			return a.logSender.GetScriptLogger(logSourceID)
 		},
@@ -380,9 +387,16 @@ func (a *agent) initSocketServer() {
 		return
 	}
 
+	opts := []agentsocket.Option{
+		agentsocket.WithPath(a.socketPath),
+	}
+	if a.unitManager != nil {
+		opts = append(opts, agentsocket.WithUnitManager(a.unitManager))
+	}
+
 	server, err := agentsocket.NewServer(
 		a.logger.Named("socket"),
-		agentsocket.WithPath(a.socketPath),
+		opts...,
 	)
 	if err != nil {
 		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))

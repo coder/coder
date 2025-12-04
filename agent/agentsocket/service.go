@@ -150,3 +150,25 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 		Dependencies: depInfos,
 	}, nil
 }
+
+// SyncList returns a list of all units in the dependency graph.
+func (s *DRPCAgentSocketService) SyncList(_ context.Context, _ *proto.SyncListRequest) (*proto.SyncListResponse, error) {
+	if s.unitManager == nil {
+		return &proto.SyncListResponse{
+			Scripts: []*proto.ScriptInfo{},
+		}, nil
+	}
+
+	units := s.unitManager.GetAllUnits()
+	var scriptInfos []*proto.ScriptInfo
+	for _, u := range units {
+		scriptInfos = append(scriptInfos, &proto.ScriptInfo{
+			Id:     string(u.ID()),
+			Status: string(u.Status()),
+		})
+	}
+
+	return &proto.SyncListResponse{
+		Scripts: scriptInfos,
+	}, nil
+}

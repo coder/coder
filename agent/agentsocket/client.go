@@ -15,7 +15,8 @@ import (
 type Option func(*options)
 
 type options struct {
-	path string
+	path        string
+	unitManager *unit.Manager
 }
 
 // WithPath sets the socket path. If not provided or empty, the client will
@@ -26,6 +27,14 @@ func WithPath(path string) Option {
 			return
 		}
 		opts.path = path
+	}
+}
+
+// WithUnitManager sets the unit manager to use. If not provided, a new one
+// will be created.
+func WithUnitManager(unitManager *unit.Manager) Option {
+	return func(opts *options) {
+		opts.unitManager = unitManager
 	}
 }
 
@@ -127,6 +136,30 @@ func (c *Client) SyncStatus(ctx context.Context, unitName unit.ID) (SyncStatusRe
 		IsReady:      resp.IsReady,
 		Dependencies: dependencies,
 	}, nil
+}
+
+// SyncList returns a list of all units in the dependency graph.
+func (c *Client) SyncList(ctx context.Context) ([]ScriptInfo, error) {
+	resp, err := c.client.SyncList(ctx, &proto.SyncListRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	var scriptInfos []ScriptInfo
+	for _, script := range resp.Scripts {
+		scriptInfos = append(scriptInfos, ScriptInfo{
+			ID:     script.Id,
+			Status: script.Status,
+		})
+	}
+
+	return scriptInfos, nil
+}
+
+// ScriptInfo contains information about a unit in the dependency graph.
+type ScriptInfo struct {
+	ID     string `table:"id,default_sort" json:"id"`
+	Status string `table:"status" json:"status"`
 }
 
 // SyncStatusResponse contains the status information for a unit.

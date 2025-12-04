@@ -24,6 +24,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -57,6 +58,7 @@ type Options struct {
 	SSHServer       *agentssh.Server
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
+	UnitManager     *unit.Manager
 }
 
 // New creates a runner for the provided scripts.
@@ -112,6 +114,22 @@ func (r *Runner) ScriptBinDir() string {
 	return filepath.Join(r.dataDir, "bin")
 }
 
+// Scripts returns the list of scripts managed by this runner.
+func (r *Runner) Scripts() []codersdk.WorkspaceAgentScript {
+	r.initMutex.Lock()
+	defer r.initMutex.Unlock()
+	return r.scripts
+}
+
+// getScriptUnitID returns the unit ID for a script, preferring DisplayName
+// and falling back to LogSourceID if DisplayName is empty.
+func (r *Runner) getScriptUnitID(script codersdk.WorkspaceAgentScript) string {
+	if script.DisplayName != "" {
+		return script.DisplayName
+	}
+	return script.LogSourceID.String()
+}
+
 func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
 	if reg == nil {
 		// If no registry, do nothing.
@@ -143,6 +161,18 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 	err := r.Filesystem.MkdirAll(r.ScriptBinDir(), 0o700)
 	if err != nil {
 		return xerrors.Errorf("create script bin dir: %w", err)
+	}
+
+	// Register all scripts with the unit manager when we become aware of them.
+	if r.UnitManager != nil {
+		for _, script := range r.scripts {
+			unitID := unit.ID(r.getScriptUnitID(script))
+			if err := r.UnitManager.Register(unitID); err != nil {
+				if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
+					r.Logger.Warn(r.cronCtx, "failed to register script with unit manager", slog.Error(err), slog.F("script", script.LogSourceID))
+				}
+			}
+		}
 	}
 
 	for _, script := range r.scripts {
@@ -284,6 +314,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	)
 	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
 
+	// Update script status to started when execution begins.
+	if r.UnitManager != nil {
+		unitID := unit.ID(r.getScriptUnitID(script))
+		if err := r.UnitManager.UpdateStatus(unitID, unit.StatusStarted); err != nil {
+			logger.Warn(ctx, "failed to update script status to started", slog.Error(err))
+		}
+	}
+
 	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", logPath, err)
@@ -355,6 +393,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		if r.scriptCompleted == nil {
 			logger.Debug(ctx, "r.scriptCompleted unexpectedly nil")
 			return
+		}
+
+		// Update unit manager status to completed.
+		if r.UnitManager != nil {
+			unitID := r.getScriptUnitID(script)
+			if updateErr := r.UnitManager.UpdateStatus(unit.ID(unitID), unit.StatusComplete); updateErr != nil {
+				logger.Warn(ctx, "failed to update script status to completed", slog.Error(updateErr))
+			}
 		}
 
 		// We want to check this outside of the goroutine to avoid a race condition

@@ -193,6 +193,7 @@ func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.Work
 		RunOnStop:        script.RunOnStop,
 		StartBlocksLogin: script.StartBlocksLogin,
 		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+		DisplayName:      script.DisplayName,
 	}
 }
 

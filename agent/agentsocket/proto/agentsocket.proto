@@ -52,6 +52,17 @@ message SyncStatusResponse {
   repeated DependencyInfo dependencies = 3;
 }
 
+message SyncListRequest {}
+
+message ScriptInfo {
+  string id = 1;
+  string status = 2;
+}
+
+message SyncListResponse {
+  repeated ScriptInfo scripts = 1;
+}
+
 // AgentSocket provides direct access to the agent over local IPC.
 service AgentSocket {
   // Ping the agent to check if it is alive.
@@ -66,4 +77,6 @@ service AgentSocket {
   rpc SyncReady(SyncReadyRequest) returns (SyncReadyResponse);
   // Get the status of a unit and list its dependencies.
   rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
+  // List all available scripts that can be used as dependencies.
+  rpc SyncList(SyncListRequest) returns (SyncListResponse);
 }
