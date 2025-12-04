@@ -553,6 +553,10 @@ func (f *FakeAgentAPI) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAge
 	return apps, nil
 }
 
+func (f *FakeAgentAPI) ReportBoundaryNetworkAuditLogs(_ context.Context, _ *agentproto.ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
+}
+
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
 	return &FakeAgentAPI{
 		t:           t,

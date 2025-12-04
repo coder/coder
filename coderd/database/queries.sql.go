@@ -1980,6 +1980,203 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const deleteOldBoundaryNetworkAuditLogs = `-- name: DeleteOldBoundaryNetworkAuditLogs :execrows
+DELETE FROM boundary_network_audit_logs
+WHERE time < $1::timestamptz
+`
+
+func (q *sqlQuerier) DeleteOldBoundaryNetworkAuditLogs(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldBoundaryNetworkAuditLogs, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getBoundaryNetworkAuditLogs = `-- name: GetBoundaryNetworkAuditLogs :many
+SELECT
+    boundary_network_audit_logs.id, boundary_network_audit_logs.time, boundary_network_audit_logs.organization_id, boundary_network_audit_logs.workspace_id, boundary_network_audit_logs.workspace_owner_id, boundary_network_audit_logs.workspace_name, boundary_network_audit_logs.agent_id, boundary_network_audit_logs.agent_name, boundary_network_audit_logs.domain, boundary_network_audit_logs.action,
+    workspace_owner.username AS workspace_owner_username,
+    organizations.name AS organization_name,
+    organizations.display_name AS organization_display_name,
+    organizations.icon AS organization_icon
+FROM
+    boundary_network_audit_logs
+JOIN users AS workspace_owner ON
+    boundary_network_audit_logs.workspace_owner_id = workspace_owner.id
+JOIN organizations ON
+    boundary_network_audit_logs.organization_id = organizations.id
+WHERE
+    -- Filter by organization_id
+    CASE
+        WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            boundary_network_audit_logs.organization_id = $1
+        ELSE true
+    END
+    -- Filter by workspace_id
+    AND CASE
+        WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            boundary_network_audit_logs.workspace_id = $2
+        ELSE true
+    END
+    -- Filter by workspace_owner_id
+    AND CASE
+        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            boundary_network_audit_logs.workspace_owner_id = $3
+        ELSE true
+    END
+    -- Filter by action
+    AND CASE
+        WHEN $4 :: text != '' THEN
+            boundary_network_audit_logs.action = $4 :: boundary_network_action
+        ELSE true
+    END
+    -- Filter by time range (after)
+    AND CASE
+        WHEN $5 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+            boundary_network_audit_logs.time >= $5
+        ELSE true
+    END
+    -- Filter by time range (before)
+    AND CASE
+        WHEN $6 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+            boundary_network_audit_logs.time <= $6
+        ELSE true
+    END
+ORDER BY
+    boundary_network_audit_logs.time DESC
+LIMIT
+    $7::int
+`
+
+type GetBoundaryNetworkAuditLogsParams struct {
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	Action           string    `db:"action" json:"action"`
+	TimeAfter        time.Time `db:"time_after" json:"time_after"`
+	TimeBefore       time.Time `db:"time_before" json:"time_before"`
+	LimitOpt         int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetBoundaryNetworkAuditLogsRow struct {
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	Time                    time.Time             `db:"time" json:"time"`
+	OrganizationID          uuid.UUID             `db:"organization_id" json:"organization_id"`
+	WorkspaceID             uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID        uuid.UUID             `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceName           string                `db:"workspace_name" json:"workspace_name"`
+	AgentID                 uuid.UUID             `db:"agent_id" json:"agent_id"`
+	AgentName               string                `db:"agent_name" json:"agent_name"`
+	Domain                  string                `db:"domain" json:"domain"`
+	Action                  BoundaryNetworkAction `db:"action" json:"action"`
+	WorkspaceOwnerUsername  string                `db:"workspace_owner_username" json:"workspace_owner_username"`
+	OrganizationName        string                `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string                `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string                `db:"organization_icon" json:"organization_icon"`
+}
+
+func (q *sqlQuerier) GetBoundaryNetworkAuditLogs(ctx context.Context, arg GetBoundaryNetworkAuditLogsParams) ([]GetBoundaryNetworkAuditLogsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getBoundaryNetworkAuditLogs,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.WorkspaceOwnerID,
+		arg.Action,
+		arg.TimeAfter,
+		arg.TimeBefore,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetBoundaryNetworkAuditLogsRow
+	for rows.Next() {
+		var i GetBoundaryNetworkAuditLogsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Time,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.WorkspaceOwnerID,
+			&i.WorkspaceName,
+			&i.AgentID,
+			&i.AgentName,
+			&i.Domain,
+			&i.Action,
+			&i.WorkspaceOwnerUsername,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertBoundaryNetworkAuditLogs = `-- name: InsertBoundaryNetworkAuditLogs :exec
+INSERT INTO boundary_network_audit_logs (
+    id,
+    time,
+    organization_id,
+    workspace_id,
+    workspace_owner_id,
+    workspace_name,
+    agent_id,
+    agent_name,
+    domain,
+    action
+)
+SELECT
+    unnest($1::uuid[]),
+    unnest($2::timestamptz[]),
+    unnest($3::uuid[]),
+    unnest($4::uuid[]),
+    unnest($5::uuid[]),
+    unnest($6::text[]),
+    unnest($7::uuid[]),
+    unnest($8::text[]),
+    unnest($9::text[]),
+    unnest($10::boundary_network_action[])
+`
+
+type InsertBoundaryNetworkAuditLogsParams struct {
+	ID               []uuid.UUID             `db:"id" json:"id"`
+	Time             []time.Time             `db:"time" json:"time"`
+	OrganizationID   []uuid.UUID             `db:"organization_id" json:"organization_id"`
+	WorkspaceID      []uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID []uuid.UUID             `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceName    []string                `db:"workspace_name" json:"workspace_name"`
+	AgentID          []uuid.UUID             `db:"agent_id" json:"agent_id"`
+	AgentName        []string                `db:"agent_name" json:"agent_name"`
+	Domain           []string                `db:"domain" json:"domain"`
+	Action           []BoundaryNetworkAction `db:"action" json:"action"`
+}
+
+func (q *sqlQuerier) InsertBoundaryNetworkAuditLogs(ctx context.Context, arg InsertBoundaryNetworkAuditLogsParams) error {
+	_, err := q.db.ExecContext(ctx, insertBoundaryNetworkAuditLogs,
+		pq.Array(arg.ID),
+		pq.Array(arg.Time),
+		pq.Array(arg.OrganizationID),
+		pq.Array(arg.WorkspaceID),
+		pq.Array(arg.WorkspaceOwnerID),
+		pq.Array(arg.WorkspaceName),
+		pq.Array(arg.AgentID),
+		pq.Array(arg.AgentName),
+		pq.Array(arg.Domain),
+		pq.Array(arg.Action),
+	)
+	return err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count

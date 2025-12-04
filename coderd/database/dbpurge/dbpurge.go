@@ -28,6 +28,7 @@ const (
 	connectionLogsBatchSize = 10000
 	// Batch size for audit log deletion.
 	auditLogsBatchSize = 10000
+	// Batch size for boundary network audit log deletion.
 	// Telemetry heartbeats are used to deduplicate events across replicas. We
 	// don't need to persist heartbeat rows for longer than 24 hours, as they
 	// are only used for deduplication across replicas. The time needs to be
@@ -155,12 +156,23 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				}
 			}
 
+			var purgedBoundaryNetworkAuditLogs int64
+			boundaryNetworkAuditLogsRetention := vals.Retention.BoundaryNetworkAuditLogs.Value()
+			if boundaryNetworkAuditLogsRetention > 0 {
+				deleteBoundaryNetworkAuditLogsBefore := start.Add(-boundaryNetworkAuditLogsRetention)
+				purgedBoundaryNetworkAuditLogs, err = tx.DeleteOldBoundaryNetworkAuditLogs(ctx, deleteBoundaryNetworkAuditLogsBefore)
+				if err != nil {
+					return xerrors.Errorf("failed to delete old boundary network audit logs: %w", err)
+				}
+			}
+
 			logger.Debug(ctx, "purged old database entries",
 				slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 				slog.F("expired_api_keys", expiredAPIKeys),
 				slog.F("aibridge_records", purgedAIBridgeRecords),
 				slog.F("connection_logs", purgedConnectionLogs),
 				slog.F("audit_logs", purgedAuditLogs),
+				slog.F("boundary_network_audit_logs", purgedBoundaryNetworkAuditLogs),
 				slog.F("duration", clk.Since(start)),
 			)
 

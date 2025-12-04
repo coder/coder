@@ -834,6 +834,9 @@ type RetentionConfig struct {
 	// Logs from the latest build are always retained regardless of age.
 	// Defaults to 7 days to preserve existing behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
+	// BoundaryNetworkAuditLogs controls how long boundary network audit logs are retained.
+	// Set to 0 to disable (keep indefinitely). Defaults to 7 days.
+	BoundaryNetworkAuditLogs serpent.Duration `json:"boundary_network_audit_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -3434,6 +3437,17 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "7d",
 			Group:       &deploymentGroupRetention,
 			YAML:        "workspace_agent_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Boundary Network Audit Logs Retention",
+			Description: "How long boundary network audit logs are retained. Set to 0 to disable (keep indefinitely).",
+			Flag:        "boundary-network-audit-logs-retention",
+			Env:         "CODER_BOUNDARY_NETWORK_AUDIT_LOGS_RETENTION",
+			Value:       &c.Retention.BoundaryNetworkAuditLogs,
+			Default:     "7d",
+			Group:       &deploymentGroupRetention,
+			YAML:        "boundary_network_audit_logs",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{

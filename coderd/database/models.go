@@ -922,6 +922,64 @@ func AllAutomaticUpdatesValues() []AutomaticUpdates {
 	}
 }
 
+type BoundaryNetworkAction string
+
+const (
+	BoundaryNetworkActionAllow BoundaryNetworkAction = "allow"
+	BoundaryNetworkActionDeny  BoundaryNetworkAction = "deny"
+)
+
+func (e *BoundaryNetworkAction) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BoundaryNetworkAction(s)
+	case string:
+		*e = BoundaryNetworkAction(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BoundaryNetworkAction: %T", src)
+	}
+	return nil
+}
+
+type NullBoundaryNetworkAction struct {
+	BoundaryNetworkAction BoundaryNetworkAction `json:"boundary_network_action"`
+	Valid                 bool                  `json:"valid"` // Valid is true if BoundaryNetworkAction is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullBoundaryNetworkAction) Scan(value interface{}) error {
+	if value == nil {
+		ns.BoundaryNetworkAction, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.BoundaryNetworkAction.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullBoundaryNetworkAction) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.BoundaryNetworkAction), nil
+}
+
+func (e BoundaryNetworkAction) Valid() bool {
+	switch e {
+	case BoundaryNetworkActionAllow,
+		BoundaryNetworkActionDeny:
+		return true
+	}
+	return false
+}
+
+func AllBoundaryNetworkActionValues() []BoundaryNetworkAction {
+	return []BoundaryNetworkAction{
+		BoundaryNetworkActionAllow,
+		BoundaryNetworkActionDeny,
+	}
+}
+
 type BuildReason string
 
 const (
@@ -3691,6 +3749,23 @@ type AuditLog struct {
 	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
 	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
+}
+
+// Audit logs for network requests allowed or denied by Boundary in workspaces.
+type BoundaryNetworkAuditLog struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// The timestamp when the network request was made.
+	Time             time.Time `db:"time" json:"time"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	AgentID          uuid.UUID `db:"agent_id" json:"agent_id"`
+	AgentName        string    `db:"agent_name" json:"agent_name"`
+	// The domain that was requested (e.g., github.com).
+	Domain string `db:"domain" json:"domain"`
+	// Whether the request was allowed or denied by Boundary.
+	Action BoundaryNetworkAction `db:"action" json:"action"`
 }
 
 type ConnectionLog struct {

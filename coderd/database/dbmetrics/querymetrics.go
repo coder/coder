@@ -417,6 +417,13 @@ func (m queryMetricsStore) DeleteOldAuditLogs(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOldBoundaryNetworkAuditLogs(ctx context.Context, before time.Time) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldBoundaryNetworkAuditLogs(ctx, before)
+	m.queryLatencies.WithLabelValues("DeleteOldBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldConnectionLogs(ctx, arg)
@@ -800,6 +807,13 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	row, err := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	return row, err
+}
+
+func (m queryMetricsStore) GetBoundaryNetworkAuditLogs(ctx context.Context, arg database.GetBoundaryNetworkAuditLogsParams) ([]database.GetBoundaryNetworkAuditLogsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetBoundaryNetworkAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -2368,6 +2382,13 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	log, err := m.s.InsertAuditLog(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAuditLog").Observe(time.Since(start).Seconds())
 	return log, err
+}
+
+func (m queryMetricsStore) InsertBoundaryNetworkAuditLogs(ctx context.Context, arg database.InsertBoundaryNetworkAuditLogsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertBoundaryNetworkAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {

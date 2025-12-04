@@ -55,6 +55,7 @@ type DRPCAgentClient interface {
 	CreateSubAgent(ctx context.Context, in *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(ctx context.Context, in *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
+	ReportBoundaryNetworkAuditLogs(ctx context.Context, in *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error)
 }
 
 type drpcAgentClient struct {
@@ -211,6 +212,15 @@ func (c *drpcAgentClient) ListSubAgents(ctx context.Context, in *ListSubAgentsRe
 	return out, nil
 }
 
+func (c *drpcAgentClient) ReportBoundaryNetworkAuditLogs(ctx context.Context, in *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReportBoundaryNetworkAuditLogs", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -228,6 +238,7 @@ type DRPCAgentServer interface {
 	CreateSubAgent(context.Context, *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(context.Context, *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(context.Context, *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
+	ReportBoundaryNetworkAuditLogs(context.Context, *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -296,9 +307,13 @@ func (s *DRPCAgentUnimplementedServer) ListSubAgents(context.Context, *ListSubAg
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) ReportBoundaryNetworkAuditLogs(context.Context, *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 16 }
+func (DRPCAgentDescription) NumMethods() int { return 17 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -446,6 +461,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*ListSubAgentsRequest),
 					)
 			}, DRPCAgentServer.ListSubAgents, true
+	case 16:
+		return "/coder.agent.v2.Agent/ReportBoundaryNetworkAuditLogs", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					ReportBoundaryNetworkAuditLogs(
+						ctx,
+						in1.(*ReportBoundaryNetworkAuditLogsRequest),
+					)
+			}, DRPCAgentServer.ReportBoundaryNetworkAuditLogs, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -705,6 +729,22 @@ type drpcAgent_ListSubAgentsStream struct {
 }
 
 func (x *drpcAgent_ListSubAgentsStream) SendAndClose(m *ListSubAgentsResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_ReportBoundaryNetworkAuditLogsStream interface {
+	drpc.Stream
+	SendAndClose(*emptypb.Empty) error
+}
+
+type drpcAgent_ReportBoundaryNetworkAuditLogsStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_ReportBoundaryNetworkAuditLogsStream) SendAndClose(m *emptypb.Empty) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}
