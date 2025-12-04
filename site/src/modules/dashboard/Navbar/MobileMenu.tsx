@@ -195,6 +195,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 	canViewOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
+	canViewBoundaryLogs,
 	canViewHealth,
 }) => {
 	const [open, setOpen] = useState(false);
