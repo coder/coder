@@ -248,7 +248,6 @@ This script demonstrates several best practices:
 - Graceful degradation when sync isn't available
 - Redirecting sync output to reduce noise in logs
 
-
 ## Dependency Graph Design
 
 ### Best Practices
