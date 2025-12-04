@@ -187,6 +187,11 @@
 							"title": "Feature stages",
 							"description": "Information about pre-GA stages.",
 							"path": "./install/releases/feature-stages.md"
+						},
+						{
+							"title": "Upgrading from ESR 2.24 to 2.29",
+							"description": "Upgrade Guide for ESR Releases",
+							"path": "./install/releases/esr-2.24-2.29-upgrade.md"
 						}
 					]
 				}
@@ -363,6 +368,11 @@
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects",
 							"path": "./admin/setup/telemetry.md"
+						},
+						{
+							"title": "Data Retention",
+							"description": "Configure data retention policies for database tables",
+							"path": "./admin/setup/data-retention.md"
 						}
 					]
 				},
@@ -891,30 +901,31 @@
 					"title": "Coder Tasks",
 					"description": "Run Coding Agents on your Own Infrastructure",
 					"path": "./ai-coder/tasks.md",
-					"state": ["beta"],
 					"children": [
 						{
 							"title": "Understanding Coder Tasks",
 							"description": "Core principles and concepts behind Coder Tasks",
-							"path": "./ai-coder/tasks-core-principles.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-core-principles.md"
 						},
 						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
-							"path": "./ai-coder/custom-agents.md",
-							"state": ["beta"]
+							"path": "./ai-coder/custom-agents.md"
 						},
 						{
 							"title": "Tasks Migration Guide",
 							"description": "Changes to Coder Tasks made in v2.28",
-							"path": "./ai-coder/tasks-migration.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
 							"title": "Security \u0026 Boundaries",
 							"description": "Learn about security and boundaries when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
+						},
+						{
+							"title": "Create a GitHub to Coder Tasks Workflow",
+							"description": "How to setup Coder Tasks to run in GitHub",
+							"path": "./ai-coder/github-to-tasks.md"
 						}
 					]
 				},
@@ -935,7 +946,7 @@
 					"description": "Centralized LLM and MCP proxy for platform teams",
 					"path": "./ai-coder/ai-bridge/index.md",
 					"icon_path": "./images/icons/api.svg",
-					"state": ["premium", "early access"],
+					"state": ["premium", "beta"],
 					"children": [
 						{
 							"title": "Setup",

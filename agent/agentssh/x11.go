@@ -176,7 +176,7 @@ func (x *x11Forwarder) listenForConnections(
 		var originPort uint32
 
 		if tcpConn, ok := conn.(*net.TCPConn); ok {
-			if tcpAddr, ok := tcpConn.LocalAddr().(*net.TCPAddr); ok {
+			if tcpAddr, ok := tcpConn.LocalAddr().(*net.TCPAddr); ok && tcpAddr != nil {
 				originAddr = tcpAddr.IP.String()
 				// #nosec G115 - Safe conversion as TCP port numbers are within uint32 range (0-65535)
 				originPort = uint32(tcpAddr.Port)

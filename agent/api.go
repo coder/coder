@@ -7,12 +7,20 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/httpmw"
 )
 
 func (a *agent) apiHandler() http.Handler {
 	r := chi.NewRouter()
+	r.Use(
+		httpmw.Recover(a.logger),
+		tracing.StatusWriterMiddleware,
+		loggermw.Logger(a.logger),
+	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 			Message: "Hello from the agent!",

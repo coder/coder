@@ -126,14 +126,14 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 				return xerrors.Errorf("list provisioner keys: %w", err)
 			}
 
-			if len(keys) == 0 {
-				_, _ = fmt.Fprintln(inv.Stdout, "No provisioner keys found")
-				return nil
-			}
-
 			out, err := formatter.Format(inv.Context(), keys)
 			if err != nil {
 				return xerrors.Errorf("display provisioner keys: %w", err)
+			}
+
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No provisioner keys found.")
+				return nil
 			}
 
 			_, _ = fmt.Fprintln(inv.Stdout, out)

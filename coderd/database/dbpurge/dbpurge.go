@@ -18,13 +18,16 @@ import (
 )
 
 const (
-	delay          = 10 * time.Minute
-	maxAgentLogAge = 7 * 24 * time.Hour
+	delay = 10 * time.Minute
 	// Connection events are now inserted into the `connection_logs` table.
-	// We'll slowly remove old connection events from the `audit_logs` table,
-	// but we won't touch the `connection_logs` table.
+	// We'll slowly remove old connection events from the `audit_logs` table.
+	// The `connection_logs` table is purged based on the configured retention.
 	maxAuditLogConnectionEventAge    = 90 * 24 * time.Hour // 90 days
 	auditLogConnectionEventBatchSize = 1000
+	// Batch size for connection log deletion.
+	connectionLogsBatchSize = 10000
+	// Batch size for audit log deletion.
+	auditLogsBatchSize = 10000
 	// Telemetry heartbeats are used to deduplicate events across replicas. We
 	// don't need to persist heartbeat rows for longer than 24 hours, as they
 	// are only used for deduplication across replicas. The time needs to be
@@ -62,9 +65,14 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				return nil
 			}
 
-			deleteOldWorkspaceAgentLogsBefore := start.Add(-maxAgentLogAge)
-			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore); err != nil {
-				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
+			var purgedWorkspaceAgentLogs int64
+			workspaceAgentLogsRetention := vals.Retention.WorkspaceAgentLogs.Value()
+			if workspaceAgentLogsRetention > 0 {
+				deleteOldWorkspaceAgentLogsBefore := start.Add(-workspaceAgentLogsRetention)
+				purgedWorkspaceAgentLogs, err = tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore)
+				if err != nil {
+					return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
+				}
 			}
 			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old workspace agent stats: %w", err)
@@ -78,18 +86,24 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
 				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
 			}
-			expiredAPIKeys, err := tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
-				// Leave expired keys for a week to allow the backend to know the difference
-				// between a 404 and an expired key. This purge code is just to bound the size of
-				// the table to something more reasonable.
-				Before: dbtime.Time(start.Add(time.Hour * 24 * 7 * -1)),
-				// There could be a lot of expired keys here, so set a limit to prevent this
-				// taking too long.
-				// This runs every 10 minutes, so it deletes ~1.5m keys per day at most.
-				LimitCount: 10000,
-			})
-			if err != nil {
-				return xerrors.Errorf("failed to delete expired api keys: %w", err)
+
+			var expiredAPIKeys int64
+			apiKeysRetention := vals.Retention.APIKeys.Value()
+			if apiKeysRetention > 0 {
+				// Delete keys that have been expired for at least the retention period.
+				// A higher retention period allows the backend to return a more helpful
+				// error message when a user tries to use an expired key.
+				deleteExpiredKeysBefore := start.Add(-apiKeysRetention)
+				expiredAPIKeys, err = tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+					Before: dbtime.Time(deleteExpiredKeysBefore),
+					// There could be a lot of expired keys here, so set a limit to prevent
+					// this taking too long. This runs every 10 minutes, so it deletes
+					// ~1.5m keys per day at most.
+					LimitCount: 10000,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to delete expired api keys: %w", err)
+				}
 			}
 			deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
 			if err := tx.DeleteOldTelemetryLocks(ctx, deleteOldTelemetryLocksBefore); err != nil {
@@ -104,16 +118,49 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				return xerrors.Errorf("failed to delete old audit log connection events: %w", err)
 			}
 
-			deleteAIBridgeRecordsBefore := start.Add(-vals.AI.BridgeConfig.Retention.Value())
-			// nolint:gocritic // Needs to run as aibridge context.
-			purgedAIBridgeRecords, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
-			if err != nil {
-				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+			var purgedAIBridgeRecords int64
+			aibridgeRetention := vals.AI.BridgeConfig.Retention.Value()
+			if aibridgeRetention > 0 {
+				deleteAIBridgeRecordsBefore := start.Add(-aibridgeRetention)
+				// nolint:gocritic // Needs to run as aibridge context.
+				purgedAIBridgeRecords, err = tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
+				if err != nil {
+					return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+				}
+			}
+
+			var purgedConnectionLogs int64
+			connectionLogsRetention := vals.Retention.ConnectionLogs.Value()
+			if connectionLogsRetention > 0 {
+				deleteConnectionLogsBefore := start.Add(-connectionLogsRetention)
+				purgedConnectionLogs, err = tx.DeleteOldConnectionLogs(ctx, database.DeleteOldConnectionLogsParams{
+					BeforeTime: deleteConnectionLogsBefore,
+					LimitCount: connectionLogsBatchSize,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to delete old connection logs: %w", err)
+				}
+			}
+
+			var purgedAuditLogs int64
+			auditLogsRetention := vals.Retention.AuditLogs.Value()
+			if auditLogsRetention > 0 {
+				deleteAuditLogsBefore := start.Add(-auditLogsRetention)
+				purgedAuditLogs, err = tx.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
+					BeforeTime: deleteAuditLogsBefore,
+					LimitCount: auditLogsBatchSize,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to delete old audit logs: %w", err)
+				}
 			}
 
 			logger.Debug(ctx, "purged old database entries",
+				slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 				slog.F("expired_api_keys", expiredAPIKeys),
 				slog.F("aibridge_records", purgedAIBridgeRecords),
+				slog.F("connection_logs", purgedConnectionLogs),
+				slog.F("audit_logs", purgedAuditLogs),
 				slog.F("duration", clk.Since(start)),
 			)
 

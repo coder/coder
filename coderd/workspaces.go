@@ -1717,13 +1717,13 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
+	// template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	// if err != nil {
+	// 	httpapi.InternalServerError(rw, err)
+	// 	return
+	// }
 
-	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), workspace, agent, template.Name, stat, true)
+	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent, stat, true)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -2598,6 +2598,13 @@ func convertWorkspace(
 	failingAgents := []uuid.UUID{}
 	for _, resource := range workspaceBuild.Resources {
 		for _, agent := range resource.Agents {
+			// Sub-agents (e.g., devcontainer agents) are excluded from the
+			// workspace health calculation. Their health is managed by
+			// their parent agent, and temporary disconnections during
+			// devcontainer rebuilds should not affect workspace health.
+			if agent.ParentID.Valid {
+				continue
+			}
 			if !agent.Health.Healthy {
 				failingAgents = append(failingAgents, agent.ID)
 			}

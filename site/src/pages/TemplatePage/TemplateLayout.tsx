@@ -6,6 +6,7 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useAuthenticated } from "hooks";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import {
 	type WorkspacePermissions,
 	workspacePermissionChecks,
@@ -105,6 +106,8 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	// have permission to update templates. Need both checks.
 	const shouldShowInsights =
 		data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
+	const { workspace_prebuilds: isWorkspacePrebuildsEnabled } =
+		useFeatureVisibility();
 
 	if (error || workspacePermissionsQuery.error) {
 		return (
@@ -157,6 +160,12 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 								Insights
 							</TabLink>
 						)}
+						{isWorkspacePrebuildsEnabled &&
+							data.permissions.canUpdateTemplate && (
+								<TabLink to="prebuilds" value="prebuilds">
+									Prebuilds
+								</TabLink>
+							)}
 					</TabsList>
 				</Margins>
 			</Tabs>

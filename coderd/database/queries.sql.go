@@ -354,17 +354,18 @@ WITH
     WHERE id IN (SELECT id FROM to_delete)
     RETURNING 1
   )
-SELECT
+SELECT (
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
-  (SELECT COUNT(*) FROM interceptions) as total_deleted
+  (SELECT COUNT(*) FROM interceptions)
+)::bigint as total_deleted
 `
 
 // Cumulative count.
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
-	var total_deleted int32
+	var total_deleted int64
 	err := row.Scan(&total_deleted)
 	return total_deleted, err
 }
@@ -1107,24 +1108,20 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 	return err
 }
 
-const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :one
+const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :execrows
 WITH expired_keys AS (
 	SELECT id
 	FROM api_keys
 	-- expired keys only
 	WHERE expires_at < $1::timestamptz
 	LIMIT $2
-),
-deleted_rows AS (
-	 DELETE FROM
-		 api_keys
-	 USING
-		 expired_keys
-	 WHERE
-		 api_keys.id = expired_keys.id
-	 RETURNING api_keys.id
- )
-SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows
+)
+DELETE FROM
+	api_keys
+USING
+	expired_keys
+WHERE
+	api_keys.id = expired_keys.id
 `
 
 type DeleteExpiredAPIKeysParams struct {
@@ -1133,10 +1130,11 @@ type DeleteExpiredAPIKeysParams struct {
 }
 
 func (q *sqlQuerier) DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
-	var deleted_count int64
-	err := row.Scan(&deleted_count)
-	return deleted_count, err
+	result, err := q.db.ExecContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
@@ -1637,6 +1635,37 @@ func (q *sqlQuerier) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg 
 	return err
 }
 
+const deleteOldAuditLogs = `-- name: DeleteOldAuditLogs :execrows
+WITH old_logs AS (
+    SELECT id
+    FROM audit_logs
+    WHERE
+        "time" < $1::timestamp with time zone
+        AND action NOT IN ('connect', 'disconnect', 'open', 'close')
+    ORDER BY "time" ASC
+    LIMIT $2
+)
+DELETE FROM audit_logs
+USING old_logs
+WHERE audit_logs.id = old_logs.id
+`
+
+type DeleteOldAuditLogsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes old audit logs based on retention policy, excluding deprecated
+// connection events (connect, disconnect, open, close) which are handled
+// separately by DeleteOldAuditLogConnectionEvents.
+func (q *sqlQuerier) DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldAuditLogs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
@@ -2093,6 +2122,32 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteOldConnectionLogs = `-- name: DeleteOldConnectionLogs :execrows
+WITH old_logs AS (
+	SELECT id
+	FROM connection_logs
+	WHERE connect_time < $1::timestamp with time zone
+	ORDER BY connect_time ASC
+	LIMIT $2
+)
+DELETE FROM connection_logs
+USING old_logs
+WHERE connection_logs.id = old_logs.id
+`
+
+type DeleteOldConnectionLogsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldConnectionLogs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
@@ -16324,6 +16379,23 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	return count, err
 }
 
+const getUserTaskNotificationAlertDismissed = `-- name: GetUserTaskNotificationAlertDismissed :one
+SELECT
+	value::boolean as task_notification_alert_dismissed
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_task_notification_alert_dismissed'
+`
+
+func (q *sqlQuerier) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserTaskNotificationAlertDismissed, userID)
+	var task_notification_alert_dismissed bool
+	err := row.Scan(&task_notification_alert_dismissed)
+	return task_notification_alert_dismissed, err
+}
+
 const getUserTerminalFont = `-- name: GetUserTerminalFont :one
 SELECT
 	value as terminal_font
@@ -17076,6 +17148,33 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 	return i, err
 }
 
+const updateUserTaskNotificationAlertDismissed = `-- name: UpdateUserTaskNotificationAlertDismissed :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_task_notification_alert_dismissed', ($2::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_task_notification_alert_dismissed'
+RETURNING value::boolean AS task_notification_alert_dismissed
+`
+
+type UpdateUserTaskNotificationAlertDismissedParams struct {
+	UserID                         uuid.UUID `db:"user_id" json:"user_id"`
+	TaskNotificationAlertDismissed bool      `db:"task_notification_alert_dismissed" json:"task_notification_alert_dismissed"`
+}
+
+func (q *sqlQuerier) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTaskNotificationAlertDismissed, arg.UserID, arg.TaskNotificationAlertDismissed)
+	var task_notification_alert_dismissed bool
+	err := row.Scan(&task_notification_alert_dismissed)
+	return task_notification_alert_dismissed, err
+}
+
 const updateUserTerminalFont = `-- name: UpdateUserTerminalFont :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -17748,7 +17847,7 @@ func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg Update
 	return err
 }
 
-const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
+const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :execrows
 WITH
 	latest_builds AS (
 		SELECT
@@ -17791,12 +17890,15 @@ WITH
 DELETE FROM workspace_agent_logs WHERE agent_id IN (SELECT id FROM old_agents)
 `
 
-// If an agent hasn't connected in the last 7 days, we purge it's logs.
+// If an agent hasn't connected within the retention period, we purge its logs.
 // Exception: if the logs are related to the latest build, we keep those around.
 // Logs can take up a lot of space, so it's important we clean up frequently.
-func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
-	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
-	return err
+func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
@@ -20144,6 +20246,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 
 const getWorkspaceAppStatusesByAppIDs = `-- name: GetWorkspaceAppStatusesByAppIDs :many
 SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
+ORDER BY created_at DESC, id DESC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
@@ -23751,6 +23854,7 @@ SET
 WHERE
     template_id = $3
 	AND dormant_at IS NOT NULL
+	AND deleted = false
 	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
 	-- should not have their dormant or deleting at set, as these are handled by the
     -- prebuilds reconciliation loop.

@@ -3147,6 +3147,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "disable_all": true
     },
     "redirect_to_access_url": true,
+    "retention": {
+      "api_keys": 0,
+      "audit_logs": 0,
+      "connection_logs": 0,
+      "workspace_agent_logs": 0
+    },
     "scim_api_key": "string",
     "session_lifetime": {
       "default_duration": 0,
@@ -3663,6 +3669,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "disable_all": true
   },
   "redirect_to_access_url": true,
+  "retention": {
+    "api_keys": 0,
+    "audit_logs": 0,
+    "connection_logs": 0,
+    "workspace_agent_logs": 0
+  },
   "scim_api_key": "string",
   "session_lifetime": {
     "default_duration": 0,
@@ -3808,6 +3820,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `proxy_trusted_origins`              | array of string                                                                                      | false    |              |                                                                    |
 | `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                 | false    |              |                                                                    |
 | `redirect_to_access_url`             | boolean                                                                                              | false    |              |                                                                    |
+| `retention`                          | [codersdk.RetentionConfig](#codersdkretentionconfig)                                                 | false    |              |                                                                    |
 | `scim_api_key`                       | string                                                                                               | false    |              |                                                                    |
 | `session_lifetime`                   | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
 | `ssh_keygen_algorithm`               | string                                                                                               | false    |              |                                                                    |
@@ -7506,6 +7519,26 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `message`     | string                                                        | false    |              | Message is an actionable message that depicts actions the request took. These messages should be fully formed sentences with proper punctuation. Examples: - "A user has been created." - "Failed to create a user."               |
 | `validations` | array of [codersdk.ValidationError](#codersdkvalidationerror) | false    |              | Validations are form field-specific friendly error messages. They will be shown on a form field in the UI. These can also be used to add additional context if there is a set of errors in the primary 'Message'.                  |
 
+## codersdk.RetentionConfig
+
+```json
+{
+  "api_keys": 0,
+  "audit_logs": 0,
+  "connection_logs": 0,
+  "workspace_agent_logs": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
+| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
+| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
+| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
+
 ## codersdk.Role
 
 ```json
@@ -9358,6 +9391,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `old_password` | string | false    |              |             |
 | `password`     | string | true     |              |             |
 
+## codersdk.UpdateUserPreferenceSettingsRequest
+
+```json
+{
+  "task_notification_alert_dismissed": true
+}
+```
+
+### Properties
+
+| Name                                | Type    | Required | Restrictions | Description |
+|-------------------------------------|---------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean | false    |              |             |
+
 ## codersdk.UpdateUserProfileRequest
 
 ```json
@@ -9845,6 +9892,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------|--------|----------|--------------|-------------|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.UserPreferenceSettings
+
+```json
+{
+  "task_notification_alert_dismissed": true
+}
+```
+
+### Properties
+
+| Name                                | Type    | Required | Restrictions | Description |
+|-------------------------------------|---------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 

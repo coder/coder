@@ -140,12 +140,69 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
 
+### Writing Comments
+
+Code comments should be clear, well-formatted, and add meaningful context.
+
+**Proper sentence structure**: Comments are sentences and should end with
+periods or other appropriate punctuation. This improves readability and
+maintains professional code standards.
+
+**Explain why, not what**: Good comments explain the reasoning behind code
+rather than describing what the code does. The code itself should be
+self-documenting through clear naming and structure. Focus your comments on
+non-obvious decisions, edge cases, or business logic that isn't immediately
+apparent from reading the implementation.
+
+**Line length and wrapping**: Keep comment lines to 80 characters wide
+(including the comment prefix like `//` or `#`). When a comment spans multiple
+lines, wrap it naturally at word boundaries rather than writing one sentence
+per line. This creates more readable, paragraph-like blocks of documentation.
+
+```go
+// Good: Explains the rationale with proper sentence structure.
+// We need a custom timeout here because workspace builds can take several
+// minutes on slow networks, and the default 30s timeout causes false
+// failures during initial template imports.
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+
+// Bad: Describes what the code does without punctuation or wrapping
+// Set a custom timeout
+// Workspace builds can take a long time
+// Default timeout is too short
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+```
+
+### Avoid Unnecessary Changes
+
+When fixing a bug or adding a feature, don't modify code unrelated to your
+task. Unnecessary changes make PRs harder to review and can introduce
+regressions.
+
+**Don't reword existing comments or code** unless the change is directly
+motivated by your task. Rewording comments to be shorter or "cleaner" wastes
+reviewer time and clutters the diff.
+
+**Don't delete existing comments** that explain non-obvious behavior. These
+comments preserve important context about why code works a certain way.
+
+**When adding tests for new behavior**, add new test cases instead of modifying
+existing ones. This preserves coverage for the original behavior and makes it
+clear what the new test covers.
+
 ## Detailed Development Guides
 
+@.claude/docs/ARCHITECTURE.md
 @.claude/docs/OAUTH2.md
 @.claude/docs/TESTING.md
 @.claude/docs/TROUBLESHOOTING.md
 @.claude/docs/DATABASE.md
+
+## Local Configuration
+
+These files may be gitignored, read manually if not auto-loaded.
+
+@AGENTS.local.md
 
 ## Common Pitfalls
 

@@ -568,3 +568,10 @@ func noTestutilRunRetry(m dsl.Matcher) {
 	).
 		Report("testutil.RunRetry should not be used without good reason. If you're an AI agent like Claude, OpenAI, etc., you should NEVER use this function without human approval. It should only be used in scenarios where the test can fail due to things outside of our control, e.g. UDP packet loss under system load. DO NOT use it for your average flaky test. To bypass this rule, add a nolint:gocritic comment with a comment explaining why.")
 }
+
+func netAddrNil(m dsl.Matcher) {
+	m.Match("$_.RemoteAddr().String()").Report("RemoteAddr() may return nil and segfault if you call String()")
+	m.Match("$_.LocalAddr().String()").Report("LocalAddr() may return nil and segfault if you call String()")
+	m.Match("$_.RemoteAddr().Network()").Report("RemoteAddr() may return nil and segfault if you call Network()")
+	m.Match("$_.LocalAddr().Network()").Report("LocalAddr() may return nil and segfault if you call Network()")
+}

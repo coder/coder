@@ -99,6 +99,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	sharedhttpmw "github.com/coder/coder/v2/httpmw"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -861,7 +862,7 @@ func New(options *Options) *API {
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
 	r.Use(
-		httpmw.Recover(api.Logger),
+		sharedhttpmw.Recover(api.Logger),
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
@@ -1335,6 +1336,8 @@ func New(options *Options) *API {
 						})
 						r.Get("/appearance", api.userAppearanceSettings)
 						r.Put("/appearance", api.putUserAppearanceSettings)
+						r.Get("/preferences", api.userPreferenceSettings)
+						r.Put("/preferences", api.putUserPreferenceSettings)
 						r.Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)
