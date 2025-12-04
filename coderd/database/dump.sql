@@ -3449,6 +3449,8 @@ COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to e
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
+CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
+
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
 
 CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted = false);
