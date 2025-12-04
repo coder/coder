@@ -1641,6 +1641,77 @@ func TestAPI(t *testing.T) {
 		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
 	})
 
+	// Verify that modifying a config file broadcasts the dirty status
+	// over websocket immediately.
+	t.Run("FileWatcherDirtyBroadcast", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		configPath := "/workspace/project/.devcontainer/devcontainer.json"
+		fWatcher := newFakeWatcher(t)
+		fLister := &fakeContainerCLI{
+			containers: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{
+					{
+						ID:           "container-id",
+						FriendlyName: "container-name",
+						Running:      true,
+						Labels: map[string]string{
+							agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
+							agentcontainers.DevcontainerConfigFileLabel:  configPath,
+						},
+					},
+				},
+			},
+		}
+
+		mClock := quartz.NewMock(t)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+		api := agentcontainers.NewAPI(
+			slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			agentcontainers.WithContainerCLI(fLister),
+			agentcontainers.WithWatcher(fWatcher),
+			agentcontainers.WithClock(mClock),
+		)
+		api.Start()
+		defer api.Close()
+
+		srv := httptest.NewServer(api.Routes())
+		defer srv.Close()
+
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		wsConn, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/watch", nil)
+		require.NoError(t, err)
+		if resp != nil && resp.Body != nil {
+			defer resp.Body.Close()
+		}
+		defer wsConn.Close(websocket.StatusNormalClosure, "")
+
+		// Read and discard initial state.
+		_, _, err = wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		fWatcher.waitNext(ctx)
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+			Name: configPath,
+			Op:   fsnotify.Write,
+		})
+
+		// Verify dirty status is broadcast without advancing the clock.
+		_, msg, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var response codersdk.WorkspaceAgentListContainersResponse
+		err = json.Unmarshal(msg, &response)
+		require.NoError(t, err)
+		require.Len(t, response.Devcontainers, 1)
+		assert.True(t, response.Devcontainers[0].Dirty,
+			"devcontainer should be marked as dirty after config file modification")
+	})
+
 	t.Run("SubAgentLifecycle", func(t *testing.T) {
 		t.Parallel()
 
