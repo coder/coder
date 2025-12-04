@@ -88,9 +88,14 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 					}
 				>
 					{mainDisplayRole.global ? (
-						<MUITooltip title="This user has this role for all organizations.">
-							<span>{displayName}*</span>
-						</MUITooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span>{displayName}*</span>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" sideOffset={8}>
+								This user has this role for all organizations.
+							</TooltipContent>
+						</Tooltip>
 					) : (
 						displayName
 					)}
