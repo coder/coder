@@ -16,7 +16,9 @@
             "id": "github",
             "optional": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "access_token": true
+          }
         },
         {
           "address": "data.coder_external_auth.gitlab",
@@ -30,7 +32,9 @@
             "id": "gitlab",
             "optional": true
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "access_token": true
+          }
         },
         {
           "address": "coder_agent.main",
