@@ -31,6 +31,7 @@ Agent Boundaries was introduced in 2.27 and is currently in Early Access. Agent 
 Performance, particularly at scale, improved across nearly every system layer. Database queries were optimized, several new indexes were added, and expensive migrations—such as migration 371—were reworked to complete faster on large deployments. Caching was introduced for Terraform installer files and workspace/agent lookups, reducing repeated calls. Notification performance improved through more efficient connection pooling. These changes collectively enable deployments with hundreds or thousands of workspaces to operate more smoothly and with lower resource contention.
 
 ### Server and API Updates
+
 Core server capabilities expanded significantly across the releases. Prebuild workflows gained timestamp-driven invalidation via last_invalidated_at, expired API keys began being automatically purged, and new API key-scope documentation was introduced to help administrators understand authorization boundaries. New API endpoints were added, including the ability to modify a task prompt or look up tasks by name. Template developers benefited from new Terraform directory-persistence capabilities (opt-in on a per-template basis) and improved `protobuf` configuration metadata.
 
 ### CLI Enhancements
