@@ -208,18 +208,24 @@ func (aw *agentWaiter) handleConnected(ctx context.Context, agent codersdk.Works
 		aw.sw.Log(time.Time{}, codersdk.LogLevelInfo, "==> ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.")
 	}
 
-	agent, err := aw.streamLogs(ctx, agent, follow, fetchedAgent)
-	if err != nil {
-		return err
-	}
-
-	// If we were following, wait until startup completes.
-	if follow {
-		agent, err = aw.pollWhile(ctx, agent, func(agent codersdk.WorkspaceAgent) bool {
-			return agent.LifecycleState.Starting()
-		})
+	// In non-blocking mode (Wait=false), we don't stream logs. This prevents
+	// dumping a wall of logs on users who explicitly pass --wait=no. The stage
+	// indicator is still shown, just not the log content. See issue #13580.
+	if aw.opts.Wait {
+		var err error
+		agent, err = aw.streamLogs(ctx, agent, follow, fetchedAgent)
 		if err != nil {
 			return err
+		}
+
+		// If we were following, wait until startup completes.
+		if follow {
+			agent, err = aw.pollWhile(ctx, agent, func(agent codersdk.WorkspaceAgent) bool {
+				return agent.LifecycleState.Starting()
+			})
+			if err != nil {
+				return err
+			}
 		}
 	}
 
