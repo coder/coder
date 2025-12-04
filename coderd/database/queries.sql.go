@@ -23064,8 +23064,8 @@ type GetWorkspacesRow struct {
 	AutomaticUpdates            AutomaticUpdates     `db:"automatic_updates" json:"automatic_updates"`
 	Favorite                    bool                 `db:"favorite" json:"favorite"`
 	NextStartAt                 sql.NullTime         `db:"next_start_at" json:"next_start_at"`
-	GroupACL                    json.RawMessage      `db:"group_acl" json:"group_acl"`
-	UserACL                     json.RawMessage      `db:"user_acl" json:"user_acl"`
+	GroupACL                    interface{}          `db:"group_acl" json:"group_acl"`
+	UserACL                     interface{}          `db:"user_acl" json:"user_acl"`
 	OwnerAvatarUrl              string               `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername               string               `db:"owner_username" json:"owner_username"`
 	OwnerName                   string               `db:"owner_name" json:"owner_name"`

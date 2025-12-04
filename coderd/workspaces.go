@@ -123,8 +123,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		data.templates[0],
 		api.Options.AllowWorkspaceRenames,
 		appStatus,
-		nil,
-		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -197,6 +195,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	if len(workspaceRows) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -240,22 +239,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
-		userData  map[uuid.UUID]database.User
-		groupData map[uuid.UUID]database.Group
-	)
-	if api.Experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
-		var err error
-		userData, groupData, err = findWorkspaceUsersAndGroups(ctx, api, workspaces)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching users and groups for workspaces.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	wss, err := convertWorkspaces(
 		ctx,
 		api.Experiments,
@@ -263,8 +246,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		apiKey.UserID,
 		workspaces,
 		data,
-		userData,
-		groupData,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -364,8 +345,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		data.templates[0],
 		api.Options.AllowWorkspaceRenames,
 		appStatus,
-		nil,
-		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -897,8 +876,6 @@ func createWorkspace(
 		template,
 		api.Options.AllowWorkspaceRenames,
 		codersdk.WorkspaceAppStatus{},
-		nil,
-		nil,
 	)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
@@ -1545,8 +1522,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		data.templates[0],
 		api.Options.AllowWorkspaceRenames,
 		appStatus,
-		nil,
-		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2127,8 +2102,6 @@ func (api *API) watchWorkspace(
 			data.templates[0],
 			api.Options.AllowWorkspaceRenames,
 			appStatus,
-			nil,
-			nil,
 		)
 		if err != nil {
 			_ = sendEvent(codersdk.ServerSentEvent{
@@ -2579,8 +2552,6 @@ func convertWorkspaces(
 	requesterID uuid.UUID,
 	workspaces []database.Workspace,
 	data workspaceData,
-	userData map[uuid.UUID]database.User,
-	groupData map[uuid.UUID]database.Group,
 ) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {
@@ -2622,8 +2593,6 @@ func convertWorkspaces(
 			template,
 			data.allowRenames,
 			appStatus,
-			userData,
-			groupData,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("convert workspace: %w", err)
@@ -2644,8 +2613,6 @@ func convertWorkspace(
 	template database.Template,
 	allowRenames bool,
 	latestAppStatus codersdk.WorkspaceAppStatus,
-	userData map[uuid.UUID]database.User,
-	groupData map[uuid.UUID]database.Group,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
 		return codersdk.Workspace{}, xerrors.Errorf("developer error: requesterID cannot be uuid.Nil!")
@@ -2701,7 +2668,7 @@ func convertWorkspace(
 		appStatus = nil
 	}
 
-	sharedWith := sharedWorkspaceActors(ctx, experiments, logger, workspace, userData, groupData)
+	sharedWith := sharedWorkspaceActors(ctx, experiments, logger, workspace)
 
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
@@ -2751,8 +2718,6 @@ func sharedWorkspaceActors(
 	experiments codersdk.Experiments,
 	logger slog.Logger,
 	workspace database.Workspace,
-	userData map[uuid.UUID]database.User,
-	groupData map[uuid.UUID]database.Group,
 ) *[]codersdk.SharedWorkspaceActor {
 	if !experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
 		return nil
@@ -2760,7 +2725,7 @@ func sharedWorkspaceActors(
 
 	out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
 
-	// Members
+	// Users
 	for id, aclEntry := range workspace.UserACL {
 		userID, err := uuid.Parse(id)
 		if err != nil {
@@ -2768,17 +2733,13 @@ func sharedWorkspaceActors(
 			continue
 		}
 
-		actor := codersdk.SharedWorkspaceActor{
+		out = append(out, codersdk.SharedWorkspaceActor{
 			ID:        userID,
 			ActorType: codersdk.SharedWorkspaceActorTypeUser,
 			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-		}
-		if userData != nil {
-			actor.Name = userData[userID].Name
-			actor.AvatarURL = userData[userID].AvatarURL
-		}
-
-		out = append(out, actor)
+			Name:      aclEntry.Name,
+			AvatarURL: aclEntry.AvatarURL,
+		})
 	}
 
 	// Groups
@@ -2789,17 +2750,13 @@ func sharedWorkspaceActors(
 			continue
 		}
 
-		actor := codersdk.SharedWorkspaceActor{
+		out = append(out, codersdk.SharedWorkspaceActor{
 			ID:        groupID,
 			ActorType: codersdk.SharedWorkspaceActorTypeGroup,
 			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-		}
-		if groupData != nil {
-			actor.Name = groupData[groupID].Name
-			actor.AvatarURL = groupData[groupID].AvatarURL
-		}
-
-		out = append(out, actor)
+			Name:      aclEntry.Name,
+			AvatarURL: aclEntry.AvatarURL,
+		})
 	}
 
 	return &out
@@ -2951,91 +2908,4 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 	}
 
 	return codersdk.WorkspaceRoleDeleted
-}
-
-// findWorkspaceUsersAndGroups fetches all users and groups present in
-// workspaces' ACLs.
-func findWorkspaceUsersAndGroups(
-	ctx context.Context,
-	api *API,
-	workspaces []database.Workspace,
-) (
-	userData map[uuid.UUID]database.User,
-	groupData map[uuid.UUID]database.Group,
-	err error,
-) {
-	if len(workspaces) == 0 {
-		return nil, nil, nil
-	}
-
-	// Get all the user IDs and group IDs that we need to fetch
-	var (
-		uids []uuid.UUID
-		gids []uuid.UUID
-	)
-	for _, ws := range workspaces {
-		// ws.UserACL is a map[id]...
-		for id := range ws.UserACL {
-			uid, err := uuid.Parse(id)
-			if err != nil {
-				api.Logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", ws.ID))
-				continue
-			}
-			uids = append(uids, uid)
-		}
-		for id := range ws.GroupACL {
-			gid, err := uuid.Parse(id)
-			if err != nil {
-				api.Logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", ws.ID))
-				continue
-			}
-			gids = append(gids, gid)
-		}
-	}
-
-	var eg errgroup.Group
-
-	// Fetch the users
-	if len(uids) > 0 {
-		eg.Go(func() (err error) {
-			uids = slice.Unique(uids)
-
-			// For context see https://github.com/coder/coder/pull/19375
-			// nolint:gocritic
-			users, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), uids)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("get users by IDs: %w", err)
-			}
-
-			userData = make(map[uuid.UUID]database.User, len(users))
-			for _, user := range users {
-				userData[user.ID] = user
-			}
-			return nil
-		})
-	}
-	// Fetch the groups
-	if len(gids) > 0 {
-		eg.Go(func() (err error) {
-			gids = slice.Unique(gids)
-
-			// For context see https://github.com/coder/coder/pull/19375
-			// nolint:gocritic
-			groupRows, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: gids})
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("get groups: %w", err)
-			}
-
-			groupData = make(map[uuid.UUID]database.Group, len(groupRows))
-			for _, groupRow := range groupRows {
-				groupData[groupRow.Group.ID] = groupRow.Group
-			}
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		return nil, nil, err
-	}
-
-	return userData, groupData, nil
 }
