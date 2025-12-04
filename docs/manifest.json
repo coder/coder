@@ -662,6 +662,12 @@
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
 									"state": ["premium"]
+								},
+								{
+									"title": "Startup Dependencies",
+									"description": "Coordinate workspace startup with dependency management",
+									"path": "./admin/templates/extending-templates/startup-dependencies.md",
+									"icon_path": "./images/icons/generic.svg"
 								}
 							]
 						},
