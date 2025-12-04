@@ -45,8 +45,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	//nolint:gocritic // The system purges old db records without user input.
-	ctx = dbauthz.AsSystemRestricted(ctx)
+	//nolint:gocritic // Use dbpurge-specific subject with minimal permissions.
+	ctx = dbauthz.AsDBPurge(ctx)
 
 	iterationDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
