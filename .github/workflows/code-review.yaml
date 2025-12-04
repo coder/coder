@@ -155,40 +155,51 @@ jobs:
                Or use: git diff main...pr-${PR_NUMBER}
                Note: GH_TOKEN is now configured for gh CLI
 
-            4. Analyze the Changes
-               - Understand what the PR is trying to accomplish
-               - Review the code for quality, clarity, and correctness
-               - Check for potential bugs, edge cases, or security issues
-               - Verify error handling and logging
-               - Check for proper testing coverage
-               - Look for performance issues
-               - Verify adherence to coding standards and best practices
+            4. PHASE 1: Read and Understand (DO NOT comment yet)
+               REMEMBER: It's perfectly valid to find 0 issues!
+               a) Read the entire PR diff carefully
+               b) Understand the PR's purpose and scope
+               c) Note areas of concern for further analysis
+               d) DO NOT start writing comments yet
 
-            5. Review Specific Areas
-               - Code structure and organization
-               - Naming conventions and readability
-               - Proper use of types and interfaces
-               - Error handling patterns
-               - Test coverage and quality
-               - Security considerations
-               - Performance implications
-               - Database query efficiency (if applicable)
-               - Proper use of context and cancellation (Go code)
-               - Authorization checks (dbauthz patterns)
+            5. PHASE 2: Analyze Each Potential Issue (Question-based)
+               For each area of concern, ask yourself:
 
-            6. Check Against Project Standards
-               - Review against Uber Go Style Guide (for Go code)
-               - Check commit message format
-               - Verify proper comments (explain why, not what)
-               - Ensure no unnecessary changes to unrelated code
-               - Check for proper line wrapping (80 chars for comments)
-               - Ensure style matches existing codebase patterns
-               - Flag style inconsistencies with Coder conventions
+               BEFORE commenting, verify:
+               Q: "Is this code actually incorrect or could it cause problems?"
+                  → If no, skip it
+               Q: "Does my suggested fix actually differ from the current code?"
+                  → If no, skip it
+               Q: "Would this issue impact functionality, security, or maintainability?"
+                  → If no, probably skip it
+               Q: "Is this consistent with Coder codebase patterns?"
+                  → Check similar code in the repo first
 
-            7. Create ONE review with ALL inline comments using GitHub's review API
-               CRITICAL: Submit everything as a single review, not separate comments
+               Focus on:
+               - Security vulnerabilities (auth, injection, secrets)
+               - Logic bugs that cause incorrect behavior
+               - Missing error handling for failure cases
+               - Performance issues (N+1 queries, unbounded loops)
+               - Missing tests for new functionality
+               - Style that conflicts with existing patterns
 
-            8. Use GitHub's native suggestion format for committable changes
+            6. PHASE 3: Build Review (Only real issues)
+               Create comments ONLY for issues that passed Phase 2 questions
+               Each comment should:
+               - Explain WHAT is wrong and WHY it matters
+               - Provide a concrete, different fix in \`\`\`suggestion block
+               - Be brief and actionable
+
+               IMPORTANT: If you find 0 issues, that's valid! Don't invent problems.
+
+            7. PHASE 4: Self-Critique Before Submitting
+               Review YOUR comments:
+               - Remove any where suggested code == current code
+               - Remove trivial style nitpicks
+               - Remove vague or obvious comments
+               - Quality over quantity - 0 real issues is better than 1 false positive
+
+            8. Submit ONE review with ALL inline comments via GitHub API
 
           HOW TO POST A REVIEW WITH INLINE COMMENTS (SIMPLIFIED):
 
@@ -204,7 +215,7 @@ jobs:
             {
               "event": "COMMENT",
               "commit_id": "PUT_COMMIT_SHA_HERE",
-              "body": "## 🔍 Code Review\n\n[2-3 sentence summary of PR and overall assessment]\n\n### 📊 Issues Found\n- **Critical:** X (security, bugs)\n- **Important:** Y (logic, tests)\n- **Minor:** Z (style)\n\n### ✅ Highlights\n[Optional - only if notable patterns or solutions]\n\nSee inline comments for details.\n\n---\n*AI review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*",
+              "body": "## 🔍 Code Review\n\n[What this PR does in 1-2 sentences]\n\n**Found:** X critical, Y important, Z minor issues\n[If 0 issues: **Looks good** - no issues found]\n\nSee inline comments for details.\n\n---\n*AI review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*",
               "comments": [
                 {
                   "path": "coderd/oauth2.go",
@@ -257,30 +268,21 @@ jobs:
             3. Submit ONE review with ALL inline comments at once
             4. Include a summary body in the review
 
-          SUMMARY COMMENT FORMAT (Be concise but helpful):
+          SUMMARY COMMENT FORMAT:
           ## 🔍 Code Review
 
-          [2-3 sentence summary of what the PR does and overall quality]
+          [1-2 sentences: what does this PR do?]
 
-          ### 📊 Issues Found
-          - **Critical:** X (security, bugs, breaking changes)
-          - **Important:** Y (logic issues, missing tests)
-          - **Minor:** Z (style, improvements)
+          **Found:** X critical, Y important, Z minor issues
+          [If 0 issues: **Looks good** - no issues found]
+          [Optional 1-liner: Notable strength or concern]
 
-          ### ✅ Highlights
-          [Only mention if truly notable - good patterns, clever solutions, etc. Skip if nothing special.]
-
-          See inline comments for specific suggestions.
+          [If issues: "See inline comments for details."]
 
           ---
-          *AI-generated review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+          *AI review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
 
-          RULES FOR SUMMARY:
-          - Keep total under 20 lines
-          - Be specific but concise
-          - Don't repeat inline comment details
-          - Skip "Highlights" section if PR is routine
-          - Focus on actionable feedback
+          Keep it SHORT - aim for 8-12 lines total, skip fluff
 
           CRITICAL REQUIREMENTS:
             1. Post inline comments on SPECIFIC LINES where issues exist
@@ -290,18 +292,22 @@ jobs:
             5. Make sure suggestion syntax is exactly: \`\`\`suggestion (no language tag)
             6. Post summary comment after all inline comments are done
 
-          EXAMPLE INLINE COMMENT IN JSON:
+          INLINE COMMENT STRUCTURE:
             {
-              "path": "coderd/oauth2.go",
+              "path": "path/to/file.go",
               "line": 123,
               "side": "RIGHT",
-              "body": "**Issue:** Error not wrapped with context. Makes debugging harder.\n\n\`\`\`suggestion\nif err != nil {\n    return xerrors.Errorf(\"fetch user data: %w\", err)\n}\n\`\`\`"
+              "body": "**Issue:** [What's wrong and why it matters]\n\n\`\`\`suggestion\n[Fixed code that differs from original]\n\`\`\`"
             }
 
-            PRO TIP: Build the JSON file incrementally as you review:
+            Example of good comment:
+            "**Issue:** Error not wrapped - makes debugging production issues difficult.\n\n\`\`\`suggestion\nreturn xerrors.Errorf(\"fetch user: %w\", err)\n\`\`\`"
+
+            Build incrementally:
             - Start with empty comments array
-            - Add each issue as you find it
-            - Submit once at the end
+            - Add issues that pass Phase 2 questions
+            - Review and prune before submitting
+            - If comments array is empty (no issues), that's OK! Submit review with just summary
 
           SUGGESTION BLOCK RULES:
             - Use \`\`\`suggestion (not \`\`\`go or any other language)
@@ -314,36 +320,44 @@ jobs:
               This comments on lines 10-15 and your suggestion replaces all of them
             - Always use side="RIGHT" to comment on the PR changes
 
-          BEST PRACTICES:
-            1. Review the ENTIRE diff before commenting
-            2. Build the review.json file as you go
-            3. Be helpful and concise - explain WHY briefly
-            4. Prioritize: security > bugs > logic > style
-            5. Style matters - flag inconsistencies with Coder codebase patterns
-            6. Limit to 15-20 most important issues
-            7. Summary should be 15-20 lines max
-            8. Skip "Highlights" section if nothing exceptional
-            9. Don't repeat inline comment details in summary
-            10. Use "COMMENT" event (neutral feedback)
-            11. Validate JSON before submitting: jq . review.json
+          REVIEW PRINCIPLES:
 
-          COMMON MISTAKES TO AVOID:
-            - Don't be overly verbose - summary should be 15-20 lines
-            - Don't write paragraphs explaining obvious issues
-            - Don't include "Highlights" if nothing is exceptional
-            - Don't use language tags in suggestion blocks (no \`\`\`go)
-            - Don't forget to get the commit SHA first
-            - Don't post individual comments - batch in ONE review
-            - Don't ignore style issues that break Coder conventions
-            - Don't suggest identical code (verify before/after differ)
-            - Don't repeat the same issue multiple times
+            Priority Order (focus on impact):
+            1. Security issues (authentication, authorization, injection, secrets)
+            2. Functional bugs (incorrect logic, missing error handling)
+            3. Performance problems (N+1 queries, memory leaks, unbounded operations)
+            4. Missing tests for new behavior
+            5. Style issues that conflict with Coder patterns (Uber Go Style Guide)
+
+            Quality Guidelines:
+            - Question your assumptions - ask "Is this actually wrong?"
+            - Verify suggestions differ from current code
+            - Finding 0 issues is a valid outcome - don't force it
+            - Comment if it matters, skip if it doesn't
+            - Explain impact, not just what's wrong
+            - Better to approve good code than invent problems
+
+            Technical Notes:
+            - "\${VAR}" is properly quoted, don't suggest changes
+            - set -euo pipefail: only for scripts with conditionals/loops/API calls
+            - Match existing code patterns before suggesting style changes
+
+          SUBMISSION CHECKLIST:
+            Before submitting review.json:
+            □ Read through all comments once more
+            □ Verify each suggestion actually changes something
+            □ Confirm issues are real, not false positives
+            □ If 0 issues found, that's valid - don't force problems
+            □ Check JSON syntax: jq . review.json
+            □ Summary is concise (8-12 lines)
+            □ No language tags in \`\`\`suggestion blocks
+            □ Using event="COMMENT" not REQUEST_CHANGES
 
           ERROR HANDLING:
             Before submitting the review:
-            1. Validate JSON syntax: jq . review.json
-            2. Check that GH_TOKEN is set: echo \$GH_TOKEN
-            3. Verify commit SHA is valid: echo \$COMMIT_SHA
-            4. Test API access: gh api user --jq '.login'
+            1. Check that GH_TOKEN is set: echo \$GH_TOKEN
+            2. Verify commit SHA is valid: echo \$COMMIT_SHA
+            3. Test API access: gh api user --jq '.login'
 
             If gh api fails:
             1. Check error message for specific issue
