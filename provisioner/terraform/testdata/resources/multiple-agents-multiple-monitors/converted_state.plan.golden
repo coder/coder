@@ -43,8 +43,7 @@
               "enabled": true,
               "threshold": 80
             }
-          },
-          "api_key_scope": "all"
+          }
         },
         {
           "name": "dev2",
@@ -76,8 +75,7 @@
                 "threshold": 80
               }
             ]
-          },
-          "api_key_scope": "all"
+          }
         }
       ]
     }
