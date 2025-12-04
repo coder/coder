@@ -1765,7 +1765,10 @@ func (q *querier) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOld
 }
 
 func (q *querier) DeleteOldBoundaryNetworkAuditLogs(ctx context.Context, before time.Time) (int64, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldBoundaryNetworkAuditLogs(ctx, before)
 }
 
 func (q *querier) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
