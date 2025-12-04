@@ -558,7 +558,29 @@ primary purpose of this feature is to warn and discourage users from downloading
 confidential resources to their local machines.
 
 For more advanced security needs, consider adopting an endpoint security
-solution.
+solution. These are third-party tools that operate at the operating system or
+network level to monitor and control data movement, providing stronger
+enforcement than application-layer controls.
+
+Endpoint security solutions typically fall into these categories:
+
+- **Data Loss Prevention (DLP)**: Software that monitors, detects, and blocks
+  sensitive data transfers based on content inspection and policy rules.
+- **Endpoint Detection and Response (EDR)**: Agents installed on user machines
+  that can monitor file operations and network activity in real-time.
+- **Network-level DLP**: Solutions that inspect traffic at the network boundary
+  to prevent unauthorized data exfiltration.
+
+Examples of endpoint security products include:
+
+- [CrowdStrike Falcon](https://www.crowdstrike.com/products/endpoint-security/)
+- [Microsoft Defender for Endpoint](https://www.microsoft.com/en-us/security/business/endpoint-security/microsoft-defender-endpoint)
+- [VMware Carbon Black](https://www.vmware.com/products/carbon-black-endpoint.html)
+- [Symantec Endpoint Security](https://www.broadcom.com/products/cybersecurity/endpoint)
+
+These tools can enforce data protection policies regardless of how users attempt
+to transfer files, complementing Coder's built-in controls with OS-level and
+network-level enforcement.
 
 ## How do I change the access URL for my Coder server?
 
