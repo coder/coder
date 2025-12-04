@@ -123,6 +123,39 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				wantError:       true,
 				wantContainerID: true,
 			},
+			{
+				name:      "with cache-from single",
+				logFile:   "up.log",
+				workspace: "/test/workspace",
+				opts: []agentcontainers.DevcontainerCLIUpOptions{
+					agentcontainers.WithCacheFrom("ghcr.io/coder/test:cache"),
+				},
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace --cache-from ghcr.io/coder/test:cache",
+				wantError:       false,
+				wantContainerID: true,
+			},
+			{
+				name:      "with cache-from multiple",
+				logFile:   "up.log",
+				workspace: "/test/workspace",
+				opts: []agentcontainers.DevcontainerCLIUpOptions{
+					agentcontainers.WithCacheFrom("ghcr.io/coder/test:cache", "ghcr.io/coder/test:latest"),
+				},
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace --cache-from ghcr.io/coder/test:cache --cache-from ghcr.io/coder/test:latest",
+				wantError:       false,
+				wantContainerID: true,
+			},
+			{
+				name:      "cache-from filters empty strings",
+				logFile:   "up.log",
+				workspace: "/test/workspace",
+				opts: []agentcontainers.DevcontainerCLIUpOptions{
+					agentcontainers.WithCacheFrom("", "ghcr.io/coder/test:latest", ""),
+				},
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace --cache-from ghcr.io/coder/test:latest",
+				wantError:       false,
+				wantContainerID: true,
+			},
 		}
 
 		for _, tt := range tests {

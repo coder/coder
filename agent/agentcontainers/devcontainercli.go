@@ -123,6 +123,19 @@ func WithRemoveExistingContainer() DevcontainerCLIUpOptions {
 	}
 }
 
+// WithCacheFrom adds --cache-from arguments for build layer caching.
+// Each image reference will be used as a potential cache source during
+// devcontainer image building.
+func WithCacheFrom(images ...string) DevcontainerCLIUpOptions {
+	return func(o *DevcontainerCLIUpConfig) {
+		for _, img := range images {
+			if img != "" {
+				o.Args = append(o.Args, "--cache-from", img)
+			}
+		}
+	}
+}
+
 // WithUpOutput sets additional stdout and stderr writers for logs
 // during Up operations.
 func WithUpOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {

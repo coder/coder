@@ -190,6 +190,9 @@ resource "coder_devcontainer" "repo" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "~/${module.git-clone[0].folder_name}"
+
+  # Optional: Speed up builds using external cache sources.
+  # build_cache_from = ["ghcr.io/your-org/your-image:cache"]
 }
 
 resource "docker_volume" "home_volume" {

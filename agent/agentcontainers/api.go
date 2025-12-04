@@ -1351,6 +1351,11 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
 	upOptions = append(upOptions, opts...)
 
+	// Apply cache options from devcontainer config.
+	if len(dc.BuildCacheFrom) > 0 {
+		upOptions = append(upOptions, WithCacheFrom(dc.BuildCacheFrom...))
+	}
+
 	containerID, upErr := api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
 	if upErr != nil {
 		// No need to log if the API is closing (context canceled), as this

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"slices"
 	"strings"
 	"time"
 
@@ -411,6 +412,7 @@ type WorkspaceAgentDevcontainer struct {
 	Name            string    `json:"name"`
 	WorkspaceFolder string    `json:"workspace_folder"`
 	ConfigPath      string    `json:"config_path,omitempty"`
+	BuildCacheFrom  []string  `json:"build_cache_from,omitempty"`
 
 	// Additional runtime fields.
 	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
@@ -425,6 +427,7 @@ func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) boo
 	return d.ID == other.ID &&
 		d.Name == other.Name &&
 		d.WorkspaceFolder == other.WorkspaceFolder &&
+		slices.Equal(d.BuildCacheFrom, other.BuildCacheFrom) &&
 		d.Status == other.Status &&
 		d.Dirty == other.Dirty &&
 		(d.Container == nil && other.Container == nil ||
