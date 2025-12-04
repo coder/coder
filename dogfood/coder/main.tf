@@ -333,7 +333,7 @@ data "coder_parameter" "vscode_channel" {
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
-  version          = "1.0.32"
+  version          = "1.0.33"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
@@ -341,7 +341,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.2"
+  version  = "1.2.3"
   agent_id = coder_agent.dev.id
 }
 
@@ -357,7 +357,7 @@ module "git-config" {
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.2.1"
+  version  = "1.2.2"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -373,7 +373,7 @@ module "personalize" {
 module "mux" {
   count     = data.coder_workspace.me.start_count
   source    = "registry.coder.com/coder/mux/coder"
-  version   = "1.0.2"
+  version   = "1.0.4"
   agent_id  = coder_agent.dev.id
   subdomain = true
 }
@@ -391,7 +391,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.4.2"
+  version                 = "1.4.3"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -429,7 +429,7 @@ module "coder-login" {
 module "cursor" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.3.3"
+  version  = "1.4.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -437,7 +437,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.2.1"
+  version  = "1.3.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
