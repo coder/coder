@@ -149,8 +149,8 @@ feature from the [Coder features repository](https://github.com/coder/devcontain
 ## Rebuilding dev containers
 
 When you modify your `devcontainer.json`, you need to rebuild the container for
-changes to take effect. Coder detects changes and shows a **dirty state
-indicator** next to the rebuild button.
+changes to take effect. Coder detects changes and shows an **Outdated** status
+next to the dev container. Hover over it to see details and a link to rebuild.
 
 The **Rebuild** button is always available for running dev containers. Click it
 to recreate your dev container with the updated configuration.

@@ -22,7 +22,7 @@ for setup details.
 
 - Automatic dev container detection from repositories
 - Seamless container startup during workspace initialization
-- Change detection with dirty state indicators
+- Change detection with outdated status indicator
 - On-demand container rebuild via dashboard button
 - Integrated IDE experience with VS Code
 - Direct SSH access to containers
