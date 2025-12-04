@@ -20,7 +20,7 @@ export const BoundaryLogsRow: FC<BoundaryLogsRowProps> = ({ log }) => {
 				<TableCell>{log.agent_name}</TableCell>
 				<TableCell className="font-mono text-sm">{log.domain}</TableCell>
 				<TableCell>
-					<Badge variant={log.action === "allow" ? "success" : "error"}>
+					<Badge variant={log.action === "allow" ? "green" : "destructive"}>
 						{log.action}
 					</Badge>
 				</TableCell>

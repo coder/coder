@@ -4,10 +4,9 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { Tabs, TabsList, TabsTrigger } from "components/Tabs/Tabs";
+import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import type { FC, PropsWithChildren } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
-import { cn } from "utils/cn";
+import { Outlet, useLocation } from "react-router";
 import { AIBridgeHelpTooltip } from "./AIBridgeHelpTooltip";
 
 const AIBridgeLayout: FC<PropsWithChildren> = () => {
@@ -29,28 +28,14 @@ const AIBridgeLayout: FC<PropsWithChildren> = () => {
 					Manage usage for your organization.
 				</PageHeaderSubtitle>
 			</PageHeader>
-			<Tabs value={currentTab} className="mb-6">
+			<Tabs active={currentTab} className="mb-6">
 				<TabsList>
-					<NavLink to="request-logs">
-						{({ isActive }) => (
-							<TabsTrigger
-								value="request-logs"
-								className={cn(!isActive && "text-content-secondary")}
-							>
-								Request Logs
-							</TabsTrigger>
-						)}
-					</NavLink>
-					<NavLink to="boundary-logs">
-						{({ isActive }) => (
-							<TabsTrigger
-								value="boundary-logs"
-								className={cn(!isActive && "text-content-secondary")}
-							>
-								Boundary Logs
-							</TabsTrigger>
-						)}
-					</NavLink>
+					<TabLink to="request-logs" value="request-logs">
+						Request Logs
+					</TabLink>
+					<TabLink to="boundary-logs" value="boundary-logs">
+						Boundary Logs
+					</TabLink>
 				</TabsList>
 			</Tabs>
 			<Outlet />

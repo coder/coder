@@ -1,6 +1,6 @@
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import { OrganizationsFilter, type OrganizationsFilterMenu } from "modules/tableFiltering/options";
+import { OrganizationsMenu, type OrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { ActionFilter, type ActionFilterMenu } from "./filter";
 
@@ -44,7 +44,7 @@ export const BoundaryLogsFilter: FC<BoundaryLogsFilterProps> = ({
 					<UserMenu menu={menus.user} />
 					<ActionFilter menu={menus.action} />
 					{menus.organization && (
-						<OrganizationsFilter menu={menus.organization} />
+						<OrganizationsMenu menu={menus.organization} />
 					)}
 				</>
 			}
