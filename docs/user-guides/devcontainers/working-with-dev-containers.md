@@ -150,7 +150,6 @@ feature from the [Coder features repository](https://github.com/coder/devcontain
 
 When you modify your `devcontainer.json`, you need to rebuild the container for
 changes to take effect. Coder detects changes and shows an **Outdated** status
-next to the dev container. Hover over it to see details and a link to rebuild.
+next to the dev container.
 
-The **Rebuild** button is always available for running dev containers. Click it
-to recreate your dev container with the updated configuration.
+Click **Rebuild** to recreate your dev container with the updated configuration.
