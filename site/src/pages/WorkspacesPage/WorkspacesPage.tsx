@@ -1,7 +1,7 @@
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { useWorkspaceUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
@@ -157,7 +157,7 @@ const useWorkspacesFilter = ({
 
 	const { permissions } = useAuthenticated();
 	const canFilterByUser = permissions.viewDeploymentValues;
-	const userMenu = useUserFilterMenu({
+	const userMenu = useWorkspaceUserFilterMenu({
 		value: filter.values.owner,
 		onChange: (option) =>
 			filter.update({ ...filter.values, owner: option?.value }),

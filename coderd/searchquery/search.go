@@ -111,7 +111,15 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 
 	parser := httpapi.NewQueryParamParser()
 	filter.WorkspaceIds = parser.UUIDs(values, []uuid.UUID{}, "id")
-	filter.OwnerUsername = parser.String(values, "", "owner")
+	ownerValue := parser.String(values, "", "owner")
+	// If owner value contains '@', treat it as email, otherwise as username
+	if ownerValue != "" && ownerValue != "me" && strings.Contains(ownerValue, "@") {
+		filter.OwnerEmail = ownerValue
+		filter.OwnerUsername = ""
+	} else {
+		filter.OwnerUsername = ownerValue
+		filter.OwnerEmail = ""
+	}
 	filter.TemplateName = parser.String(values, "", "template")
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))

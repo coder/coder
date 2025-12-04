@@ -3060,13 +3060,12 @@ type VisibleUser struct {
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
-// Joins in the display name information such as username, avatar, and organization name.
+// Joins in the display name information such as username, avatar, email, and organization name.
 type Workspace struct {
 	ID                      uuid.UUID        `db:"id" json:"id"`
 	CreatedAt               time.Time        `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time        `db:"updated_at" json:"updated_at"`
 	OwnerID                 uuid.UUID        `db:"owner_id" json:"owner_id"`
-	OwnerEmail              string           `db:"owner_email" json:"owner_email"`
 	OrganizationID          uuid.UUID        `db:"organization_id" json:"organization_id"`
 	TemplateID              uuid.UUID        `db:"template_id" json:"template_id"`
 	Deleted                 bool             `db:"deleted" json:"deleted"`
@@ -3081,6 +3080,7 @@ type Workspace struct {
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OwnerEmail              string           `db:"owner_email" json:"owner_email"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
