@@ -1516,6 +1516,14 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
+func (q *querier) CountBoundaryNetworkAuditLogs(ctx context.Context, arg database.CountBoundaryNetworkAuditLogsParams) (int64, error) {
+	// Boundary network audit logs are readable by users who can read audit logs.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+		return 0, err
+	}
+	return q.db.CountBoundaryNetworkAuditLogs(ctx, arg)
+}
+
 func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	// Just like the actual query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -2201,7 +2209,11 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetBoundaryNetworkAuditLogs(ctx context.Context, arg database.GetBoundaryNetworkAuditLogsParams) ([]database.GetBoundaryNetworkAuditLogsRow, error) {
-	panic("not implemented")
+	// Boundary network audit logs are readable by users who can read audit logs.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+		return nil, err
+	}
+	return q.db.GetBoundaryNetworkAuditLogs(ctx, arg)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {

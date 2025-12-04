@@ -1865,6 +1865,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getBoundaryNetworkAuditLogs = async (
+		options: TypesGen.BoundaryNetworkAuditLogsRequest,
+	): Promise<TypesGen.BoundaryNetworkAuditLogResponse> => {
+		const url = getURLWithSearchParams(
+			"/api/v2/boundary-network-audit-logs",
+			options,
+		);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
 	getTemplateDAUs = async (
 		templateId: string,
 	): Promise<TypesGen.DAUsResponse> => {

@@ -337,6 +337,21 @@ func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepare
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
 }
 
+// CountBoundaryNetworkAuditLogs mocks base method.
+func (m *MockStore) CountBoundaryNetworkAuditLogs(ctx context.Context, arg database.CountBoundaryNetworkAuditLogsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountBoundaryNetworkAuditLogs", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountBoundaryNetworkAuditLogs indicates an expected call of CountBoundaryNetworkAuditLogs.
+func (mr *MockStoreMockRecorder) CountBoundaryNetworkAuditLogs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBoundaryNetworkAuditLogs", reflect.TypeOf((*MockStore)(nil).CountBoundaryNetworkAuditLogs), ctx, arg)
+}
+
 // CountConnectionLogs mocks base method.
 func (m *MockStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	m.ctrl.T.Helper()

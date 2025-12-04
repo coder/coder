@@ -207,6 +207,13 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountBoundaryNetworkAuditLogs(ctx context.Context, arg database.CountBoundaryNetworkAuditLogsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountBoundaryNetworkAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountConnectionLogs(ctx, arg)

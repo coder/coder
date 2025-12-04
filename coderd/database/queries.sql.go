@@ -1980,6 +1980,72 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const countBoundaryNetworkAuditLogs = `-- name: CountBoundaryNetworkAuditLogs :one
+SELECT COUNT(*) AS count
+FROM
+    boundary_network_audit_logs
+WHERE
+    -- Filter by organization_id
+    CASE
+        WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            boundary_network_audit_logs.organization_id = $1
+        ELSE true
+    END
+    -- Filter by workspace_id
+    AND CASE
+        WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            boundary_network_audit_logs.workspace_id = $2
+        ELSE true
+    END
+    -- Filter by workspace_owner_id
+    AND CASE
+        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            boundary_network_audit_logs.workspace_owner_id = $3
+        ELSE true
+    END
+    -- Filter by action
+    AND CASE
+        WHEN $4 :: text != '' THEN
+            boundary_network_audit_logs.action = $4 :: boundary_network_action
+        ELSE true
+    END
+    -- Filter by time range (after)
+    AND CASE
+        WHEN $5 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+            boundary_network_audit_logs.time >= $5
+        ELSE true
+    END
+    -- Filter by time range (before)
+    AND CASE
+        WHEN $6 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+            boundary_network_audit_logs.time <= $6
+        ELSE true
+    END
+`
+
+type CountBoundaryNetworkAuditLogsParams struct {
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	Action           string    `db:"action" json:"action"`
+	TimeAfter        time.Time `db:"time_after" json:"time_after"`
+	TimeBefore       time.Time `db:"time_before" json:"time_before"`
+}
+
+func (q *sqlQuerier) CountBoundaryNetworkAuditLogs(ctx context.Context, arg CountBoundaryNetworkAuditLogsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countBoundaryNetworkAuditLogs,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.WorkspaceOwnerID,
+		arg.Action,
+		arg.TimeAfter,
+		arg.TimeBefore,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteOldBoundaryNetworkAuditLogs = `-- name: DeleteOldBoundaryNetworkAuditLogs :execrows
 DELETE FROM boundary_network_audit_logs
 WHERE time < $1::timestamptz
@@ -2046,6 +2112,8 @@ WHERE
 ORDER BY
     boundary_network_audit_logs.time DESC
 LIMIT
+    $8::int
+OFFSET
     $7::int
 `
 
@@ -2056,6 +2124,7 @@ type GetBoundaryNetworkAuditLogsParams struct {
 	Action           string    `db:"action" json:"action"`
 	TimeAfter        time.Time `db:"time_after" json:"time_after"`
 	TimeBefore       time.Time `db:"time_before" json:"time_before"`
+	OffsetOpt        int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt         int32     `db:"limit_opt" json:"limit_opt"`
 }
 
@@ -2084,6 +2153,7 @@ func (q *sqlQuerier) GetBoundaryNetworkAuditLogs(ctx context.Context, arg GetBou
 		arg.Action,
 		arg.TimeAfter,
 		arg.TimeBefore,
+		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
 	if err != nil {

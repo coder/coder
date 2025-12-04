@@ -143,6 +143,63 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	return filter, countFilter, parser.Errors
 }
 
+// BoundaryNetworkAuditLogs parses search query parameters for boundary network audit logs.
+//
+// Supported query parameters:
+//   - organization: string (organization name)
+//   - workspace_owner: string (username, or "me")
+//   - workspace_id: UUID
+//   - action: string ("allow" or "deny")
+//   - time_after: RFC3339Nano timestamp
+//   - time_before: RFC3339Nano timestamp
+func BoundaryNetworkAuditLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetBoundaryNetworkAuditLogsParams, database.CountBoundaryNetworkAuditLogsParams, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
+		return database.GetBoundaryNetworkAuditLogsParams{}, database.CountBoundaryNetworkAuditLogsParams{}, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetBoundaryNetworkAuditLogsParams{
+		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
+		WorkspaceOwnerID: uuid.Nil,
+		WorkspaceID:      parser.UUID(values, uuid.Nil, "workspace_id"),
+		Action:           string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[codersdk.BoundaryNetworkAction])),
+		TimeAfter:        parser.Time3339Nano(values, time.Time{}, "time_after"),
+		TimeBefore:       parser.Time3339Nano(values, time.Time{}, "time_before"),
+	}
+
+	workspaceOwner := parser.String(values, "", "workspace_owner")
+	if workspaceOwner == "me" {
+		filter.WorkspaceOwnerID = apiKey.UserID
+	} else if workspaceOwner != "" {
+		// Look up workspace owner by username
+		user, err := db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			Username: workspaceOwner,
+		})
+		if err == nil {
+			filter.WorkspaceOwnerID = user.ID
+		}
+	}
+
+	// This MUST be kept in sync with the above
+	countFilter := database.CountBoundaryNetworkAuditLogsParams{
+		OrganizationID:   filter.OrganizationID,
+		WorkspaceOwnerID: filter.WorkspaceOwnerID,
+		WorkspaceID:      filter.WorkspaceID,
+		Action:           filter.Action,
+		TimeAfter:        filter.TimeAfter,
+		TimeBefore:       filter.TimeBefore,
+	}
+	parser.ErrorExcessParams(values)
+	return filter, countFilter, parser.Errors
+}
+
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
