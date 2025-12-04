@@ -337,19 +337,19 @@ func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepare
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
 }
 
-// CountBoundaryNetworkAuditLogs mocks base method.
-func (m *MockStore) CountBoundaryNetworkAuditLogs(ctx context.Context, arg database.CountBoundaryNetworkAuditLogsParams) (int64, error) {
+// CountBoundaryAuditLogs mocks base method.
+func (m *MockStore) CountBoundaryAuditLogs(ctx context.Context, arg database.CountBoundaryAuditLogsParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountBoundaryNetworkAuditLogs", ctx, arg)
+	ret := m.ctrl.Call(m, "CountBoundaryAuditLogs", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CountBoundaryNetworkAuditLogs indicates an expected call of CountBoundaryNetworkAuditLogs.
-func (mr *MockStoreMockRecorder) CountBoundaryNetworkAuditLogs(ctx, arg any) *gomock.Call {
+// CountBoundaryAuditLogs indicates an expected call of CountBoundaryAuditLogs.
+func (mr *MockStoreMockRecorder) CountBoundaryAuditLogs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBoundaryNetworkAuditLogs", reflect.TypeOf((*MockStore)(nil).CountBoundaryNetworkAuditLogs), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBoundaryAuditLogs", reflect.TypeOf((*MockStore)(nil).CountBoundaryAuditLogs), ctx, arg)
 }
 
 // CountConnectionLogs mocks base method.
@@ -783,19 +783,19 @@ func (mr *MockStoreMockRecorder) DeleteOldAuditLogs(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAuditLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldAuditLogs), ctx, arg)
 }
 
-// DeleteOldBoundaryNetworkAuditLogs mocks base method.
-func (m *MockStore) DeleteOldBoundaryNetworkAuditLogs(ctx context.Context, before time.Time) (int64, error) {
+// DeleteOldBoundaryAuditLogs mocks base method.
+func (m *MockStore) DeleteOldBoundaryAuditLogs(ctx context.Context, before time.Time) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldBoundaryNetworkAuditLogs", ctx, before)
+	ret := m.ctrl.Call(m, "DeleteOldBoundaryAuditLogs", ctx, before)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// DeleteOldBoundaryNetworkAuditLogs indicates an expected call of DeleteOldBoundaryNetworkAuditLogs.
-func (mr *MockStoreMockRecorder) DeleteOldBoundaryNetworkAuditLogs(ctx, before any) *gomock.Call {
+// DeleteOldBoundaryAuditLogs indicates an expected call of DeleteOldBoundaryAuditLogs.
+func (mr *MockStoreMockRecorder) DeleteOldBoundaryAuditLogs(ctx, before any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldBoundaryNetworkAuditLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldBoundaryNetworkAuditLogs), ctx, before)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldBoundaryAuditLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldBoundaryAuditLogs), ctx, before)
 }
 
 // DeleteOldConnectionLogs mocks base method.
@@ -1708,19 +1708,19 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
 }
 
-// GetBoundaryNetworkAuditLogs mocks base method.
-func (m *MockStore) GetBoundaryNetworkAuditLogs(ctx context.Context, arg database.GetBoundaryNetworkAuditLogsParams) ([]database.GetBoundaryNetworkAuditLogsRow, error) {
+// GetBoundaryAuditLogs mocks base method.
+func (m *MockStore) GetBoundaryAuditLogs(ctx context.Context, arg database.GetBoundaryAuditLogsParams) ([]database.GetBoundaryAuditLogsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBoundaryNetworkAuditLogs", ctx, arg)
-	ret0, _ := ret[0].([]database.GetBoundaryNetworkAuditLogsRow)
+	ret := m.ctrl.Call(m, "GetBoundaryAuditLogs", ctx, arg)
+	ret0, _ := ret[0].([]database.GetBoundaryAuditLogsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBoundaryNetworkAuditLogs indicates an expected call of GetBoundaryNetworkAuditLogs.
-func (mr *MockStoreMockRecorder) GetBoundaryNetworkAuditLogs(ctx, arg any) *gomock.Call {
+// GetBoundaryAuditLogs indicates an expected call of GetBoundaryAuditLogs.
+func (mr *MockStoreMockRecorder) GetBoundaryAuditLogs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBoundaryNetworkAuditLogs", reflect.TypeOf((*MockStore)(nil).GetBoundaryNetworkAuditLogs), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBoundaryAuditLogs", reflect.TypeOf((*MockStore)(nil).GetBoundaryAuditLogs), ctx, arg)
 }
 
 // GetConnectionLogsOffset mocks base method.
@@ -5127,18 +5127,18 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), ctx, arg)
 }
 
-// InsertBoundaryNetworkAuditLogs mocks base method.
-func (m *MockStore) InsertBoundaryNetworkAuditLogs(ctx context.Context, arg database.InsertBoundaryNetworkAuditLogsParams) error {
+// InsertBoundaryAuditLogs mocks base method.
+func (m *MockStore) InsertBoundaryAuditLogs(ctx context.Context, arg database.InsertBoundaryAuditLogsParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertBoundaryNetworkAuditLogs", ctx, arg)
+	ret := m.ctrl.Call(m, "InsertBoundaryAuditLogs", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertBoundaryNetworkAuditLogs indicates an expected call of InsertBoundaryNetworkAuditLogs.
-func (mr *MockStoreMockRecorder) InsertBoundaryNetworkAuditLogs(ctx, arg any) *gomock.Call {
+// InsertBoundaryAuditLogs indicates an expected call of InsertBoundaryAuditLogs.
+func (mr *MockStoreMockRecorder) InsertBoundaryAuditLogs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBoundaryNetworkAuditLogs", reflect.TypeOf((*MockStore)(nil).InsertBoundaryNetworkAuditLogs), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBoundaryAuditLogs", reflect.TypeOf((*MockStore)(nil).InsertBoundaryAuditLogs), ctx, arg)
 }
 
 // InsertCryptoKey mocks base method.

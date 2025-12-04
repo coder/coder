@@ -714,6 +714,10 @@ that data type.
           indefinitely). We advise keeping audit logs for at least a year, and
           in accordance with your compliance requirements.
 
+      --boundary-audit-logs-retention duration, $CODER_BOUNDARY_NETWORK_AUDIT_LOGS_RETENTION (default: 7d)
+          How long boundary network audit logs are retained. Set to 0 to disable
+          (keep indefinitely).
+
       --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
           How long connection log entries are retained. Set to 0 to disable
           (keep indefinitely).

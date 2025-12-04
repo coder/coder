@@ -207,10 +207,10 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountBoundaryNetworkAuditLogs(ctx context.Context, arg database.CountBoundaryNetworkAuditLogsParams) (int64, error) {
+func (m queryMetricsStore) CountBoundaryAuditLogs(ctx context.Context, arg database.CountBoundaryAuditLogsParams) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.CountBoundaryNetworkAuditLogs(ctx, arg)
-	m.queryLatencies.WithLabelValues("CountBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.CountBoundaryAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountBoundaryAuditLogs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -424,10 +424,10 @@ func (m queryMetricsStore) DeleteOldAuditLogs(ctx context.Context, arg database.
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteOldBoundaryNetworkAuditLogs(ctx context.Context, before time.Time) (int64, error) {
+func (m queryMetricsStore) DeleteOldBoundaryAuditLogs(ctx context.Context, before time.Time) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.DeleteOldBoundaryNetworkAuditLogs(ctx, before)
-	m.queryLatencies.WithLabelValues("DeleteOldBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.DeleteOldBoundaryAuditLogs(ctx, before)
+	m.queryLatencies.WithLabelValues("DeleteOldBoundaryAuditLogs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -816,10 +816,10 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return row, err
 }
 
-func (m queryMetricsStore) GetBoundaryNetworkAuditLogs(ctx context.Context, arg database.GetBoundaryNetworkAuditLogsParams) ([]database.GetBoundaryNetworkAuditLogsRow, error) {
+func (m queryMetricsStore) GetBoundaryAuditLogs(ctx context.Context, arg database.GetBoundaryAuditLogsParams) ([]database.GetBoundaryAuditLogsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetBoundaryNetworkAuditLogs(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetBoundaryAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetBoundaryAuditLogs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2391,10 +2391,10 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	return log, err
 }
 
-func (m queryMetricsStore) InsertBoundaryNetworkAuditLogs(ctx context.Context, arg database.InsertBoundaryNetworkAuditLogsParams) error {
+func (m queryMetricsStore) InsertBoundaryAuditLogs(ctx context.Context, arg database.InsertBoundaryAuditLogsParams) error {
 	start := time.Now()
-	r0 := m.s.InsertBoundaryNetworkAuditLogs(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertBoundaryNetworkAuditLogs").Observe(time.Since(start).Seconds())
+	r0 := m.s.InsertBoundaryAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertBoundaryAuditLogs").Observe(time.Since(start).Seconds())
 	return r0
 }
 

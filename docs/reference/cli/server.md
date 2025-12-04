@@ -1814,3 +1814,14 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+
+### --boundary-audit-logs-retention
+
+|             |                                                           |
+|-------------|-----------------------------------------------------------|
+| Type        | <code>duration</code>                                     |
+| Environment | <code>$CODER_BOUNDARY_NETWORK_AUDIT_LOGS_RETENTION</code> |
+| YAML        | <code>retention.boundary_network_audit_logs</code>        |
+| Default     | <code>7d</code>                                           |
+
+How long boundary network audit logs are retained. Set to 0 to disable (keep indefinitely).

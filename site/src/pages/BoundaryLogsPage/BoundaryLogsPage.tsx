@@ -1,16 +1,22 @@
 import { paginatedBoundaryAuditLogs } from "api/queries/boundaryauditlog";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
-import { useDecisionFilterMenu } from "./filter/filter";
+import { useDecisionFilterMenu } from "./BoundaryLogsFilter";
 import { BoundaryLogsPageView } from "./BoundaryLogsPageView";
 
 const BoundaryLogsPage: FC = () => {
+	const feats = useFeatureVisibility();
+	// Boundary logs require audit_log feature visibility
+	const isBoundaryLogsVisible = feats.audit_log || false;
+
 	const { showOrganizations } = useDashboard();
 
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -52,12 +58,15 @@ const BoundaryLogsPage: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Boundary Logs", "AI Bridge")}</title>
+			<title>{pageTitle("Boundary Logs")}</title>
 
 			<BoundaryLogsPageView
-				isLoading={boundaryLogsQuery.isLoading}
 				logs={boundaryLogsQuery.data?.logs}
+				isNonInitialPage={isNonInitialPage(searchParams)}
+				isBoundaryLogsVisible={isBoundaryLogsVisible}
 				boundaryLogsQuery={boundaryLogsQuery}
+				error={boundaryLogsQuery.error}
+				showOrgDetails={showOrganizations}
 				filterProps={{
 					filter,
 					error: boundaryLogsQuery.error,

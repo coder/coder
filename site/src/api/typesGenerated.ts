@@ -876,6 +876,45 @@ export interface BaseReport {
 	readonly dismissed: boolean;
 }
 
+// From codersdk/boundaryauditlog.go
+export type BoundaryAuditDecision = "allow" | "deny";
+
+export const BoundaryAuditDecisions: BoundaryAuditDecision[] = [
+	"allow",
+	"deny",
+];
+
+// From codersdk/boundaryauditlog.go
+/**
+ * BoundaryAuditLog represents a single boundary audit log entry.
+ */
+export interface BoundaryAuditLog {
+	readonly id: string;
+	readonly time: string;
+	readonly organization: MinimalOrganization;
+	readonly workspace_id: string;
+	readonly workspace_owner_id: string;
+	readonly workspace_owner_username: string;
+	readonly workspace_name: string;
+	readonly agent_id: string;
+	readonly agent_name: string;
+	readonly resource_type: string;
+	readonly resource: string;
+	readonly operation: string;
+	readonly decision: BoundaryAuditDecision;
+}
+
+// From codersdk/boundaryauditlog.go
+export interface BoundaryAuditLogResponse {
+	readonly logs: readonly BoundaryAuditLog[];
+	readonly count: number;
+}
+
+// From codersdk/boundaryauditlog.go
+export interface BoundaryAuditLogsRequest extends Pagination {
+	readonly q?: string;
+}
+
 // From codersdk/deployment.go
 /**
  * BuildInfoResponse contains build information for this instance of Coder.
@@ -923,39 +962,6 @@ export interface BuildInfoResponse {
 	 * WebPushPublicKey is the public key for push notifications via Web Push.
 	 */
 	readonly webpush_public_key?: string;
-}
-
-// From codersdk/boundarynetworkauditlog.go
-export type BoundaryNetworkAction = "allow" | "deny";
-
-export const BoundaryNetworkActions: BoundaryNetworkAction[] = ["allow", "deny"];
-
-// From codersdk/boundarynetworkauditlog.go
-export interface BoundaryNetworkAuditLog {
-	readonly id: string;
-	readonly time: string;
-	readonly organization: MinimalOrganization;
-	readonly workspace_id: string;
-	readonly workspace_owner_id: string;
-	readonly workspace_owner_username: string;
-	readonly workspace_name: string;
-	readonly agent_id: string;
-	readonly agent_name: string;
-	readonly domain: string;
-	readonly action: BoundaryNetworkAction;
-}
-
-// From codersdk/boundarynetworkauditlog.go
-export interface BoundaryNetworkAuditLogResponse {
-	readonly logs: readonly BoundaryNetworkAuditLog[];
-	readonly count: number;
-}
-
-// From codersdk/boundarynetworkauditlog.go
-export interface BoundaryNetworkAuditLogsRequest {
-	readonly q?: string;
-	readonly limit: number;
-	readonly offset?: number;
 }
 
 // From codersdk/workspacebuilds.go
@@ -4221,6 +4227,11 @@ export interface RetentionConfig {
 	 * Defaults to 7 days to preserve existing behavior.
 	 */
 	readonly workspace_agent_logs: number;
+	/**
+	 * BoundaryAuditLogs controls how long boundary network audit logs are retained.
+	 * Set to 0 to disable (keep indefinitely). Defaults to 7 days.
+	 */
+	readonly boundary_network_audit_logs: number;
 }
 
 // From codersdk/roles.go

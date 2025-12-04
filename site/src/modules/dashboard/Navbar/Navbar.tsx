@@ -25,6 +25,9 @@ export const Navbar: FC = () => {
 		featureVisibility.audit_log && permissions.viewAnyAuditLog;
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
+	// Boundary logs require audit_log feature and permission
+	const canViewBoundaryLogs =
+		featureVisibility.audit_log && permissions.viewAnyAuditLog;
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
 
@@ -46,6 +49,7 @@ export const Navbar: FC = () => {
 			canViewHealth={canViewHealth}
 			canViewAuditLog={canViewAuditLog}
 			canViewConnectionLog={canViewConnectionLog}
+			canViewBoundaryLogs={canViewBoundaryLogs}
 			canViewAIBridge={canViewAIBridge}
 			proxyContextValue={proxyContextValue}
 		/>

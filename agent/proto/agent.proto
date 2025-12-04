@@ -477,17 +477,19 @@ service Agent {
 	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
-	rpc ReportBoundaryNetworkAuditLogs(ReportBoundaryNetworkAuditLogsRequest) returns (google.protobuf.Empty);
+	rpc ReportBoundaryAuditLogs(ReportBoundaryAuditLogsRequest) returns (google.protobuf.Empty);
 }
 
-// BoundaryNetworkAuditLog represents a single network access event from Boundary.
-message BoundaryNetworkAuditLog {
+// BoundaryAuditLog represents a single resource access event from Boundary.
+message BoundaryAuditLog {
 	google.protobuf.Timestamp timestamp = 1;
-	string domain = 2;
-	bool allowed = 3;
+	string resource_type = 2;  // "network", "file", etc.
+	string resource = 3;       // URL, file path, etc.
+	string operation = 4;      // "GET", "POST", "read", "write", etc.
+	string decision = 5;       // "allow" or "deny"
 }
 
-// ReportBoundaryNetworkAuditLogsRequest is a batch of network audit logs from Boundary.
-message ReportBoundaryNetworkAuditLogsRequest {
-	repeated BoundaryNetworkAuditLog logs = 1;
+// ReportBoundaryAuditLogsRequest is a batch of audit logs from Boundary.
+message ReportBoundaryAuditLogsRequest {
+	repeated BoundaryAuditLog logs = 1;
 }

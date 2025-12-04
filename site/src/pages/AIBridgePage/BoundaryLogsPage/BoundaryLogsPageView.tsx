@@ -1,4 +1,4 @@
-import type { BoundaryNetworkAuditLog } from "api/typesGenerated";
+import type { BoundaryAuditLog } from "api/typesGenerated";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -18,7 +18,7 @@ import { BoundaryLogsRow } from "./BoundaryLogsRow";
 
 interface BoundaryLogsPageViewProps {
 	isLoading: boolean;
-	logs?: readonly BoundaryNetworkAuditLog[];
+	logs?: readonly BoundaryAuditLog[];
 	boundaryLogsQuery: PaginationResult;
 	filterProps: ComponentProps<typeof BoundaryLogsFilter>;
 }
@@ -44,8 +44,10 @@ export const BoundaryLogsPageView: FC<BoundaryLogsPageViewProps> = ({
 							<TableHead>Workspace</TableHead>
 							<TableHead>Owner</TableHead>
 							<TableHead>Agent</TableHead>
-							<TableHead>Domain</TableHead>
-							<TableHead>Action</TableHead>
+							<TableHead>Type</TableHead>
+							<TableHead>Resource</TableHead>
+							<TableHead>Operation</TableHead>
+							<TableHead>Decision</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>

@@ -237,7 +237,7 @@ CREATE TYPE automatic_updates AS ENUM (
     'never'
 );
 
-CREATE TYPE boundary_network_action AS ENUM (
+CREATE TYPE boundary_audit_decision AS ENUM (
     'allow',
     'deny'
 );
@@ -1156,7 +1156,7 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
-CREATE TABLE boundary_network_audit_logs (
+CREATE TABLE boundary_audit_logs (
     id uuid NOT NULL,
     "time" timestamp with time zone NOT NULL,
     organization_id uuid NOT NULL,
@@ -1165,17 +1165,23 @@ CREATE TABLE boundary_network_audit_logs (
     workspace_name text NOT NULL,
     agent_id uuid NOT NULL,
     agent_name text NOT NULL,
-    domain text NOT NULL,
-    action boundary_network_action NOT NULL
+    resource_type text NOT NULL,
+    resource text NOT NULL,
+    operation text NOT NULL,
+    decision boundary_audit_decision NOT NULL
 );
 
-COMMENT ON TABLE boundary_network_audit_logs IS 'Audit logs for network requests allowed or denied by Boundary in workspaces.';
+COMMENT ON TABLE boundary_audit_logs IS 'Audit logs for resource access allowed or denied by Boundary in workspaces.';
 
-COMMENT ON COLUMN boundary_network_audit_logs."time" IS 'The timestamp when the network request was made.';
+COMMENT ON COLUMN boundary_audit_logs."time" IS 'The timestamp when the resource access was requested.';
 
-COMMENT ON COLUMN boundary_network_audit_logs.domain IS 'The domain that was requested (e.g., github.com).';
+COMMENT ON COLUMN boundary_audit_logs.resource_type IS 'The type of resource being accessed (e.g., network, file).';
 
-COMMENT ON COLUMN boundary_network_audit_logs.action IS 'Whether the request was allowed or denied by Boundary.';
+COMMENT ON COLUMN boundary_audit_logs.resource IS 'The resource being accessed (e.g., URL, file path).';
+
+COMMENT ON COLUMN boundary_audit_logs.operation IS 'The operation being performed (e.g., GET, POST, read, write).';
+
+COMMENT ON COLUMN boundary_audit_logs.decision IS 'Whether the access was allowed or denied by Boundary.';
 
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
@@ -3006,8 +3012,8 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY boundary_network_audit_logs
-    ADD CONSTRAINT boundary_network_audit_logs_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY boundary_audit_logs
+    ADD CONSTRAINT boundary_audit_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
@@ -3340,11 +3346,11 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
-CREATE INDEX idx_boundary_network_audit_logs_org_id ON boundary_network_audit_logs USING btree (organization_id);
+CREATE INDEX idx_boundary_audit_logs_org_id ON boundary_audit_logs USING btree (organization_id);
 
-CREATE INDEX idx_boundary_network_audit_logs_time ON boundary_network_audit_logs USING btree ("time" DESC);
+CREATE INDEX idx_boundary_audit_logs_time ON boundary_audit_logs USING btree ("time" DESC);
 
-CREATE INDEX idx_boundary_network_audit_logs_workspace_id ON boundary_network_audit_logs USING btree (workspace_id);
+CREATE INDEX idx_boundary_audit_logs_workspace_id ON boundary_audit_logs USING btree (workspace_id);
 
 CREATE INDEX idx_connection_logs_connect_time_desc ON connection_logs USING btree (connect_time DESC);
 
@@ -3600,14 +3606,14 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY boundary_network_audit_logs
-    ADD CONSTRAINT boundary_network_audit_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY boundary_audit_logs
+    ADD CONSTRAINT boundary_audit_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY boundary_network_audit_logs
-    ADD CONSTRAINT boundary_network_audit_logs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY boundary_audit_logs
+    ADD CONSTRAINT boundary_audit_logs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY boundary_network_audit_logs
-    ADD CONSTRAINT boundary_network_audit_logs_workspace_owner_id_fkey FOREIGN KEY (workspace_owner_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY boundary_audit_logs
+    ADD CONSTRAINT boundary_audit_logs_workspace_owner_id_fkey FOREIGN KEY (workspace_owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

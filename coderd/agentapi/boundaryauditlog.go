@@ -13,13 +13,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-type BoundaryNetworkAuditLogAPI struct {
+type BoundaryAuditLogAPI struct {
 	AgentFn  func(context.Context) (database.WorkspaceAgent, error)
 	Database database.Store
 	Log      slog.Logger
 }
 
-func (a *BoundaryNetworkAuditLogAPI) ReportBoundaryNetworkAuditLogs(ctx context.Context, req *agentproto.ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error) {
+func (a *BoundaryAuditLogAPI) ReportBoundaryAuditLogs(ctx context.Context, req *agentproto.ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error) {
 	logs := req.GetLogs()
 	if len(logs) == 0 {
 		return &emptypb.Empty{}, nil
@@ -44,8 +44,10 @@ func (a *BoundaryNetworkAuditLogAPI) ReportBoundaryNetworkAuditLogs(ctx context.
 	workspaceNames := make([]string, len(logs))
 	agentIDs := make([]uuid.UUID, len(logs))
 	agentNames := make([]string, len(logs))
-	domains := make([]string, len(logs))
-	actions := make([]database.BoundaryNetworkAction, len(logs))
+	resourceTypes := make([]string, len(logs))
+	resources := make([]string, len(logs))
+	operations := make([]string, len(logs))
+	decisions := make([]database.BoundaryAuditDecision, len(logs))
 
 	for i, log := range logs {
 		ids[i] = uuid.New()
@@ -56,15 +58,13 @@ func (a *BoundaryNetworkAuditLogAPI) ReportBoundaryNetworkAuditLogs(ctx context.
 		workspaceNames[i] = workspace.Name
 		agentIDs[i] = workspaceAgent.ID
 		agentNames[i] = workspaceAgent.Name
-		domains[i] = log.GetDomain()
-		if log.GetAllowed() {
-			actions[i] = database.BoundaryNetworkActionAllow
-		} else {
-			actions[i] = database.BoundaryNetworkActionDeny
-		}
+		resourceTypes[i] = log.GetResourceType()
+		resources[i] = log.GetResource()
+		operations[i] = log.GetOperation()
+		decisions[i] = database.BoundaryAuditDecision(log.GetDecision())
 	}
 
-	err = a.Database.InsertBoundaryNetworkAuditLogs(ctx, database.InsertBoundaryNetworkAuditLogsParams{
+	err = a.Database.InsertBoundaryAuditLogs(ctx, database.InsertBoundaryAuditLogsParams{
 		ID:               ids,
 		Time:             times,
 		OrganizationID:   organizationIDs,
@@ -73,14 +73,16 @@ func (a *BoundaryNetworkAuditLogAPI) ReportBoundaryNetworkAuditLogs(ctx context.
 		WorkspaceName:    workspaceNames,
 		AgentID:          agentIDs,
 		AgentName:        agentNames,
-		Domain:           domains,
-		Action:           actions,
+		ResourceType:     resourceTypes,
+		Resource:         resources,
+		Operation:        operations,
+		Decision:         decisions,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("insert boundary network audit logs: %w", err)
+		return nil, xerrors.Errorf("insert boundary audit logs: %w", err)
 	}
 
-	a.Log.Debug(ctx, "reported boundary network audit logs",
+	a.Log.Debug(ctx, "reported boundary audit logs",
 		slog.F("count", len(logs)),
 		slog.F("workspace_id", workspace.ID),
 		slog.F("agent_id", workspaceAgent.ID),

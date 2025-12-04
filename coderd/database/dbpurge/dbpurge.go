@@ -156,11 +156,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				}
 			}
 
-			var purgedBoundaryNetworkAuditLogs int64
-			boundaryNetworkAuditLogsRetention := vals.Retention.BoundaryNetworkAuditLogs.Value()
+			var purgedBoundaryAuditLogs int64
+			boundaryNetworkAuditLogsRetention := vals.Retention.BoundaryAuditLogs.Value()
 			if boundaryNetworkAuditLogsRetention > 0 {
-				deleteBoundaryNetworkAuditLogsBefore := start.Add(-boundaryNetworkAuditLogsRetention)
-				purgedBoundaryNetworkAuditLogs, err = tx.DeleteOldBoundaryNetworkAuditLogs(ctx, deleteBoundaryNetworkAuditLogsBefore)
+				deleteBoundaryAuditLogsBefore := start.Add(-boundaryNetworkAuditLogsRetention)
+				purgedBoundaryAuditLogs, err = tx.DeleteOldBoundaryAuditLogs(ctx, deleteBoundaryAuditLogsBefore)
 				if err != nil {
 					return xerrors.Errorf("failed to delete old boundary network audit logs: %w", err)
 				}
@@ -172,7 +172,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				slog.F("aibridge_records", purgedAIBridgeRecords),
 				slog.F("connection_logs", purgedConnectionLogs),
 				slog.F("audit_logs", purgedAuditLogs),
-				slog.F("boundary_network_audit_logs", purgedBoundaryNetworkAuditLogs),
+				slog.F("boundary_network_audit_logs", purgedBoundaryAuditLogs),
 				slog.F("duration", clk.Since(start)),
 			)
 

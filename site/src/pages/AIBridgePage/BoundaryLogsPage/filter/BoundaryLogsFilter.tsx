@@ -2,14 +2,14 @@ import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { OrganizationsMenu, type OrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
-import { ActionFilter, type ActionFilterMenu } from "./filter";
+import { DecisionFilter, type DecisionFilterMenu } from "./filter";
 
 interface BoundaryLogsFilterProps {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
 		user: UserFilterMenu;
-		action: ActionFilterMenu;
+		decision: DecisionFilterMenu;
 		organization?: OrganizationsFilterMenu;
 	};
 }
@@ -35,14 +35,14 @@ export const BoundaryLogsFilter: FC<BoundaryLogsFilterProps> = ({
 				},
 				{
 					name: "Denied requests",
-					query: "action:deny",
+					query: "decision:deny",
 				},
 			]}
 			error={error}
 			options={
 				<>
 					<UserMenu menu={menus.user} />
-					<ActionFilter menu={menus.action} />
+					<DecisionFilter menu={menus.decision} />
 					{menus.organization && (
 						<OrganizationsMenu menu={menus.organization} />
 					)}

@@ -766,3 +766,7 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+  # How long boundary network audit logs are retained. Set to 0 to disable (keep
+  # indefinitely).
+  # (default: 7d, type: duration)
+  boundary_network_audit_logs: 168h0m0s

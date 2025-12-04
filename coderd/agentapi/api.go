@@ -53,7 +53,7 @@ type API struct {
 	*LogsAPI
 	*ScriptsAPI
 	*ConnLogAPI
-	*BoundaryNetworkAuditLogAPI
+	*BoundaryAuditLogAPI
 	*SubAgentAPI
 	*tailnet.DRPCService
 
@@ -194,7 +194,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database: opts.Database,
 	}
 
-	api.BoundaryNetworkAuditLogAPI = &BoundaryNetworkAuditLogAPI{
+	api.BoundaryAuditLogAPI = &BoundaryAuditLogAPI{
 		AgentFn:  api.agent,
 		Database: opts.Database,
 		Log:      opts.Log,

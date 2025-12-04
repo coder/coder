@@ -38,6 +38,7 @@ type MobileMenuPermissions = {
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
+	canViewBoundaryLogs: boolean;
 	canViewHealth: boolean;
 };
 
@@ -245,6 +246,14 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
 						<Link to="/connectionlog">Connection logs</Link>
+					</DropdownMenuItem>
+				)}
+				{canViewBoundaryLogs && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/boundarylogs">Boundary logs</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewHealth && (

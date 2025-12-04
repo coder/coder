@@ -209,6 +209,67 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get boundary audit logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/boundary-audit-logs?limit=0 \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /boundary-audit-logs`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description  |
+|----------|-------|---------|----------|--------------|
+| `q`      | query | string  | false    | Search query |
+| `limit`  | query | integer | true     | Page limit   |
+| `offset` | query | integer | false    | Page offset  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "logs": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "agent_name": "string",
+      "decision": "allow",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "operation": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "resource": "string",
+      "resource_type": "string",
+      "time": "2019-08-24T14:15:22Z",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string",
+      "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+      "workspace_owner_username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BoundaryAuditLogResponse](schemas.md#codersdkboundaryauditlogresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get connection logs
 
 ### Code samples

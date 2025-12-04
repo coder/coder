@@ -1612,6 +1612,101 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `enabled`          | boolean | false    |              |             |
 | `message`          | string  | false    |              |             |
 
+## codersdk.BoundaryAuditDecision
+
+```json
+"allow"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+|---------|
+| `allow` |
+| `deny`  |
+
+## codersdk.BoundaryAuditLog
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "agent_name": "string",
+  "decision": "allow",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "operation": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
+  "resource": "string",
+  "resource_type": "string",
+  "time": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_username": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                             | Required | Restrictions | Description |
+|----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_id`                 | string                                                           | false    |              |             |
+| `agent_name`               | string                                                           | false    |              |             |
+| `decision`                 | [codersdk.BoundaryAuditDecision](#codersdkboundaryauditdecision) | false    |              |             |
+| `id`                       | string                                                           | false    |              |             |
+| `operation`                | string                                                           | false    |              |             |
+| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)     | false    |              |             |
+| `resource`                 | string                                                           | false    |              |             |
+| `resource_type`            | string                                                           | false    |              |             |
+| `time`                     | string                                                           | false    |              |             |
+| `workspace_id`             | string                                                           | false    |              |             |
+| `workspace_name`           | string                                                           | false    |              |             |
+| `workspace_owner_id`       | string                                                           | false    |              |             |
+| `workspace_owner_username` | string                                                           | false    |              |             |
+
+## codersdk.BoundaryAuditLogResponse
+
+```json
+{
+  "count": 0,
+  "logs": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "agent_name": "string",
+      "decision": "allow",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "operation": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "resource": "string",
+      "resource_type": "string",
+      "time": "2019-08-24T14:15:22Z",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string",
+      "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+      "workspace_owner_username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                            | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `count` | integer                                                         | false    |              |             |
+| `logs`  | array of [codersdk.BoundaryAuditLog](#codersdkboundaryauditlog) | false    |              |             |
+
 ## codersdk.BuildInfoResponse
 
 ```json
@@ -3150,6 +3245,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_network_audit_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
@@ -3672,6 +3768,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "retention": {
     "api_keys": 0,
     "audit_logs": 0,
+    "boundary_network_audit_logs": 0,
     "connection_logs": 0,
     "workspace_agent_logs": 0
   },
@@ -7525,6 +7622,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "api_keys": 0,
   "audit_logs": 0,
+  "boundary_network_audit_logs": 0,
   "connection_logs": 0,
   "workspace_agent_logs": 0
 }
@@ -7532,12 +7630,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
-| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
-| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
-| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
+| Name                          | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
+|-------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`                    | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
+| `audit_logs`                  | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
+| `boundary_network_audit_logs` | integer | false    |              | Boundary network audit logs controls how long boundary network audit logs are retained. Set to 0 to disable (keep indefinitely). Defaults to 7 days.                                                                                                             |
+| `connection_logs`             | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
+| `workspace_agent_logs`        | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
 
 ## codersdk.Role
 

@@ -3240,30 +3240,32 @@ func (x *ListSubAgentsResponse) GetAgents() []*SubAgent {
 	return nil
 }
 
-// BoundaryNetworkAuditLog represents a single network access event from Boundary.
-type BoundaryNetworkAuditLog struct {
+// BoundaryAuditLog represents a single resource access event from Boundary.
+type BoundaryAuditLog struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
-	Allowed       bool                   `protobuf:"varint,3,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	ResourceType  string                 `protobuf:"bytes,2,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"` // "network", "file", etc.
+	Resource      string                 `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource,omitempty"`                             // URL, file path, etc.
+	Operation     string                 `protobuf:"bytes,4,opt,name=operation,proto3" json:"operation,omitempty"`                           // "GET", "POST", "read", "write", etc.
+	Decision      string                 `protobuf:"bytes,5,opt,name=decision,proto3" json:"decision,omitempty"`                             // "allow" or "deny"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *BoundaryNetworkAuditLog) Reset() {
-	*x = BoundaryNetworkAuditLog{}
+func (x *BoundaryAuditLog) Reset() {
+	*x = BoundaryAuditLog{}
 	mi := &file_agent_proto_agent_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *BoundaryNetworkAuditLog) String() string {
+func (x *BoundaryAuditLog) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BoundaryNetworkAuditLog) ProtoMessage() {}
+func (*BoundaryAuditLog) ProtoMessage() {}
 
-func (x *BoundaryNetworkAuditLog) ProtoReflect() protoreflect.Message {
+func (x *BoundaryAuditLog) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_proto_agent_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3275,54 +3277,68 @@ func (x *BoundaryNetworkAuditLog) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BoundaryNetworkAuditLog.ProtoReflect.Descriptor instead.
-func (*BoundaryNetworkAuditLog) Descriptor() ([]byte, []int) {
+// Deprecated: Use BoundaryAuditLog.ProtoReflect.Descriptor instead.
+func (*BoundaryAuditLog) Descriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{42}
 }
 
-func (x *BoundaryNetworkAuditLog) GetTimestamp() *timestamppb.Timestamp {
+func (x *BoundaryAuditLog) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
 	}
 	return nil
 }
 
-func (x *BoundaryNetworkAuditLog) GetDomain() string {
+func (x *BoundaryAuditLog) GetResourceType() string {
 	if x != nil {
-		return x.Domain
+		return x.ResourceType
 	}
 	return ""
 }
 
-func (x *BoundaryNetworkAuditLog) GetAllowed() bool {
+func (x *BoundaryAuditLog) GetResource() string {
 	if x != nil {
-		return x.Allowed
+		return x.Resource
 	}
-	return false
+	return ""
 }
 
-// ReportBoundaryNetworkAuditLogsRequest is a batch of network audit logs from Boundary.
-type ReportBoundaryNetworkAuditLogsRequest struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	Logs          []*BoundaryNetworkAuditLog `protobuf:"bytes,1,rep,name=logs,proto3" json:"logs,omitempty"`
+func (x *BoundaryAuditLog) GetOperation() string {
+	if x != nil {
+		return x.Operation
+	}
+	return ""
+}
+
+func (x *BoundaryAuditLog) GetDecision() string {
+	if x != nil {
+		return x.Decision
+	}
+	return ""
+}
+
+// ReportBoundaryAuditLogsRequest is a batch of audit logs from Boundary.
+type ReportBoundaryAuditLogsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Logs          []*BoundaryAuditLog    `protobuf:"bytes,1,rep,name=logs,proto3" json:"logs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ReportBoundaryNetworkAuditLogsRequest) Reset() {
-	*x = ReportBoundaryNetworkAuditLogsRequest{}
+func (x *ReportBoundaryAuditLogsRequest) Reset() {
+	*x = ReportBoundaryAuditLogsRequest{}
 	mi := &file_agent_proto_agent_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ReportBoundaryNetworkAuditLogsRequest) String() string {
+func (x *ReportBoundaryAuditLogsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReportBoundaryNetworkAuditLogsRequest) ProtoMessage() {}
+func (*ReportBoundaryAuditLogsRequest) ProtoMessage() {}
 
-func (x *ReportBoundaryNetworkAuditLogsRequest) ProtoReflect() protoreflect.Message {
+func (x *ReportBoundaryAuditLogsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_agent_proto_agent_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3334,12 +3350,12 @@ func (x *ReportBoundaryNetworkAuditLogsRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportBoundaryNetworkAuditLogsRequest.ProtoReflect.Descriptor instead.
-func (*ReportBoundaryNetworkAuditLogsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReportBoundaryAuditLogsRequest.ProtoReflect.Descriptor instead.
+func (*ReportBoundaryAuditLogsRequest) Descriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{43}
 }
 
-func (x *ReportBoundaryNetworkAuditLogsRequest) GetLogs() []*BoundaryNetworkAuditLog {
+func (x *ReportBoundaryAuditLogsRequest) GetLogs() []*BoundaryAuditLog {
 	if x != nil {
 		return x.Logs
 	}
@@ -4663,19 +4679,21 @@ const file_agent_proto_agent_proto_rawDesc = "" +
 	"\x16DeleteSubAgentResponse\"\x16\n" +
 	"\x14ListSubAgentsRequest\"I\n" +
 	"\x15ListSubAgentsResponse\x120\n" +
-	"\x06agents\x18\x01 \x03(\v2\x18.coder.agent.v2.SubAgentR\x06agents\"\x85\x01\n" +
-	"\x17BoundaryNetworkAuditLog\x128\n" +
-	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x16\n" +
-	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x18\n" +
-	"\aallowed\x18\x03 \x01(\bR\aallowed\"d\n" +
-	"%ReportBoundaryNetworkAuditLogsRequest\x12;\n" +
-	"\x04logs\x18\x01 \x03(\v2'.coder.agent.v2.BoundaryNetworkAuditLogR\x04logs*c\n" +
+	"\x06agents\x18\x01 \x03(\v2\x18.coder.agent.v2.SubAgentR\x06agents\"\xc7\x01\n" +
+	"\x10BoundaryAuditLog\x128\n" +
+	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12#\n" +
+	"\rresource_type\x18\x02 \x01(\tR\fresourceType\x12\x1a\n" +
+	"\bresource\x18\x03 \x01(\tR\bresource\x12\x1c\n" +
+	"\toperation\x18\x04 \x01(\tR\toperation\x12\x1a\n" +
+	"\bdecision\x18\x05 \x01(\tR\bdecision\"V\n" +
+	"\x1eReportBoundaryAuditLogsRequest\x124\n" +
+	"\x04logs\x18\x01 \x03(\v2 .coder.agent.v2.BoundaryAuditLogR\x04logs*c\n" +
 	"\tAppHealth\x12\x1a\n" +
 	"\x16APP_HEALTH_UNSPECIFIED\x10\x00\x12\f\n" +
 	"\bDISABLED\x10\x01\x12\x10\n" +
 	"\fINITIALIZING\x10\x02\x12\v\n" +
 	"\aHEALTHY\x10\x03\x12\r\n" +
-	"\tUNHEALTHY\x10\x042\x82\x0e\n" +
+	"\tUNHEALTHY\x10\x042\xf4\r\n" +
 	"\x05Agent\x12K\n" +
 	"\vGetManifest\x12\".coder.agent.v2.GetManifestRequest\x1a\x18.coder.agent.v2.Manifest\x12Z\n" +
 	"\x10GetServiceBanner\x12'.coder.agent.v2.GetServiceBannerRequest\x1a\x1d.coder.agent.v2.ServiceBanner\x12V\n" +
@@ -4692,8 +4710,8 @@ const file_agent_proto_agent_proto_rawDesc = "" +
 	"\x10ReportConnection\x12'.coder.agent.v2.ReportConnectionRequest\x1a\x16.google.protobuf.Empty\x12_\n" +
 	"\x0eCreateSubAgent\x12%.coder.agent.v2.CreateSubAgentRequest\x1a&.coder.agent.v2.CreateSubAgentResponse\x12_\n" +
 	"\x0eDeleteSubAgent\x12%.coder.agent.v2.DeleteSubAgentRequest\x1a&.coder.agent.v2.DeleteSubAgentResponse\x12\\\n" +
-	"\rListSubAgents\x12$.coder.agent.v2.ListSubAgentsRequest\x1a%.coder.agent.v2.ListSubAgentsResponse\x12o\n" +
-	"\x1eReportBoundaryNetworkAuditLogs\x125.coder.agent.v2.ReportBoundaryNetworkAuditLogsRequest\x1a\x16.google.protobuf.EmptyB'Z%github.com/coder/coder/v2/agent/protob\x06proto3"
+	"\rListSubAgents\x12$.coder.agent.v2.ListSubAgentsRequest\x1a%.coder.agent.v2.ListSubAgentsResponse\x12a\n" +
+	"\x17ReportBoundaryAuditLogs\x12..coder.agent.v2.ReportBoundaryAuditLogsRequest\x1a\x16.google.protobuf.EmptyB'Z%github.com/coder/coder/v2/agent/protob\x06proto3"
 
 var (
 	file_agent_proto_agent_proto_rawDescOnce sync.Once
@@ -4766,8 +4784,8 @@ var file_agent_proto_agent_proto_goTypes = []any{
 	(*DeleteSubAgentResponse)(nil),                      // 53: coder.agent.v2.DeleteSubAgentResponse
 	(*ListSubAgentsRequest)(nil),                        // 54: coder.agent.v2.ListSubAgentsRequest
 	(*ListSubAgentsResponse)(nil),                       // 55: coder.agent.v2.ListSubAgentsResponse
-	(*BoundaryNetworkAuditLog)(nil),                     // 56: coder.agent.v2.BoundaryNetworkAuditLog
-	(*ReportBoundaryNetworkAuditLogsRequest)(nil),       // 57: coder.agent.v2.ReportBoundaryNetworkAuditLogsRequest
+	(*BoundaryAuditLog)(nil),                            // 56: coder.agent.v2.BoundaryAuditLog
+	(*ReportBoundaryAuditLogsRequest)(nil),              // 57: coder.agent.v2.ReportBoundaryAuditLogsRequest
 	(*WorkspaceApp_Healthcheck)(nil),                    // 58: coder.agent.v2.WorkspaceApp.Healthcheck
 	(*WorkspaceAgentMetadata_Result)(nil),               // 59: coder.agent.v2.WorkspaceAgentMetadata.Result
 	(*WorkspaceAgentMetadata_Description)(nil),          // 60: coder.agent.v2.WorkspaceAgentMetadata.Description
@@ -4837,8 +4855,8 @@ var file_agent_proto_agent_proto_depIdxs = []int32{
 	49, // 43: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
 	74, // 44: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
 	49, // 45: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
-	77, // 46: coder.agent.v2.BoundaryNetworkAuditLog.timestamp:type_name -> google.protobuf.Timestamp
-	56, // 47: coder.agent.v2.ReportBoundaryNetworkAuditLogsRequest.logs:type_name -> coder.agent.v2.BoundaryNetworkAuditLog
+	77, // 46: coder.agent.v2.BoundaryAuditLog.timestamp:type_name -> google.protobuf.Timestamp
+	56, // 47: coder.agent.v2.ReportBoundaryAuditLogsRequest.logs:type_name -> coder.agent.v2.BoundaryAuditLog
 	75, // 48: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
 	77, // 49: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
 	75, // 50: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
@@ -4868,7 +4886,7 @@ var file_agent_proto_agent_proto_depIdxs = []int32{
 	50, // 74: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
 	52, // 75: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
 	54, // 76: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
-	57, // 77: coder.agent.v2.Agent.ReportBoundaryNetworkAuditLogs:input_type -> coder.agent.v2.ReportBoundaryNetworkAuditLogsRequest
+	57, // 77: coder.agent.v2.Agent.ReportBoundaryAuditLogs:input_type -> coder.agent.v2.ReportBoundaryAuditLogsRequest
 	17, // 78: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
 	20, // 79: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
 	24, // 80: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
@@ -4885,7 +4903,7 @@ var file_agent_proto_agent_proto_depIdxs = []int32{
 	51, // 91: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
 	53, // 92: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
 	55, // 93: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
-	78, // 94: coder.agent.v2.Agent.ReportBoundaryNetworkAuditLogs:output_type -> google.protobuf.Empty
+	78, // 94: coder.agent.v2.Agent.ReportBoundaryAuditLogs:output_type -> google.protobuf.Empty
 	78, // [78:95] is the sub-list for method output_type
 	61, // [61:78] is the sub-list for method input_type
 	61, // [61:61] is the sub-list for extension type_name

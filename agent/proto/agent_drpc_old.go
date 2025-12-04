@@ -67,8 +67,8 @@ type DRPCAgentClient26 interface {
 }
 
 // DRPCAgentClient27 is the Agent API at v2.7. It adds the
-// ReportBoundaryNetworkAuditLogs RPC. Compatible with Coder v2.25+
+// ReportBoundaryAuditLogs RPC. Compatible with Coder v2.25+
 type DRPCAgentClient27 interface {
 	DRPCAgentClient26
-	ReportBoundaryNetworkAuditLogs(ctx context.Context, in *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error)
+	ReportBoundaryAuditLogs(ctx context.Context, in *ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error)
 }

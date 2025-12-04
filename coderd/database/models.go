@@ -922,61 +922,61 @@ func AllAutomaticUpdatesValues() []AutomaticUpdates {
 	}
 }
 
-type BoundaryNetworkAction string
+type BoundaryAuditDecision string
 
 const (
-	BoundaryNetworkActionAllow BoundaryNetworkAction = "allow"
-	BoundaryNetworkActionDeny  BoundaryNetworkAction = "deny"
+	BoundaryAuditDecisionAllow BoundaryAuditDecision = "allow"
+	BoundaryAuditDecisionDeny  BoundaryAuditDecision = "deny"
 )
 
-func (e *BoundaryNetworkAction) Scan(src interface{}) error {
+func (e *BoundaryAuditDecision) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = BoundaryNetworkAction(s)
+		*e = BoundaryAuditDecision(s)
 	case string:
-		*e = BoundaryNetworkAction(s)
+		*e = BoundaryAuditDecision(s)
 	default:
-		return fmt.Errorf("unsupported scan type for BoundaryNetworkAction: %T", src)
+		return fmt.Errorf("unsupported scan type for BoundaryAuditDecision: %T", src)
 	}
 	return nil
 }
 
-type NullBoundaryNetworkAction struct {
-	BoundaryNetworkAction BoundaryNetworkAction `json:"boundary_network_action"`
-	Valid                 bool                  `json:"valid"` // Valid is true if BoundaryNetworkAction is not NULL
+type NullBoundaryAuditDecision struct {
+	BoundaryAuditDecision BoundaryAuditDecision `json:"boundary_audit_decision"`
+	Valid                 bool                  `json:"valid"` // Valid is true if BoundaryAuditDecision is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullBoundaryNetworkAction) Scan(value interface{}) error {
+func (ns *NullBoundaryAuditDecision) Scan(value interface{}) error {
 	if value == nil {
-		ns.BoundaryNetworkAction, ns.Valid = "", false
+		ns.BoundaryAuditDecision, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.BoundaryNetworkAction.Scan(value)
+	return ns.BoundaryAuditDecision.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullBoundaryNetworkAction) Value() (driver.Value, error) {
+func (ns NullBoundaryAuditDecision) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.BoundaryNetworkAction), nil
+	return string(ns.BoundaryAuditDecision), nil
 }
 
-func (e BoundaryNetworkAction) Valid() bool {
+func (e BoundaryAuditDecision) Valid() bool {
 	switch e {
-	case BoundaryNetworkActionAllow,
-		BoundaryNetworkActionDeny:
+	case BoundaryAuditDecisionAllow,
+		BoundaryAuditDecisionDeny:
 		return true
 	}
 	return false
 }
 
-func AllBoundaryNetworkActionValues() []BoundaryNetworkAction {
-	return []BoundaryNetworkAction{
-		BoundaryNetworkActionAllow,
-		BoundaryNetworkActionDeny,
+func AllBoundaryAuditDecisionValues() []BoundaryAuditDecision {
+	return []BoundaryAuditDecision{
+		BoundaryAuditDecisionAllow,
+		BoundaryAuditDecisionDeny,
 	}
 }
 
@@ -3751,10 +3751,10 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
-// Audit logs for network requests allowed or denied by Boundary in workspaces.
-type BoundaryNetworkAuditLog struct {
+// Audit logs for resource access allowed or denied by Boundary in workspaces.
+type BoundaryAuditLog struct {
 	ID uuid.UUID `db:"id" json:"id"`
-	// The timestamp when the network request was made.
+	// The timestamp when the resource access was requested.
 	Time             time.Time `db:"time" json:"time"`
 	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
 	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
@@ -3762,10 +3762,14 @@ type BoundaryNetworkAuditLog struct {
 	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
 	AgentID          uuid.UUID `db:"agent_id" json:"agent_id"`
 	AgentName        string    `db:"agent_name" json:"agent_name"`
-	// The domain that was requested (e.g., github.com).
-	Domain string `db:"domain" json:"domain"`
-	// Whether the request was allowed or denied by Boundary.
-	Action BoundaryNetworkAction `db:"action" json:"action"`
+	// The type of resource being accessed (e.g., network, file).
+	ResourceType string `db:"resource_type" json:"resource_type"`
+	// The resource being accessed (e.g., URL, file path).
+	Resource string `db:"resource" json:"resource"`
+	// The operation being performed (e.g., GET, POST, read, write).
+	Operation string `db:"operation" json:"operation"`
+	// Whether the access was allowed or denied by Boundary.
+	Decision BoundaryAuditDecision `db:"decision" json:"decision"`
 }
 
 type ConnectionLog struct {

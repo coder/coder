@@ -434,6 +434,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/boundary-audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get boundary audit logs",
+                "operationId": "get-boundary-audit-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.BoundaryAuditLogResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/buildinfo": {
             "get": {
                 "produces": [
@@ -12991,6 +13037,80 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.BoundaryAuditDecision": {
+            "type": "string",
+            "enum": [
+                "allow",
+                "deny"
+            ],
+            "x-enum-varnames": [
+                "BoundaryAuditDecisionAllow",
+                "BoundaryAuditDecisionDeny"
+            ]
+        },
+        "codersdk.BoundaryAuditLog": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "agent_name": {
+                    "type": "string"
+                },
+                "decision": {
+                    "$ref": "#/definitions/codersdk.BoundaryAuditDecision"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "operation": {
+                    "type": "string"
+                },
+                "organization": {
+                    "$ref": "#/definitions/codersdk.MinimalOrganization"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "resource_type": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_owner_username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.BoundaryAuditLogResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.BoundaryAuditLog"
+                    }
+                }
+            }
+        },
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
@@ -17740,6 +17860,10 @@ const docTemplate = `{
                 },
                 "audit_logs": {
                     "description": "AuditLogs controls how long audit log entries are retained.\nSet to 0 to disable (keep indefinitely).",
+                    "type": "integer"
+                },
+                "boundary_network_audit_logs": {
+                    "description": "BoundaryAuditLogs controls how long boundary network audit logs are retained.\nSet to 0 to disable (keep indefinitely). Defaults to 7 days.",
                     "type": "integer"
                 },
                 "connection_logs": {

@@ -12,17 +12,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Get boundary network audit logs
-// @ID get-boundary-network-audit-logs
+// @Summary Get boundary audit logs
+// @ID get-boundary-audit-logs
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param q query string false "Search query"
 // @Param limit query int true "Page limit"
 // @Param offset query int false "Page offset"
-// @Success 200 {object} codersdk.BoundaryNetworkAuditLogResponse
-// @Router /boundary-network-audit-logs [get]
-func (api *API) boundaryNetworkAuditLogs(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {object} codersdk.BoundaryAuditLogResponse
+// @Router /boundary-audit-logs [get]
+func (api *API) boundaryAuditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
@@ -32,10 +32,10 @@ func (api *API) boundaryNetworkAuditLogs(rw http.ResponseWriter, r *http.Request
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, countFilter, errs := searchquery.BoundaryNetworkAuditLogs(ctx, api.Database, queryStr, apiKey)
+	filter, countFilter, errs := searchquery.BoundaryAuditLogs(ctx, api.Database, queryStr, apiKey)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid boundary network audit log search query.",
+			Message:     "Invalid boundary audit log search query.",
 			Validations: errs,
 		})
 		return
@@ -45,7 +45,7 @@ func (api *API) boundaryNetworkAuditLogs(rw http.ResponseWriter, r *http.Request
 	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
-	count, err := api.Database.CountBoundaryNetworkAuditLogs(ctx, countFilter)
+	count, err := api.Database.CountBoundaryAuditLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -56,14 +56,14 @@ func (api *API) boundaryNetworkAuditLogs(rw http.ResponseWriter, r *http.Request
 	}
 
 	if count == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.BoundaryNetworkAuditLogResponse{
-			Logs:  []codersdk.BoundaryNetworkAuditLog{},
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.BoundaryAuditLogResponse{
+			Logs:  []codersdk.BoundaryAuditLog{},
 			Count: 0,
 		})
 		return
 	}
 
-	dblogs, err := api.Database.GetBoundaryNetworkAuditLogs(ctx, filter)
+	dblogs, err := api.Database.GetBoundaryAuditLogs(ctx, filter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -73,22 +73,22 @@ func (api *API) boundaryNetworkAuditLogs(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.BoundaryNetworkAuditLogResponse{
-		Logs:  convertBoundaryNetworkAuditLogs(dblogs),
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.BoundaryAuditLogResponse{
+		Logs:  convertBoundaryAuditLogs(dblogs),
 		Count: count,
 	})
 }
 
-func convertBoundaryNetworkAuditLogs(dblogs []database.GetBoundaryNetworkAuditLogsRow) []codersdk.BoundaryNetworkAuditLog {
-	logs := make([]codersdk.BoundaryNetworkAuditLog, 0, len(dblogs))
+func convertBoundaryAuditLogs(dblogs []database.GetBoundaryAuditLogsRow) []codersdk.BoundaryAuditLog {
+	logs := make([]codersdk.BoundaryAuditLog, 0, len(dblogs))
 	for _, dblog := range dblogs {
-		logs = append(logs, convertBoundaryNetworkAuditLog(dblog))
+		logs = append(logs, convertBoundaryAuditLog(dblog))
 	}
 	return logs
 }
 
-func convertBoundaryNetworkAuditLog(dblog database.GetBoundaryNetworkAuditLogsRow) codersdk.BoundaryNetworkAuditLog {
-	return codersdk.BoundaryNetworkAuditLog{
+func convertBoundaryAuditLog(dblog database.GetBoundaryAuditLogsRow) codersdk.BoundaryAuditLog {
+	return codersdk.BoundaryAuditLog{
 		ID:   dblog.ID,
 		Time: dblog.Time,
 		Organization: codersdk.MinimalOrganization{
@@ -103,7 +103,9 @@ func convertBoundaryNetworkAuditLog(dblog database.GetBoundaryNetworkAuditLogsRo
 		WorkspaceName:          dblog.WorkspaceName,
 		AgentID:                dblog.AgentID,
 		AgentName:              dblog.AgentName,
-		Domain:                 dblog.Domain,
-		Action:                 codersdk.BoundaryNetworkAction(dblog.Action),
+		ResourceType:           dblog.ResourceType,
+		Resource:               dblog.Resource,
+		Operation:              dblog.Operation,
+		Decision:               codersdk.BoundaryAuditDecision(dblog.Decision),
 	}
 }

@@ -143,16 +143,16 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	return filter, countFilter, parser.Errors
 }
 
-// BoundaryNetworkAuditLogs parses search query parameters for boundary network audit logs.
+// BoundaryAuditLogs parses search query parameters for boundary network audit logs.
 //
 // Supported query parameters:
 //   - organization: string (organization name)
 //   - workspace_owner: string (username, or "me")
 //   - workspace_id: UUID
-//   - action: string ("allow" or "deny")
+//   - decision: string ("allow" or "deny")
 //   - time_after: RFC3339Nano timestamp
 //   - time_before: RFC3339Nano timestamp
-func BoundaryNetworkAuditLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetBoundaryNetworkAuditLogsParams, database.CountBoundaryNetworkAuditLogsParams, []codersdk.ValidationError) {
+func BoundaryAuditLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetBoundaryAuditLogsParams, database.CountBoundaryAuditLogsParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -161,15 +161,15 @@ func BoundaryNetworkAuditLogs(ctx context.Context, db database.Store, query stri
 	})
 	if len(errors) > 0 {
 		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
-		return database.GetBoundaryNetworkAuditLogsParams{}, database.CountBoundaryNetworkAuditLogsParams{}, errors
+		return database.GetBoundaryAuditLogsParams{}, database.CountBoundaryAuditLogsParams{}, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	filter := database.GetBoundaryNetworkAuditLogsParams{
+	filter := database.GetBoundaryAuditLogsParams{
 		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
 		WorkspaceOwnerID: uuid.Nil,
 		WorkspaceID:      parser.UUID(values, uuid.Nil, "workspace_id"),
-		Action:           string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[codersdk.BoundaryNetworkAction])),
+		Decision:         string(httpapi.ParseCustom(parser, values, "", "decision", httpapi.ParseEnum[codersdk.BoundaryAuditDecision])),
 		TimeAfter:        parser.Time3339Nano(values, time.Time{}, "time_after"),
 		TimeBefore:       parser.Time3339Nano(values, time.Time{}, "time_before"),
 	}
@@ -188,11 +188,11 @@ func BoundaryNetworkAuditLogs(ctx context.Context, db database.Store, query stri
 	}
 
 	// This MUST be kept in sync with the above
-	countFilter := database.CountBoundaryNetworkAuditLogsParams{
+	countFilter := database.CountBoundaryAuditLogsParams{
 		OrganizationID:   filter.OrganizationID,
 		WorkspaceOwnerID: filter.WorkspaceOwnerID,
 		WorkspaceID:      filter.WorkspaceID,
-		Action:           filter.Action,
+		Decision:         filter.Decision,
 		TimeAfter:        filter.TimeAfter,
 		TimeBefore:       filter.TimeBefore,
 	}

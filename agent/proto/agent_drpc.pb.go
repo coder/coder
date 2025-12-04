@@ -55,7 +55,7 @@ type DRPCAgentClient interface {
 	CreateSubAgent(ctx context.Context, in *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(ctx context.Context, in *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
-	ReportBoundaryNetworkAuditLogs(ctx context.Context, in *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error)
+	ReportBoundaryAuditLogs(ctx context.Context, in *ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error)
 }
 
 type drpcAgentClient struct {
@@ -212,9 +212,9 @@ func (c *drpcAgentClient) ListSubAgents(ctx context.Context, in *ListSubAgentsRe
 	return out, nil
 }
 
-func (c *drpcAgentClient) ReportBoundaryNetworkAuditLogs(ctx context.Context, in *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error) {
+func (c *drpcAgentClient) ReportBoundaryAuditLogs(ctx context.Context, in *ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReportBoundaryNetworkAuditLogs", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReportBoundaryAuditLogs", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ type DRPCAgentServer interface {
 	CreateSubAgent(context.Context, *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(context.Context, *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(context.Context, *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
-	ReportBoundaryNetworkAuditLogs(context.Context, *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error)
+	ReportBoundaryAuditLogs(context.Context, *ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -307,7 +307,7 @@ func (s *DRPCAgentUnimplementedServer) ListSubAgents(context.Context, *ListSubAg
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCAgentUnimplementedServer) ReportBoundaryNetworkAuditLogs(context.Context, *ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error) {
+func (s *DRPCAgentUnimplementedServer) ReportBoundaryAuditLogs(context.Context, *ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -462,14 +462,14 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 					)
 			}, DRPCAgentServer.ListSubAgents, true
 	case 16:
-		return "/coder.agent.v2.Agent/ReportBoundaryNetworkAuditLogs", drpcEncoding_File_agent_proto_agent_proto{},
+		return "/coder.agent.v2.Agent/ReportBoundaryAuditLogs", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
-					ReportBoundaryNetworkAuditLogs(
+					ReportBoundaryAuditLogs(
 						ctx,
-						in1.(*ReportBoundaryNetworkAuditLogsRequest),
+						in1.(*ReportBoundaryAuditLogsRequest),
 					)
-			}, DRPCAgentServer.ReportBoundaryNetworkAuditLogs, true
+			}, DRPCAgentServer.ReportBoundaryAuditLogs, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -735,16 +735,16 @@ func (x *drpcAgent_ListSubAgentsStream) SendAndClose(m *ListSubAgentsResponse) e
 	return x.CloseSend()
 }
 
-type DRPCAgent_ReportBoundaryNetworkAuditLogsStream interface {
+type DRPCAgent_ReportBoundaryAuditLogsStream interface {
 	drpc.Stream
 	SendAndClose(*emptypb.Empty) error
 }
 
-type drpcAgent_ReportBoundaryNetworkAuditLogsStream struct {
+type drpcAgent_ReportBoundaryAuditLogsStream struct {
 	drpc.Stream
 }
 
-func (x *drpcAgent_ReportBoundaryNetworkAuditLogsStream) SendAndClose(m *emptypb.Empty) error {
+func (x *drpcAgent_ReportBoundaryAuditLogsStream) SendAndClose(m *emptypb.Empty) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

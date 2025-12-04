@@ -1516,12 +1516,8 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
-func (q *querier) CountBoundaryNetworkAuditLogs(ctx context.Context, arg database.CountBoundaryNetworkAuditLogsParams) (int64, error) {
-	// Boundary network audit logs are readable by users who can read audit logs.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
-		return 0, err
-	}
-	return q.db.CountBoundaryNetworkAuditLogs(ctx, arg)
+func (q *querier) CountBoundaryAuditLogs(ctx context.Context, arg database.CountBoundaryAuditLogsParams) (int64, error) {
+	panic("not implemented")
 }
 
 func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
@@ -1764,11 +1760,8 @@ func (q *querier) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOld
 	return q.db.DeleteOldAuditLogs(ctx, arg)
 }
 
-func (q *querier) DeleteOldBoundaryNetworkAuditLogs(ctx context.Context, before time.Time) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return 0, err
-	}
-	return q.db.DeleteOldBoundaryNetworkAuditLogs(ctx, before)
+func (q *querier) DeleteOldBoundaryAuditLogs(ctx context.Context, before time.Time) (int64, error) {
+	panic("not implemented")
 }
 
 func (q *querier) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
@@ -2211,12 +2204,8 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
-func (q *querier) GetBoundaryNetworkAuditLogs(ctx context.Context, arg database.GetBoundaryNetworkAuditLogsParams) ([]database.GetBoundaryNetworkAuditLogsRow, error) {
-	// Boundary network audit logs are readable by users who can read audit logs.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
-		return nil, err
-	}
-	return q.db.GetBoundaryNetworkAuditLogs(ctx, arg)
+func (q *querier) GetBoundaryAuditLogs(ctx context.Context, arg database.GetBoundaryAuditLogsParams) ([]database.GetBoundaryAuditLogsRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -4090,7 +4079,7 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
-func (q *querier) InsertBoundaryNetworkAuditLogs(ctx context.Context, arg database.InsertBoundaryNetworkAuditLogsParams) error {
+func (q *querier) InsertBoundaryAuditLogs(ctx context.Context, arg database.InsertBoundaryAuditLogsParams) error {
 	panic("not implemented")
 }
 

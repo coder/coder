@@ -1,19 +1,19 @@
 import { API } from "api/api";
-import type { BoundaryNetworkAuditLogResponse } from "api/typesGenerated";
+import type { BoundaryAuditLogResponse } from "api/typesGenerated";
 import { useFilterParamsKey } from "components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 
-export function paginatedBoundaryNetworkAuditLogs(
+export function paginatedBoundaryAuditLogs(
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<BoundaryNetworkAuditLogResponse, string> {
+): UsePaginatedQueryOptions<BoundaryAuditLogResponse, string> {
 	return {
 		searchParams,
 		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
 		queryKey: ({ payload, pageNumber }) => {
-			return ["boundaryNetworkAuditLogs", payload, pageNumber] as const;
+			return ["boundaryAuditLogs", payload, pageNumber] as const;
 		},
 		queryFn: ({ payload, limit, offset }) => {
-			return API.getBoundaryNetworkAuditLogs({
+			return API.getBoundaryAuditLogs({
 				offset,
 				limit,
 				q: payload,

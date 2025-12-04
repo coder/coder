@@ -2320,6 +2320,6 @@ type boundaryAuditReporterAdapter struct {
 	aAPI proto.DRPCAgentClient27
 }
 
-func (b *boundaryAuditReporterAdapter) ReportBoundaryNetworkAuditLogs(ctx context.Context, req *proto.ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error) {
-	return b.aAPI.ReportBoundaryNetworkAuditLogs(ctx, req)
+func (b *boundaryAuditReporterAdapter) ReportBoundaryAuditLogs(ctx context.Context, req *proto.ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error) {
+	return b.aAPI.ReportBoundaryAuditLogs(ctx, req)
 }

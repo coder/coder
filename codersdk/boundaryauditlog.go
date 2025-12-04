@@ -10,25 +10,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// BoundaryNetworkAction represents whether a network request was allowed or denied.
-type BoundaryNetworkAction string
+// BoundaryAuditDecision represents whether a resource access was allowed or denied.
+type BoundaryAuditDecision string
 
 const (
-	BoundaryNetworkActionAllow BoundaryNetworkAction = "allow"
-	BoundaryNetworkActionDeny  BoundaryNetworkAction = "deny"
+	BoundaryAuditDecisionAllow BoundaryAuditDecision = "allow"
+	BoundaryAuditDecisionDeny  BoundaryAuditDecision = "deny"
 )
 
-func (a BoundaryNetworkAction) Valid() bool {
-	switch a {
-	case BoundaryNetworkActionAllow, BoundaryNetworkActionDeny:
+func (d BoundaryAuditDecision) Valid() bool {
+	switch d {
+	case BoundaryAuditDecisionAllow, BoundaryAuditDecisionDeny:
 		return true
 	default:
 		return false
 	}
 }
 
-// BoundaryNetworkAuditLog represents a single boundary network audit log entry.
-type BoundaryNetworkAuditLog struct {
+// BoundaryAuditLog represents a single boundary audit log entry.
+type BoundaryAuditLog struct {
 	ID                     uuid.UUID             `json:"id" format:"uuid"`
 	Time                   time.Time             `json:"time" format:"date-time"`
 	Organization           MinimalOrganization   `json:"organization"`
@@ -38,22 +38,24 @@ type BoundaryNetworkAuditLog struct {
 	WorkspaceName          string                `json:"workspace_name"`
 	AgentID                uuid.UUID             `json:"agent_id" format:"uuid"`
 	AgentName              string                `json:"agent_name"`
-	Domain                 string                `json:"domain"`
-	Action                 BoundaryNetworkAction `json:"action"`
+	ResourceType           string                `json:"resource_type"`
+	Resource               string                `json:"resource"`
+	Operation              string                `json:"operation"`
+	Decision               BoundaryAuditDecision `json:"decision"`
 }
 
-type BoundaryNetworkAuditLogsRequest struct {
+type BoundaryAuditLogsRequest struct {
 	SearchQuery string `json:"q,omitempty"`
 	Pagination
 }
 
-type BoundaryNetworkAuditLogResponse struct {
-	Logs  []BoundaryNetworkAuditLog `json:"logs"`
+type BoundaryAuditLogResponse struct {
+	Logs  []BoundaryAuditLog `json:"logs"`
 	Count int64                     `json:"count"`
 }
 
-func (c *Client) BoundaryNetworkAuditLogs(ctx context.Context, req BoundaryNetworkAuditLogsRequest) (BoundaryNetworkAuditLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/boundary-network-audit-logs", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+func (c *Client) BoundaryAuditLogs(ctx context.Context, req BoundaryAuditLogsRequest) (BoundaryAuditLogResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/boundary-audit-logs", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {
@@ -63,18 +65,18 @@ func (c *Client) BoundaryNetworkAuditLogs(ctx context.Context, req BoundaryNetwo
 		r.URL.RawQuery = q.Encode()
 	})
 	if err != nil {
-		return BoundaryNetworkAuditLogResponse{}, err
+		return BoundaryAuditLogResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return BoundaryNetworkAuditLogResponse{}, ReadBodyAsError(res)
+		return BoundaryAuditLogResponse{}, ReadBodyAsError(res)
 	}
 
-	var logRes BoundaryNetworkAuditLogResponse
+	var logRes BoundaryAuditLogResponse
 	err = json.NewDecoder(res.Body).Decode(&logRes)
 	if err != nil {
-		return BoundaryNetworkAuditLogResponse{}, err
+		return BoundaryAuditLogResponse{}, err
 	}
 	return logRes, nil
 }

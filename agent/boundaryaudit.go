@@ -24,17 +24,19 @@ const (
 	BoundaryAuditSocketName = "coder-boundary-audit.sock"
 )
 
-// BoundaryAuditEvent represents a single network access event from Boundary.
+// BoundaryAuditEvent represents a single resource access event from Boundary.
 // This matches the JSON format that Boundary sends.
 type BoundaryAuditEvent struct {
-	Timestamp time.Time `json:"timestamp"`
-	Domain    string    `json:"domain"`
-	Allowed   bool      `json:"allowed"`
+	Timestamp    time.Time `json:"timestamp"`
+	ResourceType string    `json:"resource_type"` // "network", "file", etc.
+	Resource     string    `json:"resource"`      // URL, file path, etc.
+	Operation    string    `json:"operation"`     // "GET", "POST", "read", "write", etc.
+	Decision     string    `json:"decision"`      // "allow" or "deny"
 }
 
 // BoundaryAuditReporter is the interface for reporting boundary network audit logs.
 type BoundaryAuditReporter interface {
-	ReportBoundaryNetworkAuditLogs(ctx context.Context, req *proto.ReportBoundaryNetworkAuditLogsRequest) (*emptypb.Empty, error)
+	ReportBoundaryAuditLogs(ctx context.Context, req *proto.ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error)
 }
 
 // BoundaryAuditListener listens on a Unix socket for network audit events from
@@ -182,17 +184,19 @@ func (l *BoundaryAuditListener) handleConnection(conn net.Conn) {
 		}
 
 		// Convert to proto format.
-		protoLogs := make([]*proto.BoundaryNetworkAuditLog, len(events))
+		protoLogs := make([]*proto.BoundaryAuditLog, len(events))
 		for i, event := range events {
-			protoLogs[i] = &proto.BoundaryNetworkAuditLog{
-				Timestamp: timestamppb.New(event.Timestamp),
-				Domain:    event.Domain,
-				Allowed:   event.Allowed,
+			protoLogs[i] = &proto.BoundaryAuditLog{
+				Timestamp:    timestamppb.New(event.Timestamp),
+				ResourceType: event.ResourceType,
+				Resource:     event.Resource,
+				Operation:    event.Operation,
+				Decision:     event.Decision,
 			}
 		}
 
 		// Forward to coderd (fire-and-forget with error logging).
-		_, err := l.reporter.ReportBoundaryNetworkAuditLogs(l.ctx, &proto.ReportBoundaryNetworkAuditLogsRequest{
+		_, err := l.reporter.ReportBoundaryAuditLogs(l.ctx, &proto.ReportBoundaryAuditLogsRequest{
 			Logs: protoLogs,
 		})
 		if err != nil {
