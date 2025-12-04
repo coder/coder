@@ -229,6 +229,13 @@ With autostart enabled:
 > When using project discovery, you still need to install the devcontainers CLI
 > using the module or in your base image.
 
+## Example Template
+
+The [Docker (Dev Containers)](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)
+starter template demonstrates Dev Containers integration using Docker-in-Docker.
+It includes the `devcontainers-cli` module, `git-clone` module, and the
+`coder_devcontainer` resource.
+
 ## Next Steps
 
 - [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
