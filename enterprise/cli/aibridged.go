@@ -37,6 +37,11 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 			BaseURL: "https://ampcode.com/api/provider/anthropic",
 			Key:     os.Getenv("AMP_API_KEY"), // TODO: add via deployment values
 		}),
+		// TODO(ssncferreira): add provider to aibridge project
+		aibridged.NewCopilotProvider(aibridged.CopilotConfig{
+			BaseURL: "https://api.individual.githubcopilot.com",
+			Key:     os.Getenv("COPILOT_API_KEY"),
+		}),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
