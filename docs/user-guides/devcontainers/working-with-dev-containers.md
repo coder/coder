@@ -54,7 +54,7 @@ ssh <agent>.<workspace>.<owner>.coder
 For example:
 
 ```console
-ssh my-project.my-workspace.alice.coder
+ssh my-project.my-workspace.me.coder
 ```
 
 The hostname suffix defaults to `coder` but can be customized by your
