@@ -8,8 +8,8 @@
 # Triggered by: Adding the "code-review" label to a PR, or manual dispatch.
 #
 # Required secrets:
-#   - CODE_REVIEW_CODER_URL: URL of your Coder deployment
-#   - CODE_REVIEW_CODER_SESSION_TOKEN: Session token for Coder API
+#   - DOC_CHECK_CODER_URL: URL of your Coder deployment (shared with doc-check)
+#   - DOC_CHECK_CODER_SESSION_TOKEN: Session token for Coder API (shared with doc-check)
 
 name: AI Code Review
 
@@ -38,8 +38,8 @@ jobs:
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
     env:
-      CODER_URL: ${{ secrets.CODE_REVIEW_CODER_URL }}
-      CODER_SESSION_TOKEN: ${{ secrets.CODE_REVIEW_CODER_SESSION_TOKEN }}
+      CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
     permissions:
       contents: read # Read repository contents and PR diff
       pull-requests: write # Post review comments and suggestions
@@ -349,8 +349,8 @@ jobs:
         id: create_task
         uses: ./.github/actions/create-task-action
         with:
-          coder-url: ${{ secrets.CODE_REVIEW_CODER_URL }}
-          coder-token: ${{ secrets.CODE_REVIEW_CODER_SESSION_TOKEN }}
+          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
           coder-organization: "default"
           coder-template-name: coder
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
