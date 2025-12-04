@@ -1,12 +1,16 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { TimingStage } from "api/typesGenerated";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { CircleAlertIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
 import {
-	Tooltip,
 	type TooltipProps,
 	TooltipShortDescription,
 	TooltipTitle,
@@ -105,11 +109,16 @@ export const StagesChart: FC<StagesChartProps> = ({
 										>
 											<span css={styles.stageLabel}>
 												{stage.label}
-												<Tooltip {...stage.tooltip}>
-													<InfoIcon
-														className="size-icon-xs"
-														css={styles.info}
-													/>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<InfoIcon
+															className="size-icon-xs"
+															css={styles.info}
+														/>
+													</TooltipTrigger>
+													<TooltipContent side="bottom" className="max-w-xs">
+														{stage.tooltip.title}
+													</TooltipContent>
 												</Tooltip>
 											</span>
 										</YAxisLabel>
