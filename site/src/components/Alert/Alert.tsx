@@ -91,12 +91,7 @@ export const Alert: FC<AlertProps> = ({
 		>
 			<div className="flex items-start justify-between gap-4 text-sm">
 				<div className="flex flex-row items-start gap-3">
-					<Icon
-						className={cn(
-							"size-icon-sm mt-1",
-							iconClassName,
-						)}
-					/>
+					<Icon className={cn("size-icon-sm mt-1", iconClassName)} />
 					<div className="flex-1">{children}</div>
 				</div>
 				<div className="flex items-start gap-2">
@@ -137,10 +132,7 @@ export const AlertTitle = forwardRef<
 >(({ className, ...props }, ref) => (
 	<h1
 		ref={ref}
-		className={cn(
-			"m-0 mb-1 text-sm font-medium",
-			className,
-		)}
+		className={cn("m-0 mb-1 text-sm font-medium", className)}
 		{...props}
 	/>
 ));
