@@ -24,4 +24,3 @@ curl -X GET http://coder-server:8080/api/v2/init-script/{os}/{arch}
 | Status | Meaning                                                 | Description | Schema |
 |--------|---------------------------------------------------------|-------------|--------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Success     |        |
-

@@ -1,6 +1,6 @@
 # Enterprise
 
-## OAuth2 authorization server metadata.
+## OAuth2 authorization server metadata
 
 ### Code samples
 
@@ -47,7 +47,7 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2AuthorizationServerMetadata](schemas.md#codersdkoauth2authorizationservermetadata) |
 
-## OAuth2 protected resource metadata.
+## OAuth2 protected resource metadata
 
 ### Code samples
 
@@ -867,7 +867,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notificatio
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get OAuth2 applications.
+## Get OAuth2 applications
 
 ### Code samples
 
@@ -932,7 +932,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Create OAuth2 application.
+## Create OAuth2 application
 
 ### Code samples
 
@@ -989,7 +989,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get OAuth2 application.
+## Get OAuth2 application
 
 ### Code samples
 
@@ -1035,7 +1035,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update OAuth2 application.
+## Update OAuth2 application
 
 ### Code samples
 
@@ -1093,7 +1093,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Delete OAuth2 application.
+## Delete OAuth2 application
 
 ### Code samples
 
@@ -1119,7 +1119,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get OAuth2 application secrets.
+## Get OAuth2 application secrets
 
 ### Code samples
 
@@ -1171,7 +1171,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Create OAuth2 application secret.
+## Create OAuth2 application secret
 
 ### Code samples
 
@@ -1221,7 +1221,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Delete OAuth2 application secret.
+## Delete OAuth2 application secret
 
 ### Code samples
 
@@ -1248,7 +1248,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## OAuth2 authorization request (GET - show authorization page).
+## OAuth2 authorization request (GET - show authorization page)
 
 ### Code samples
 
@@ -1284,7 +1284,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&st
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## OAuth2 authorization request (POST - process authorization).
+## OAuth2 authorization request (POST - process authorization)
 
 ### Code samples
 
@@ -1597,7 +1597,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
 |--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuth2ClientRegistrationResponse](schemas.md#codersdkoauth2clientregistrationresponse) |
 
-## Revoke OAuth2 tokens (RFC 7009).
+## Revoke OAuth2 tokens (RFC 7009)
 
 ### Code samples
 
@@ -1633,7 +1633,7 @@ token_type_hint: string
 |--------|---------------------------------------------------------|----------------------------|--------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Token successfully revoked |        |
 
-## OAuth2 token exchange.
+## OAuth2 token exchange
 
 ### Code samples
 
@@ -1694,7 +1694,7 @@ grant_type: authorization_code
 |--------|---------------------------------------------------------|-------------|----------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [oauth2.Token](schemas.md#oauth2token) |
 
-## Delete OAuth2 application tokens.
+## Delete OAuth2 application tokens
 
 ### Code samples
 
@@ -4145,29 +4145,29 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
 
 Status Code **200**
 
-| Name                   | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                        |
-|------------------------|--------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`         | array                                                                    | false    |              |                                                                                                                                                                                    |
-| `» regions`            | array                                                                    | false    |              |                                                                                                                                                                                    |
-| `»» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                    |
-| `»» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                                    |
-| `»» derp_enabled`      | boolean                                                                  | false    |              |                                                                                                                                                                                    |
-| `»» derp_only`         | boolean                                                                  | false    |              |                                                                                                                                                                                    |
-| `»» display_name`      | string                                                                   | false    |              |                                                                                                                                                                                    |
-| `»» healthy`           | boolean                                                                  | false    |              |                                                                                                                                                                                    |
-| `»» icon_url`          | string                                                                   | false    |              |                                                                                                                                                                                    |
-| `»» id`                | string(uuid)                                                             | false    |              |                                                                                                                                                                                    |
-| `»» name`              | string                                                                   | false    |              |                                                                                                                                                                                    |
-| `»» path_app_url`      | string                                                                   | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                      |
-| `»» status`            | [codersdk.WorkspaceProxyStatus](schemas.md#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use.      |
-| `»»» checked_at`       | string(date-time)                                                        | false    |              |                                                                                                                                                                                    |
-| `»»» report`           | [codersdk.ProxyHealthReport](schemas.md#codersdkproxyhealthreport)       | false    |              | Report provides more information about the health of the workspace proxy.                                                                                                          |
-| `»»»» errors`          | array                                                                    | false    |              | Errors are problems that prevent the workspace proxy from being healthy                                                                                                            |
-| `»»»» warnings`        | array                                                                    | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed.                                                                                           |
-| `»»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                                    |
-| `»» updated_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                    |
-| `»» version`           | string                                                                   | false    |              |                                                                                                                                                                                    |
-| `»» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. *.us.example.com E.g. *--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
+| Name                   | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                       |
+|------------------------|--------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`         | array                                                                    | false    |              |                                                                                                                                                                                   |
+| `» regions`            | array                                                                    | false    |              |                                                                                                                                                                                   |
+| `»» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                   |
+| `»» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                                   |
+| `»» derp_enabled`      | boolean                                                                  | false    |              |                                                                                                                                                                                   |
+| `»» derp_only`         | boolean                                                                  | false    |              |                                                                                                                                                                                   |
+| `»» display_name`      | string                                                                   | false    |              |                                                                                                                                                                                   |
+| `»» healthy`           | boolean                                                                  | false    |              |                                                                                                                                                                                   |
+| `»» icon_url`          | string                                                                   | false    |              |                                                                                                                                                                                   |
+| `»» id`                | string(uuid)                                                             | false    |              |                                                                                                                                                                                   |
+| `»» name`              | string                                                                   | false    |              |                                                                                                                                                                                   |
+| `»» path_app_url`      | string                                                                   | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                     |
+| `»» status`            | [codersdk.WorkspaceProxyStatus](schemas.md#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use.     |
+| `»»» checked_at`       | string(date-time)                                                        | false    |              |                                                                                                                                                                                   |
+| `»»» report`           | [codersdk.ProxyHealthReport](schemas.md#codersdkproxyhealthreport)       | false    |              | Report provides more information about the health of the workspace proxy.                                                                                                         |
+| `»»»» errors`          | array                                                                    | false    |              | Errors are problems that prevent the workspace proxy from being healthy                                                                                                           |
+| `»»»» warnings`        | array                                                                    | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed.                                                                                          |
+| `»»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                                   |
+| `»» updated_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                   |
+| `»» version`           | string                                                                   | false    |              |                                                                                                                                                                                   |
+| `»» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. *.us.example.com E.g.*--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
 #### Enumerated Values
 
@@ -4470,4 +4470,3 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agen
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAgentCredentials](schemas.md#codersdkexternalagentcredentials) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

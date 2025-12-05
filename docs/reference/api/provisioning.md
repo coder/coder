@@ -132,4 +132,3 @@ Status Code **200**
 | `status` | `busy`      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

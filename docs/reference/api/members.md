@@ -1141,4 +1141,3 @@ Status Code **200**
 | `resource_type` | `workspace_proxy`                  |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

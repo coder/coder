@@ -3624,4 +3624,3 @@ Status Code **200**
 | `type`   | `bool`   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
