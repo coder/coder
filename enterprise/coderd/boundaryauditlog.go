@@ -50,10 +50,9 @@ func (api *API) boundaryAuditLogs(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // Debug - bypass dbauthz
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	
-	// Debug: try with empty filter to rule out parameter issues
-	emptyFilter := database.CountBoundaryAuditLogsParams{}
-	emptyCount, emptyErr := api.Database.CountBoundaryAuditLogs(ctx, emptyFilter)
-	api.Logger.Info(ctx, "boundary audit logs EMPTY filter count", "count", emptyCount, "err", emptyErr)
+	// Debug: check if we can see other tables
+	users, usersErr := api.Database.GetUsers(ctx, database.GetUsersParams{})
+	api.Logger.Info(ctx, "boundary audit logs DEBUG users count", "count", len(users), "err", usersErr)
 	
 	count, err := api.Database.CountBoundaryAuditLogs(ctx, countFilter)
 	api.Logger.Info(ctx, "boundary audit logs count result", "count", count, "err", err)
