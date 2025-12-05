@@ -117,6 +117,7 @@ WITH stats AS (
 SELECT
     coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
     coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
     coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
     coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
     coalesce(SUM(session_count_vscode) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
