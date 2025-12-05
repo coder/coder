@@ -200,7 +200,7 @@ func (l *BoundaryAuditListener) handleConnection(conn net.Conn) {
 			Logs: protoLogs,
 		})
 		if err != nil {
-			l.logger.Warn(l.ctx, "failed to report audit logs", slog.Error(err), slog.F("count", len(events)))
+			l.logger.Warn(l.ctx, "failed to report audit logs", slog.F("error_string", err.Error()), slog.F("count", len(events)))
 		} else {
 			l.logger.Debug(l.ctx, "reported audit logs", slog.F("count", len(events)))
 		}
