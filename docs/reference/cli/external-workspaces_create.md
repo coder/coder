@@ -83,6 +83,15 @@ Specify automatic updates setting for the workspace (accepts 'always' or 'never'
 
 Specify the source workspace name to copy parameters from.
 
+### --use-parameter-defaults
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_WORKSPACE_USE_PARAMETER_DEFAULTS</code> |
+
+Automatically accept parameter defaults when no value is provided.
+
 ### -y, --yes
 
 |      |                   |
