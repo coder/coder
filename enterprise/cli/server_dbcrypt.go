@@ -239,10 +239,11 @@ Are you sure you want to continue?`
 }
 
 type rotateFlags struct {
-	PostgresURL  string
-	PostgresAuth string
-	New          string
-	Old          []string
+	PostgresURL     string
+	PostgresURLFile string
+	PostgresAuth    string
+	New             string
+	Old             []string
 }
 
 func (f *rotateFlags) attach(opts *serpent.OptionSet) {
@@ -253,6 +254,12 @@ func (f *rotateFlags) attach(opts *serpent.OptionSet) {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Flag:        "postgres-url-file",
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Description: "Path to a file containing the connection URL for the Postgres database.",
+			Value:       serpent.StringOf(&f.PostgresURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",
@@ -279,6 +286,17 @@ func (f *rotateFlags) attach(opts *serpent.OptionSet) {
 }
 
 func (f *rotateFlags) valid() error {
+	if f.PostgresURLFile != "" {
+		if f.PostgresURL != "" {
+			return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+		}
+		var err error
+		f.PostgresURL, err = cli.ReadPostgresURLFromFile(f.PostgresURLFile)
+		if err != nil {
+			return err
+		}
+	}
+
 	if f.PostgresURL == "" {
 		return xerrors.Errorf("no database configured")
 	}
@@ -310,9 +328,10 @@ func (f *rotateFlags) valid() error {
 }
 
 type decryptFlags struct {
-	PostgresURL  string
-	PostgresAuth string
-	Keys         []string
+	PostgresURL     string
+	PostgresURLFile string
+	PostgresAuth    string
+	Keys            []string
 }
 
 func (f *decryptFlags) attach(opts *serpent.OptionSet) {
@@ -323,6 +342,12 @@ func (f *decryptFlags) attach(opts *serpent.OptionSet) {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Flag:        "postgres-url-file",
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Description: "Path to a file containing the connection URL for the Postgres database.",
+			Value:       serpent.StringOf(&f.PostgresURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",
@@ -343,6 +368,17 @@ func (f *decryptFlags) attach(opts *serpent.OptionSet) {
 }
 
 func (f *decryptFlags) valid() error {
+	if f.PostgresURLFile != "" {
+		if f.PostgresURL != "" {
+			return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+		}
+		var err error
+		f.PostgresURL, err = cli.ReadPostgresURLFromFile(f.PostgresURLFile)
+		if err != nil {
+			return err
+		}
+	}
+
 	if f.PostgresURL == "" {
 		return xerrors.Errorf("no database configured")
 	}
@@ -363,9 +399,10 @@ func (f *decryptFlags) valid() error {
 }
 
 type deleteFlags struct {
-	PostgresURL  string
-	PostgresAuth string
-	Confirm      bool
+	PostgresURL     string
+	PostgresURLFile string
+	PostgresAuth    string
+	Confirm         bool
 }
 
 func (f *deleteFlags) attach(opts *serpent.OptionSet) {
@@ -376,6 +413,12 @@ func (f *deleteFlags) attach(opts *serpent.OptionSet) {
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Flag:        "postgres-url-file",
+			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL_FILE",
+			Description: "Path to a file containing the connection URL for the Postgres database.",
+			Value:       serpent.StringOf(&f.PostgresURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",
@@ -390,6 +433,17 @@ func (f *deleteFlags) attach(opts *serpent.OptionSet) {
 }
 
 func (f *deleteFlags) valid() error {
+	if f.PostgresURLFile != "" {
+		if f.PostgresURL != "" {
+			return xerrors.Errorf("cannot specify both --postgres-url and --postgres-url-file")
+		}
+		var err error
+		f.PostgresURL, err = cli.ReadPostgresURLFromFile(f.PostgresURLFile)
+		if err != nil {
+			return err
+		}
+	}
+
 	if f.PostgresURL == "" {
 		return xerrors.Errorf("no database configured")
 	}

@@ -470,6 +470,12 @@ cacheDir: [cache dir]
 # temporary directory and deleted when the server is stopped.
 # (default: <unset>, type: bool)
 ephemeralDeployment: false
+# Path to a file containing the URL of a PostgreSQL database. The file contents
+# will be read and used as the connection URL. This is an alternative to
+# --postgres-url for cases where the URL is stored in a file, such as a Docker or
+# Kubernetes secret.
+# (default: <unset>, type: string)
+pgConnectionURLFile: ""
 # Type of auth to use when connecting to postgres. For AWS RDS, using IAM
 # authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
