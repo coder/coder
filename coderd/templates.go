@@ -994,7 +994,7 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
-	api.returnDAUsInternal(rw, r, []uuid.UUID{template.ID})
+	api.insightsAPI.DAUsForTemplates(rw, r, []uuid.UUID{template.ID})
 }
 
 // @Summary Get template examples by organization

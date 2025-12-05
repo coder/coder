@@ -21,11 +21,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -247,7 +248,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	licenses, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, licenses)
+	licenses, err = httpauthz.AuthorizationFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, licenses)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching licenses.",

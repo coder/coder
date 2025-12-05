@@ -21,6 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/httpauthz"
+	"github.com/coder/coder/v2/coderd/insightsapi"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -584,7 +586,7 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		HTTPAuth: &HTTPAuthorizer{
+		HTTPAuth: &httpauthz.HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
@@ -799,6 +801,8 @@ func New(options *Options) *API {
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})
+
+	api.insightsAPI = insightsapi.NewAPI(api.Logger, api.Database, api.HTTPAuth)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1524,11 +1528,11 @@ func New(options *Options) *API {
 		})
 		r.Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/daus", api.deploymentDAUs)
-			r.Get("/user-activity", api.insightsUserActivity)
-			r.Get("/user-status-counts", api.insightsUserStatusCounts)
-			r.Get("/user-latency", api.insightsUserLatency)
-			r.Get("/templates", api.insightsTemplates)
+			r.Get("/daus", api.insightsAPI.DeploymentDAUs)
+			r.Get("/user-activity", api.insightsAPI.UserActivity)
+			r.Get("/user-status-counts", api.insightsAPI.UserStatusCounts)
+			r.Get("/user-latency", api.insightsAPI.UserLatency)
+			r.Get("/templates", api.insightsAPI.Templates)
 		})
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(
@@ -1802,7 +1806,7 @@ type API struct {
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
-	HTTPAuth *HTTPAuthorizer
+	HTTPAuth *httpauthz.HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
@@ -1837,6 +1841,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+
+	insightsAPI *insightsapi.API
 }
 
 // Close waits for all WebSocket connections to drain before returning.

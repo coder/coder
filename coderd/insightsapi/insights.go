@@ -1,4 +1,4 @@
-package coderd
+package insightsapi
 
 import (
 	"context"
@@ -34,16 +34,16 @@ const insightsTimeLayout = time.RFC3339
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /insights/daus [get]
-func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+func (a *API) DeploymentDAUs(rw http.ResponseWriter, r *http.Request) {
+	if !a.authorizer.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	api.returnDAUsInternal(rw, r, nil)
+	a.DAUsForTemplates(rw, r, nil)
 }
 
-func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, templateIDs []uuid.UUID) {
+func (a *API) DAUsForTemplates(rw http.ResponseWriter, r *http.Request, templateIDs []uuid.UUID) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser()
@@ -66,7 +66,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 	// Always return 60 days of data (2 months).
 	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
 
-	rows, err := api.Database.GetTemplateInsightsByInterval(ctx, database.GetTemplateInsightsByIntervalParams{
+	rows, err := a.database.GetTemplateInsightsByInterval(ctx, database.GetTemplateInsightsByIntervalParams{
 		StartTime:    sixtyDaysAgo,
 		EndTime:      nextHourInLoc,
 		IntervalDays: 1,
@@ -107,7 +107,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserActivityInsightsResponse
 // @Router /insights/user-activity [get]
-func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
+func (a *API) UserActivity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser().
@@ -135,7 +135,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := api.Database.GetUserActivityInsights(ctx, database.GetUserActivityInsightsParams{
+	rows, err := a.database.GetUserActivityInsights(ctx, database.GetUserActivityInsightsParams{
 		StartTime:   startTime,
 		EndTime:     endTime,
 		TemplateIDs: templateIDs,
@@ -210,7 +210,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserLatencyInsightsResponse
 // @Router /insights/user-latency [get]
-func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
+func (a *API) UserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser().
@@ -238,7 +238,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := api.Database.GetUserLatencyInsights(ctx, database.GetUserLatencyInsightsParams{
+	rows, err := a.database.GetUserLatencyInsights(ctx, database.GetUserLatencyInsightsParams{
 		StartTime:   startTime,
 		EndTime:     endTime,
 		TemplateIDs: templateIDs,
@@ -301,7 +301,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
 // @Router /insights/user-status-counts [get]
-func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
+func (a *API) UserStatusCounts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser()
@@ -322,7 +322,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	nextHourInLoc := dbtime.Now().Truncate(time.Hour).Add(time.Hour).In(loc)
 	sixtyDaysAgo := dbtime.StartOfDay(nextHourInLoc).AddDate(0, 0, -60)
 
-	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+	rows, err := a.database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
 		// #nosec G115 - Interval value is small and fits in int32 (typically days or hours)
@@ -366,7 +366,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.TemplateInsightsResponse
 // @Router /insights/templates [get]
-func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
+func (a *API) Templates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser().
@@ -418,7 +418,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	eg.Go(func() error {
 		var err error
 		if interval != "" && slices.Contains(sections, codersdk.TemplateInsightsSectionIntervalReports) {
-			dailyUsage, err = api.Database.GetTemplateInsightsByInterval(egCtx, database.GetTemplateInsightsByIntervalParams{
+			dailyUsage, err = a.database.GetTemplateInsightsByInterval(egCtx, database.GetTemplateInsightsByIntervalParams{
 				StartTime:    startTime,
 				EndTime:      endTime,
 				TemplateIDs:  templateIDs,
@@ -436,7 +436,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		usage, err = api.Database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
+		usage, err = a.database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -452,7 +452,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		appUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
+		appUsage, err = a.database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -471,7 +471,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		parameterRows, err = api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+		parameterRows, err = a.database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,

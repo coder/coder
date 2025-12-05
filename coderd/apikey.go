@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -341,7 +342,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	keys, err = AuthorizeFilter(api.HTTPAuth, r, policy.ActionRead, keys)
+	keys, err = httpauthz.AuthorizationFilter(api.HTTPAuth, r, policy.ActionRead, keys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching keys.",
