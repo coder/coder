@@ -2052,7 +2052,6 @@ func TestSSH_Container(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
 		pool, err := dockertest.NewPool("")
 		require.NoError(t, err, "Could not connect to docker")
 		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -2083,6 +2082,7 @@ func TestSSH_Container(t *testing.T) {
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", ct.Container.ID)
 		clitest.SetupConfig(t, client, root)
 		ptty := ptytest.New(t).Attach(inv)
