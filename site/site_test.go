@@ -676,11 +676,18 @@ func TestRenderStaticErrorPage(t *testing.T) {
 	t.Parallel()
 
 	d := site.ErrorPageData{
-		Status:       http.StatusBadGateway,
-		Title:        "Bad Gateway 1234",
-		Description:  "shout out colin",
-		RetryEnabled: true,
-		DashboardURL: "https://example.com",
+		Status:      http.StatusBadGateway,
+		Title:       "Bad Gateway 1234",
+		Description: "shout out colin",
+		Actions: []site.Action{
+			{
+				Text: "Retry",
+			},
+			{
+				URL:  "https://example.com",
+				Text: "Back to site",
+			},
+		},
 	}
 
 	rw := httptest.NewRecorder()
@@ -699,19 +706,26 @@ func TestRenderStaticErrorPage(t *testing.T) {
 	require.Contains(t, bodyStr, d.Title)
 	require.Contains(t, bodyStr, d.Description)
 	require.Contains(t, bodyStr, "Retry")
-	require.Contains(t, bodyStr, d.DashboardURL)
+	require.Contains(t, bodyStr, "https://example.com")
 }
 
 func TestRenderStaticErrorPageNoStatus(t *testing.T) {
 	t.Parallel()
 
 	d := site.ErrorPageData{
-		HideStatus:   true,
-		Status:       http.StatusBadGateway,
-		Title:        "Bad Gateway 1234",
-		Description:  "shout out colin",
-		RetryEnabled: true,
-		DashboardURL: "https://example.com",
+		HideStatus:  true,
+		Status:      http.StatusBadGateway,
+		Title:       "Bad Gateway 1234",
+		Description: "shout out colin",
+		Actions: []site.Action{
+			{
+				Text: "Retry",
+			},
+			{
+				URL:  "https://example.com",
+				Text: "Back to site",
+			},
+		},
 	}
 
 	rw := httptest.NewRecorder()
@@ -730,7 +744,7 @@ func TestRenderStaticErrorPageNoStatus(t *testing.T) {
 	require.Contains(t, bodyStr, d.Title)
 	require.Contains(t, bodyStr, d.Description)
 	require.Contains(t, bodyStr, "Retry")
-	require.Contains(t, bodyStr, d.DashboardURL)
+	require.Contains(t, bodyStr, "https://example.com")
 }
 
 func TestJustFilesSystem(t *testing.T) {

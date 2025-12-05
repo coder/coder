@@ -251,13 +251,16 @@ type HTTPError struct {
 func (e HTTPError) Write(rw http.ResponseWriter, r *http.Request) {
 	if e.RenderStaticPage {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       e.Code,
-			HideStatus:   true,
-			Title:        e.Msg,
-			Description:  e.Detail,
-			RetryEnabled: false,
-			DashboardURL: "/login",
-
+			Status:      e.Code,
+			HideStatus:  true,
+			Title:       e.Msg,
+			Description: e.Detail,
+			Actions: []site.Action{
+				{
+					URL:  "/login",
+					Text: "Back to site",
+				},
+			},
 			RenderDescriptionMarkdown: e.RenderDetailMarkdown,
 		})
 		return

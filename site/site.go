@@ -933,20 +933,26 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 	}
 }
 
+// Action represents a link.
+type Action struct {
+	// URL is set as the href property on the anchor.  If empty, refreshes the
+	// page instead.
+	URL string
+	// Text is the displayed text of the button or link.
+	Text string
+}
+
 // ErrorPageData contains the variables that are found in
 // site/static/error.html.
 type ErrorPageData struct {
 	Status int
 	// HideStatus will remove the status code from the page.
-	HideStatus           bool
-	Title                string
-	Description          string
-	RetryEnabled         bool
-	DashboardURL         string
-	Warnings             []string
-	AdditionalInfo       string
-	AdditionalButtonLink string
-	AdditionalButtonText string
+	HideStatus     bool
+	Title          string
+	Description    string
+	Actions        []Action
+	Warnings       []string
+	AdditionalInfo string
 
 	RenderDescriptionMarkdown bool
 }
