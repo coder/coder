@@ -133,9 +133,9 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch(" #")
+		pty.ExpectMatchContext(ctx, " #")
 		pty.WriteLine("hostname")
-		pty.ExpectMatch(ct.Container.Config.Hostname)
+		pty.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
 		pty.WriteLine("exit")
 		<-cmdDone
 	})

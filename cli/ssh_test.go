@@ -2092,9 +2092,9 @@ func TestSSH_Container(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		ptty.ExpectMatch(" #")
+		ptty.ExpectMatchContext(ctx, " #")
 		ptty.WriteLine("hostname")
-		ptty.ExpectMatch(ct.Container.Config.Hostname)
+		ptty.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
 		ptty.WriteLine("exit")
 		<-cmdDone
 	})
