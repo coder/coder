@@ -18,7 +18,7 @@ import (
 
 func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	ctx := context.Background()
-	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
+	coderAPI.Logger.Info(ctx, "starting in-memory aibridge daemon")
 
 	logger := coderAPI.Logger.Named("aibridged")
 
@@ -32,6 +32,10 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
 			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
 		}, getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
+		// TODO(ssncferreira): add provider to aibridge project
+		aibridged.NewAmpProvider(aibridged.AmpConfig{
+			BaseURL: "https://ampcode.com/api/provider/anthropic",
+		}),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)

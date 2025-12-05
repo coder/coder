@@ -14,9 +14,11 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
+	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/aibridged"
+	"github.com/coder/coder/v2/enterprise/aiproxy"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -27,8 +29,6 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
-
-	agplcoderd "github.com/coder/coder/v2/coderd"
 )
 
 func (r *RootCmd) Server(_ func()) *serpent.Command {
@@ -164,6 +164,18 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			// the API server is itself shutdown.
 			closers.Add(aibridgeDaemon)
 		}
+
+		// In-memory AI proxy
+		var aiProxyServer *aiproxy.Server
+		// TODO: add options.DeploymentValues.AI.BridgeConfig.Enabled
+		aiProxyServer, err = newAIProxy(api)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("create aiproxy: %w", err)
+		}
+
+		closers.Add(aiProxyServer)
+
+		_ = aiProxyServer
 
 		return api.AGPL, closers, nil
 	})
