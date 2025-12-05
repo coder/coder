@@ -45,7 +45,9 @@ func (api *API) boundaryAuditLogs(rw http.ResponseWriter, r *http.Request) {
 	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
+	api.Logger.Info(ctx, "boundary audit logs query", "countFilter", countFilter)
 	count, err := api.Database.CountBoundaryAuditLogs(ctx, countFilter)
+	api.Logger.Info(ctx, "boundary audit logs count result", "count", count, "err", err)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
