@@ -45,10 +45,11 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	}
 
 	// Inject RBAC object into context for dbauthz fast path, avoid having to
-	// call GetWorkspaceByAgentID on every metadata update.
-	var err error
+	// call GetWorkspaceAgentByID on every stats update.
+
 	rbacCtx := ctx
 	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		var err error
 		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
 		if err != nil {
 			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
