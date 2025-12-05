@@ -295,6 +295,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			now  = dbtime.Now()
 			// Set up consistent IDs that represent a valid workspace->agent relationship
 			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
+			templateID  = uuid.MustParse("aaaabbbb-cccc-dddd-eeee-ffffffff0000")
 			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
 			orgID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
 			agentID     = uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
@@ -358,8 +359,48 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			OrganizationID: orgID,
 		})
 
-		// Create context with system actor so authorization passes
-		ctx := dbauthz.AsSystemRestricted(context.Background())
+		// Create roles with workspace permissions
+		userRoles := rbac.Roles([]rbac.Role{
+			{
+				Identifier: rbac.RoleMember(),
+				User: []rbac.Permission{
+					{
+						Negate:       false,
+						ResourceType: rbac.ResourceWorkspace.Type,
+						Action:       policy.WildcardSymbol,
+					},
+				},
+				ByOrgID: map[string]rbac.OrgPermissions{
+					orgID.String(): {
+						Member: []rbac.Permission{
+							{
+								Negate:       false,
+								ResourceType: rbac.ResourceWorkspace.Type,
+								Action:       policy.WildcardSymbol,
+							},
+						},
+					},
+				},
+			},
+		})
+
+		agentScope := rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+			WorkspaceID: workspaceID,
+			OwnerID:     ownerID,
+			TemplateID:  templateID,
+			VersionID:   uuid.New(),
+		})
+
+		ctx := dbauthz.As(context.Background(), rbac.Subject{
+			Type:         rbac.SubjectTypeUser,
+			FriendlyName: "testuser",
+			Email:        "testuser@example.com",
+			ID:           ownerID.String(),
+			Roles:        userRoles,
+			Groups:       []string{orgID.String()},
+			Scope:        agentScope,
+		}.WithCachedASTValue())
+
 		resp, err := api.BatchUpdateMetadata(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -376,6 +417,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			pub         = &fakePublisher{}
 			now         = dbtime.Now()
 			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
+			templateID  = uuid.MustParse("aaaabbbb-cccc-dddd-eeee-ffffffff0000")
 			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
 			orgID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
 			agentID     = uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
@@ -445,12 +487,53 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			OrganizationID: uuid.Nil, // Invalid: fails dbauthz fast path validation
 		})
 
-		// Create context with system actor so authorization passes
-		ctx := dbauthz.AsSystemRestricted(context.Background())
+		// Create roles with workspace permissions
+		userRoles := rbac.Roles([]rbac.Role{
+			{
+				Identifier: rbac.RoleMember(),
+				User: []rbac.Permission{
+					{
+						Negate:       false,
+						ResourceType: rbac.ResourceWorkspace.Type,
+						Action:       policy.WildcardSymbol,
+					},
+				},
+				ByOrgID: map[string]rbac.OrgPermissions{
+					orgID.String(): {
+						Member: []rbac.Permission{
+							{
+								Negate:       false,
+								ResourceType: rbac.ResourceWorkspace.Type,
+								Action:       policy.WildcardSymbol,
+							},
+						},
+					},
+				},
+			},
+		})
+
+		agentScope := rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+			WorkspaceID: workspaceID,
+			OwnerID:     ownerID,
+			TemplateID:  templateID,
+			VersionID:   uuid.New(),
+		})
+
+		ctx := dbauthz.As(context.Background(), rbac.Subject{
+			Type:         rbac.SubjectTypeUser,
+			FriendlyName: "testuser",
+			Email:        "testuser@example.com",
+			ID:           ownerID.String(),
+			Roles:        userRoles,
+			Groups:       []string{orgID.String()},
+			Scope:        agentScope,
+		}.WithCachedASTValue())
+
 		resp, err := api.BatchUpdateMetadata(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 	})
+
 	// Test RBAC slow path - no RBAC object in context
 	// This test verifies that when no RBAC object is present in context, the dbauthz layer
 	// falls back to the slow path and calls GetWorkspaceByAgentID.
@@ -463,6 +546,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			pub         = &fakePublisher{}
 			now         = dbtime.Now()
 			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
+			templateID  = uuid.MustParse("aaaabbbb-cccc-dddd-eeee-ffffffff0000")
 			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
 			orgID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
 			agentID     = uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
@@ -523,8 +607,48 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 		}
 
-		// Create context with system actor so authorization passes
-		ctx := dbauthz.AsSystemRestricted(context.Background())
+		// Create roles with workspace permissions
+		userRoles := rbac.Roles([]rbac.Role{
+			{
+				Identifier: rbac.RoleMember(),
+				User: []rbac.Permission{
+					{
+						Negate:       false,
+						ResourceType: rbac.ResourceWorkspace.Type,
+						Action:       policy.WildcardSymbol,
+					},
+				},
+				ByOrgID: map[string]rbac.OrgPermissions{
+					orgID.String(): {
+						Member: []rbac.Permission{
+							{
+								Negate:       false,
+								ResourceType: rbac.ResourceWorkspace.Type,
+								Action:       policy.WildcardSymbol,
+							},
+						},
+					},
+				},
+			},
+		})
+
+		agentScope := rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+			WorkspaceID: workspaceID,
+			OwnerID:     ownerID,
+			TemplateID:  templateID,
+			VersionID:   uuid.New(),
+		})
+
+		ctx := dbauthz.As(context.Background(), rbac.Subject{
+			Type:         rbac.SubjectTypeUser,
+			FriendlyName: "testuser",
+			Email:        "testuser@example.com",
+			ID:           ownerID.String(),
+			Roles:        userRoles,
+			Groups:       []string{orgID.String()},
+			Scope:        agentScope,
+		}.WithCachedASTValue())
+
 		resp, err := api.BatchUpdateMetadata(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
