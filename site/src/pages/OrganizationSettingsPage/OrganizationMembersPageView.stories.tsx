@@ -1,6 +1,8 @@
 import {
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockOwnerRole,
+	MockUserAdminRole,
 	MockUserOwner,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -19,7 +21,11 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 		canViewMembers: true,
 		me: MockUserOwner,
 		members: [
-			{ ...MockOrganizationMember, groups: [] },
+			{
+				...MockOrganizationMember,
+				global_roles: [MockOwnerRole, MockUserAdminRole],
+				groups: [],
+			},
 			{ ...MockOrganizationMember2, groups: [] },
 		],
 		membersQuery: {
