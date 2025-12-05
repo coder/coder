@@ -150,6 +150,21 @@ always auto-start regardless of this setting.
 
 ## Per-Container Customizations
 
+> [!NOTE]
+>
+> Dev container sub-agents are created dynamically after workspace provisioning,
+> so Terraform resources like
+> [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
+> and [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+> cannot currently be attached to them. Modules from the
+> [Coder registry](https://registry.coder.com) that depend on these resources
+> are also not currently supported for sub-agents.
+>
+> To add tools to dev containers, use
+> [dev container features](../../../user-guides/devcontainers/working-with-dev-containers.md#dev-container-features).
+> For Coder-specific apps, use the
+> [`apps` customization](../../../user-guides/devcontainers/customizing-dev-containers.md#custom-apps).
+
 Developers can customize individual dev containers using the `customizations.coder`
 block in their `devcontainer.json` file. Available options include:
 
