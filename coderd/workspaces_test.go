@@ -346,6 +346,81 @@ func TestWorkspace(t *testing.T) {
 			assert.False(t, agent2.Health.Healthy)
 			assert.NotEmpty(t, agent2.Health.Reason)
 		})
+
+		t.Run("Sub-agent excluded", func(t *testing.T) {
+			t.Parallel()
+			// This test verifies that sub-agents (e.g., devcontainer agents)
+			// are excluded from the workspace health calculation. When a
+			// devcontainer is rebuilding, the sub-agent may be temporarily
+			// disconnected, but this should not make the workspace unhealthy.
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Response{{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Name: "parent",
+									Auth: &proto.Agent_Token{},
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Get the workspace and parent agent.
+			workspace, err := client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+			parentAgent := workspace.LatestBuild.Resources[0].Agents[0]
+			require.True(t, parentAgent.Health.Healthy, "parent agent should be healthy initially")
+
+			// Create a sub-agent with a short connection timeout so it becomes
+			// unhealthy quickly (simulating a devcontainer rebuild scenario).
+			subAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
+				ResourceID:               parentAgent.ResourceID,
+				Name:                     "subagent",
+				ConnectionTimeoutSeconds: 1,
+			})
+
+			// Wait for the sub-agent to become unhealthy due to timeout.
+			var subAgentUnhealthy bool
+			require.Eventually(t, func() bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				if err != nil {
+					return false
+				}
+				for _, res := range workspace.LatestBuild.Resources {
+					for _, agent := range res.Agents {
+						if agent.ID == subAgent.ID && !agent.Health.Healthy {
+							subAgentUnhealthy = true
+							return true
+						}
+					}
+				}
+				return false
+			}, testutil.WaitShort, testutil.IntervalFast, "sub-agent should become unhealthy")
+
+			require.True(t, subAgentUnhealthy, "sub-agent should be unhealthy")
+
+			// Verify that the workspace is still healthy because sub-agents
+			// are excluded from the health calculation.
+			assert.True(t, workspace.Health.Healthy, "workspace should be healthy despite unhealthy sub-agent")
+			assert.Empty(t, workspace.Health.FailingAgents, "failing agents should not include sub-agent")
+		})
 	})
 
 	t.Run("Archived", func(t *testing.T) {

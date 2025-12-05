@@ -47,16 +47,12 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	referenceDate,
 }) => {
 	const [displayStatuses, setDisplayStatuses] = useState(false);
+	// Statuses are returned from the API sorted by created_at DESC, id DESC.
 	const allStatuses: StatusWithAppInfo[] = agent.apps.flatMap((app) =>
-		app.statuses
-			.map((status) => ({
-				...status,
-				app,
-			}))
-			.sort(
-				(a, b) =>
-					new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-			),
+		app.statuses.map((status) => ({
+			...status,
+			app,
+		})),
 	);
 
 	if (allStatuses.length === 0) {

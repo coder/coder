@@ -2598,6 +2598,13 @@ func convertWorkspace(
 	failingAgents := []uuid.UUID{}
 	for _, resource := range workspaceBuild.Resources {
 		for _, agent := range resource.Agents {
+			// Sub-agents (e.g., devcontainer agents) are excluded from the
+			// workspace health calculation. Their health is managed by
+			// their parent agent, and temporary disconnections during
+			// devcontainer rebuilds should not affect workspace health.
+			if agent.ParentID.Valid {
+				continue
+			}
 			if !agent.Health.Healthy {
 				failingAgents = append(failingAgents, agent.ID)
 			}

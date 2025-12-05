@@ -113,11 +113,11 @@ const Tasks: FC<TasksStageProps> = ({ tasks }) => {
 
 	return (
 		<>
-			<ul className="list-none p-0 border border-solid border-zinc-200 dark:border-zinc-700 rounded-lg overflow-x-hidden overflow-y-auto max-h-[184px]">
+			<ul className="list-none p-0 border border-solid border-border rounded-lg overflow-x-hidden overflow-y-auto max-h-48">
 				{tasks.map((task) => (
 					<li
 						key={task.id}
-						className="py-2 px-4 border-solid border-0 border-b border-zinc-200 dark:border-zinc-700 last:border-b-0"
+						className="py-2 px-4 border-solid border-0 border-b border-border last:border-b-0"
 					>
 						<div className="flex items-center justify-between gap-6">
 							<span className="font-medium text-content-primary max-w-[400px] overflow-hidden text-ellipsis whitespace-nowrap">
