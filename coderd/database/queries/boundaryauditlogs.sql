@@ -62,7 +62,7 @@ WHERE
     -- Filter by decision
     AND CASE
         WHEN @decision :: text != '' THEN
-            boundary_audit_logs.decision = @decision :: boundary_audit_decision
+            boundary_audit_logs.decision::text = @decision
         ELSE true
     END
     -- Filter by time range (after)
@@ -110,7 +110,7 @@ WHERE
     -- Filter by decision
     AND CASE
         WHEN @decision :: text != '' THEN
-            boundary_audit_logs.decision = @decision :: boundary_audit_decision
+            boundary_audit_logs.decision::text = @decision
         ELSE true
     END
     -- Filter by time range (after)
