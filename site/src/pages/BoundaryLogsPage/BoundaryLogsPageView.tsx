@@ -23,8 +23,7 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { Timeline } from "components/Timeline/Timeline";
-import { TimelineEntry } from "components/Timeline/TimelineEntry";
+
 import type { ComponentProps, FC } from "react";
 import { docs } from "utils/docs";
 import { BoundaryLogsFilter } from "./BoundaryLogsFilter";
@@ -83,14 +82,14 @@ export const BoundaryLogsPageView: FC<BoundaryLogsPageViewProps> = ({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-36">Timestamp</TableHead>
-									<TableHead className="w-32">Workspace</TableHead>
-									<TableHead className="w-24">Owner</TableHead>
-									<TableHead className="w-20">Agent</TableHead>
-									<TableHead className="w-20">Type</TableHead>
-									<TableHead className="min-w-64">Resource</TableHead>
-									<TableHead className="w-24">Operation</TableHead>
-									<TableHead className="w-24">Decision</TableHead>
+									<TableHead>Timestamp</TableHead>
+									<TableHead>Workspace</TableHead>
+									<TableHead>Owner</TableHead>
+									<TableHead>Agent</TableHead>
+									<TableHead>Type</TableHead>
+									<TableHead>Resource</TableHead>
+									<TableHead>Operation</TableHead>
+									<TableHead>Decision</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -168,25 +167,23 @@ interface BoundaryLogRowProps {
 
 const BoundaryLogRow: FC<BoundaryLogRowProps> = ({ log, showOrgDetails }) => {
 	return (
-		<TimelineEntry data-testid={`boundary-log-${log.id}`}>
-			<TableRow>
-				<TableCell className="w-36 whitespace-nowrap">
-					{new Date(log.time).toLocaleString()}
-				</TableCell>
-				<TableCell className="w-32">{log.workspace_name}</TableCell>
-				<TableCell className="w-24">{log.workspace_owner_username}</TableCell>
-				<TableCell className="w-20">{log.agent_name}</TableCell>
-				<TableCell className="w-20">{log.resource_type}</TableCell>
-				<TableCell className="min-w-64 font-mono text-sm truncate" title={log.resource}>
-					{log.resource}
-				</TableCell>
-				<TableCell className="w-24">{log.operation}</TableCell>
-				<TableCell className="w-24">
-					<Badge variant={log.decision === "allow" ? "green" : "destructive"}>
-						{log.decision}
-					</Badge>
-				</TableCell>
-			</TableRow>
-		</TimelineEntry>
+		<TableRow data-testid={`boundary-log-${log.id}`}>
+			<TableCell className="whitespace-nowrap">
+				{new Date(log.time).toLocaleString()}
+			</TableCell>
+			<TableCell>{log.workspace_name}</TableCell>
+			<TableCell>{log.workspace_owner_username}</TableCell>
+			<TableCell>{log.agent_name}</TableCell>
+			<TableCell>{log.resource_type}</TableCell>
+			<TableCell className="font-mono text-sm max-w-md truncate" title={log.resource}>
+				{log.resource}
+			</TableCell>
+			<TableCell>{log.operation}</TableCell>
+			<TableCell>
+				<Badge variant={log.decision === "allow" ? "green" : "destructive"}>
+					{log.decision}
+				</Badge>
+			</TableCell>
+		</TableRow>
 	);
 };
