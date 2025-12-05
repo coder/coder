@@ -485,6 +485,70 @@ func TestAgent(t *testing.T) {
 		}
 		require.NoError(t, cmd.Invoke().Run())
 	})
+
+	t.Run("ContextCancelDuringLogStreaming", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		agent := codersdk.WorkspaceAgent{
+			ID:               uuid.New(),
+			Status:           codersdk.WorkspaceAgentConnected,
+			FirstConnectedAt: ptr.Ref(time.Now()),
+			CreatedAt:        time.Now(),
+			LifecycleState:   codersdk.WorkspaceAgentLifecycleStarting,
+			StartedAt:        ptr.Ref(time.Now()),
+		}
+
+		logs := make(chan []codersdk.WorkspaceAgentLog, 1)
+		logStreamStarted := make(chan struct{})
+
+		cmd := &serpent.Command{
+			Handler: func(inv *serpent.Invocation) error {
+				return cliui.Agent(inv.Context(), io.Discard, agent.ID, cliui.AgentOptions{
+					FetchInterval: time.Millisecond,
+					Wait:          true,
+					Fetch: func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
+						return agent, nil
+					},
+					FetchLogs: func(_ context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
+						// Signal that log streaming has started.
+						select {
+						case <-logStreamStarted:
+						default:
+							close(logStreamStarted)
+						}
+						return logs, closeFunc(func() error { return nil }), nil
+					},
+				})
+			},
+		}
+
+		inv := cmd.Invoke().WithContext(ctx)
+		done := make(chan error, 1)
+		go func() {
+			done <- inv.Run()
+		}()
+
+		// Wait for log streaming to start.
+		select {
+		case <-logStreamStarted:
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("timed out waiting for log streaming to start")
+		}
+
+		// Cancel the context while streaming logs.
+		cancel()
+
+		// Verify that the agent function returns with a context error.
+		select {
+		case err := <-done:
+			require.ErrorIs(t, err, context.Canceled)
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("timed out waiting for agent to return after context cancellation")
+		}
+	})
 }
 
 func TestPeerDiagnostics(t *testing.T) {
