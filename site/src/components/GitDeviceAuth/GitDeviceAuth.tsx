@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import type { ApiErrorResponse } from "api/errors";
