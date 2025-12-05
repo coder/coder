@@ -203,9 +203,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 					}}
 				>
 					<TaskSidebarMenuItemStatus task={task} />
-					<span className="block max-w-[220px] truncate">
-						{task.display_name}
-					</span>
+					<span className="truncate">{task.display_name}</span>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
