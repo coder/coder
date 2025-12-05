@@ -128,19 +128,13 @@ export const BoundaryLogsPageView: FC<BoundaryLogsPageViewProps> = ({
 									</Cond>
 
 									<Cond>
-										{logs && (
-											<Timeline
-												items={logs}
-												getDate={(log) => new Date(log.time)}
-												row={(log) => (
-													<BoundaryLogRow
-														key={log.id}
-														log={log}
-														showOrgDetails={showOrgDetails}
-													/>
-												)}
+										{logs?.map((log) => (
+											<BoundaryLogRow
+												key={log.id}
+												log={log}
+												showOrgDetails={showOrgDetails}
 											/>
-										)}
+										))}
 									</Cond>
 								</ChooseOne>
 							</TableBody>
