@@ -1,8 +1,8 @@
 package agentapi
 
 import (
-	"time"
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 type BoundaryAuditLogAPI struct {
@@ -24,6 +25,10 @@ func (a *BoundaryAuditLogAPI) ReportBoundaryAuditLogs(ctx context.Context, req *
 	if len(logs) == 0 {
 		return &emptypb.Empty{}, nil
 	}
+
+	// Use system context for agent operations.
+	//nolint:gocritic // Agent API requires system access to write audit logs.
+	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	// Fetch contextual data for these logs.
 	workspaceAgent, err := a.AgentFn(ctx)
