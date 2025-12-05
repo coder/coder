@@ -2082,6 +2082,7 @@ func TestSSH_Container(t *testing.T) {
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", ct.Container.ID)
 		clitest.SetupConfig(t, client, root)
 		ptty := ptytest.New(t).Attach(inv)
