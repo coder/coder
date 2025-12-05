@@ -96,5 +96,6 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Devcontainer templates](./devcontainers/index.md)
+- [Dev Containers integration](../extending-templates/devcontainers.md) (recommended)
+- [Envbuilder](./envbuilder/index.md) (alternative for environments without Docker)
 - [Change management](./change-management.md)
