@@ -81,8 +81,6 @@ export CODER_TRACE_ENABLE=true
 coder server --trace
 ```
 
-Open Telemetry configuration must be provided by environment variables.
-See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
 ### What is Traced
 
