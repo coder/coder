@@ -73,7 +73,7 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202508072
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
 require (
-	cdr.dev/slog v1.6.2-0.20250703074222-9df5e0a6c145
+	cdr.dev/slog v1.6.2-0.20251120224544-40ff19937ff2
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
