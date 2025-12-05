@@ -81,7 +81,6 @@ export CODER_TRACE_ENABLE=true
 coder server --trace
 ```
 
-
 ### What is Traced
 
 AI Bridge creates spans for the following operations:
