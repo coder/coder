@@ -1800,7 +1800,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Add new license",
                 "operationId": "add-new-license",
@@ -1836,7 +1836,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Update license entitlements",
                 "operationId": "update-license-entitlements",
