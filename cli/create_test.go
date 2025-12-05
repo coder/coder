@@ -384,6 +384,8 @@ func TestCreateWithRichParameters(t *testing.T) {
 		inputParameters []param
 		// expectedParameters defaults to inputParameters.
 		expectedParameters []param
+		// withDefaults sets DefaultValue to each parameter's value.
+		withDefaults bool
 	}{
 		{
 			name: "ValuesFromPrompt",
@@ -528,6 +530,21 @@ func TestCreateWithRichParameters(t *testing.T) {
 				return "other-workspace"
 			},
 		},
+		{
+			name: "ValuesFromTemplateDefaults",
+			handlePty: func(pty *ptytest.PTY) {
+				// Simply accept the defaults.
+				for _, param := range params {
+					pty.ExpectMatch(param.name)
+					pty.ExpectMatch(`Enter a value (default: "` + param.value + `")`)
+					pty.WriteLine("")
+				}
+				// Confirm the creation.
+				pty.ExpectMatch("Confirm create?")
+				pty.WriteLine("yes")
+			},
+			withDefaults: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -542,11 +559,16 @@ func TestCreateWithRichParameters(t *testing.T) {
 			// Convert parameters for the echo provisioner response.
 			var rparams []*proto.RichParameter
 			for i, param := range parameters {
+				defaultValue := ""
+				if tt.withDefaults {
+					defaultValue = param.value
+				}
 				rparams = append(rparams, &proto.RichParameter{
-					Name:    param.name,
-					Type:    param.ptype,
-					Mutable: param.mutable,
-					Order:   int32(i), //nolint:gosec
+					Name:         param.name,
+					Type:         param.ptype,
+					Mutable:      param.mutable,
+					DefaultValue: defaultValue,
+					Order:        int32(i), //nolint:gosec
 				})
 			}
 
