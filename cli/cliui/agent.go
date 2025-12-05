@@ -42,20 +42,6 @@ type agentWaiter struct {
 	fetchAgent func(context.Context) (codersdk.WorkspaceAgent, error)
 }
 
-// pollWhile polls the agent while the condition is true. It fetches the agent
-// on each iteration and returns the updated agent when the condition is false,
-// the context is canceled, or an error occurs.
-func (aw *agentWaiter) pollWhile(ctx context.Context, agent codersdk.WorkspaceAgent, cond func(agent codersdk.WorkspaceAgent) bool) (codersdk.WorkspaceAgent, error) {
-	var err error
-	for cond(agent) {
-		agent, err = aw.fetchAgent(ctx)
-		if err != nil {
-			return agent, xerrors.Errorf("fetch: %w", err)
-		}
-	}
-	return agent, nil
-}
-
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
 func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentOptions) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -355,6 +341,20 @@ func (aw *agentWaiter) waitForReconnection(ctx context.Context, agent codersdk.W
 	aw.sw.Complete(stage, safeDuration(aw.sw, agent.LastConnectedAt, disconnectedAt))
 
 	return agent, showStartupLogs, nil
+}
+
+// pollWhile polls the agent while the condition is true. It fetches the agent
+// on each iteration and returns the updated agent when the condition is false,
+// the context is canceled, or an error occurs.
+func (aw *agentWaiter) pollWhile(ctx context.Context, agent codersdk.WorkspaceAgent, cond func(agent codersdk.WorkspaceAgent) bool) (codersdk.WorkspaceAgent, error) {
+	var err error
+	for cond(agent) {
+		agent, err = aw.fetchAgent(ctx)
+		if err != nil {
+			return agent, xerrors.Errorf("fetch: %w", err)
+		}
+	}
+	return agent, nil
 }
 
 func troubleshootingMessage(agent codersdk.WorkspaceAgent, url string) string {
