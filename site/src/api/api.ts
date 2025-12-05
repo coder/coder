@@ -2783,15 +2783,18 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		if (process.env.NODE_ENV === "development") {
 			// Development mode uses a hard-coded CSRF token
 			instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
-			instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
 			tokenMetadataElement.setAttribute("content", csrfToken);
 		} else {
 			instance.defaults.headers.common["X-CSRF-TOKEN"] =
 				tokenMetadataElement.getAttribute("content") ?? "";
 		}
 	} else {
-		// Do not write error logs if we are in a FE unit test.
-		if (!process.env.JEST_WORKER_ID && !process.env.VITEST) {
+		// Do not write error logs if we are in a FE unit test or if there is no document (e.g., Electron)
+		if (
+			typeof document !== "undefined" &&
+			!process.env.JEST_WORKER_ID &&
+			!process.env.VITEST
+		) {
 			console.error("CSRF token not found");
 		}
 	}
