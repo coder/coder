@@ -1999,7 +1999,7 @@ WHERE
     END
     -- Filter by workspace_owner_id
     AND CASE
-        WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
             boundary_audit_logs.workspace_owner_id = $3
         ELSE true
     END
