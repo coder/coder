@@ -170,16 +170,18 @@ const BoundaryLogRow: FC<BoundaryLogRowProps> = ({ log, showOrgDetails }) => {
 	return (
 		<TimelineEntry data-testid={`boundary-log-${log.id}`}>
 			<TableRow>
-				<TableCell>{new Date(log.time).toLocaleString()}</TableCell>
-				<TableCell>{log.workspace_name}</TableCell>
-				<TableCell>{log.workspace_owner_username}</TableCell>
-				<TableCell>{log.agent_name}</TableCell>
-				<TableCell>{log.resource_type}</TableCell>
-				<TableCell className="font-mono text-sm max-w-xs truncate">
+				<TableCell className="w-36 whitespace-nowrap">
+					{new Date(log.time).toLocaleString()}
+				</TableCell>
+				<TableCell className="w-32">{log.workspace_name}</TableCell>
+				<TableCell className="w-24">{log.workspace_owner_username}</TableCell>
+				<TableCell className="w-20">{log.agent_name}</TableCell>
+				<TableCell className="w-20">{log.resource_type}</TableCell>
+				<TableCell className="min-w-64 font-mono text-sm truncate" title={log.resource}>
 					{log.resource}
 				</TableCell>
-				<TableCell>{log.operation}</TableCell>
-				<TableCell>
+				<TableCell className="w-24">{log.operation}</TableCell>
+				<TableCell className="w-24">
 					<Badge variant={log.decision === "allow" ? "green" : "destructive"}>
 						{log.decision}
 					</Badge>
