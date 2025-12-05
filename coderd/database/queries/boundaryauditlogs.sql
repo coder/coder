@@ -67,13 +67,13 @@ WHERE
     END
     -- Filter by time range (after)
     AND CASE
-        WHEN @time_after :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN @time_after :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time >= @time_after
         ELSE true
     END
     -- Filter by time range (before)
     AND CASE
-        WHEN @time_before :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN @time_before :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time <= @time_before
         ELSE true
     END
@@ -115,13 +115,13 @@ WHERE
     END
     -- Filter by time range (after)
     AND CASE
-        WHEN @time_after :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN @time_after :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time >= @time_after
         ELSE true
     END
     -- Filter by time range (before)
     AND CASE
-        WHEN @time_before :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN @time_before :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time <= @time_before
         ELSE true
     END;
