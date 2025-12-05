@@ -103,7 +103,7 @@ WHERE
     END
     -- Filter by workspace_owner_id
     AND CASE
-        WHEN @workspace_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+        WHEN @workspace_owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
             boundary_audit_logs.workspace_owner_id = @workspace_owner_id
         ELSE true
     END
