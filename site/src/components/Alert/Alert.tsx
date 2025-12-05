@@ -1,7 +1,6 @@
 import MuiAlert, {
 	type AlertColor as MuiAlertColor,
 	type AlertProps as MuiAlertProps,
-	// biome-ignore lint/style/noRestrictedImports: Used as base component
 } from "@mui/material/Alert";
 import Collapse from "@mui/material/Collapse";
 import { Button } from "components/Button/Button";

@@ -1,13 +1,15 @@
 import createCache from "@emotion/cache";
+/** @deprecated Emotion is deprecated. Migrate to Tailwind CSS. */
 import {
 	CacheProvider,
 	ThemeProvider as EmotionThemeProvider,
 } from "@emotion/react";
+/** @deprecated MUI CssBaseline is deprecated. Migrate to shadcn/ui components and Tailwind CSS. */
 import CssBaseline from "@mui/material/CssBaseline";
+/** @deprecated MUI components are deprecated. Migrate to shadcn/ui components and Tailwind CSS. */
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
-	// biome-ignore lint/style/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import { appearanceSettings } from "api/queries/users";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";

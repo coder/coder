@@ -1,6 +1,11 @@
-// biome-ignore lint/style/noRestrictedImports: we use the classes for customization
+/**
+ * @deprecated MUI theme configuration is deprecated. Migrate to Tailwind CSS theme system.
+ * This file provides MUI theme overrides for legacy compatibility only.
+ */
+
+/** @deprecated MUI Alert classes are deprecated. Use shadcn/ui Alert component instead. */
 import { alertClasses } from "@mui/material/Alert";
-// biome-ignore lint/style/noRestrictedImports: we use the MUI theme as a base
+/** @deprecated MUI ThemeOptions is deprecated. Migrate to Tailwind CSS theme system. */
 import type { ThemeOptions } from "@mui/material/styles";
 import {
 	BODY_FONT_FAMILY,
