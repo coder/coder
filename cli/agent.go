@@ -59,6 +59,7 @@ func workspaceAgent() *serpent.Command {
 		devcontainerDiscoveryAutostart bool
 		socketServerEnabled            bool
 		socketPath                     string
+		reportMetadataInterval         time.Duration
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -304,11 +305,12 @@ func workspaceAgent() *serpent.Command {
 					LogDir:        logDir,
 					ScriptDataDir: scriptDataDir,
 					// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
-					TailnetListenPort:    uint16(tailnetListenPort),
-					EnvironmentVariables: environmentVariables,
-					IgnorePorts:          ignorePorts,
-					SSHMaxTimeout:        sshMaxTimeout,
-					Subsystems:           subsystems,
+					TailnetListenPort:      uint16(tailnetListenPort),
+					ReportMetadataInterval: reportMetadataInterval,
+					EnvironmentVariables:   environmentVariables,
+					IgnorePorts:            ignorePorts,
+					SSHMaxTimeout:          sshMaxTimeout,
+					Subsystems:             subsystems,
 
 					PrometheusRegistry: prometheusRegistry,
 					BlockFileTransfer:  blockFileTransfer,
@@ -493,6 +495,13 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_SOCKET_PATH",
 			Description: "Specify the path for the agent socket.",
 			Value:       serpent.StringOf(&socketPath),
+		},
+		{
+			Flag:        "report-metadata-interval",
+			Default:     "1s",
+			Env:         "CODER_AGENT_REPORT_METADATA_INTERVAL",
+			Description: "Specify the interval for reporting agent metadata. This also triggers pubsub notifications, so increasing this value can reduce database load.",
+			Value:       serpent.DurationOf(&reportMetadataInterval),
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)
