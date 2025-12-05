@@ -87,10 +87,15 @@ module.exports = {
 					"0%": { left: "0%" },
 					"100%": { left: "100%" },
 				},
+				"logo-jump": {
+					"0%, 100%": { transform: "translateY(0)" },
+					"50%": { transform: "translateY(-6px)" },
+				},
 			},
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
+				"logo-jump": "logo-jump 0.3s ease-in-out",
 			},
 		},
 	},
