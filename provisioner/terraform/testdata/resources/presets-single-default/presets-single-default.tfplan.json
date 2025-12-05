@@ -162,6 +162,8 @@
             "schema_version": 1,
             "values": {
               "default": true,
+              "description": null,
+              "icon": null,
               "id": "development",
               "name": "development",
               "parameters": {
@@ -194,6 +196,8 @@
             "schema_version": 1,
             "values": {
               "default": false,
+              "description": null,
+              "icon": null,
               "id": "production",
               "name": "production",
               "parameters": {

@@ -41,6 +41,7 @@
           "sidebar_app": []
         },
         "after_unknown": {
+          "enabled": true,
           "id": true,
           "prompt": true,
           "sidebar_app": []
@@ -81,11 +82,11 @@
             "schema_version": 1,
             "values": {
               "access_port": 443,
-              "access_url": "https://dev.coder.com/",
+              "access_url": "https://mydeployment.coder.com",
               "id": "5c06d6ea-101b-4069-8d14-7179df66ebcc",
               "is_prebuild": false,
               "is_prebuild_claim": false,
-              "name": "coder",
+              "name": "default",
               "prebuild_count": 0,
               "start_count": 1,
               "template_id": "",
@@ -104,7 +105,7 @@
             "schema_version": 0,
             "values": {
               "email": "default@example.com",
-              "full_name": "coder",
+              "full_name": "default",
               "groups": [],
               "id": "8796d8d7-88f1-445a-bea7-65f5cf530b95",
               "login_type": null,
