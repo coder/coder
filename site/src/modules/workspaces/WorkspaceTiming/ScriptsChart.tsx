@@ -1,4 +1,9 @@
 import { type Theme, useTheme } from "@emotion/react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { type FC, useState } from "react";
 import { Bar } from "./Chart/Bar";
 import {
@@ -10,7 +15,6 @@ import {
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
-import { Tooltip, TooltipTitle } from "./Chart/Tooltip";
 import {
 	calcDuration,
 	calcOffset,
@@ -103,19 +107,21 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 									key={t.name}
 									yAxisLabelId={encodeURIComponent(t.name)}
 								>
-									<Tooltip
-										title={
-											<TooltipTitle>
-												Script exited with <strong>code {t.exitCode}</strong>
-											</TooltipTitle>
-										}
-									>
-										<Bar
-											value={duration}
-											offset={calcOffset(t.range, generalTiming)}
-											scale={scale}
-											colors={legendsByStatus[t.status].colors}
-										/>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Bar
+												value={duration}
+												offset={calcOffset(t.range, generalTiming)}
+												scale={scale}
+												colors={legendsByStatus[t.status].colors}
+											/>
+										</TooltipTrigger>
+										<TooltipContent
+											side="bottom"
+											className="border-surface-quaternary text-content-primary"
+										>
+											Script exited with <strong>code {t.exitCode}</strong>
+										</TooltipContent>
 									</Tooltip>
 
 									{formatTime(duration)}
