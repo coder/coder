@@ -50,6 +50,10 @@ env:
       name: {{ .Values.provisionerDaemon.pskSecretName | quote }}
       key: psk
 {{- end }}
+{{- if .Values.coder.license.secretName }}
+- name: CODER_LICENSE_FILE
+  value: "{{ .Values.coder.license.mountPath }}/{{ .Values.coder.license.secretKey }}"
+{{- end }}
   # Set the default access URL so a `helm apply` works by default.
   # See: https://github.com/coder/coder/issues/5024
 {{- $hasAccessURL := false }}
