@@ -3,7 +3,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os/signal"
@@ -14,8 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/bridge"
 	"github.com/coder/coder/v2/scaletest/createusers"
@@ -25,8 +22,13 @@ import (
 
 func (r *RootCmd) scaletestBridge() *serpent.Command {
 	var (
-		userCount   int64
-		noCleanup   bool
+		userCount    int64
+		noCleanup    bool
+		directURL    string
+		directToken  string
+		requestCount int64
+		model        string
+		stream       bool
 		tracingFlags = &scaletestTracingFlags{}
 
 		// This test requires unlimited concurrency.
@@ -50,9 +52,14 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
-			if err != nil {
-				return err
+			var me codersdk.User
+			if directURL == "" {
+				// Full mode requires admin access
+				var err error
+				me, err = requireAdmin(ctx, client)
+				if err != nil {
+					return err
+				}
 			}
 
 			client.HTTPClient = &http.Client{
@@ -64,9 +71,22 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 				},
 			}
 
+			// Validate: user count is always required (controls concurrency)
 			if userCount <= 0 {
 				return xerrors.Errorf("--user-count must be greater than 0")
 			}
+
+			// Set defaults
+			if requestCount <= 0 {
+				requestCount = 1
+			}
+			if model == "" {
+				model = "gpt-4"
+			}
+
+			// userCount always controls the number of runners (concurrency)
+			// Each runner makes requestCount requests
+			runnerCount := userCount
 
 			outputs, err := output.parse()
 			if err != nil {
@@ -96,16 +116,35 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 				<-time.After(prometheusFlags.Wait)
 			}()
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
+			if directURL == "" {
+				_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
+			} else {
+				_, _ = fmt.Fprintf(inv.Stderr, "Direct mode: making requests to %s\n", directURL)
+			}
 
-			configs := make([]bridge.Config, 0, userCount)
-			for range userCount {
+			configs := make([]bridge.Config, 0, runnerCount)
+			for range runnerCount {
 				config := bridge.Config{
-					User: createusers.Config{
-						OrganizationID: me.OrganizationIDs[0],
-					},
-					Metrics: metrics,
+					Metrics:      metrics,
+					RequestCount: int(requestCount),
+					Model:        model,
+					Stream:       stream,
 				}
+
+				if directURL != "" {
+					// Direct mode
+					config.DirectURL = directURL
+					config.DirectToken = directToken
+				} else {
+					// Full mode
+					if len(me.OrganizationIDs) == 0 {
+						return xerrors.Errorf("admin user must have at least one organization")
+					}
+					config.User = createusers.Config{
+						OrganizationID: me.OrganizationIDs[0],
+					}
+				}
+
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
 				}
@@ -174,9 +213,41 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			Flag:          "user-count",
 			FlagShorthand: "c",
 			Env:           "CODER_SCALETEST_BRIDGE_USER_COUNT",
-			Description:   "Required: Total number of users to create.",
+			Description:   "Required: Number of concurrent runners (in full mode, each creates a user).",
 			Value:         serpent.Int64Of(&userCount),
 			Required:      true,
+		},
+		{
+			Flag:        "direct-url",
+			Env:         "CODER_SCALETEST_BRIDGE_DIRECT_URL",
+			Description: "URL to make requests to directly (enables direct mode, conflicts with --user-count).",
+			Value:       serpent.StringOf(&directURL),
+		},
+		{
+			Flag:        "direct-token",
+			Env:         "CODER_SCALETEST_BRIDGE_DIRECT_TOKEN",
+			Description: "Bearer token for direct mode (optional, uses client token if not set).",
+			Value:       serpent.StringOf(&directToken),
+		},
+		{
+			Flag:        "request-count",
+			Env:         "CODER_SCALETEST_BRIDGE_REQUEST_COUNT",
+			Default:     "1",
+			Description: "Number of requests to make per runner.",
+			Value:       serpent.Int64Of(&requestCount),
+		},
+		{
+			Flag:        "model",
+			Env:         "CODER_SCALETEST_BRIDGE_MODEL",
+			Default:     "gpt-4",
+			Description: "Model to use for requests.",
+			Value:       serpent.StringOf(&model),
+		},
+		{
+			Flag:        "stream",
+			Env:         "CODER_SCALETEST_BRIDGE_STREAM",
+			Description: "Enable streaming requests.",
+			Value:       serpent.BoolOf(&stream),
 		},
 		{
 			Flag:        "no-cleanup",
@@ -193,5 +264,3 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 	prometheusFlags.attach(&cmd.Options)
 	return cmd
 }
-
-
