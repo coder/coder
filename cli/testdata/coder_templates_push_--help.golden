@@ -48,7 +48,7 @@ OPTIONS:
           Specify a file path with values for Terraform-managed variables.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

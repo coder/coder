@@ -25,7 +25,7 @@ coder organizations roles create [flags] <role_name>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### --dry-run
 

@@ -13,7 +13,7 @@ OPTIONS:
           services it's registered with.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

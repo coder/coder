@@ -40,4 +40,4 @@ Type of auth to use when connecting to postgres.
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

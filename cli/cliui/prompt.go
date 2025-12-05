@@ -32,12 +32,12 @@ type PromptOptions struct {
 const skipPromptFlag = "yes"
 
 // SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
-// prompts.
+// confirmation prompts.
 func SkipPromptOption() serpent.Option {
 	return serpent.Option{
 		Flag:          skipPromptFlag,
 		FlagShorthand: "y",
-		Description:   "Bypass prompts.",
+		Description:   "Bypass confirmation prompts.",
 		// Discard
 		Value: serpent.BoolOf(new(bool)),
 	}
