@@ -104,4 +104,3 @@ server that can be used to query intercepted requests and purge stored data.`,
 
 	return cmd
 }
-
