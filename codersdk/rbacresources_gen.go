@@ -6,6 +6,9 @@ type RBACResource string
 const (
 	ResourceWildcard                      RBACResource = "*"
 	ResourceAibridgeInterception          RBACResource = "aibridge_interception"
+	ResourceAlertMessage                  RBACResource = "alert_message"
+	ResourceAlertPreference               RBACResource = "alert_preference"
+	ResourceAlertTemplate                 RBACResource = "alert_template"
 	ResourceApiKey                        RBACResource = "api_key"
 	ResourceAssignOrgRole                 RBACResource = "assign_org_role"
 	ResourceAssignRole                    RBACResource = "assign_role"
@@ -19,11 +22,8 @@ const (
 	ResourceGroup                         RBACResource = "group"
 	ResourceGroupMember                   RBACResource = "group_member"
 	ResourceIdpsyncSettings               RBACResource = "idpsync_settings"
-	ResourceInboxNotification             RBACResource = "inbox_notification"
+	ResourceInboxAlert                    RBACResource = "inbox_alert"
 	ResourceLicense                       RBACResource = "license"
-	ResourceNotificationMessage           RBACResource = "notification_message"
-	ResourceNotificationPreference        RBACResource = "notification_preference"
-	ResourceNotificationTemplate          RBACResource = "notification_template"
 	ResourceOauth2App                     RBACResource = "oauth2_app"
 	ResourceOauth2AppCodeToken            RBACResource = "oauth2_app_code_token"
 	ResourceOauth2AppSecret               RBACResource = "oauth2_app_secret"
@@ -75,6 +75,9 @@ const (
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
 	ResourceAibridgeInterception:          {ActionCreate, ActionRead, ActionUpdate},
+	ResourceAlertMessage:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAlertPreference:               {ActionRead, ActionUpdate},
+	ResourceAlertTemplate:                 {ActionRead, ActionUpdate},
 	ResourceApiKey:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUnassign, ActionUpdate},
 	ResourceAssignRole:                    {ActionAssign, ActionRead, ActionUnassign},
@@ -88,11 +91,8 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceGroup:                         {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceGroupMember:                   {ActionRead},
 	ResourceIdpsyncSettings:               {ActionRead, ActionUpdate},
-	ResourceInboxNotification:             {ActionCreate, ActionRead, ActionUpdate},
+	ResourceInboxAlert:                    {ActionCreate, ActionRead, ActionUpdate},
 	ResourceLicense:                       {ActionCreate, ActionDelete, ActionRead},
-	ResourceNotificationMessage:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceNotificationPreference:        {ActionRead, ActionUpdate},
-	ResourceNotificationTemplate:          {ActionRead, ActionUpdate},
 	ResourceOauth2App:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOauth2AppCodeToken:            {ActionCreate, ActionDelete, ActionRead},
 	ResourceOauth2AppSecret:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

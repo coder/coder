@@ -16,14 +16,14 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -323,7 +323,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			clock.Set(c.now)
 
 			// Set the template policy.
-			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger, clock)
+			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, alerts.NewNoopEnqueuer(), logger, clock)
 
 			autostopReq := agplschedule.TemplateAutostopRequirement{
 				// Every day
@@ -607,7 +607,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 	clock.Set(now)
 
 	// Set the template policy.
-	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger, clock)
+	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, alerts.NewNoopEnqueuer(), logger, clock)
 	_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
 		UserAutostartEnabled: false,
 		UserAutostopEnabled:  false,
@@ -708,7 +708,7 @@ func TestNotifications(t *testing.T) {
 		}
 
 		// Setup dependencies
-		notifyEnq := notificationstest.FakeEnqueuer{}
+		notifyEnq := alertstest.FakeEnqueuer{}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
@@ -730,7 +730,7 @@ func TestNotifications(t *testing.T) {
 		require.Len(t, sent, len(dormantWorkspaces))
 		for i, dormantWs := range dormantWorkspaces {
 			require.Equal(t, sent[i].UserID, dormantWs.OwnerID)
-			require.Equal(t, sent[i].TemplateID, notifications.TemplateWorkspaceMarkedForDeletion)
+			require.Equal(t, sent[i].TemplateID, alerts.TemplateWorkspaceMarkedForDeletion)
 			require.Contains(t, sent[i].Targets, template.ID)
 			require.Contains(t, sent[i].Targets, dormantWs.ID)
 			require.Contains(t, sent[i].Targets, dormantWs.OrganizationID)
@@ -806,7 +806,7 @@ func TestNotifications(t *testing.T) {
 		require.NoError(t, err)
 
 		// Setup dependencies
-		notifyEnq := notificationstest.NewFakeEnqueuer()
+		notifyEnq := alertstest.NewFakeEnqueuer()
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
@@ -827,7 +827,7 @@ func TestNotifications(t *testing.T) {
 		sent := notifyEnq.Sent()
 		require.Len(t, sent, 1, "expected exactly 1 notification for the non-deleted workspace")
 		require.Equal(t, sent[0].UserID, activeDormantWorkspace.OwnerID)
-		require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceMarkedForDeletion)
+		require.Equal(t, sent[0].TemplateID, alerts.TemplateWorkspaceMarkedForDeletion)
 		require.Contains(t, sent[0].Targets, activeDormantWorkspace.ID)
 
 		// Ensure the deleted workspace was NOT notified
@@ -954,7 +954,7 @@ func TestTemplateTTL(t *testing.T) {
 			)
 
 			// Setup the template schedule store
-			notifyEnq := notifications.NewNoopEnqueuer()
+			notifyEnq := alerts.NewNoopEnqueuer()
 			const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 			userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 			require.NoError(t, err)
@@ -1041,7 +1041,7 @@ func TestTemplateTTL(t *testing.T) {
 		)
 
 		// Setup the template schedule store
-		notifyEnq := notifications.NewNoopEnqueuer()
+		notifyEnq := alerts.NewNoopEnqueuer()
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 		require.NoError(t, err)
@@ -1240,7 +1240,7 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 			)
 
 			// Setup the template schedule store
-			notifyEnq := notifications.NewNoopEnqueuer()
+			notifyEnq := alerts.NewNoopEnqueuer()
 			const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 			userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 			require.NoError(t, err)

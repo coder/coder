@@ -21,6 +21,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -31,8 +33,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -896,7 +896,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 	t.Run("NoRepeatedNotifications", func(t *testing.T) {
 		t.Parallel()
 
-		notify := &notificationstest.FakeEnqueuer{}
+		notify := &alertstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -941,7 +941,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		// We're going to have two notifications (one for the first user and one for the template admin)
 		// By ensuring we only have these two, we are sure the second build didn't trigger more
 		// notifications.
-		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
+		sent := notify.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceManuallyUpdated))
 		require.Len(t, sent, 2)
 
 		receivers := make([]uuid.UUID, len(sent))
@@ -970,7 +970,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 	t.Run("ToCorrectUser", func(t *testing.T) {
 		t.Parallel()
 
-		notify := &notificationstest.FakeEnqueuer{}
+		notify := &alertstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1004,7 +1004,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Ensure we receive only 1 workspace manually updated notification and to the right user
-		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
+		sent := notify.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceManuallyUpdated))
 		require.Len(t, sent, 1)
 		require.Equal(t, templateAdmin.ID, sent[0].UserID)
 		require.Contains(t, sent[0].Targets, template.ID)

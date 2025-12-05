@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -39,7 +40,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/render"
@@ -312,7 +312,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 		//nolint:gocritic // We need the notifier auth context to be able to send the user their one-time passcode.
 		dbauthz.AsNotifier(ctx),
 		user.ID,
-		notifications.TemplateUserRequestedOneTimePasscode,
+		alerts.TemplateUserRequestedOneTimePasscode,
 		map[string]string{"one_time_passcode": passcode},
 		"change-password-with-one-time-passcode",
 		user.ID,

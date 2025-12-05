@@ -1,0 +1,62 @@
+package alerts
+
+import "github.com/google/uuid"
+
+// These vars are mapped to UUIDs in the notification_templates table.
+// TODO: autogenerate these: https://github.com/coder/team-coconut/issues/36
+// TODO(defelmnq): add fallback icon to coderd/inboxnofication.go when adding a new template
+
+// Workspace-related events.
+var (
+	TemplateWorkspaceCreated           = uuid.MustParse("281fdf73-c6d6-4cbb-8ff5-888baf8a2fff")
+	TemplateWorkspaceManuallyUpdated   = uuid.MustParse("d089fe7b-d5c5-4c0c-aaf5-689859f7d392")
+	TemplateWorkspaceDeleted           = uuid.MustParse("f517da0b-cdc9-410f-ab89-a86107c420ed")
+	TemplateWorkspaceAutobuildFailed   = uuid.MustParse("381df2a9-c0c0-4749-420f-80a9280c66f9")
+	TemplateWorkspaceDormant           = uuid.MustParse("0ea69165-ec14-4314-91f1-69566ac3c5a0")
+	TemplateWorkspaceAutoUpdated       = uuid.MustParse("c34a0c09-0704-4cac-bd1c-0c0146811c2b")
+	TemplateWorkspaceMarkedForDeletion = uuid.MustParse("51ce2fdf-c9ca-4be1-8d70-628674f9bc42")
+	TemplateWorkspaceManualBuildFailed = uuid.MustParse("2faeee0f-26cb-4e96-821c-85ccb9f71513")
+	TemplateWorkspaceOutOfMemory       = uuid.MustParse("a9d027b4-ac49-4fb1-9f6d-45af15f64e7a")
+	TemplateWorkspaceOutOfDisk         = uuid.MustParse("f047f6a3-5713-40f7-85aa-0394cce9fa3a")
+)
+
+// Account-related events.
+var (
+	TemplateUserAccountCreated = uuid.MustParse("4e19c0ac-94e1-4532-9515-d1801aa283b2")
+	TemplateUserAccountDeleted = uuid.MustParse("f44d9314-ad03-4bc8-95d0-5cad491da6b6")
+
+	TemplateUserAccountSuspended = uuid.MustParse("b02ddd82-4733-4d02-a2d7-c36f3598997d")
+	TemplateUserAccountActivated = uuid.MustParse("9f5af851-8408-4e73-a7a1-c6502ba46689")
+	TemplateYourAccountSuspended = uuid.MustParse("6a2f0609-9b69-4d36-a989-9f5925b6cbff")
+	TemplateYourAccountActivated = uuid.MustParse("1a6a6bea-ee0a-43e2-9e7c-eabdb53730e4")
+
+	TemplateUserRequestedOneTimePasscode = uuid.MustParse("62f86a30-2330-4b61-a26d-311ff3b608cf")
+)
+
+// Template-related events.
+var (
+	TemplateTemplateDeleted    = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
+	TemplateTemplateDeprecated = uuid.MustParse("f40fae84-55a2-42cd-99fa-b41c1ca64894")
+
+	TemplateWorkspaceBuildsFailedReport = uuid.MustParse("34a20db2-e9cc-4a93-b0e4-8569699d7a00")
+	TemplateWorkspaceResourceReplaced   = uuid.MustParse("89d9745a-816e-4695-a17f-3d0a229e2b8d")
+)
+
+// Prebuilds-related events.
+var (
+	PrebuildFailureLimitReached = uuid.MustParse("414d9331-c1fc-4761-b40c-d1f4702279eb")
+)
+
+// Notification-related events.
+var (
+	TemplateTestNotification   = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")
+	TemplateCustomNotification = uuid.MustParse("39b1e189-c857-4b0c-877a-511144c18516")
+)
+
+// Task-related events.
+var (
+	TemplateTaskWorking   = uuid.MustParse("bd4b7168-d05e-4e19-ad0f-3593b77aa90f")
+	TemplateTaskIdle      = uuid.MustParse("d4a6271c-cced-4ed0-84ad-afd02a9c7799")
+	TemplateTaskCompleted = uuid.MustParse("8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c")
+	TemplateTaskFailed    = uuid.MustParse("3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e")
+)

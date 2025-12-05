@@ -17,7 +17,7 @@ type NotificationsSettings struct {
 	NotifierPaused bool `json:"notifier_paused"`
 }
 
-type NotificationTemplate struct {
+type AlertTemplate struct {
 	ID               uuid.UUID `json:"id" format:"uuid"`
 	Name             string    `json:"name"`
 	TitleTemplate    string    `json:"title_template"`
@@ -29,15 +29,15 @@ type NotificationTemplate struct {
 	EnabledByDefault bool      `json:"enabled_by_default"`
 }
 
-type NotificationMethodsResponse struct {
-	AvailableNotificationMethods []string `json:"available"`
-	DefaultNotificationMethod    string   `json:"default"`
+type AlertMethodsResponse struct {
+	AvailableAlertMethods []string `json:"available"`
+	DefaultAlertMethod    string   `json:"default"`
 }
 
-type NotificationPreference struct {
-	NotificationTemplateID uuid.UUID `json:"id" format:"uuid"`
-	Disabled               bool      `json:"disabled"`
-	UpdatedAt              time.Time `json:"updated_at" format:"date-time"`
+type AlertPreference struct {
+	AlertTemplateID uuid.UUID `json:"id" format:"uuid"`
+	Disabled        bool      `json:"disabled"`
+	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
 }
 
 // GetNotificationsSettings retrieves the notifications settings, which currently just describes whether all
@@ -73,12 +73,12 @@ func (c *Client) PutNotificationsSettings(ctx context.Context, settings Notifica
 	return nil
 }
 
-// UpdateNotificationTemplateMethod modifies a notification template to use a specific notification method, overriding
+// UpdateAlertTemplateMethod modifies a notification template to use a specific notification method, overriding
 // the method set in the deployment configuration.
-func (c *Client) UpdateNotificationTemplateMethod(ctx context.Context, notificationTemplateID uuid.UUID, method string) error {
+func (c *Client) UpdateAlertTemplateMethod(ctx context.Context, alertTemplateID uuid.UUID, method string) error {
 	res, err := c.Request(ctx, http.MethodPut,
-		fmt.Sprintf("/api/v2/notifications/templates/%s/method", notificationTemplateID),
-		UpdateNotificationTemplateMethod{Method: method},
+		fmt.Sprintf("/api/v2/notifications/templates/%s/method", alertTemplateID),
+		UpdateAlertTemplateMethod{Method: method},
 	)
 	if err != nil {
 		return err
@@ -94,8 +94,8 @@ func (c *Client) UpdateNotificationTemplateMethod(ctx context.Context, notificat
 	return nil
 }
 
-// GetSystemNotificationTemplates retrieves all notification templates pertaining to internal system events.
-func (c *Client) GetSystemNotificationTemplates(ctx context.Context) ([]NotificationTemplate, error) {
+// GetSystemAlertTemplates retrieves all notification templates pertaining to internal system events.
+func (c *Client) GetSystemAlertTemplates(ctx context.Context) ([]AlertTemplate, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/notifications/templates/system", nil)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (c *Client) GetSystemNotificationTemplates(ctx context.Context) ([]Notifica
 		return nil, ReadBodyAsError(res)
 	}
 
-	var templates []NotificationTemplate
+	var templates []AlertTemplate
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
@@ -119,8 +119,8 @@ func (c *Client) GetSystemNotificationTemplates(ctx context.Context) ([]Notifica
 	return templates, nil
 }
 
-// GetUserNotificationPreferences retrieves notification preferences for a given user.
-func (c *Client) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
+// GetUserAlertPreferences retrieves notification preferences for a given user.
+func (c *Client) GetUserAlertPreferences(ctx context.Context, userID uuid.UUID) ([]AlertPreference, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), nil)
 	if err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func (c *Client) GetUserNotificationPreferences(ctx context.Context, userID uuid
 		return nil, ReadBodyAsError(res)
 	}
 
-	var prefs []NotificationPreference
+	var prefs []AlertPreference
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
@@ -144,8 +144,8 @@ func (c *Client) GetUserNotificationPreferences(ctx context.Context, userID uuid
 	return prefs, nil
 }
 
-// UpdateUserNotificationPreferences updates notification preferences for a given user.
-func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, userID uuid.UUID, req UpdateUserNotificationPreferences) ([]NotificationPreference, error) {
+// UpdateUserAlertPreferences updates notification preferences for a given user.
+func (c *Client) UpdateUserAlertPreferences(ctx context.Context, userID uuid.UUID, req UpdateUserAlertPreferences) ([]AlertPreference, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), req)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, userID u
 		return nil, ReadBodyAsError(res)
 	}
 
-	var prefs []NotificationPreference
+	var prefs []AlertPreference
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
@@ -169,26 +169,26 @@ func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, userID u
 	return prefs, nil
 }
 
-// GetNotificationDispatchMethods the available and default notification dispatch methods.
-func (c *Client) GetNotificationDispatchMethods(ctx context.Context) (NotificationMethodsResponse, error) {
+// GetAlertDispatchMethods the available and default notification dispatch methods.
+func (c *Client) GetAlertDispatchMethods(ctx context.Context) (AlertMethodsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/notifications/dispatch-methods", nil)
 	if err != nil {
-		return NotificationMethodsResponse{}, err
+		return AlertMethodsResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return NotificationMethodsResponse{}, ReadBodyAsError(res)
+		return AlertMethodsResponse{}, ReadBodyAsError(res)
 	}
 
-	var resp NotificationMethodsResponse
+	var resp AlertMethodsResponse
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return NotificationMethodsResponse{}, xerrors.Errorf("read response body: %w", err)
+		return AlertMethodsResponse{}, xerrors.Errorf("read response body: %w", err)
 	}
 
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return NotificationMethodsResponse{}, xerrors.Errorf("unmarshal response body: %w", err)
+		return AlertMethodsResponse{}, xerrors.Errorf("unmarshal response body: %w", err)
 	}
 
 	return resp, nil
@@ -207,11 +207,11 @@ func (c *Client) PostTestNotification(ctx context.Context) error {
 	return nil
 }
 
-type UpdateNotificationTemplateMethod struct {
+type UpdateAlertTemplateMethod struct {
 	Method string `json:"method,omitempty" example:"webhook"`
 }
 
-type UpdateUserNotificationPreferences struct {
+type UpdateUserAlertPreferences struct {
 	TemplateDisabledMap map[string]bool `json:"template_disabled_map"`
 }
 
@@ -294,8 +294,8 @@ type CustomNotificationRequest struct {
 }
 
 const (
-	maxCustomNotificationTitleLen   = 120
-	maxCustomNotificationMessageLen = 2000
+	maxCustomNotificationTitleLen = 120
+	maxCustomAlertMessageLen      = 2000
 )
 
 func (c CustomNotificationRequest) Validate() error {
@@ -313,8 +313,8 @@ func (c CustomNotificationContent) Validate() error {
 	if len(c.Title) > maxCustomNotificationTitleLen {
 		return xerrors.Errorf("'content.title' must be less than %d characters", maxCustomNotificationTitleLen)
 	}
-	if len(c.Message) > maxCustomNotificationMessageLen {
-		return xerrors.Errorf("'content.message' must be less than %d characters", maxCustomNotificationMessageLen)
+	if len(c.Message) > maxCustomAlertMessageLen {
+		return xerrors.Errorf("'content.message' must be less than %d characters", maxCustomAlertMessageLen)
 	}
 	return nil
 }

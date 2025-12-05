@@ -16,10 +16,10 @@ import (
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/quartz"
 )
 
@@ -30,7 +30,7 @@ type ResourcesMonitoringAPI struct {
 	Log                   slog.Logger
 	Clock                 quartz.Clock
 	Database              database.Store
-	NotificationsEnqueuer notifications.Enqueuer
+	NotificationsEnqueuer alerts.Enqueuer
 
 	Debounce time.Duration
 	Config   resourcesmonitor.Config
@@ -157,7 +157,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		// nolint:gocritic // We need to be able to send the notification.
 		dbauthz.AsNotifier(ctx),
 		workspace.OwnerID,
-		notifications.TemplateWorkspaceOutOfMemory,
+		alerts.TemplateWorkspaceOutOfMemory,
 		map[string]string{
 			"workspace": workspace.Name,
 			"threshold": fmt.Sprintf("%d%%", a.memoryMonitor.Threshold),
@@ -251,7 +251,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		// nolint:gocritic // We need to be able to send the notification.
 		dbauthz.AsNotifier(ctx),
 		workspace.OwnerID,
-		notifications.TemplateWorkspaceOutOfDisk,
+		alerts.TemplateWorkspaceOutOfDisk,
 		map[string]string{
 			"workspace": workspace.Name,
 		},

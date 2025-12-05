@@ -1957,7 +1957,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.NotificationMethodsResponse"
+                                "$ref": "#/definitions/codersdk.AlertMethodsResponse"
                             }
                         }
                     }
@@ -2010,7 +2010,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ListInboxNotificationsResponse"
+                            "$ref": "#/definitions/codersdk.ListInboxAlertsResponse"
                         }
                     }
                 }
@@ -2084,7 +2084,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.GetInboxNotificationResponse"
+                            "$ref": "#/definitions/codersdk.GetInboxAlertResponse"
                         }
                     }
                 }
@@ -2210,7 +2210,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.NotificationTemplate"
+                                "$ref": "#/definitions/codersdk.AlertTemplate"
                             }
                         }
                     },
@@ -2244,7 +2244,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.NotificationTemplate"
+                                "$ref": "#/definitions/codersdk.AlertTemplate"
                             }
                         }
                     },
@@ -8215,7 +8215,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.NotificationPreference"
+                                "$ref": "#/definitions/codersdk.AlertPreference"
                             }
                         }
                     }
@@ -8245,7 +8245,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateUserNotificationPreferences"
+                            "$ref": "#/definitions/codersdk.UpdateUserAlertPreferences"
                         }
                     },
                     {
@@ -8262,7 +8262,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.NotificationPreference"
+                                "$ref": "#/definitions/codersdk.AlertPreference"
                             }
                         }
                     }
@@ -12421,25 +12421,25 @@ const docTemplate = `{
                 "APIKeyScopeIdpsyncSettingsAll",
                 "APIKeyScopeIdpsyncSettingsRead",
                 "APIKeyScopeIdpsyncSettingsUpdate",
-                "APIKeyScopeInboxNotificationAll",
-                "APIKeyScopeInboxNotificationCreate",
-                "APIKeyScopeInboxNotificationRead",
-                "APIKeyScopeInboxNotificationUpdate",
+                "APIKeyScopeInboxAlertAll",
+                "APIKeyScopeInboxAlertCreate",
+                "APIKeyScopeInboxAlertRead",
+                "APIKeyScopeInboxAlertUpdate",
                 "APIKeyScopeLicenseAll",
                 "APIKeyScopeLicenseCreate",
                 "APIKeyScopeLicenseDelete",
                 "APIKeyScopeLicenseRead",
-                "APIKeyScopeNotificationMessageAll",
-                "APIKeyScopeNotificationMessageCreate",
-                "APIKeyScopeNotificationMessageDelete",
-                "APIKeyScopeNotificationMessageRead",
-                "APIKeyScopeNotificationMessageUpdate",
-                "APIKeyScopeNotificationPreferenceAll",
-                "APIKeyScopeNotificationPreferenceRead",
-                "APIKeyScopeNotificationPreferenceUpdate",
-                "APIKeyScopeNotificationTemplateAll",
-                "APIKeyScopeNotificationTemplateRead",
-                "APIKeyScopeNotificationTemplateUpdate",
+                "APIKeyScopeAlertMessageAll",
+                "APIKeyScopeAlertMessageCreate",
+                "APIKeyScopeAlertMessageDelete",
+                "APIKeyScopeAlertMessageRead",
+                "APIKeyScopeAlertMessageUpdate",
+                "APIKeyScopeAlertPreferenceAll",
+                "APIKeyScopeAlertPreferenceRead",
+                "APIKeyScopeAlertPreferenceUpdate",
+                "APIKeyScopeAlertTemplateAll",
+                "APIKeyScopeAlertTemplateRead",
+                "APIKeyScopeAlertTemplateUpdate",
                 "APIKeyScopeOauth2AppAll",
                 "APIKeyScopeOauth2AppCreate",
                 "APIKeyScopeOauth2AppDelete",
@@ -14800,11 +14800,11 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.GetInboxNotificationResponse": {
+        "codersdk.GetInboxAlertResponse": {
             "type": "object",
             "properties": {
                 "notification": {
-                    "$ref": "#/definitions/codersdk.InboxNotification"
+                    "$ref": "#/definitions/codersdk.InboxAlert"
                 },
                 "unread_count": {
                     "type": "integer"
@@ -15004,13 +15004,13 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.InboxNotification": {
+        "codersdk.InboxAlert": {
             "type": "object",
             "properties": {
                 "actions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.InboxNotificationAction"
+                        "$ref": "#/definitions/codersdk.InboxAlertAction"
                     }
                 },
                 "content": {
@@ -15050,7 +15050,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.InboxNotificationAction": {
+        "codersdk.InboxAlertAction": {
             "type": "object",
             "properties": {
                 "label": {
@@ -15179,13 +15179,13 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ListInboxNotificationsResponse": {
+        "codersdk.ListInboxAlertsResponse": {
             "type": "object",
             "properties": {
                 "notifications": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.InboxNotification"
+                        "$ref": "#/definitions/codersdk.InboxAlert"
                     }
                 },
                 "unread_count": {
@@ -15349,7 +15349,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.NotificationMethodsResponse": {
+        "codersdk.AlertMethodsResponse": {
             "type": "object",
             "properties": {
                 "available": {
@@ -15363,7 +15363,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.NotificationPreference": {
+        "codersdk.AlertPreference": {
             "type": "object",
             "properties": {
                 "disabled": {
@@ -15379,7 +15379,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.NotificationTemplate": {
+        "codersdk.AlertTemplate": {
             "type": "object",
             "properties": {
                 "actions": {
@@ -17447,11 +17447,11 @@ const docTemplate = `{
                 "ResourceGroup",
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
-                "ResourceInboxNotification",
+                "ResourceInboxAlert",
                 "ResourceLicense",
-                "ResourceNotificationMessage",
-                "ResourceNotificationPreference",
-                "ResourceNotificationTemplate",
+                "ResourceAlertMessage",
+                "ResourceAlertPreference",
+                "ResourceAlertTemplate",
                 "ResourceOauth2App",
                 "ResourceOauth2AppCodeToken",
                 "ResourceOauth2AppSecret",
@@ -17702,7 +17702,7 @@ const docTemplate = `{
                 "ResourceTypeOAuth2ProviderAppSecret",
                 "ResourceTypeCustomRole",
                 "ResourceTypeOrganizationMember",
-                "ResourceTypeNotificationTemplate",
+                "ResourceTypeAlertTemplate",
                 "ResourceTypeIdpSyncSettingsOrganization",
                 "ResourceTypeIdpSyncSettingsGroup",
                 "ResourceTypeIdpSyncSettingsRole",
@@ -19331,7 +19331,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateUserNotificationPreferences": {
+        "codersdk.UpdateUserAlertPreferences": {
             "type": "object",
             "properties": {
                 "template_disabled_map": {

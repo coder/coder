@@ -10,6 +10,27 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE alert_message_status AS ENUM (
+    'pending',
+    'leased',
+    'sent',
+    'permanent_failure',
+    'temporary_failure',
+    'unknown',
+    'inhibited'
+);
+
+CREATE TYPE alert_method AS ENUM (
+    'smtp',
+    'webhook',
+    'inbox'
+);
+
+CREATE TYPE alert_template_kind AS ENUM (
+    'system',
+    'custom'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -290,7 +311,7 @@ CREATE TYPE group_source AS ENUM (
     'oidc'
 );
 
-CREATE TYPE inbox_notification_read_status AS ENUM (
+CREATE TYPE inbox_alert_read_status AS ENUM (
     'all',
     'unread',
     'read'
@@ -323,27 +344,6 @@ COMMENT ON TYPE login_type IS 'Specifies the method of authentication. "none" is
 CREATE TYPE name_organization_pair AS (
 	name text,
 	organization_id uuid
-);
-
-CREATE TYPE notification_message_status AS ENUM (
-    'pending',
-    'leased',
-    'sent',
-    'permanent_failure',
-    'temporary_failure',
-    'unknown',
-    'inhibited'
-);
-
-CREATE TYPE notification_method AS ENUM (
-    'smtp',
-    'webhook',
-    'inbox'
-);
-
-CREATE TYPE notification_template_kind AS ENUM (
-    'system',
-    'custom'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -455,8 +455,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app_secret',
     'custom_role',
     'organization_member',
-    'notifications_settings',
-    'notification_template',
+    'alerts_settings',
+    'alert_template',
     'idp_sync_settings_organization',
     'idp_sync_settings_group',
     'idp_sync_settings_role',
@@ -634,23 +634,21 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
+CREATE FUNCTION compute_alert_message_dedupe_hash() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    NEW.dedupe_hash := MD5(CONCAT_WS(':',
-                                     NEW.notification_template_id,
-                                     NEW.user_id,
-                                     NEW.method,
-                                     NEW.payload::text,
-                                     ARRAY_TO_STRING(NEW.targets, ','),
-                                     DATE_TRUNC('day', NEW.created_at AT TIME ZONE 'UTC')::text
-                           ));
+    NEW.dedupe_hash = MD5(
+        COALESCE(NEW.user_id::text, '') ||
+        COALESCE(NEW.alert_template_id::text, '') ||
+        COALESCE(NEW.targets::text, '') ||
+        DATE(NOW())::text
+    );
     RETURN NEW;
 END;
 $$;
 
-COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
+COMMENT ON FUNCTION compute_alert_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
 
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
@@ -706,28 +704,26 @@ $$;
 CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
 BEGIN
-	-- Fail the insertion if one of the following:
-	--  * the user has disabled this notification.
-	--  * the notification template is disabled by default and hasn't
-	--    been explicitly enabled by the user.
-	IF EXISTS (
-		SELECT 1 FROM notification_templates
-		LEFT JOIN notification_preferences
-			ON  notification_preferences.notification_template_id = notification_templates.id
-			AND notification_preferences.user_id = NEW.user_id
-		WHERE notification_templates.id = NEW.notification_template_id AND (
-			-- Case 1: The user has explicitly disabled this template
-			notification_preferences.disabled = TRUE
-			OR
-			-- Case 2: The template is disabled by default AND the user hasn't enabled it
-			(notification_templates.enabled_by_default = FALSE AND notification_preferences.notification_template_id IS NULL)
-		)
-	) THEN
-		RAISE EXCEPTION 'cannot enqueue message: notification is not enabled';
-	END IF;
-
-	RETURN NEW;
+    IF EXISTS (
+        -- If this returns any rows, it means the alert is disabled either
+        --  * the user has disabled this alert.
+        --  * the alert template is disabled by default and hasn't
+        --    been enabled by the user.
+        SELECT 1 FROM alert_templates
+        LEFT JOIN alert_preferences
+            ON  alert_preferences.alert_template_id = alert_templates.id
+            AND alert_preferences.user_id = NEW.user_id
+        WHERE alert_templates.id = NEW.alert_template_id AND (
+            alert_preferences.disabled = TRUE
+            OR
+            (alert_templates.enabled_by_default = FALSE AND alert_preferences.alert_template_id IS NULL)
+        )
+    ) THEN
+        RAISE EXCEPTION 'cannot enqueue message: alert is not enabled';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -1114,6 +1110,58 @@ COMMENT ON TABLE aibridge_user_prompts IS 'Audit log of prompts used by intercep
 
 COMMENT ON COLUMN aibridge_user_prompts.provider_response_id IS 'The ID for the response to the given prompt, produced by the provider.';
 
+CREATE TABLE alert_messages (
+    id uuid NOT NULL,
+    alert_template_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    method alert_method NOT NULL,
+    status alert_message_status DEFAULT 'pending'::alert_message_status NOT NULL,
+    status_reason text,
+    created_by text NOT NULL,
+    payload jsonb NOT NULL,
+    attempt_count integer DEFAULT 0,
+    targets uuid[],
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone,
+    leased_until timestamp with time zone,
+    next_retry_after timestamp with time zone,
+    queued_seconds double precision,
+    dedupe_hash text
+);
+
+COMMENT ON COLUMN alert_messages.dedupe_hash IS 'Auto-generated by insert/update trigger, used to prevent duplicate notifications from being enqueued on the same day';
+
+CREATE TABLE alert_preferences (
+    user_id uuid NOT NULL,
+    alert_template_id uuid NOT NULL,
+    disabled boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE alert_report_generator_logs (
+    alert_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE alert_report_generator_logs IS 'Log of generated reports for users.';
+
+CREATE TABLE alert_templates (
+    id uuid NOT NULL,
+    name text NOT NULL,
+    title_template text NOT NULL,
+    body_template text NOT NULL,
+    actions jsonb,
+    "group" text,
+    method alert_method,
+    kind alert_template_kind DEFAULT 'system'::alert_template_kind NOT NULL,
+    enabled_by_default boolean DEFAULT true NOT NULL
+);
+
+COMMENT ON TABLE alert_templates IS 'Templates from which to create notification messages.';
+
+COMMENT ON COLUMN alert_templates.method IS 'NULL defers to the deployment-level method';
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -1369,7 +1417,7 @@ CREATE VIEW group_members_expanded AS
 
 COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
 
-CREATE TABLE inbox_notifications (
+CREATE TABLE inbox_alerts (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
     template_id uuid NOT NULL,
@@ -1410,58 +1458,6 @@ CREATE SEQUENCE licenses_id_seq
     CACHE 1;
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
-
-CREATE TABLE notification_messages (
-    id uuid NOT NULL,
-    notification_template_id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    method notification_method NOT NULL,
-    status notification_message_status DEFAULT 'pending'::notification_message_status NOT NULL,
-    status_reason text,
-    created_by text NOT NULL,
-    payload jsonb NOT NULL,
-    attempt_count integer DEFAULT 0,
-    targets uuid[],
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone,
-    leased_until timestamp with time zone,
-    next_retry_after timestamp with time zone,
-    queued_seconds double precision,
-    dedupe_hash text
-);
-
-COMMENT ON COLUMN notification_messages.dedupe_hash IS 'Auto-generated by insert/update trigger, used to prevent duplicate notifications from being enqueued on the same day';
-
-CREATE TABLE notification_preferences (
-    user_id uuid NOT NULL,
-    notification_template_id uuid NOT NULL,
-    disabled boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-CREATE TABLE notification_report_generator_logs (
-    notification_template_id uuid NOT NULL,
-    last_generated_at timestamp with time zone NOT NULL
-);
-
-COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';
-
-CREATE TABLE notification_templates (
-    id uuid NOT NULL,
-    name text NOT NULL,
-    title_template text NOT NULL,
-    body_template text NOT NULL,
-    actions jsonb,
-    "group" text,
-    method notification_method,
-    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL,
-    enabled_by_default boolean DEFAULT true NOT NULL
-);
-
-COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
-
-COMMENT ON COLUMN notification_templates.method IS 'NULL defers to the deployment-level method';
 
 CREATE TABLE oauth2_provider_app_codes (
     id uuid NOT NULL,
@@ -2974,6 +2970,21 @@ ALTER TABLE ONLY aibridge_tool_usages
 ALTER TABLE ONLY aibridge_user_prompts
     ADD CONSTRAINT aibridge_user_prompts_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY alert_messages
+    ADD CONSTRAINT alert_messages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY alert_preferences
+    ADD CONSTRAINT alert_preferences_pkey PRIMARY KEY (user_id, alert_template_id);
+
+ALTER TABLE ONLY alert_report_generator_logs
+    ADD CONSTRAINT alert_report_generator_logs_pkey PRIMARY KEY (alert_template_id);
+
+ALTER TABLE ONLY alert_templates
+    ADD CONSTRAINT alert_templates_name_key UNIQUE (name);
+
+ALTER TABLE ONLY alert_templates
+    ADD CONSTRAINT alert_templates_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 
@@ -3019,8 +3030,8 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY inbox_notifications
-    ADD CONSTRAINT inbox_notifications_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY inbox_alerts
+    ADD CONSTRAINT inbox_alerts_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
@@ -3030,21 +3041,6 @@ ALTER TABLE ONLY licenses
 
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY notification_messages
-    ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
-
-ALTER TABLE ONLY notification_report_generator_logs
-    ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (notification_template_id);
-
-ALTER TABLE ONLY notification_templates
-    ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
-
-ALTER TABLE ONLY notification_templates
-    ADD CONSTRAINT notification_templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_pkey PRIMARY KEY (id);
@@ -3271,6 +3267,8 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE UNIQUE INDEX alert_messages_dedupe_hash_idx ON alert_messages USING btree (dedupe_hash);
+
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
@@ -3298,6 +3296,8 @@ CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usage
 CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts USING btree (interception_id);
 
 CREATE INDEX idx_aibridge_user_prompts_provider_response_id ON aibridge_user_prompts USING btree (provider_response_id);
+
+CREATE INDEX idx_alert_messages_status ON alert_messages USING btree (status);
 
 CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
@@ -3327,11 +3327,9 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
-CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
+CREATE INDEX idx_inbox_alerts_user_id_read_at ON inbox_alerts USING btree (user_id, read_at);
 
-CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
-
-CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
+CREATE INDEX idx_inbox_alerts_user_id_template_id_targets ON inbox_alerts USING btree (user_id, template_id, targets);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
@@ -3376,8 +3374,6 @@ CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (de
 CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
-
-CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
 CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btree (is_default) WHERE (is_default = true);
 
@@ -3515,7 +3511,7 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
 
-CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON alert_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 
@@ -3549,7 +3545,7 @@ CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW
 
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 
-CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
+CREATE TRIGGER update_alert_message_dedupe_hash BEFORE INSERT OR UPDATE ON alert_messages FOR EACH ROW EXECUTE FUNCTION compute_alert_message_dedupe_hash();
 
 CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
 
@@ -3561,6 +3557,18 @@ forward without requiring a migration to clean up historical data.';
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
+
+ALTER TABLE ONLY alert_messages
+    ADD CONSTRAINT alert_messages_alert_template_id_fkey FOREIGN KEY (alert_template_id) REFERENCES alert_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY alert_messages
+    ADD CONSTRAINT alert_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY alert_preferences
+    ADD CONSTRAINT alert_preferences_alert_template_id_fkey FOREIGN KEY (alert_template_id) REFERENCES alert_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY alert_preferences
+    ADD CONSTRAINT alert_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
@@ -3598,29 +3606,17 @@ ALTER TABLE ONLY group_members
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY inbox_notifications
-    ADD CONSTRAINT inbox_notifications_template_id_fkey FOREIGN KEY (template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+ALTER TABLE ONLY inbox_alerts
+    ADD CONSTRAINT inbox_alerts_template_id_fkey FOREIGN KEY (template_id) REFERENCES alert_templates(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY inbox_notifications
-    ADD CONSTRAINT inbox_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY inbox_alerts
+    ADD CONSTRAINT inbox_alerts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY notification_messages
-    ADD CONSTRAINT notification_messages_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY notification_messages
-    ADD CONSTRAINT notification_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT notification_preferences_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;

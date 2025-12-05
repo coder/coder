@@ -23,12 +23,12 @@ import (
 // @Success 200 "Success"
 // @Success 304 "Not modified"
 // @Router /notifications/templates/{notification_template}/method [put]
-func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http.Request) {
+func (api *API) updateAlertTemplateMethod(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		template          = httpmw.NotificationTemplateParam(r)
+		template          = httpmw.AlertTemplateParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.NotificationTemplate](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AlertTemplate](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -36,14 +36,14 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 		})
 	)
 
-	var req codersdk.UpdateNotificationTemplateMethod
+	var req codersdk.UpdateAlertTemplateMethod
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	var nm database.NullNotificationMethod
-	if err := nm.Scan(req.Method); err != nil || !nm.Valid || !nm.NotificationMethod.Valid() {
-		vals := database.AllNotificationMethodValues()
+	var nm database.NullAlertMethod
+	if err := nm.Scan(req.Method); err != nil || !nm.Valid || !nm.AlertMethod.Valid() {
+		vals := database.AllAlertMethodValues()
 		acceptable := make([]string, len(vals))
 		for i, v := range vals {
 			acceptable[i] = string(v)
@@ -75,7 +75,7 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
-		template, err = tx.UpdateNotificationTemplateMethodByID(r.Context(), database.UpdateNotificationTemplateMethodByIDParams{
+		template, err = tx.UpdateAlertTemplateMethodByID(r.Context(), database.UpdateAlertTemplateMethodByIDParams{
 			ID:     template.ID,
 			Method: nm,
 		})

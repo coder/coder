@@ -21,13 +21,13 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -204,7 +204,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				tickCh     = make(chan time.Time)
 				statsCh    = make(chan autobuild.Stats)
 				logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
-				enqueuer   = notificationstest.FakeEnqueuer{}
+				enqueuer   = alertstest.FakeEnqueuer{}
 				client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 					AutobuildTicker:          tickCh,
 					IncludeProvisionerDaemon: true,
@@ -295,7 +295,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			}
 
 			if tc.expectNotification {
-				sent := enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutoUpdated))
+				sent := enqueuer.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceAutoUpdated))
 				require.Len(t, sent, 1)
 				require.Equal(t, sent[0].UserID, workspace.OwnerID)
 				require.Contains(t, sent[0].Targets, workspace.TemplateID)
@@ -306,7 +306,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				require.Equal(t, "autobuild", sent[0].Labels["initiator"])
 				require.Equal(t, "autostart", sent[0].Labels["reason"])
 			} else {
-				sent := enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutoUpdated))
+				sent := enqueuer.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceAutoUpdated))
 				require.Empty(t, sent)
 			}
 		})
@@ -1182,7 +1182,7 @@ func TestNotifications(t *testing.T) {
 		var (
 			ticker         = make(chan time.Time)
 			statCh         = make(chan autobuild.Stats)
-			notifyEnq      = notificationstest.FakeEnqueuer{}
+			notifyEnq      = alertstest.FakeEnqueuer{}
 			timeTilDormant = time.Minute
 			client, db     = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				AutobuildTicker:          ticker,
@@ -1239,7 +1239,7 @@ func TestNotifications(t *testing.T) {
 		sent := notifyEnq.Sent()
 		require.Len(t, sent, 1)
 		require.Equal(t, sent[0].UserID, workspace.OwnerID)
-		require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
+		require.Equal(t, sent[0].TemplateID, alerts.TemplateWorkspaceDormant)
 		require.Contains(t, sent[0].Targets, template.ID)
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)

@@ -9,11 +9,11 @@ import (
 
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -27,7 +27,7 @@ func createOpts(t *testing.T) *coderdtest.Options {
 	}
 }
 
-func TestUpdateNotificationsSettings(t *testing.T) {
+func TestUpdateAlertsSettings(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Permissions denied", func(t *testing.T) {
@@ -110,7 +110,7 @@ func TestUpdateNotificationsSettings(t *testing.T) {
 	})
 }
 
-func TestNotificationPreferences(t *testing.T) {
+func TestAlertPreferences(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Initial state", func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestNotificationPreferences(t *testing.T) {
 		memberClient, member := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: calling the API.
-		prefs, err := memberClient.GetUserNotificationPreferences(ctx, member.ID)
+		prefs, err := memberClient.GetUserAlertPreferences(ctx, member.ID)
 		require.NoError(t, err)
 
 		// Then: no preferences will be returned.
@@ -143,7 +143,7 @@ func TestNotificationPreferences(t *testing.T) {
 		member2Client, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: attempting to retrieve the preferences of another member.
-		_, err := member2Client.GetUserNotificationPreferences(ctx, member1.ID)
+		_, err := member2Client.GetUserAlertPreferences(ctx, member1.ID)
 
 		// Then: the API should reject the request.
 		var sdkError *codersdk.Error
@@ -165,7 +165,7 @@ func TestNotificationPreferences(t *testing.T) {
 		_, member := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: attempting to retrieve the preferences of another member as an admin.
-		prefs, err := api.GetUserNotificationPreferences(ctx, member.ID)
+		prefs, err := api.GetUserAlertPreferences(ctx, member.ID)
 
 		// Then: the API should not reject the request.
 		require.NoError(t, err)
@@ -183,9 +183,9 @@ func TestNotificationPreferences(t *testing.T) {
 		memberClient, member := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: attempting to modify and subsequently retrieve the preferences of another member as an admin.
-		prefs, err := api.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
+		prefs, err := api.UpdateUserAlertPreferences(ctx, member.ID, codersdk.UpdateUserAlertPreferences{
 			TemplateDisabledMap: map[string]bool{
-				notifications.TemplateWorkspaceMarkedForDeletion.String(): true,
+				alerts.TemplateWorkspaceMarkedForDeletion.String(): true,
 			},
 		})
 
@@ -193,10 +193,10 @@ func TestNotificationPreferences(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, prefs, 1)
 
-		memberPrefs, err := memberClient.GetUserNotificationPreferences(ctx, member.ID)
+		memberPrefs, err := memberClient.GetUserAlertPreferences(ctx, member.ID)
 		require.NoError(t, err)
 		require.Len(t, memberPrefs, 1)
-		require.Equal(t, prefs[0].NotificationTemplateID, memberPrefs[0].NotificationTemplateID)
+		require.Equal(t, prefs[0].AlertTemplateID, memberPrefs[0].AlertTemplateID)
 		require.Equal(t, prefs[0].Disabled, memberPrefs[0].Disabled)
 	})
 
@@ -209,13 +209,13 @@ func TestNotificationPreferences(t *testing.T) {
 
 		// Given: a member with no preferences.
 		memberClient, member := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
-		prefs, err := memberClient.GetUserNotificationPreferences(ctx, member.ID)
+		prefs, err := memberClient.GetUserAlertPreferences(ctx, member.ID)
 		require.NoError(t, err)
 		require.Len(t, prefs, 0)
 
 		// When: attempting to add new preferences.
-		template := notifications.TemplateWorkspaceDeleted
-		prefs, err = memberClient.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
+		template := alerts.TemplateWorkspaceDeleted
+		prefs, err = memberClient.UpdateUserAlertPreferences(ctx, member.ID, codersdk.UpdateUserAlertPreferences{
 			TemplateDisabledMap: map[string]bool{
 				template.String(): true,
 			},
@@ -224,7 +224,7 @@ func TestNotificationPreferences(t *testing.T) {
 		// Then: the returning preferences should be set as expected.
 		require.NoError(t, err)
 		require.Len(t, prefs, 1)
-		require.Equal(t, prefs[0].NotificationTemplateID, template)
+		require.Equal(t, prefs[0].AlertTemplateID, template)
 		require.True(t, prefs[0].Disabled)
 	})
 
@@ -237,20 +237,20 @@ func TestNotificationPreferences(t *testing.T) {
 
 		// Given: a member with preferences.
 		memberClient, member := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
-		prefs, err := memberClient.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
+		prefs, err := memberClient.UpdateUserAlertPreferences(ctx, member.ID, codersdk.UpdateUserAlertPreferences{
 			TemplateDisabledMap: map[string]bool{
-				notifications.TemplateWorkspaceDeleted.String(): true,
-				notifications.TemplateWorkspaceDormant.String(): true,
+				alerts.TemplateWorkspaceDeleted.String(): true,
+				alerts.TemplateWorkspaceDormant.String(): true,
 			},
 		})
 		require.NoError(t, err)
 		require.Len(t, prefs, 2)
 
 		// When: attempting to modify their preferences.
-		prefs, err = memberClient.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
+		prefs, err = memberClient.UpdateUserAlertPreferences(ctx, member.ID, codersdk.UpdateUserAlertPreferences{
 			TemplateDisabledMap: map[string]bool{
-				notifications.TemplateWorkspaceDeleted.String(): true,
-				notifications.TemplateWorkspaceDormant.String(): false, // <--- this one was changed
+				alerts.TemplateWorkspaceDeleted.String(): true,
+				alerts.TemplateWorkspaceDormant.String(): false, // <--- this one was changed
 			},
 		})
 		require.NoError(t, err)
@@ -259,11 +259,11 @@ func TestNotificationPreferences(t *testing.T) {
 		// Then: the modified preferences should be set as expected.
 		var found bool
 		for _, p := range prefs {
-			switch p.NotificationTemplateID {
-			case notifications.TemplateWorkspaceDormant:
+			switch p.AlertTemplateID {
+			case alerts.TemplateWorkspaceDormant:
 				found = true
 				require.False(t, p.Disabled)
-			case notifications.TemplateWorkspaceDeleted:
+			case alerts.TemplateWorkspaceDeleted:
 				require.True(t, p.Disabled)
 			}
 		}
@@ -276,7 +276,7 @@ func TestNotificationDispatchMethods(t *testing.T) {
 
 	defaultOpts := createOpts(t)
 	webhookOpts := createOpts(t)
-	webhookOpts.DeploymentValues.Notifications.Method = serpent.String(database.NotificationMethodWebhook)
+	webhookOpts.DeploymentValues.Notifications.Method = serpent.String(database.AlertMethodWebhook)
 
 	tests := []struct {
 		name            string
@@ -286,18 +286,18 @@ func TestNotificationDispatchMethods(t *testing.T) {
 		{
 			name:            "default",
 			opts:            defaultOpts,
-			expectedDefault: string(database.NotificationMethodSmtp),
+			expectedDefault: string(database.AlertMethodSmtp),
 		},
 		{
 			name:            "non-default",
 			opts:            webhookOpts,
-			expectedDefault: string(database.NotificationMethodWebhook),
+			expectedDefault: string(database.AlertMethodWebhook),
 		},
 	}
 
 	var allMethods []string
-	for _, nm := range database.AllNotificationMethodValues() {
-		if nm == database.NotificationMethodInbox {
+	for _, nm := range database.AllAlertMethodValues() {
+		if nm == database.AlertMethodInbox {
 			continue
 		}
 		allMethods = append(allMethods, string(nm))
@@ -313,12 +313,12 @@ func TestNotificationDispatchMethods(t *testing.T) {
 			api := coderdtest.New(t, tc.opts)
 			_ = coderdtest.CreateFirstUser(t, api)
 
-			resp, err := api.GetNotificationDispatchMethods(ctx)
+			resp, err := api.GetAlertDispatchMethods(ctx)
 			require.NoError(t, err)
 
-			slices.Sort(resp.AvailableNotificationMethods)
-			require.EqualValues(t, resp.AvailableNotificationMethods, allMethods)
-			require.Equal(t, tc.expectedDefault, resp.DefaultNotificationMethod)
+			slices.Sort(resp.AvailableAlertMethods)
+			require.EqualValues(t, resp.AvailableAlertMethods, allMethods)
+			require.Equal(t, tc.expectedDefault, resp.DefaultAlertMethod)
 		})
 	}
 }
@@ -331,7 +331,7 @@ func TestNotificationTest(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
@@ -345,7 +345,7 @@ func TestNotificationTest(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: We expect a notification to have been sent.
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 1)
 	})
 
@@ -354,7 +354,7 @@ func TestNotificationTest(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
@@ -373,7 +373,7 @@ func TestNotificationTest(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 0)
 	})
 }
@@ -386,7 +386,7 @@ func TestCustomNotification(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
@@ -411,7 +411,7 @@ func TestCustomNotification(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 		require.Equal(t, "Invalid request body", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 0)
 	})
 
@@ -420,7 +420,7 @@ func TestCustomNotification(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
@@ -449,7 +449,7 @@ func TestCustomNotification(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 		require.Equal(t, "Forbidden", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 0)
 	})
 
@@ -458,7 +458,7 @@ func TestCustomNotification(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
@@ -478,7 +478,7 @@ func TestCustomNotification(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: we expect a custom notification to be sent to the member user
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateCustomNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateCustomNotification))
 		require.Len(t, sent, 1)
 		require.Equal(t, memberUser.ID, sent[0].UserID)
 		require.Len(t, sent[0].Labels, 2)

@@ -1071,6 +1071,908 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 	return i, err
 }
 
+const acquireAlertMessages = `-- name: AcquireAlertMessages :many
+WITH acquired AS (
+    UPDATE
+        alert_messages
+            SET queued_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - updated_at)))::FLOAT,
+                updated_at = NOW(),
+                status = 'leased'::alert_message_status,
+                status_reason = 'Leased by notifier ' || $1::uuid,
+                leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
+            WHERE id IN (SELECT am.id
+                         FROM alert_messages AS am
+                         WHERE (
+                             (
+                                 -- message is in acquirable states
+                                 am.status IN (
+                                               'pending'::alert_message_status,
+                                               'temporary_failure'::alert_message_status
+                                     )
+                                 )
+                                 -- or somehow the message was left in leased for longer than its lease period
+                                 OR (
+                                 am.status = 'leased'::alert_message_status
+                                     AND am.leased_until < NOW()
+                                 )
+                             )
+                           AND (
+                             -- exclude all messages which have exceeded the max attempts; these will be purged later
+                             am.attempt_count IS NULL OR am.attempt_count < $3::int
+                             )
+                           -- if set, do not retry until we've exceeded the wait time
+                           AND (
+                             CASE
+                                 WHEN am.next_retry_after IS NOT NULL THEN am.next_retry_after < NOW()
+                                 ELSE true
+                                 END
+                             )
+                         ORDER BY am.created_at ASC
+                                  -- Ensure that multiple concurrent readers cannot retrieve the same rows
+                             FOR UPDATE OF am
+                                 SKIP LOCKED
+                         LIMIT $4)
+            RETURNING id, alert_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds, dedupe_hash)
+SELECT
+    -- message
+    am.id,
+    am.payload,
+    am.method,
+    am.attempt_count::int                                                 AS attempt_count,
+    am.queued_seconds::float                                              AS queued_seconds,
+    -- template
+    at.id                                                                 AS template_id,
+    at.title_template,
+    at.body_template,
+    -- preferences
+    (CASE WHEN ap.disabled IS NULL THEN false ELSE ap.disabled END)::bool AS disabled
+FROM acquired am
+         JOIN alert_templates at ON am.alert_template_id = at.id
+         LEFT JOIN alert_preferences AS ap
+                   ON (ap.user_id = am.user_id AND ap.alert_template_id = am.alert_template_id)
+`
+
+type AcquireAlertMessagesParams struct {
+	NotifierID      uuid.UUID `db:"notifier_id" json:"notifier_id"`
+	LeaseSeconds    int32     `db:"lease_seconds" json:"lease_seconds"`
+	MaxAttemptCount int32     `db:"max_attempt_count" json:"max_attempt_count"`
+	Count           int32     `db:"count" json:"count"`
+}
+
+type AcquireAlertMessagesRow struct {
+	ID            uuid.UUID       `db:"id" json:"id"`
+	Payload       json.RawMessage `db:"payload" json:"payload"`
+	Method        AlertMethod     `db:"method" json:"method"`
+	AttemptCount  int32           `db:"attempt_count" json:"attempt_count"`
+	QueuedSeconds float64         `db:"queued_seconds" json:"queued_seconds"`
+	TemplateID    uuid.UUID       `db:"template_id" json:"template_id"`
+	TitleTemplate string          `db:"title_template" json:"title_template"`
+	BodyTemplate  string          `db:"body_template" json:"body_template"`
+	Disabled      bool            `db:"disabled" json:"disabled"`
+}
+
+// Acquires the lease for a given count of alert messages, to enable concurrent dequeuing and subsequent sending.
+// Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
+//
+// A "lease" here refers to a notifier taking ownership of an alert_messages row. A lease survives for the duration
+// of CODER_ALERTS_LEASE_PERIOD. Once a message is delivered, its status is updated and the lease expires (set to NULL).
+// If a message exceeds its lease, that implies the notifier did not shutdown cleanly, or the table update failed somehow,
+// and the row will then be eligible to be dequeued by another notifier.
+//
+// SKIP LOCKED is used to jump over locked rows. This prevents multiple notifiers from acquiring the same messages.
+// See: https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
+func (q *sqlQuerier) AcquireAlertMessages(ctx context.Context, arg AcquireAlertMessagesParams) ([]AcquireAlertMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, acquireAlertMessages,
+		arg.NotifierID,
+		arg.LeaseSeconds,
+		arg.MaxAttemptCount,
+		arg.Count,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AcquireAlertMessagesRow
+	for rows.Next() {
+		var i AcquireAlertMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Payload,
+			&i.Method,
+			&i.AttemptCount,
+			&i.QueuedSeconds,
+			&i.TemplateID,
+			&i.TitleTemplate,
+			&i.BodyTemplate,
+			&i.Disabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const bulkMarkAlertMessagesFailed = `-- name: BulkMarkAlertMessagesFailed :execrows
+UPDATE alert_messages
+SET queued_seconds   = 0,
+    updated_at       = subquery.failed_at,
+    attempt_count    = attempt_count + 1,
+    status           = CASE
+                           WHEN attempt_count + 1 < $1::int THEN subquery.status
+                           ELSE 'permanent_failure'::alert_message_status END,
+    status_reason    = subquery.status_reason,
+    leased_until     = NULL,
+    next_retry_after = CASE
+                           WHEN (attempt_count + 1 < $1::int)
+                               THEN NOW() + CONCAT($2::int, ' seconds')::interval END
+FROM (SELECT UNNEST($3::uuid[])                      AS id,
+             UNNEST($4::timestamptz[])        AS failed_at,
+             UNNEST($5::alert_message_status[]) AS status,
+             UNNEST($6::text[])           AS status_reason) AS subquery
+WHERE alert_messages.id = subquery.id
+`
+
+type BulkMarkAlertMessagesFailedParams struct {
+	MaxAttempts   int32                `db:"max_attempts" json:"max_attempts"`
+	RetryInterval int32                `db:"retry_interval" json:"retry_interval"`
+	IDs           []uuid.UUID          `db:"ids" json:"ids"`
+	FailedAts     []time.Time          `db:"failed_ats" json:"failed_ats"`
+	Statuses      []AlertMessageStatus `db:"statuses" json:"statuses"`
+	StatusReasons []string             `db:"status_reasons" json:"status_reasons"`
+}
+
+func (q *sqlQuerier) BulkMarkAlertMessagesFailed(ctx context.Context, arg BulkMarkAlertMessagesFailedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bulkMarkAlertMessagesFailed,
+		arg.MaxAttempts,
+		arg.RetryInterval,
+		pq.Array(arg.IDs),
+		pq.Array(arg.FailedAts),
+		pq.Array(arg.Statuses),
+		pq.Array(arg.StatusReasons),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const bulkMarkAlertMessagesSent = `-- name: BulkMarkAlertMessagesSent :execrows
+UPDATE alert_messages
+SET queued_seconds   = 0,
+    updated_at       = new_values.sent_at,
+    attempt_count    = attempt_count + 1,
+    status           = 'sent'::alert_message_status,
+    status_reason    = NULL,
+    leased_until     = NULL,
+    next_retry_after = NULL
+FROM (SELECT UNNEST($1::uuid[])             AS id,
+             UNNEST($2::timestamptz[]) AS sent_at)
+         AS new_values
+WHERE alert_messages.id = new_values.id
+`
+
+type BulkMarkAlertMessagesSentParams struct {
+	IDs     []uuid.UUID `db:"ids" json:"ids"`
+	SentAts []time.Time `db:"sent_ats" json:"sent_ats"`
+}
+
+func (q *sqlQuerier) BulkMarkAlertMessagesSent(ctx context.Context, arg BulkMarkAlertMessagesSentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bulkMarkAlertMessagesSent, pq.Array(arg.IDs), pq.Array(arg.SentAts))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteAllWebpushSubscriptions = `-- name: DeleteAllWebpushSubscriptions :exec
+TRUNCATE TABLE webpush_subscriptions
+`
+
+// Deletes all existing webpush subscriptions.
+// This should be called when the VAPID keypair is regenerated, as the old
+// keypair will no longer be valid and all existing subscriptions will need to
+// be recreated.
+func (q *sqlQuerier) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteAllWebpushSubscriptions)
+	return err
+}
+
+const deleteOldAlertMessages = `-- name: DeleteOldAlertMessages :exec
+DELETE
+FROM alert_messages
+WHERE id IN
+      (SELECT id
+       FROM alert_messages AS nested
+       WHERE nested.updated_at < NOW() - INTERVAL '7 days')
+`
+
+// Delete all alert messages which have not been updated for over a week.
+func (q *sqlQuerier) DeleteOldAlertMessages(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldAlertMessages)
+	return err
+}
+
+const deleteWebpushSubscriptionByUserIDAndEndpoint = `-- name: DeleteWebpushSubscriptionByUserIDAndEndpoint :exec
+DELETE FROM webpush_subscriptions
+WHERE user_id = $1 AND endpoint = $2
+`
+
+type DeleteWebpushSubscriptionByUserIDAndEndpointParams struct {
+	UserID   uuid.UUID `db:"user_id" json:"user_id"`
+	Endpoint string    `db:"endpoint" json:"endpoint"`
+}
+
+func (q *sqlQuerier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptionByUserIDAndEndpoint, arg.UserID, arg.Endpoint)
+	return err
+}
+
+const deleteWebpushSubscriptions = `-- name: DeleteWebpushSubscriptions :exec
+DELETE FROM webpush_subscriptions
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptions, pq.Array(ids))
+	return err
+}
+
+const enqueueAlertMessage = `-- name: EnqueueAlertMessage :exec
+INSERT INTO alert_messages (id, alert_template_id, user_id, method, payload, targets, created_by, created_at)
+VALUES ($1,
+        $2,
+        $3,
+        $4::alert_method,
+        $5::jsonb,
+        $6,
+        $7,
+        $8)
+`
+
+type EnqueueAlertMessageParams struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	AlertTemplateID uuid.UUID       `db:"alert_template_id" json:"alert_template_id"`
+	UserID          uuid.UUID       `db:"user_id" json:"user_id"`
+	Method          AlertMethod     `db:"method" json:"method"`
+	Payload         json.RawMessage `db:"payload" json:"payload"`
+	Targets         []uuid.UUID     `db:"targets" json:"targets"`
+	CreatedBy       string          `db:"created_by" json:"created_by"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) EnqueueAlertMessage(ctx context.Context, arg EnqueueAlertMessageParams) error {
+	_, err := q.db.ExecContext(ctx, enqueueAlertMessage,
+		arg.ID,
+		arg.AlertTemplateID,
+		arg.UserID,
+		arg.Method,
+		arg.Payload,
+		pq.Array(arg.Targets),
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
+SELECT at.name                                                    AS alert_name,
+       at.id                                                      AS alert_template_id,
+       at.actions                                                 AS actions,
+       at.method                                                  AS custom_method,
+       u.id                                                       AS user_id,
+       u.email                                                    AS user_email,
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
+       u.username                                                 AS user_username
+FROM alert_templates at,
+     users u
+WHERE at.id = $1
+  AND u.id = $2
+`
+
+type FetchNewMessageMetadataParams struct {
+	AlertTemplateID uuid.UUID `db:"alert_template_id" json:"alert_template_id"`
+	UserID          uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type FetchNewMessageMetadataRow struct {
+	AlertName       string                `db:"alert_name" json:"alert_name"`
+	AlertTemplateID uuid.UUID             `db:"alert_template_id" json:"alert_template_id"`
+	Actions         pqtype.NullRawMessage `db:"actions" json:"actions"`
+	CustomMethod    NullAlertMethod       `db:"custom_method" json:"custom_method"`
+	UserID          uuid.UUID             `db:"user_id" json:"user_id"`
+	UserEmail       string                `db:"user_email" json:"user_email"`
+	UserName        string                `db:"user_name" json:"user_name"`
+	UserUsername    string                `db:"user_username" json:"user_username"`
+}
+
+// This is used to build up the alert_message's JSON payload.
+func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error) {
+	row := q.db.QueryRowContext(ctx, fetchNewMessageMetadata, arg.AlertTemplateID, arg.UserID)
+	var i FetchNewMessageMetadataRow
+	err := row.Scan(
+		&i.AlertName,
+		&i.AlertTemplateID,
+		&i.Actions,
+		&i.CustomMethod,
+		&i.UserID,
+		&i.UserEmail,
+		&i.UserName,
+		&i.UserUsername,
+	)
+	return i, err
+}
+
+const getAlertMessagesByStatus = `-- name: GetAlertMessagesByStatus :many
+SELECT id, alert_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds, dedupe_hash
+FROM alert_messages
+WHERE status = $1
+LIMIT $2::int
+`
+
+type GetAlertMessagesByStatusParams struct {
+	Status AlertMessageStatus `db:"status" json:"status"`
+	Limit  int32              `db:"limit" json:"limit"`
+}
+
+func (q *sqlQuerier) GetAlertMessagesByStatus(ctx context.Context, arg GetAlertMessagesByStatusParams) ([]AlertMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getAlertMessagesByStatus, arg.Status, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AlertMessage
+	for rows.Next() {
+		var i AlertMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.AlertTemplateID,
+			&i.UserID,
+			&i.Method,
+			&i.Status,
+			&i.StatusReason,
+			&i.CreatedBy,
+			&i.Payload,
+			&i.AttemptCount,
+			pq.Array(&i.Targets),
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LeasedUntil,
+			&i.NextRetryAfter,
+			&i.QueuedSeconds,
+			&i.DedupeHash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAlertReportGeneratorLogByTemplate = `-- name: GetAlertReportGeneratorLogByTemplate :one
+SELECT
+	alert_template_id, last_generated_at
+FROM
+	alert_report_generator_logs
+WHERE
+	alert_template_id = $1::uuid
+`
+
+// Fetch the alert report generator log indicating recent activity.
+func (q *sqlQuerier) GetAlertReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (AlertReportGeneratorLog, error) {
+	row := q.db.QueryRowContext(ctx, getAlertReportGeneratorLogByTemplate, templateID)
+	var i AlertReportGeneratorLog
+	err := row.Scan(&i.AlertTemplateID, &i.LastGeneratedAt)
+	return i, err
+}
+
+const getAlertTemplateByID = `-- name: GetAlertTemplateByID :one
+SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
+FROM alert_templates
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAlertTemplateByID(ctx context.Context, id uuid.UUID) (AlertTemplate, error) {
+	row := q.db.QueryRowContext(ctx, getAlertTemplateByID, id)
+	var i AlertTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TitleTemplate,
+		&i.BodyTemplate,
+		&i.Actions,
+		&i.Group,
+		&i.Method,
+		&i.Kind,
+		&i.EnabledByDefault,
+	)
+	return i, err
+}
+
+const getAlertTemplatesByKind = `-- name: GetAlertTemplatesByKind :many
+SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
+FROM alert_templates
+WHERE kind = $1::alert_template_kind
+ORDER BY name ASC
+`
+
+func (q *sqlQuerier) GetAlertTemplatesByKind(ctx context.Context, kind AlertTemplateKind) ([]AlertTemplate, error) {
+	rows, err := q.db.QueryContext(ctx, getAlertTemplatesByKind, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AlertTemplate
+	for rows.Next() {
+		var i AlertTemplate
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TitleTemplate,
+			&i.BodyTemplate,
+			&i.Actions,
+			&i.Group,
+			&i.Method,
+			&i.Kind,
+			&i.EnabledByDefault,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserAlertPreferences = `-- name: GetUserAlertPreferences :many
+SELECT user_id, alert_template_id, disabled, created_at, updated_at
+FROM alert_preferences
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetUserAlertPreferences(ctx context.Context, userID uuid.UUID) ([]AlertPreference, error) {
+	rows, err := q.db.QueryContext(ctx, getUserAlertPreferences, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AlertPreference
+	for rows.Next() {
+		var i AlertPreference
+		if err := rows.Scan(
+			&i.UserID,
+			&i.AlertTemplateID,
+			&i.Disabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWebpushSubscriptionsByUserID = `-- name: GetWebpushSubscriptionsByUserID :many
+SELECT id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+FROM webpush_subscriptions
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error) {
+	rows, err := q.db.QueryContext(ctx, getWebpushSubscriptionsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebpushSubscription
+	for rows.Next() {
+		var i WebpushSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.Endpoint,
+			&i.EndpointP256dhKey,
+			&i.EndpointAuthKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWebpushSubscription = `-- name: InsertWebpushSubscription :one
+INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+`
+
+type InsertWebpushSubscriptionParams struct {
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
+}
+
+func (q *sqlQuerier) InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error) {
+	row := q.db.QueryRowContext(ctx, insertWebpushSubscription,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.Endpoint,
+		arg.EndpointP256dhKey,
+		arg.EndpointAuthKey,
+	)
+	var i WebpushSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.Endpoint,
+		&i.EndpointP256dhKey,
+		&i.EndpointAuthKey,
+	)
+	return i, err
+}
+
+const updateAlertTemplateMethodByID = `-- name: UpdateAlertTemplateMethodByID :one
+UPDATE alert_templates
+SET method = $1::alert_method
+WHERE id = $2::uuid
+RETURNING id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
+`
+
+type UpdateAlertTemplateMethodByIDParams struct {
+	Method NullAlertMethod `db:"method" json:"method"`
+	ID     uuid.UUID       `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAlertTemplateMethodByID(ctx context.Context, arg UpdateAlertTemplateMethodByIDParams) (AlertTemplate, error) {
+	row := q.db.QueryRowContext(ctx, updateAlertTemplateMethodByID, arg.Method, arg.ID)
+	var i AlertTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TitleTemplate,
+		&i.BodyTemplate,
+		&i.Actions,
+		&i.Group,
+		&i.Method,
+		&i.Kind,
+		&i.EnabledByDefault,
+	)
+	return i, err
+}
+
+const updateUserAlertPreferences = `-- name: UpdateUserAlertPreferences :execrows
+INSERT
+INTO alert_preferences (user_id, alert_template_id, disabled)
+SELECT $1::uuid, new_values.alert_template_id, new_values.disabled
+FROM (SELECT UNNEST($2::uuid[]) AS alert_template_id,
+             UNNEST($3::bool[])          AS disabled) AS new_values
+ON CONFLICT (user_id, alert_template_id) DO UPDATE
+    SET disabled   = EXCLUDED.disabled,
+        updated_at = CURRENT_TIMESTAMP
+`
+
+type UpdateUserAlertPreferencesParams struct {
+	UserID           uuid.UUID   `db:"user_id" json:"user_id"`
+	AlertTemplateIds []uuid.UUID `db:"alert_template_ids" json:"alert_template_ids"`
+	Disableds        []bool      `db:"disableds" json:"disableds"`
+}
+
+func (q *sqlQuerier) UpdateUserAlertPreferences(ctx context.Context, arg UpdateUserAlertPreferencesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserAlertPreferences, arg.UserID, pq.Array(arg.AlertTemplateIds), pq.Array(arg.Disableds))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertAlertReportGeneratorLog = `-- name: UpsertAlertReportGeneratorLog :exec
+INSERT INTO alert_report_generator_logs (alert_template_id, last_generated_at) VALUES ($1, $2)
+ON CONFLICT (alert_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
+WHERE alert_report_generator_logs.alert_template_id = EXCLUDED.alert_template_id
+`
+
+type UpsertAlertReportGeneratorLogParams struct {
+	AlertTemplateID uuid.UUID `db:"alert_template_id" json:"alert_template_id"`
+	LastGeneratedAt time.Time `db:"last_generated_at" json:"last_generated_at"`
+}
+
+// Insert or update alert report generator logs with recent activity.
+func (q *sqlQuerier) UpsertAlertReportGeneratorLog(ctx context.Context, arg UpsertAlertReportGeneratorLogParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAlertReportGeneratorLog, arg.AlertTemplateID, arg.LastGeneratedAt)
+	return err
+}
+
+const countUnreadInboxAlertsByUserID = `-- name: CountUnreadInboxAlertsByUserID :one
+SELECT COUNT(*) FROM inbox_alerts WHERE user_id = $1 AND read_at IS NULL
+`
+
+func (q *sqlQuerier) CountUnreadInboxAlertsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnreadInboxAlertsByUserID, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getFilteredInboxAlertsByUserID = `-- name: GetFilteredInboxAlertsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_alerts WHERE
+	user_id = $1 AND
+	($2::UUID[] IS NULL OR template_id = ANY($2::UUID[])) AND
+	($3::UUID[] IS NULL OR targets @> $3::UUID[]) AND
+	($4::inbox_alert_read_status = 'all' OR ($4::inbox_alert_read_status = 'unread' AND read_at IS NULL) OR ($4::inbox_alert_read_status = 'read' AND read_at IS NOT NULL)) AND
+	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($6 :: INT, 0), 25))
+`
+
+type GetFilteredInboxAlertsByUserIDParams struct {
+	UserID       uuid.UUID            `db:"user_id" json:"user_id"`
+	Templates    []uuid.UUID          `db:"templates" json:"templates"`
+	Targets      []uuid.UUID          `db:"targets" json:"targets"`
+	ReadStatus   InboxAlertReadStatus `db:"read_status" json:"read_status"`
+	CreatedAtOpt time.Time            `db:"created_at_opt" json:"created_at_opt"`
+	LimitOpt     int32                `db:"limit_opt" json:"limit_opt"`
+}
+
+// Fetches inbox alerts for a user filtered by templates and targets
+// param user_id: The user ID
+// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+// param created_at_opt: The created_at timestamp to filter by. This parameter is used for pagination - it fetches alerts created before the specified timestamp if it is not the zero value
+// param limit_opt: The limit of alerts to fetch. If the limit is not specified, it defaults to 25
+func (q *sqlQuerier) GetFilteredInboxAlertsByUserID(ctx context.Context, arg GetFilteredInboxAlertsByUserIDParams) ([]InboxAlert, error) {
+	rows, err := q.db.QueryContext(ctx, getFilteredInboxAlertsByUserID,
+		arg.UserID,
+		pq.Array(arg.Templates),
+		pq.Array(arg.Targets),
+		arg.ReadStatus,
+		arg.CreatedAtOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxAlert
+	for rows.Next() {
+		var i InboxAlert
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getInboxAlertByID = `-- name: GetInboxAlertByID :one
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_alerts WHERE id = $1
+`
+
+func (q *sqlQuerier) GetInboxAlertByID(ctx context.Context, id uuid.UUID) (InboxAlert, error) {
+	row := q.db.QueryRowContext(ctx, getInboxAlertByID, id)
+	var i InboxAlert
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		pq.Array(&i.Targets),
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInboxAlertsByUserID = `-- name: GetInboxAlertsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_alerts WHERE
+	user_id = $1 AND
+	($2::inbox_alert_read_status = 'all' OR ($2::inbox_alert_read_status = 'unread' AND read_at IS NULL) OR ($2::inbox_alert_read_status = 'read' AND read_at IS NOT NULL)) AND
+	($3::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $3::TIMESTAMPTZ)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
+`
+
+type GetInboxAlertsByUserIDParams struct {
+	UserID       uuid.UUID            `db:"user_id" json:"user_id"`
+	ReadStatus   InboxAlertReadStatus `db:"read_status" json:"read_status"`
+	CreatedAtOpt time.Time            `db:"created_at_opt" json:"created_at_opt"`
+	LimitOpt     int32                `db:"limit_opt" json:"limit_opt"`
+}
+
+// Fetches inbox alerts for a user filtered by templates and targets
+// param user_id: The user ID
+// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+// param created_at_opt: The created_at timestamp to filter by. This parameter is used for pagination - it fetches alerts created before the specified timestamp if it is not the zero value
+// param limit_opt: The limit of alerts to fetch. If the limit is not specified, it defaults to 25
+func (q *sqlQuerier) GetInboxAlertsByUserID(ctx context.Context, arg GetInboxAlertsByUserIDParams) ([]InboxAlert, error) {
+	rows, err := q.db.QueryContext(ctx, getInboxAlertsByUserID,
+		arg.UserID,
+		arg.ReadStatus,
+		arg.CreatedAtOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxAlert
+	for rows.Next() {
+		var i InboxAlert
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertInboxAlert = `-- name: InsertInboxAlert :one
+INSERT INTO
+    inbox_alerts (
+        id,
+        user_id,
+        template_id,
+        targets,
+        title,
+        content,
+        icon,
+        actions,
+        created_at
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at
+`
+
+type InsertInboxAlertParams struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Targets    []uuid.UUID     `db:"targets" json:"targets"`
+	Title      string          `db:"title" json:"title"`
+	Content    string          `db:"content" json:"content"`
+	Icon       string          `db:"icon" json:"icon"`
+	Actions    json.RawMessage `db:"actions" json:"actions"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertInboxAlert(ctx context.Context, arg InsertInboxAlertParams) (InboxAlert, error) {
+	row := q.db.QueryRowContext(ctx, insertInboxAlert,
+		arg.ID,
+		arg.UserID,
+		arg.TemplateID,
+		pq.Array(arg.Targets),
+		arg.Title,
+		arg.Content,
+		arg.Icon,
+		arg.Actions,
+		arg.CreatedAt,
+	)
+	var i InboxAlert
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		pq.Array(&i.Targets),
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const markAllInboxAlertsAsRead = `-- name: MarkAllInboxAlertsAsRead :exec
+UPDATE
+	inbox_alerts
+SET
+	read_at = $1
+WHERE
+	user_id = $2 and read_at IS NULL
+`
+
+type MarkAllInboxAlertsAsReadParams struct {
+	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
+	UserID uuid.UUID    `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) MarkAllInboxAlertsAsRead(ctx context.Context, arg MarkAllInboxAlertsAsReadParams) error {
+	_, err := q.db.ExecContext(ctx, markAllInboxAlertsAsRead, arg.ReadAt, arg.UserID)
+	return err
+}
+
+const updateInboxAlertReadStatus = `-- name: UpdateInboxAlertReadStatus :exec
+UPDATE
+    inbox_alerts
+SET
+    read_at = $1
+WHERE
+    id = $2
+`
+
+type UpdateInboxAlertReadStatusParams struct {
+	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
+	ID     uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateInboxAlertReadStatus(ctx context.Context, arg UpdateInboxAlertReadStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateInboxAlertReadStatus, arg.ReadAt, arg.ID)
+	return err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys
@@ -5528,908 +6430,6 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	var pg_try_advisory_xact_lock bool
 	err := row.Scan(&pg_try_advisory_xact_lock)
 	return pg_try_advisory_xact_lock, err
-}
-
-const acquireNotificationMessages = `-- name: AcquireNotificationMessages :many
-WITH acquired AS (
-    UPDATE
-        notification_messages
-            SET queued_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - updated_at)))::FLOAT,
-                updated_at = NOW(),
-                status = 'leased'::notification_message_status,
-                status_reason = 'Leased by notifier ' || $1::uuid,
-                leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
-            WHERE id IN (SELECT nm.id
-                         FROM notification_messages AS nm
-                         WHERE (
-                             (
-                                 -- message is in acquirable states
-                                 nm.status IN (
-                                               'pending'::notification_message_status,
-                                               'temporary_failure'::notification_message_status
-                                     )
-                                 )
-                                 -- or somehow the message was left in leased for longer than its lease period
-                                 OR (
-                                 nm.status = 'leased'::notification_message_status
-                                     AND nm.leased_until < NOW()
-                                 )
-                             )
-                           AND (
-                             -- exclude all messages which have exceeded the max attempts; these will be purged later
-                             nm.attempt_count IS NULL OR nm.attempt_count < $3::int
-                             )
-                           -- if set, do not retry until we've exceeded the wait time
-                           AND (
-                             CASE
-                                 WHEN nm.next_retry_after IS NOT NULL THEN nm.next_retry_after < NOW()
-                                 ELSE true
-                                 END
-                             )
-                         ORDER BY nm.created_at ASC
-                                  -- Ensure that multiple concurrent readers cannot retrieve the same rows
-                             FOR UPDATE OF nm
-                                 SKIP LOCKED
-                         LIMIT $4)
-            RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds, dedupe_hash)
-SELECT
-    -- message
-    nm.id,
-    nm.payload,
-    nm.method,
-    nm.attempt_count::int                                                 AS attempt_count,
-    nm.queued_seconds::float                                              AS queued_seconds,
-    -- template
-    nt.id                                                                 AS template_id,
-    nt.title_template,
-    nt.body_template,
-    -- preferences
-    (CASE WHEN np.disabled IS NULL THEN false ELSE np.disabled END)::bool AS disabled
-FROM acquired nm
-         JOIN notification_templates nt ON nm.notification_template_id = nt.id
-         LEFT JOIN notification_preferences AS np
-                   ON (np.user_id = nm.user_id AND np.notification_template_id = nm.notification_template_id)
-`
-
-type AcquireNotificationMessagesParams struct {
-	NotifierID      uuid.UUID `db:"notifier_id" json:"notifier_id"`
-	LeaseSeconds    int32     `db:"lease_seconds" json:"lease_seconds"`
-	MaxAttemptCount int32     `db:"max_attempt_count" json:"max_attempt_count"`
-	Count           int32     `db:"count" json:"count"`
-}
-
-type AcquireNotificationMessagesRow struct {
-	ID            uuid.UUID          `db:"id" json:"id"`
-	Payload       json.RawMessage    `db:"payload" json:"payload"`
-	Method        NotificationMethod `db:"method" json:"method"`
-	AttemptCount  int32              `db:"attempt_count" json:"attempt_count"`
-	QueuedSeconds float64            `db:"queued_seconds" json:"queued_seconds"`
-	TemplateID    uuid.UUID          `db:"template_id" json:"template_id"`
-	TitleTemplate string             `db:"title_template" json:"title_template"`
-	BodyTemplate  string             `db:"body_template" json:"body_template"`
-	Disabled      bool               `db:"disabled" json:"disabled"`
-}
-
-// Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
-// Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
-//
-// A "lease" here refers to a notifier taking ownership of a notification_messages row. A lease survives for the duration
-// of CODER_NOTIFICATIONS_LEASE_PERIOD. Once a message is delivered, its status is updated and the lease expires (set to NULL).
-// If a message exceeds its lease, that implies the notifier did not shutdown cleanly, or the table update failed somehow,
-// and the row will then be eligible to be dequeued by another notifier.
-//
-// SKIP LOCKED is used to jump over locked rows. This prevents multiple notifiers from acquiring the same messages.
-// See: https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
-func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg AcquireNotificationMessagesParams) ([]AcquireNotificationMessagesRow, error) {
-	rows, err := q.db.QueryContext(ctx, acquireNotificationMessages,
-		arg.NotifierID,
-		arg.LeaseSeconds,
-		arg.MaxAttemptCount,
-		arg.Count,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []AcquireNotificationMessagesRow
-	for rows.Next() {
-		var i AcquireNotificationMessagesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Payload,
-			&i.Method,
-			&i.AttemptCount,
-			&i.QueuedSeconds,
-			&i.TemplateID,
-			&i.TitleTemplate,
-			&i.BodyTemplate,
-			&i.Disabled,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const bulkMarkNotificationMessagesFailed = `-- name: BulkMarkNotificationMessagesFailed :execrows
-UPDATE notification_messages
-SET queued_seconds   = 0,
-    updated_at       = subquery.failed_at,
-    attempt_count    = attempt_count + 1,
-    status           = CASE
-                           WHEN attempt_count + 1 < $1::int THEN subquery.status
-                           ELSE 'permanent_failure'::notification_message_status END,
-    status_reason    = subquery.status_reason,
-    leased_until     = NULL,
-    next_retry_after = CASE
-                           WHEN (attempt_count + 1 < $1::int)
-                               THEN NOW() + CONCAT($2::int, ' seconds')::interval END
-FROM (SELECT UNNEST($3::uuid[])                             AS id,
-             UNNEST($4::timestamptz[])               AS failed_at,
-             UNNEST($5::notification_message_status[]) AS status,
-             UNNEST($6::text[])                  AS status_reason) AS subquery
-WHERE notification_messages.id = subquery.id
-`
-
-type BulkMarkNotificationMessagesFailedParams struct {
-	MaxAttempts   int32                       `db:"max_attempts" json:"max_attempts"`
-	RetryInterval int32                       `db:"retry_interval" json:"retry_interval"`
-	IDs           []uuid.UUID                 `db:"ids" json:"ids"`
-	FailedAts     []time.Time                 `db:"failed_ats" json:"failed_ats"`
-	Statuses      []NotificationMessageStatus `db:"statuses" json:"statuses"`
-	StatusReasons []string                    `db:"status_reasons" json:"status_reasons"`
-}
-
-func (q *sqlQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, bulkMarkNotificationMessagesFailed,
-		arg.MaxAttempts,
-		arg.RetryInterval,
-		pq.Array(arg.IDs),
-		pq.Array(arg.FailedAts),
-		pq.Array(arg.Statuses),
-		pq.Array(arg.StatusReasons),
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const bulkMarkNotificationMessagesSent = `-- name: BulkMarkNotificationMessagesSent :execrows
-UPDATE notification_messages
-SET queued_seconds   = 0,
-    updated_at       = new_values.sent_at,
-    attempt_count    = attempt_count + 1,
-    status           = 'sent'::notification_message_status,
-    status_reason    = NULL,
-    leased_until     = NULL,
-    next_retry_after = NULL
-FROM (SELECT UNNEST($1::uuid[])             AS id,
-             UNNEST($2::timestamptz[]) AS sent_at)
-         AS new_values
-WHERE notification_messages.id = new_values.id
-`
-
-type BulkMarkNotificationMessagesSentParams struct {
-	IDs     []uuid.UUID `db:"ids" json:"ids"`
-	SentAts []time.Time `db:"sent_ats" json:"sent_ats"`
-}
-
-func (q *sqlQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, bulkMarkNotificationMessagesSent, pq.Array(arg.IDs), pq.Array(arg.SentAts))
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const deleteAllWebpushSubscriptions = `-- name: DeleteAllWebpushSubscriptions :exec
-TRUNCATE TABLE webpush_subscriptions
-`
-
-// Deletes all existing webpush subscriptions.
-// This should be called when the VAPID keypair is regenerated, as the old
-// keypair will no longer be valid and all existing subscriptions will need to
-// be recreated.
-func (q *sqlQuerier) DeleteAllWebpushSubscriptions(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteAllWebpushSubscriptions)
-	return err
-}
-
-const deleteOldNotificationMessages = `-- name: DeleteOldNotificationMessages :exec
-DELETE
-FROM notification_messages
-WHERE id IN
-      (SELECT id
-       FROM notification_messages AS nested
-       WHERE nested.updated_at < NOW() - INTERVAL '7 days')
-`
-
-// Delete all notification messages which have not been updated for over a week.
-func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteOldNotificationMessages)
-	return err
-}
-
-const deleteWebpushSubscriptionByUserIDAndEndpoint = `-- name: DeleteWebpushSubscriptionByUserIDAndEndpoint :exec
-DELETE FROM webpush_subscriptions
-WHERE user_id = $1 AND endpoint = $2
-`
-
-type DeleteWebpushSubscriptionByUserIDAndEndpointParams struct {
-	UserID   uuid.UUID `db:"user_id" json:"user_id"`
-	Endpoint string    `db:"endpoint" json:"endpoint"`
-}
-
-func (q *sqlQuerier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
-	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptionByUserIDAndEndpoint, arg.UserID, arg.Endpoint)
-	return err
-}
-
-const deleteWebpushSubscriptions = `-- name: DeleteWebpushSubscriptions :exec
-DELETE FROM webpush_subscriptions
-WHERE id = ANY($1::uuid[])
-`
-
-func (q *sqlQuerier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptions, pq.Array(ids))
-	return err
-}
-
-const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :exec
-INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by, created_at)
-VALUES ($1,
-        $2,
-        $3,
-        $4::notification_method,
-        $5::jsonb,
-        $6,
-        $7,
-        $8)
-`
-
-type EnqueueNotificationMessageParams struct {
-	ID                     uuid.UUID          `db:"id" json:"id"`
-	NotificationTemplateID uuid.UUID          `db:"notification_template_id" json:"notification_template_id"`
-	UserID                 uuid.UUID          `db:"user_id" json:"user_id"`
-	Method                 NotificationMethod `db:"method" json:"method"`
-	Payload                json.RawMessage    `db:"payload" json:"payload"`
-	Targets                []uuid.UUID        `db:"targets" json:"targets"`
-	CreatedBy              string             `db:"created_by" json:"created_by"`
-	CreatedAt              time.Time          `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error {
-	_, err := q.db.ExecContext(ctx, enqueueNotificationMessage,
-		arg.ID,
-		arg.NotificationTemplateID,
-		arg.UserID,
-		arg.Method,
-		arg.Payload,
-		pq.Array(arg.Targets),
-		arg.CreatedBy,
-		arg.CreatedAt,
-	)
-	return err
-}
-
-const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
-SELECT nt.name                                                    AS notification_name,
-       nt.id                                                      AS notification_template_id,
-       nt.actions                                                 AS actions,
-       nt.method                                                  AS custom_method,
-       u.id                                                       AS user_id,
-       u.email                                                    AS user_email,
-       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
-       u.username                                                 AS user_username
-FROM notification_templates nt,
-     users u
-WHERE nt.id = $1
-  AND u.id = $2
-`
-
-type FetchNewMessageMetadataParams struct {
-	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
-	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-type FetchNewMessageMetadataRow struct {
-	NotificationName       string                 `db:"notification_name" json:"notification_name"`
-	NotificationTemplateID uuid.UUID              `db:"notification_template_id" json:"notification_template_id"`
-	Actions                []byte                 `db:"actions" json:"actions"`
-	CustomMethod           NullNotificationMethod `db:"custom_method" json:"custom_method"`
-	UserID                 uuid.UUID              `db:"user_id" json:"user_id"`
-	UserEmail              string                 `db:"user_email" json:"user_email"`
-	UserName               string                 `db:"user_name" json:"user_name"`
-	UserUsername           string                 `db:"user_username" json:"user_username"`
-}
-
-// This is used to build up the notification_message's JSON payload.
-func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error) {
-	row := q.db.QueryRowContext(ctx, fetchNewMessageMetadata, arg.NotificationTemplateID, arg.UserID)
-	var i FetchNewMessageMetadataRow
-	err := row.Scan(
-		&i.NotificationName,
-		&i.NotificationTemplateID,
-		&i.Actions,
-		&i.CustomMethod,
-		&i.UserID,
-		&i.UserEmail,
-		&i.UserName,
-		&i.UserUsername,
-	)
-	return i, err
-}
-
-const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
-SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds, dedupe_hash
-FROM notification_messages
-WHERE status = $1
-LIMIT $2::int
-`
-
-type GetNotificationMessagesByStatusParams struct {
-	Status NotificationMessageStatus `db:"status" json:"status"`
-	Limit  int32                     `db:"limit" json:"limit"`
-}
-
-func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getNotificationMessagesByStatus, arg.Status, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []NotificationMessage
-	for rows.Next() {
-		var i NotificationMessage
-		if err := rows.Scan(
-			&i.ID,
-			&i.NotificationTemplateID,
-			&i.UserID,
-			&i.Method,
-			&i.Status,
-			&i.StatusReason,
-			&i.CreatedBy,
-			&i.Payload,
-			&i.AttemptCount,
-			pq.Array(&i.Targets),
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.LeasedUntil,
-			&i.NextRetryAfter,
-			&i.QueuedSeconds,
-			&i.DedupeHash,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getNotificationReportGeneratorLogByTemplate = `-- name: GetNotificationReportGeneratorLogByTemplate :one
-SELECT
-	notification_template_id, last_generated_at
-FROM
-	notification_report_generator_logs
-WHERE
-	notification_template_id = $1::uuid
-`
-
-// Fetch the notification report generator log indicating recent activity.
-func (q *sqlQuerier) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (NotificationReportGeneratorLog, error) {
-	row := q.db.QueryRowContext(ctx, getNotificationReportGeneratorLogByTemplate, templateID)
-	var i NotificationReportGeneratorLog
-	err := row.Scan(&i.NotificationTemplateID, &i.LastGeneratedAt)
-	return i, err
-}
-
-const getNotificationTemplateByID = `-- name: GetNotificationTemplateByID :one
-SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
-FROM notification_templates
-WHERE id = $1::uuid
-`
-
-func (q *sqlQuerier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (NotificationTemplate, error) {
-	row := q.db.QueryRowContext(ctx, getNotificationTemplateByID, id)
-	var i NotificationTemplate
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.TitleTemplate,
-		&i.BodyTemplate,
-		&i.Actions,
-		&i.Group,
-		&i.Method,
-		&i.Kind,
-		&i.EnabledByDefault,
-	)
-	return i, err
-}
-
-const getNotificationTemplatesByKind = `-- name: GetNotificationTemplatesByKind :many
-SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
-FROM notification_templates
-WHERE kind = $1::notification_template_kind
-ORDER BY name ASC
-`
-
-func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error) {
-	rows, err := q.db.QueryContext(ctx, getNotificationTemplatesByKind, kind)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []NotificationTemplate
-	for rows.Next() {
-		var i NotificationTemplate
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.TitleTemplate,
-			&i.BodyTemplate,
-			&i.Actions,
-			&i.Group,
-			&i.Method,
-			&i.Kind,
-			&i.EnabledByDefault,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getUserNotificationPreferences = `-- name: GetUserNotificationPreferences :many
-SELECT user_id, notification_template_id, disabled, created_at, updated_at
-FROM notification_preferences
-WHERE user_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
-	rows, err := q.db.QueryContext(ctx, getUserNotificationPreferences, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []NotificationPreference
-	for rows.Next() {
-		var i NotificationPreference
-		if err := rows.Scan(
-			&i.UserID,
-			&i.NotificationTemplateID,
-			&i.Disabled,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWebpushSubscriptionsByUserID = `-- name: GetWebpushSubscriptionsByUserID :many
-SELECT id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
-FROM webpush_subscriptions
-WHERE user_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error) {
-	rows, err := q.db.QueryContext(ctx, getWebpushSubscriptionsByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WebpushSubscription
-	for rows.Next() {
-		var i WebpushSubscription
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.CreatedAt,
-			&i.Endpoint,
-			&i.EndpointP256dhKey,
-			&i.EndpointAuthKey,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertWebpushSubscription = `-- name: InsertWebpushSubscription :one
-INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
-`
-
-type InsertWebpushSubscriptionParams struct {
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
-	Endpoint          string    `db:"endpoint" json:"endpoint"`
-	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
-	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
-}
-
-func (q *sqlQuerier) InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error) {
-	row := q.db.QueryRowContext(ctx, insertWebpushSubscription,
-		arg.UserID,
-		arg.CreatedAt,
-		arg.Endpoint,
-		arg.EndpointP256dhKey,
-		arg.EndpointAuthKey,
-	)
-	var i WebpushSubscription
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.CreatedAt,
-		&i.Endpoint,
-		&i.EndpointP256dhKey,
-		&i.EndpointAuthKey,
-	)
-	return i, err
-}
-
-const updateNotificationTemplateMethodByID = `-- name: UpdateNotificationTemplateMethodByID :one
-UPDATE notification_templates
-SET method = $1::notification_method
-WHERE id = $2::uuid
-RETURNING id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
-`
-
-type UpdateNotificationTemplateMethodByIDParams struct {
-	Method NullNotificationMethod `db:"method" json:"method"`
-	ID     uuid.UUID              `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error) {
-	row := q.db.QueryRowContext(ctx, updateNotificationTemplateMethodByID, arg.Method, arg.ID)
-	var i NotificationTemplate
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.TitleTemplate,
-		&i.BodyTemplate,
-		&i.Actions,
-		&i.Group,
-		&i.Method,
-		&i.Kind,
-		&i.EnabledByDefault,
-	)
-	return i, err
-}
-
-const updateUserNotificationPreferences = `-- name: UpdateUserNotificationPreferences :execrows
-INSERT
-INTO notification_preferences (user_id, notification_template_id, disabled)
-SELECT $1::uuid, new_values.notification_template_id, new_values.disabled
-FROM (SELECT UNNEST($2::uuid[]) AS notification_template_id,
-             UNNEST($3::bool[])                 AS disabled) AS new_values
-ON CONFLICT (user_id, notification_template_id) DO UPDATE
-    SET disabled   = EXCLUDED.disabled,
-        updated_at = CURRENT_TIMESTAMP
-`
-
-type UpdateUserNotificationPreferencesParams struct {
-	UserID                  uuid.UUID   `db:"user_id" json:"user_id"`
-	NotificationTemplateIds []uuid.UUID `db:"notification_template_ids" json:"notification_template_ids"`
-	Disableds               []bool      `db:"disableds" json:"disableds"`
-}
-
-func (q *sqlQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg UpdateUserNotificationPreferencesParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateUserNotificationPreferences, arg.UserID, pq.Array(arg.NotificationTemplateIds), pq.Array(arg.Disableds))
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const upsertNotificationReportGeneratorLog = `-- name: UpsertNotificationReportGeneratorLog :exec
-INSERT INTO notification_report_generator_logs (notification_template_id, last_generated_at) VALUES ($1, $2)
-ON CONFLICT (notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
-WHERE notification_report_generator_logs.notification_template_id = EXCLUDED.notification_template_id
-`
-
-type UpsertNotificationReportGeneratorLogParams struct {
-	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
-	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
-}
-
-// Insert or update notification report generator logs with recent activity.
-func (q *sqlQuerier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error {
-	_, err := q.db.ExecContext(ctx, upsertNotificationReportGeneratorLog, arg.NotificationTemplateID, arg.LastGeneratedAt)
-	return err
-}
-
-const countUnreadInboxNotificationsByUserID = `-- name: CountUnreadInboxNotificationsByUserID :one
-SELECT COUNT(*) FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL
-`
-
-func (q *sqlQuerier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countUnreadInboxNotificationsByUserID, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const getFilteredInboxNotificationsByUserID = `-- name: GetFilteredInboxNotificationsByUserID :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
-	user_id = $1 AND
-	($2::UUID[] IS NULL OR template_id = ANY($2::UUID[])) AND
-	($3::UUID[] IS NULL OR targets @> $3::UUID[]) AND
-	($4::inbox_notification_read_status = 'all' OR ($4::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($4::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
-	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)
-	ORDER BY created_at DESC
-	LIMIT (COALESCE(NULLIF($6 :: INT, 0), 25))
-`
-
-type GetFilteredInboxNotificationsByUserIDParams struct {
-	UserID       uuid.UUID                   `db:"user_id" json:"user_id"`
-	Templates    []uuid.UUID                 `db:"templates" json:"templates"`
-	Targets      []uuid.UUID                 `db:"targets" json:"targets"`
-	ReadStatus   InboxNotificationReadStatus `db:"read_status" json:"read_status"`
-	CreatedAtOpt time.Time                   `db:"created_at_opt" json:"created_at_opt"`
-	LimitOpt     int32                       `db:"limit_opt" json:"limit_opt"`
-}
-
-// Fetches inbox notifications for a user filtered by templates and targets
-// param user_id: The user ID
-// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
-// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
-// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
-// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
-// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
-func (q *sqlQuerier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
-	rows, err := q.db.QueryContext(ctx, getFilteredInboxNotificationsByUserID,
-		arg.UserID,
-		pq.Array(arg.Templates),
-		pq.Array(arg.Targets),
-		arg.ReadStatus,
-		arg.CreatedAtOpt,
-		arg.LimitOpt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []InboxNotification
-	for rows.Next() {
-		var i InboxNotification
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TemplateID,
-			pq.Array(&i.Targets),
-			&i.Title,
-			&i.Content,
-			&i.Icon,
-			&i.Actions,
-			&i.ReadAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getInboxNotificationByID = `-- name: GetInboxNotificationByID :one
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE id = $1
-`
-
-func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error) {
-	row := q.db.QueryRowContext(ctx, getInboxNotificationByID, id)
-	var i InboxNotification
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TemplateID,
-		pq.Array(&i.Targets),
-		&i.Title,
-		&i.Content,
-		&i.Icon,
-		&i.Actions,
-		&i.ReadAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
-	user_id = $1 AND
-	($2::inbox_notification_read_status = 'all' OR ($2::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($2::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
-	($3::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $3::TIMESTAMPTZ)
-	ORDER BY created_at DESC
-	LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
-`
-
-type GetInboxNotificationsByUserIDParams struct {
-	UserID       uuid.UUID                   `db:"user_id" json:"user_id"`
-	ReadStatus   InboxNotificationReadStatus `db:"read_status" json:"read_status"`
-	CreatedAtOpt time.Time                   `db:"created_at_opt" json:"created_at_opt"`
-	LimitOpt     int32                       `db:"limit_opt" json:"limit_opt"`
-}
-
-// Fetches inbox notifications for a user filtered by templates and targets
-// param user_id: The user ID
-// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
-// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
-// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
-func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
-	rows, err := q.db.QueryContext(ctx, getInboxNotificationsByUserID,
-		arg.UserID,
-		arg.ReadStatus,
-		arg.CreatedAtOpt,
-		arg.LimitOpt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []InboxNotification
-	for rows.Next() {
-		var i InboxNotification
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TemplateID,
-			pq.Array(&i.Targets),
-			&i.Title,
-			&i.Content,
-			&i.Icon,
-			&i.Actions,
-			&i.ReadAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertInboxNotification = `-- name: InsertInboxNotification :one
-INSERT INTO
-    inbox_notifications (
-        id,
-        user_id,
-        template_id,
-        targets,
-        title,
-        content,
-        icon,
-        actions,
-        created_at
-    )
-VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at
-`
-
-type InsertInboxNotificationParams struct {
-	ID         uuid.UUID       `db:"id" json:"id"`
-	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
-	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
-	Targets    []uuid.UUID     `db:"targets" json:"targets"`
-	Title      string          `db:"title" json:"title"`
-	Content    string          `db:"content" json:"content"`
-	Icon       string          `db:"icon" json:"icon"`
-	Actions    json.RawMessage `db:"actions" json:"actions"`
-	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error) {
-	row := q.db.QueryRowContext(ctx, insertInboxNotification,
-		arg.ID,
-		arg.UserID,
-		arg.TemplateID,
-		pq.Array(arg.Targets),
-		arg.Title,
-		arg.Content,
-		arg.Icon,
-		arg.Actions,
-		arg.CreatedAt,
-	)
-	var i InboxNotification
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TemplateID,
-		pq.Array(&i.Targets),
-		&i.Title,
-		&i.Content,
-		&i.Icon,
-		&i.Actions,
-		&i.ReadAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const markAllInboxNotificationsAsRead = `-- name: MarkAllInboxNotificationsAsRead :exec
-UPDATE
-	inbox_notifications
-SET
-	read_at = $1
-WHERE
-	user_id = $2 and read_at IS NULL
-`
-
-type MarkAllInboxNotificationsAsReadParams struct {
-	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
-	UserID uuid.UUID    `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error {
-	_, err := q.db.ExecContext(ctx, markAllInboxNotificationsAsRead, arg.ReadAt, arg.UserID)
-	return err
-}
-
-const updateInboxNotificationReadStatus = `-- name: UpdateInboxNotificationReadStatus :exec
-UPDATE
-    inbox_notifications
-SET
-    read_at = $1
-WHERE
-    id = $2
-`
-
-type UpdateInboxNotificationReadStatusParams struct {
-	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
-	ID     uuid.UUID    `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg UpdateInboxNotificationReadStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateInboxNotificationReadStatus, arg.ReadAt, arg.ID)
-	return err
 }
 
 const deleteOAuth2ProviderAppByClientID = `-- name: DeleteOAuth2ProviderAppByClientID :exec

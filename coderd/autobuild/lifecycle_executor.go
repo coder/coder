@@ -22,13 +22,13 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -49,7 +49,7 @@ type Executor struct {
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
-	notificationsEnqueuer notifications.Enqueuer
+	notificationsEnqueuer alerts.Enqueuer
 	reg                   prometheus.Registerer
 	experiments           codersdk.Experiments
 
@@ -68,7 +68,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer alerts.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
@@ -432,7 +432,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						templateVersionMessage = "None provided"
 					}
 
-					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, alerts.TemplateWorkspaceAutoUpdated,
 						map[string]string{
 							"name":                     ws.Name,
 							"initiator":                "autobuild",
@@ -464,7 +464,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
-						notifications.TemplateWorkspaceDormant,
+						alerts.TemplateWorkspaceDormant,
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",

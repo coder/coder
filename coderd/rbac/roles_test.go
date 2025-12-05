@@ -408,11 +408,11 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name: "InboxNotification",
+			Name: "InboxAlert",
 			Actions: []policy.Action{
 				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate,
 			},
-			Resource: rbac.ResourceInboxNotification.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			Resource: rbac.ResourceInboxAlert.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe, orgAdmin},
 				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, orgAuditor, templateAdmin, userAdmin, memberMe},
@@ -713,9 +713,9 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// Any owner/admin across may access any users' preferences
 			// Members may not access other members' preferences
-			Name:     "NotificationPreferencesOwn",
+			Name:     "AlertPreferencesOwn",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceNotificationPreference.WithOwner(currentUser.String()),
+			Resource: rbac.ResourceAlertPreference.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {memberMe, orgMemberMe, owner},
 				false: {
@@ -728,9 +728,9 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			// Any owner/admin may access notification templates
-			Name:     "NotificationTemplates",
+			Name:     "AlertTemplates",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceNotificationTemplate,
+			Resource: rbac.ResourceAlertTemplate,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
@@ -742,9 +742,9 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "NotificationMessages",
+			Name:     "AlertMessages",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceNotificationMessage,
+			Resource: rbac.ResourceAlertMessage,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
@@ -760,9 +760,9 @@ func TestRolePermissions(t *testing.T) {
 			// Notification preferences are currently not organization-scoped
 			// Any owner/admin may access any users' preferences
 			// Members may not access other members' preferences
-			Name:     "NotificationPreferencesOtherUser",
+			Name:     "AlertPreferencesOtherUser",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceNotificationPreference.WithOwner(uuid.NewString()), // some other user
+			Resource: rbac.ResourceAlertPreference.WithOwner(uuid.NewString()), // some other user
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {

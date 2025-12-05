@@ -43,12 +43,12 @@ type Config struct {
 }
 
 type EmailSummary struct {
-	Subject                string    `json:"subject"`
-	Date                   time.Time `json:"date"`
-	NotificationTemplateID uuid.UUID `json:"notification_template_id,omitempty"`
+	Subject         string    `json:"subject"`
+	Date            time.Time `json:"date"`
+	AlertTemplateID uuid.UUID `json:"alert_template_id,omitempty"`
 }
 
-var notificationTemplateIDRegex = regexp.MustCompile(`notifications\?disabled=([a-f0-9-]+)`)
+var alertTemplateIDRegex = regexp.MustCompile(`notifications\?disabled=([a-f0-9-]+)`)
 
 func (s *Server) Start(ctx context.Context, cfg Config) error {
 	s.hostAddress = cfg.HostAddress
@@ -236,8 +236,8 @@ func parseEmailSummary(message string) (EmailSummary, error) {
 	// Extract notification ID from decoded email content
 	// Notification ID is present in the email footer like this
 	// <p><a href="http://127.0.0.1:3000/settings/notifications?disabled=4e19c0ac-94e1-4532-9515-d1801aa283b2" style="color: #2563eb; text-decoration: none;">Stop receiving emails like this</a></p>
-	if matches := notificationTemplateIDRegex.FindStringSubmatch(contentStr); len(matches) > 1 {
-		summary.NotificationTemplateID, err = uuid.Parse(matches[1])
+	if matches := alertTemplateIDRegex.FindStringSubmatch(contentStr); len(matches) > 1 {
+		summary.AlertTemplateID, err = uuid.Parse(matches[1])
 		if err != nil {
 			return summary, xerrors.Errorf("parse notification ID: %w", err)
 		}

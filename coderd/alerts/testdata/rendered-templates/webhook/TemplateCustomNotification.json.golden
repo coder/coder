@@ -1,0 +1,24 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "alert_name": "Custom Notification",
+    "alert_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [],
+    "labels": {
+      "custom_message": "Custom Message",
+      "custom_title": "Custom Title"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "Custom Title",
+  "title_markdown": "Custom Title",
+  "body": "Custom Message",
+  "body_markdown": "Custom Message"
+}

@@ -12,12 +12,12 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
@@ -32,49 +32,49 @@ const (
 
 var fallbackIcons = map[uuid.UUID]string{
 	// workspace related notifications
-	notifications.TemplateWorkspaceCreated:           codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceDeleted:           codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutobuildFailed:   codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutoUpdated:       codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfDisk:         codersdk.InboxNotificationFallbackIconWorkspace,
+	alerts.TemplateWorkspaceCreated:           codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceManuallyUpdated:   codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceDeleted:           codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceAutobuildFailed:   codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceDormant:           codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceAutoUpdated:       codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceMarkedForDeletion: codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceManualBuildFailed: codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceOutOfMemory:       codersdk.InboxAlertFallbackIconWorkspace,
+	alerts.TemplateWorkspaceOutOfDisk:         codersdk.InboxAlertFallbackIconWorkspace,
 
 	// account related notifications
-	notifications.TemplateUserAccountCreated:           codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserAccountDeleted:           codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateYourAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateYourAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserRequestedOneTimePasscode: codersdk.InboxNotificationFallbackIconAccount,
+	alerts.TemplateUserAccountCreated:           codersdk.InboxAlertFallbackIconAccount,
+	alerts.TemplateUserAccountDeleted:           codersdk.InboxAlertFallbackIconAccount,
+	alerts.TemplateUserAccountSuspended:         codersdk.InboxAlertFallbackIconAccount,
+	alerts.TemplateUserAccountActivated:         codersdk.InboxAlertFallbackIconAccount,
+	alerts.TemplateYourAccountSuspended:         codersdk.InboxAlertFallbackIconAccount,
+	alerts.TemplateYourAccountActivated:         codersdk.InboxAlertFallbackIconAccount,
+	alerts.TemplateUserRequestedOneTimePasscode: codersdk.InboxAlertFallbackIconAccount,
 
 	// template related notifications
-	notifications.TemplateTemplateDeleted:             codersdk.InboxNotificationFallbackIconTemplate,
-	notifications.TemplateTemplateDeprecated:          codersdk.InboxNotificationFallbackIconTemplate,
-	notifications.TemplateWorkspaceBuildsFailedReport: codersdk.InboxNotificationFallbackIconTemplate,
+	alerts.TemplateTemplateDeleted:             codersdk.InboxAlertFallbackIconTemplate,
+	alerts.TemplateTemplateDeprecated:          codersdk.InboxAlertFallbackIconTemplate,
+	alerts.TemplateWorkspaceBuildsFailedReport: codersdk.InboxAlertFallbackIconTemplate,
 }
 
-func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNotification {
+func ensureNotificationIcon(notif codersdk.InboxAlert) codersdk.InboxAlert {
 	if notif.Icon != "" {
 		return notif
 	}
 
 	fallbackIcon, ok := fallbackIcons[notif.TemplateID]
 	if !ok {
-		fallbackIcon = codersdk.InboxNotificationFallbackIconOther
+		fallbackIcon = codersdk.InboxAlertFallbackIconOther
 	}
 
 	notif.Icon = fallbackIcon
 	return notif
 }
 
-// convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
-func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, notif database.InboxNotification) codersdk.InboxNotification {
-	convertedNotif := codersdk.InboxNotification{
+// convertInboxAlertResponse works as a util function to transform a database.InboxAlert to codersdk.InboxAlert
+func convertInboxAlertResponse(ctx context.Context, logger slog.Logger, notif database.InboxAlert) codersdk.InboxAlert {
+	convertedNotif := codersdk.InboxAlert{
 		ID:         notif.ID,
 		UserID:     notif.UserID,
 		TemplateID: notif.TemplateID,
@@ -82,8 +82,8 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		Title:      notif.Title,
 		Content:    notif.Content,
 		Icon:       notif.Icon,
-		Actions: func() []codersdk.InboxNotificationAction {
-			var actionsList []codersdk.InboxNotificationAction
+		Actions: func() []codersdk.InboxAlertAction {
+			var actionsList []codersdk.InboxAlertAction
 			err := json.Unmarshal([]byte(notif.Actions), &actionsList)
 			if err != nil {
 				logger.Error(ctx, "unmarshal inbox notification actions", slog.Error(err))
@@ -102,7 +102,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 	return ensureNotificationIcon(convertedNotif)
 }
 
-// watchInboxNotifications watches for new inbox notifications and sends them to the client.
+// watchInboxAlerts watches for new inbox notifications and sends them to the client.
 // The client can specify a list of target IDs to filter the notifications.
 // @Summary Watch for new inbox notifications
 // @ID watch-for-new-inbox-notifications
@@ -113,9 +113,9 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 // @Param templates query string false "Comma-separated list of template IDs to filter notifications"
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
 // @Param format query string false "Define the output format for notifications title and body." enums(plaintext,markdown)
-// @Success 200 {object} codersdk.GetInboxNotificationResponse
+// @Success 200 {object} codersdk.GetInboxAlertResponse
 // @Router /notifications/inbox/watch [get]
-func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request) {
+func (api *API) watchInboxAlerts(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
@@ -138,9 +138,9 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	}
 
 	if !slices.Contains([]string{
-		string(database.InboxNotificationReadStatusAll),
-		string(database.InboxNotificationReadStatusRead),
-		string(database.InboxNotificationReadStatusUnread),
+		string(database.InboxAlertReadStatusAll),
+		string(database.InboxAlertReadStatusRead),
+		string(database.InboxAlertReadStatusUnread),
 	}, readStatus) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "starting_before query parameter should be any of 'all', 'read', 'unread'.",
@@ -148,24 +148,24 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	notificationCh := make(chan codersdk.InboxNotification, 10)
+	notificationCh := make(chan codersdk.InboxAlert, 10)
 
-	closeInboxNotificationsSubscriber, err := api.Pubsub.SubscribeWithErr(pubsub.InboxNotificationForOwnerEventChannel(apikey.UserID),
-		pubsub.HandleInboxNotificationEvent(
-			func(ctx context.Context, payload pubsub.InboxNotificationEvent, err error) {
+	closeInboxAlertsSubscriber, err := api.Pubsub.SubscribeWithErr(pubsub.InboxAlertForOwnerEventChannel(apikey.UserID),
+		pubsub.HandleInboxAlertEvent(
+			func(ctx context.Context, payload pubsub.InboxAlertEvent, err error) {
 				if err != nil {
 					api.Logger.Error(ctx, "inbox notification event", slog.Error(err))
 					return
 				}
 
-				// HandleInboxNotificationEvent cb receives all the inbox notifications - without any filters excepted the user_id.
+				// HandleInboxAlertEvent cb receives all the inbox notifications - without any filters excepted the user_id.
 				// Based on query parameters defined above and filters defined by the client - we then filter out the
 				// notifications we do not want to forward and discard it.
 
 				// filter out notifications that don't match the targets
 				if len(targets) > 0 {
 					for _, target := range targets {
-						if isFound := slices.Contains(payload.InboxNotification.Targets, target); !isFound {
+						if isFound := slices.Contains(payload.InboxAlert.Targets, target); !isFound {
 							return
 						}
 					}
@@ -173,19 +173,19 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 
 				// filter out notifications that don't match the templates
 				if len(templates) > 0 {
-					if isFound := slices.Contains(templates, payload.InboxNotification.TemplateID); !isFound {
+					if isFound := slices.Contains(templates, payload.InboxAlert.TemplateID); !isFound {
 						return
 					}
 				}
 
 				// filter out notifications that don't match the read status
 				if readStatus != "" {
-					if readStatus == string(database.InboxNotificationReadStatusRead) {
-						if payload.InboxNotification.ReadAt == nil {
+					if readStatus == string(database.InboxAlertReadStatusRead) {
+						if payload.InboxAlert.ReadAt == nil {
 							return
 						}
-					} else if readStatus == string(database.InboxNotificationReadStatusUnread) {
-						if payload.InboxNotification.ReadAt != nil {
+					} else if readStatus == string(database.InboxAlertReadStatusUnread) {
+						if payload.InboxAlert.ReadAt != nil {
 							return
 						}
 					}
@@ -193,7 +193,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 
 				// keep a safe guard in case of latency to push notifications through websocket
 				select {
-				case notificationCh <- ensureNotificationIcon(payload.InboxNotification):
+				case notificationCh <- ensureNotificationIcon(payload.InboxAlert):
 				default:
 					api.Logger.Error(ctx, "failed to push consumed notification into websocket handler, check latency")
 				}
@@ -203,7 +203,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		api.Logger.Error(ctx, "subscribe to inbox notification event", slog.Error(err))
 		return
 	}
-	defer closeInboxNotificationsSubscriber()
+	defer closeInboxAlertsSubscriber()
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -217,7 +217,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	go httpapi.Heartbeat(ctx, conn)
 	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
 
-	encoder := wsjson.NewEncoder[codersdk.GetInboxNotificationResponse](conn, websocket.MessageText)
+	encoder := wsjson.NewEncoder[codersdk.GetInboxAlertResponse](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
 
 	// Log the request immediately instead of after it completes.
@@ -230,7 +230,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		case <-ctx.Done():
 			return
 		case notif := <-notificationCh:
-			unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
+			unreadCount, err := api.Database.CountUnreadInboxAlertsByUserID(ctx, apikey.UserID)
 			if err != nil {
 				api.Logger.Error(ctx, "failed to count unread inbox notifications", slog.Error(err))
 				return
@@ -252,7 +252,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 				}
 			}
 
-			if err := encoder.Encode(codersdk.GetInboxNotificationResponse{
+			if err := encoder.Encode(codersdk.GetInboxAlertResponse{
 				Notification: notif,
 				UnreadCount:  int(unreadCount),
 			}); err != nil {
@@ -263,7 +263,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	}
 }
 
-// listInboxNotifications lists the notifications for the user.
+// listInboxAlerts lists the notifications for the user.
 // @Summary List inbox notifications
 // @ID list-inbox-notifications
 // @Security CoderSessionToken
@@ -273,9 +273,9 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 // @Param templates query string false "Comma-separated list of template IDs to filter notifications"
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
 // @Param starting_before query string false "ID of the last notification from the current page. Notifications returned will be older than the associated one" format(uuid)
-// @Success 200 {object} codersdk.ListInboxNotificationsResponse
+// @Success 200 {object} codersdk.ListInboxAlertsResponse
 // @Router /notifications/inbox [get]
-func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) {
+func (api *API) listInboxAlerts(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
@@ -298,9 +298,9 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	if !slices.Contains([]string{
-		string(database.InboxNotificationReadStatusAll),
-		string(database.InboxNotificationReadStatusRead),
-		string(database.InboxNotificationReadStatusUnread),
+		string(database.InboxAlertReadStatusAll),
+		string(database.InboxAlertReadStatusRead),
+		string(database.InboxAlertReadStatusUnread),
 	}, readStatus) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "starting_before query parameter should be any of 'all', 'read', 'unread'.",
@@ -310,17 +310,17 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 
 	createdBefore := dbtime.Now()
 	if startingBefore != uuid.Nil {
-		lastNotif, err := api.Database.GetInboxNotificationByID(ctx, startingBefore)
+		lastNotif, err := api.Database.GetInboxAlertByID(ctx, startingBefore)
 		if err == nil {
 			createdBefore = lastNotif.CreatedAt
 		}
 	}
 
-	notifs, err := api.Database.GetFilteredInboxNotificationsByUserID(ctx, database.GetFilteredInboxNotificationsByUserIDParams{
+	notifs, err := api.Database.GetFilteredInboxAlertsByUserID(ctx, database.GetFilteredInboxAlertsByUserIDParams{
 		UserID:       apikey.UserID,
 		Templates:    templates,
 		Targets:      targets,
-		ReadStatus:   database.InboxNotificationReadStatus(readStatus),
+		ReadStatus:   database.InboxAlertReadStatus(readStatus),
 		CreatedAtOpt: createdBefore,
 	})
 	if err != nil {
@@ -331,7 +331,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
+	unreadCount, err := api.Database.CountUnreadInboxAlertsByUserID(ctx, apikey.UserID)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to count unread inbox notifications", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -340,11 +340,11 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ListInboxNotificationsResponse{
-		Notifications: func() []codersdk.InboxNotification {
-			notificationsList := make([]codersdk.InboxNotification, 0, len(notifs))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ListInboxAlertsResponse{
+		Notifications: func() []codersdk.InboxAlert {
+			notificationsList := make([]codersdk.InboxAlert, 0, len(notifs))
 			for _, notification := range notifs {
-				notificationsList = append(notificationsList, convertInboxNotificationResponse(ctx, api.Logger, notification))
+				notificationsList = append(notificationsList, convertInboxAlertResponse(ctx, api.Logger, notification))
 			}
 			return notificationsList
 		}(),
@@ -352,7 +352,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// updateInboxNotificationReadStatus changes the read status of a notification.
+// updateInboxAlertReadStatus changes the read status of a notification.
 // @Summary Update read status of a notification
 // @ID update-read-status-of-a-notification
 // @Security CoderSessionToken
@@ -361,7 +361,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 // @Param id path string true "id of the notification"
 // @Success 200 {object} codersdk.Response
 // @Router /notifications/inbox/{id}/read-status [put]
-func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
+func (api *API) updateInboxAlertReadStatus(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		apikey = httpmw.APIKey(r)
@@ -372,12 +372,12 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	var body codersdk.UpdateInboxNotificationReadStatusRequest
+	var body codersdk.UpdateInboxAlertReadStatusRequest
 	if !httpapi.Read(ctx, rw, r, &body) {
 		return
 	}
 
-	err := api.Database.UpdateInboxNotificationReadStatus(ctx, database.UpdateInboxNotificationReadStatusParams{
+	err := api.Database.UpdateInboxAlertReadStatus(ctx, database.UpdateInboxAlertReadStatusParams{
 		ID: notificationID,
 		ReadAt: func() sql.NullTime {
 			if body.IsRead {
@@ -398,7 +398,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
+	unreadCount, err := api.Database.CountUnreadInboxAlertsByUserID(ctx, apikey.UserID)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to call count unread inbox notifications", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -407,7 +407,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	updatedNotification, err := api.Database.GetInboxNotificationByID(ctx, notificationID)
+	updatedNotification, err := api.Database.GetInboxAlertByID(ctx, notificationID)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to get notification by id", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -416,26 +416,26 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateInboxNotificationReadStatusResponse{
-		Notification: convertInboxNotificationResponse(ctx, api.Logger, updatedNotification),
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateInboxAlertReadStatusResponse{
+		Notification: convertInboxAlertResponse(ctx, api.Logger, updatedNotification),
 		UnreadCount:  int(unreadCount),
 	})
 }
 
-// markAllInboxNotificationsAsRead marks as read all unread notifications for authenticated user.
+// markAllInboxAlertsAsRead marks as read all unread notifications for authenticated user.
 // @Summary Mark all unread notifications as read
 // @ID mark-all-unread-notifications-as-read
 // @Security CoderSessionToken
 // @Tags Notifications
 // @Success 204
 // @Router /notifications/inbox/mark-all-as-read [put]
-func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.Request) {
+func (api *API) markAllInboxAlertsAsRead(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		apikey = httpmw.APIKey(r)
 	)
 
-	err := api.Database.MarkAllInboxNotificationsAsRead(ctx, database.MarkAllInboxNotificationsAsReadParams{
+	err := api.Database.MarkAllInboxAlertsAsRead(ctx, database.MarkAllInboxAlertsAsReadParams{
 		UserID: apikey.UserID,
 		ReadAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 	})

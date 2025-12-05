@@ -123,7 +123,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Username
 	case database.Organization:
 		return typed.Name
-	case database.NotificationTemplate:
+	case database.AlertTemplate:
 		return typed.Name
 	case idpsync.OrganizationSyncSettings:
 		return "Organization Sync"
@@ -187,7 +187,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.Organization:
 		return typed.ID
-	case database.NotificationTemplate:
+	case database.AlertTemplate:
 		return typed.ID
 	case idpsync.OrganizationSyncSettings:
 		return noID // Deployment all uses the same org sync settings
@@ -229,7 +229,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 	case database.HealthSettings:
 		return database.ResourceTypeHealthSettings
 	case database.NotificationsSettings:
-		return database.ResourceTypeNotificationsSettings
+		return database.ResourceTypeAlertsSettings
 	case database.PrebuildsSettings:
 		return database.ResourceTypePrebuildsSettings
 	case database.OAuth2ProviderApp:
@@ -242,8 +242,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeOrganizationMember
 	case database.Organization:
 		return database.ResourceTypeOrganization
-	case database.NotificationTemplate:
-		return database.ResourceTypeNotificationTemplate
+	case database.AlertTemplate:
+		return database.ResourceTypeAlertTemplate
 	case idpsync.OrganizationSyncSettings:
 		return database.ResourceTypeIdpSyncSettingsOrganization
 	case idpsync.RoleSyncSettings:
@@ -300,7 +300,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.Organization:
 		return true
-	case database.NotificationTemplate:
+	case database.AlertTemplate:
 		return false
 	case idpsync.OrganizationSyncSettings:
 		return false

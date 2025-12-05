@@ -12,15 +12,15 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/quartz"
 )
 
-func resourceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, database.User, *quartz.Mock, *notificationstest.FakeEnqueuer) {
+func resourceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, database.User, *quartz.Mock, *alertstest.FakeEnqueuer) {
 	t.Helper()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -55,7 +55,7 @@ func resourceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, databas
 		ResourceID: resource.ID,
 	})
 
-	notifyEnq := &notificationstest.FakeEnqueuer{}
+	notifyEnq := &alertstest.FakeEnqueuer{}
 	clock := quartz.NewMock(t)
 
 	return &agentapi.ResourcesMonitoringAPI{
@@ -119,7 +119,7 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	require.NoError(t, err)
 
 	// Then: We expect there to be a notification sent
-	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfMemory))
 	require.Len(t, sent, 1)
 	require.Equal(t, user.ID, sent[0].UserID)
 	notifyEnq.Clear()
@@ -140,7 +140,7 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	require.NoError(t, err)
 
 	// Then: We expect no new notifications
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfMemory))
 	require.Len(t, sent, 0)
 	notifyEnq.Clear()
 
@@ -160,7 +160,7 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	require.NoError(t, err)
 
 	// Then: We expect no new notifications (showing the debouncer working)
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfMemory))
 	require.Len(t, sent, 0)
 	notifyEnq.Clear()
 
@@ -180,7 +180,7 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	require.NoError(t, err)
 
 	// Then: We still expect no new notifications
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfMemory))
 	require.Len(t, sent, 0)
 	notifyEnq.Clear()
 
@@ -200,7 +200,7 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	require.NoError(t, err)
 
 	// Then: We expect a notification
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfMemory))
 	require.Len(t, sent, 1)
 	require.Equal(t, user.ID, sent[0].UserID)
 }
@@ -316,7 +316,7 @@ func TestMemoryResourceMonitor(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+			sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfMemory))
 			if tt.shouldNotify {
 				require.Len(t, sent, 1)
 				require.Equal(t, user.ID, sent[0].UserID)
@@ -372,7 +372,7 @@ func TestMemoryResourceMonitorMissingData(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: We expect no notifications, as this unknown prevents us knowing we should alert.
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfMemory))
 		require.Len(t, sent, 0)
 
 		// Then: We expect the monitor to still be in an OK state.
@@ -498,7 +498,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 
 	// Then:
 	//  - We expect a notification from only the first monitor
-	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
 	volumes := requireVolumeData(t, sent[0])
 	require.Len(t, volumes, 1)
@@ -524,7 +524,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 
 	// Then:
 	//  - We expect a notification from only the second monitor
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
 	volumes = requireVolumeData(t, sent[0])
 	require.Len(t, volumes, 1)
@@ -550,7 +550,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 
 	// Then:
 	//  - We expect no new notifications
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 0)
 	notifyEnq.Clear()
 
@@ -573,7 +573,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 
 	// Then:
 	//  - We expect no new notifications.
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 0)
 	notifyEnq.Clear()
 
@@ -596,7 +596,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 
 	// Then:
 	//  - We expect a notification from only the first monitor
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
 	volumes = requireVolumeData(t, sent[0])
 	require.Len(t, volumes, 1)
@@ -622,7 +622,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 
 	// Then:
 	//  - We expect a notification from only the second monitor
-	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	sent = notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
 	volumes = requireVolumeData(t, sent[0])
 	require.Len(t, volumes, 1)
@@ -765,7 +765,7 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+			sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 			if tt.shouldNotify {
 				require.Len(t, sent, 1)
 				require.Equal(t, user.ID, sent[0].UserID)
@@ -823,7 +823,7 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 	require.NoError(t, err)
 
 	// Then: We expect a notification to alert with information about both
-	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
 
 	volumes := requireVolumeData(t, sent[0])
@@ -887,7 +887,7 @@ func TestVolumeResourceMonitorMissingData(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: We expect no notifications, as this unknown prevents us knowing we should alert.
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceOutOfDisk))
 		require.Len(t, sent, 0)
 
 		// Then: We expect the monitor to still be in an OK state.
@@ -956,7 +956,7 @@ func TestVolumeResourceMonitorMissingData(t *testing.T) {
 	})
 }
 
-func requireVolumeData(t *testing.T, notif *notificationstest.FakeNotification) []map[string]any {
+func requireVolumeData(t *testing.T, notif *alertstest.FakeNotification) []map[string]any {
 	t.Helper()
 
 	volumesData := notif.Data["volumes"]

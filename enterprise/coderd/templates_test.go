@@ -16,11 +16,11 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -41,7 +41,7 @@ func TestTemplates(t *testing.T) {
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -82,9 +82,9 @@ func TestTemplates(t *testing.T) {
 		assert.True(t, updated.Deprecated)
 		assert.NotEmpty(t, updated.DeprecationMessage)
 
-		notifs := []*notificationstest.FakeNotification{}
+		notifs := []*alertstest.FakeNotification{}
 		for _, notif := range notifyEnq.Sent() {
-			if notif.TemplateID == notifications.TemplateTemplateDeprecated {
+			if notif.TemplateID == alerts.TemplateTemplateDeprecated {
 				notifs = append(notifs, notif)
 			}
 		}
@@ -686,7 +686,7 @@ func TestTemplates(t *testing.T) {
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), alerts.NewNoopEnqueuer(), logger, nil),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -735,7 +735,7 @@ func TestTemplates(t *testing.T) {
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), alerts.NewNoopEnqueuer(), logger, nil),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

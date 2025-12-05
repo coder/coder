@@ -24,6 +24,32 @@ var (
 		Type: "aibridge_interception",
 	}
 
+	// ResourceAlertMessage
+	// Valid Actions
+	//  - "ActionCreate" :: create alert messages
+	//  - "ActionDelete" :: delete alert messages
+	//  - "ActionRead" :: read alert messages
+	//  - "ActionUpdate" :: update alert messages
+	ResourceAlertMessage = Object{
+		Type: "alert_message",
+	}
+
+	// ResourceAlertPreference
+	// Valid Actions
+	//  - "ActionRead" :: read alert preferences
+	//  - "ActionUpdate" :: update alert preferences
+	ResourceAlertPreference = Object{
+		Type: "alert_preference",
+	}
+
+	// ResourceAlertTemplate
+	// Valid Actions
+	//  - "ActionRead" :: read alert templates
+	//  - "ActionUpdate" :: update alert templates
+	ResourceAlertTemplate = Object{
+		Type: "alert_template",
+	}
+
 	// ResourceApiKey
 	// Valid Actions
 	//  - "ActionCreate" :: create an api key
@@ -136,13 +162,13 @@ var (
 		Type: "idpsync_settings",
 	}
 
-	// ResourceInboxNotification
+	// ResourceInboxAlert
 	// Valid Actions
-	//  - "ActionCreate" :: create inbox notifications
-	//  - "ActionRead" :: read inbox notifications
-	//  - "ActionUpdate" :: update inbox notifications
-	ResourceInboxNotification = Object{
-		Type: "inbox_notification",
+	//  - "ActionCreate" :: create inbox alerts
+	//  - "ActionRead" :: read inbox alerts
+	//  - "ActionUpdate" :: update inbox alerts
+	ResourceInboxAlert = Object{
+		Type: "inbox_alert",
 	}
 
 	// ResourceLicense
@@ -152,32 +178,6 @@ var (
 	//  - "ActionRead" :: read licenses
 	ResourceLicense = Object{
 		Type: "license",
-	}
-
-	// ResourceNotificationMessage
-	// Valid Actions
-	//  - "ActionCreate" :: create notification messages
-	//  - "ActionDelete" :: delete notification messages
-	//  - "ActionRead" :: read notification messages
-	//  - "ActionUpdate" :: update notification messages
-	ResourceNotificationMessage = Object{
-		Type: "notification_message",
-	}
-
-	// ResourceNotificationPreference
-	// Valid Actions
-	//  - "ActionRead" :: read notification preferences
-	//  - "ActionUpdate" :: update notification preferences
-	ResourceNotificationPreference = Object{
-		Type: "notification_preference",
-	}
-
-	// ResourceNotificationTemplate
-	// Valid Actions
-	//  - "ActionRead" :: read notification templates
-	//  - "ActionUpdate" :: update notification templates
-	ResourceNotificationTemplate = Object{
-		Type: "notification_template",
 	}
 
 	// ResourceOauth2App
@@ -413,6 +413,9 @@ func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
 		ResourceAibridgeInterception,
+		ResourceAlertMessage,
+		ResourceAlertPreference,
+		ResourceAlertTemplate,
 		ResourceApiKey,
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
@@ -426,11 +429,8 @@ func AllResources() []Objecter {
 		ResourceGroup,
 		ResourceGroupMember,
 		ResourceIdpsyncSettings,
-		ResourceInboxNotification,
+		ResourceInboxAlert,
 		ResourceLicense,
-		ResourceNotificationMessage,
-		ResourceNotificationPreference,
-		ResourceNotificationTemplate,
 		ResourceOauth2App,
 		ResourceOauth2AppCodeToken,
 		ResourceOauth2AppSecret,

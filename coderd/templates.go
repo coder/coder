@@ -17,13 +17,13 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -144,7 +144,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 	}
 
 	// nolint:gocritic // Need notifier actor to enqueue notifications
-	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), receiverID, notifications.TemplateTemplateDeleted,
+	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), receiverID, alerts.TemplateTemplateDeleted,
 		map[string]string{
 			"name":      templateNameLabel,
 			"initiator": initiator.Username,
@@ -967,7 +967,7 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 			//nolint:gocritic // We need the notifier auth context to be able to send the deprecation notification.
 			dbauthz.AsNotifier(ctx),
 			userID,
-			notifications.TemplateTemplateDeprecated,
+			alerts.TemplateTemplateDeprecated,
 			map[string]string{
 				"template":     template.Name,
 				"message":      template.Deprecated,

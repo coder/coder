@@ -32,6 +32,8 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -41,8 +43,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -3779,7 +3779,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &notificationstest.FakeEnqueuer{}
+				notifEnq := &alertstest.FakeEnqueuer{}
 
 				srv, db, ps, pd := setup(t, false, &overrides{
 					notificationEnqueuer: notifEnq,
@@ -3910,7 +3910,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &notificationstest.FakeEnqueuer{}
+				notifEnq := &alertstest.FakeEnqueuer{}
 
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}
@@ -4010,7 +4010,7 @@ func TestNotifications(t *testing.T) {
 		ctx := context.Background()
 
 		// given
-		notifEnq := &notificationstest.FakeEnqueuer{}
+		notifEnq := &alertstest.FakeEnqueuer{}
 		srv, db, ps, pd := setup(t, true /* ignoreLogErrors */, &overrides{notificationEnqueuer: notifEnq})
 
 		templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
@@ -4062,7 +4062,7 @@ func TestNotifications(t *testing.T) {
 		sent := notifEnq.Sent()
 		require.Len(t, sent, 1)
 		assert.Equal(t, sent[0].UserID, templateAdmin.ID)
-		assert.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceManualBuildFailed)
+		assert.Equal(t, sent[0].TemplateID, alerts.TemplateWorkspaceManualBuildFailed)
 		assert.Contains(t, sent[0].Targets, template.ID)
 		assert.Contains(t, sent[0].Targets, workspace.ID)
 		assert.Contains(t, sent[0].Targets, workspace.OrganizationID)
@@ -4153,7 +4153,7 @@ type overrides struct {
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
 	auditor                     audit.Auditor
-	notificationEnqueuer        notifications.Enqueuer
+	notificationEnqueuer        alerts.Enqueuer
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
 }
 
@@ -4225,11 +4225,11 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 	auditPtr.Store(&auditor)
 	pollDur = ov.acquireJobLongPollDuration
-	var notifEnq notifications.Enqueuer
+	var notifEnq alerts.Enqueuer
 	if ov.notificationEnqueuer != nil {
 		notifEnq = ov.notificationEnqueuer
 	} else {
-		notifEnq = notifications.NewNoopEnqueuer()
+		notifEnq = alerts.NewNoopEnqueuer()
 	}
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{

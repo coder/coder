@@ -21,13 +21,13 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -45,7 +45,7 @@ type StoreReconciler struct {
 	logger            slog.Logger
 	clock             quartz.Clock
 	registerer        prometheus.Registerer
-	notifEnq          notifications.Enqueuer
+	notifEnq          alerts.Enqueuer
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
 
 	cancelFn          context.CancelCauseFunc
@@ -87,7 +87,7 @@ func NewStoreReconciler(store database.Store,
 	logger slog.Logger,
 	clock quartz.Clock,
 	registerer prometheus.Registerer,
-	notifEnq notifications.Enqueuer,
+	notifEnq alerts.Enqueuer,
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
@@ -1057,7 +1057,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 
 	var notifErr error
 	for _, templateAdmin := range templateAdmins {
-		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
+		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, alerts.TemplateWorkspaceResourceReplaced,
 			map[string]string{
 				"org":                 org.Name,
 				"workspace":           workspace.Name,

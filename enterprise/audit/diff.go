@@ -144,10 +144,10 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 		}
 
 		return leftInt64Ptr, rightInt64Ptr, true
-	case database.NullNotificationMethod:
-		vl, vr := string(typedLeft.NotificationMethod), ""
-		if val, ok := right.(database.NullNotificationMethod); ok {
-			vr = string(val.NotificationMethod)
+	case database.NullAlertMethod:
+		vl, vr := string(typedLeft.AlertMethod), ""
+		if val, ok := right.(database.NullAlertMethod); ok {
+			vr = string(val.AlertMethod)
 		}
 
 		return vl, vr, true

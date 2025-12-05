@@ -14,27 +14,27 @@ import (
 type ResourceType string
 
 const (
-	ResourceTypeTemplate              ResourceType = "template"
-	ResourceTypeTemplateVersion       ResourceType = "template_version"
-	ResourceTypeUser                  ResourceType = "user"
-	ResourceTypeWorkspace             ResourceType = "workspace"
-	ResourceTypeWorkspaceBuild        ResourceType = "workspace_build"
-	ResourceTypeGitSSHKey             ResourceType = "git_ssh_key"
-	ResourceTypeAPIKey                ResourceType = "api_key"
-	ResourceTypeGroup                 ResourceType = "group"
-	ResourceTypeLicense               ResourceType = "license"
-	ResourceTypeConvertLogin          ResourceType = "convert_login"
-	ResourceTypeHealthSettings        ResourceType = "health_settings"
-	ResourceTypeNotificationsSettings ResourceType = "notifications_settings"
-	ResourceTypePrebuildsSettings     ResourceType = "prebuilds_settings"
-	ResourceTypeWorkspaceProxy        ResourceType = "workspace_proxy"
-	ResourceTypeOrganization          ResourceType = "organization"
-	ResourceTypeOAuth2ProviderApp     ResourceType = "oauth2_provider_app"
+	ResourceTypeTemplate          ResourceType = "template"
+	ResourceTypeTemplateVersion   ResourceType = "template_version"
+	ResourceTypeUser              ResourceType = "user"
+	ResourceTypeWorkspace         ResourceType = "workspace"
+	ResourceTypeWorkspaceBuild    ResourceType = "workspace_build"
+	ResourceTypeGitSSHKey         ResourceType = "git_ssh_key"
+	ResourceTypeAPIKey            ResourceType = "api_key"
+	ResourceTypeGroup             ResourceType = "group"
+	ResourceTypeLicense           ResourceType = "license"
+	ResourceTypeConvertLogin      ResourceType = "convert_login"
+	ResourceTypeHealthSettings    ResourceType = "health_settings"
+	ResourceTypeAlertsSettings    ResourceType = "alerts_settings"
+	ResourceTypePrebuildsSettings ResourceType = "prebuilds_settings"
+	ResourceTypeWorkspaceProxy    ResourceType = "workspace_proxy"
+	ResourceTypeOrganization      ResourceType = "organization"
+	ResourceTypeOAuth2ProviderApp ResourceType = "oauth2_provider_app"
 	// nolint:gosec // This is not a secret.
 	ResourceTypeOAuth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole                  ResourceType = "custom_role"
 	ResourceTypeOrganizationMember          ResourceType = "organization_member"
-	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
+	ResourceTypeAlertTemplate               ResourceType = "alert_template"
 	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
 	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
@@ -77,8 +77,8 @@ func (r ResourceType) FriendlyString() string {
 		return "organization"
 	case ResourceTypeHealthSettings:
 		return "health_settings"
-	case ResourceTypeNotificationsSettings:
-		return "notifications_settings"
+	case ResourceTypeAlertsSettings:
+		return "alerts_settings"
 	case ResourceTypePrebuildsSettings:
 		return "prebuilds_settings"
 	case ResourceTypeOAuth2ProviderApp:
@@ -89,8 +89,8 @@ func (r ResourceType) FriendlyString() string {
 		return "custom role"
 	case ResourceTypeOrganizationMember:
 		return "organization member"
-	case ResourceTypeNotificationTemplate:
-		return "notification template"
+	case ResourceTypeAlertTemplate:
+		return "alert template"
 	case ResourceTypeIdpSyncSettingsOrganization:
 		return "settings"
 	case ResourceTypeIdpSyncSettingsGroup:

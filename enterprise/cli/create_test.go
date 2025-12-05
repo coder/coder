@@ -18,10 +18,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/coder/v2/coderd/notifications"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -368,7 +368,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			testutil.Logger(t),
 			quartz.NewMock(t),
 			prometheus.NewRegistry(),
-			notifications.NewNoopEnqueuer(),
+			alerts.NewNoopEnqueuer(),
 			newNoopUsageCheckerPtr(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
@@ -479,7 +479,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			testutil.Logger(t),
 			quartz.NewMock(t),
 			prometheus.NewRegistry(),
-			notifications.NewNoopEnqueuer(),
+			alerts.NewNoopEnqueuer(),
 			newNoopUsageCheckerPtr(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)

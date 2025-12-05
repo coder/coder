@@ -10,6 +10,14 @@ const (
 	ScopeAibridgeInterceptionCreate          ScopeName = "aibridge_interception:create"
 	ScopeAibridgeInterceptionRead            ScopeName = "aibridge_interception:read"
 	ScopeAibridgeInterceptionUpdate          ScopeName = "aibridge_interception:update"
+	ScopeAlertMessageCreate                  ScopeName = "alert_message:create"
+	ScopeAlertMessageDelete                  ScopeName = "alert_message:delete"
+	ScopeAlertMessageRead                    ScopeName = "alert_message:read"
+	ScopeAlertMessageUpdate                  ScopeName = "alert_message:update"
+	ScopeAlertPreferenceRead                 ScopeName = "alert_preference:read"
+	ScopeAlertPreferenceUpdate               ScopeName = "alert_preference:update"
+	ScopeAlertTemplateRead                   ScopeName = "alert_template:read"
+	ScopeAlertTemplateUpdate                 ScopeName = "alert_template:update"
 	ScopeApiKeyCreate                        ScopeName = "api_key:create"
 	ScopeApiKeyDelete                        ScopeName = "api_key:delete"
 	ScopeApiKeyRead                          ScopeName = "api_key:read"
@@ -44,20 +52,12 @@ const (
 	ScopeGroupMemberRead                     ScopeName = "group_member:read"
 	ScopeIdpsyncSettingsRead                 ScopeName = "idpsync_settings:read"
 	ScopeIdpsyncSettingsUpdate               ScopeName = "idpsync_settings:update"
-	ScopeInboxNotificationCreate             ScopeName = "inbox_notification:create"
-	ScopeInboxNotificationRead               ScopeName = "inbox_notification:read"
-	ScopeInboxNotificationUpdate             ScopeName = "inbox_notification:update"
+	ScopeInboxAlertCreate                    ScopeName = "inbox_alert:create"
+	ScopeInboxAlertRead                      ScopeName = "inbox_alert:read"
+	ScopeInboxAlertUpdate                    ScopeName = "inbox_alert:update"
 	ScopeLicenseCreate                       ScopeName = "license:create"
 	ScopeLicenseDelete                       ScopeName = "license:delete"
 	ScopeLicenseRead                         ScopeName = "license:read"
-	ScopeNotificationMessageCreate           ScopeName = "notification_message:create"
-	ScopeNotificationMessageDelete           ScopeName = "notification_message:delete"
-	ScopeNotificationMessageRead             ScopeName = "notification_message:read"
-	ScopeNotificationMessageUpdate           ScopeName = "notification_message:update"
-	ScopeNotificationPreferenceRead          ScopeName = "notification_preference:read"
-	ScopeNotificationPreferenceUpdate        ScopeName = "notification_preference:update"
-	ScopeNotificationTemplateRead            ScopeName = "notification_template:read"
-	ScopeNotificationTemplateUpdate          ScopeName = "notification_template:update"
 	ScopeOauth2AppCreate                     ScopeName = "oauth2_app:create"
 	ScopeOauth2AppDelete                     ScopeName = "oauth2_app:delete"
 	ScopeOauth2AppRead                       ScopeName = "oauth2_app:read"
@@ -165,6 +165,14 @@ func (e ScopeName) Valid() bool {
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
+		ScopeAlertMessageCreate,
+		ScopeAlertMessageDelete,
+		ScopeAlertMessageRead,
+		ScopeAlertMessageUpdate,
+		ScopeAlertPreferenceRead,
+		ScopeAlertPreferenceUpdate,
+		ScopeAlertTemplateRead,
+		ScopeAlertTemplateUpdate,
 		ScopeApiKeyCreate,
 		ScopeApiKeyDelete,
 		ScopeApiKeyRead,
@@ -199,20 +207,12 @@ func (e ScopeName) Valid() bool {
 		ScopeGroupMemberRead,
 		ScopeIdpsyncSettingsRead,
 		ScopeIdpsyncSettingsUpdate,
-		ScopeInboxNotificationCreate,
-		ScopeInboxNotificationRead,
-		ScopeInboxNotificationUpdate,
+		ScopeInboxAlertCreate,
+		ScopeInboxAlertRead,
+		ScopeInboxAlertUpdate,
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
-		ScopeNotificationMessageCreate,
-		ScopeNotificationMessageDelete,
-		ScopeNotificationMessageRead,
-		ScopeNotificationMessageUpdate,
-		ScopeNotificationPreferenceRead,
-		ScopeNotificationPreferenceUpdate,
-		ScopeNotificationTemplateRead,
-		ScopeNotificationTemplateUpdate,
 		ScopeOauth2AppCreate,
 		ScopeOauth2AppDelete,
 		ScopeOauth2AppRead,
@@ -321,6 +321,14 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
+		ScopeAlertMessageCreate,
+		ScopeAlertMessageDelete,
+		ScopeAlertMessageRead,
+		ScopeAlertMessageUpdate,
+		ScopeAlertPreferenceRead,
+		ScopeAlertPreferenceUpdate,
+		ScopeAlertTemplateRead,
+		ScopeAlertTemplateUpdate,
 		ScopeApiKeyCreate,
 		ScopeApiKeyDelete,
 		ScopeApiKeyRead,
@@ -355,20 +363,12 @@ func AllScopeNameValues() []ScopeName {
 		ScopeGroupMemberRead,
 		ScopeIdpsyncSettingsRead,
 		ScopeIdpsyncSettingsUpdate,
-		ScopeInboxNotificationCreate,
-		ScopeInboxNotificationRead,
-		ScopeInboxNotificationUpdate,
+		ScopeInboxAlertCreate,
+		ScopeInboxAlertRead,
+		ScopeInboxAlertUpdate,
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
-		ScopeNotificationMessageCreate,
-		ScopeNotificationMessageDelete,
-		ScopeNotificationMessageRead,
-		ScopeNotificationMessageUpdate,
-		ScopeNotificationPreferenceRead,
-		ScopeNotificationPreferenceUpdate,
-		ScopeNotificationTemplateRead,
-		ScopeNotificationTemplateUpdate,
 		ScopeOauth2AppCreate,
 		ScopeOauth2AppDelete,
 		ScopeOauth2AppRead,

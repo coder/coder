@@ -533,8 +533,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// with the below route, we need to register this route without any mounts or groups to make both work.
 		r.With(
 			apiKeyMiddleware,
-			httpmw.ExtractNotificationTemplateParam(options.Database),
-		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
+			httpmw.ExtractAlertTemplateParam(options.Database),
+		).Put("/notifications/templates/{notification_template}/method", api.updateAlertTemplateMethod)
 
 		r.Route("/workspaces/{workspace}/external-agent", func(r chi.Router) {
 			r.Use(

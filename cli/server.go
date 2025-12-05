@@ -69,6 +69,8 @@ import (
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/reports"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -83,8 +85,6 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
@@ -677,7 +677,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 				Entitlements:          entitlements.New(),
-				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
+				NotificationsEnqueuer: alerts.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -921,14 +921,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Manage notifications.
 			var (
 				notificationsCfg     = options.DeploymentValues.Notifications
-				notificationsManager *notifications.Manager
+				notificationsManager *alerts.Manager
 			)
 
-			metrics := notifications.NewMetrics(options.PrometheusRegistry)
+			metrics := alerts.NewMetrics(options.PrometheusRegistry)
 			helpers := templateHelpers(options)
 
 			// The enqueuer is responsible for enqueueing notifications to the given store.
-			enqueuer, err := notifications.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+			enqueuer, err := alerts.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
 			if err != nil {
 				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
 			}
@@ -937,7 +937,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// The notification manager is responsible for:
 			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
 			//   - keeping the store updated with status updates
-			notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, options.Pubsub, helpers, metrics, logger.Named("notifications.manager"))
+			notificationsManager, err = alerts.NewManager(notificationsCfg, options.Database, options.Pubsub, helpers, metrics, logger.Named("notifications.manager"))
 			if err != nil {
 				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 			}
@@ -1313,7 +1313,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 }
 
 // templateHelpers builds a set of functions which can be called in templates.
-// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
+// We build them here to avoid an import cycle by using coderd.Options in alerts.Manager.
 // We can later use this to inject whitelabel fields when app name / logo URL are overridden.
 func templateHelpers(options *coderd.Options) map[string]any {
 	return map[string]any{

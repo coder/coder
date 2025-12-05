@@ -114,7 +114,7 @@ func TestServer_FilterByEmail(t *testing.T) {
 	require.Equal(t, "Email for admin", summaries[0].Subject)
 }
 
-func TestServer_NotificationTemplateID(t *testing.T) {
+func TestServer_AlertTemplateID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -150,7 +150,7 @@ func TestServer_NotificationTemplateID(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&summaries)
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
-	require.Equal(t, notificationID, summaries[0].NotificationTemplateID)
+	require.Equal(t, notificationID, summaries[0].AlertTemplateID)
 }
 
 func TestServer_Purge(t *testing.T) {

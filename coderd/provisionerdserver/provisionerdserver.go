@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -35,7 +36,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -118,7 +118,7 @@ type server struct {
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
-	NotificationsEnqueuer       notifications.Enqueuer
+	NotificationsEnqueuer       alerts.Enqueuer
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 	UsageInserter               *atomic.Pointer[usage.Inserter]
 	Experiments                 codersdk.Experiments
@@ -180,7 +180,7 @@ func NewServer(
 	usageInserter *atomic.Pointer[usage.Inserter],
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
-	enqueuer notifications.Enqueuer,
+	enqueuer alerts.Enqueuer,
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 	metrics *Metrics,
 	experiments codersdk.Experiments,
@@ -1332,7 +1332,7 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 	}
 	reason = string(build.Reason)
 
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceAutobuildFailed,
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, alerts.TemplateWorkspaceAutobuildFailed,
 		map[string]string{
 			"name":   workspace.Name,
 			"reason": reason,
@@ -1364,7 +1364,7 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 			"workspace_owner_username": workspaceOwner.Username,
 			"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
 		}
-		if _, err := s.NotificationsEnqueuer.Enqueue(ctx, templateAdmin.ID, notifications.TemplateWorkspaceManualBuildFailed,
+		if _, err := s.NotificationsEnqueuer.Enqueue(ctx, templateAdmin.ID, alerts.TemplateWorkspaceManualBuildFailed,
 			labels, "provisionerdserver",
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
@@ -1375,7 +1375,7 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 }
 
 // prepareForNotifyWorkspaceManualBuildFailed collects data required to build notifications for template admins.
-// The template `notifications.TemplateWorkspaceManualBuildFailed` is quite detailed as it requires information about the template,
+// The template `alerts.TemplateWorkspaceManualBuildFailed` is quite detailed as it requires information about the template,
 // template version, workspace, workspace build, etc.
 func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) ([]database.GetUsersRow,
 	database.Template, database.TemplateVersion, database.User, error,
@@ -2494,7 +2494,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
 	}
 
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, alerts.TemplateWorkspaceDeleted,
 		map[string]string{
 			"name":      workspace.Name,
 			"reason":    reason,

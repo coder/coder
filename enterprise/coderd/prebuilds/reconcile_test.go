@@ -19,6 +19,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -27,8 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -1529,12 +1529,12 @@ func TestTrackResourceReplacement(t *testing.T) {
 	})
 
 	// Then: a notification will be sent detailing the replacement(s).
-	matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
+	matching := fakeEnqueuer.Sent(func(notification *alertstest.FakeNotification) bool {
 		// This is not an exhaustive check of the expected labels/data in the notification. This would tie the implementations
 		// too tightly together.
 		// All we need to validate is that a template of the right kind was sent, to the expected user, with some replacements.
 
-		if !assert.Equal(t, notification.TemplateID, notifications.TemplateWorkspaceResourceReplaced, "unexpected template") {
+		if !assert.Equal(t, notification.TemplateID, alerts.TemplateWorkspaceResourceReplaced, "unexpected template") {
 			return false
 		}
 
@@ -2430,12 +2430,12 @@ func TestReconciliationStats(t *testing.T) {
 	require.Less(t, stats.Elapsed, 5*time.Second)
 }
 
-func newNoopEnqueuer() *notifications.NoopEnqueuer {
-	return notifications.NewNoopEnqueuer()
+func newNoopEnqueuer() *alerts.NoopEnqueuer {
+	return alerts.NewNoopEnqueuer()
 }
 
-func newFakeEnqueuer() *notificationstest.FakeEnqueuer {
-	return notificationstest.NewFakeEnqueuer()
+func newFakeEnqueuer() *alertstest.FakeEnqueuer {
+	return alertstest.NewFakeEnqueuer()
 }
 
 func newNoopUsageCheckerPtr() *atomic.Pointer[wsbuilder.UsageChecker] {

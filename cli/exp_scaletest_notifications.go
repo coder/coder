@@ -20,11 +20,11 @@ import (
 
 	"cdr.dev/slog"
 
-	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
+	notificationsLib "github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/scaletest/alerts"
 	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
-	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/serpent"
 )
 
@@ -110,7 +110,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
 			reg := prometheus.NewRegistry()
-			metrics := notifications.NewMetrics(reg)
+			metrics := alerts.NewMetrics(reg)
 
 			logger := inv.Logger
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
@@ -151,9 +151,9 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				Transport: smtpHTTPTransport,
 			}
 
-			configs := make([]notifications.Config, 0, userCount)
+			configs := make([]alerts.Config, 0, userCount)
 			for range templateAdminCount {
-				config := notifications.Config{
+				config := alerts.Config{
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
@@ -174,7 +174,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				configs = append(configs, config)
 			}
 			for range regularUserCount {
-				config := notifications.Config{
+				config := alerts.Config{
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
@@ -206,7 +206,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			for i, config := range configs {
 				id := strconv.Itoa(i)
 				name := fmt.Sprintf("notifications-%s", id)
-				var runner harness.Runnable = notifications.NewRunner(client, config)
+				var runner harness.Runnable = alerts.NewRunner(client, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -326,7 +326,7 @@ func computeNotificationLatencies(
 	logger slog.Logger,
 	expectedNotifications map[uuid.UUID]chan time.Time,
 	results harness.Results,
-	metrics *notifications.Metrics,
+	metrics *alerts.Metrics,
 ) error {
 	triggerTimes := make(map[uuid.UUID]time.Time)
 	for notificationID, triggerTimeChan := range expectedNotifications {
@@ -360,11 +360,11 @@ func computeNotificationLatencies(
 		}
 
 		// Process websocket notifications.
-		if wsReceiptTimes, ok := runResult.Metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time); ok {
+		if wsReceiptTimes, ok := runResult.Metrics[alerts.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time); ok {
 			for notificationID, receiptTime := range wsReceiptTimes {
 				if triggerTime, ok := triggerTimes[notificationID]; ok {
 					latency := receiptTime.Sub(triggerTime)
-					metrics.RecordLatency(latency, notificationID.String(), notifications.NotificationTypeWebsocket)
+					metrics.RecordLatency(latency, notificationID.String(), alerts.NotificationTypeWebsocket)
 					totalLatencies++
 					logger.Debug(ctx, "computed websocket latency",
 						slog.F("run_id", runID),
@@ -375,11 +375,11 @@ func computeNotificationLatencies(
 		}
 
 		// Process SMTP notifications
-		if smtpReceiptTimes, ok := runResult.Metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time); ok {
+		if smtpReceiptTimes, ok := runResult.Metrics[alerts.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time); ok {
 			for notificationID, receiptTime := range smtpReceiptTimes {
 				if triggerTime, ok := triggerTimes[notificationID]; ok {
 					latency := receiptTime.Sub(triggerTime)
-					metrics.RecordLatency(latency, notificationID.String(), notifications.NotificationTypeSMTP)
+					metrics.RecordLatency(latency, notificationID.String(), alerts.NotificationTypeSMTP)
 					totalLatencies++
 					logger.Debug(ctx, "computed SMTP latency",
 						slog.F("run_id", runID),

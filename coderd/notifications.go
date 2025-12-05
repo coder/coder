@@ -11,12 +11,12 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -127,10 +127,10 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 }
 
 // notificationTemplatesByKind gets the notification templates by kind
-func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Request, kind database.NotificationTemplateKind) {
+func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Request, kind database.AlertTemplateKind) {
 	ctx := r.Context()
 
-	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, kind)
+	templates, err := api.Database.GetAlertTemplatesByKind(ctx, kind)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Failed to retrieve %q notifications templates.", kind),
@@ -139,7 +139,7 @@ func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	out := convertNotificationTemplates(templates)
+	out := convertAlertTemplates(templates)
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 
@@ -148,11 +148,11 @@ func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Requ
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Success 200 {array} codersdk.NotificationTemplate
+// @Success 200 {array} codersdk.AlertTemplate
 // @Failure 500 {object} codersdk.Response "Failed to retrieve 'system' notifications template"
 // @Router /notifications/templates/system [get]
-func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
-	api.notificationTemplatesByKind(rw, r, database.NotificationTemplateKindSystem)
+func (api *API) systemAlertTemplates(rw http.ResponseWriter, r *http.Request) {
+	api.notificationTemplatesByKind(rw, r, database.AlertTemplateKindSystem)
 }
 
 // @Summary Get custom notification templates
@@ -160,11 +160,11 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Success 200 {array} codersdk.NotificationTemplate
+// @Success 200 {array} codersdk.AlertTemplate
 // @Failure 500 {object} codersdk.Response "Failed to retrieve 'custom' notifications template"
 // @Router /notifications/templates/custom [get]
-func (api *API) customNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
-	api.notificationTemplatesByKind(rw, r, database.NotificationTemplateKindCustom)
+func (api *API) customAlertTemplates(rw http.ResponseWriter, r *http.Request) {
+	api.notificationTemplatesByKind(rw, r, database.AlertTemplateKindCustom)
 }
 
 // @Summary Get notification dispatch methods
@@ -172,22 +172,22 @@ func (api *API) customNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Success 200 {array} codersdk.NotificationMethodsResponse
+// @Success 200 {array} codersdk.AlertMethodsResponse
 // @Router /notifications/dispatch-methods [get]
 func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Request) {
 	var methods []string
-	for _, nm := range database.AllNotificationMethodValues() {
+	for _, nm := range database.AllAlertMethodValues() {
 		// Skip inbox method as for now this is an implicit delivery target and should not appear
 		// anywhere in the Web UI.
-		if nm == database.NotificationMethodInbox {
+		if nm == database.AlertMethodInbox {
 			continue
 		}
 		methods = append(methods, string(nm))
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.NotificationMethodsResponse{
-		AvailableNotificationMethods: methods,
-		DefaultNotificationMethod:    api.DeploymentValues.Notifications.Method.Value(),
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AlertMethodsResponse{
+		AvailableAlertMethods: methods,
+		DefaultAlertMethod:    api.DeploymentValues.Notifications.Method.Value(),
 	})
 }
 
@@ -212,7 +212,7 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 		//nolint:gocritic // We need to be notifier to send the notification.
 		dbauthz.AsNotifier(ctx),
 		key.UserID,
-		notifications.TemplateTestNotification,
+		alerts.TemplateTestNotification,
 		map[string]string{},
 		map[string]any{
 			// NOTE(DanielleMaywood):
@@ -244,16 +244,16 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Notifications
 // @Param user path string true "User ID, name, or me"
-// @Success 200 {array} codersdk.NotificationPreference
+// @Success 200 {array} codersdk.AlertPreference
 // @Router /users/{user}/notifications/preferences [get]
-func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
+func (api *API) userAlertPreferences(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		user   = httpmw.UserParam(r)
 		logger = api.Logger.Named("notifications.preferences").With(slog.F("user_id", user.ID))
 	)
 
-	prefs, err := api.Database.GetUserNotificationPreferences(ctx, user.ID)
+	prefs, err := api.Database.GetUserAlertPreferences(ctx, user.ID)
 	if err != nil {
 		logger.Error(ctx, "failed to retrieve preferences", slog.Error(err))
 
@@ -264,7 +264,7 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	out := convertNotificationPreferences(prefs)
+	out := convertAlertPreferences(prefs)
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
@@ -274,11 +274,11 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 // @Accept json
 // @Produce json
 // @Tags Notifications
-// @Param request body codersdk.UpdateUserNotificationPreferences true "Preferences"
+// @Param request body codersdk.UpdateUserAlertPreferences true "Preferences"
 // @Param user path string true "User ID, name, or me"
-// @Success 200 {array} codersdk.NotificationPreference
+// @Success 200 {array} codersdk.AlertPreference
 // @Router /users/{user}/notifications/preferences [put]
-func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putUserAlertPreferences(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		user   = httpmw.UserParam(r)
@@ -286,16 +286,16 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	)
 
 	// Parse request.
-	var prefs codersdk.UpdateUserNotificationPreferences
+	var prefs codersdk.UpdateUserAlertPreferences
 	if !httpapi.Read(ctx, rw, r, &prefs) {
 		return
 	}
 
 	// Build query params.
-	input := database.UpdateUserNotificationPreferencesParams{
-		UserID:                  user.ID,
-		NotificationTemplateIds: make([]uuid.UUID, 0, len(prefs.TemplateDisabledMap)),
-		Disableds:               make([]bool, 0, len(prefs.TemplateDisabledMap)),
+	input := database.UpdateUserAlertPreferencesParams{
+		UserID:           user.ID,
+		AlertTemplateIds: make([]uuid.UUID, 0, len(prefs.TemplateDisabledMap)),
+		Disableds:        make([]bool, 0, len(prefs.TemplateDisabledMap)),
 	}
 	for tmplID, disabled := range prefs.TemplateDisabledMap {
 		id, err := uuid.Parse(tmplID)
@@ -309,12 +309,12 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 			return
 		}
 
-		input.NotificationTemplateIds = append(input.NotificationTemplateIds, id)
+		input.AlertTemplateIds = append(input.AlertTemplateIds, id)
 		input.Disableds = append(input.Disableds, disabled)
 	}
 
 	// Update preferences with params.
-	updated, err := api.Database.UpdateUserNotificationPreferences(ctx, input)
+	updated, err := api.Database.UpdateUserAlertPreferences(ctx, input)
 	if err != nil {
 		logger.Error(ctx, "failed to update preferences", slog.Error(err))
 
@@ -328,7 +328,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	// Preferences updated, now fetch all preferences belonging to this user.
 	logger.Info(ctx, "updated preferences", slog.F("count", updated))
 
-	userPrefs, err := api.Database.GetUserNotificationPreferences(ctx, user.ID)
+	userPrefs, err := api.Database.GetUserAlertPreferences(ctx, user.ID)
 	if err != nil {
 		logger.Error(ctx, "failed to retrieve preferences", slog.Error(err))
 
@@ -339,7 +339,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	out := convertNotificationPreferences(userPrefs)
+	out := convertAlertPreferences(userPrefs)
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
@@ -401,7 +401,7 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		//nolint:gocritic // We need to be notifier to send the notification.
 		dbauthz.AsNotifier(ctx),
 		user.ID,
-		notifications.TemplateCustomNotification,
+		alerts.TemplateCustomNotification,
 		map[string]string{
 			"custom_title":   req.Content.Title,
 			"custom_message": req.Content.Message,
@@ -428,16 +428,16 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {
+func convertAlertTemplates(in []database.AlertTemplate) (out []codersdk.AlertTemplate) {
 	for _, tmpl := range in {
-		out = append(out, codersdk.NotificationTemplate{
+		out = append(out, codersdk.AlertTemplate{
 			ID:               tmpl.ID,
 			Name:             tmpl.Name,
 			TitleTemplate:    tmpl.TitleTemplate,
 			BodyTemplate:     tmpl.BodyTemplate,
-			Actions:          string(tmpl.Actions),
+			Actions:          string(tmpl.Actions.RawMessage),
 			Group:            tmpl.Group.String,
-			Method:           string(tmpl.Method.NotificationMethod),
+			Method:           string(tmpl.Method.AlertMethod),
 			Kind:             string(tmpl.Kind),
 			EnabledByDefault: tmpl.EnabledByDefault,
 		})
@@ -446,12 +446,12 @@ func convertNotificationTemplates(in []database.NotificationTemplate) (out []cod
 	return out
 }
 
-func convertNotificationPreferences(in []database.NotificationPreference) (out []codersdk.NotificationPreference) {
+func convertAlertPreferences(in []database.AlertPreference) (out []codersdk.AlertPreference) {
 	for _, pref := range in {
-		out = append(out, codersdk.NotificationPreference{
-			NotificationTemplateID: pref.NotificationTemplateID,
-			Disabled:               pref.Disabled,
-			UpdatedAt:              pref.UpdatedAt,
+		out = append(out, codersdk.AlertPreference{
+			AlertTemplateID: pref.AlertTemplateID,
+			Disabled:        pref.Disabled,
+			UpdatedAt:       pref.UpdatedAt,
 		})
 	}
 

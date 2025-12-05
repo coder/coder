@@ -17,6 +17,8 @@ import (
 	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -24,8 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -1437,7 +1437,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateWorking,
 			isAITask:             true,
 			isNotificationSent:   false,
-			notificationTemplate: notifications.TemplateTaskWorking,
+			notificationTemplate: alerts.TemplateTaskWorking,
 			taskPrompt:           "TemplateTaskWorking",
 		},
 		// Should send TemplateTaskIdle when the AI task's FIRST status is 'Idle' (task completed immediately).
@@ -1447,7 +1447,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskIdle,
+			notificationTemplate: alerts.TemplateTaskIdle,
 			taskPrompt:           "InitialTemplateTaskIdle",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1461,7 +1461,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateWorking,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskWorking,
+			notificationTemplate: alerts.TemplateTaskWorking,
 			taskPrompt:           "TemplateTaskWorkingFromIdle",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1472,7 +1472,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskIdle,
+			notificationTemplate: alerts.TemplateTaskIdle,
 			taskPrompt:           "TemplateTaskIdle",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1483,7 +1483,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskIdle,
+			notificationTemplate: alerts.TemplateTaskIdle,
 			taskPrompt:           "This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1494,7 +1494,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateComplete,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskCompleted,
+			notificationTemplate: alerts.TemplateTaskCompleted,
 			taskPrompt:           "TemplateTaskCompleted",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1505,7 +1505,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateFailure,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskFailed,
+			notificationTemplate: alerts.TemplateTaskFailed,
 			taskPrompt:           "TemplateTaskFailed",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1516,7 +1516,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateComplete,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskCompleted,
+			notificationTemplate: alerts.TemplateTaskCompleted,
 			taskPrompt:           "TemplateTaskCompletedFromIdle",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1527,7 +1527,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateFailure,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskFailed,
+			notificationTemplate: alerts.TemplateTaskFailed,
 			taskPrompt:           "TemplateTaskFailedFromIdle",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1576,7 +1576,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
 			isAITask:             true,
 			isNotificationSent:   true,
-			notificationTemplate: notifications.TemplateTaskIdle,
+			notificationTemplate: alerts.TemplateTaskIdle,
 			taskPrompt:           "AgentReady_SendNotification",
 			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
@@ -1585,7 +1585,7 @@ func TestTasksNotification(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			notifyEnq := &notificationstest.FakeEnqueuer{}
+			notifyEnq := &alertstest.FakeEnqueuer{}
 			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues:      coderdtest.DeploymentValues(t),
 				NotificationsEnqueuer: notifyEnq,
@@ -1685,7 +1685,7 @@ func TestTasksNotification(t *testing.T) {
 
 			if tc.isNotificationSent {
 				// Then: A notification is sent to the workspace owner (memberUser)
-				sent := notifyEnq.Sent(notificationstest.WithTemplateID(tc.notificationTemplate))
+				sent := notifyEnq.Sent(alertstest.WithTemplateID(tc.notificationTemplate))
 				require.Len(t, sent, 1)
 				require.Equal(t, memberUser.ID, sent[0].UserID)
 				require.Len(t, sent[0].Labels, 2)
@@ -1693,8 +1693,8 @@ func TestTasksNotification(t *testing.T) {
 				require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 			} else {
 				// Then: No notification is sent
-				sentWorking := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskWorking))
-				sentIdle := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskIdle))
+				sentWorking := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTaskWorking))
+				sentIdle := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTaskIdle))
 				require.Len(t, sentWorking, 0)
 				require.Len(t, sentIdle, 0)
 			}

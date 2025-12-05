@@ -14,10 +14,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/notifications"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -34,13 +34,13 @@ type EnterpriseTemplateScheduleStore struct {
 	// Clock for testing
 	Clock quartz.Clock
 
-	enqueuer notifications.Enqueuer
+	enqueuer alerts.Enqueuer
 	logger   slog.Logger
 }
 
 var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore], enqueuer notifications.Enqueuer, logger slog.Logger, clock quartz.Clock) *EnterpriseTemplateScheduleStore {
+func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore], enqueuer alerts.Enqueuer, logger slog.Logger, clock quartz.Clock) *EnterpriseTemplateScheduleStore {
 	if clock == nil {
 		clock = quartz.NewReal()
 	}
@@ -273,7 +273,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			// nolint:gocritic // Need actor to enqueue notification
 			dbauthz.AsNotifier(ctx),
 			ws.OwnerID,
-			notifications.TemplateWorkspaceMarkedForDeletion,
+			alerts.TemplateWorkspaceMarkedForDeletion,
 			map[string]string{
 				"name":           ws.Name,
 				"reason":         "an update to the template's dormancy",

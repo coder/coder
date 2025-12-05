@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -29,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
@@ -989,7 +989,7 @@ func (api *API) notifyWorkspaceCreated(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
 		receiverID,
-		notifications.TemplateWorkspaceCreated,
+		alerts.TemplateWorkspaceCreated,
 		map[string]string{
 			"workspace":                workspace.Name,
 			"template":                 template.Name,
@@ -1437,7 +1437,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
-				notifications.TemplateWorkspaceDormant,
+				alerts.TemplateWorkspaceDormant,
 				map[string]string{
 					"name":           newWorkspace.Name,
 					"reason":         "a " + initiator.Username + " request",

@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,8 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1863,7 +1863,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: an initiator
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				notifyEnq = &alertstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -1880,9 +1880,9 @@ func TestTemplateNotifications(t *testing.T) {
 			require.NoError(t, err)
 
 			// Then: the delete notification is not sent to the initiator.
-			deleteNotifications := make([]*notificationstest.FakeNotification, 0)
+			deleteNotifications := make([]*alertstest.FakeNotification, 0)
 			for _, n := range notifyEnq.Sent() {
-				if n.TemplateID == notifications.TemplateTemplateDeleted {
+				if n.TemplateID == alerts.TemplateTemplateDeleted {
 					deleteNotifications = append(deleteNotifications, n)
 				}
 			}
@@ -1894,7 +1894,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: multiple users with different roles
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				notifyEnq = &alertstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -1924,9 +1924,9 @@ func TestTemplateNotifications(t *testing.T) {
 			// Then: only owners and template admins should receive the
 			// notification.
 			shouldBeNotified := []uuid.UUID{owner.ID, tmplAdmin.ID}
-			var deleteTemplateNotifications []*notificationstest.FakeNotification
+			var deleteTemplateNotifications []*alertstest.FakeNotification
 			for _, n := range notifyEnq.Sent() {
-				if n.TemplateID == notifications.TemplateTemplateDeleted {
+				if n.TemplateID == alerts.TemplateTemplateDeleted {
 					deleteTemplateNotifications = append(deleteTemplateNotifications, n)
 				}
 			}
@@ -1938,7 +1938,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Validate the notification content
 			for _, n := range deleteTemplateNotifications {
-				require.Equal(t, n.TemplateID, notifications.TemplateTemplateDeleted)
+				require.Equal(t, n.TemplateID, alerts.TemplateTemplateDeleted)
 				require.Contains(t, notifiedUsers, n.UserID)
 				require.Contains(t, n.Targets, template.ID)
 				require.Contains(t, n.Targets, template.OrganizationID)

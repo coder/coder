@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -119,7 +119,7 @@ func TestNotificationsTest(t *testing.T) {
 	t.Run("OwnerCanSendTestNotification", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 
 		// Given: An owner user.
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
@@ -136,14 +136,14 @@ func TestNotificationsTest(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 1)
 	})
 
 	t.Run("MemberCannotSendTestNotification", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 
 		// Given: A member user.
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
@@ -164,7 +164,7 @@ func TestNotificationsTest(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		assert.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 0)
 	})
 }
@@ -175,7 +175,7 @@ func TestCustomNotifications(t *testing.T) {
 	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
@@ -198,14 +198,14 @@ func TestCustomNotifications(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 		require.Equal(t, "Invalid request body", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 0)
 	})
 
 	t.Run("SystemUserNotAllowed", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 
 		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
@@ -232,14 +232,14 @@ func TestCustomNotifications(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 		require.Equal(t, "Forbidden", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateTestNotification))
 		require.Len(t, sent, 0)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
@@ -258,7 +258,7 @@ func TestCustomNotifications(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateCustomNotification))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateCustomNotification))
 		require.Len(t, sent, 1)
 		require.Equal(t, memberUser.ID, sent[0].UserID)
 		require.Len(t, sent[0].Labels, 2)

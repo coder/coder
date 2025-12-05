@@ -88,18 +88,18 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) AcquireAlertMessages(ctx context.Context, arg database.AcquireAlertMessagesParams) ([]database.AcquireAlertMessagesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireAlertMessages(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireAlertMessages").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
 	m.queryLatencies.WithLabelValues("AcquireLock").Observe(time.Since(start).Seconds())
 	return err
-}
-
-func (m queryMetricsStore) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.AcquireNotificationMessages(ctx, arg)
-	m.queryLatencies.WithLabelValues("AcquireNotificationMessages").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -144,17 +144,17 @@ func (m queryMetricsStore) BatchUpdateWorkspaceNextStartAt(ctx context.Context, 
 	return r0
 }
 
-func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+func (m queryMetricsStore) BulkMarkAlertMessagesFailed(ctx context.Context, arg database.BulkMarkAlertMessagesFailedParams) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
-	m.queryLatencies.WithLabelValues("BulkMarkNotificationMessagesFailed").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.BulkMarkAlertMessagesFailed(ctx, arg)
+	m.queryLatencies.WithLabelValues("BulkMarkAlertMessagesFailed").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
-func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+func (m queryMetricsStore) BulkMarkAlertMessagesSent(ctx context.Context, arg database.BulkMarkAlertMessagesSentParams) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.BulkMarkNotificationMessagesSent(ctx, arg)
-	m.queryLatencies.WithLabelValues("BulkMarkNotificationMessagesSent").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.BulkMarkAlertMessagesSent(ctx, arg)
+	m.queryLatencies.WithLabelValues("BulkMarkAlertMessagesSent").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -228,10 +228,10 @@ func (m queryMetricsStore) CountPendingNonActivePrebuilds(ctx context.Context) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (m queryMetricsStore) CountUnreadInboxAlertsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("CountUnreadInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.CountUnreadInboxAlertsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("CountUnreadInboxAlertsByUserID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -403,6 +403,13 @@ func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeT
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOldAlertMessages(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldAlertMessages(ctx)
+	m.queryLatencies.WithLabelValues("DeleteOldAlertMessages").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
@@ -422,13 +429,6 @@ func (m queryMetricsStore) DeleteOldConnectionLogs(ctx context.Context, arg data
 	r0, r1 := m.s.DeleteOldConnectionLogs(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldConnectionLogs").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m queryMetricsStore) DeleteOldNotificationMessages(ctx context.Context) error {
-	start := time.Now()
-	r0 := m.s.DeleteOldNotificationMessages(ctx)
-	m.queryLatencies.WithLabelValues("DeleteOldNotificationMessages").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m queryMetricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
@@ -585,10 +585,10 @@ func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) er
 	return r0
 }
 
-func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
+func (m queryMetricsStore) EnqueueAlertMessage(ctx context.Context, arg database.EnqueueAlertMessageParams) error {
 	start := time.Now()
-	r0 := m.s.EnqueueNotificationMessage(ctx, arg)
-	m.queryLatencies.WithLabelValues("EnqueueNotificationMessage").Observe(time.Since(start).Seconds())
+	r0 := m.s.EnqueueAlertMessage(ctx, arg)
+	m.queryLatencies.WithLabelValues("EnqueueAlertMessage").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -736,6 +736,34 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	start := time.Now()
 	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAlertMessagesByStatus(ctx context.Context, arg database.GetAlertMessagesByStatusParams) ([]database.AlertMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAlertMessagesByStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAlertMessagesByStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAlertReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (database.AlertReportGeneratorLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAlertReportGeneratorLogByTemplate(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetAlertReportGeneratorLogByTemplate").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAlertTemplateByID(ctx context.Context, id uuid.UUID) (database.AlertTemplate, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAlertTemplateByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAlertTemplateByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAlertTemplatesByKind(ctx context.Context, kind database.AlertTemplateKind) ([]database.AlertTemplate, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAlertTemplatesByKind(ctx, kind)
+	m.queryLatencies.WithLabelValues("GetAlertTemplatesByKind").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -956,10 +984,10 @@ func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUI
 	return rows, err
 }
 
-func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+func (m queryMetricsStore) GetFilteredInboxAlertsByUserID(ctx context.Context, arg database.GetFilteredInboxAlertsByUserIDParams) ([]database.InboxAlert, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetFilteredInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetFilteredInboxAlertsByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFilteredInboxAlertsByUserID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1019,17 +1047,17 @@ func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
+func (m queryMetricsStore) GetInboxAlertByID(ctx context.Context, id uuid.UUID) (database.InboxAlert, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetInboxNotificationByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetInboxNotificationByID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetInboxAlertByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetInboxAlertByID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+func (m queryMetricsStore) GetInboxAlertsByUserID(ctx context.Context, arg database.GetInboxAlertsByUserIDParams) ([]database.InboxAlert, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetInboxNotificationsByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetInboxAlertsByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetInboxAlertsByUserID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1094,34 +1122,6 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	url, err := m.s.GetLogoURL(ctx)
 	m.queryLatencies.WithLabelValues("GetLogoURL").Observe(time.Since(start).Seconds())
 	return url, err
-}
-
-func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetNotificationMessagesByStatus").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByTemplate").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetNotificationTemplateByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetNotificationTemplateByID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetNotificationTemplatesByKind(ctx, kind)
-	m.queryLatencies.WithLabelValues("GetNotificationTemplatesByKind").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) GetNotificationsSettings(ctx context.Context) (string, error) {
@@ -1782,6 +1782,13 @@ func (m queryMetricsStore) GetUserActivityInsights(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserAlertPreferences(ctx context.Context, userID uuid.UUID) ([]database.AlertPreference, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserAlertPreferences(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserAlertPreferences").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	start := time.Now()
 	user, err := m.s.GetUserByEmailOrUsername(ctx, arg)
@@ -1828,13 +1835,6 @@ func (m queryMetricsStore) GetUserLinksByUserID(ctx context.Context, userID uuid
 	start := time.Now()
 	r0, r1 := m.s.GetUserLinksByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserLinksByUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserNotificationPreferences(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserNotificationPreferences").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2440,10 +2440,10 @@ func (m queryMetricsStore) InsertGroupMember(ctx context.Context, arg database.I
 	return err
 }
 
-func (m queryMetricsStore) InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error) {
+func (m queryMetricsStore) InsertInboxAlert(ctx context.Context, arg database.InsertInboxAlertParams) (database.InboxAlert, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertInboxNotification(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertInboxNotification").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.InsertInboxAlert(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertInboxAlert").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2867,10 +2867,10 @@ func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, wor
 	return r0, r1
 }
 
-func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
+func (m queryMetricsStore) MarkAllInboxAlertsAsRead(ctx context.Context, arg database.MarkAllInboxAlertsAsReadParams) error {
 	start := time.Now()
-	r0 := m.s.MarkAllInboxNotificationsAsRead(ctx, arg)
-	m.queryLatencies.WithLabelValues("MarkAllInboxNotificationsAsRead").Observe(time.Since(start).Seconds())
+	r0 := m.s.MarkAllInboxAlertsAsRead(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkAllInboxAlertsAsRead").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -2979,6 +2979,13 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	return err
 }
 
+func (m queryMetricsStore) UpdateAlertTemplateMethodByID(ctx context.Context, arg database.UpdateAlertTemplateMethodByIDParams) (database.AlertTemplate, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAlertTemplateMethodByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAlertTemplateMethodByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	start := time.Now()
 	key, err := m.s.UpdateCryptoKeyDeletesAt(ctx, arg)
@@ -3028,10 +3035,10 @@ func (m queryMetricsStore) UpdateInactiveUsersToDormant(ctx context.Context, las
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateInboxNotificationReadStatus(ctx context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
+func (m queryMetricsStore) UpdateInboxAlertReadStatus(ctx context.Context, arg database.UpdateInboxAlertReadStatusParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateInboxNotificationReadStatus(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateInboxNotificationReadStatus").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateInboxAlertReadStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateInboxAlertReadStatus").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -3047,13 +3054,6 @@ func (m queryMetricsStore) UpdateMemoryResourceMonitor(ctx context.Context, arg 
 	r0 := m.s.UpdateMemoryResourceMonitor(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateMemoryResourceMonitor").Observe(time.Since(start).Seconds())
 	return r0
-}
-
-func (m queryMetricsStore) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateNotificationTemplateMethodByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateNotificationTemplateMethodByID").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByClientIDParams) (database.OAuth2ProviderApp, error) {
@@ -3273,6 +3273,13 @@ func (m queryMetricsStore) UpdateUsageEventsPostPublish(ctx context.Context, arg
 	return r0
 }
 
+func (m queryMetricsStore) UpdateUserAlertPreferences(ctx context.Context, arg database.UpdateUserAlertPreferencesParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserAlertPreferences(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserAlertPreferences").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.UpdateUserDeletedByID(ctx, id)
@@ -3326,13 +3333,6 @@ func (m queryMetricsStore) UpdateUserLoginType(ctx context.Context, arg database
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserLoginType(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserLoginType").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateUserNotificationPreferences(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserNotificationPreferences").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3560,6 +3560,13 @@ func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) UpsertAlertReportGeneratorLog(ctx context.Context, arg database.UpsertAlertReportGeneratorLogParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertAlertReportGeneratorLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertAlertReportGeneratorLog").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpsertAnnouncementBanners(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertAnnouncementBanners(ctx, value)
@@ -3620,13 +3627,6 @@ func (m queryMetricsStore) UpsertLogoURL(ctx context.Context, value string) erro
 	start := time.Now()
 	r0 := m.s.UpsertLogoURL(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
-	return r0
-}
-
-func (m queryMetricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
 	return r0
 }
 

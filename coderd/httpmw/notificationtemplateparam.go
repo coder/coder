@@ -11,17 +11,17 @@ import (
 
 type notificationTemplateParamContextKey struct{}
 
-// NotificationTemplateParam returns the template from the ExtractNotificationTemplateParam handler.
-func NotificationTemplateParam(r *http.Request) database.NotificationTemplate {
-	template, ok := r.Context().Value(notificationTemplateParamContextKey{}).(database.NotificationTemplate)
+// AlertTemplateParam returns the template from the ExtractAlertTemplateParam handler.
+func AlertTemplateParam(r *http.Request) database.AlertTemplate {
+	template, ok := r.Context().Value(notificationTemplateParamContextKey{}).(database.AlertTemplate)
 	if !ok {
 		panic("developer error: notification template middleware not used")
 	}
 	return template
 }
 
-// ExtractNotificationTemplateParam grabs a notification template from the "notification_template" URL parameter.
-func ExtractNotificationTemplateParam(db database.Store) func(http.Handler) http.Handler {
+// ExtractAlertTemplateParam grabs a notification template from the "notification_template" URL parameter.
+func ExtractAlertTemplateParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -29,7 +29,7 @@ func ExtractNotificationTemplateParam(db database.Store) func(http.Handler) http
 			if !parsed {
 				return
 			}
-			nt, err := db.GetNotificationTemplateByID(r.Context(), notifTemplateID)
+			nt, err := db.GetAlertTemplateByID(r.Context(), notifTemplateID)
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return

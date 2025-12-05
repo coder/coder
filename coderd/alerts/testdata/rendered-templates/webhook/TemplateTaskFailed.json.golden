@@ -1,0 +1,33 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "alert_name": "Task Failed",
+    "alert_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View task",
+        "url": "http://test.com/tasks/bobby/my-workspace"
+      },
+      {
+        "label": "View workspace",
+        "url": "http://test.com/@bobby/my-workspace"
+      }
+    ],
+    "labels": {
+      "task": "my-task",
+      "workspace": "my-workspace"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "Task 'my-workspace' failed",
+  "title_markdown": "Task 'my-workspace' failed",
+  "body": "The task 'my-task' has failed. Check the logs for more details.",
+  "body_markdown": "The task 'my-task' has failed. Check the logs for more details."
+}

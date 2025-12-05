@@ -13,9 +13,9 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -424,13 +424,13 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		UserID     uuid.UUID
 	}
 
-	verifyNotificationDispatched := func(notifyEnq *notificationstest.FakeEnqueuer, expectedNotifications []expectedNotification, member codersdk.User, label string) {
+	verifyNotificationDispatched := func(notifyEnq *alertstest.FakeEnqueuer, expectedNotifications []expectedNotification, member codersdk.User, label string) {
 		require.Equal(t, len(expectedNotifications), len(notifyEnq.Sent()))
 
 		// Validate that each expected notification is present in notifyEnq.Sent()
 		for _, expected := range expectedNotifications {
 			found := false
-			for _, sent := range notifyEnq.Sent(notificationstest.WithTemplateID(expected.TemplateID)) {
+			for _, sent := range notifyEnq.Sent(alertstest.WithTemplateID(expected.TemplateID)) {
 				if sent.TemplateID == expected.TemplateID &&
 					sent.UserID == expected.UserID &&
 					slices.Contains(sent.Targets, member.ID) &&
@@ -453,7 +453,7 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 	t.Run("Account suspended", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
@@ -480,9 +480,9 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 
 		// then
 		verifyNotificationDispatched(notifyEnq, []expectedNotification{
-			{TemplateID: notifications.TemplateUserAccountSuspended, UserID: firstUser.UserID},
-			{TemplateID: notifications.TemplateUserAccountSuspended, UserID: userAdmin.ID},
-			{TemplateID: notifications.TemplateYourAccountSuspended, UserID: member.ID},
+			{TemplateID: alerts.TemplateUserAccountSuspended, UserID: firstUser.UserID},
+			{TemplateID: alerts.TemplateUserAccountSuspended, UserID: userAdmin.ID},
+			{TemplateID: alerts.TemplateYourAccountSuspended, UserID: member.ID},
 		}, member, "suspended_account_name")
 	})
 
@@ -490,7 +490,7 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
@@ -520,9 +520,9 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 
 		// then
 		verifyNotificationDispatched(notifyEnq, []expectedNotification{
-			{TemplateID: notifications.TemplateUserAccountActivated, UserID: firstUser.UserID},
-			{TemplateID: notifications.TemplateUserAccountActivated, UserID: userAdmin.ID},
-			{TemplateID: notifications.TemplateYourAccountActivated, UserID: member.ID},
+			{TemplateID: alerts.TemplateUserAccountActivated, UserID: firstUser.UserID},
+			{TemplateID: alerts.TemplateUserAccountActivated, UserID: userAdmin.ID},
+			{TemplateID: alerts.TemplateYourAccountActivated, UserID: member.ID},
 		}, member, "activated_account_name")
 	})
 }
@@ -534,7 +534,7 @@ func TestNotifyDeletedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
@@ -561,7 +561,7 @@ func TestNotifyDeletedUser(t *testing.T) {
 		// then
 		require.Len(t, notifyEnq.Sent(), 2)
 		// notifyEnq.Sent()[0] is create account event
-		require.Equal(t, notifications.TemplateUserAccountDeleted, notifyEnq.Sent()[1].TemplateID)
+		require.Equal(t, alerts.TemplateUserAccountDeleted, notifyEnq.Sent()[1].TemplateID)
 		require.Equal(t, firstUser.ID, notifyEnq.Sent()[1].UserID)
 		require.Contains(t, notifyEnq.Sent()[1].Targets, user.ID)
 		require.Equal(t, user.Username, notifyEnq.Sent()[1].Labels["deleted_account_name"])
@@ -573,7 +573,7 @@ func TestNotifyDeletedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
@@ -605,8 +605,8 @@ func TestNotifyDeletedUser(t *testing.T) {
 		// "Member" account created, "user admin" notified
 
 		// "Member" account deleted, "owner" notified
-		ownerNotifications := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
-			return n.TemplateID == notifications.TemplateUserAccountDeleted &&
+		ownerNotifications := notifyEnq.Sent(func(n *alertstest.FakeNotification) bool {
+			return n.TemplateID == alerts.TemplateUserAccountDeleted &&
 				n.UserID == firstUser.UserID &&
 				slices.Contains(n.Targets, member.ID) &&
 				n.Labels["deleted_account_name"] == member.Username
@@ -614,8 +614,8 @@ func TestNotifyDeletedUser(t *testing.T) {
 		require.Len(t, ownerNotifications, 1)
 
 		// "Member" account deleted, "user admin" notified
-		adminNotifications := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
-			return n.TemplateID == notifications.TemplateUserAccountDeleted &&
+		adminNotifications := notifyEnq.Sent(func(n *alertstest.FakeNotification) bool {
+			return n.TemplateID == alerts.TemplateUserAccountDeleted &&
 				n.UserID == userAdmin.ID &&
 				slices.Contains(n.Targets, member.ID) &&
 				n.Labels["deleted_account_name"] == member.Username
@@ -892,7 +892,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
@@ -911,9 +911,9 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.NoError(t, err)
 
 		// then
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateUserAccountCreated))
+		sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateUserAccountCreated))
 		require.Len(t, sent, 1)
-		require.Equal(t, notifications.TemplateUserAccountCreated, sent[0].TemplateID)
+		require.Equal(t, alerts.TemplateUserAccountCreated, sent[0].TemplateID)
 		require.Equal(t, firstUser.UserID, sent[0].UserID)
 		require.Contains(t, sent[0].Targets, user.ID)
 		require.Equal(t, user.Username, sent[0].Labels["created_account_name"])
@@ -929,7 +929,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		t.Parallel()
 
 		// given
-		notifyEnq := &notificationstest.FakeEnqueuer{}
+		notifyEnq := &alertstest.FakeEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
@@ -967,8 +967,8 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Len(t, sent, 3)
 
 		// "User admin" account created, "owner" notified
-		ownerNotifiedAboutUserAdmin := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
-			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+		ownerNotifiedAboutUserAdmin := notifyEnq.Sent(func(n *alertstest.FakeNotification) bool {
+			return n.TemplateID == alerts.TemplateUserAccountCreated &&
 				n.UserID == firstUser.UserID &&
 				slices.Contains(n.Targets, userAdmin.ID) &&
 				n.Labels["created_account_name"] == userAdmin.Username
@@ -976,8 +976,8 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Len(t, ownerNotifiedAboutUserAdmin, 1)
 
 		// "Member" account created, "owner" notified
-		ownerNotifiedAboutMember := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
-			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+		ownerNotifiedAboutMember := notifyEnq.Sent(func(n *alertstest.FakeNotification) bool {
+			return n.TemplateID == alerts.TemplateUserAccountCreated &&
 				n.UserID == firstUser.UserID &&
 				slices.Contains(n.Targets, member.ID) &&
 				n.Labels["created_account_name"] == member.Username
@@ -985,8 +985,8 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Len(t, ownerNotifiedAboutMember, 1)
 
 		// "Member" account created, "user admin" notified
-		userAdminNotifiedAboutMember := notifyEnq.Sent(func(n *notificationstest.FakeNotification) bool {
-			return n.TemplateID == notifications.TemplateUserAccountCreated &&
+		userAdminNotifiedAboutMember := notifyEnq.Sent(func(n *alertstest.FakeNotification) bool {
+			return n.TemplateID == alerts.TemplateUserAccountCreated &&
 				n.UserID == userAdmin.ID &&
 				slices.Contains(n.Targets, member.ID) &&
 				n.Labels["created_account_name"] == member.Username

@@ -63,6 +63,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/alerts"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -81,7 +82,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/metricscache"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -268,7 +268,7 @@ type Options struct {
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
-	NotificationsEnqueuer notifications.Enqueuer
+	NotificationsEnqueuer alerts.Enqueuer
 
 	// IDPSync holds all configured values for syncing external IDP users into Coder.
 	IDPSync idpsync.IDPSync
@@ -487,7 +487,7 @@ func New(options *Options) *API {
 	}
 
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
+		options.NotificationsEnqueuer = alerts.NewNoopEnqueuer()
 	}
 
 	r := chi.NewRouter()
@@ -1371,8 +1371,8 @@ func New(options *Options) *API {
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/notifications", func(r chi.Router) {
 							r.Route("/preferences", func(r chi.Router) {
-								r.Get("/", api.userNotificationPreferences)
-								r.Put("/", api.putUserNotificationPreferences)
+								r.Get("/", api.userAlertPreferences)
+								r.Put("/", api.putUserAlertPreferences)
 							})
 						})
 						r.Route("/webpush", func(r chi.Router) {
@@ -1634,16 +1634,16 @@ func New(options *Options) *API {
 		r.Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/inbox", func(r chi.Router) {
-				r.Get("/", api.listInboxNotifications)
-				r.Put("/mark-all-as-read", api.markAllInboxNotificationsAsRead)
-				r.Get("/watch", api.watchInboxNotifications)
-				r.Put("/{id}/read-status", api.updateInboxNotificationReadStatus)
+				r.Get("/", api.listInboxAlerts)
+				r.Put("/mark-all-as-read", api.markAllInboxAlertsAsRead)
+				r.Get("/watch", api.watchInboxAlerts)
+				r.Put("/{id}/read-status", api.updateInboxAlertReadStatus)
 			})
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
-				r.Get("/system", api.systemNotificationTemplates)
-				r.Get("/custom", api.customNotificationTemplates)
+				r.Get("/system", api.systemAlertTemplates)
+				r.Get("/custom", api.customAlertTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 			r.Post("/test", api.postTestNotification)

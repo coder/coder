@@ -680,7 +680,7 @@ gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
-	coderd/notifications/.gen-golden \
+	coderd/alerts/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
 	helm/coder/tests/testdata/.gen-golden \
@@ -952,7 +952,7 @@ clean/golden-files:
 	find . -type f -name '.gen-golden' -delete
 	find \
 		cli/testdata \
-		coderd/notifications/testdata \
+		coderd/alerts/testdata \
 		coderd/testdata \
 		enterprise/cli/testdata \
 		enterprise/tailnet/testdata \
@@ -995,8 +995,8 @@ coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wil
 	TZ=UTC go test ./coderd -run="Test.*Golden$$" -update
 	touch "$@"
 
-coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
-	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
+coderd/alerts/.gen-golden: $(wildcard coderd/alerts/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/alerts/*_test.go)
+	TZ=UTC go test ./coderd/alerts -run="Test.*Golden$$" -update
 	touch "$@"
 
 provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)

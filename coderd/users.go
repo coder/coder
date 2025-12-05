@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -22,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -598,7 +598,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 
 	for _, u := range userAdmins {
 		// nolint: gocritic // Need notifier actor to enqueue notifications
-		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, notifications.TemplateUserAccountDeleted,
+		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, alerts.TemplateUserAccountDeleted,
 			map[string]string{
 				"deleted_account_name":      user.Username,
 				"deleted_account_user_name": user.Name,
@@ -930,8 +930,8 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 		data = map[string]any{
 			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
 		}
-		adminTemplateID = notifications.TemplateUserAccountSuspended
-		personalTemplateID = notifications.TemplateYourAccountSuspended
+		adminTemplateID = alerts.TemplateUserAccountSuspended
+		personalTemplateID = alerts.TemplateYourAccountSuspended
 	case database.UserStatusActive:
 		labels = map[string]string{
 			"activated_account_name":      targetUser.Username,
@@ -941,8 +941,8 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 		data = map[string]any{
 			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
 		}
-		adminTemplateID = notifications.TemplateUserAccountActivated
-		personalTemplateID = notifications.TemplateYourAccountActivated
+		adminTemplateID = alerts.TemplateUserAccountActivated
+		personalTemplateID = alerts.TemplateYourAccountActivated
 	default:
 		api.Logger.Error(ctx, "user status is not supported", slog.F("username", targetUser.Username), slog.F("user_status", string(status)))
 		return xerrors.Errorf("unable to notify admins as the user's status is unsupported")
@@ -1584,7 +1584,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// nolint:gocritic // Need notifier actor to enqueue notifications
 			dbauthz.AsNotifier(ctx),
 			u.ID,
-			notifications.TemplateUserAccountCreated,
+			alerts.TemplateUserAccountCreated,
 			map[string]string{
 				"created_account_name":      user.Username,
 				"created_account_user_name": user.Name,

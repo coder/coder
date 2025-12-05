@@ -1,0 +1,35 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "alert_name": "Prebuild Failure Limit Reached",
+    "alert_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View failed prebuilt workspaces",
+        "url": "http://test.com/workspaces?filter=owner:prebuilds+status:failed+template:docker"
+      },
+      {
+        "label": "View template version",
+        "url": "http://test.com/templates/cern/docker/versions/angry_torvalds"
+      }
+    ],
+    "labels": {
+      "org": "cern",
+      "preset": "particle-accelerator",
+      "template": "docker",
+      "template_version": "angry_torvalds"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "There is a problem creating prebuilt workspaces",
+  "title_markdown": "There is a problem creating prebuilt workspaces",
+  "body": "The number of failed prebuild attempts has reached the hard limit for template docker and preset particle-accelerator.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.\n\nRefer to the documentation for more details:\n\nTroubleshooting templates (https://coder.com/docs/admin/templates/troubleshooting)\nTroubleshooting of prebuilt workspaces (https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#administration-and-troubleshooting)",
+  "body_markdown": "\nThe number of failed prebuild attempts has reached the hard limit for template **docker** and preset **particle-accelerator**.\n\nTo resume prebuilds, fix the underlying issue and upload a new template version.\n\nRefer to the documentation for more details:\n- [Troubleshooting templates](https://coder.com/docs/admin/templates/troubleshooting)\n- [Troubleshooting of prebuilt workspaces](https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#administration-and-troubleshooting)\n"
+}

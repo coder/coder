@@ -21,6 +21,8 @@ import (
 	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -29,8 +31,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -1044,7 +1044,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 	t.Run("CreateSendsNotification", func(t *testing.T) {
 		t.Parallel()
 
-		enqueuer := notificationstest.FakeEnqueuer{}
+		enqueuer := alertstest.FakeEnqueuer{}
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: &enqueuer})
 		user := coderdtest.CreateFirstUser(t, client)
 		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
@@ -1057,7 +1057,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
 
-		sent := enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceCreated))
+		sent := enqueuer.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceCreated))
 		require.Len(t, sent, 2)
 
 		receivers := make([]uuid.UUID, len(sent))
@@ -1084,7 +1084,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 	t.Run("CreateSendsNotificationToCorrectUser", func(t *testing.T) {
 		t.Parallel()
 
-		enqueuer := notificationstest.FakeEnqueuer{}
+		enqueuer := alertstest.FakeEnqueuer{}
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: &enqueuer})
 		user := coderdtest.CreateFirstUser(t, client)
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleOwner())
@@ -1102,7 +1102,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		sent := enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceCreated))
+		sent := enqueuer.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceCreated))
 		require.Len(t, sent, 1)
 		require.Equal(t, user.UserID, sent[0].UserID)
 		require.Contains(t, sent[0].Targets, template.ID)
@@ -4497,7 +4497,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				notifyEnq = &alertstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -4521,9 +4521,9 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceDormant))
+			sent := notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceDormant))
 			require.Len(t, sent, 1)
-			require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
+			require.Equal(t, sent[0].TemplateID, alerts.TemplateWorkspaceDormant)
 			require.Equal(t, sent[0].UserID, workspace.OwnerID)
 			require.Contains(t, sent[0].Targets, template.ID)
 			require.Contains(t, sent[0].Targets, workspace.ID)
@@ -4536,7 +4536,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				notifyEnq = &alertstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -4559,7 +4559,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceDormant)), 0)
+			require.Len(t, notifyEnq.Sent(alertstest.WithTemplateID(alerts.TemplateWorkspaceDormant)), 0)
 		})
 
 		t.Run("ActivateDormantWorkspace", func(t *testing.T) {
@@ -4567,7 +4567,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &notificationstest.FakeEnqueuer{}
+				notifyEnq = &alertstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,

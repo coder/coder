@@ -297,24 +297,24 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete an OAuth2 app code token",
 		},
 	},
-	"notification_message": {
+	"alert_message": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: "create notification messages",
-			ActionRead:   "read notification messages",
-			ActionUpdate: "update notification messages",
-			ActionDelete: "delete notification messages",
+			ActionCreate: "create alert messages",
+			ActionRead:   "read alert messages",
+			ActionUpdate: "update alert messages",
+			ActionDelete: "delete alert messages",
 		},
 	},
-	"notification_template": {
+	"alert_template": {
 		Actions: map[Action]ActionDefinition{
-			ActionRead:   "read notification templates",
-			ActionUpdate: "update notification templates",
+			ActionRead:   "read alert templates",
+			ActionUpdate: "update alert templates",
 		},
 	},
-	"notification_preference": {
+	"alert_preference": {
 		Actions: map[Action]ActionDefinition{
-			ActionRead:   "read notification preferences",
-			ActionUpdate: "update notification preferences",
+			ActionRead:   "read alert preferences",
+			ActionUpdate: "update alert preferences",
 		},
 	},
 	"webpush_subscription": {
@@ -324,11 +324,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete webpush subscriptions",
 		},
 	},
-	"inbox_notification": {
+	"inbox_alert": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: "create inbox notifications",
-			ActionRead:   "read inbox notifications",
-			ActionUpdate: "update inbox notifications",
+			ActionCreate: "create inbox alerts",
+			ActionRead:   "read inbox alerts",
+			ActionUpdate: "update inbox alerts",
 		},
 	},
 	"crypto_key": {

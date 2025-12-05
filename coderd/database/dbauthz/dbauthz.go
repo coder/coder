@@ -227,7 +227,7 @@ var (
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
 					rbac.ResourceGroup.Type:        {policy.ActionRead},
 					// Provisionerd creates notification messages
-					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceAlertMessage.Type: {policy.ActionCreate, policy.ActionRead},
 					// Provisionerd creates workspaces resources monitor
 					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionCreate},
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
@@ -250,15 +250,15 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceOrganizationMember.Type:  {policy.ActionRead},
-					rbac.ResourceFile.Type:                {policy.ActionRead}, // Required to read terraform files
-					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
-					rbac.ResourceSystem.Type:              {policy.WildcardSymbol},
-					rbac.ResourceTask.Type:                {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceUser.Type:                {policy.ActionRead},
-					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspaceDormant.Type:    {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
+					rbac.ResourceOrganizationMember.Type: {policy.ActionRead},
+					rbac.ResourceFile.Type:               {policy.ActionRead}, // Required to read terraform files
+					rbac.ResourceAlertMessage.Type:       {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceSystem.Type:             {policy.WildcardSymbol},
+					rbac.ResourceTask.Type:               {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceTemplate.Type:           {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceUser.Type:               {policy.ActionRead},
+					rbac.ResourceWorkspace.Type:          {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspaceDormant.Type:   {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -355,8 +355,8 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "notifier"},
 				DisplayName: "Notifier",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceInboxNotification.Type:   {policy.ActionCreate},
+					rbac.ResourceAlertMessage.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceInboxAlert.Type:          {policy.ActionCreate},
 					rbac.ResourceWebpushSubscription.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:    {policy.ActionRead, policy.ActionUpdate}, // To read and upsert VAPID keys
 				}),
@@ -419,28 +419,28 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "system"},
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWildcard.Type:               {policy.ActionRead},
-					rbac.ResourceApiKey.Type:                 rbac.ResourceApiKey.AvailableActions(),
-					rbac.ResourceGroup.Type:                  {policy.ActionCreate, policy.ActionUpdate},
-					rbac.ResourceAssignRole.Type:             rbac.ResourceAssignRole.AvailableActions(),
-					rbac.ResourceAssignOrgRole.Type:          rbac.ResourceAssignOrgRole.AvailableActions(),
-					rbac.ResourceSystem.Type:                 {policy.WildcardSymbol},
-					rbac.ResourceOrganization.Type:           {policy.ActionCreate, policy.ActionRead},
-					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
-					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
-					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent},
-					rbac.ResourceWorkspaceProxy.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceDeploymentConfig.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationMessage.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationPreference.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationTemplate.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
-					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
-					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceWildcard.Type:           {policy.ActionRead},
+					rbac.ResourceApiKey.Type:             rbac.ResourceApiKey.AvailableActions(),
+					rbac.ResourceGroup.Type:              {policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceAssignRole.Type:         rbac.ResourceAssignRole.AvailableActions(),
+					rbac.ResourceAssignOrgRole.Type:      rbac.ResourceAssignOrgRole.AvailableActions(),
+					rbac.ResourceSystem.Type:             {policy.WildcardSymbol},
+					rbac.ResourceOrganization.Type:       {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
+					rbac.ResourceProvisionerDaemon.Type:  {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceUser.Type:               rbac.ResourceUser.AvailableActions(),
+					rbac.ResourceWorkspaceDormant.Type:   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+					rbac.ResourceWorkspaceProxy.Type:     {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceDeploymentConfig.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAlertMessage.Type:       {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAlertPreference.Type:    {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAlertTemplate.Type:      {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceCryptoKey.Type:          {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceFile.Type:               {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceProvisionerJobs.Type:    {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
+					rbac.ResourceOauth2App.Type:          {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceOauth2AppSecret.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -1366,15 +1366,15 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
-func (q *querier) AcquireLock(ctx context.Context, id int64) error {
-	return q.db.AcquireLock(ctx, id)
-}
-
-func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
+func (q *querier) AcquireAlertMessages(ctx context.Context, arg database.AcquireAlertMessagesParams) ([]database.AcquireAlertMessagesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAlertMessage); err != nil {
 		return nil, err
 	}
-	return q.db.AcquireNotificationMessages(ctx, arg)
+	return q.db.AcquireAlertMessages(ctx, arg)
+}
+
+func (q *querier) AcquireLock(ctx context.Context, id int64) error {
+	return q.db.AcquireLock(ctx, id)
 }
 
 func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -1427,18 +1427,18 @@ func (q *querier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg datab
 	return q.db.BatchUpdateWorkspaceNextStartAt(ctx, arg)
 }
 
-func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
+func (q *querier) BulkMarkAlertMessagesFailed(ctx context.Context, arg database.BulkMarkAlertMessagesFailedParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAlertMessage); err != nil {
 		return 0, err
 	}
-	return q.db.BulkMarkNotificationMessagesFailed(ctx, arg)
+	return q.db.BulkMarkAlertMessagesFailed(ctx, arg)
 }
 
-func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
+func (q *querier) BulkMarkAlertMessagesSent(ctx context.Context, arg database.BulkMarkAlertMessagesSentParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAlertMessage); err != nil {
 		return 0, err
 	}
-	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
+	return q.db.BulkMarkAlertMessagesSent(ctx, arg)
 }
 
 func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySummaryParams) (database.CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
@@ -1543,11 +1543,11 @@ func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]databas
 	return q.db.CountPendingNonActivePrebuilds(ctx)
 }
 
-func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
+func (q *querier) CountUnreadInboxAlertsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxAlert.WithOwner(userID.String())); err != nil {
 		return 0, err
 	}
-	return q.db.CountUnreadInboxNotificationsByUserID(ctx, userID)
+	return q.db.CountUnreadInboxAlertsByUserID(ctx, userID)
 }
 
 func (q *querier) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
@@ -1739,6 +1739,13 @@ func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.
 	return q.db.DeleteOldAIBridgeRecords(ctx, beforeTime)
 }
 
+func (q *querier) DeleteOldAlertMessages(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAlertMessage); err != nil {
+		return err
+	}
+	return q.db.DeleteOldAlertMessages(ctx)
+}
+
 func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
 	// `ResourceSystem` is deprecated, but it doesn't make sense to add
 	// `policy.ActionDelete` to `ResourceAuditLog`, since this is the one and
@@ -1761,13 +1768,6 @@ func (q *querier) DeleteOldConnectionLogs(ctx context.Context, arg database.Dele
 		return 0, err
 	}
 	return q.db.DeleteOldConnectionLogs(ctx, arg)
-}
-
-func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceNotificationMessage); err != nil {
-		return err
-	}
-	return q.db.DeleteOldNotificationMessages(ctx)
 }
 
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
@@ -1965,11 +1965,11 @@ func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	return q.db.DisableForeignKeysAndTriggers(ctx)
 }
 
-func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceNotificationMessage); err != nil {
+func (q *querier) EnqueueAlertMessage(ctx context.Context, arg database.EnqueueAlertMessageParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAlertMessage); err != nil {
 		return err
 	}
-	return q.db.EnqueueNotificationMessage(ctx, arg)
+	return q.db.EnqueueAlertMessage(ctx, arg)
 }
 
 func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
@@ -2012,7 +2012,7 @@ func (q *querier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, u
 }
 
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAlertMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
@@ -2126,6 +2126,36 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 		return []database.WorkspaceBuild{}, err
 	}
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+}
+
+func (q *querier) GetAlertMessagesByStatus(ctx context.Context, arg database.GetAlertMessagesByStatusParams) ([]database.AlertMessage, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAlertMessage); err != nil {
+		return nil, err
+	}
+	return q.db.GetAlertMessagesByStatus(ctx, arg)
+}
+
+func (q *querier) GetAlertReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (database.AlertReportGeneratorLog, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AlertReportGeneratorLog{}, err
+	}
+	return q.db.GetAlertReportGeneratorLogByTemplate(ctx, templateID)
+}
+
+func (q *querier) GetAlertTemplateByID(ctx context.Context, id uuid.UUID) (database.AlertTemplate, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAlertTemplate); err != nil {
+		return database.AlertTemplate{}, err
+	}
+	return q.db.GetAlertTemplateByID(ctx, id)
+}
+
+func (q *querier) GetAlertTemplatesByKind(ctx context.Context, kind database.AlertTemplateKind) ([]database.AlertTemplate, error) {
+	// Anyone can read the 'system' and 'custom' alert templates.
+	if kind == database.AlertTemplateKindSystem || kind == database.AlertTemplateKindCustom {
+		return q.db.GetAlertTemplatesByKind(ctx, kind)
+	}
+	// TODO(dannyk): handle template ownership when we support user-default alert templates.
+	return nil, sql.ErrNoRows
 }
 
 func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
@@ -2363,8 +2393,8 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 	return q.db.GetFileTemplates(ctx, fileID)
 }
 
-func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
+func (q *querier) GetFilteredInboxAlertsByUserID(ctx context.Context, arg database.GetFilteredInboxAlertsByUserIDParams) ([]database.InboxAlert, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxAlertsByUserID)(ctx, arg)
 }
 
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -2418,12 +2448,12 @@ func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	return q.db.GetHealthSettings(ctx)
 }
 
-func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
-	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxNotificationByID)(ctx, id)
+func (q *querier) GetInboxAlertByID(ctx context.Context, id uuid.UUID) (database.InboxAlert, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxAlertByID)(ctx, id)
 }
 
-func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
+func (q *querier) GetInboxAlertsByUserID(ctx context.Context, arg database.GetInboxAlertsByUserIDParams) ([]database.InboxAlert, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxAlertsByUserID)(ctx, arg)
 }
 
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
@@ -2484,37 +2514,6 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
-}
-
-func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
-		return nil, err
-	}
-	return q.db.GetNotificationMessagesByStatus(ctx, arg)
-}
-
-func (q *querier) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.NotificationReportGeneratorLog{}, err
-	}
-	return q.db.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
-}
-
-func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
-		return database.NotificationTemplate{}, err
-	}
-	return q.db.GetNotificationTemplateByID(ctx, id)
-}
-
-func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
-	// Anyone can read the 'system' and 'custom' notification templates.
-	if kind == database.NotificationTemplateKindSystem || kind == database.NotificationTemplateKindCustom {
-		return q.db.GetNotificationTemplatesByKind(ctx, kind)
-	}
-
-	// TODO(dannyk): handle template ownership when we support user-default notification templates.
-	return nil, sql.ErrNoRows
 }
 
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
@@ -3351,6 +3350,13 @@ func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetU
 	return q.db.GetUserActivityInsights(ctx, arg)
 }
 
+func (q *querier) GetUserAlertPreferences(ctx context.Context, userID uuid.UUID) ([]database.AlertPreference, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAlertPreference.WithOwner(userID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserAlertPreferences(ctx, userID)
+}
+
 func (q *querier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	return fetch(q.log, q.auth, q.db.GetUserByEmailOrUsername)(ctx, arg)
 }
@@ -3407,13 +3413,6 @@ func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([
 		return nil, err
 	}
 	return q.db.GetUserLinksByUserID(ctx, userID)
-}
-
-func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationPreference.WithOwner(userID.String())); err != nil {
-		return nil, err
-	}
-	return q.db.GetUserNotificationPreferences(ctx, userID)
 }
 
 func (q *querier) GetUserSecret(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
@@ -4143,8 +4142,8 @@ func (q *querier) InsertGroupMember(ctx context.Context, arg database.InsertGrou
 	return update(q.log, q.auth, fetch, q.db.InsertGroupMember)(ctx, arg)
 }
 
-func (q *querier) InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error) {
-	return insert(q.log, q.auth, rbac.ResourceInboxNotification.WithOwner(arg.UserID.String()), q.db.InsertInboxNotification)(ctx, arg)
+func (q *querier) InsertInboxAlert(ctx context.Context, arg database.InsertInboxAlertParams) (database.InboxAlert, error) {
+	return insert(q.log, q.auth, rbac.ResourceInboxAlert.WithOwner(arg.UserID.String()), q.db.InsertInboxAlert)(ctx, arg)
 }
 
 func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
@@ -4685,14 +4684,14 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
-func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
-	resource := rbac.ResourceInboxNotification.WithOwner(arg.UserID.String())
+func (q *querier) MarkAllInboxAlertsAsRead(ctx context.Context, arg database.MarkAllInboxAlertsAsReadParams) error {
+	resource := rbac.ResourceInboxAlert.WithOwner(arg.UserID.String())
 
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, resource); err != nil {
 		return err
 	}
 
-	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
+	return q.db.MarkAllInboxAlertsAsRead(ctx, arg)
 }
 
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
@@ -4822,6 +4821,13 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
 }
 
+func (q *querier) UpdateAlertTemplateMethodByID(ctx context.Context, arg database.UpdateAlertTemplateMethodByIDParams) (database.AlertTemplate, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAlertTemplate); err != nil {
+		return database.AlertTemplate{}, err
+	}
+	return q.db.UpdateAlertTemplateMethodByID(ctx, arg)
+}
+
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -4888,12 +4894,12 @@ func (q *querier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfte
 	return q.db.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
 }
 
-func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) error {
-	fetchFunc := func(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) (database.InboxNotification, error) {
-		return q.db.GetInboxNotificationByID(ctx, args.ID)
+func (q *querier) UpdateInboxAlertReadStatus(ctx context.Context, arg database.UpdateInboxAlertReadStatusParams) error {
+	fetchFunc := func(ctx context.Context, args database.UpdateInboxAlertReadStatusParams) (database.InboxAlert, error) {
+		return q.db.GetInboxAlertByID(ctx, args.ID)
 	}
 
-	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxNotificationReadStatus)(ctx, args)
+	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxAlertReadStatus)(ctx, arg)
 }
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -4939,13 +4945,6 @@ func (q *querier) UpdateMemoryResourceMonitor(ctx context.Context, arg database.
 	}
 
 	return q.db.UpdateMemoryResourceMonitor(ctx, arg)
-}
-
-func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationTemplate); err != nil {
-		return database.NotificationTemplate{}, err
-	}
-	return q.db.UpdateNotificationTemplateMethodByID(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByClientIDParams) (database.OAuth2ProviderApp, error) {
@@ -5339,6 +5338,13 @@ func (q *querier) UpdateUsageEventsPostPublish(ctx context.Context, arg database
 	return q.db.UpdateUsageEventsPostPublish(ctx, arg)
 }
 
+func (q *querier) UpdateUserAlertPreferences(ctx context.Context, arg database.UpdateUserAlertPreferencesParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAlertPreference.WithOwner(arg.UserID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateUserAlertPreferences(ctx, arg)
+}
+
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.UpdateUserDeletedByID)(ctx, id)
 }
@@ -5415,13 +5421,6 @@ func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUs
 		return database.User{}, err
 	}
 	return q.db.UpdateUserLoginType(ctx, arg)
-}
-
-func (q *querier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationPreference.WithOwner(arg.UserID.String())); err != nil {
-		return -1, err
-	}
-	return q.db.UpdateUserNotificationPreferences(ctx, arg)
 }
 
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
@@ -5802,6 +5801,13 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 }
 
+func (q *querier) UpsertAlertReportGeneratorLog(ctx context.Context, arg database.UpsertAlertReportGeneratorLogParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertAlertReportGeneratorLog(ctx, arg)
+}
+
 func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -5863,13 +5869,6 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
-}
-
-func (q *querier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpsertNotificationReportGeneratorLog(ctx, arg)
 }
 
 func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string) error {

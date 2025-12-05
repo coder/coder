@@ -80,7 +80,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			if err := tx.DeleteOldProvisionerDaemons(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old provisioner daemons: %w", err)
 			}
-			if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
+			if err := tx.DeleteOldAlertMessages(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
 			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {

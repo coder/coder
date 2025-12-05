@@ -708,6 +708,198 @@ func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
 	}
 }
 
+type AlertMessageStatus string
+
+const (
+	AlertMessageStatusPending          AlertMessageStatus = "pending"
+	AlertMessageStatusLeased           AlertMessageStatus = "leased"
+	AlertMessageStatusSent             AlertMessageStatus = "sent"
+	AlertMessageStatusPermanentFailure AlertMessageStatus = "permanent_failure"
+	AlertMessageStatusTemporaryFailure AlertMessageStatus = "temporary_failure"
+	AlertMessageStatusUnknown          AlertMessageStatus = "unknown"
+	AlertMessageStatusInhibited        AlertMessageStatus = "inhibited"
+)
+
+func (e *AlertMessageStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AlertMessageStatus(s)
+	case string:
+		*e = AlertMessageStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AlertMessageStatus: %T", src)
+	}
+	return nil
+}
+
+type NullAlertMessageStatus struct {
+	AlertMessageStatus AlertMessageStatus `json:"alert_message_status"`
+	Valid              bool               `json:"valid"` // Valid is true if AlertMessageStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAlertMessageStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.AlertMessageStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AlertMessageStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAlertMessageStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AlertMessageStatus), nil
+}
+
+func (e AlertMessageStatus) Valid() bool {
+	switch e {
+	case AlertMessageStatusPending,
+		AlertMessageStatusLeased,
+		AlertMessageStatusSent,
+		AlertMessageStatusPermanentFailure,
+		AlertMessageStatusTemporaryFailure,
+		AlertMessageStatusUnknown,
+		AlertMessageStatusInhibited:
+		return true
+	}
+	return false
+}
+
+func AllAlertMessageStatusValues() []AlertMessageStatus {
+	return []AlertMessageStatus{
+		AlertMessageStatusPending,
+		AlertMessageStatusLeased,
+		AlertMessageStatusSent,
+		AlertMessageStatusPermanentFailure,
+		AlertMessageStatusTemporaryFailure,
+		AlertMessageStatusUnknown,
+		AlertMessageStatusInhibited,
+	}
+}
+
+type AlertMethod string
+
+const (
+	AlertMethodSmtp    AlertMethod = "smtp"
+	AlertMethodWebhook AlertMethod = "webhook"
+	AlertMethodInbox   AlertMethod = "inbox"
+)
+
+func (e *AlertMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AlertMethod(s)
+	case string:
+		*e = AlertMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AlertMethod: %T", src)
+	}
+	return nil
+}
+
+type NullAlertMethod struct {
+	AlertMethod AlertMethod `json:"alert_method"`
+	Valid       bool        `json:"valid"` // Valid is true if AlertMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAlertMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.AlertMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AlertMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAlertMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AlertMethod), nil
+}
+
+func (e AlertMethod) Valid() bool {
+	switch e {
+	case AlertMethodSmtp,
+		AlertMethodWebhook,
+		AlertMethodInbox:
+		return true
+	}
+	return false
+}
+
+func AllAlertMethodValues() []AlertMethod {
+	return []AlertMethod{
+		AlertMethodSmtp,
+		AlertMethodWebhook,
+		AlertMethodInbox,
+	}
+}
+
+type AlertTemplateKind string
+
+const (
+	AlertTemplateKindSystem AlertTemplateKind = "system"
+	AlertTemplateKindCustom AlertTemplateKind = "custom"
+)
+
+func (e *AlertTemplateKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AlertTemplateKind(s)
+	case string:
+		*e = AlertTemplateKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AlertTemplateKind: %T", src)
+	}
+	return nil
+}
+
+type NullAlertTemplateKind struct {
+	AlertTemplateKind AlertTemplateKind `json:"alert_template_kind"`
+	Valid             bool              `json:"valid"` // Valid is true if AlertTemplateKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAlertTemplateKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.AlertTemplateKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AlertTemplateKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAlertTemplateKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AlertTemplateKind), nil
+}
+
+func (e AlertTemplateKind) Valid() bool {
+	switch e {
+	case AlertTemplateKindSystem,
+		AlertTemplateKindCustom:
+		return true
+	}
+	return false
+}
+
+func AllAlertTemplateKindValues() []AlertTemplateKind {
+	return []AlertTemplateKind{
+		AlertTemplateKindSystem,
+		AlertTemplateKindCustom,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -1382,64 +1574,64 @@ func AllGroupSourceValues() []GroupSource {
 	}
 }
 
-type InboxNotificationReadStatus string
+type InboxAlertReadStatus string
 
 const (
-	InboxNotificationReadStatusAll    InboxNotificationReadStatus = "all"
-	InboxNotificationReadStatusUnread InboxNotificationReadStatus = "unread"
-	InboxNotificationReadStatusRead   InboxNotificationReadStatus = "read"
+	InboxAlertReadStatusAll    InboxAlertReadStatus = "all"
+	InboxAlertReadStatusUnread InboxAlertReadStatus = "unread"
+	InboxAlertReadStatusRead   InboxAlertReadStatus = "read"
 )
 
-func (e *InboxNotificationReadStatus) Scan(src interface{}) error {
+func (e *InboxAlertReadStatus) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = InboxNotificationReadStatus(s)
+		*e = InboxAlertReadStatus(s)
 	case string:
-		*e = InboxNotificationReadStatus(s)
+		*e = InboxAlertReadStatus(s)
 	default:
-		return fmt.Errorf("unsupported scan type for InboxNotificationReadStatus: %T", src)
+		return fmt.Errorf("unsupported scan type for InboxAlertReadStatus: %T", src)
 	}
 	return nil
 }
 
-type NullInboxNotificationReadStatus struct {
-	InboxNotificationReadStatus InboxNotificationReadStatus `json:"inbox_notification_read_status"`
-	Valid                       bool                        `json:"valid"` // Valid is true if InboxNotificationReadStatus is not NULL
+type NullInboxAlertReadStatus struct {
+	InboxAlertReadStatus InboxAlertReadStatus `json:"inbox_alert_read_status"`
+	Valid                bool                 `json:"valid"` // Valid is true if InboxAlertReadStatus is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullInboxNotificationReadStatus) Scan(value interface{}) error {
+func (ns *NullInboxAlertReadStatus) Scan(value interface{}) error {
 	if value == nil {
-		ns.InboxNotificationReadStatus, ns.Valid = "", false
+		ns.InboxAlertReadStatus, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.InboxNotificationReadStatus.Scan(value)
+	return ns.InboxAlertReadStatus.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullInboxNotificationReadStatus) Value() (driver.Value, error) {
+func (ns NullInboxAlertReadStatus) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.InboxNotificationReadStatus), nil
+	return string(ns.InboxAlertReadStatus), nil
 }
 
-func (e InboxNotificationReadStatus) Valid() bool {
+func (e InboxAlertReadStatus) Valid() bool {
 	switch e {
-	case InboxNotificationReadStatusAll,
-		InboxNotificationReadStatusUnread,
-		InboxNotificationReadStatusRead:
+	case InboxAlertReadStatusAll,
+		InboxAlertReadStatusUnread,
+		InboxAlertReadStatusRead:
 		return true
 	}
 	return false
 }
 
-func AllInboxNotificationReadStatusValues() []InboxNotificationReadStatus {
-	return []InboxNotificationReadStatus{
-		InboxNotificationReadStatusAll,
-		InboxNotificationReadStatusUnread,
-		InboxNotificationReadStatusRead,
+func AllInboxAlertReadStatusValues() []InboxAlertReadStatus {
+	return []InboxAlertReadStatus{
+		InboxAlertReadStatusAll,
+		InboxAlertReadStatusUnread,
+		InboxAlertReadStatusRead,
 	}
 }
 
@@ -1636,198 +1828,6 @@ func AllLoginTypeValues() []LoginType {
 		LoginTypeToken,
 		LoginTypeNone,
 		LoginTypeOAuth2ProviderApp,
-	}
-}
-
-type NotificationMessageStatus string
-
-const (
-	NotificationMessageStatusPending          NotificationMessageStatus = "pending"
-	NotificationMessageStatusLeased           NotificationMessageStatus = "leased"
-	NotificationMessageStatusSent             NotificationMessageStatus = "sent"
-	NotificationMessageStatusPermanentFailure NotificationMessageStatus = "permanent_failure"
-	NotificationMessageStatusTemporaryFailure NotificationMessageStatus = "temporary_failure"
-	NotificationMessageStatusUnknown          NotificationMessageStatus = "unknown"
-	NotificationMessageStatusInhibited        NotificationMessageStatus = "inhibited"
-)
-
-func (e *NotificationMessageStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = NotificationMessageStatus(s)
-	case string:
-		*e = NotificationMessageStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for NotificationMessageStatus: %T", src)
-	}
-	return nil
-}
-
-type NullNotificationMessageStatus struct {
-	NotificationMessageStatus NotificationMessageStatus `json:"notification_message_status"`
-	Valid                     bool                      `json:"valid"` // Valid is true if NotificationMessageStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullNotificationMessageStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.NotificationMessageStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.NotificationMessageStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullNotificationMessageStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.NotificationMessageStatus), nil
-}
-
-func (e NotificationMessageStatus) Valid() bool {
-	switch e {
-	case NotificationMessageStatusPending,
-		NotificationMessageStatusLeased,
-		NotificationMessageStatusSent,
-		NotificationMessageStatusPermanentFailure,
-		NotificationMessageStatusTemporaryFailure,
-		NotificationMessageStatusUnknown,
-		NotificationMessageStatusInhibited:
-		return true
-	}
-	return false
-}
-
-func AllNotificationMessageStatusValues() []NotificationMessageStatus {
-	return []NotificationMessageStatus{
-		NotificationMessageStatusPending,
-		NotificationMessageStatusLeased,
-		NotificationMessageStatusSent,
-		NotificationMessageStatusPermanentFailure,
-		NotificationMessageStatusTemporaryFailure,
-		NotificationMessageStatusUnknown,
-		NotificationMessageStatusInhibited,
-	}
-}
-
-type NotificationMethod string
-
-const (
-	NotificationMethodSmtp    NotificationMethod = "smtp"
-	NotificationMethodWebhook NotificationMethod = "webhook"
-	NotificationMethodInbox   NotificationMethod = "inbox"
-)
-
-func (e *NotificationMethod) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = NotificationMethod(s)
-	case string:
-		*e = NotificationMethod(s)
-	default:
-		return fmt.Errorf("unsupported scan type for NotificationMethod: %T", src)
-	}
-	return nil
-}
-
-type NullNotificationMethod struct {
-	NotificationMethod NotificationMethod `json:"notification_method"`
-	Valid              bool               `json:"valid"` // Valid is true if NotificationMethod is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullNotificationMethod) Scan(value interface{}) error {
-	if value == nil {
-		ns.NotificationMethod, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.NotificationMethod.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullNotificationMethod) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.NotificationMethod), nil
-}
-
-func (e NotificationMethod) Valid() bool {
-	switch e {
-	case NotificationMethodSmtp,
-		NotificationMethodWebhook,
-		NotificationMethodInbox:
-		return true
-	}
-	return false
-}
-
-func AllNotificationMethodValues() []NotificationMethod {
-	return []NotificationMethod{
-		NotificationMethodSmtp,
-		NotificationMethodWebhook,
-		NotificationMethodInbox,
-	}
-}
-
-type NotificationTemplateKind string
-
-const (
-	NotificationTemplateKindSystem NotificationTemplateKind = "system"
-	NotificationTemplateKindCustom NotificationTemplateKind = "custom"
-)
-
-func (e *NotificationTemplateKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = NotificationTemplateKind(s)
-	case string:
-		*e = NotificationTemplateKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for NotificationTemplateKind: %T", src)
-	}
-	return nil
-}
-
-type NullNotificationTemplateKind struct {
-	NotificationTemplateKind NotificationTemplateKind `json:"notification_template_kind"`
-	Valid                    bool                     `json:"valid"` // Valid is true if NotificationTemplateKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullNotificationTemplateKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.NotificationTemplateKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.NotificationTemplateKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.NotificationTemplateKind), nil
-}
-
-func (e NotificationTemplateKind) Valid() bool {
-	switch e {
-	case NotificationTemplateKindSystem,
-		NotificationTemplateKindCustom:
-		return true
-	}
-	return false
-}
-
-func AllNotificationTemplateKindValues() []NotificationTemplateKind {
-	return []NotificationTemplateKind{
-		NotificationTemplateKindSystem,
-		NotificationTemplateKindCustom,
 	}
 }
 
@@ -2668,8 +2668,8 @@ const (
 	ResourceTypeOauth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole                  ResourceType = "custom_role"
 	ResourceTypeOrganizationMember          ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings       ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
+	ResourceTypeAlertsSettings              ResourceType = "alerts_settings"
+	ResourceTypeAlertTemplate               ResourceType = "alert_template"
 	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
 	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
@@ -2733,8 +2733,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
-		ResourceTypeNotificationsSettings,
-		ResourceTypeNotificationTemplate,
+		ResourceTypeAlertsSettings,
+		ResourceTypeAlertTemplate,
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
@@ -2766,8 +2766,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
-		ResourceTypeNotificationsSettings,
-		ResourceTypeNotificationTemplate,
+		ResourceTypeAlertsSettings,
+		ResourceTypeAlertTemplate,
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
@@ -3675,6 +3675,54 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+type AlertMessage struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	AlertTemplateID uuid.UUID          `db:"alert_template_id" json:"alert_template_id"`
+	UserID          uuid.UUID          `db:"user_id" json:"user_id"`
+	Method          AlertMethod        `db:"method" json:"method"`
+	Status          AlertMessageStatus `db:"status" json:"status"`
+	StatusReason    sql.NullString     `db:"status_reason" json:"status_reason"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	Payload         json.RawMessage    `db:"payload" json:"payload"`
+	AttemptCount    sql.NullInt32      `db:"attempt_count" json:"attempt_count"`
+	Targets         []uuid.UUID        `db:"targets" json:"targets"`
+	CreatedAt       time.Time          `db:"created_at" json:"created_at"`
+	UpdatedAt       sql.NullTime       `db:"updated_at" json:"updated_at"`
+	LeasedUntil     sql.NullTime       `db:"leased_until" json:"leased_until"`
+	NextRetryAfter  sql.NullTime       `db:"next_retry_after" json:"next_retry_after"`
+	QueuedSeconds   sql.NullFloat64    `db:"queued_seconds" json:"queued_seconds"`
+	// Auto-generated by insert/update trigger, used to prevent duplicate notifications from being enqueued on the same day
+	DedupeHash sql.NullString `db:"dedupe_hash" json:"dedupe_hash"`
+}
+
+type AlertPreference struct {
+	UserID          uuid.UUID `db:"user_id" json:"user_id"`
+	AlertTemplateID uuid.UUID `db:"alert_template_id" json:"alert_template_id"`
+	Disabled        bool      `db:"disabled" json:"disabled"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Log of generated reports for users.
+type AlertReportGeneratorLog struct {
+	AlertTemplateID uuid.UUID `db:"alert_template_id" json:"alert_template_id"`
+	LastGeneratedAt time.Time `db:"last_generated_at" json:"last_generated_at"`
+}
+
+// Templates from which to create notification messages.
+type AlertTemplate struct {
+	ID            uuid.UUID             `db:"id" json:"id"`
+	Name          string                `db:"name" json:"name"`
+	TitleTemplate string                `db:"title_template" json:"title_template"`
+	BodyTemplate  string                `db:"body_template" json:"body_template"`
+	Actions       pqtype.NullRawMessage `db:"actions" json:"actions"`
+	Group         sql.NullString        `db:"group" json:"group"`
+	// NULL defers to the deployment-level method
+	Method           NullAlertMethod   `db:"method" json:"method"`
+	Kind             AlertTemplateKind `db:"kind" json:"kind"`
+	EnabledByDefault bool              `db:"enabled_by_default" json:"enabled_by_default"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`
@@ -3833,7 +3881,7 @@ type GroupMemberTable struct {
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
 
-type InboxNotification struct {
+type InboxAlert struct {
 	ID         uuid.UUID       `db:"id" json:"id"`
 	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
 	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
@@ -3862,54 +3910,6 @@ type License struct {
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
 	Exp  time.Time `db:"exp" json:"exp"`
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
-}
-
-type NotificationMessage struct {
-	ID                     uuid.UUID                 `db:"id" json:"id"`
-	NotificationTemplateID uuid.UUID                 `db:"notification_template_id" json:"notification_template_id"`
-	UserID                 uuid.UUID                 `db:"user_id" json:"user_id"`
-	Method                 NotificationMethod        `db:"method" json:"method"`
-	Status                 NotificationMessageStatus `db:"status" json:"status"`
-	StatusReason           sql.NullString            `db:"status_reason" json:"status_reason"`
-	CreatedBy              string                    `db:"created_by" json:"created_by"`
-	Payload                []byte                    `db:"payload" json:"payload"`
-	AttemptCount           sql.NullInt32             `db:"attempt_count" json:"attempt_count"`
-	Targets                []uuid.UUID               `db:"targets" json:"targets"`
-	CreatedAt              time.Time                 `db:"created_at" json:"created_at"`
-	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
-	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
-	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
-	QueuedSeconds          sql.NullFloat64           `db:"queued_seconds" json:"queued_seconds"`
-	// Auto-generated by insert/update trigger, used to prevent duplicate notifications from being enqueued on the same day
-	DedupeHash sql.NullString `db:"dedupe_hash" json:"dedupe_hash"`
-}
-
-type NotificationPreference struct {
-	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
-	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
-	Disabled               bool      `db:"disabled" json:"disabled"`
-	CreatedAt              time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
-}
-
-// Log of generated reports for users.
-type NotificationReportGeneratorLog struct {
-	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
-	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
-}
-
-// Templates from which to create notification messages.
-type NotificationTemplate struct {
-	ID            uuid.UUID      `db:"id" json:"id"`
-	Name          string         `db:"name" json:"name"`
-	TitleTemplate string         `db:"title_template" json:"title_template"`
-	BodyTemplate  string         `db:"body_template" json:"body_template"`
-	Actions       []byte         `db:"actions" json:"actions"`
-	Group         sql.NullString `db:"group" json:"group"`
-	// NULL defers to the deployment-level method
-	Method           NullNotificationMethod   `db:"method" json:"method"`
-	Kind             NotificationTemplateKind `db:"kind" json:"kind"`
-	EnabledByDefault bool                     `db:"enabled_by_default" json:"enabled_by_default"`
 }
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.

@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
@@ -29,7 +29,7 @@ func createOpts(t *testing.T) *coderdenttest.Options {
 	}
 }
 
-func TestUpdateNotificationTemplateMethod(t *testing.T) {
+func TestUpdateAlertTemplateMethod(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Happy path", func(t *testing.T) {
@@ -39,8 +39,8 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
-			method     = string(database.NotificationMethodSmtp)
-			templateID = notifications.TemplateWorkspaceDeleted
+			method     = string(database.AlertMethodSmtp)
+			templateID = alerts.TemplateWorkspaceDeleted
 		)
 
 		// Given: a template whose method is initially empty (i.e. deferring to the global method value).
@@ -50,7 +50,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.Empty(t, template.Method)
 
 		// When: calling the API to update the method.
-		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
+		require.NoError(t, api.UpdateAlertTemplateMethod(ctx, alerts.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
 
 		// Then: the method should be set.
 		template, err = getTemplateByID(t, ctx, api, templateID)
@@ -69,7 +69,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: calling the API as an unprivileged user.
-		err := anotherClient.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, string(database.NotificationMethodWebhook))
+		err := anotherClient.UpdateAlertTemplateMethod(ctx, alerts.TemplateWorkspaceDeleted, string(database.AlertMethodWebhook))
 
 		// Then: the request is denied because of insufficient permissions.
 		var sdkError *codersdk.Error
@@ -91,7 +91,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		const method = "nope"
 
 		// nolint:gocritic // Using an owner-scope user is kinda the point.
-		err := api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method)
+		err := api.UpdateAlertTemplateMethod(ctx, alerts.TemplateWorkspaceDeleted, method)
 
 		// Then: the request is invalid because of the unacceptable method.
 		var sdkError *codersdk.Error
@@ -111,8 +111,8 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
-			method     = string(database.NotificationMethodSmtp)
-			templateID = notifications.TemplateWorkspaceDeleted
+			method     = string(database.AlertMethodSmtp)
+			templateID = alerts.TemplateWorkspaceDeleted
 		)
 
 		template, err := getTemplateByID(t, ctx, api, templateID)
@@ -123,14 +123,14 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.Empty(t, template.Method)
 
 		// When: calling the API to update the method, it should set it.
-		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
+		require.NoError(t, api.UpdateAlertTemplateMethod(ctx, alerts.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
 		template, err = getTemplateByID(t, ctx, api, templateID)
 		require.NoError(t, err)
 		require.NotNil(t, template)
 		require.Equal(t, method, template.Method)
 
 		// Then: when calling the API again with the same method, the method will remain unchanged.
-		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "second request to set the method failed")
+		require.NoError(t, api.UpdateAlertTemplateMethod(ctx, alerts.TemplateWorkspaceDeleted, method), "second request to set the method failed")
 		template, err = getTemplateByID(t, ctx, api, templateID)
 		require.NoError(t, err)
 		require.NotNil(t, template)
@@ -139,11 +139,11 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 }
 
 // nolint:revive // t takes precedence.
-func getTemplateByID(t *testing.T, ctx context.Context, api *codersdk.Client, id uuid.UUID) (*codersdk.NotificationTemplate, error) {
+func getTemplateByID(t *testing.T, ctx context.Context, api *codersdk.Client, id uuid.UUID) (*codersdk.AlertTemplate, error) {
 	t.Helper()
 
-	var template codersdk.NotificationTemplate
-	templates, err := api.GetSystemNotificationTemplates(ctx)
+	var template codersdk.AlertTemplate
+	templates, err := api.GetSystemAlertTemplates(ctx)
 	if err != nil {
 		return nil, err
 	}

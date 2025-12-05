@@ -11,19 +11,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func InboxNotificationForOwnerEventChannel(ownerID uuid.UUID) string {
+func InboxAlertForOwnerEventChannel(ownerID uuid.UUID) string {
 	return fmt.Sprintf("inbox_notification:owner:%s", ownerID)
 }
 
-func HandleInboxNotificationEvent(cb func(ctx context.Context, payload InboxNotificationEvent, err error)) func(ctx context.Context, message []byte, err error) {
+func HandleInboxAlertEvent(cb func(ctx context.Context, payload InboxAlertEvent, err error)) func(ctx context.Context, message []byte, err error) {
 	return func(ctx context.Context, message []byte, err error) {
 		if err != nil {
-			cb(ctx, InboxNotificationEvent{}, xerrors.Errorf("inbox notification event pubsub: %w", err))
+			cb(ctx, InboxAlertEvent{}, xerrors.Errorf("inbox notification event pubsub: %w", err))
 			return
 		}
-		var payload InboxNotificationEvent
+		var payload InboxAlertEvent
 		if err := json.Unmarshal(message, &payload); err != nil {
-			cb(ctx, InboxNotificationEvent{}, xerrors.Errorf("unmarshal inbox notification event"))
+			cb(ctx, InboxAlertEvent{}, xerrors.Errorf("unmarshal inbox notification event"))
 			return
 		}
 
@@ -31,13 +31,13 @@ func HandleInboxNotificationEvent(cb func(ctx context.Context, payload InboxNoti
 	}
 }
 
-type InboxNotificationEvent struct {
-	Kind              InboxNotificationEventKind `json:"kind"`
-	InboxNotification codersdk.InboxNotification `json:"inbox_notification"`
+type InboxAlertEvent struct {
+	Kind       InboxAlertEventKind `json:"kind"`
+	InboxAlert codersdk.InboxAlert `json:"inbox_notification"`
 }
 
-type InboxNotificationEventKind string
+type InboxAlertEventKind string
 
 const (
-	InboxNotificationEventKindNew InboxNotificationEventKind = "new"
+	InboxAlertEventKindNew InboxAlertEventKind = "new"
 )

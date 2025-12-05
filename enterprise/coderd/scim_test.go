@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/alerts/alertstest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -131,7 +131,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &notificationstest.FakeEnqueuer{}
+			notifyEnq := &alertstest.FakeEnqueuer{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					Auditor:               mockAudit,
@@ -193,7 +193,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &notificationstest.FakeEnqueuer{}
+			notifyEnq := &alertstest.FakeEnqueuer{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					Auditor:               mockAudit,
@@ -249,7 +249,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &notificationstest.FakeEnqueuer{}
+			notifyEnq := &alertstest.FakeEnqueuer{}
 			dv := coderdtest.DeploymentValues(t)
 			dv.OIDC.OrganizationAssignDefault = false
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{

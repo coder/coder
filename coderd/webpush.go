@@ -140,7 +140,7 @@ func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Req
 	}
 
 	// We need to authorize the user to send a push notification to themselves.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceNotificationMessage.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceAlertMessage.WithOwner(user.ID.String())) {
 		httpapi.Forbidden(rw)
 		return
 	}

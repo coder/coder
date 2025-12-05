@@ -27,6 +27,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/alerts"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -36,7 +37,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -452,13 +452,13 @@ func (api *API) enqueueAITaskStateNotification(
 	var notificationTemplate uuid.UUID
 	switch newAppStatus {
 	case codersdk.WorkspaceAppStatusStateWorking:
-		notificationTemplate = notifications.TemplateTaskWorking
+		notificationTemplate = alerts.TemplateTaskWorking
 	case codersdk.WorkspaceAppStatusStateIdle:
-		notificationTemplate = notifications.TemplateTaskIdle
+		notificationTemplate = alerts.TemplateTaskIdle
 	case codersdk.WorkspaceAppStatusStateComplete:
-		notificationTemplate = notifications.TemplateTaskCompleted
+		notificationTemplate = alerts.TemplateTaskCompleted
 	case codersdk.WorkspaceAppStatusStateFailure:
-		notificationTemplate = notifications.TemplateTaskFailed
+		notificationTemplate = alerts.TemplateTaskFailed
 	default:
 		// Not a notifiable state, do nothing
 		return

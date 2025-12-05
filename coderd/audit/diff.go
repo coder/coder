@@ -28,7 +28,7 @@ type Auditable interface {
 		database.CustomRole |
 		database.AuditableOrganizationMember |
 		database.Organization |
-		database.NotificationTemplate |
+		database.AlertTemplate |
 		idpsync.OrganizationSyncSettings |
 		idpsync.GroupSyncSettings |
 		idpsync.RoleSyncSettings |

@@ -11,14 +11,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/alerts"
+	"github.com/coder/coder/v2/coderd/alerts/dispatch"
+	"github.com/coder/coder/v2/coderd/alerts/types"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -31,7 +31,7 @@ const (
 
 var failingPaginationUUID = uuid.MustParse("fba6966a-9061-4111-8e1a-f6a9fbea4b16")
 
-func TestInboxNotification_Watch(t *testing.T) {
+func TestInboxAlert_Watch(t *testing.T) {
 	t.Parallel()
 
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
@@ -68,7 +68,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 				defer cancel()
 
 				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil,
-					codersdk.ListInboxNotificationsRequestToQueryParams(codersdk.ListInboxNotificationsRequest{
+					codersdk.ListInboxAlertsRequestToQueryParams(codersdk.ListInboxAlertsRequest{
 						Targets:        tt.listTarget,
 						Templates:      tt.listTemplate,
 						ReadStatus:     tt.listReadStatus,
@@ -117,8 +117,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfMemory.String(),
 		}, "notification title", "notification content", nil)
 		require.NoError(t, err)
 
@@ -128,7 +128,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
 
-		var notif codersdk.GetInboxNotificationResponse
+		var notif codersdk.GetInboxAlertResponse
 		err = json.Unmarshal(message, &notif)
 		require.NoError(t, err)
 
@@ -136,7 +136,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.Equal(t, memberClient.ID, notif.Notification.UserID)
 
 		// check for the fallback icon logic
-		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notif.Notification.Icon)
+		require.Equal(t, codersdk.InboxAlertFallbackIconWorkspace, notif.Notification.Icon)
 	})
 
 	t.Run("OK - change format", func(t *testing.T) {
@@ -173,8 +173,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfMemory.String(),
 		}, "# Notification Title", "This is the __content__.", nil)
 		require.NoError(t, err)
 
@@ -184,7 +184,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
 
-		var notif codersdk.GetInboxNotificationResponse
+		var notif codersdk.GetInboxAlertResponse
 		err = json.Unmarshal(message, &notif)
 		require.NoError(t, err)
 
@@ -210,7 +210,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
 		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
 
-		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?templates=%v", notifications.TemplateWorkspaceOutOfMemory))
+		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?templates=%v", alerts.TemplateWorkspaceOutOfMemory))
 		require.NoError(t, err)
 
 		// nolint:bodyclose
@@ -229,8 +229,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfMemory.String(),
 		}, "memory related title", "memory related content", nil)
 		require.NoError(t, err)
 
@@ -240,7 +240,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
 
-		var notif codersdk.GetInboxNotificationResponse
+		var notif codersdk.GetInboxAlertResponse
 		err = json.Unmarshal(message, &notif)
 		require.NoError(t, err)
 
@@ -249,8 +249,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.Equal(t, "memory related title", notif.Notification.Title)
 
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfDisk.String(),
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfDisk.String(),
 		}, "disk related title", "disk related title", nil)
 		require.NoError(t, err)
 
@@ -258,8 +258,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.NoError(t, err)
 
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfMemory.String(),
 		}, "second memory related title", "second memory related title", nil)
 		require.NoError(t, err)
 
@@ -313,9 +313,9 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
-			Targets:                []uuid.UUID{correctTarget},
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfMemory.String(),
+			Targets:         []uuid.UUID{correctTarget},
 		}, "memory related title", "memory related content", nil)
 		require.NoError(t, err)
 
@@ -325,7 +325,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
 
-		var notif codersdk.GetInboxNotificationResponse
+		var notif codersdk.GetInboxAlertResponse
 		err = json.Unmarshal(message, &notif)
 		require.NoError(t, err)
 
@@ -334,9 +334,9 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.Equal(t, "memory related title", notif.Notification.Title)
 
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
-			Targets:                []uuid.UUID{uuid.New()},
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfMemory.String(),
+			Targets:         []uuid.UUID{uuid.New()},
 		}, "second memory related title", "second memory related title", nil)
 		require.NoError(t, err)
 
@@ -344,9 +344,9 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.NoError(t, err)
 
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
-			UserID:                 memberClient.ID.String(),
-			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
-			Targets:                []uuid.UUID{correctTarget},
+			UserID:          memberClient.ID.String(),
+			AlertTemplateID: alerts.TemplateWorkspaceOutOfMemory.String(),
+			Targets:         []uuid.UUID{correctTarget},
 		}, "another memory related title", "another memory related title", nil)
 		require.NoError(t, err)
 
@@ -365,7 +365,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	})
 }
 
-func TestInboxNotifications_List(t *testing.T) {
+func TestInboxAlerts_List(t *testing.T) {
 	t.Parallel()
 
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
@@ -402,7 +402,7 @@ func TestInboxNotifications_List(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+				notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 				require.NoError(t, err)
 				require.NotNil(t, notifs)
 				require.Equal(t, 0, notifs.UnreadCount)
@@ -410,10 +410,10 @@ func TestInboxNotifications_List(t *testing.T) {
 
 				// create a new notifications to fill the database with data
 				for i := range 20 {
-					dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+					dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 						ID:         uuid.New(),
 						UserID:     member.ID,
-						TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+						TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 						Title:      fmt.Sprintf("Notification %d", i),
 						Actions:    json.RawMessage("[]"),
 						Content:    fmt.Sprintf("Content of the notif %d", i),
@@ -421,7 +421,7 @@ func TestInboxNotifications_List(t *testing.T) {
 					})
 				}
 
-				notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
+				notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{
 					Templates:      tt.listTemplate,
 					Targets:        tt.listTarget,
 					ReadStatus:     tt.listReadStatus,
@@ -444,7 +444,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 
@@ -462,17 +462,17 @@ func TestInboxNotifications_List(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
 		for i := range 40 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:         uuid.New(),
 				UserID:     member.ID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
 
@@ -481,7 +481,7 @@ func TestInboxNotifications_List(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 40, notifs.UnreadCount)
@@ -489,7 +489,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 		require.Equal(t, "Notification 39", notifs.Notifications[0].Title)
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{
 			StartingBefore: notifs.Notifications[inboxNotificationsPageSize-1].ID.String(),
 		})
 		require.NoError(t, err)
@@ -510,28 +510,28 @@ func TestInboxNotifications_List(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
 		for i := range 10 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:     uuid.New(),
 				UserID: member.ID,
 				TemplateID: func() uuid.UUID {
 					switch i {
 					case 0:
-						return notifications.TemplateWorkspaceCreated
+						return alerts.TemplateWorkspaceCreated
 					case 1:
-						return notifications.TemplateWorkspaceMarkedForDeletion
+						return alerts.TemplateWorkspaceMarkedForDeletion
 					case 2:
-						return notifications.TemplateUserAccountActivated
+						return alerts.TemplateUserAccountActivated
 					case 3:
-						return notifications.TemplateTemplateDeprecated
+						return alerts.TemplateTemplateDeprecated
 					default:
-						return notifications.TemplateTestNotification
+						return alerts.TemplateTestNotification
 					}
 				}(),
 				Title:   fmt.Sprintf("Notification %d", i),
@@ -548,18 +548,18 @@ func TestInboxNotifications_List(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 10, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 10)
 
 		require.Equal(t, "https://dev.coder.com/icon.png", notifs.Notifications[0].Icon)
-		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[9].Icon)
-		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[8].Icon)
-		require.Equal(t, codersdk.InboxNotificationFallbackIconAccount, notifs.Notifications[7].Icon)
-		require.Equal(t, codersdk.InboxNotificationFallbackIconTemplate, notifs.Notifications[6].Icon)
-		require.Equal(t, codersdk.InboxNotificationFallbackIconOther, notifs.Notifications[4].Icon)
+		require.Equal(t, codersdk.InboxAlertFallbackIconWorkspace, notifs.Notifications[9].Icon)
+		require.Equal(t, codersdk.InboxAlertFallbackIconWorkspace, notifs.Notifications[8].Icon)
+		require.Equal(t, codersdk.InboxAlertFallbackIconAccount, notifs.Notifications[7].Icon)
+		require.Equal(t, codersdk.InboxAlertFallbackIconTemplate, notifs.Notifications[6].Icon)
+		require.Equal(t, codersdk.InboxAlertFallbackIconOther, notifs.Notifications[4].Icon)
 	})
 
 	t.Run("OK with template filter", func(t *testing.T) {
@@ -572,22 +572,22 @@ func TestInboxNotifications_List(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
 		for i := range 10 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:     uuid.New(),
 				UserID: member.ID,
 				TemplateID: func() uuid.UUID {
 					if i%2 == 0 {
-						return notifications.TemplateWorkspaceOutOfMemory
+						return alerts.TemplateWorkspaceOutOfMemory
 					}
 
-					return notifications.TemplateWorkspaceOutOfDisk
+					return alerts.TemplateWorkspaceOutOfDisk
 				}(),
 				Title:     fmt.Sprintf("Notification %d", i),
 				Actions:   json.RawMessage("[]"),
@@ -596,8 +596,8 @@ func TestInboxNotifications_List(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
-			Templates: notifications.TemplateWorkspaceOutOfMemory.String(),
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{
+			Templates: alerts.TemplateWorkspaceOutOfMemory.String(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
@@ -605,7 +605,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Len(t, notifs.Notifications, 5)
 
 		require.Equal(t, "Notification 8", notifs.Notifications[0].Title)
-		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[0].Icon)
+		require.Equal(t, codersdk.InboxAlertFallbackIconWorkspace, notifs.Notifications[0].Icon)
 	})
 
 	t.Run("OK with target filter", func(t *testing.T) {
@@ -618,7 +618,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
@@ -627,10 +627,10 @@ func TestInboxNotifications_List(t *testing.T) {
 		filteredTarget := uuid.New()
 
 		for i := range 10 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:         uuid.New(),
 				UserID:     member.ID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 				Targets: func() []uuid.UUID {
 					if i%2 == 0 {
 						return []uuid.UUID{filteredTarget}
@@ -645,7 +645,7 @@ func TestInboxNotifications_List(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{
 			Targets: filteredTarget.String(),
 		})
 		require.NoError(t, err)
@@ -666,7 +666,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
@@ -675,15 +675,15 @@ func TestInboxNotifications_List(t *testing.T) {
 		filteredTarget := uuid.New()
 
 		for i := range 10 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:     uuid.New(),
 				UserID: member.ID,
 				TemplateID: func() uuid.UUID {
 					if i < 5 {
-						return notifications.TemplateWorkspaceOutOfMemory
+						return alerts.TemplateWorkspaceOutOfMemory
 					}
 
-					return notifications.TemplateWorkspaceOutOfDisk
+					return alerts.TemplateWorkspaceOutOfDisk
 				}(),
 				Targets: func() []uuid.UUID {
 					if i%2 == 0 {
@@ -699,9 +699,9 @@ func TestInboxNotifications_List(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{
 			Targets:   filteredTarget.String(),
-			Templates: notifications.TemplateWorkspaceOutOfDisk.String(),
+			Templates: alerts.TemplateWorkspaceOutOfDisk.String(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
@@ -712,7 +712,7 @@ func TestInboxNotifications_List(t *testing.T) {
 	})
 }
 
-func TestInboxNotifications_ReadStatus(t *testing.T) {
+func TestInboxAlerts_ReadStatus(t *testing.T) {
 	t.Parallel()
 
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
@@ -732,17 +732,17 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
 		for i := range 20 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:         uuid.New(),
 				UserID:     member.ID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
 				Content:    fmt.Sprintf("Content of the notif %d", i),
@@ -750,13 +750,13 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 20, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 20)
 
-		updatedNotif, err := client.UpdateInboxNotificationReadStatus(ctx, notifs.Notifications[19].ID.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
+		updatedNotif, err := client.UpdateInboxAlertReadStatus(ctx, notifs.Notifications[19].ID.String(), codersdk.UpdateInboxAlertReadStatusRequest{
 			IsRead: true,
 		})
 		require.NoError(t, err)
@@ -764,7 +764,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		require.NotZero(t, updatedNotif.Notification.ReadAt)
 		require.Equal(t, 19, updatedNotif.UnreadCount)
 
-		updatedNotif, err = client.UpdateInboxNotificationReadStatus(ctx, notifs.Notifications[19].ID.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
+		updatedNotif, err = client.UpdateInboxAlertReadStatus(ctx, notifs.Notifications[19].ID.String(), codersdk.UpdateInboxAlertReadStatusRequest{
 			IsRead: false,
 		})
 		require.NoError(t, err)
@@ -782,17 +782,17 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
 		for i := range 20 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:         uuid.New(),
 				UserID:     member.ID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
 				Content:    fmt.Sprintf("Content of the notif %d", i),
@@ -800,13 +800,13 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 20, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 20)
 
-		updatedNotif, err := client.UpdateInboxNotificationReadStatus(ctx, "xxx-xxx-xxx", codersdk.UpdateInboxNotificationReadStatusRequest{
+		updatedNotif, err := client.UpdateInboxAlertReadStatus(ctx, "xxx-xxx-xxx", codersdk.UpdateInboxAlertReadStatusRequest{
 			IsRead: true,
 		})
 		require.ErrorContains(t, err, `Invalid UUID "xxx-xxx-xxx"`)
@@ -822,17 +822,17 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
 		for i := range 20 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:         uuid.New(),
 				UserID:     member.ID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
 				Content:    fmt.Sprintf("Content of the notif %d", i),
@@ -840,13 +840,13 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 20, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 20)
 
-		updatedNotif, err := client.UpdateInboxNotificationReadStatus(ctx, failingPaginationUUID.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
+		updatedNotif, err := client.UpdateInboxAlertReadStatus(ctx, failingPaginationUUID.String(), codersdk.UpdateInboxAlertReadStatusRequest{
 			IsRead: true,
 		})
 		require.ErrorContains(t, err, `Failed to update inbox notification read status`)
@@ -855,7 +855,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 	})
 }
 
-func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
+func TestInboxAlerts_MarkAllAsRead(t *testing.T) {
 	t.Parallel()
 
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
@@ -875,17 +875,17 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err := client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
 		for i := range 20 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:         uuid.New(),
 				UserID:     member.ID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
 				Content:    fmt.Sprintf("Content of the notif %d", i),
@@ -893,26 +893,26 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 20, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 20)
 
-		err = client.MarkAllInboxNotificationsAsRead(ctx)
+		err = client.MarkAllInboxAlertsAsRead(ctx)
 		require.NoError(t, err)
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 20)
 
 		for i := range 10 {
-			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxAlertParams{
 				ID:         uuid.New(),
 				UserID:     member.ID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				TemplateID: alerts.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
 				Content:    fmt.Sprintf("Content of the notif %d", i),
@@ -920,7 +920,7 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 			})
 		}
 
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		notifs, err = client.ListInboxAlerts(ctx, codersdk.ListInboxAlertsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 10, notifs.UnreadCount)

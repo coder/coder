@@ -320,7 +320,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_name": ActionTrack,
 		"icon":         ActionTrack,
 	},
-	&database.NotificationTemplate{}: {
+	&database.AlertTemplate{}: {
 		"id":                 ActionIgnore,
 		"name":               ActionTrack,
 		"title_template":     ActionTrack,
