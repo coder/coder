@@ -1,0 +1,422 @@
+# This workflow performs AI-powered code review on PRs.
+# It creates a Coder Task that uses AI to analyze PR changes,
+# review code quality, identify issues, and post committable suggestions.
+#
+# The AI agent posts a single review with inline comments using GitHub's
+# native suggestion syntax, allowing one-click commits of suggested changes.
+#
+# Triggered by: Adding the "code-review" label to a PR, or manual dispatch.
+#
+# Required secrets:
+#   - DOC_CHECK_CODER_URL: URL of your Coder deployment (shared with doc-check)
+#   - DOC_CHECK_CODER_SESSION_TOKEN: Session token for Coder API (shared with doc-check)
+
+name: AI Code Review
+
+on:
+  pull_request:
+    types:
+      - labeled
+  workflow_dispatch:
+    inputs:
+      pr_url:
+        description: "Pull Request URL to review"
+        required: true
+        type: string
+      template_preset:
+        description: "Template preset to use"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  code-review:
+    name: AI Code Review
+    runs-on: ubuntu-latest
+    if: |
+      (github.event.label.name == 'code-review' || github.event_name == 'workflow_dispatch') &&
+      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 30
+    env:
+      CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+    permissions:
+      contents: read # Read repository contents and PR diff
+      pull-requests: write # Post review comments and suggestions
+      actions: write # Create workflow summaries
+
+    steps:
+      - name: Determine PR Context
+        id: determine-context
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_EVENT_SENDER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_SENDER_LOGIN: ${{ github.event.sender.login }}
+          INPUTS_PR_URL: ${{ inputs.pr_url }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
+          echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
+
+          # For workflow_dispatch, use the provided PR URL
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
+              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+              exit 1
+            fi
+            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using PR URL: ${INPUTS_PR_URL}"
+
+            # Validate PR URL format
+            if [[ ! "${INPUTS_PR_URL}" =~ ^https://github\.com/[^/]+/[^/]+/pull/[0-9]+$ ]]; then
+              echo "::error::Invalid PR URL format: ${INPUTS_PR_URL}"
+              echo "::error::Expected format: https://github.com/owner/repo/pull/NUMBER"
+              exit 1
+            fi
+
+            # Convert /pull/ to /issues/ for create-task-action compatibility
+            ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+
+            # Extract PR number from URL
+            PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
+            echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
+            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
+            # Convert /pull/ to /issues/ for create-task-action compatibility
+            ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+      - name: Extract repository info
+        id: repo-info
+        run: |
+          echo "owner=${{ github.repository_owner }}" >> "${GITHUB_OUTPUT}"
+          echo "repo=${{ github.event.repository.name }}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build code review prompt
+        id: build-prompt
+        env:
+          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+          REPO_OWNER: ${{ steps.repo-info.outputs.owner }}
+          REPO_NAME: ${{ steps.repo-info.outputs.repo }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Building code review prompt for PR #${PR_NUMBER}"
+
+          # Build task prompt
+          TASK_PROMPT=$(cat <<EOF
+          Perform a thorough code review of PR #${PR_NUMBER} with actionable code suggestions.
+
+          PR URL: ${PR_URL}
+          Repository: ${REPO_OWNER}/${REPO_NAME}
+
+          WORKFLOW:
+            1. Setup GitHub authentication (CRITICAL - DO THIS FIRST!)
+               export GH_TOKEN=\$(coder external-auth access-token github)
+               export GITHUB_TOKEN="\${GH_TOKEN}"
+
+               # Verify authentication works
+               if ! gh auth status; then
+                 echo "ERROR: GitHub authentication failed"
+                 echo "Please ensure GitHub external auth is configured in Coder"
+                 exit 1
+               fi
+
+               echo "✅ GitHub authentication successful"
+
+            2. Setup repository (repo is pre-cloned at ~/coder)
+               cd ~/coder
+               git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+               git checkout pr-${PR_NUMBER}
+
+            3. Get PR info
+               Use GitHub MCP tools to get PR title, body, and full diff
+               Or use: git diff main...pr-${PR_NUMBER}
+               Note: GH_TOKEN is now configured for gh CLI
+
+            4. PHASE 1: Read and Understand (DO NOT comment yet)
+               REMEMBER: It's perfectly valid to find 0 issues!
+               a) Read the entire PR diff carefully
+               b) Understand the PR's purpose and scope
+               c) Note areas of concern for further analysis
+               d) DO NOT start writing comments yet
+
+            5. PHASE 2: Analyze Each Potential Issue (Question-based)
+               For each area of concern, ask yourself:
+
+               BEFORE commenting, verify:
+               Q: "Is this code actually incorrect or could it cause problems?"
+                  → If no, skip it
+               Q: "Does my suggested fix actually differ from the current code?"
+                  → If no, skip it
+               Q: "Would this issue impact functionality, security, or maintainability?"
+                  → If no, probably skip it
+               Q: "Is this consistent with Coder codebase patterns?"
+                  → Check similar code in the repo first
+
+               Focus on:
+               - Security vulnerabilities (auth, injection, secrets)
+               - Logic bugs that cause incorrect behavior
+               - Missing error handling for failure cases
+               - Performance issues (N+1 queries, unbounded loops)
+               - Missing tests for new functionality
+               - Style that conflicts with existing patterns
+
+            6. PHASE 3: Build Review (Only real issues)
+               Create comments ONLY for issues that passed Phase 2 questions
+               Each comment should:
+               - Explain WHAT is wrong and WHY it matters
+               - Provide a concrete, different fix in \`\`\`suggestion block
+               - Be brief and actionable
+
+               IMPORTANT: If you find 0 issues, that's valid! Don't invent problems.
+
+            7. PHASE 4: Self-Critique Before Submitting
+               Review YOUR comments:
+               - Remove any where suggested code == current code
+               - Remove trivial style nitpicks
+               - Remove vague or obvious comments
+               - Quality over quantity - 0 real issues is better than 1 false positive
+
+            8. Submit ONE review with ALL inline comments via GitHub API
+
+          HOW TO POST A REVIEW WITH INLINE COMMENTS (SIMPLIFIED):
+
+            IMPORTANT: You have access to gh CLI with GH_TOKEN already configured.
+
+            SIMPLE METHOD - Use JSON file:
+
+            Step 1: Get the PR commit SHA
+            COMMIT_SHA="\$(gh api repos/${REPO_OWNER}/${REPO_NAME}/pulls/${PR_NUMBER} --jq '.head.sha')"
+
+            Step 2: Create a JSON file with your review
+            cat > review.json <<'REVIEW_EOF'
+            {
+              "event": "COMMENT",
+              "commit_id": "PUT_COMMIT_SHA_HERE",
+              "body": "## 🔍 Code Review\n\n[What this PR does in 1-2 sentences]\n\n**Found:** X critical, Y important, Z minor issues\n[If 0 issues: **Looks good** - no issues found]\n\nSee inline comments for details.\n\n---\n*AI review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*",
+              "comments": [
+                {
+                  "path": "coderd/oauth2.go",
+                  "line": 123,
+                  "side": "RIGHT",
+                  "body": "**Issue:** Error not wrapped with context\n\n\`\`\`suggestion\nif err != nil {\n    return xerrors.Errorf(\"fetch user data: %w\", err)\n}\n\`\`\`"
+                },
+                {
+                  "path": "coderd/users.go",
+                  "line": 45,
+                  "side": "RIGHT",
+                  "body": "**Issue:** Variable name not descriptive\n\n\`\`\`suggestion\nvar retryCount int\n\`\`\`"
+                }
+              ]
+            }
+            REVIEW_EOF
+
+            Step 3: Replace the commit SHA in the JSON
+            sed -i "s/PUT_COMMIT_SHA_HERE/\${COMMIT_SHA}/" review.json
+
+            Step 4: Submit the review with one simple command
+            gh api repos/${REPO_OWNER}/${REPO_NAME}/pulls/${PR_NUMBER}/reviews \\
+              --method POST \\
+              --input review.json
+
+            IMPORTANT NOTES:
+            - Use JSON for cleaner, easier-to-read review structure
+            - "side" should be "RIGHT" for the new/changed code
+            - "event" can be "COMMENT", "APPROVE", or "REQUEST_CHANGES"
+            - For this task, use "COMMENT" (neutral feedback with suggestions)
+            - Line numbers are integers (no quotes needed in JSON)
+            - Use \\n for newlines in JSON strings
+
+          GITHUB SUGGESTION SYNTAX:
+            GitHub renders \`\`\`suggestion blocks as one-click committable suggestions.
+            The suggestion replaces the line(s) it comments on.
+
+            Example inline comment body:
+            **Issue:** Error not wrapped with context. Makes debugging harder.
+
+            \`\`\`suggestion
+            if err != nil {
+                return xerrors.Errorf("fetch user data: %w", err)
+            }
+            \`\`\`
+
+          WORKFLOW:
+            1. Read the PR diff and analyze all changes
+            2. Build a list of ALL issues with their file path, line number, and suggested fix
+            3. Submit ONE review with ALL inline comments at once
+            4. Include a summary body in the review
+
+          SUMMARY COMMENT FORMAT:
+          ## 🔍 Code Review
+
+          [1-2 sentences: what does this PR do?]
+
+          **Found:** X critical, Y important, Z minor issues
+          [If 0 issues: **Looks good** - no issues found]
+          [Optional 1-liner: Notable strength or concern]
+
+          [If issues: "See inline comments for details."]
+
+          ---
+          *AI review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+
+          Keep it SHORT - aim for 8-12 lines total, skip fluff
+
+          CRITICAL REQUIREMENTS:
+            1. Post inline comments on SPECIFIC LINES where issues exist
+            2. Use \`\`\`suggestion syntax for every code change
+            3. Each suggestion must be committable with one click
+            4. Only include the lines that need to change in the suggestion block
+            5. Make sure suggestion syntax is exactly: \`\`\`suggestion (no language tag)
+            6. Post summary comment after all inline comments are done
+
+          INLINE COMMENT STRUCTURE:
+            {
+              "path": "path/to/file.go",
+              "line": 123,
+              "side": "RIGHT",
+              "body": "**Issue:** [What's wrong and why it matters]\n\n\`\`\`suggestion\n[Fixed code that differs from original]\n\`\`\`"
+            }
+
+            Example of good comment:
+            "**Issue:** Error not wrapped - makes debugging production issues difficult.\n\n\`\`\`suggestion\nreturn xerrors.Errorf(\"fetch user: %w\", err)\n\`\`\`"
+
+            Build incrementally:
+            - Start with empty comments array
+            - Add issues that pass Phase 2 questions
+            - Review and prune before submitting
+            - If comments array is empty (no issues), that's OK! Submit review with just summary
+
+          SUGGESTION BLOCK RULES:
+            - Use \`\`\`suggestion (not \`\`\`go or any other language)
+            - Include ONLY the corrected lines
+            - Preserve exact indentation from the original file
+            - GitHub will replace the commented line(s) with your suggestion
+            - For single-line suggestions: comment on that line
+            - For multi-line suggestions: use start_line and line parameters
+              Example: -F 'comments[][start_line]=10' -F 'comments[][line]=15'
+              This comments on lines 10-15 and your suggestion replaces all of them
+            - Always use side="RIGHT" to comment on the PR changes
+
+          REVIEW PRINCIPLES:
+
+            Priority Order (focus on impact):
+            1. Security issues (authentication, authorization, injection, secrets)
+            2. Functional bugs (incorrect logic, missing error handling)
+            3. Performance problems (N+1 queries, memory leaks, unbounded operations)
+            4. Missing tests for new behavior
+            5. Style issues that conflict with Coder patterns (Uber Go Style Guide)
+
+            Quality Guidelines:
+            - Question your assumptions - ask "Is this actually wrong?"
+            - Verify suggestions differ from current code
+            - Finding 0 issues is a valid outcome - don't force it
+            - Comment if it matters, skip if it doesn't
+            - Explain impact, not just what's wrong
+            - Better to approve good code than invent problems
+
+            Technical Notes:
+            - "\${VAR}" is properly quoted, don't suggest changes
+            - set -euo pipefail: only for scripts with conditionals/loops/API calls
+            - Match existing code patterns before suggesting style changes
+
+          SUBMISSION CHECKLIST:
+            Before submitting review.json:
+            □ Read through all comments once more
+            □ Verify each suggestion actually changes something
+            □ Confirm issues are real, not false positives
+            □ If 0 issues found, that's valid - don't force problems
+            □ Check JSON syntax: jq . review.json
+            □ Summary is concise (8-12 lines)
+            □ No language tags in \`\`\`suggestion blocks
+            □ Using event="COMMENT" not REQUEST_CHANGES
+
+          ERROR HANDLING:
+            Before submitting the review:
+            1. Check that GH_TOKEN is set: echo \$GH_TOKEN
+            2. Verify commit SHA is valid: echo \$COMMIT_SHA
+            3. Test API access: gh api user --jq '.login'
+
+            If gh api fails:
+            1. Check error message for specific issue
+            2. Verify file paths are relative to repo root (no leading /)
+            3. Ensure line numbers exist in the PR diff
+            4. Check that side="RIGHT" for changed code
+            5. As last resort, post a summary comment explaining the findings
+
+          EOF
+          )
+
+          # Output the prompt
+          {
+            echo "task_prompt<<EOFOUTPUT"
+            echo "${TASK_PROMPT}"
+            echo "EOFOUTPUT"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout create-task-action
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          fetch-depth: 1
+          path: ./.github/actions/create-task-action
+          persist-credentials: false
+          ref: main
+          repository: coder/create-task-action
+
+      - name: Create Coder Task for Code Review
+        id: create_task
+        uses: ./.github/actions/create-task-action
+        with:
+          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          coder-organization: "default"
+          coder-template-name: coder
+          coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
+          coder-task-name-prefix: code-review
+          coder-task-prompt: ${{ steps.build-prompt.outputs.task_prompt }}
+          github-user-id: ${{ steps.determine-context.outputs.github_user_id }}
+          github-token: ${{ github.token }}
+          github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
+          # The AI will post the review itself, not as a general comment
+          comment-on-issue: false
+
+      - name: Write outputs
+        env:
+          TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_URL: ${{ steps.create_task.outputs.task-url }}
+          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
+        run: |
+          {
+            echo "## Code Review Task"
+            echo ""
+            echo "**PR:** ${PR_URL}"
+            echo "**Task created:** ${TASK_CREATED}"
+            echo "**Task name:** ${TASK_NAME}"
+            echo "**Task URL:** ${TASK_URL}"
+            echo ""
+            echo "The Coder task is analyzing the PR and will comment with a code review."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
