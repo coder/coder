@@ -6,11 +6,13 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"cdr.dev/slog"
@@ -25,6 +27,10 @@ type Server struct {
 	logger         slog.Logger
 	proxy          *gomitmproxy.Proxy
 	coderAccessURL string
+
+	// Map of session ID -> Coder token (captured from CONNECT auth)
+	sessionTokens   map[string]string
+	sessionTokensMu sync.RWMutex
 }
 
 type Options struct {
@@ -51,6 +57,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		ctx:            ctx,
 		logger:         logger,
 		coderAccessURL: opts.CoderAccessURL,
+		sessionTokens:  make(map[string]string),
 	}
 
 	logger.Info(ctx, "starting AI proxy", slog.F("addr", addr.String()))
@@ -91,6 +98,73 @@ func createMitmConfig(certFile, keyFile string) (*mitm.Config, error) {
 	mitmConfig.SetOrganization("coder aiproxy")
 	return mitmConfig, nil
 }
+
+// extractCoderTokenFromProxyAuth extracts the Coder session token from the
+// Proxy-Authorization header. The token is expected to be in the password
+// field of basic auth: "Basic base64(ignored:token)"
+// Returns empty string if no valid token is found.
+func extractCoderTokenFromProxyAuth(proxyAuth string) string {
+	if proxyAuth == "" {
+		return ""
+	}
+
+	// Expected format: "Basic base64(username:password)"
+	if !strings.HasPrefix(proxyAuth, "Basic ") {
+		return ""
+	}
+
+	encoded := strings.TrimPrefix(proxyAuth, "Basic ")
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return ""
+	}
+
+	// Format: "username:password" - we use password as the Coder token
+	parts := strings.SplitN(string(decoded), ":", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+
+	return parts[1]
+}
+
+// connectHandler captures the Coder session token from CONNECT requests.
+//
+// Coder session token is passed via proxy basic auth: HTTPS_PROXY=http://ignored:<token>@host:port
+// The Proxy-Authorization header is only sent on CONNECT (not subsequent tunnel requests),
+// so we store the token by base session ID for later retrieval in requestHandler.
+//
+// Note: requires gomitmproxy modification to preserve Proxy-Authorization before hop-by-hop stripping:
+//func (srv *Server) connectHandler(session *gomitmproxy.Session, proto string, addr string) net.Conn {
+//	req := session.Request()
+//
+//	proxyAuth := req.Header.Get("Proxy-Authorization")
+//	coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
+//
+//	sessionID := session.ID()
+//	baseID := strings.Split(sessionID, "-")[0] // Just get "100011"
+//
+//	fmt.Println("######################### req.Header: ", req.Header)
+//	fmt.Println("######################### proxyAuth: ", proxyAuth)
+//	fmt.Println("######################### coderToken: ", coderToken)
+//
+//	srv.logger.Info(srv.ctx, "CONNECT request",
+//		slog.F("addr", addr),
+//		slog.F("session_id", sessionID),
+//		slog.F("base_id", baseID),
+//		slog.F("has_proxy_auth", proxyAuth != ""),
+//		slog.F("has_coder_token", coderToken != ""),
+//	)
+//
+//	if coderToken != "" {
+//		srv.sessionTokensMu.Lock()
+//		srv.sessionTokens[baseID] = coderToken
+//		srv.sessionTokensMu.Unlock()
+//	}
+//
+//	// Return nil to let gomitmproxy handle the connection normally
+//	return nil
+//}
 
 // providerFromHost maps the request host to the aibridge provider name.
 // All requests through the proxy for known AI providers are routed through aibridge.
@@ -133,15 +207,49 @@ func mapPathForProvider(provider, originalPath string) string {
 	}
 }
 
-// requestHandler handles incoming requests.
+// requestHandler intercepts HTTP requests.
+//
+// For CONNECT requests: captures the Coder session token from Proxy-Authorization
+// header. This must be done here (not in OnConnect) because gomitmproxy strips
+// hop-by-hop headers (including Proxy-Authorization) before calling OnConnect.
+//
+// For other requests: LLM requests are rewritten to aibridge, with the Coder session
+// token (captured during CONNECT) injected as "Authorization: Bearer <token>".
+//
+// Coder session token is passed via proxy basic auth: HTTPS_PROXY=http://ignored:<token>@host:port
+// We store the token by base session ID for later retrieval because subsequent requests
+// after CONNECT are child sessions that inherit the parent CONNECT session's base ID.
+// For example, "100011-1-1-4" shares the base ID "100011" with its parent CONNECT session.
 func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, *http.Response) {
 	req := session.Request()
 
+	// Capture Proxy-Authorization on CONNECT before gomitmproxy strips hop-by-hop headers.
 	if req.Method == http.MethodConnect {
-		return req, nil
+		proxyAuth := req.Header.Get("Proxy-Authorization")
+		coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
+
+		sessionID := session.ID()
+		baseID := strings.Split(sessionID, "-")[0]
+
+		srv.logger.Info(srv.ctx, "CONNECT request",
+			slog.F("addr", req.URL.Host),
+			slog.F("session_id", sessionID),
+			slog.F("base_id", baseID),
+			slog.F("has_proxy_auth", proxyAuth != ""),
+			slog.F("has_coder_token", coderToken != ""),
+		)
+
+		if coderToken != "" {
+			srv.sessionTokensMu.Lock()
+			srv.sessionTokens[baseID] = coderToken
+			srv.sessionTokensMu.Unlock()
+		}
+
+		return nil, nil
 	}
 
 	srv.logger.Info(srv.ctx, "received request",
+		slog.F("proxy-auth", req.Header.Get("Proxy-Authorization")),
 		slog.F("url", req.URL.String()),
 		slog.F("method", req.Method),
 		slog.F("host", req.Host),
@@ -171,6 +279,20 @@ func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, 
 		return req, nil
 	}
 
+	// Retrieve token stored during CONNECT using base session ID
+	sessionID := session.ID()
+	baseID := strings.Split(sessionID, "-")[0]
+
+	srv.sessionTokensMu.RLock()
+	coderToken := srv.sessionTokens[baseID]
+	srv.sessionTokensMu.RUnlock()
+
+	srv.logger.Info(srv.ctx, "looking up coder token",
+		slog.F("session_id", sessionID),
+		slog.F("base_id", baseID),
+		slog.F("has_coder_token", coderToken != ""),
+	)
+
 	// Rewrite URL to point to aibridged
 	newURL, err := url.Parse(srv.coderAccessURL)
 	if err != nil {
@@ -181,14 +303,21 @@ func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, 
 	newURL.Path = "/api/v2/aibridge" + aibridgePath
 	newURL.RawQuery = req.URL.RawQuery
 
+	req.URL = newURL
+	req.Host = newURL.Host
+
+	// Set Authorization header for aibridge authentication
+	if coderToken != "" {
+		req.Header.Set("Authorization", "Bearer "+coderToken)
+	}
+
 	srv.logger.Info(srv.ctx, "rewriting request to aibridged",
+		slog.F("headers", req.Header),
 		slog.F("original_url", req.URL.String()),
 		slog.F("new_url", newURL.String()),
 		slog.F("provider", provider),
+		slog.F("has_coder_token", coderToken != ""),
 	)
-
-	req.URL = newURL
-	req.Host = newURL.Host
 
 	return req, nil
 }

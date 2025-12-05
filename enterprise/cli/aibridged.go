@@ -4,7 +4,6 @@ package cli
 
 import (
 	"context"
-	"os"
 
 	"golang.org/x/xerrors"
 
@@ -35,7 +34,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 		// TODO(ssncferreira): add provider to aibridge project
 		aibridged.NewAmpProvider(aibridged.AmpConfig{
 			BaseURL: "https://ampcode.com/api/provider/anthropic",
-			Key:     os.Getenv("AMP_API_KEY"), // TODO: add via deployment values
+			//Key:     os.Getenv("AMP_API_KEY"), // TODO: add via deployment values
 		}),
 	}
 

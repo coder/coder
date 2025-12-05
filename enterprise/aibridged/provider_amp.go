@@ -62,15 +62,20 @@ func (p *AmpProvider) AuthHeader() string {
 }
 
 func (p *AmpProvider) InjectAuthHeader(h *http.Header) {
-	if h == nil || p.cfg.Key == "" {
-		return
-	}
-	h.Set(p.AuthHeader(), p.cfg.Key)
+	fmt.Println("########################## provider amp headers: ", h)
+	// Amp already makes the request with X-Api-Key containing the authenticated user's API key
+	//if h == nil || p.cfg.Key == "" {
+	//	return
+	//}
+	//h.Set(p.AuthHeader(), p.cfg.Key)
 }
 
 // CreateInterceptor creates an interceptor for the request.
 // Reuses Anthropic's interceptor since Amp uses the same API format.
 func (p *AmpProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request) (aibridge.Interceptor, error) {
+	// Capture the API key from the incoming request
+	apiKey := r.Header.Get("X-Api-Key")
+
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
@@ -88,7 +93,7 @@ func (p *AmpProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request) 
 		// Reuse Anthropic interceptors as Amp uses the same API format
 		ampCfg := aibridge.AnthropicConfig{
 			BaseURL: p.cfg.BaseURL,
-			Key:     p.cfg.Key,
+			Key:     apiKey,
 		}
 
 		if req.Stream {
