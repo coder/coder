@@ -58,6 +58,8 @@ data "coder_workspace_owner" "me" {}
 
 data "coder_workspace" "me" {}
 
+data "coder_task" "me" {}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -71,13 +73,12 @@ resource "coder_agent" "dev" {
 
 # See https://registry.coder.com/modules/coder/claude-code for more information
 module "claude-code" {
-  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = ">= 3.4.0"
+  version             = ">= 4.0.0"
   agent_id            = coder_agent.dev.id
   workdir             = "/home/coder/project"
   claude_api_key      = data.coder_workspace_owner.me.session_token # Use the Coder session token to authenticate with AI Bridge
-  ai_prompt           = data.coder_parameter.ai_prompt.value
+  ai_prompt           = data.coder_task.me.prompt
   ... # other claude-code configuration
 }
 ```

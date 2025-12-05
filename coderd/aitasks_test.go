@@ -57,7 +57,7 @@ func TestTasks(t *testing.T) {
 			o(&opt)
 		}
 
-		// Create a template version that supports AI tasks with the AI Prompt parameter.
+		// Create a template version that supports AI tasks.
 		taskAppID := uuid.New()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -145,7 +145,7 @@ func TestTasks(t *testing.T) {
 
 		got, ok := slice.Find(tasks, func(t codersdk.Task) bool { return t.ID == task.ID })
 		require.True(t, ok, "task should be found in the list")
-		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
+		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the input")
 		assert.Equal(t, task.WorkspaceID.UUID, got.WorkspaceID.UUID, "workspace id should match")
 		assert.Equal(t, task.WorkspaceName, got.WorkspaceName, "workspace name should match")
 		// Status should be populated via the tasks_with_status view.
@@ -204,7 +204,7 @@ func TestTasks(t *testing.T) {
 
 		assert.Equal(t, task.ID, updated.ID, "task ID should match")
 		assert.Equal(t, task.Name, updated.Name, "task name should match")
-		assert.Equal(t, wantPrompt, updated.InitialPrompt, "task prompt should match the AI Prompt parameter")
+		assert.Equal(t, wantPrompt, updated.InitialPrompt, "task prompt should match the input")
 		assert.Equal(t, task.WorkspaceID.UUID, updated.WorkspaceID.UUID, "workspace id should match")
 		assert.Equal(t, task.WorkspaceName, updated.WorkspaceName, "workspace name should match")
 		assert.Equal(t, ws.LatestBuild.BuildNumber, updated.WorkspaceBuildNumber, "workspace build number should match")
@@ -973,56 +973,6 @@ func TestTasksCreate(t *testing.T) {
 		require.Len(t, parameters, 0)
 	})
 
-	t.Run("OK AIPromptBackCompat", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx = testutil.Context(t, testutil.WaitShort)
-
-			taskPrompt = "Some task prompt"
-		)
-
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-
-		// Given: A template with an "AI Prompt" parameter
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
-					HasAiTasks: true,
-				}}},
-			},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-		// When: We attempt to create a Task.
-		task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Input:             taskPrompt,
-		})
-		require.NoError(t, err)
-		require.True(t, task.WorkspaceID.Valid)
-
-		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
-		// Then: We expect a workspace to have been created.
-		assert.NotEmpty(t, task.Name)
-		assert.Equal(t, template.ID, task.TemplateID)
-
-		// And: We expect it to have the "AI Prompt" parameter correctly set.
-		parameters, err := client.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
-		require.NoError(t, err)
-		require.Len(t, parameters, 1)
-		assert.Equal(t, codersdk.AITaskPromptParameterName, parameters[0].Name)
-		assert.Equal(t, taskPrompt, parameters[0].Value)
-	})
-
 	t.Run("CustomNames", func(t *testing.T) {
 		t.Parallel()
 
@@ -1149,7 +1099,7 @@ func TestTasksCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
-		// Given: A template without an "AI Prompt" parameter
+		// Given: A template without AI task support (no coder_ai_task resource)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
