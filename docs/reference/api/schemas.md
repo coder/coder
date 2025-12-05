@@ -10668,6 +10668,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string"
   },
+  "build_cache_from": [
+    "string"
+  ],
   "config_path": "string",
   "container": {
     "created_at": "2019-08-24T14:15:22Z",
@@ -10707,6 +10710,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name               | Type                                                                                   | Required | Restrictions | Description                |
 |--------------------|----------------------------------------------------------------------------------------|----------|--------------|----------------------------|
 | `agent`            | [codersdk.WorkspaceAgentDevcontainerAgent](#codersdkworkspaceagentdevcontaineragent)   | false    |              |                            |
+| `build_cache_from` | array of string                                                                        | false    |              |                            |
 | `config_path`      | string                                                                                 | false    |              |                            |
 | `container`        | [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)                   | false    |              |                            |
 | `dirty`            | boolean                                                                                | false    |              |                            |
@@ -10826,6 +10830,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "name": "string"
       },
+      "build_cache_from": [
+        "string"
+      ],
       "config_path": "string",
       "container": {
         "created_at": "2019-08-24T14:15:22Z",
