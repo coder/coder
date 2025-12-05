@@ -258,6 +258,29 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	}
 }
 
+// CanSkipReconciliation returns true if this preset can safely be skipped during
+// the reconciliation loop.
+//
+// This is a performance optimization to avoid spawning goroutines for presets
+// that have no work to do. It only returns true for presets from inactive
+// template versions that have no running workspaces, no pending jobs, and no
+// in-progress builds.
+//
+// Presets from active template versions always go through the reconciliation loop
+// to ensure desired_instances is maintained correctly.
+func (p PresetSnapshot) CanSkipReconciliation() bool {
+	// Only skip presets from inactive template versions that have absolutely nothing to clean up
+	if !p.isActive() &&
+		len(p.Running) == 0 &&
+		len(p.Expired) == 0 &&
+		// len(p.InProgress) == 0 CountInProgressPrebuilds only queries active template versions
+		p.PendingCount == 0 &&
+		p.Backoff == nil {
+		return true
+	}
+	return false
+}
+
 // CalculateActions determines what actions are needed to reconcile the current state with the desired state.
 // The function:
 // 1. First checks if a backoff period is needed (if previous builds failed)
