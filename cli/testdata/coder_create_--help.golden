@@ -49,6 +49,9 @@ OPTIONS:
       --template-version string, $CODER_TEMPLATE_VERSION
           Specify a template version name.
 
+      --use-parameter-defaults bool, $CODER_WORKSPACE_USE_PARAMETER_DEFAULTS
+          Automatically accept parameter defaults when no value is provided.
+
   -y, --yes bool
           Bypass confirmation prompts.
 

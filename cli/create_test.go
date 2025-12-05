@@ -547,6 +547,108 @@ func TestCreateWithRichParameters(t *testing.T) {
 			},
 			withDefaults: true,
 		},
+		{
+			name: "ValuesFromTemplateDefaultsNoPrompt",
+			setup: func() []string {
+				return []string{"--use-parameter-defaults"}
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				// Default values should get printed.
+				for _, param := range params {
+					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+				}
+				// No prompts, we only need to confirm.
+				pty.ExpectMatch("Confirm create?")
+				pty.WriteLine("yes")
+			},
+			withDefaults: true,
+		},
+		{
+			name: "ValuesFromDefaultFlagsNoPrompt",
+			setup: func() []string {
+				// Provide the defaults on the command line.
+				args := []string{"--use-parameter-defaults"}
+				for _, param := range params {
+					args = append(args, "--parameter-default", fmt.Sprintf("%s=%s", param.name, param.value))
+				}
+				return args
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				// Default values should get printed.
+				for _, param := range params {
+					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+				}
+				// No prompts, we only need to confirm.
+				pty.ExpectMatch("Confirm create?")
+				pty.WriteLine("yes")
+			},
+		},
+		{
+			// File and flags should override template defaults.  Additionally, if a
+			// value has no default value we should still get a prompt for it.
+			name: "ValuesFromMultipleSources",
+			setup: func() []string {
+				tempDir := t.TempDir()
+				removeTmpDirUntilSuccessAfterTest(t, tempDir)
+				parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+				_, err := parameterFile.WriteString(`
+file_param: from file
+cli_param: from file`)
+				require.NoError(t, err)
+				return []string{
+					"--use-parameter-defaults",
+					"--rich-parameter-file", parameterFile.Name(),
+					"--parameter-default", "file_param=from cli default",
+					"--parameter-default", "cli_param=from cli default",
+					"--parameter", "cli_param=from cli",
+				}
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				// Should get prompted for the input param since it has no default.
+				pty.ExpectMatch("input_param")
+				pty.WriteLine("from input")
+
+				// Confirm the creation.
+				pty.ExpectMatch("Confirm create?")
+				pty.WriteLine("yes")
+			},
+			withDefaults: true,
+			inputParameters: []param{
+				{
+					name:  "template_param",
+					value: "from template default",
+				},
+				{
+					name:  "file_param",
+					value: "from template default",
+				},
+				{
+					name:  "cli_param",
+					value: "from template default",
+				},
+				{
+					name: "input_param",
+				},
+			},
+			expectedParameters: []param{
+				{
+					name:  "template_param",
+					value: "from template default",
+				},
+				{
+					name:  "file_param",
+					value: "from file",
+				},
+				{
+					name:  "cli_param",
+					value: "from cli",
+				},
+				{
+					name:  "input_param",
+					value: "from input",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
