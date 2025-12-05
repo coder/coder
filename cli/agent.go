@@ -59,6 +59,7 @@ func workspaceAgent() *serpent.Command {
 		devcontainerDiscoveryAutostart bool
 		socketServerEnabled            bool
 		socketPath                     string
+		reportMetadataInterval         time.Duration
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -319,8 +320,9 @@ func workspaceAgent() *serpent.Command {
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
 						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
 					},
-					SocketPath:          socketPath,
-					SocketServerEnabled: socketServerEnabled,
+					SocketPath:             socketPath,
+					SocketServerEnabled:    socketServerEnabled,
+					ReportMetadataInterval: reportMetadataInterval,
 				})
 
 				if debugAddress != "" {
@@ -493,6 +495,13 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_SOCKET_PATH",
 			Description: "Specify the path for the agent socket.",
 			Value:       serpent.StringOf(&socketPath),
+		},
+		{
+			Flag:        "report-metadata-interval",
+			Default:     "1s",
+			Env:         "CODER_AGENT_REPORT_METADATA_INTERVAL",
+			Description: "The interval at which the agent reports metadata to the Coder server. Lower values result in more frequent updates but higher database load.",
+			Value:       serpent.DurationOf(&reportMetadataInterval),
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)
