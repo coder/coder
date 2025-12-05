@@ -21,6 +21,55 @@ type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
 };
 
+/**
+ * This function merges multiple objects with the same keys into a single object.
+ * It's super unconventional, but it's only a temporary workaround until we
+ * structure our metadata field for rendering in the UI.
+ * @param objects - The objects to merge.
+ * @returns The merged object.
+ */
+function tokenUsageMetadataMerge(
+	...objects: Array<AIBridgeInterception["token_usages"][number]["metadata"]>
+): unknown {
+	// Filter out empty objects
+	const nonEmptyObjects = objects.filter((obj) => Object.keys(obj).length > 0);
+
+	// If all objects were empty, return null
+	if (nonEmptyObjects.length === 0) return null;
+
+	// Check if all objects have the same keys
+	const keySets = nonEmptyObjects.map((obj) =>
+		Object.keys(obj).sort().join(","),
+	);
+	// If the keys are different, just instantly return the objects
+	if (new Set(keySets).size > 1) return nonEmptyObjects;
+
+	// Group the objects by key
+	const grouped = Object.fromEntries(
+		Object.keys(nonEmptyObjects[0]).map((key) => [
+			key,
+			nonEmptyObjects.map((obj) => obj[key]),
+		]),
+	);
+
+	// Map the grouped values to a new object
+	const result = Object.fromEntries(
+		Object.entries(grouped).map(([key, values]: [string, unknown[]]) => {
+			const allNumeric = values.every((v: unknown) => typeof v === "number");
+			const allSame = new Set(values).size === 1;
+
+			if (allNumeric)
+				return [key, values.reduce((acc, v) => acc + (v as number), 0)];
+			if (allSame) return [key, values[0]];
+			return [key, null]; // Mark conflict
+		}),
+	);
+
+	return Object.values(result).some((v: unknown) => v === null)
+		? nonEmptyObjects
+		: result;
+}
+
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -34,6 +83,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 		(acc, tokenUsage) => acc + tokenUsage.output_tokens,
 		0,
 	);
+
+	const tokenUsagesMetadata = tokenUsageMetadataMerge(
+		...interception.token_usages.map((tokenUsage) => tokenUsage.metadata),
+	);
+
 	const toolCalls = interception.tool_usages.length;
 	const duration =
 		interception.ended_at &&
@@ -205,6 +259,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 												</dl>
 											);
 										})}
+									</div>
+								</div>
+							)}
+
+							{tokenUsagesMetadata !== null && (
+								<div className="flex flex-col gap-2">
+									<div>Token Usage Metadata</div>
+									<div className="bg-surface-secondary rounded-md p-4">
+										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
 									</div>
 								</div>
 							)}
