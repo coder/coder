@@ -2006,7 +2006,7 @@ WHERE
     -- Filter by decision
     AND CASE
         WHEN $4 :: text != '' THEN
-            boundary_audit_logs.decision = $4 :: boundary_audit_decision
+            boundary_audit_logs.decision::text = $4
         ELSE true
     END
     -- Filter by time range (after)
@@ -2094,7 +2094,7 @@ WHERE
     -- Filter by decision
     AND CASE
         WHEN $4 :: text != '' THEN
-            boundary_audit_logs.decision = $4 :: boundary_audit_decision
+            boundary_audit_logs.decision::text = $4
         ELSE true
     END
     -- Filter by time range (after)
