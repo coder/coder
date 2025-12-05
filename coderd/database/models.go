@@ -4741,6 +4741,8 @@ type WorkspaceAgentDevcontainer struct {
 	ConfigPath string `db:"config_path" json:"config_path"`
 	// The name of the Dev Container.
 	Name string `db:"name" json:"name"`
+	// External images to use as potential layer cache during devcontainer builds
+	BuildCacheFrom []string `db:"build_cache_from" json:"build_cache_from"`
 }
 
 type WorkspaceAgentLog struct {
