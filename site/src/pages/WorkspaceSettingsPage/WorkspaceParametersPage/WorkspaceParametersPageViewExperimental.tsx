@@ -120,7 +120,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 
 			{hasIncompatibleParameters && (
 				<Alert severity="error">
-					<p className="text-lg leading-tight font-bold m-0">
+					<p className="text-lg leading-normal font-bold m-0">
 						Workspace update blocked
 					</p>
 					<p className="mb-0">
