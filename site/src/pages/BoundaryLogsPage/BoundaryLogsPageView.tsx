@@ -83,14 +83,14 @@ export const BoundaryLogsPageView: FC<BoundaryLogsPageViewProps> = ({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead>Timestamp</TableHead>
-									<TableHead>Workspace</TableHead>
-									<TableHead>Owner</TableHead>
-									<TableHead>Agent</TableHead>
-									<TableHead>Type</TableHead>
-									<TableHead>Resource</TableHead>
-									<TableHead>Operation</TableHead>
-									<TableHead>Decision</TableHead>
+									<TableHead className="w-36">Timestamp</TableHead>
+									<TableHead className="w-32">Workspace</TableHead>
+									<TableHead className="w-24">Owner</TableHead>
+									<TableHead className="w-20">Agent</TableHead>
+									<TableHead className="w-20">Type</TableHead>
+									<TableHead className="min-w-64">Resource</TableHead>
+									<TableHead className="w-24">Operation</TableHead>
+									<TableHead className="w-24">Decision</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
