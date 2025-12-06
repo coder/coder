@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"google.golang.org/protobuf/types/known/emptypb"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog"
@@ -34,17 +34,30 @@ type BoundaryAuditEvent struct {
 	Decision     string    `json:"decision"`      // "allow" or "deny"
 }
 
-// BoundaryAuditReporter is the interface for reporting boundary network audit logs.
+// BoundaryAuditReporter is the interface for reporting boundary network audit logs to coderd.
 type BoundaryAuditReporter interface {
 	ReportBoundaryAuditLogs(ctx context.Context, req *proto.ReportBoundaryAuditLogsRequest) (*emptypb.Empty, error)
 }
 
+// BoundaryAuditListenerConfig holds configuration for BoundaryAuditListener.
+type BoundaryAuditListenerConfig struct {
+	Logger   slog.Logger
+	SockDir  string
+	Reporter BoundaryAuditReporter // Optional: for sending to coderd
+	// OTEL configuration
+	OTELEndpoint string            // If set, logs are sent to OTEL
+	OTELHeaders  map[string]string // Optional headers for OTEL endpoint
+	SendToCoderd bool              // If true, also send to coderd when OTEL is enabled
+}
+
 // BoundaryAuditListener listens on a Unix socket for network audit events from
-// Boundary and forwards them to coderd.
+// Boundary and forwards them to OTEL and/or coderd.
 type BoundaryAuditListener struct {
-	logger   slog.Logger
-	sockDir  string
-	reporter BoundaryAuditReporter
+	logger       slog.Logger
+	sockDir      string
+	reporter     BoundaryAuditReporter
+	otelExporter *OTELExporter
+	sendToCoderd bool
 
 	mu       sync.Mutex
 	listener net.Listener
@@ -54,12 +67,45 @@ type BoundaryAuditListener struct {
 }
 
 // NewBoundaryAuditListener creates a new boundary audit listener.
-func NewBoundaryAuditListener(logger slog.Logger, sockDir string, reporter BoundaryAuditReporter) *BoundaryAuditListener {
-	return &BoundaryAuditListener{
-		logger:   logger.Named("boundary-audit"),
-		sockDir:  sockDir,
-		reporter: reporter,
+func NewBoundaryAuditListener(config BoundaryAuditListenerConfig) (*BoundaryAuditListener, error) {
+	l := &BoundaryAuditListener{
+		logger:       config.Logger.Named("boundary-audit"),
+		sockDir:      config.SockDir,
+		reporter:     config.Reporter,
+		sendToCoderd: config.SendToCoderd,
 	}
+
+	// Initialize OTEL exporter if endpoint is configured.
+	if config.OTELEndpoint != "" {
+		exporter, err := NewOTELExporter(OTELExporterConfig{
+			Logger:   config.Logger,
+			Endpoint: config.OTELEndpoint,
+			Headers:  config.OTELHeaders,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("create OTEL exporter: %w", err)
+		}
+		l.otelExporter = exporter
+		l.logger.Info(context.Background(), "OTEL export enabled for boundary audit logs",
+			slog.F("endpoint", config.OTELEndpoint))
+	}
+
+	// If no OTEL endpoint, default to sending to coderd.
+	if l.otelExporter == nil {
+		l.sendToCoderd = true
+	}
+
+	return l, nil
+}
+
+// HasOTELExport returns true if OTEL export is enabled.
+func (l *BoundaryAuditListener) HasOTELExport() bool {
+	return l.otelExporter != nil
+}
+
+// SendsToCoderd returns true if logs are sent to coderd.
+func (l *BoundaryAuditListener) SendsToCoderd() bool {
+	return l.sendToCoderd
 }
 
 // SocketPath returns the full path to the Unix socket.
@@ -124,6 +170,13 @@ func (l *BoundaryAuditListener) Close() error {
 
 	l.wg.Wait()
 
+	// Close OTEL exporter if configured.
+	if l.otelExporter != nil {
+		if err := l.otelExporter.Close(); err != nil {
+			l.logger.Warn(context.Background(), "failed to close OTEL exporter", slog.Error(err))
+		}
+	}
+
 	// Clean up socket file.
 	_ = os.Remove(l.SocketPath())
 
@@ -183,26 +236,34 @@ func (l *BoundaryAuditListener) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		// Convert to proto format.
-		protoLogs := make([]*proto.BoundaryAuditLog, len(events))
-		for i, event := range events {
-			protoLogs[i] = &proto.BoundaryAuditLog{
-				Timestamp:    timestamppb.New(event.Timestamp),
-				ResourceType: event.ResourceType,
-				Resource:     event.Resource,
-				Operation:    event.Operation,
-				Decision:     event.Decision,
-			}
+		// Export to OTEL if configured.
+		if l.otelExporter != nil {
+			l.otelExporter.Export(events)
 		}
 
-		// Forward to coderd (fire-and-forget with error logging).
-		_, err := l.reporter.ReportBoundaryAuditLogs(l.ctx, &proto.ReportBoundaryAuditLogsRequest{
-			Logs: protoLogs,
-		})
-		if err != nil {
-			l.logger.Warn(l.ctx, "failed to report audit logs", slog.F("error_string", err.Error()), slog.F("count", len(events)))
-		} else {
-			l.logger.Debug(l.ctx, "reported audit logs", slog.F("count", len(events)))
+		// Forward to coderd if configured.
+		if l.sendToCoderd && l.reporter != nil {
+			// Convert to proto format.
+			protoLogs := make([]*proto.BoundaryAuditLog, len(events))
+			for i, event := range events {
+				protoLogs[i] = &proto.BoundaryAuditLog{
+					Timestamp:    timestamppb.New(event.Timestamp),
+					ResourceType: event.ResourceType,
+					Resource:     event.Resource,
+					Operation:    event.Operation,
+					Decision:     event.Decision,
+				}
+			}
+
+			// Forward to coderd (fire-and-forget with error logging).
+			_, err := l.reporter.ReportBoundaryAuditLogs(l.ctx, &proto.ReportBoundaryAuditLogsRequest{
+				Logs: protoLogs,
+			})
+			if err != nil {
+				l.logger.Warn(l.ctx, "failed to report audit logs to coderd", slog.F("error_string", err.Error()), slog.F("count", len(events)))
+			} else {
+				l.logger.Debug(l.ctx, "reported audit logs to coderd", slog.F("count", len(events)))
+			}
 		}
 	}
 

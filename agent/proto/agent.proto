@@ -98,6 +98,19 @@ message Manifest {
 	repeated WorkspaceApp apps = 11;
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
+	BoundaryAuditConfig boundary_audit = 19;
+}
+
+// BoundaryAuditConfig configures how boundary network audit logs are exported.
+message BoundaryAuditConfig {
+	// OTEL endpoint URL for sending logs via OTLP/HTTP (e.g., "https://otel.example.com:4318/v1/logs").
+	// If empty, OTEL export is disabled and logs are sent to coderd.
+	string otel_endpoint = 1;
+	// Optional headers for OTEL endpoint authentication (e.g., {"Authorization": "Bearer xxx"}).
+	map<string, string> otel_headers = 2;
+	// Whether to also send logs to coderd for storage in the database.
+	// Default is false when otel_endpoint is set.
+	bool send_to_coderd = 3;
 }
 
 message WorkspaceAgentDevcontainer {

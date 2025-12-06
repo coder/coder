@@ -2285,7 +2285,7 @@ func SSHKeySeed(userName, workspaceName, agentName string) (int64, error) {
 }
 
 // runBoundaryAuditListener starts the boundary audit socket listener and forwards
-// network audit events to coderd.
+// network audit events to OTEL and/or coderd based on manifest configuration.
 func (a *agent) runBoundaryAuditListener(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	// Get a temp directory for the socket. Use the agent's temp directory if available.
 	sockDir := a.tempDir
@@ -2293,7 +2293,28 @@ func (a *agent) runBoundaryAuditListener(ctx context.Context, aAPI proto.DRPCAge
 		sockDir = os.TempDir()
 	}
 
-	listener := NewBoundaryAuditListener(a.logger, sockDir, &boundaryAuditReporterAdapter{aAPI: aAPI})
+	// Get boundary audit config from manifest.
+	manifest := a.manifest.Load()
+	config := BoundaryAuditListenerConfig{
+		Logger:   a.logger,
+		SockDir:  sockDir,
+		Reporter: &boundaryAuditReporterAdapter{aAPI: aAPI},
+	}
+
+	if manifest != nil && manifest.BoundaryAudit != nil {
+		config.OTELEndpoint = manifest.BoundaryAudit.OtelEndpoint
+		config.OTELHeaders = manifest.BoundaryAudit.OtelHeaders
+		config.SendToCoderd = manifest.BoundaryAudit.SendToCoderd
+	} else {
+		// Default: send to coderd if no OTEL config.
+		config.SendToCoderd = true
+	}
+
+	listener, err := NewBoundaryAuditListener(config)
+	if err != nil {
+		a.logger.Warn(ctx, "failed to create boundary audit listener", slog.Error(err))
+		return nil
+	}
 
 	if err := listener.Start(ctx); err != nil {
 		// Log but don't fail - boundary audit is optional.
