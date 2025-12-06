@@ -753,3 +753,54 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigSSH_SnapEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Snap is not available on Windows")
+	}
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Create a temporary directory that simulates the real home
+	realHome := t.TempDir()
+	realSSHDir := filepath.Join(realHome, ".ssh")
+	err := os.MkdirAll(realSSHDir, 0o700)
+	require.NoError(t, err)
+	realSSHConfig := filepath.Join(realSSHDir, "config")
+
+	// Create a separate directory that simulates the snap home
+	snapHome := t.TempDir()
+
+	// Set SNAP_REAL_HOME to point to the real home directory
+	t.Setenv("SNAP_REAL_HOME", realHome)
+	// Set HOME to the snap directory to simulate snap environment
+	t.Setenv("HOME", snapHome)
+
+	// Run config-ssh with default path (~/. ssh/config)
+	// It should use SNAP_REAL_HOME and write to realSSHConfig
+	args := []string{
+		"config-ssh",
+		"--yes", // Skip confirmation prompts
+	}
+	inv, root := clitest.New(t, args...)
+	clitest.SetupConfig(t, client, root)
+
+	err = inv.Run()
+	require.NoError(t, err, "config-ssh should succeed in snap environment")
+
+	// Verify that the config file was written to the REAL home directory,
+	// not the snap home directory
+	_, err = os.Stat(realSSHConfig)
+	require.NoError(t, err, "config file should exist in real home directory")
+
+	// Verify the config file contains the expected coder section
+	content, err := os.ReadFile(realSSHConfig)
+	require.NoError(t, err)
+	require.Contains(t, string(content), "# ------------START-CODER-----------", "config should contain coder section")
+
+	// Verify that nothing was written to the snap home directory
+	snapSSHConfig := filepath.Join(snapHome, ".ssh", "config")
+	_, err = os.Stat(snapSSHConfig)
+	require.True(t, os.IsNotExist(err), "config file should NOT exist in snap home directory")
+}
