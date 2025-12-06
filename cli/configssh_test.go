@@ -777,7 +777,7 @@ func TestConfigSSH_SnapEnvironment(t *testing.T) {
 	// Set HOME to the snap directory to simulate snap environment
 	t.Setenv("HOME", snapHome)
 
-	// Run config-ssh with default path (~/. ssh/config)
+	// Run config-ssh with default path (~/.ssh/config)
 	// It should use SNAP_REAL_HOME and write to realSSHConfig
 	args := []string{
 		"config-ssh",
