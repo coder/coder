@@ -86,9 +86,7 @@ export const BoundaryLogsPageView: FC<BoundaryLogsPageViewProps> = ({
 									<TableHead>Workspace</TableHead>
 									<TableHead>Owner</TableHead>
 									<TableHead>Agent</TableHead>
-									<TableHead>Type</TableHead>
 									<TableHead>Resource</TableHead>
-									<TableHead>Operation</TableHead>
 									<TableHead>Decision</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -168,11 +166,9 @@ const BoundaryLogRow: FC<BoundaryLogRowProps> = ({ log, showOrgDetails }) => {
 			<TableCell>{log.workspace_name}</TableCell>
 			<TableCell>{log.workspace_owner_username}</TableCell>
 			<TableCell>{log.agent_name}</TableCell>
-			<TableCell>{log.resource_type}</TableCell>
 			<TableCell className="font-mono text-sm max-w-md truncate" title={log.resource}>
 				{log.resource}
 			</TableCell>
-			<TableCell>{log.operation}</TableCell>
 			<TableCell>
 				<Badge variant={log.decision === "allow" ? "green" : "destructive"}>
 					{log.decision}
