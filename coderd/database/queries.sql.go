@@ -2011,13 +2011,13 @@ WHERE
     END
     -- Filter by time range (after)
     AND CASE
-        WHEN $5 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN $5 :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time >= $5
         ELSE true
     END
     -- Filter by time range (before)
     AND CASE
-        WHEN $6 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN $6 :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time <= $6
         ELSE true
     END
@@ -2099,13 +2099,13 @@ WHERE
     END
     -- Filter by time range (after)
     AND CASE
-        WHEN $5 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN $5 :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time >= $5
         ELSE true
     END
     -- Filter by time range (before)
     AND CASE
-        WHEN $6 :: timestamptz != '0001-01-01 00:00:00'::timestamptz THEN
+        WHEN $6 :: timestamptz > '0001-01-02 00:00:00+00'::timestamptz THEN
             boundary_audit_logs.time <= $6
         ELSE true
     END
