@@ -291,7 +291,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				}
 			}
 			root := r.createConfig()
-			homedir, err := os.UserHomeDir()
+			homedir, err := realHomeDir()
 			if err != nil {
 				return xerrors.Errorf("user home dir failed: %w", err)
 			}
@@ -878,6 +878,20 @@ func currentBinPath(w io.Writer) (string, error) {
 	}
 
 	return exePath, nil
+}
+
+// realHomeDir returns the user's actual home directory.
+// In snap environments, os.UserHomeDir() returns the snap's isolated home
+// directory (e.g., ~/snap/coder/x3/), but we need the actual user's home
+// directory for SSH config. This function checks for SNAP_REAL_HOME first,
+// which contains the actual home directory in snap environments.
+func realHomeDir() (string, error) {
+	// In snap environments, SNAP_REAL_HOME contains the actual user home.
+	if snapHome := os.Getenv("SNAP_REAL_HOME"); snapHome != "" {
+		return snapHome, nil
+	}
+	// Fall back to the standard method for non-snap environments.
+	return os.UserHomeDir()
 }
 
 // diffBytes takes two byte slices and diffs them as if they were in a
