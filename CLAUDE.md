@@ -59,6 +59,13 @@ Only pause to ask for confirmation when:
 
 ## Critical Patterns
 
+### Working on GitHub Issues (ALWAYS FOLLOW)
+
+1. **Create a branch** for each issue: `git checkout -b feat/short-description-ISSUENUMBER`
+2. **Read the issue** using GitHub CLI: `gh issue view ISSUENUMBER`
+3. **Understand requirements** before making any changes
+4. **Never assume** what an issue is about - always read it first
+
 ### Database Changes (ALWAYS FOLLOW)
 
 1. Modify `coderd/database/queries/*.sql` files

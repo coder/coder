@@ -596,6 +596,14 @@ resource "coder_agent" "dev" {
     # Allow synchronization between scripts.
     trap 'touch /tmp/.coder-startup-script.done' EXIT
 
+    # Authenticate GitHub CLI
+    if ! gh auth status >/dev/null 2>&1; then
+      echo "Logging into GitHub CLI…"
+      coder external-auth access-token github | gh auth login --hostname github.com --with-token
+    else
+      echo "Already logged into GitHub CLI."
+    fi
+
     # Increase the shutdown timeout of the docker service for improved cleanup.
     # The 240 was picked as it's lower than the 300 seconds we set for the
     # container shutdown grace period.
