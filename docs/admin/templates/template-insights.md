@@ -108,6 +108,22 @@ To grant a user access to Template Insights for a specific template, assign them
 
 Access to insights data is controlled entirely through permissions. To prevent users from viewing insights for a template, do not grant them the `view_insights` permission.
 
+### Disabling Template Insights
+
+To completely disable Template Insights collection and display across your deployment, use the `--disable-template-insights` server flag:
+
+```sh
+coder server --disable-template-insights
+```
+
+Or set the environment variable:
+
+```sh
+CODER_DISABLE_TEMPLATE_INSIGHTS=true
+```
+
+When disabled, insights data will not be collected or stored, and the Insights tab will not be available in the UI.
+
 ## Data Privacy
 
 Template Insights aggregates usage data while respecting user privacy:
