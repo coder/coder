@@ -687,6 +687,11 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Template Insights",
+							"description": "Monitor template usage and application metrics",
+							"path": "./admin/templates/template-insights.md"
+						},
+						{
 							"title": "Troubleshooting Templates",
 							"description": "Learn how to troubleshoot template issues",
 							"path": "./admin/templates/troubleshooting.md"
