@@ -124,7 +124,7 @@ CODER_DISABLE_TEMPLATE_INSIGHTS=true
 
 When disabled, insights data will not be collected or stored, and the Insights tab will not be available in the UI.
 
-See the [server CLI reference](../../reference/cli/server.md#--disable-template-insights) for more details.
+See the [CLI reference](../../reference/cli/server.md#--disable-template-insights) for more details.
 
 ## Data Privacy
 
