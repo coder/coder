@@ -196,14 +196,37 @@ For AI-generated PRs, end with:
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
+## Creating PRs as Draft
+
+**IMPORTANT**: Unless explicitly told otherwise, always create PRs as drafts using the `--draft` flag:
+
+```bash
+gh pr create --draft --title "..." --body "..."
+```
+
+After creating the PR, encourage the user to review it before marking as ready:
+
+```
+I've created draft PR #XXXX. Please review the changes and mark it as ready for review when you're satisfied.
+```
+
+This allows the user to:
+- Review the code changes before requesting reviews from maintainers
+- Make additional adjustments if needed
+- Ensure CI passes before notifying reviewers
+- Control when the PR enters the review queue
+
+Only create non-draft PRs when the user explicitly requests it or when following up on an existing draft.
+
 ## Key Principles
 
-1. **Be concise** - Default to 1-2 paragraphs unless complexity demands more
-2. **Be technical** - Explain what and why, not detailed how
-3. **Link everything** - Issues, PRs, upstream changes, Notion docs
-4. **Show impact** - Metrics for performance, screenshots for UI, warnings for migrations
-5. **No test plans** - Code review and CI handle testing
-6. **No benefits sections** - Benefits should be obvious from the technical description
+1. **Always create draft PRs** - Unless explicitly told otherwise
+2. **Be concise** - Default to 1-2 paragraphs unless complexity demands more
+3. **Be technical** - Explain what and why, not detailed how
+4. **Link everything** - Issues, PRs, upstream changes, Notion docs
+5. **Show impact** - Metrics for performance, screenshots for UI, warnings for migrations
+6. **No test plans** - Code review and CI handle testing
+7. **No benefits sections** - Benefits should be obvious from the technical description
 
 ## Examples by Category
 
