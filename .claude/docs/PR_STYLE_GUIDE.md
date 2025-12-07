@@ -6,11 +6,12 @@ This guide documents the PR description style used in the Coder repository, base
 
 Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) format:
 
-```
+```text
 type(scope): brief description
 ```
 
 **Common types:**
+
 - `feat`: New features
 - `fix`: Bug fixes
 - `refactor`: Code refactoring without behavior change
@@ -19,6 +20,7 @@ type(scope): brief description
 - `chore`: Dependency updates, tooling changes
 
 **Examples:**
+
 - `feat: add tracing to aibridge`
 - `fix: move contexts to appropriate locations`
 - `perf(coderd/database): add index on workspace_app_statuses.app_id`
@@ -38,6 +40,7 @@ Most PRs use a simple 1-2 paragraph format:
 ```
 
 **Example from PR #21100:**
+
 ```markdown
 Previously, when a devcontainer config file was modified, the dirty
 status was updated internally but not broadcast to websocket listeners.
@@ -47,11 +50,13 @@ websocket listeners immediately when a config file changes.
 ```
 
 **Example from PR #21085:**
+
 ```markdown
 Changes from https://github.com/coder/aibridge/pull/71/
 ```
 
 **Example from PR #21077:**
+
 ```markdown
 Removes references to adding database replicas from the scaling docs,
 as Coder only allows a single connection URL. These passages where added in error.
@@ -73,6 +78,7 @@ How the solution works
 ```
 
 **Example from PR #21101:**
+
 ```markdown
 ## Summary
 Change `@Tags` from `Organizations` to `Enterprise` for POST /licenses...
@@ -101,6 +107,7 @@ Refs #[issue-number]
 ```
 
 **Example from PR #21080** (dev containers docs rewrite):
+
 - Started with "This PR rewrites the dev containers documentation for GA readiness"
 - Listed specific inaccuracies being fixed
 - Explained organizational changes
@@ -117,18 +124,21 @@ Refs #[issue-number]
    - `Refs #XXX` (for general reference)
 
 2. **Performance Context** (when relevant)
+
    ```markdown
    Each query took ~30ms on average with 80 requests/second to the cluster,
    resulting in ~5.2 query-seconds every second.
    ```
 
 3. **Migration Warnings** (when relevant)
+
    ```markdown
    **NOTE**: This migration creates an index on `workspace_app_statuses`.
    For deployments with heavy task usage, this may take a moment to complete.
    ```
 
 4. **Visual Evidence** (for UI changes)
+
    ```markdown
    <img width="1281" height="425" alt="image" src="..." />
    ```
@@ -198,20 +208,26 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ## Examples by Category
 
 ### Performance Improvements
+
 See PR #21099 - includes query timing metrics and explains the index solution
 
 ### Bug Fixes
+
 See PR #21100 - describes broken behavior then the fix in two sentences
 
 ### Documentation
+
 See PR #21080 - long form explaining inaccuracies and improvements for major rewrite
 See PR #21077 - one sentence for simple correction
 
 ### Features
+
 See PR #21106 - simple statement of what was added and dependencies
 
 ### Refactoring
+
 See PR #21102 - explains why client-side sorting is now redundant
 
 ### Configuration
+
 See PR #21083 - adds guidelines with issue reference
