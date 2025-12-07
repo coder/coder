@@ -2,6 +2,10 @@
 
 Template Insights provides detailed analytics and usage metrics for your Coder templates. This feature helps administrators and template owners understand how templates are being used, identify popular applications, and monitor user engagement.
 
+![Template Insights page](../../images/admin/templates/template-insights.png)
+
+<small>The Template Insights page showing active users and latency metrics.</small>
+
 ## Overview
 
 Template Insights offers visibility into:
