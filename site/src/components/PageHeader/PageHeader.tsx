@@ -46,7 +46,9 @@ export const PageHeader: FC<PageHeaderProps> = ({
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<h1 className="text-2xl font-normal m-0 flex items-center">{children}</h1>
+		<h1 className="text-2xl font-normal m-0 flex items-center leading-[1.4]">
+			{children}
+		</h1>
 	);
 };
 
@@ -65,7 +67,7 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 				color: theme.palette.text.secondary,
 				marginTop: condensed ? 4 : 8,
 			})}
-			className="text-base font-normal block m-0"
+			className="text-base font-normal block mb-0 leading-[1.4]"
 		>
 			{children}
 		</h2>

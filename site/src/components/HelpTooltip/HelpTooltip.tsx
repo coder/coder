@@ -91,7 +91,7 @@ export const HelpTooltipIconTrigger = forwardRef<
 					`,
 					hoverEffect ? hoverEffectStyles : null,
 				]}
-				className="flex items-center justify-center py-1 border-none bg-transparent cursor-pointer text-inherit"
+				className="flex items-center justify-center py-1 px-0 border-none bg-transparent cursor-pointer text-inherit"
 			>
 				{children}
 			</button>
