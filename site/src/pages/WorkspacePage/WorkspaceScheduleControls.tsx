@@ -192,14 +192,14 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const display = (
 		<ScheduleSettingsLink
 			data-testid="schedule-controls-autostop"
-			className={cn([danger && "!text-content-destructive"])}
+			className={cn(["text-inherit", danger && "!text-content-destructive"])}
 		>
 			{message}
 		</ScheduleSettingsLink>
 	);
 
 	const controls = canUpdateSchedule && canEditDeadline(workspace) && (
-		<div className="flex items-center gap-4">
+		<div className="flex items-center gap-1">
 			<Tooltip title="Subtract 1 hour from deadline">
 				<IconButton
 					disabled={!deadlineMinusEnabled}
