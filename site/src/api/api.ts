@@ -359,6 +359,8 @@ export type DeploymentConfig = Readonly<{
 
 type Claims = {
 	license_expires: number;
+	// nbf is a standard JWT claim for "not before" - the license valid from date
+	nbf?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
