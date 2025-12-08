@@ -27,7 +27,7 @@ import {
 	selectDisabledPreferences,
 } from "modules/notifications/utils";
 import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
