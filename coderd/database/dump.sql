@@ -1908,6 +1908,9 @@ CREATE TABLE workspace_agents (
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    boundary_audit_otel_endpoint text DEFAULT ''::text NOT NULL,
+    boundary_audit_otel_headers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    boundary_audit_send_to_coderd boolean DEFAULT false NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1937,6 +1940,12 @@ COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in whic
 COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
 
 COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
+
+COMMENT ON COLUMN workspace_agents.boundary_audit_otel_endpoint IS 'OTEL endpoint URL for sending boundary network audit logs via OTLP/HTTP. If empty, logs are sent to coderd.';
+
+COMMENT ON COLUMN workspace_agents.boundary_audit_otel_headers IS 'Optional headers for OTEL endpoint authentication as JSON object.';
+
+COMMENT ON COLUMN workspace_agents.boundary_audit_send_to_coderd IS 'Whether to also send boundary network audit logs to coderd when OTEL is enabled.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

@@ -2302,8 +2302,8 @@ func (a *agent) runBoundaryAuditListener(ctx context.Context, aAPI proto.DRPCAge
 	}
 
 	if manifest != nil && manifest.BoundaryAudit != nil {
-		config.OTELEndpoint = manifest.BoundaryAudit.OtelEndpoint
-		config.OTELHeaders = manifest.BoundaryAudit.OtelHeaders
+		config.OTELEndpoint = manifest.BoundaryAudit.OTELEndpoint
+		config.OTELHeaders = manifest.BoundaryAudit.OTELHeaders
 		config.SendToCoderd = manifest.BoundaryAudit.SendToCoderd
 	} else {
 		// Default: send to coderd if no OTEL config.

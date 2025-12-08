@@ -4804,6 +4804,12 @@ type WorkspaceAgent struct {
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
 	Deleted bool `db:"deleted" json:"deleted"`
+	// OTEL endpoint URL for sending boundary network audit logs via OTLP/HTTP. If empty, logs are sent to coderd.
+	BoundaryAuditOtelEndpoint string `db:"boundary_audit_otel_endpoint" json:"boundary_audit_otel_endpoint"`
+	// Optional headers for OTEL endpoint authentication as JSON object.
+	BoundaryAuditOtelHeaders json.RawMessage `db:"boundary_audit_otel_headers" json:"boundary_audit_otel_headers"`
+	// Whether to also send boundary network audit logs to coderd when OTEL is enabled.
+	BoundaryAuditSendToCoderd bool `db:"boundary_audit_send_to_coderd" json:"boundary_audit_send_to_coderd"`
 }
 
 // Workspace agent devcontainer configuration

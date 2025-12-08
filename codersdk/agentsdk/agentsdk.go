@@ -127,6 +127,19 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	BoundaryAudit            *BoundaryAuditConfig                         `json:"boundary_audit,omitempty"`
+}
+
+// BoundaryAuditConfig configures how boundary network audit logs are exported.
+type BoundaryAuditConfig struct {
+	// OTELEndpoint is the URL for sending logs via OTLP/HTTP.
+	// If empty, OTEL export is disabled.
+	OTELEndpoint string `json:"otel_endpoint,omitempty"`
+	// OTELHeaders are optional headers for OTEL endpoint authentication.
+	OTELHeaders map[string]string `json:"otel_headers,omitempty"`
+	// SendToCoderd indicates whether to also send logs to coderd.
+	// If false and OTELEndpoint is set, logs are only sent to OTEL.
+	SendToCoderd bool `json:"send_to_coderd,omitempty"`
 }
 
 type LogSource struct {

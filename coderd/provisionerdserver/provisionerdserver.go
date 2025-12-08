@@ -2747,6 +2747,22 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				return xerrors.Errorf("invalid agent ID format; must be uuid: %w", err)
 			}
 		}
+		// Convert boundary audit headers to JSON for storage.
+		boundaryAuditHeaders := json.RawMessage("{}")
+		if prAgent.BoundaryAudit != nil && len(prAgent.BoundaryAudit.OtelHeaders) > 0 {
+			headersJSON, err := json.Marshal(prAgent.BoundaryAudit.OtelHeaders)
+			if err != nil {
+				return xerrors.Errorf("marshal boundary audit headers: %w", err)
+			}
+			boundaryAuditHeaders = headersJSON
+		}
+		boundaryAuditOtelEndpoint := ""
+		boundaryAuditSendToCoderd := false
+		if prAgent.BoundaryAudit != nil {
+			boundaryAuditOtelEndpoint = prAgent.BoundaryAudit.OtelEndpoint
+			boundaryAuditSendToCoderd = prAgent.BoundaryAudit.SendToCoderd
+		}
+
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
 			ParentID:                 uuid.NullUUID{},
@@ -2767,8 +2783,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			InstanceMetadata:         pqtype.NullRawMessage{},
 			ResourceMetadata:         pqtype.NullRawMessage{},
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
-			DisplayOrder: int32(prAgent.Order),
-			APIKeyScope:  apiKeyScope,
+			DisplayOrder:              int32(prAgent.Order),
+			APIKeyScope:               apiKeyScope,
+			BoundaryAuditOtelEndpoint: boundaryAuditOtelEndpoint,
+			BoundaryAuditOtelHeaders:  boundaryAuditHeaders,
+			BoundaryAuditSendToCoderd: boundaryAuditSendToCoderd,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

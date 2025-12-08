@@ -236,7 +236,7 @@ func (x Stats_Metric_Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Stats_Metric_Type.Descriptor instead.
 func (Stats_Metric_Type) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{8, 1, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{9, 1, 0}
 }
 
 type Lifecycle_State int32
@@ -306,7 +306,7 @@ func (x Lifecycle_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Lifecycle_State.Descriptor instead.
 func (Lifecycle_State) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{11, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{12, 0}
 }
 
 type Startup_Subsystem int32
@@ -358,7 +358,7 @@ func (x Startup_Subsystem) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Startup_Subsystem.Descriptor instead.
 func (Startup_Subsystem) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{15, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{16, 0}
 }
 
 type Log_Level int32
@@ -416,7 +416,7 @@ func (x Log_Level) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Log_Level.Descriptor instead.
 func (Log_Level) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{20, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{21, 0}
 }
 
 type Timing_Stage int32
@@ -465,7 +465,7 @@ func (x Timing_Stage) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Timing_Stage.Descriptor instead.
 func (Timing_Stage) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{28, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{29, 0}
 }
 
 type Timing_Status int32
@@ -517,7 +517,7 @@ func (x Timing_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Timing_Status.Descriptor instead.
 func (Timing_Status) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{28, 1}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{29, 1}
 }
 
 type Connection_Action int32
@@ -566,7 +566,7 @@ func (x Connection_Action) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Connection_Action.Descriptor instead.
 func (Connection_Action) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{33, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{34, 0}
 }
 
 type Connection_Type int32
@@ -621,7 +621,7 @@ func (x Connection_Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Connection_Type.Descriptor instead.
 func (Connection_Type) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{33, 1}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{34, 1}
 }
 
 type CreateSubAgentRequest_DisplayApp int32
@@ -676,7 +676,7 @@ func (x CreateSubAgentRequest_DisplayApp) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CreateSubAgentRequest_DisplayApp.Descriptor instead.
 func (CreateSubAgentRequest_DisplayApp) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37, 0}
 }
 
 type CreateSubAgentRequest_App_OpenIn int32
@@ -722,7 +722,7 @@ func (x CreateSubAgentRequest_App_OpenIn) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CreateSubAgentRequest_App_OpenIn.Descriptor instead.
 func (CreateSubAgentRequest_App_OpenIn) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36, 0, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37, 0, 0}
 }
 
 type CreateSubAgentRequest_App_SharingLevel int32
@@ -774,7 +774,7 @@ func (x CreateSubAgentRequest_App_SharingLevel) Number() protoreflect.EnumNumber
 
 // Deprecated: Use CreateSubAgentRequest_App_SharingLevel.Descriptor instead.
 func (CreateSubAgentRequest_App_SharingLevel) EnumDescriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36, 0, 1}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37, 0, 1}
 }
 
 type WorkspaceApp struct {
@@ -1105,6 +1105,7 @@ type Manifest struct {
 	Apps                     []*WorkspaceApp                       `protobuf:"bytes,11,rep,name=apps,proto3" json:"apps,omitempty"`
 	Metadata                 []*WorkspaceAgentMetadata_Description `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty"`
 	Devcontainers            []*WorkspaceAgentDevcontainer         `protobuf:"bytes,17,rep,name=devcontainers,proto3" json:"devcontainers,omitempty"`
+	BoundaryAudit            *BoundaryAuditConfig                  `protobuf:"bytes,19,opt,name=boundary_audit,json=boundaryAudit,proto3" json:"boundary_audit,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1265,6 +1266,79 @@ func (x *Manifest) GetDevcontainers() []*WorkspaceAgentDevcontainer {
 	return nil
 }
 
+func (x *Manifest) GetBoundaryAudit() *BoundaryAuditConfig {
+	if x != nil {
+		return x.BoundaryAudit
+	}
+	return nil
+}
+
+// BoundaryAuditConfig configures how boundary network audit logs are exported.
+type BoundaryAuditConfig struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// OTEL endpoint URL for sending logs via OTLP/HTTP (e.g., "https://otel.example.com:4318/v1/logs").
+	// If empty, OTEL export is disabled and logs are sent to coderd.
+	OtelEndpoint string `protobuf:"bytes,1,opt,name=otel_endpoint,json=otelEndpoint,proto3" json:"otel_endpoint,omitempty"`
+	// Optional headers for OTEL endpoint authentication (e.g., {"Authorization": "Bearer xxx"}).
+	OtelHeaders map[string]string `protobuf:"bytes,2,rep,name=otel_headers,json=otelHeaders,proto3" json:"otel_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Whether to also send logs to coderd for storage in the database.
+	// Default is false when otel_endpoint is set.
+	SendToCoderd  bool `protobuf:"varint,3,opt,name=send_to_coderd,json=sendToCoderd,proto3" json:"send_to_coderd,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundaryAuditConfig) Reset() {
+	*x = BoundaryAuditConfig{}
+	mi := &file_agent_proto_agent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundaryAuditConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundaryAuditConfig) ProtoMessage() {}
+
+func (x *BoundaryAuditConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_agent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundaryAuditConfig.ProtoReflect.Descriptor instead.
+func (*BoundaryAuditConfig) Descriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *BoundaryAuditConfig) GetOtelEndpoint() string {
+	if x != nil {
+		return x.OtelEndpoint
+	}
+	return ""
+}
+
+func (x *BoundaryAuditConfig) GetOtelHeaders() map[string]string {
+	if x != nil {
+		return x.OtelHeaders
+	}
+	return nil
+}
+
+func (x *BoundaryAuditConfig) GetSendToCoderd() bool {
+	if x != nil {
+		return x.SendToCoderd
+	}
+	return false
+}
+
 type WorkspaceAgentDevcontainer struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Id              []byte                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1277,7 +1351,7 @@ type WorkspaceAgentDevcontainer struct {
 
 func (x *WorkspaceAgentDevcontainer) Reset() {
 	*x = WorkspaceAgentDevcontainer{}
-	mi := &file_agent_proto_agent_proto_msgTypes[4]
+	mi := &file_agent_proto_agent_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1289,7 +1363,7 @@ func (x *WorkspaceAgentDevcontainer) String() string {
 func (*WorkspaceAgentDevcontainer) ProtoMessage() {}
 
 func (x *WorkspaceAgentDevcontainer) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[4]
+	mi := &file_agent_proto_agent_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1302,7 +1376,7 @@ func (x *WorkspaceAgentDevcontainer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceAgentDevcontainer.ProtoReflect.Descriptor instead.
 func (*WorkspaceAgentDevcontainer) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{4}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *WorkspaceAgentDevcontainer) GetId() []byte {
@@ -1341,7 +1415,7 @@ type GetManifestRequest struct {
 
 func (x *GetManifestRequest) Reset() {
 	*x = GetManifestRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[5]
+	mi := &file_agent_proto_agent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1353,7 +1427,7 @@ func (x *GetManifestRequest) String() string {
 func (*GetManifestRequest) ProtoMessage() {}
 
 func (x *GetManifestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[5]
+	mi := &file_agent_proto_agent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1366,7 +1440,7 @@ func (x *GetManifestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetManifestRequest.ProtoReflect.Descriptor instead.
 func (*GetManifestRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{5}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{6}
 }
 
 type ServiceBanner struct {
@@ -1380,7 +1454,7 @@ type ServiceBanner struct {
 
 func (x *ServiceBanner) Reset() {
 	*x = ServiceBanner{}
-	mi := &file_agent_proto_agent_proto_msgTypes[6]
+	mi := &file_agent_proto_agent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1392,7 +1466,7 @@ func (x *ServiceBanner) String() string {
 func (*ServiceBanner) ProtoMessage() {}
 
 func (x *ServiceBanner) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[6]
+	mi := &file_agent_proto_agent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1405,7 +1479,7 @@ func (x *ServiceBanner) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceBanner.ProtoReflect.Descriptor instead.
 func (*ServiceBanner) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{6}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ServiceBanner) GetEnabled() bool {
@@ -1437,7 +1511,7 @@ type GetServiceBannerRequest struct {
 
 func (x *GetServiceBannerRequest) Reset() {
 	*x = GetServiceBannerRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[7]
+	mi := &file_agent_proto_agent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1449,7 +1523,7 @@ func (x *GetServiceBannerRequest) String() string {
 func (*GetServiceBannerRequest) ProtoMessage() {}
 
 func (x *GetServiceBannerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[7]
+	mi := &file_agent_proto_agent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1462,7 +1536,7 @@ func (x *GetServiceBannerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServiceBannerRequest.ProtoReflect.Descriptor instead.
 func (*GetServiceBannerRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{7}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{8}
 }
 
 type Stats struct {
@@ -1500,7 +1574,7 @@ type Stats struct {
 
 func (x *Stats) Reset() {
 	*x = Stats{}
-	mi := &file_agent_proto_agent_proto_msgTypes[8]
+	mi := &file_agent_proto_agent_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1512,7 +1586,7 @@ func (x *Stats) String() string {
 func (*Stats) ProtoMessage() {}
 
 func (x *Stats) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[8]
+	mi := &file_agent_proto_agent_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1525,7 +1599,7 @@ func (x *Stats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Stats.ProtoReflect.Descriptor instead.
 func (*Stats) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{8}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Stats) GetConnectionsByProto() map[string]int64 {
@@ -1621,7 +1695,7 @@ type UpdateStatsRequest struct {
 
 func (x *UpdateStatsRequest) Reset() {
 	*x = UpdateStatsRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[9]
+	mi := &file_agent_proto_agent_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1633,7 +1707,7 @@ func (x *UpdateStatsRequest) String() string {
 func (*UpdateStatsRequest) ProtoMessage() {}
 
 func (x *UpdateStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[9]
+	mi := &file_agent_proto_agent_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1646,7 +1720,7 @@ func (x *UpdateStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStatsRequest.ProtoReflect.Descriptor instead.
 func (*UpdateStatsRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{9}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateStatsRequest) GetStats() *Stats {
@@ -1665,7 +1739,7 @@ type UpdateStatsResponse struct {
 
 func (x *UpdateStatsResponse) Reset() {
 	*x = UpdateStatsResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[10]
+	mi := &file_agent_proto_agent_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1677,7 +1751,7 @@ func (x *UpdateStatsResponse) String() string {
 func (*UpdateStatsResponse) ProtoMessage() {}
 
 func (x *UpdateStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[10]
+	mi := &file_agent_proto_agent_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1690,7 +1764,7 @@ func (x *UpdateStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStatsResponse.ProtoReflect.Descriptor instead.
 func (*UpdateStatsResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{10}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateStatsResponse) GetReportInterval() *durationpb.Duration {
@@ -1710,7 +1784,7 @@ type Lifecycle struct {
 
 func (x *Lifecycle) Reset() {
 	*x = Lifecycle{}
-	mi := &file_agent_proto_agent_proto_msgTypes[11]
+	mi := &file_agent_proto_agent_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1722,7 +1796,7 @@ func (x *Lifecycle) String() string {
 func (*Lifecycle) ProtoMessage() {}
 
 func (x *Lifecycle) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[11]
+	mi := &file_agent_proto_agent_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1735,7 +1809,7 @@ func (x *Lifecycle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Lifecycle.ProtoReflect.Descriptor instead.
 func (*Lifecycle) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{11}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Lifecycle) GetState() Lifecycle_State {
@@ -1761,7 +1835,7 @@ type UpdateLifecycleRequest struct {
 
 func (x *UpdateLifecycleRequest) Reset() {
 	*x = UpdateLifecycleRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[12]
+	mi := &file_agent_proto_agent_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1773,7 +1847,7 @@ func (x *UpdateLifecycleRequest) String() string {
 func (*UpdateLifecycleRequest) ProtoMessage() {}
 
 func (x *UpdateLifecycleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[12]
+	mi := &file_agent_proto_agent_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1786,7 +1860,7 @@ func (x *UpdateLifecycleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLifecycleRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLifecycleRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{12}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *UpdateLifecycleRequest) GetLifecycle() *Lifecycle {
@@ -1805,7 +1879,7 @@ type BatchUpdateAppHealthRequest struct {
 
 func (x *BatchUpdateAppHealthRequest) Reset() {
 	*x = BatchUpdateAppHealthRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[13]
+	mi := &file_agent_proto_agent_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1817,7 +1891,7 @@ func (x *BatchUpdateAppHealthRequest) String() string {
 func (*BatchUpdateAppHealthRequest) ProtoMessage() {}
 
 func (x *BatchUpdateAppHealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[13]
+	mi := &file_agent_proto_agent_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1830,7 +1904,7 @@ func (x *BatchUpdateAppHealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchUpdateAppHealthRequest.ProtoReflect.Descriptor instead.
 func (*BatchUpdateAppHealthRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{13}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *BatchUpdateAppHealthRequest) GetUpdates() []*BatchUpdateAppHealthRequest_HealthUpdate {
@@ -1848,7 +1922,7 @@ type BatchUpdateAppHealthResponse struct {
 
 func (x *BatchUpdateAppHealthResponse) Reset() {
 	*x = BatchUpdateAppHealthResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[14]
+	mi := &file_agent_proto_agent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1860,7 +1934,7 @@ func (x *BatchUpdateAppHealthResponse) String() string {
 func (*BatchUpdateAppHealthResponse) ProtoMessage() {}
 
 func (x *BatchUpdateAppHealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[14]
+	mi := &file_agent_proto_agent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1873,7 +1947,7 @@ func (x *BatchUpdateAppHealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchUpdateAppHealthResponse.ProtoReflect.Descriptor instead.
 func (*BatchUpdateAppHealthResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{14}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{15}
 }
 
 type Startup struct {
@@ -1887,7 +1961,7 @@ type Startup struct {
 
 func (x *Startup) Reset() {
 	*x = Startup{}
-	mi := &file_agent_proto_agent_proto_msgTypes[15]
+	mi := &file_agent_proto_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1899,7 +1973,7 @@ func (x *Startup) String() string {
 func (*Startup) ProtoMessage() {}
 
 func (x *Startup) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[15]
+	mi := &file_agent_proto_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1912,7 +1986,7 @@ func (x *Startup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Startup.ProtoReflect.Descriptor instead.
 func (*Startup) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{15}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Startup) GetVersion() string {
@@ -1945,7 +2019,7 @@ type UpdateStartupRequest struct {
 
 func (x *UpdateStartupRequest) Reset() {
 	*x = UpdateStartupRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[16]
+	mi := &file_agent_proto_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1957,7 +2031,7 @@ func (x *UpdateStartupRequest) String() string {
 func (*UpdateStartupRequest) ProtoMessage() {}
 
 func (x *UpdateStartupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[16]
+	mi := &file_agent_proto_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1970,7 +2044,7 @@ func (x *UpdateStartupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStartupRequest.ProtoReflect.Descriptor instead.
 func (*UpdateStartupRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{16}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *UpdateStartupRequest) GetStartup() *Startup {
@@ -1990,7 +2064,7 @@ type Metadata struct {
 
 func (x *Metadata) Reset() {
 	*x = Metadata{}
-	mi := &file_agent_proto_agent_proto_msgTypes[17]
+	mi := &file_agent_proto_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2002,7 +2076,7 @@ func (x *Metadata) String() string {
 func (*Metadata) ProtoMessage() {}
 
 func (x *Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[17]
+	mi := &file_agent_proto_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2015,7 +2089,7 @@ func (x *Metadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
 func (*Metadata) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{17}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Metadata) GetKey() string {
@@ -2041,7 +2115,7 @@ type BatchUpdateMetadataRequest struct {
 
 func (x *BatchUpdateMetadataRequest) Reset() {
 	*x = BatchUpdateMetadataRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[18]
+	mi := &file_agent_proto_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2053,7 +2127,7 @@ func (x *BatchUpdateMetadataRequest) String() string {
 func (*BatchUpdateMetadataRequest) ProtoMessage() {}
 
 func (x *BatchUpdateMetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[18]
+	mi := &file_agent_proto_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2066,7 +2140,7 @@ func (x *BatchUpdateMetadataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchUpdateMetadataRequest.ProtoReflect.Descriptor instead.
 func (*BatchUpdateMetadataRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{18}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *BatchUpdateMetadataRequest) GetMetadata() []*Metadata {
@@ -2084,7 +2158,7 @@ type BatchUpdateMetadataResponse struct {
 
 func (x *BatchUpdateMetadataResponse) Reset() {
 	*x = BatchUpdateMetadataResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[19]
+	mi := &file_agent_proto_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2096,7 +2170,7 @@ func (x *BatchUpdateMetadataResponse) String() string {
 func (*BatchUpdateMetadataResponse) ProtoMessage() {}
 
 func (x *BatchUpdateMetadataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[19]
+	mi := &file_agent_proto_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2109,7 +2183,7 @@ func (x *BatchUpdateMetadataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchUpdateMetadataResponse.ProtoReflect.Descriptor instead.
 func (*BatchUpdateMetadataResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{19}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{20}
 }
 
 type Log struct {
@@ -2123,7 +2197,7 @@ type Log struct {
 
 func (x *Log) Reset() {
 	*x = Log{}
-	mi := &file_agent_proto_agent_proto_msgTypes[20]
+	mi := &file_agent_proto_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2135,7 +2209,7 @@ func (x *Log) String() string {
 func (*Log) ProtoMessage() {}
 
 func (x *Log) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[20]
+	mi := &file_agent_proto_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2148,7 +2222,7 @@ func (x *Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Log.ProtoReflect.Descriptor instead.
 func (*Log) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{20}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Log) GetCreatedAt() *timestamppb.Timestamp {
@@ -2182,7 +2256,7 @@ type BatchCreateLogsRequest struct {
 
 func (x *BatchCreateLogsRequest) Reset() {
 	*x = BatchCreateLogsRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[21]
+	mi := &file_agent_proto_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2194,7 +2268,7 @@ func (x *BatchCreateLogsRequest) String() string {
 func (*BatchCreateLogsRequest) ProtoMessage() {}
 
 func (x *BatchCreateLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[21]
+	mi := &file_agent_proto_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2207,7 +2281,7 @@ func (x *BatchCreateLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchCreateLogsRequest.ProtoReflect.Descriptor instead.
 func (*BatchCreateLogsRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{21}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *BatchCreateLogsRequest) GetLogSourceId() []byte {
@@ -2233,7 +2307,7 @@ type BatchCreateLogsResponse struct {
 
 func (x *BatchCreateLogsResponse) Reset() {
 	*x = BatchCreateLogsResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[22]
+	mi := &file_agent_proto_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2245,7 +2319,7 @@ func (x *BatchCreateLogsResponse) String() string {
 func (*BatchCreateLogsResponse) ProtoMessage() {}
 
 func (x *BatchCreateLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[22]
+	mi := &file_agent_proto_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2258,7 +2332,7 @@ func (x *BatchCreateLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchCreateLogsResponse.ProtoReflect.Descriptor instead.
 func (*BatchCreateLogsResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{22}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *BatchCreateLogsResponse) GetLogLimitExceeded() bool {
@@ -2276,7 +2350,7 @@ type GetAnnouncementBannersRequest struct {
 
 func (x *GetAnnouncementBannersRequest) Reset() {
 	*x = GetAnnouncementBannersRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[23]
+	mi := &file_agent_proto_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2288,7 +2362,7 @@ func (x *GetAnnouncementBannersRequest) String() string {
 func (*GetAnnouncementBannersRequest) ProtoMessage() {}
 
 func (x *GetAnnouncementBannersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[23]
+	mi := &file_agent_proto_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2301,7 +2375,7 @@ func (x *GetAnnouncementBannersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAnnouncementBannersRequest.ProtoReflect.Descriptor instead.
 func (*GetAnnouncementBannersRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{23}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{24}
 }
 
 type GetAnnouncementBannersResponse struct {
@@ -2313,7 +2387,7 @@ type GetAnnouncementBannersResponse struct {
 
 func (x *GetAnnouncementBannersResponse) Reset() {
 	*x = GetAnnouncementBannersResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[24]
+	mi := &file_agent_proto_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2325,7 +2399,7 @@ func (x *GetAnnouncementBannersResponse) String() string {
 func (*GetAnnouncementBannersResponse) ProtoMessage() {}
 
 func (x *GetAnnouncementBannersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[24]
+	mi := &file_agent_proto_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2338,7 +2412,7 @@ func (x *GetAnnouncementBannersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAnnouncementBannersResponse.ProtoReflect.Descriptor instead.
 func (*GetAnnouncementBannersResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{24}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetAnnouncementBannersResponse) GetAnnouncementBanners() []*BannerConfig {
@@ -2359,7 +2433,7 @@ type BannerConfig struct {
 
 func (x *BannerConfig) Reset() {
 	*x = BannerConfig{}
-	mi := &file_agent_proto_agent_proto_msgTypes[25]
+	mi := &file_agent_proto_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2371,7 +2445,7 @@ func (x *BannerConfig) String() string {
 func (*BannerConfig) ProtoMessage() {}
 
 func (x *BannerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[25]
+	mi := &file_agent_proto_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2384,7 +2458,7 @@ func (x *BannerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BannerConfig.ProtoReflect.Descriptor instead.
 func (*BannerConfig) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{25}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *BannerConfig) GetEnabled() bool {
@@ -2417,7 +2491,7 @@ type WorkspaceAgentScriptCompletedRequest struct {
 
 func (x *WorkspaceAgentScriptCompletedRequest) Reset() {
 	*x = WorkspaceAgentScriptCompletedRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[26]
+	mi := &file_agent_proto_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2429,7 +2503,7 @@ func (x *WorkspaceAgentScriptCompletedRequest) String() string {
 func (*WorkspaceAgentScriptCompletedRequest) ProtoMessage() {}
 
 func (x *WorkspaceAgentScriptCompletedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[26]
+	mi := &file_agent_proto_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2442,7 +2516,7 @@ func (x *WorkspaceAgentScriptCompletedRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use WorkspaceAgentScriptCompletedRequest.ProtoReflect.Descriptor instead.
 func (*WorkspaceAgentScriptCompletedRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{26}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *WorkspaceAgentScriptCompletedRequest) GetTiming() *Timing {
@@ -2460,7 +2534,7 @@ type WorkspaceAgentScriptCompletedResponse struct {
 
 func (x *WorkspaceAgentScriptCompletedResponse) Reset() {
 	*x = WorkspaceAgentScriptCompletedResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[27]
+	mi := &file_agent_proto_agent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2472,7 +2546,7 @@ func (x *WorkspaceAgentScriptCompletedResponse) String() string {
 func (*WorkspaceAgentScriptCompletedResponse) ProtoMessage() {}
 
 func (x *WorkspaceAgentScriptCompletedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[27]
+	mi := &file_agent_proto_agent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2485,7 +2559,7 @@ func (x *WorkspaceAgentScriptCompletedResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use WorkspaceAgentScriptCompletedResponse.ProtoReflect.Descriptor instead.
 func (*WorkspaceAgentScriptCompletedResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{27}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{28}
 }
 
 type Timing struct {
@@ -2502,7 +2576,7 @@ type Timing struct {
 
 func (x *Timing) Reset() {
 	*x = Timing{}
-	mi := &file_agent_proto_agent_proto_msgTypes[28]
+	mi := &file_agent_proto_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2514,7 +2588,7 @@ func (x *Timing) String() string {
 func (*Timing) ProtoMessage() {}
 
 func (x *Timing) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[28]
+	mi := &file_agent_proto_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2527,7 +2601,7 @@ func (x *Timing) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Timing.ProtoReflect.Descriptor instead.
 func (*Timing) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{28}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Timing) GetScriptId() []byte {
@@ -2580,7 +2654,7 @@ type GetResourcesMonitoringConfigurationRequest struct {
 
 func (x *GetResourcesMonitoringConfigurationRequest) Reset() {
 	*x = GetResourcesMonitoringConfigurationRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[29]
+	mi := &file_agent_proto_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2592,7 +2666,7 @@ func (x *GetResourcesMonitoringConfigurationRequest) String() string {
 func (*GetResourcesMonitoringConfigurationRequest) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[29]
+	mi := &file_agent_proto_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2605,7 +2679,7 @@ func (x *GetResourcesMonitoringConfigurationRequest) ProtoReflect() protoreflect
 
 // Deprecated: Use GetResourcesMonitoringConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetResourcesMonitoringConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{29}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{30}
 }
 
 type GetResourcesMonitoringConfigurationResponse struct {
@@ -2619,7 +2693,7 @@ type GetResourcesMonitoringConfigurationResponse struct {
 
 func (x *GetResourcesMonitoringConfigurationResponse) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[30]
+	mi := &file_agent_proto_agent_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2631,7 +2705,7 @@ func (x *GetResourcesMonitoringConfigurationResponse) String() string {
 func (*GetResourcesMonitoringConfigurationResponse) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[30]
+	mi := &file_agent_proto_agent_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2644,7 +2718,7 @@ func (x *GetResourcesMonitoringConfigurationResponse) ProtoReflect() protoreflec
 
 // Deprecated: Use GetResourcesMonitoringConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetResourcesMonitoringConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{30}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GetResourcesMonitoringConfigurationResponse) GetConfig() *GetResourcesMonitoringConfigurationResponse_Config {
@@ -2677,7 +2751,7 @@ type PushResourcesMonitoringUsageRequest struct {
 
 func (x *PushResourcesMonitoringUsageRequest) Reset() {
 	*x = PushResourcesMonitoringUsageRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[31]
+	mi := &file_agent_proto_agent_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2689,7 +2763,7 @@ func (x *PushResourcesMonitoringUsageRequest) String() string {
 func (*PushResourcesMonitoringUsageRequest) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[31]
+	mi := &file_agent_proto_agent_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2702,7 +2776,7 @@ func (x *PushResourcesMonitoringUsageRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use PushResourcesMonitoringUsageRequest.ProtoReflect.Descriptor instead.
 func (*PushResourcesMonitoringUsageRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *PushResourcesMonitoringUsageRequest) GetDatapoints() []*PushResourcesMonitoringUsageRequest_Datapoint {
@@ -2720,7 +2794,7 @@ type PushResourcesMonitoringUsageResponse struct {
 
 func (x *PushResourcesMonitoringUsageResponse) Reset() {
 	*x = PushResourcesMonitoringUsageResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[32]
+	mi := &file_agent_proto_agent_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2732,7 +2806,7 @@ func (x *PushResourcesMonitoringUsageResponse) String() string {
 func (*PushResourcesMonitoringUsageResponse) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[32]
+	mi := &file_agent_proto_agent_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2745,7 +2819,7 @@ func (x *PushResourcesMonitoringUsageResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use PushResourcesMonitoringUsageResponse.ProtoReflect.Descriptor instead.
 func (*PushResourcesMonitoringUsageResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{32}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{33}
 }
 
 type Connection struct {
@@ -2763,7 +2837,7 @@ type Connection struct {
 
 func (x *Connection) Reset() {
 	*x = Connection{}
-	mi := &file_agent_proto_agent_proto_msgTypes[33]
+	mi := &file_agent_proto_agent_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2775,7 +2849,7 @@ func (x *Connection) String() string {
 func (*Connection) ProtoMessage() {}
 
 func (x *Connection) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[33]
+	mi := &file_agent_proto_agent_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2788,7 +2862,7 @@ func (x *Connection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Connection.ProtoReflect.Descriptor instead.
 func (*Connection) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{33}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Connection) GetId() []byte {
@@ -2849,7 +2923,7 @@ type ReportConnectionRequest struct {
 
 func (x *ReportConnectionRequest) Reset() {
 	*x = ReportConnectionRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[34]
+	mi := &file_agent_proto_agent_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2861,7 +2935,7 @@ func (x *ReportConnectionRequest) String() string {
 func (*ReportConnectionRequest) ProtoMessage() {}
 
 func (x *ReportConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[34]
+	mi := &file_agent_proto_agent_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2874,7 +2948,7 @@ func (x *ReportConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportConnectionRequest.ProtoReflect.Descriptor instead.
 func (*ReportConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{34}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ReportConnectionRequest) GetConnection() *Connection {
@@ -2895,7 +2969,7 @@ type SubAgent struct {
 
 func (x *SubAgent) Reset() {
 	*x = SubAgent{}
-	mi := &file_agent_proto_agent_proto_msgTypes[35]
+	mi := &file_agent_proto_agent_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2907,7 +2981,7 @@ func (x *SubAgent) String() string {
 func (*SubAgent) ProtoMessage() {}
 
 func (x *SubAgent) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[35]
+	mi := &file_agent_proto_agent_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2920,7 +2994,7 @@ func (x *SubAgent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgent.ProtoReflect.Descriptor instead.
 func (*SubAgent) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{35}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *SubAgent) GetName() string {
@@ -2958,7 +3032,7 @@ type CreateSubAgentRequest struct {
 
 func (x *CreateSubAgentRequest) Reset() {
 	*x = CreateSubAgentRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[36]
+	mi := &file_agent_proto_agent_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2970,7 +3044,7 @@ func (x *CreateSubAgentRequest) String() string {
 func (*CreateSubAgentRequest) ProtoMessage() {}
 
 func (x *CreateSubAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[36]
+	mi := &file_agent_proto_agent_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2983,7 +3057,7 @@ func (x *CreateSubAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSubAgentRequest.ProtoReflect.Descriptor instead.
 func (*CreateSubAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *CreateSubAgentRequest) GetName() string {
@@ -3038,7 +3112,7 @@ type CreateSubAgentResponse struct {
 
 func (x *CreateSubAgentResponse) Reset() {
 	*x = CreateSubAgentResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[37]
+	mi := &file_agent_proto_agent_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3050,7 +3124,7 @@ func (x *CreateSubAgentResponse) String() string {
 func (*CreateSubAgentResponse) ProtoMessage() {}
 
 func (x *CreateSubAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[37]
+	mi := &file_agent_proto_agent_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3063,7 +3137,7 @@ func (x *CreateSubAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSubAgentResponse.ProtoReflect.Descriptor instead.
 func (*CreateSubAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *CreateSubAgentResponse) GetAgent() *SubAgent {
@@ -3089,7 +3163,7 @@ type DeleteSubAgentRequest struct {
 
 func (x *DeleteSubAgentRequest) Reset() {
 	*x = DeleteSubAgentRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[38]
+	mi := &file_agent_proto_agent_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3101,7 +3175,7 @@ func (x *DeleteSubAgentRequest) String() string {
 func (*DeleteSubAgentRequest) ProtoMessage() {}
 
 func (x *DeleteSubAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[38]
+	mi := &file_agent_proto_agent_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3114,7 +3188,7 @@ func (x *DeleteSubAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSubAgentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteSubAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{38}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *DeleteSubAgentRequest) GetId() []byte {
@@ -3132,7 +3206,7 @@ type DeleteSubAgentResponse struct {
 
 func (x *DeleteSubAgentResponse) Reset() {
 	*x = DeleteSubAgentResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[39]
+	mi := &file_agent_proto_agent_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3144,7 +3218,7 @@ func (x *DeleteSubAgentResponse) String() string {
 func (*DeleteSubAgentResponse) ProtoMessage() {}
 
 func (x *DeleteSubAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[39]
+	mi := &file_agent_proto_agent_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3157,7 +3231,7 @@ func (x *DeleteSubAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSubAgentResponse.ProtoReflect.Descriptor instead.
 func (*DeleteSubAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{39}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{40}
 }
 
 type ListSubAgentsRequest struct {
@@ -3168,7 +3242,7 @@ type ListSubAgentsRequest struct {
 
 func (x *ListSubAgentsRequest) Reset() {
 	*x = ListSubAgentsRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[40]
+	mi := &file_agent_proto_agent_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3180,7 +3254,7 @@ func (x *ListSubAgentsRequest) String() string {
 func (*ListSubAgentsRequest) ProtoMessage() {}
 
 func (x *ListSubAgentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[40]
+	mi := &file_agent_proto_agent_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3193,7 +3267,7 @@ func (x *ListSubAgentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSubAgentsRequest.ProtoReflect.Descriptor instead.
 func (*ListSubAgentsRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{40}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{41}
 }
 
 type ListSubAgentsResponse struct {
@@ -3205,7 +3279,7 @@ type ListSubAgentsResponse struct {
 
 func (x *ListSubAgentsResponse) Reset() {
 	*x = ListSubAgentsResponse{}
-	mi := &file_agent_proto_agent_proto_msgTypes[41]
+	mi := &file_agent_proto_agent_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3217,7 +3291,7 @@ func (x *ListSubAgentsResponse) String() string {
 func (*ListSubAgentsResponse) ProtoMessage() {}
 
 func (x *ListSubAgentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[41]
+	mi := &file_agent_proto_agent_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3230,7 +3304,7 @@ func (x *ListSubAgentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSubAgentsResponse.ProtoReflect.Descriptor instead.
 func (*ListSubAgentsResponse) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{41}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ListSubAgentsResponse) GetAgents() []*SubAgent {
@@ -3254,7 +3328,7 @@ type BoundaryAuditLog struct {
 
 func (x *BoundaryAuditLog) Reset() {
 	*x = BoundaryAuditLog{}
-	mi := &file_agent_proto_agent_proto_msgTypes[42]
+	mi := &file_agent_proto_agent_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3266,7 +3340,7 @@ func (x *BoundaryAuditLog) String() string {
 func (*BoundaryAuditLog) ProtoMessage() {}
 
 func (x *BoundaryAuditLog) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[42]
+	mi := &file_agent_proto_agent_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3279,7 +3353,7 @@ func (x *BoundaryAuditLog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BoundaryAuditLog.ProtoReflect.Descriptor instead.
 func (*BoundaryAuditLog) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{42}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *BoundaryAuditLog) GetTimestamp() *timestamppb.Timestamp {
@@ -3327,7 +3401,7 @@ type ReportBoundaryAuditLogsRequest struct {
 
 func (x *ReportBoundaryAuditLogsRequest) Reset() {
 	*x = ReportBoundaryAuditLogsRequest{}
-	mi := &file_agent_proto_agent_proto_msgTypes[43]
+	mi := &file_agent_proto_agent_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3339,7 +3413,7 @@ func (x *ReportBoundaryAuditLogsRequest) String() string {
 func (*ReportBoundaryAuditLogsRequest) ProtoMessage() {}
 
 func (x *ReportBoundaryAuditLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[43]
+	mi := &file_agent_proto_agent_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3352,7 +3426,7 @@ func (x *ReportBoundaryAuditLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportBoundaryAuditLogsRequest.ProtoReflect.Descriptor instead.
 func (*ReportBoundaryAuditLogsRequest) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{43}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ReportBoundaryAuditLogsRequest) GetLogs() []*BoundaryAuditLog {
@@ -3373,7 +3447,7 @@ type WorkspaceApp_Healthcheck struct {
 
 func (x *WorkspaceApp_Healthcheck) Reset() {
 	*x = WorkspaceApp_Healthcheck{}
-	mi := &file_agent_proto_agent_proto_msgTypes[44]
+	mi := &file_agent_proto_agent_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3385,7 +3459,7 @@ func (x *WorkspaceApp_Healthcheck) String() string {
 func (*WorkspaceApp_Healthcheck) ProtoMessage() {}
 
 func (x *WorkspaceApp_Healthcheck) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[44]
+	mi := &file_agent_proto_agent_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3434,7 +3508,7 @@ type WorkspaceAgentMetadata_Result struct {
 
 func (x *WorkspaceAgentMetadata_Result) Reset() {
 	*x = WorkspaceAgentMetadata_Result{}
-	mi := &file_agent_proto_agent_proto_msgTypes[45]
+	mi := &file_agent_proto_agent_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3446,7 +3520,7 @@ func (x *WorkspaceAgentMetadata_Result) String() string {
 func (*WorkspaceAgentMetadata_Result) ProtoMessage() {}
 
 func (x *WorkspaceAgentMetadata_Result) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[45]
+	mi := &file_agent_proto_agent_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3503,7 +3577,7 @@ type WorkspaceAgentMetadata_Description struct {
 
 func (x *WorkspaceAgentMetadata_Description) Reset() {
 	*x = WorkspaceAgentMetadata_Description{}
-	mi := &file_agent_proto_agent_proto_msgTypes[46]
+	mi := &file_agent_proto_agent_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3515,7 +3589,7 @@ func (x *WorkspaceAgentMetadata_Description) String() string {
 func (*WorkspaceAgentMetadata_Description) ProtoMessage() {}
 
 func (x *WorkspaceAgentMetadata_Description) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[46]
+	mi := &file_agent_proto_agent_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3578,7 +3652,7 @@ type Stats_Metric struct {
 
 func (x *Stats_Metric) Reset() {
 	*x = Stats_Metric{}
-	mi := &file_agent_proto_agent_proto_msgTypes[49]
+	mi := &file_agent_proto_agent_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3590,7 +3664,7 @@ func (x *Stats_Metric) String() string {
 func (*Stats_Metric) ProtoMessage() {}
 
 func (x *Stats_Metric) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[49]
+	mi := &file_agent_proto_agent_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3603,7 +3677,7 @@ func (x *Stats_Metric) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Stats_Metric.ProtoReflect.Descriptor instead.
 func (*Stats_Metric) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{8, 1}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{9, 1}
 }
 
 func (x *Stats_Metric) GetName() string {
@@ -3644,7 +3718,7 @@ type Stats_Metric_Label struct {
 
 func (x *Stats_Metric_Label) Reset() {
 	*x = Stats_Metric_Label{}
-	mi := &file_agent_proto_agent_proto_msgTypes[50]
+	mi := &file_agent_proto_agent_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3656,7 +3730,7 @@ func (x *Stats_Metric_Label) String() string {
 func (*Stats_Metric_Label) ProtoMessage() {}
 
 func (x *Stats_Metric_Label) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[50]
+	mi := &file_agent_proto_agent_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3669,7 +3743,7 @@ func (x *Stats_Metric_Label) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Stats_Metric_Label.ProtoReflect.Descriptor instead.
 func (*Stats_Metric_Label) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{8, 1, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{9, 1, 0}
 }
 
 func (x *Stats_Metric_Label) GetName() string {
@@ -3696,7 +3770,7 @@ type BatchUpdateAppHealthRequest_HealthUpdate struct {
 
 func (x *BatchUpdateAppHealthRequest_HealthUpdate) Reset() {
 	*x = BatchUpdateAppHealthRequest_HealthUpdate{}
-	mi := &file_agent_proto_agent_proto_msgTypes[51]
+	mi := &file_agent_proto_agent_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3708,7 +3782,7 @@ func (x *BatchUpdateAppHealthRequest_HealthUpdate) String() string {
 func (*BatchUpdateAppHealthRequest_HealthUpdate) ProtoMessage() {}
 
 func (x *BatchUpdateAppHealthRequest_HealthUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[51]
+	mi := &file_agent_proto_agent_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3721,7 +3795,7 @@ func (x *BatchUpdateAppHealthRequest_HealthUpdate) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BatchUpdateAppHealthRequest_HealthUpdate.ProtoReflect.Descriptor instead.
 func (*BatchUpdateAppHealthRequest_HealthUpdate) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{13, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{14, 0}
 }
 
 func (x *BatchUpdateAppHealthRequest_HealthUpdate) GetId() []byte {
@@ -3748,7 +3822,7 @@ type GetResourcesMonitoringConfigurationResponse_Config struct {
 
 func (x *GetResourcesMonitoringConfigurationResponse_Config) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Config{}
-	mi := &file_agent_proto_agent_proto_msgTypes[52]
+	mi := &file_agent_proto_agent_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3760,7 +3834,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Config) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Config) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Config) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[52]
+	mi := &file_agent_proto_agent_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3773,7 +3847,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Config) ProtoReflect() prot
 
 // Deprecated: Use GetResourcesMonitoringConfigurationResponse_Config.ProtoReflect.Descriptor instead.
 func (*GetResourcesMonitoringConfigurationResponse_Config) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{30, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31, 0}
 }
 
 func (x *GetResourcesMonitoringConfigurationResponse_Config) GetNumDatapoints() int32 {
@@ -3799,7 +3873,7 @@ type GetResourcesMonitoringConfigurationResponse_Memory struct {
 
 func (x *GetResourcesMonitoringConfigurationResponse_Memory) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Memory{}
-	mi := &file_agent_proto_agent_proto_msgTypes[53]
+	mi := &file_agent_proto_agent_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3811,7 +3885,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Memory) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Memory) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Memory) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[53]
+	mi := &file_agent_proto_agent_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3824,7 +3898,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Memory) ProtoReflect() prot
 
 // Deprecated: Use GetResourcesMonitoringConfigurationResponse_Memory.ProtoReflect.Descriptor instead.
 func (*GetResourcesMonitoringConfigurationResponse_Memory) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{30, 1}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31, 1}
 }
 
 func (x *GetResourcesMonitoringConfigurationResponse_Memory) GetEnabled() bool {
@@ -3844,7 +3918,7 @@ type GetResourcesMonitoringConfigurationResponse_Volume struct {
 
 func (x *GetResourcesMonitoringConfigurationResponse_Volume) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Volume{}
-	mi := &file_agent_proto_agent_proto_msgTypes[54]
+	mi := &file_agent_proto_agent_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3856,7 +3930,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Volume) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Volume) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Volume) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[54]
+	mi := &file_agent_proto_agent_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3869,7 +3943,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Volume) ProtoReflect() prot
 
 // Deprecated: Use GetResourcesMonitoringConfigurationResponse_Volume.ProtoReflect.Descriptor instead.
 func (*GetResourcesMonitoringConfigurationResponse_Volume) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{30, 2}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31, 2}
 }
 
 func (x *GetResourcesMonitoringConfigurationResponse_Volume) GetEnabled() bool {
@@ -3897,7 +3971,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint struct {
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint{}
-	mi := &file_agent_proto_agent_proto_msgTypes[55]
+	mi := &file_agent_proto_agent_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3909,7 +3983,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint) String() string {
 func (*PushResourcesMonitoringUsageRequest_Datapoint) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[55]
+	mi := &file_agent_proto_agent_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3922,7 +3996,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint) ProtoReflect() protorefl
 
 // Deprecated: Use PushResourcesMonitoringUsageRequest_Datapoint.ProtoReflect.Descriptor instead.
 func (*PushResourcesMonitoringUsageRequest_Datapoint) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{32, 0}
 }
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint) GetCollectedAt() *timestamppb.Timestamp {
@@ -3956,7 +4030,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage struct {
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{}
-	mi := &file_agent_proto_agent_proto_msgTypes[56]
+	mi := &file_agent_proto_agent_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3968,7 +4042,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) String() str
 func (*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[56]
+	mi := &file_agent_proto_agent_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3981,7 +4055,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) ProtoReflect
 
 // Deprecated: Use PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage.ProtoReflect.Descriptor instead.
 func (*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31, 0, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{32, 0, 0}
 }
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) GetUsed() int64 {
@@ -4009,7 +4083,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage struct {
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{}
-	mi := &file_agent_proto_agent_proto_msgTypes[57]
+	mi := &file_agent_proto_agent_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4021,7 +4095,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) String() str
 func (*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[57]
+	mi := &file_agent_proto_agent_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4034,7 +4108,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) ProtoReflect
 
 // Deprecated: Use PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage.ProtoReflect.Descriptor instead.
 func (*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{31, 0, 1}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{32, 0, 1}
 }
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) GetVolume() string {
@@ -4079,7 +4153,7 @@ type CreateSubAgentRequest_App struct {
 
 func (x *CreateSubAgentRequest_App) Reset() {
 	*x = CreateSubAgentRequest_App{}
-	mi := &file_agent_proto_agent_proto_msgTypes[58]
+	mi := &file_agent_proto_agent_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4091,7 +4165,7 @@ func (x *CreateSubAgentRequest_App) String() string {
 func (*CreateSubAgentRequest_App) ProtoMessage() {}
 
 func (x *CreateSubAgentRequest_App) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[58]
+	mi := &file_agent_proto_agent_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4104,7 +4178,7 @@ func (x *CreateSubAgentRequest_App) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSubAgentRequest_App.ProtoReflect.Descriptor instead.
 func (*CreateSubAgentRequest_App) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37, 0}
 }
 
 func (x *CreateSubAgentRequest_App) GetSlug() string {
@@ -4209,7 +4283,7 @@ type CreateSubAgentRequest_App_Healthcheck struct {
 
 func (x *CreateSubAgentRequest_App_Healthcheck) Reset() {
 	*x = CreateSubAgentRequest_App_Healthcheck{}
-	mi := &file_agent_proto_agent_proto_msgTypes[59]
+	mi := &file_agent_proto_agent_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4221,7 +4295,7 @@ func (x *CreateSubAgentRequest_App_Healthcheck) String() string {
 func (*CreateSubAgentRequest_App_Healthcheck) ProtoMessage() {}
 
 func (x *CreateSubAgentRequest_App_Healthcheck) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[59]
+	mi := &file_agent_proto_agent_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4234,7 +4308,7 @@ func (x *CreateSubAgentRequest_App_Healthcheck) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use CreateSubAgentRequest_App_Healthcheck.ProtoReflect.Descriptor instead.
 func (*CreateSubAgentRequest_App_Healthcheck) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36, 0, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37, 0, 0}
 }
 
 func (x *CreateSubAgentRequest_App_Healthcheck) GetInterval() int32 {
@@ -4269,7 +4343,7 @@ type CreateSubAgentResponse_AppCreationError struct {
 
 func (x *CreateSubAgentResponse_AppCreationError) Reset() {
 	*x = CreateSubAgentResponse_AppCreationError{}
-	mi := &file_agent_proto_agent_proto_msgTypes[60]
+	mi := &file_agent_proto_agent_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4281,7 +4355,7 @@ func (x *CreateSubAgentResponse_AppCreationError) String() string {
 func (*CreateSubAgentResponse_AppCreationError) ProtoMessage() {}
 
 func (x *CreateSubAgentResponse_AppCreationError) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[60]
+	mi := &file_agent_proto_agent_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4294,7 +4368,7 @@ func (x *CreateSubAgentResponse_AppCreationError) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CreateSubAgentResponse_AppCreationError.ProtoReflect.Descriptor instead.
 func (*CreateSubAgentResponse_AppCreationError) Descriptor() ([]byte, []int) {
-	return file_agent_proto_agent_proto_rawDescGZIP(), []int{37, 0}
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{38, 0}
 }
 
 func (x *CreateSubAgentResponse_AppCreationError) GetIndex() int32 {
@@ -4381,7 +4455,7 @@ const file_agent_proto_agent_proto_rawDesc = "" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x16\n" +
 	"\x06script\x18\x03 \x01(\tR\x06script\x125\n" +
 	"\binterval\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\binterval\x123\n" +
-	"\atimeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xec\a\n" +
+	"\atimeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xb8\b\n" +
 	"\bManifest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\fR\aagentId\x12\x1d\n" +
 	"\n" +
@@ -4402,12 +4476,20 @@ const file_agent_proto_agent_proto_rawDesc = "" +
 	" \x03(\v2$.coder.agent.v2.WorkspaceAgentScriptR\ascripts\x120\n" +
 	"\x04apps\x18\v \x03(\v2\x1c.coder.agent.v2.WorkspaceAppR\x04apps\x12N\n" +
 	"\bmetadata\x18\f \x03(\v22.coder.agent.v2.WorkspaceAgentMetadata.DescriptionR\bmetadata\x12P\n" +
-	"\rdevcontainers\x18\x11 \x03(\v2*.coder.agent.v2.WorkspaceAgentDevcontainerR\rdevcontainers\x1aG\n" +
+	"\rdevcontainers\x18\x11 \x03(\v2*.coder.agent.v2.WorkspaceAgentDevcontainerR\rdevcontainers\x12J\n" +
+	"\x0eboundary_audit\x18\x13 \x01(\v2#.coder.agent.v2.BoundaryAuditConfigR\rboundaryAudit\x1aG\n" +
 	"\x19EnvironmentVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\f\n" +
 	"\n" +
-	"_parent_id\"\x8c\x01\n" +
+	"_parent_id\"\xf9\x01\n" +
+	"\x13BoundaryAuditConfig\x12#\n" +
+	"\rotel_endpoint\x18\x01 \x01(\tR\fotelEndpoint\x12W\n" +
+	"\fotel_headers\x18\x02 \x03(\v24.coder.agent.v2.BoundaryAuditConfig.OtelHeadersEntryR\votelHeaders\x12$\n" +
+	"\x0esend_to_coderd\x18\x03 \x01(\bR\fsendToCoderd\x1a>\n" +
+	"\x10OtelHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8c\x01\n" +
 	"\x1aWorkspaceAgentDevcontainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\fR\x02id\x12)\n" +
 	"\x10workspace_folder\x18\x02 \x01(\tR\x0fworkspaceFolder\x12\x1f\n" +
@@ -4726,7 +4808,7 @@ func file_agent_proto_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
-var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 61)
+var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
 var file_agent_proto_agent_proto_goTypes = []any{
 	(AppHealth)(0),                                      // 0: coder.agent.v2.AppHealth
 	(WorkspaceApp_SharingLevel)(0),                      // 1: coder.agent.v2.WorkspaceApp.SharingLevel
@@ -4746,169 +4828,173 @@ var file_agent_proto_agent_proto_goTypes = []any{
 	(*WorkspaceAgentScript)(nil),                        // 15: coder.agent.v2.WorkspaceAgentScript
 	(*WorkspaceAgentMetadata)(nil),                      // 16: coder.agent.v2.WorkspaceAgentMetadata
 	(*Manifest)(nil),                                    // 17: coder.agent.v2.Manifest
-	(*WorkspaceAgentDevcontainer)(nil),                  // 18: coder.agent.v2.WorkspaceAgentDevcontainer
-	(*GetManifestRequest)(nil),                          // 19: coder.agent.v2.GetManifestRequest
-	(*ServiceBanner)(nil),                               // 20: coder.agent.v2.ServiceBanner
-	(*GetServiceBannerRequest)(nil),                     // 21: coder.agent.v2.GetServiceBannerRequest
-	(*Stats)(nil),                                       // 22: coder.agent.v2.Stats
-	(*UpdateStatsRequest)(nil),                          // 23: coder.agent.v2.UpdateStatsRequest
-	(*UpdateStatsResponse)(nil),                         // 24: coder.agent.v2.UpdateStatsResponse
-	(*Lifecycle)(nil),                                   // 25: coder.agent.v2.Lifecycle
-	(*UpdateLifecycleRequest)(nil),                      // 26: coder.agent.v2.UpdateLifecycleRequest
-	(*BatchUpdateAppHealthRequest)(nil),                 // 27: coder.agent.v2.BatchUpdateAppHealthRequest
-	(*BatchUpdateAppHealthResponse)(nil),                // 28: coder.agent.v2.BatchUpdateAppHealthResponse
-	(*Startup)(nil),                                     // 29: coder.agent.v2.Startup
-	(*UpdateStartupRequest)(nil),                        // 30: coder.agent.v2.UpdateStartupRequest
-	(*Metadata)(nil),                                    // 31: coder.agent.v2.Metadata
-	(*BatchUpdateMetadataRequest)(nil),                  // 32: coder.agent.v2.BatchUpdateMetadataRequest
-	(*BatchUpdateMetadataResponse)(nil),                 // 33: coder.agent.v2.BatchUpdateMetadataResponse
-	(*Log)(nil),                                         // 34: coder.agent.v2.Log
-	(*BatchCreateLogsRequest)(nil),                      // 35: coder.agent.v2.BatchCreateLogsRequest
-	(*BatchCreateLogsResponse)(nil),                     // 36: coder.agent.v2.BatchCreateLogsResponse
-	(*GetAnnouncementBannersRequest)(nil),               // 37: coder.agent.v2.GetAnnouncementBannersRequest
-	(*GetAnnouncementBannersResponse)(nil),              // 38: coder.agent.v2.GetAnnouncementBannersResponse
-	(*BannerConfig)(nil),                                // 39: coder.agent.v2.BannerConfig
-	(*WorkspaceAgentScriptCompletedRequest)(nil),        // 40: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	(*WorkspaceAgentScriptCompletedResponse)(nil),       // 41: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	(*Timing)(nil),                                      // 42: coder.agent.v2.Timing
-	(*GetResourcesMonitoringConfigurationRequest)(nil),  // 43: coder.agent.v2.GetResourcesMonitoringConfigurationRequest
-	(*GetResourcesMonitoringConfigurationResponse)(nil), // 44: coder.agent.v2.GetResourcesMonitoringConfigurationResponse
-	(*PushResourcesMonitoringUsageRequest)(nil),         // 45: coder.agent.v2.PushResourcesMonitoringUsageRequest
-	(*PushResourcesMonitoringUsageResponse)(nil),        // 46: coder.agent.v2.PushResourcesMonitoringUsageResponse
-	(*Connection)(nil),                                  // 47: coder.agent.v2.Connection
-	(*ReportConnectionRequest)(nil),                     // 48: coder.agent.v2.ReportConnectionRequest
-	(*SubAgent)(nil),                                    // 49: coder.agent.v2.SubAgent
-	(*CreateSubAgentRequest)(nil),                       // 50: coder.agent.v2.CreateSubAgentRequest
-	(*CreateSubAgentResponse)(nil),                      // 51: coder.agent.v2.CreateSubAgentResponse
-	(*DeleteSubAgentRequest)(nil),                       // 52: coder.agent.v2.DeleteSubAgentRequest
-	(*DeleteSubAgentResponse)(nil),                      // 53: coder.agent.v2.DeleteSubAgentResponse
-	(*ListSubAgentsRequest)(nil),                        // 54: coder.agent.v2.ListSubAgentsRequest
-	(*ListSubAgentsResponse)(nil),                       // 55: coder.agent.v2.ListSubAgentsResponse
-	(*BoundaryAuditLog)(nil),                            // 56: coder.agent.v2.BoundaryAuditLog
-	(*ReportBoundaryAuditLogsRequest)(nil),              // 57: coder.agent.v2.ReportBoundaryAuditLogsRequest
-	(*WorkspaceApp_Healthcheck)(nil),                    // 58: coder.agent.v2.WorkspaceApp.Healthcheck
-	(*WorkspaceAgentMetadata_Result)(nil),               // 59: coder.agent.v2.WorkspaceAgentMetadata.Result
-	(*WorkspaceAgentMetadata_Description)(nil),          // 60: coder.agent.v2.WorkspaceAgentMetadata.Description
-	nil,                        // 61: coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	nil,                        // 62: coder.agent.v2.Stats.ConnectionsByProtoEntry
-	(*Stats_Metric)(nil),       // 63: coder.agent.v2.Stats.Metric
-	(*Stats_Metric_Label)(nil), // 64: coder.agent.v2.Stats.Metric.Label
-	(*BatchUpdateAppHealthRequest_HealthUpdate)(nil),                  // 65: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
-	(*GetResourcesMonitoringConfigurationResponse_Config)(nil),        // 66: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
-	(*GetResourcesMonitoringConfigurationResponse_Memory)(nil),        // 67: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
-	(*GetResourcesMonitoringConfigurationResponse_Volume)(nil),        // 68: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
-	(*PushResourcesMonitoringUsageRequest_Datapoint)(nil),             // 69: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
-	(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage)(nil), // 70: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
-	(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)(nil), // 71: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
-	(*CreateSubAgentRequest_App)(nil),                                 // 72: coder.agent.v2.CreateSubAgentRequest.App
-	(*CreateSubAgentRequest_App_Healthcheck)(nil),                     // 73: coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
-	(*CreateSubAgentResponse_AppCreationError)(nil),                   // 74: coder.agent.v2.CreateSubAgentResponse.AppCreationError
-	(*durationpb.Duration)(nil),                                       // 75: google.protobuf.Duration
-	(*proto.DERPMap)(nil),                                             // 76: coder.tailnet.v2.DERPMap
-	(*timestamppb.Timestamp)(nil),                                     // 77: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                                             // 78: google.protobuf.Empty
+	(*BoundaryAuditConfig)(nil),                         // 18: coder.agent.v2.BoundaryAuditConfig
+	(*WorkspaceAgentDevcontainer)(nil),                  // 19: coder.agent.v2.WorkspaceAgentDevcontainer
+	(*GetManifestRequest)(nil),                          // 20: coder.agent.v2.GetManifestRequest
+	(*ServiceBanner)(nil),                               // 21: coder.agent.v2.ServiceBanner
+	(*GetServiceBannerRequest)(nil),                     // 22: coder.agent.v2.GetServiceBannerRequest
+	(*Stats)(nil),                                       // 23: coder.agent.v2.Stats
+	(*UpdateStatsRequest)(nil),                          // 24: coder.agent.v2.UpdateStatsRequest
+	(*UpdateStatsResponse)(nil),                         // 25: coder.agent.v2.UpdateStatsResponse
+	(*Lifecycle)(nil),                                   // 26: coder.agent.v2.Lifecycle
+	(*UpdateLifecycleRequest)(nil),                      // 27: coder.agent.v2.UpdateLifecycleRequest
+	(*BatchUpdateAppHealthRequest)(nil),                 // 28: coder.agent.v2.BatchUpdateAppHealthRequest
+	(*BatchUpdateAppHealthResponse)(nil),                // 29: coder.agent.v2.BatchUpdateAppHealthResponse
+	(*Startup)(nil),                                     // 30: coder.agent.v2.Startup
+	(*UpdateStartupRequest)(nil),                        // 31: coder.agent.v2.UpdateStartupRequest
+	(*Metadata)(nil),                                    // 32: coder.agent.v2.Metadata
+	(*BatchUpdateMetadataRequest)(nil),                  // 33: coder.agent.v2.BatchUpdateMetadataRequest
+	(*BatchUpdateMetadataResponse)(nil),                 // 34: coder.agent.v2.BatchUpdateMetadataResponse
+	(*Log)(nil),                                         // 35: coder.agent.v2.Log
+	(*BatchCreateLogsRequest)(nil),                      // 36: coder.agent.v2.BatchCreateLogsRequest
+	(*BatchCreateLogsResponse)(nil),                     // 37: coder.agent.v2.BatchCreateLogsResponse
+	(*GetAnnouncementBannersRequest)(nil),               // 38: coder.agent.v2.GetAnnouncementBannersRequest
+	(*GetAnnouncementBannersResponse)(nil),              // 39: coder.agent.v2.GetAnnouncementBannersResponse
+	(*BannerConfig)(nil),                                // 40: coder.agent.v2.BannerConfig
+	(*WorkspaceAgentScriptCompletedRequest)(nil),        // 41: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+	(*WorkspaceAgentScriptCompletedResponse)(nil),       // 42: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+	(*Timing)(nil),                                      // 43: coder.agent.v2.Timing
+	(*GetResourcesMonitoringConfigurationRequest)(nil),  // 44: coder.agent.v2.GetResourcesMonitoringConfigurationRequest
+	(*GetResourcesMonitoringConfigurationResponse)(nil), // 45: coder.agent.v2.GetResourcesMonitoringConfigurationResponse
+	(*PushResourcesMonitoringUsageRequest)(nil),         // 46: coder.agent.v2.PushResourcesMonitoringUsageRequest
+	(*PushResourcesMonitoringUsageResponse)(nil),        // 47: coder.agent.v2.PushResourcesMonitoringUsageResponse
+	(*Connection)(nil),                                  // 48: coder.agent.v2.Connection
+	(*ReportConnectionRequest)(nil),                     // 49: coder.agent.v2.ReportConnectionRequest
+	(*SubAgent)(nil),                                    // 50: coder.agent.v2.SubAgent
+	(*CreateSubAgentRequest)(nil),                       // 51: coder.agent.v2.CreateSubAgentRequest
+	(*CreateSubAgentResponse)(nil),                      // 52: coder.agent.v2.CreateSubAgentResponse
+	(*DeleteSubAgentRequest)(nil),                       // 53: coder.agent.v2.DeleteSubAgentRequest
+	(*DeleteSubAgentResponse)(nil),                      // 54: coder.agent.v2.DeleteSubAgentResponse
+	(*ListSubAgentsRequest)(nil),                        // 55: coder.agent.v2.ListSubAgentsRequest
+	(*ListSubAgentsResponse)(nil),                       // 56: coder.agent.v2.ListSubAgentsResponse
+	(*BoundaryAuditLog)(nil),                            // 57: coder.agent.v2.BoundaryAuditLog
+	(*ReportBoundaryAuditLogsRequest)(nil),              // 58: coder.agent.v2.ReportBoundaryAuditLogsRequest
+	(*WorkspaceApp_Healthcheck)(nil),                    // 59: coder.agent.v2.WorkspaceApp.Healthcheck
+	(*WorkspaceAgentMetadata_Result)(nil),               // 60: coder.agent.v2.WorkspaceAgentMetadata.Result
+	(*WorkspaceAgentMetadata_Description)(nil),          // 61: coder.agent.v2.WorkspaceAgentMetadata.Description
+	nil,                        // 62: coder.agent.v2.Manifest.EnvironmentVariablesEntry
+	nil,                        // 63: coder.agent.v2.BoundaryAuditConfig.OtelHeadersEntry
+	nil,                        // 64: coder.agent.v2.Stats.ConnectionsByProtoEntry
+	(*Stats_Metric)(nil),       // 65: coder.agent.v2.Stats.Metric
+	(*Stats_Metric_Label)(nil), // 66: coder.agent.v2.Stats.Metric.Label
+	(*BatchUpdateAppHealthRequest_HealthUpdate)(nil),                  // 67: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
+	(*GetResourcesMonitoringConfigurationResponse_Config)(nil),        // 68: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
+	(*GetResourcesMonitoringConfigurationResponse_Memory)(nil),        // 69: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
+	(*GetResourcesMonitoringConfigurationResponse_Volume)(nil),        // 70: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
+	(*PushResourcesMonitoringUsageRequest_Datapoint)(nil),             // 71: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
+	(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage)(nil), // 72: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
+	(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)(nil), // 73: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
+	(*CreateSubAgentRequest_App)(nil),                                 // 74: coder.agent.v2.CreateSubAgentRequest.App
+	(*CreateSubAgentRequest_App_Healthcheck)(nil),                     // 75: coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
+	(*CreateSubAgentResponse_AppCreationError)(nil),                   // 76: coder.agent.v2.CreateSubAgentResponse.AppCreationError
+	(*durationpb.Duration)(nil),                                       // 77: google.protobuf.Duration
+	(*proto.DERPMap)(nil),                                             // 78: coder.tailnet.v2.DERPMap
+	(*timestamppb.Timestamp)(nil),                                     // 79: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                                             // 80: google.protobuf.Empty
 }
 var file_agent_proto_agent_proto_depIdxs = []int32{
 	1,  // 0: coder.agent.v2.WorkspaceApp.sharing_level:type_name -> coder.agent.v2.WorkspaceApp.SharingLevel
-	58, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
+	59, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
 	2,  // 2: coder.agent.v2.WorkspaceApp.health:type_name -> coder.agent.v2.WorkspaceApp.Health
-	75, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
-	59, // 4: coder.agent.v2.WorkspaceAgentMetadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
-	60, // 5: coder.agent.v2.WorkspaceAgentMetadata.description:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
-	61, // 6: coder.agent.v2.Manifest.environment_variables:type_name -> coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	76, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
+	77, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
+	60, // 4: coder.agent.v2.WorkspaceAgentMetadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
+	61, // 5: coder.agent.v2.WorkspaceAgentMetadata.description:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
+	62, // 6: coder.agent.v2.Manifest.environment_variables:type_name -> coder.agent.v2.Manifest.EnvironmentVariablesEntry
+	78, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
 	15, // 8: coder.agent.v2.Manifest.scripts:type_name -> coder.agent.v2.WorkspaceAgentScript
 	14, // 9: coder.agent.v2.Manifest.apps:type_name -> coder.agent.v2.WorkspaceApp
-	60, // 10: coder.agent.v2.Manifest.metadata:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
-	18, // 11: coder.agent.v2.Manifest.devcontainers:type_name -> coder.agent.v2.WorkspaceAgentDevcontainer
-	62, // 12: coder.agent.v2.Stats.connections_by_proto:type_name -> coder.agent.v2.Stats.ConnectionsByProtoEntry
-	63, // 13: coder.agent.v2.Stats.metrics:type_name -> coder.agent.v2.Stats.Metric
-	22, // 14: coder.agent.v2.UpdateStatsRequest.stats:type_name -> coder.agent.v2.Stats
-	75, // 15: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
-	4,  // 16: coder.agent.v2.Lifecycle.state:type_name -> coder.agent.v2.Lifecycle.State
-	77, // 17: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
-	25, // 18: coder.agent.v2.UpdateLifecycleRequest.lifecycle:type_name -> coder.agent.v2.Lifecycle
-	65, // 19: coder.agent.v2.BatchUpdateAppHealthRequest.updates:type_name -> coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
-	5,  // 20: coder.agent.v2.Startup.subsystems:type_name -> coder.agent.v2.Startup.Subsystem
-	29, // 21: coder.agent.v2.UpdateStartupRequest.startup:type_name -> coder.agent.v2.Startup
-	59, // 22: coder.agent.v2.Metadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
-	31, // 23: coder.agent.v2.BatchUpdateMetadataRequest.metadata:type_name -> coder.agent.v2.Metadata
-	77, // 24: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
-	6,  // 25: coder.agent.v2.Log.level:type_name -> coder.agent.v2.Log.Level
-	34, // 26: coder.agent.v2.BatchCreateLogsRequest.logs:type_name -> coder.agent.v2.Log
-	39, // 27: coder.agent.v2.GetAnnouncementBannersResponse.announcement_banners:type_name -> coder.agent.v2.BannerConfig
-	42, // 28: coder.agent.v2.WorkspaceAgentScriptCompletedRequest.timing:type_name -> coder.agent.v2.Timing
-	77, // 29: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
-	77, // 30: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
-	7,  // 31: coder.agent.v2.Timing.stage:type_name -> coder.agent.v2.Timing.Stage
-	8,  // 32: coder.agent.v2.Timing.status:type_name -> coder.agent.v2.Timing.Status
-	66, // 33: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.config:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
-	67, // 34: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.memory:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
-	68, // 35: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.volumes:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
-	69, // 36: coder.agent.v2.PushResourcesMonitoringUsageRequest.datapoints:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
-	9,  // 37: coder.agent.v2.Connection.action:type_name -> coder.agent.v2.Connection.Action
-	10, // 38: coder.agent.v2.Connection.type:type_name -> coder.agent.v2.Connection.Type
-	77, // 39: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
-	47, // 40: coder.agent.v2.ReportConnectionRequest.connection:type_name -> coder.agent.v2.Connection
-	72, // 41: coder.agent.v2.CreateSubAgentRequest.apps:type_name -> coder.agent.v2.CreateSubAgentRequest.App
-	11, // 42: coder.agent.v2.CreateSubAgentRequest.display_apps:type_name -> coder.agent.v2.CreateSubAgentRequest.DisplayApp
-	49, // 43: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
-	74, // 44: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
-	49, // 45: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
-	77, // 46: coder.agent.v2.BoundaryAuditLog.timestamp:type_name -> google.protobuf.Timestamp
-	56, // 47: coder.agent.v2.ReportBoundaryAuditLogsRequest.logs:type_name -> coder.agent.v2.BoundaryAuditLog
-	75, // 48: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
-	77, // 49: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
-	75, // 50: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
-	75, // 51: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
-	3,  // 52: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
-	64, // 53: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
-	0,  // 54: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
-	77, // 55: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
-	70, // 56: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
-	71, // 57: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
-	73, // 58: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
-	12, // 59: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
-	13, // 60: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
-	19, // 61: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
-	21, // 62: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
-	23, // 63: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
-	26, // 64: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
-	27, // 65: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
-	30, // 66: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
-	32, // 67: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
-	35, // 68: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
-	37, // 69: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
-	40, // 70: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	43, // 71: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
-	45, // 72: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
-	48, // 73: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
-	50, // 74: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
-	52, // 75: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
-	54, // 76: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
-	57, // 77: coder.agent.v2.Agent.ReportBoundaryAuditLogs:input_type -> coder.agent.v2.ReportBoundaryAuditLogsRequest
-	17, // 78: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
-	20, // 79: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
-	24, // 80: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
-	25, // 81: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
-	28, // 82: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
-	29, // 83: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
-	33, // 84: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
-	36, // 85: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
-	38, // 86: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
-	41, // 87: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	44, // 88: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
-	46, // 89: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
-	78, // 90: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
-	51, // 91: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
-	53, // 92: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
-	55, // 93: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
-	78, // 94: coder.agent.v2.Agent.ReportBoundaryAuditLogs:output_type -> google.protobuf.Empty
-	78, // [78:95] is the sub-list for method output_type
-	61, // [61:78] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	61, // 10: coder.agent.v2.Manifest.metadata:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
+	19, // 11: coder.agent.v2.Manifest.devcontainers:type_name -> coder.agent.v2.WorkspaceAgentDevcontainer
+	18, // 12: coder.agent.v2.Manifest.boundary_audit:type_name -> coder.agent.v2.BoundaryAuditConfig
+	63, // 13: coder.agent.v2.BoundaryAuditConfig.otel_headers:type_name -> coder.agent.v2.BoundaryAuditConfig.OtelHeadersEntry
+	64, // 14: coder.agent.v2.Stats.connections_by_proto:type_name -> coder.agent.v2.Stats.ConnectionsByProtoEntry
+	65, // 15: coder.agent.v2.Stats.metrics:type_name -> coder.agent.v2.Stats.Metric
+	23, // 16: coder.agent.v2.UpdateStatsRequest.stats:type_name -> coder.agent.v2.Stats
+	77, // 17: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
+	4,  // 18: coder.agent.v2.Lifecycle.state:type_name -> coder.agent.v2.Lifecycle.State
+	79, // 19: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
+	26, // 20: coder.agent.v2.UpdateLifecycleRequest.lifecycle:type_name -> coder.agent.v2.Lifecycle
+	67, // 21: coder.agent.v2.BatchUpdateAppHealthRequest.updates:type_name -> coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
+	5,  // 22: coder.agent.v2.Startup.subsystems:type_name -> coder.agent.v2.Startup.Subsystem
+	30, // 23: coder.agent.v2.UpdateStartupRequest.startup:type_name -> coder.agent.v2.Startup
+	60, // 24: coder.agent.v2.Metadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
+	32, // 25: coder.agent.v2.BatchUpdateMetadataRequest.metadata:type_name -> coder.agent.v2.Metadata
+	79, // 26: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
+	6,  // 27: coder.agent.v2.Log.level:type_name -> coder.agent.v2.Log.Level
+	35, // 28: coder.agent.v2.BatchCreateLogsRequest.logs:type_name -> coder.agent.v2.Log
+	40, // 29: coder.agent.v2.GetAnnouncementBannersResponse.announcement_banners:type_name -> coder.agent.v2.BannerConfig
+	43, // 30: coder.agent.v2.WorkspaceAgentScriptCompletedRequest.timing:type_name -> coder.agent.v2.Timing
+	79, // 31: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
+	79, // 32: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
+	7,  // 33: coder.agent.v2.Timing.stage:type_name -> coder.agent.v2.Timing.Stage
+	8,  // 34: coder.agent.v2.Timing.status:type_name -> coder.agent.v2.Timing.Status
+	68, // 35: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.config:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
+	69, // 36: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.memory:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
+	70, // 37: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.volumes:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
+	71, // 38: coder.agent.v2.PushResourcesMonitoringUsageRequest.datapoints:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
+	9,  // 39: coder.agent.v2.Connection.action:type_name -> coder.agent.v2.Connection.Action
+	10, // 40: coder.agent.v2.Connection.type:type_name -> coder.agent.v2.Connection.Type
+	79, // 41: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
+	48, // 42: coder.agent.v2.ReportConnectionRequest.connection:type_name -> coder.agent.v2.Connection
+	74, // 43: coder.agent.v2.CreateSubAgentRequest.apps:type_name -> coder.agent.v2.CreateSubAgentRequest.App
+	11, // 44: coder.agent.v2.CreateSubAgentRequest.display_apps:type_name -> coder.agent.v2.CreateSubAgentRequest.DisplayApp
+	50, // 45: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
+	76, // 46: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
+	50, // 47: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
+	79, // 48: coder.agent.v2.BoundaryAuditLog.timestamp:type_name -> google.protobuf.Timestamp
+	57, // 49: coder.agent.v2.ReportBoundaryAuditLogsRequest.logs:type_name -> coder.agent.v2.BoundaryAuditLog
+	77, // 50: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
+	79, // 51: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
+	77, // 52: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
+	77, // 53: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
+	3,  // 54: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
+	66, // 55: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
+	0,  // 56: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
+	79, // 57: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
+	72, // 58: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
+	73, // 59: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
+	75, // 60: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
+	12, // 61: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
+	13, // 62: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
+	20, // 63: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
+	22, // 64: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
+	24, // 65: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
+	27, // 66: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
+	28, // 67: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
+	31, // 68: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
+	33, // 69: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
+	36, // 70: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
+	38, // 71: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
+	41, // 72: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+	44, // 73: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
+	46, // 74: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
+	49, // 75: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
+	51, // 76: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
+	53, // 77: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
+	55, // 78: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
+	58, // 79: coder.agent.v2.Agent.ReportBoundaryAuditLogs:input_type -> coder.agent.v2.ReportBoundaryAuditLogsRequest
+	17, // 80: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
+	21, // 81: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
+	25, // 82: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
+	26, // 83: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
+	29, // 84: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
+	30, // 85: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
+	34, // 86: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
+	37, // 87: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
+	39, // 88: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
+	42, // 89: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+	45, // 90: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
+	47, // 91: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
+	80, // 92: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
+	52, // 93: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
+	54, // 94: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
+	56, // 95: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
+	80, // 96: coder.agent.v2.Agent.ReportBoundaryAuditLogs:output_type -> google.protobuf.Empty
+	80, // [80:97] is the sub-list for method output_type
+	63, // [63:80] is the sub-list for method input_type
+	63, // [63:63] is the sub-list for extension type_name
+	63, // [63:63] is the sub-list for extension extendee
+	0,  // [0:63] is the sub-list for field type_name
 }
 
 func init() { file_agent_proto_agent_proto_init() }
@@ -4917,18 +5003,18 @@ func file_agent_proto_agent_proto_init() {
 		return
 	}
 	file_agent_proto_agent_proto_msgTypes[3].OneofWrappers = []any{}
-	file_agent_proto_agent_proto_msgTypes[30].OneofWrappers = []any{}
-	file_agent_proto_agent_proto_msgTypes[33].OneofWrappers = []any{}
-	file_agent_proto_agent_proto_msgTypes[55].OneofWrappers = []any{}
-	file_agent_proto_agent_proto_msgTypes[58].OneofWrappers = []any{}
+	file_agent_proto_agent_proto_msgTypes[31].OneofWrappers = []any{}
+	file_agent_proto_agent_proto_msgTypes[34].OneofWrappers = []any{}
+	file_agent_proto_agent_proto_msgTypes[57].OneofWrappers = []any{}
 	file_agent_proto_agent_proto_msgTypes[60].OneofWrappers = []any{}
+	file_agent_proto_agent_proto_msgTypes[62].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_proto_agent_proto_rawDesc), len(file_agent_proto_agent_proto_rawDesc)),
 			NumEnums:      14,
-			NumMessages:   61,
+			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

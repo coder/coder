@@ -62,6 +62,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
+		BoundaryAudit:            BoundaryAuditConfigFromProto(manifest.BoundaryAudit),
 	}, nil
 }
 
@@ -90,6 +91,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
+		BoundaryAudit:            ProtoFromBoundaryAuditConfig(manifest.BoundaryAudit),
 	}, nil
 }
 
@@ -447,5 +449,29 @@ func ProtoFromDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) *proto.Worksp
 		Name:            dc.Name,
 		WorkspaceFolder: dc.WorkspaceFolder,
 		ConfigPath:      dc.ConfigPath,
+	}
+}
+
+// BoundaryAuditConfigFromProto converts a proto BoundaryAuditConfig to SDK type.
+func BoundaryAuditConfigFromProto(p *proto.BoundaryAuditConfig) *BoundaryAuditConfig {
+	if p == nil {
+		return nil
+	}
+	return &BoundaryAuditConfig{
+		OTELEndpoint: p.OtelEndpoint,
+		OTELHeaders:  p.OtelHeaders,
+		SendToCoderd: p.SendToCoderd,
+	}
+}
+
+// ProtoFromBoundaryAuditConfig converts an SDK BoundaryAuditConfig to proto type.
+func ProtoFromBoundaryAuditConfig(c *BoundaryAuditConfig) *proto.BoundaryAuditConfig {
+	if c == nil {
+		return nil
+	}
+	return &proto.BoundaryAuditConfig{
+		OtelEndpoint: c.OTELEndpoint,
+		OtelHeaders:  c.OTELHeaders,
+		SendToCoderd: c.SendToCoderd,
 	}
 }

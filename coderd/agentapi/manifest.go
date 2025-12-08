@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/url"
 	"strings"
@@ -140,7 +141,26 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
+		BoundaryAudit: dbAgentBoundaryAuditConfigToProto(workspaceAgent),
 	}, nil
+}
+
+func dbAgentBoundaryAuditConfigToProto(agent database.WorkspaceAgent) *agentproto.BoundaryAuditConfig {
+	// Only include if there's an OTEL endpoint or send_to_coderd is explicitly set.
+	if agent.BoundaryAuditOtelEndpoint == "" && !agent.BoundaryAuditSendToCoderd {
+		return nil
+	}
+
+	headers := make(map[string]string)
+	if len(agent.BoundaryAuditOtelHeaders) > 0 {
+		_ = json.Unmarshal(agent.BoundaryAuditOtelHeaders, &headers)
+	}
+
+	return &agentproto.BoundaryAuditConfig{
+		OtelEndpoint: agent.BoundaryAuditOtelEndpoint,
+		OtelHeaders:  headers,
+		SendToCoderd: agent.BoundaryAuditSendToCoderd,
+	}
 }
 
 func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {

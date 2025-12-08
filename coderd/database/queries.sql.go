@@ -18199,7 +18199,7 @@ func (q *sqlQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UU
 const getWorkspaceAgentAndLatestBuildByAuthToken = `-- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
-	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted, workspace_agents.boundary_audit_otel_endpoint, workspace_agents.boundary_audit_otel_headers, workspace_agents.boundary_audit_send_to_coderd,
 	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.provisioner_state, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_ai_task, workspace_build_with_user.has_external_agent, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name,
 	tasks.id AS task_id
 FROM
@@ -18302,6 +18302,9 @@ func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Cont
 		&i.WorkspaceAgent.ParentID,
 		&i.WorkspaceAgent.APIKeyScope,
 		&i.WorkspaceAgent.Deleted,
+		&i.WorkspaceAgent.BoundaryAuditOtelEndpoint,
+		&i.WorkspaceAgent.BoundaryAuditOtelHeaders,
+		&i.WorkspaceAgent.BoundaryAuditSendToCoderd,
 		&i.WorkspaceBuild.ID,
 		&i.WorkspaceBuild.CreatedAt,
 		&i.WorkspaceBuild.UpdatedAt,
@@ -18329,7 +18332,7 @@ func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Cont
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted, boundary_audit_otel_endpoint, boundary_audit_otel_headers, boundary_audit_send_to_coderd
 FROM
 	workspace_agents
 WHERE
@@ -18376,13 +18379,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.ParentID,
 		&i.APIKeyScope,
 		&i.Deleted,
+		&i.BoundaryAuditOtelEndpoint,
+		&i.BoundaryAuditOtelHeaders,
+		&i.BoundaryAuditSendToCoderd,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted, boundary_audit_otel_endpoint, boundary_audit_otel_headers, boundary_audit_send_to_coderd
 FROM
 	workspace_agents
 WHERE
@@ -18431,6 +18437,9 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ParentID,
 		&i.APIKeyScope,
 		&i.Deleted,
+		&i.BoundaryAuditOtelEndpoint,
+		&i.BoundaryAuditOtelHeaders,
+		&i.BoundaryAuditSendToCoderd,
 	)
 	return i, err
 }
@@ -18650,7 +18659,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context
 
 const getWorkspaceAgentsByParentID = `-- name: GetWorkspaceAgentsByParentID :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted, boundary_audit_otel_endpoint, boundary_audit_otel_headers, boundary_audit_send_to_coderd
 FROM
 	workspace_agents
 WHERE
@@ -18702,6 +18711,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID 
 			&i.ParentID,
 			&i.APIKeyScope,
 			&i.Deleted,
+			&i.BoundaryAuditOtelEndpoint,
+			&i.BoundaryAuditOtelHeaders,
+			&i.BoundaryAuditSendToCoderd,
 		); err != nil {
 			return nil, err
 		}
@@ -18718,7 +18730,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID 
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted, boundary_audit_otel_endpoint, boundary_audit_otel_headers, boundary_audit_send_to_coderd
 FROM
 	workspace_agents
 WHERE
@@ -18771,6 +18783,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.ParentID,
 			&i.APIKeyScope,
 			&i.Deleted,
+			&i.BoundaryAuditOtelEndpoint,
+			&i.BoundaryAuditOtelHeaders,
+			&i.BoundaryAuditSendToCoderd,
 		); err != nil {
 			return nil, err
 		}
@@ -18787,7 +18802,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 
 const getWorkspaceAgentsByWorkspaceAndBuildNumber = `-- name: GetWorkspaceAgentsByWorkspaceAndBuildNumber :many
 SELECT
-	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted, workspace_agents.boundary_audit_otel_endpoint, workspace_agents.boundary_audit_otel_headers, workspace_agents.boundary_audit_send_to_coderd
 FROM
 	workspace_agents
 JOIN
@@ -18850,6 +18865,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Con
 			&i.ParentID,
 			&i.APIKeyScope,
 			&i.Deleted,
+			&i.BoundaryAuditOtelEndpoint,
+			&i.BoundaryAuditOtelHeaders,
+			&i.BoundaryAuditSendToCoderd,
 		); err != nil {
 			return nil, err
 		}
@@ -18865,7 +18883,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Con
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted FROM workspace_agents
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted, boundary_audit_otel_endpoint, boundary_audit_otel_headers, boundary_audit_send_to_coderd FROM workspace_agents
 WHERE
 	created_at > $1
 	-- Filter out deleted sub agents.
@@ -18916,6 +18934,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.ParentID,
 			&i.APIKeyScope,
 			&i.Deleted,
+			&i.BoundaryAuditOtelEndpoint,
+			&i.BoundaryAuditOtelHeaders,
+			&i.BoundaryAuditSendToCoderd,
 		); err != nil {
 			return nil, err
 		}
@@ -18937,7 +18958,7 @@ SELECT
     u.username as owner_username,
     t.name as template_name,
     tv.name as template_version_name,
-    workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
+    workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted, workspace_agents.boundary_audit_otel_endpoint, workspace_agents.boundary_audit_otel_headers, workspace_agents.boundary_audit_send_to_coderd
 FROM workspaces w
 JOIN users u ON w.owner_id = u.id
 JOIN templates t ON w.template_id = t.id
@@ -19012,6 +19033,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]GetWor
 			&i.WorkspaceAgent.ParentID,
 			&i.WorkspaceAgent.APIKeyScope,
 			&i.WorkspaceAgent.Deleted,
+			&i.WorkspaceAgent.BoundaryAuditOtelEndpoint,
+			&i.WorkspaceAgent.BoundaryAuditOtelHeaders,
+			&i.WorkspaceAgent.BoundaryAuditSendToCoderd,
 		); err != nil {
 			return nil, err
 		}
@@ -19028,7 +19052,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]GetWor
 
 const getWorkspaceAgentsInLatestBuildByWorkspaceID = `-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT
-	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted, workspace_agents.boundary_audit_otel_endpoint, workspace_agents.boundary_audit_otel_headers, workspace_agents.boundary_audit_send_to_coderd
 FROM
 	workspace_agents
 JOIN
@@ -19093,6 +19117,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 			&i.ParentID,
 			&i.APIKeyScope,
 			&i.Deleted,
+			&i.BoundaryAuditOtelEndpoint,
+			&i.BoundaryAuditOtelHeaders,
+			&i.BoundaryAuditSendToCoderd,
 		); err != nil {
 			return nil, err
 		}
@@ -19129,33 +19156,39 @@ INSERT INTO
 		motd_file,
 		display_apps,
 		display_order,
-		api_key_scope
+		api_key_scope,
+		boundary_audit_otel_endpoint,
+		boundary_audit_otel_headers,
+		boundary_audit_send_to_coderd
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted, boundary_audit_otel_endpoint, boundary_audit_otel_headers, boundary_audit_send_to_coderd
 `
 
 type InsertWorkspaceAgentParams struct {
-	ID                       uuid.UUID             `db:"id" json:"id"`
-	ParentID                 uuid.NullUUID         `db:"parent_id" json:"parent_id"`
-	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
-	Name                     string                `db:"name" json:"name"`
-	ResourceID               uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken                uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID           sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture             string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables     pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem          string                `db:"operating_system" json:"operating_system"`
-	Directory                string                `db:"directory" json:"directory"`
-	InstanceMetadata         pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata         pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	ConnectionTimeoutSeconds int32                 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
-	TroubleshootingURL       string                `db:"troubleshooting_url" json:"troubleshooting_url"`
-	MOTDFile                 string                `db:"motd_file" json:"motd_file"`
-	DisplayApps              []DisplayApp          `db:"display_apps" json:"display_apps"`
-	DisplayOrder             int32                 `db:"display_order" json:"display_order"`
-	APIKeyScope              AgentKeyScopeEnum     `db:"api_key_scope" json:"api_key_scope"`
+	ID                        uuid.UUID             `db:"id" json:"id"`
+	ParentID                  uuid.NullUUID         `db:"parent_id" json:"parent_id"`
+	CreatedAt                 time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                 time.Time             `db:"updated_at" json:"updated_at"`
+	Name                      string                `db:"name" json:"name"`
+	ResourceID                uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken                 uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID            sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture              string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables      pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem           string                `db:"operating_system" json:"operating_system"`
+	Directory                 string                `db:"directory" json:"directory"`
+	InstanceMetadata          pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata          pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	ConnectionTimeoutSeconds  int32                 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
+	TroubleshootingURL        string                `db:"troubleshooting_url" json:"troubleshooting_url"`
+	MOTDFile                  string                `db:"motd_file" json:"motd_file"`
+	DisplayApps               []DisplayApp          `db:"display_apps" json:"display_apps"`
+	DisplayOrder              int32                 `db:"display_order" json:"display_order"`
+	APIKeyScope               AgentKeyScopeEnum     `db:"api_key_scope" json:"api_key_scope"`
+	BoundaryAuditOtelEndpoint string                `db:"boundary_audit_otel_endpoint" json:"boundary_audit_otel_endpoint"`
+	BoundaryAuditOtelHeaders  json.RawMessage       `db:"boundary_audit_otel_headers" json:"boundary_audit_otel_headers"`
+	BoundaryAuditSendToCoderd bool                  `db:"boundary_audit_send_to_coderd" json:"boundary_audit_send_to_coderd"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
@@ -19180,6 +19213,9 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		pq.Array(arg.DisplayApps),
 		arg.DisplayOrder,
 		arg.APIKeyScope,
+		arg.BoundaryAuditOtelEndpoint,
+		arg.BoundaryAuditOtelHeaders,
+		arg.BoundaryAuditSendToCoderd,
 	)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -19217,6 +19253,9 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ParentID,
 		&i.APIKeyScope,
 		&i.Deleted,
+		&i.BoundaryAuditOtelEndpoint,
+		&i.BoundaryAuditOtelHeaders,
+		&i.BoundaryAuditSendToCoderd,
 	)
 	return i, err
 }
