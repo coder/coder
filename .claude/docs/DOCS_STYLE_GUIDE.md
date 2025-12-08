@@ -42,7 +42,10 @@ Template Insights provides detailed analytics and usage metrics for your Coder t
 
 ### Premium Feature Callout
 
-For Premium-only features, add `(Premium)` suffix to the H1 heading. The documentation system automatically links these to premium pricing information.
+For Premium-only features:
+
+1. Add `(Premium)` suffix to the H1 heading - the documentation system automatically links these to premium pricing information
+2. Add premium badge in `manifest.json` with `"state": ["premium"]`
 
 ```markdown
 # Template Insights (Premium)
