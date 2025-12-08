@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -142,6 +143,169 @@ func TestRateLimit(t *testing.T) {
 			resp := rec.Result()
 			_ = resp.Body.Close()
 			require.False(t, resp.StatusCode == http.StatusTooManyRequests)
+		}
+	})
+}
+
+func TestRateLimitByIP(t *testing.T) {
+	t.Parallel()
+
+	t.Run("LimitsRequests", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByIP(2, time.Second))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		// Same IP should be rate limited after 2 requests.
+		for i := 0; i < 5; i++ {
+			req := httptest.NewRequest("GET", "/", nil)
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			if i < 2 {
+				require.Equal(t, http.StatusOK, resp.StatusCode, "request %d should succeed", i)
+			} else {
+				require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "request %d should be rate limited", i)
+			}
+		}
+	})
+
+	t.Run("DifferentIPsNotLimited", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByIP(1, time.Second))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		// Different IPs should not be rate limited.
+		for i := 0; i < 5; i++ {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.RemoteAddr = randRemoteAddr()
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode, "request %d should succeed", i)
+		}
+	})
+
+	t.Run("DisabledWhenZero", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByIP(0, time.Second))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		// Should not be rate limited when limit is 0.
+		for i := 0; i < 10; i++ {
+			req := httptest.NewRequest("GET", "/", nil)
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		}
+	})
+}
+
+func TestConcurrencyLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("LimitsConcurrentRequests", func(t *testing.T) {
+		t.Parallel()
+
+		const maxConcurrency = 2
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.ConcurrencyLimit(maxConcurrency, "Test"))
+
+		// Track concurrent requests.
+		inHandler := make(chan struct{})
+		releaseHandler := make(chan struct{})
+
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			inHandler <- struct{}{}
+			<-releaseHandler
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		server := httptest.NewServer(rtr)
+		defer server.Close()
+
+		ctx := t.Context()
+
+		// Start maxConcurrency requests that will block.
+		// We use channels to collect errors instead of require in goroutines.
+		type result struct {
+			statusCode int
+			err        error
+		}
+		results := make(chan result, maxConcurrency)
+
+		var wg sync.WaitGroup
+		for i := 0; i < maxConcurrency; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/", nil)
+				if err != nil {
+					results <- result{err: err}
+					return
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					results <- result{err: err}
+					return
+				}
+				defer resp.Body.Close()
+				results <- result{statusCode: resp.StatusCode}
+			}()
+			// Wait for request to enter handler.
+			<-inHandler
+		}
+
+		// Next request should be rejected.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/", nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+		// Release all blocked requests.
+		for i := 0; i < maxConcurrency; i++ {
+			releaseHandler <- struct{}{}
+		}
+		wg.Wait()
+		close(results)
+
+		// Check all goroutine results.
+		for res := range results {
+			require.NoError(t, res.err)
+			require.Equal(t, http.StatusOK, res.statusCode)
+		}
+	})
+
+	t.Run("DisabledWhenZero", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.ConcurrencyLimit(0, "Test"))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		// Should not be limited when maxConcurrency is 0.
+		for i := 0; i < 10; i++ {
+			req := httptest.NewRequest("GET", "/", nil)
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 		}
 	})
 }

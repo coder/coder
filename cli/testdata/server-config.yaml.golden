@@ -748,6 +748,17 @@ aibridge:
   # (token, prompt, tool use).
   # (default: 60d, type: duration)
   retention: 1440h0m0s
+  # Maximum number of concurrent AI Bridge requests. Set to 0 to disable
+  # (unlimited).
+  # (default: 0, type: int)
+  maxConcurrency: 0
+  # Maximum number of AI Bridge requests per rate window. Set to 0 to disable rate
+  # limiting.
+  # (default: 0, type: int)
+  rateLimit: 0
+  # Duration of the rate limiting window for AI Bridge requests.
+  # (default: 1m, type: duration)
+  rateWindow: 1m0s
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

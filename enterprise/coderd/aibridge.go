@@ -27,6 +27,12 @@ const (
 
 // aibridgeHandler handles all aibridged-related endpoints.
 func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	// Build the overload protection middleware chain for the aibridged handler.
+	// These are applied before requests reach the aibridged handler.
+	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
+	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Bridge")
+	rateLimiter := httpmw.RateLimitByIP(int(bridgeCfg.RateLimit.Value()), bridgeCfg.RateWindow.Value())
+
 	return func(r chi.Router) {
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 		r.Group(func(r chi.Router) {
@@ -44,15 +50,20 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 				return
 			}
 
-			// Strip either the experimental or stable prefix.
-			// TODO: experimental route is deprecated and must be removed with Beta.
-			prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
-			for _, prefix := range prefixes {
-				if strings.Contains(r.URL.String(), prefix) {
-					http.StripPrefix(prefix, api.aibridgedHandler).ServeHTTP(rw, r)
-					break
+			// Build the handler with overload protection.
+			// Concurrency limit is checked first for faster rejection under load.
+			handler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				// Strip either the experimental or stable prefix.
+				// TODO: experimental route is deprecated and must be removed with Beta.
+				prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
+				for _, prefix := range prefixes {
+					if strings.Contains(r.URL.String(), prefix) {
+						http.StripPrefix(prefix, api.aibridgedHandler).ServeHTTP(rw, r)
+						break
+					}
 				}
-			}
+			})
+			concurrencyLimiter(rateLimiter(handler)).ServeHTTP(rw, r)
 		})
 	}
 }

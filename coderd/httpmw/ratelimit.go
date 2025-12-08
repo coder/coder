@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/httprate"
@@ -69,4 +70,52 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 			})
 		}),
 	)
+}
+
+// RateLimitByIP returns a handler that limits requests based on IP address.
+// This is useful for endpoints that handle authentication internally rather
+// than via ExtractAPIKeyMW middleware.
+func RateLimitByIP(count int, window time.Duration) func(http.Handler) http.Handler {
+	if count <= 0 {
+		return func(handler http.Handler) http.Handler {
+			return handler
+		}
+	}
+
+	return httprate.Limit(
+		count,
+		window,
+		httprate.WithKeyFuncs(httprate.KeyByIP),
+		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
+				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
+			})
+		}),
+	)
+}
+
+// ConcurrencyLimit returns a handler that limits the number of concurrent
+// requests. When the limit is exceeded, it returns HTTP 503 Service Unavailable.
+func ConcurrencyLimit(maxConcurrent int64, resourceName string) func(http.Handler) http.Handler {
+	if maxConcurrent <= 0 {
+		return func(handler http.Handler) http.Handler {
+			return handler
+		}
+	}
+
+	var current atomic.Int64
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c := current.Add(1)
+			defer current.Add(-1)
+
+			if c > maxConcurrent {
+				httpapi.Write(r.Context(), w, http.StatusServiceUnavailable, codersdk.Response{
+					Message: fmt.Sprintf("%s is currently at capacity. Please try again later.", resourceName),
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
