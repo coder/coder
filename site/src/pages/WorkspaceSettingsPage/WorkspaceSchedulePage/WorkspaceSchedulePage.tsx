@@ -108,7 +108,7 @@ const WorkspaceSchedulePage: FC = () => {
 							rel="noreferrer"
 						>
 							Prebuilt Workspaces Scheduling
-						</Link>
+						</Link>{" "}
 						documentation page.
 					</Alert>
 				) : (
