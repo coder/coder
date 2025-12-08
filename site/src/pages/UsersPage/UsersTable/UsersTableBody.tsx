@@ -124,7 +124,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 					<Cond condition={isNonInitialPage}>
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ padding: 32 }}>
+								<div className="p-8">
 									<EmptyState message="No users found on this page" />
 								</div>
 							</TableCell>
@@ -134,7 +134,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 					<Cond>
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ padding: 32 }}>
+								<div className="p-8">
 									<EmptyState message="No users found" />
 								</div>
 							</TableCell>
@@ -289,7 +289,7 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 	}
 
 	return (
-		<div css={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+		<div className="flex items-center gap-2 text-sm">
 			{icon}
 			{displayName}
 		</div>

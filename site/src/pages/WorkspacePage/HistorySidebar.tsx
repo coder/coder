@@ -49,7 +49,7 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 								</SidebarItem>
 							))}
 					{buildsQuery.hasNextPage && (
-						<div css={{ padding: 16 }}>
+						<div className="p-4">
 							<Button
 								onClick={() => buildsQuery.fetchNextPage()}
 								disabled={buildsQuery.isFetchingNextPage}

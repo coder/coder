@@ -76,10 +76,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 										return (
 											<ListItem
 												key={group.id}
-												css={{
-													columnGap: 10,
-													alignItems: "center",
-												}}
+												className="gap-x-2.5 items-center"
 											>
 												<Avatar
 													size="sm"
@@ -88,15 +85,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 													fallback={groupName}
 												/>
 
-												<span
-													css={{
-														whiteSpace: "nowrap",
-														textOverflow: "ellipsis",
-														overflow: "hidden",
-														lineHeight: 1,
-														margin: 0,
-													}}
-												>
+												<span className="whitespace-nowrap text-ellipsis overflow-hidden leading-none m-0">
 													{groupName || <em>N/A</em>}
 												</span>
 											</ListItem>

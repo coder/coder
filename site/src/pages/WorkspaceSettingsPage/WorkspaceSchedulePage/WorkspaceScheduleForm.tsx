@@ -334,18 +334,11 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 					</Stack>
 
 					<FormControl component="fieldset" error={Boolean(form.errors.monday)}>
-						<FormLabel css={{ fontSize: 12 }} component="legend">
+						<FormLabel className="text-xs" component="legend">
 							{Language.daysOfWeekLabel}
 						</FormLabel>
 
-						<FormGroup
-							css={{
-								display: "flex",
-								flexDirection: "row",
-								flexWrap: "wrap",
-								paddingTop: 4,
-							}}
-						>
+						<FormGroup className="flex flex-row flex-wrap pt-1">
 							{checkboxes.map((checkbox) => (
 								<FormControlLabel
 									control={

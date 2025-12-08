@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -18,6 +17,7 @@ import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
+import { cn } from "utils/cn";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -51,7 +51,9 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 						type="button"
 						data-testid="schedule-icon-button"
 						onClick={onClickIcon}
-						css={styles.scheduleIconButton}
+						className={
+							"flex items-center bg-transparent border-0 p-0 font-inherit cursor-pointer"
+						}
 					>
 						{icon}
 					</button>
@@ -80,7 +82,10 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 	}
 
 	return (
-		<div css={styles.scheduleValue} data-testid="schedule-controls">
+		<div
+			className="flex items-center gap-12 tabular-nums"
+			data-testid="schedule-controls"
+		>
 			{isWorkspaceOn(workspace) ? (
 				<AutostopDisplay
 					workspace={workspace}
@@ -187,24 +192,21 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const display = (
 		<ScheduleSettingsLink
 			data-testid="schedule-controls-autostop"
-			css={
-				danger &&
-				((theme) => ({
-					color: `${theme.roles.danger.fill.outline} !important`,
-				}))
-			}
+			className={cn([danger && "!text-content-destructive"])}
 		>
 			{message}
 		</ScheduleSettingsLink>
 	);
 
 	const controls = canUpdateSchedule && canEditDeadline(workspace) && (
-		<div css={styles.scheduleControls}>
+		<div className="flex items-center gap-4">
 			<Tooltip title="Subtract 1 hour from deadline">
 				<IconButton
 					disabled={!deadlineMinusEnabled}
 					size="small"
-					css={styles.scheduleButton}
+					className={
+						"border border-solid border-zinc-700 rounded-sm w-5 h-5 [&>svg]:size-icon-xs"
+					}
 					onClick={() => {
 						handleDeadlineChange(deadline.subtract(1, "h"));
 					}}
@@ -217,7 +219,9 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 				<IconButton
 					disabled={!deadlinePlusEnabled}
 					size="small"
-					css={styles.scheduleButton}
+					className={
+						"border border-solid border-zinc-700 rounded-sm w-5 h-5 [&>svg]:size-icon-xs"
+					}
 					onClick={() => {
 						handleDeadlineChange(deadline.add(1, "h"));
 					}}
@@ -253,12 +257,7 @@ const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
 				ref={ref}
 				component={RouterLink}
 				to="settings/schedule"
-				css={{
-					color: "inherit",
-					"&:first-letter": {
-						textTransform: "uppercase",
-					},
-				}}
+				className="text-inherit [&:first-letter]:uppercase"
 				{...props}
 			/>
 		);
@@ -282,41 +281,3 @@ const shouldDisplayScheduleControls = (workspace: Workspace): boolean => {
 	const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
 	return willAutoStop || willAutoStart;
 };
-
-const styles = {
-	scheduleIconButton: {
-		display: "flex",
-		alignItems: "center",
-		background: "transparent",
-		border: 0,
-		padding: 0,
-		fontSize: "inherit",
-		lineHeight: "inherit",
-		cursor: "pointer",
-	},
-
-	scheduleValue: {
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-		fontVariantNumeric: "tabular-nums",
-	},
-
-	scheduleControls: {
-		display: "flex",
-		alignItems: "center",
-		gap: 4,
-	},
-
-	scheduleButton: (theme) => ({
-		border: `1px solid ${theme.palette.divider}`,
-		borderRadius: 4,
-		width: 20,
-		height: 20,
-
-		"& svg.MuiSvgIcon-root": {
-			width: 12,
-			height: 12,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -201,18 +201,14 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}
-							css={{ paddingBottom: "0" }}
+							className="pb-0"
 						/>
 					)
 				)}
 			</TableToolbar>
-
 			{pageNumberIsInvalid ? (
 				<EmptyState
-					css={(theme) => ({
-						border: `1px solid ${theme.palette.divider}`,
-						borderRadius: theme.shape.borderRadius,
-					})}
+					className="border border-solid border-zinc-700 rounded-md"
 					message="Page not found"
 					description="The page you are trying to access does not exist."
 					cta={
@@ -243,7 +239,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				// Temporary styling stopgap before component is migrated to using
 				// PaginationContainer (which renders PaginationWidgetBase using CSS
 				// flexbox gaps)
-				<div css={{ paddingTop: "16px" }}>
+				<div className="pt-4">
 					<PaginationWidgetBase
 						totalRecords={count}
 						pageSize={limit}

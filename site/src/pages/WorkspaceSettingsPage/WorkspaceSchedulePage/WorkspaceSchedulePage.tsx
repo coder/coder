@@ -79,7 +79,7 @@ const WorkspaceSchedulePage: FC = () => {
 		<>
 			<title>{pageTitle(workspaceName, "Schedule")}</title>
 
-			<PageHeader css={{ paddingTop: 0 }}>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
 			</PageHeader>
 

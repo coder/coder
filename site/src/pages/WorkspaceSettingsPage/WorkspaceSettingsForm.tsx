@@ -17,6 +17,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -75,7 +76,10 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 						autoFocus
 						fullWidth
 						label="Name"
-						css={workspace.allow_renames && styles.nameWarning}
+						className={cn([
+							workspace.allow_renames &&
+								"[& .MuiFormHelperText-root]:text-warning-light",
+						])}
 						helperText={
 							workspace.allow_renames
 								? form.values.name !== form.initialValues.name &&
@@ -130,12 +134,4 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 			)}
 		</HorizontalForm>
 	);
-};
-
-const styles = {
-	nameWarning: (theme: Theme) => ({
-		"& .MuiFormHelperText-root": {
-			color: theme.palette.warning.light,
-		},
-	}),
 };

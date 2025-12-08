@@ -14,45 +14,19 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 	const theme = useTheme();
 
 	return (
-		<div
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				overflow: "hidden",
-				background: theme.palette.background.default,
-			}}
-		>
-			<header
-				css={{
-					background: theme.palette.background.paper,
-					borderBottom: `1px solid ${theme.palette.divider}`,
-					padding: "8px 8px 8px 24px",
-					fontSize: 13,
-					fontWeight: 600,
-					display: "flex",
-					alignItems: "center",
-					borderRadius: "8px 8px 0 0",
-				}}
-			>
+		<div className="rounded-lg border border-solid border-zinc-700 overflow-hidden bg-surface-secondary">
+			<header className="bg-surface-secondary border-0 border-b border-solid border-zinc-700 p-3 text-sm font-semibold flex items-center rounded-t-lg">
 				Build logs
 			</header>
-			<div css={{ height: "400px", overflowY: "auto" }}>
+			<div className="h-100 overflow-y-auto">
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky
 						logs={logs}
-						css={{ border: 0, borderRadius: 0 }}
+						className="border-0 rounded-none"
 					/>
 				) : (
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
+					<div className="flex items-center justify-center w-full h-full">
 						<Loader />
 					</div>
 				)}

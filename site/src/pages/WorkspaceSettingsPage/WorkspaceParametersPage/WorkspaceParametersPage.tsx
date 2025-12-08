@@ -151,7 +151,7 @@ export const WorkspaceParametersPageView: FC<
 			</header>
 
 			{submitError && !isApiValidationError(submitError) ? (
-				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
+				<ErrorAlert error={submitError} className="mb-12" />
 			) : null}
 
 			{templateVersionParameters && buildParameters ? (
@@ -185,10 +185,7 @@ export const WorkspaceParametersPageView: FC<
 								</a>
 							</Button>
 						}
-						css={(theme) => ({
-							border: `1px solid ${theme.palette.divider}`,
-							borderRadius: 8,
-						})}
+						className="border border-solid border-zinc-700 rounded-lg"
 					/>
 				)
 			) : (

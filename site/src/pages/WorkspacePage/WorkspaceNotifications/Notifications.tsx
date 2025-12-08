@@ -10,6 +10,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { type FC, type ReactNode, useState } from "react";
 import type { ThemeRole } from "theme/roles";
+import { cn } from "utils/cn";
 
 export type NotificationItem = {
 	title: string;
@@ -36,10 +37,7 @@ export const Notifications: FC<NotificationsProps> = ({
 		<TooltipProvider>
 			<Tooltip open={isOpen} onOpenChange={setIsOpen} delayDuration={0}>
 				<TooltipTrigger asChild>
-					<div
-						css={styles.pillContainer}
-						data-testid={`${severity}-notifications`}
-					>
+					<div className="py-2" data-testid={`${severity}-notifications`}>
 						<NotificationPill
 							items={items}
 							severity={severity}
@@ -94,10 +92,16 @@ interface NotificationItemProps {
 
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (
-		<article css={styles.notificationItem}>
-			<h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>
+		<article
+			className={cn([
+				"p-5 leading-normal border-0 border-t border-solid border-zinc-700 first:border-t-0",
+			])}
+		>
+			<h4 className="m-0 font-medium">{notification.title}</h4>
 			{notification.detail && (
-				<p css={styles.notificationDetail}>{notification.detail}</p>
+				<p className="m-0 text-content-secondary leading-6 block mt-2">
+					{notification.detail}
+				</p>
 			)}
 			<div className="mt-2 flex items-center gap-1">{notification.actions}</div>
 		</article>
@@ -107,26 +111,3 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 export const NotificationActionButton: FC<ButtonProps> = (props) => {
 	return <Button variant="outline" size="sm" {...props} />;
 };
-
-const styles = {
-	// Adds some spacing from the Tooltip content
-	pillContainer: {
-		padding: "8px 0",
-	},
-	notificationItem: (theme) => ({
-		padding: 20,
-		lineHeight: "1.5",
-		borderTop: `1px solid ${theme.palette.divider}`,
-
-		"&:first-of-type": {
-			borderTop: 0,
-		},
-	}),
-	notificationDetail: (theme) => ({
-		margin: 0,
-		color: theme.palette.text.secondary,
-		lineHeight: 1.6,
-		display: "block",
-		marginTop: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

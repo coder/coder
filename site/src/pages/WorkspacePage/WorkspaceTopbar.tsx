@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
@@ -111,7 +111,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	);
 
 	return (
-		<Topbar css={{ gridArea: "topbar" }}>
+		<Topbar className="[grid-area:topbar]">
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<TopbarIconButton component={RouterLink} to="/workspaces">
@@ -121,7 +121,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				<TooltipContent side="bottom">Back to workspaces</TooltipContent>
 			</Tooltip>
 
-			<div css={styles.topbarLeft}>
+			<div className="flex items-center gap-x-6 gap-y-2 flex-wrap p-3 mr-auto">
 				<TopbarData>
 					<OwnerBreadcrumb
 						ownerName={workspace.owner_name}
@@ -158,7 +158,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				{quota && quota.budget > 0 && (
 					<Link
 						component={RouterLink}
-						css={{ color: "inherit" }}
+						className="text-inherit"
 						to={
 							showOrganizations
 								? `/workspaces?filter=organization:${encodeURIComponent(workspace.organization_name)}`
@@ -180,9 +180,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 							<span>
 								{workspace.latest_build.daily_cost}{" "}
-								<span css={{ color: theme.palette.text.secondary }}>
-									credits of
-								</span>{" "}
+								<span className="text-content-secondary">credits of</span>{" "}
 								{quota.budget}
 							</span>
 						</TopbarData>
@@ -198,7 +196,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							component={RouterLink}
 							to={`${templateLink}/settings/schedule`}
 							title="Schedule settings"
-							css={{ color: "inherit" }}
+							className="text-inherit"
 						>
 							{workspace.deleting_at ? (
 								<>
@@ -265,9 +263,9 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 	return (
 		<HelpTooltip>
 			<HelpTooltipTrigger asChild>
-				<span css={styles.breadcrumbSegment}>
+				<span className="flex items-center flex-row flex-nowrap gap-2 max-w-40 whitespace-nowrap cursor-default">
 					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
-					<span css={styles.breadcrumbText}>{ownerName}</span>
+					<span className="overflow-x-hidden text-ellipsis">{ownerName}</span>
 				</span>
 			</HelpTooltipTrigger>
 
@@ -292,14 +290,14 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 	return (
 		<HelpTooltip>
 			<HelpTooltipTrigger asChild>
-				<span css={styles.breadcrumbSegment}>
+				<span className="flex items-center flex-row flex-nowrap gap-2 max-w-40 whitespace-nowrap cursor-default">
 					<Avatar
 						size="sm"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
 					/>
-					<span css={styles.breadcrumbText}>{orgName}</span>
+					<span className="overflow-x-hidden text-ellipsis">{orgName}</span>
 				</span>
 			</HelpTooltipTrigger>
 
@@ -310,7 +308,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 							<Link
 								component={RouterLink}
 								to={orgPageUrl}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								{orgName}
 							</Link>
@@ -352,13 +350,13 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 		<div className="flex items-center">
 			<HelpTooltip>
 				<HelpTooltipTrigger asChild>
-					<span css={styles.breadcrumbSegment}>
+					<span className="flex items-center flex-row flex-nowrap gap-2 max-w-40 whitespace-nowrap cursor-default">
 						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}
 						/>
 
-						<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+						<span className="overflow-x-hidden text-ellipsis font-medium">
 							{workspaceName}
 						</span>
 					</span>
@@ -370,7 +368,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							<Link
 								component={RouterLink}
 								to={rootTemplateUrl}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								{templateDisplayName}
 							</Link>
@@ -379,7 +377,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							<Link
 								component={RouterLink}
 								to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								Version: {latestBuildVersionName}
 							</Link>
@@ -399,31 +397,3 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	topbarLeft: {
-		display: "flex",
-		alignItems: "center",
-		columnGap: 24,
-		rowGap: 8,
-		flexWrap: "wrap",
-		// 12px - It is needed to keep vertical spacing when the content is wrapped
-		padding: "12px",
-		marginRight: "auto",
-	},
-
-	breadcrumbSegment: {
-		display: "flex",
-		alignItems: "center",
-		flexFlow: "row nowrap",
-		gap: "8px",
-		maxWidth: "160px",
-		whiteSpace: "nowrap",
-		cursor: "default",
-	},
-
-	breadcrumbText: {
-		overflowX: "hidden",
-		textOverflow: "ellipsis",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

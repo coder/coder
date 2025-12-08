@@ -105,7 +105,7 @@ const WorkspacePage: FC = () => {
 
 	return pageError ? (
 		<Margins>
-			<ErrorAlert error={pageError} css={{ marginTop: 16, marginBottom: 16 }} />
+			<ErrorAlert error={pageError} className="my-4" />
 		</Margins>
 	) : isLoading ? (
 		<Loader />

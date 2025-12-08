@@ -28,15 +28,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>
 			{failed && (
-				<p
-					css={{
-						margin: 0,
-						padding: "0 16px",
-						fontSize: 13,
-						color: theme.palette.text.secondary,
-						lineHeight: "1.5",
-					}}
-				>
+				<p className="m-0 py-4 text-sm text-content-secondary leading-normal">
 					Your workspace build failed, so the necessary resources couldn&apos;t
 					be created.
 				</p>
@@ -55,30 +47,16 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					key={r.id}
 					css={styles.root}
 				>
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							lineHeight: 0,
-							width: 16,
-							height: 16,
-							padding: 2,
-						}}
-					>
+					<div className="flex items-center justify-center leading-[0] w-4 h-4 p-0.5">
 						<img
-							css={{ width: "100%", height: "100%", objectFit: "contain" }}
+							className="w-full h-full object-contain"
 							src={getResourceIconPath(r.type)}
 							alt=""
 						/>
 					</div>
-					<div
-						css={{ display: "flex", flexDirection: "column", fontWeight: 500 }}
-					>
+					<div className="flex flex-col font-medium">
 						<span>{r.name}</span>
-						<span css={{ fontSize: 12, color: theme.palette.text.secondary }}>
-							{r.type}
-						</span>
+						<span className="text-xs text-content-secondary">{r.type}</span>
 					</div>
 				</SidebarItem>
 			))}
@@ -92,12 +70,7 @@ const ResourceSidebarItemSkeleton: FC = () => {
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
-				<Skeleton
-					variant="text"
-					width={60}
-					height={14}
-					css={{ marginTop: 2 }}
-				/>
+				<Skeleton variant="text" width={60} height={14} className="mt-0.5" />
 			</div>
 		</div>
 	);

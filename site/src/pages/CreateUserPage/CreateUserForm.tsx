@@ -188,21 +188,9 @@ export const CreateUserForm: FC<
 							const language = authMethodLanguage[value];
 							return (
 								<MenuItem key={value} id={`item-${value}`} value={value}>
-									<Stack
-										spacing={0}
-										css={{
-											maxWidth: 400,
-										}}
-									>
+									<Stack spacing={0} className="max-w-100">
 										{language.displayName}
-										<span
-											css={(theme) => ({
-												fontSize: 14,
-												color: theme.palette.text.secondary,
-												wordWrap: "normal",
-												whiteSpace: "break-spaces",
-											})}
-										>
+										<span className="text-sm text-content-secondary whitespace-break-spaces break-normal">
 											{language.description}
 										</span>
 									</Stack>

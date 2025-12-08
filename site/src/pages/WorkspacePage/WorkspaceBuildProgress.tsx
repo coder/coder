@@ -120,7 +120,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 		return null;
 	}
 	return (
-		<div css={styles.stack}>
+		<div className="px-2">
 			{variant === "task" && (
 				<div className="mb-1 text-center">
 					<div css={styles.label} data-chromatic="ignore">
@@ -174,10 +174,6 @@ const classNames = {
 };
 
 const styles = {
-	stack: {
-		paddingLeft: 2,
-		paddingRight: 2,
-	},
 	label: (theme) => ({
 		fontSize: 12,
 		display: "block",

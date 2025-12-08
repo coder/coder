@@ -19,6 +19,7 @@ import {
 	Link as RouterLink,
 	type LinkProps as RouterLinkProps,
 } from "react-router";
+import { cn } from "utils/cn";
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
@@ -72,15 +73,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 					aria-label="Template select for workspace"
 				/>
 
-				<OverflowY
-					maxHeight={380}
-					css={{
-						display: "flex",
-						flexDirection: "column",
-						paddingTop: "8px",
-						paddingBottom: "8px",
-					}}
-				>
+				<OverflowY maxHeight={380} className="flex flex-col py-2">
 					{templatesFetchStatus === "pending" ? (
 						<Loader size="sm" />
 					) : (
@@ -94,20 +87,10 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 					)}
 				</OverflowY>
 
-				<div
-					css={(theme) => ({
-						padding: "8px 0",
-						borderTop: `1px solid ${theme.palette.divider}`,
-					})}
-				>
+				<div className="py-2 border-0 border-t border-solid border-zinc-700">
 					<PopoverLink
 						to="/templates"
-						css={(theme) => ({
-							display: "flex",
-							alignItems: "center",
-							columnGap: 12,
-							color: theme.palette.primary.main,
-						})}
+						className="flex items-center gap-x-3 text-content-link"
 					>
 						<ExternalLinkIcon className="size-icon-xs" />
 						<span>See all templates</span>
@@ -131,11 +114,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 	return (
 		<PopoverLink
 			to={`${templateLink}/workspace`}
-			css={{
-				display: "flex",
-				gap: 12,
-				alignItems: "center",
-			}}
+			className="flex items-center gap-3"
 		>
 			<Avatar
 				variant="icon"
@@ -143,25 +122,11 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 				fallback={template.display_name || template.name}
 			/>
 
-			<div
-				css={(theme) => ({
-					color: theme.palette.text.primary,
-					display: "flex",
-					flexDirection: "column",
-					lineHeight: "140%",
-					fontSize: 14,
-					overflow: "hidden",
-				})}
-			>
-				<span css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+			<div className="text-content-primary flex flex-col text-sm leading-5 overflow-hidden">
+				<span className="whitespace-nowrap text-ellipsis">
 					{template.display_name || template.name || "[Unnamed]"}
 				</span>
-				<span
-					css={(theme) => ({
-						fontSize: 13,
-						color: theme.palette.text.secondary,
-					})}
-				>
+				<span className="text-content-secondary text-xs">
 					{/*
 					 * There are some templates that have -1 as their user count –
 					 * basically functioning like a null value in JS. Can safely just
@@ -176,24 +141,19 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 	);
 };
 
-const PopoverLink: FC<RouterLinkProps> = ({ children, ...linkProps }) => {
+const PopoverLink: FC<RouterLinkProps> = ({
+	children,
+	className,
+	...linkProps
+}) => {
 	return (
 		<RouterLink
 			{...linkProps}
-			css={(theme) => ({
-				color: theme.palette.text.primary,
-				padding: "8px 16px",
-				fontSize: 14,
-				outline: "none",
-				textDecoration: "none",
-				"&:focus": {
-					backgroundColor: theme.palette.action.focus,
-				},
-				"&:hover": {
-					textDecoration: "none",
-					backgroundColor: theme.palette.action.hover,
-				},
-			})}
+			className={cn(
+				className,
+				"text-sky-500 px-4 py-2 text-sm outline-none no-underline",
+				"focus:bg-surface-tertiary hover:no-underline hover:bg-zinc-800",
+			)}
 		>
 			{children}
 		</RouterLink>

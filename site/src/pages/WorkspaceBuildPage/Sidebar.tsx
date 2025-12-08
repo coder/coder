@@ -1,17 +1,12 @@
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "utils/cn";
 export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	children,
 	...attrs
 }) => {
 	return (
 		<nav
-			css={(theme) => ({
-				width: 256,
-				flexShrink: 0,
-				borderRight: `1px solid ${theme.palette.divider}`,
-				height: "100%",
-				overflowY: "auto",
-			})}
+			className="w-64 flex-shrink-0 border-0 border-r border-solid border-zinc-700 h-full overflow-y-auto"
 			{...attrs}
 		>
 			{children}
@@ -30,25 +25,13 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 }) => {
 	return (
 		<button
-			css={(theme) => ({
-				background: active ? theme.experimental.l2.background : "none",
-				border: "none",
-				fontSize: 14,
-				width: "100%",
-				textAlign: "left",
-				padding: "0 24px",
-				cursor: "pointer",
-				pointerEvents: active ? "none" : "auto",
-				color: active
-					? theme.palette.text.primary
-					: theme.palette.text.secondary,
-				"&:hover": {
-					background: theme.palette.action.hover,
-					color: theme.palette.text.primary,
-				},
-				paddingTop: 10,
-				paddingBottom: 10,
-			})}
+			className={cn(
+				"bg-transparent border-none text-sm w-full text-left",
+				"cursor-pointer py-2.5 px-6",
+				"hover:bg-surface-secondary hover:text-content-primary",
+				active && "none text-content-primary",
+				!active && "pointer-events-auto text-content-secondary",
+			)}
 			{...attrs}
 		>
 			{children}
@@ -62,14 +45,7 @@ export const SidebarCaption: FC<HTMLAttributes<HTMLDivElement>> = ({
 }) => {
 	return (
 		<div
-			css={(theme) => ({
-				fontSize: 10,
-				textTransform: "uppercase",
-				fontWeight: 500,
-				color: theme.palette.text.secondary,
-				padding: "12px 24px",
-				letterSpacing: "0.5px",
-			})}
+			className="text-[10px] uppercase font-medium text-content-secondary tracking-widest py-3 px-4"
 			{...attrs}
 		>
 			{children}

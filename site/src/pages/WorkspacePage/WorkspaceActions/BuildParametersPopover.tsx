@@ -28,6 +28,7 @@ import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -69,7 +70,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 					className="min-w-fit"
 				>
 					<ChevronDownIcon />
-					<span css={{ ...visuallyHidden }}>{label}</span>
+					<span className="sr-only">{label}</span>
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent
@@ -150,19 +151,13 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 			{buildParameters && ephemeralParameters ? (
 				ephemeralParameters.length > 0 ? (
 					<>
-						<div
-							css={{
-								color: theme.palette.text.secondary,
-								padding: 20,
-								borderBottom: `1px solid ${theme.palette.divider}`,
-							}}
-						>
+						<div className="text-content-secondary p-5 border-0 border-t border-solid border-zinc-700">
 							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 							<HelpTooltipText>
 								These parameters only apply for a single workspace start.
 							</HelpTooltipText>
 						</div>
-						<div css={{ padding: 20 }}>
+						<div className="p-5">
 							<Form
 								onSubmit={(buildParameters) => {
 									onSubmit(buildParameters);
@@ -180,11 +175,10 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 					</>
 				) : (
 					<div
-						css={{
-							color: theme.palette.text.secondary,
-							padding: 20,
-							borderBottom: `1px solid ${theme.palette.divider}`,
-						}}
+						className={cn([
+							"text-content-secondary p-5",
+							"border-0 border-b border-solid border-zinc-700",
+						])}
 					>
 						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 						<HelpTooltipText>
@@ -252,11 +246,11 @@ const Form: FC<FormProps> = ({
 					);
 				})}
 			</FormFields>
-			<div css={{ paddingTop: "24px", paddingBottom: "8px" }}>
+			<div className="pt-6 pb-2">
 				<Button
 					data-testid="build-parameters-submit"
 					type="submit"
-					css={{ width: "100%" }}
+					className="w-full"
 				>
 					Build workspace
 				</Button>

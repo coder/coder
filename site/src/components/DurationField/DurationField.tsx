@@ -77,12 +77,7 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 
 	return (
 		<div>
-			<div
-				css={{
-					display: "flex",
-					gap: 8,
-				}}
-			>
+			<div className="flex gap-2">
 				<TextField
 					{...textFieldProps}
 					fullWidth

@@ -46,7 +46,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 			<title>{pageTitle(workspaceName, "Settings")}</title>
 
 			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
+				<Stack className="px-12" direction="row" spacing={10}>
 					{isError ? (
 						<ErrorAlert error={error} />
 					) : (
@@ -54,7 +54,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 							<WorkspaceSettings.Provider value={workspace}>
 								<Sidebar workspace={workspace} username={username} />
 								<Suspense fallback={<Loader />}>
-									<main css={{ width: "100%" }}>
+									<main className="w-full">
 										<Outlet />
 									</main>
 								</Suspense>

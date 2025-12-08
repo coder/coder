@@ -40,7 +40,7 @@ export const Alert: FC<AlertProps> = ({
 		<Collapse in>
 			<MuiAlert
 				{...alertProps}
-				css={{ textAlign: "left" }}
+				className="text-left"
 				severity={severity}
 				action={
 					<>
@@ -72,10 +72,7 @@ export const Alert: FC<AlertProps> = ({
 
 export const AlertDetail: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<span
-			css={(theme) => ({ color: theme.palette.text.secondary, fontSize: 13 })}
-			data-chromatic="ignore"
-		>
+		<span className={"text-sm text-content-secondary"} data-chromatic="ignore">
 			{children}
 		</span>
 	);

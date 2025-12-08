@@ -25,34 +25,13 @@ export const Fieldset: FC<FieldsetProps> = ({
 
 	return (
 		<form
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				marginTop: 32,
-				overflow: "hidden",
-			}}
+			className="rounded-lg border border-solid border-zinc-700 overflow-hidden"
 			onSubmit={onSubmit}
 		>
-			<header css={{ padding: 24 }}>
-				<div
-					css={{
-						fontSize: 20,
-						margin: 0,
-						fontWeight: 600,
-					}}
-				>
-					{title}
-				</div>
+			<header className="p-6">
+				<div className="text-xl font-semibold m-0">{title}</div>
 				{subtitle && (
-					<div
-						css={{
-							color: theme.palette.text.secondary,
-							fontSize: 14,
-							marginTop: 8,
-						}}
-					>
-						{subtitle}
-					</div>
+					<div className="text-sm text-content-secondary mt-2">{subtitle}</div>
 				)}
 				<div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
 					{children}
@@ -70,7 +49,7 @@ export const Fieldset: FC<FieldsetProps> = ({
 					},
 				]}
 			>
-				<div css={{ color: theme.palette.text.secondary }}>{validation}</div>
+				<div className="text-content-secondary">{validation}</div>
 				{button || (
 					<Button type="submit" disabled={isSubmitting}>
 						Submit
