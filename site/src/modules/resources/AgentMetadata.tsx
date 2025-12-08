@@ -1,7 +1,6 @@
 import Skeleton from "@mui/material/Skeleton";
-import { watchAgentMetadata } from "api/api";
+import { API } from "api/api";
 import type {
-	ServerSentEvent,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
@@ -22,7 +21,6 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
-import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
@@ -48,78 +46,48 @@ interface AgentMetadataProps {
 	initialMetadata?: WorkspaceAgentMetadata[];
 }
 
-const maxSocketErrorRetryCount = 3;
+const pollInterval = 15000; // 15 seconds
 
 export const AgentMetadata: FC<AgentMetadataProps> = ({
 	agent,
 	initialMetadata,
 }) => {
 	const [activeMetadata, setActiveMetadata] = useState(initialMetadata);
+
 	useEffect(() => {
-		// This is an unfortunate pitfall with this component's testing setup,
-		// but even though we use the value of initialMetadata as the initial
-		// value of the activeMetadata, we cannot put activeMetadata itself into
-		// the dependency array. If we did, we would destroy and rebuild each
-		// connection every single time a new message comes in from the socket,
-		// because the socket has to be wired up to the state setter
 		if (initialMetadata !== undefined) {
 			return;
 		}
 
-		let timeoutId: number | undefined;
-		let activeSocket: OneWayWebSocket<ServerSentEvent> | null = null;
-		let retries = 0;
+		let isMounted = true;
 
-		const createNewConnection = () => {
-			const socket = watchAgentMetadata(agent.id);
-			activeSocket = socket;
-
-			socket.addEventListener("error", () => {
-				setActiveMetadata(undefined);
-				window.clearTimeout(timeoutId);
-
-				// The error event is supposed to fire when an error happens
-				// with the connection itself, which implies that the connection
-				// would auto-close. Couldn't find a definitive answer on MDN,
-				// though, so closing it manually just to be safe
-				socket.close();
-				activeSocket = null;
-
-				retries++;
-				if (retries >= maxSocketErrorRetryCount) {
+		const fetchMetadata = async () => {
+			try {
+				const metadata = await API.getWorkspaceAgentMetadata(agent.id);
+				if (isMounted) {
+					setActiveMetadata(metadata);
+				}
+			} catch (error) {
+				if (isMounted) {
+					console.error("Failed to fetch agent metadata:", error);
 					displayError(
-						"Unexpected disconnect while watching Metadata changes. Please try refreshing the page.",
+						"Failed to fetch agent metadata. Will retry automatically.",
 					);
-					return;
 				}
-
-				displayError(
-					"Unexpected disconnect while watching Metadata changes. Creating new connection...",
-				);
-				timeoutId = window.setTimeout(() => {
-					createNewConnection();
-				}, 3_000);
-			});
-
-			socket.addEventListener("message", (e) => {
-				if (e.parseError) {
-					displayError(
-						"Unable to process newest response from server. Please try refreshing the page.",
-					);
-					return;
-				}
-
-				const msg = e.parsedMessage;
-				if (msg.type === "data") {
-					setActiveMetadata(msg.data as WorkspaceAgentMetadata[]);
-				}
-			});
+			}
 		};
 
-		createNewConnection();
+		// Fetch immediately
+		void fetchMetadata();
+
+		// Then poll every 15 seconds
+		const intervalId = setInterval(() => {
+			void fetchMetadata();
+		}, pollInterval);
+
 		return () => {
-			window.clearTimeout(timeoutId);
-			activeSocket?.close();
+			isMounted = false;
+			clearInterval(intervalId);
 		};
 	}, [agent.id, initialMetadata]);
 

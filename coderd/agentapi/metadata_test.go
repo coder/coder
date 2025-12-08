@@ -3,7 +3,6 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,25 +19,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-type fakePublisher struct {
-	// Nil pointer to pass interface check.
-	pubsub.Pubsub
-	publishes [][]byte
-}
-
-var _ pubsub.Pubsub = &fakePublisher{}
-
-func (f *fakePublisher) Publish(_ string, message []byte) error {
-	f.publishes = append(f.publishes, message)
-	return nil
-}
 
 func TestBatchUpdateMetadata(t *testing.T) {
 	t.Parallel()
@@ -51,7 +36,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		t.Parallel()
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
-		pub := &fakePublisher{}
 
 		now := dbtime.Now()
 		req := &agentproto.BatchUpdateMetadataRequest{
@@ -92,7 +76,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
-			Pubsub:    pub,
 			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
@@ -102,21 +85,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		resp, err := api.BatchUpdateMetadata(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.BatchUpdateMetadataResponse{}, resp)
-
-		require.Equal(t, 1, len(pub.publishes))
-		var gotEvent agentapi.WorkspaceAgentMetadataChannelPayload
-		require.NoError(t, json.Unmarshal(pub.publishes[0], &gotEvent))
-		require.Equal(t, agentapi.WorkspaceAgentMetadataChannelPayload{
-			CollectedAt: now,
-			Keys:        []string{req.Metadata[0].Key, req.Metadata[1].Key},
-		}, gotEvent)
 	})
 
 	t.Run("ExceededLength", func(t *testing.T) {
 		t.Parallel()
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
-		pub := pubsub.NewInMemory()
 
 		almostLongValue := ""
 		for i := 0; i < 2048; i++ {
@@ -178,7 +152,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
-			Pubsub:    pub,
 			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
@@ -194,7 +167,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		t.Parallel()
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
-		pub := pubsub.NewInMemory()
 
 		now := dbtime.Now()
 		req := &agentproto.BatchUpdateMetadataRequest{
@@ -248,38 +220,16 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
-			Pubsub:    pub,
 			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
 			},
 		}
 
-		// Watch the pubsub for events.
-		var (
-			eventCount int64
-			gotEvent   agentapi.WorkspaceAgentMetadataChannelPayload
-		)
-		cancel, err := pub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(agent.ID), func(ctx context.Context, message []byte) {
-			if atomic.AddInt64(&eventCount, 1) > 1 {
-				return
-			}
-			require.NoError(t, json.Unmarshal(message, &gotEvent))
-		})
-		require.NoError(t, err)
-		defer cancel()
-
 		resp, err := api.BatchUpdateMetadata(context.Background(), req)
 		require.Error(t, err)
 		require.Equal(t, "metadata keys of 6145 bytes exceeded 6144 bytes", err.Error())
 		require.Nil(t, resp)
-
-		require.Equal(t, int64(1), atomic.LoadInt64(&eventCount))
-		require.Equal(t, agentapi.WorkspaceAgentMetadataChannelPayload{
-			CollectedAt: now,
-			// No key 4.
-			Keys: []string{req.Metadata[0].Key, req.Metadata[1].Key, req.Metadata[2].Key},
-		}, gotEvent)
 	})
 
 	// Test RBAC fast path with valid RBAC object - should NOT call GetWorkspaceByAgentID
@@ -291,7 +241,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		var (
 			ctrl = gomock.NewController(t)
 			dbM  = dbmock.NewMockStore(ctrl)
-			pub  = &fakePublisher{}
 			now  = dbtime.Now()
 			// Set up consistent IDs that represent a valid workspace->agent relationship
 			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
@@ -345,7 +294,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
-			Pubsub:    pub,
 			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
@@ -373,7 +321,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		var (
 			ctrl        = gomock.NewController(t)
 			dbM         = dbmock.NewMockStore(ctrl)
-			pub         = &fakePublisher{}
 			now         = dbtime.Now()
 			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
 			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
@@ -430,7 +377,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
-			Pubsub:    pub,
 			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
@@ -460,7 +406,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		var (
 			ctrl        = gomock.NewController(t)
 			dbM         = dbmock.NewMockStore(ctrl)
-			pub         = &fakePublisher{}
 			now         = dbtime.Now()
 			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
 			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
@@ -516,7 +461,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
-			Pubsub:    pub,
 			Log:       testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
@@ -539,7 +483,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		var (
 			ctrl       = gomock.NewController(t)
 			dbM        = dbmock.NewMockStore(ctrl)
-			pub        = &fakePublisher{}
 			now        = dbtime.Now()
 			mClock     = quartz.NewMock(t)
 			tickerTrap = mClock.Trap().TickerFunc("cache_refresh")
@@ -679,7 +622,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			Database:         dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Log:              testutil.Logger(t),
 			Clock:            mClock,
-			Pubsub:           pub,
 		}, initialWorkspace) // Cache is initialized with 9am schedule and "my-workspace" name
 
 		// Wait for ticker to be set up and release it so it can fire

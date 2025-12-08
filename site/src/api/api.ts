@@ -1647,6 +1647,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceAgentMetadata = async (
+		agentID: string,
+	): Promise<TypesGen.WorkspaceAgentMetadata[]> => {
+		const response = await this.axios.get<TypesGen.WorkspaceAgentMetadata[]>(
+			`/api/v2/workspaceagents/${agentID}/metadata`,
+		);
+
+		return response.data;
+	};
+
 	putWorkspaceExtension = async (
 		workspaceId: string,
 		newDeadline: dayjs.Dayjs,

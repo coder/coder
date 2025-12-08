@@ -1428,6 +1428,7 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
+				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
 				r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWS)
 				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
