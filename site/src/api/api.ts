@@ -2827,7 +2827,8 @@ interface ClientApi extends ApiMethods {
 	getAxiosInstance: () => AxiosInstance;
 }
 
-class Api extends ApiMethods implements ClientApi {
+/** @public Exported for use by external consumers (e.g., VS Code extension). */
+export class Api extends ApiMethods implements ClientApi {
 	constructor() {
 		const scopedAxiosInstance = getConfiguredAxiosInstance();
 		super(scopedAxiosInstance);
