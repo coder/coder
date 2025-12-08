@@ -1,0 +1,43 @@
+# Boundary Configuration File
+# Place this file in the workspace or reference via BOUNDARY_CONFIG env var.
+#
+# Example: BOUNDARY_CONFIG=/path/to/boundary-config.yaml boundary -- npm install
+
+# Network allowlist rules
+# Format: "pattern" or "METHOD[,METHOD] pattern"
+allowlist:
+  - "domain=github.com"
+  - "domain=*.github.com"
+  - "domain=api.npmjs.org"
+  - "domain=registry.npmjs.org"
+
+# Logging configuration
+log_level: "warn"  # error, warn, info, debug
+# log_dir: "/var/log/boundary"  # Optional: write logs to directory instead of stderr
+
+# Proxy configuration
+proxy_port: 8080
+
+# Simple mode (no network namespace isolation)
+# Set to true if running without elevated permissions
+simple: false
+
+# OTLP Audit Logging
+# Export network access audit events to an OTLP-compatible endpoint
+otlp_endpoint: "https://otel-collector.example.com:4318/v1/logs"
+otlp_headers: "x-api-key=your-api-key"
+# otlp_insecure: false  # Skip TLS verification (not recommended)
+# otlp_ca_cert: "/path/to/ca.crt"  # Custom CA for internal collectors
+
+# Workspace metadata (included in OTLP log attributes)
+# These are typically set via environment variables from Coder template
+# workspace_id: ""
+# workspace_name: ""
+# workspace_owner: ""
+
+# Unix socket for sending audit events to Coder agent
+# audit_socket: "/tmp/boundary-audit.sock"
+
+# Profiling (for debugging)
+# pprof_enabled: false
+# pprof_port: 6060
