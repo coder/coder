@@ -5,9 +5,9 @@
 /install/offline#offline-docs /install/airgap#airgap-docs 301
 /install/offline#offline-container-images /install/airgap#airgap-container-images 301
 
-# Redirect old devcontainers folder to envbuilder
-/admin/templates/managing-templates/devcontainers /admin/templates/managing-templates/envbuilder 301
-/admin/templates/managing-templates/devcontainers/index /admin/templates/managing-templates/envbuilder 301
-/admin/templates/managing-templates/devcontainers/add-devcontainer /admin/templates/managing-templates/envbuilder/add-envbuilder 301
-/admin/templates/managing-templates/devcontainers/devcontainer-security-caching /admin/templates/managing-templates/envbuilder/envbuilder-security-caching 301
-/admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues /admin/templates/managing-templates/envbuilder/envbuilder-releases-known-issues 301
+# Redirect old devcontainers paths to new integrations location
+/admin/templates/managing-templates/devcontainers /admin/integrations/devcontainers/envbuilder 301
+/admin/templates/managing-templates/devcontainers/index /admin/integrations/devcontainers/envbuilder 301
+/admin/templates/managing-templates/devcontainers/add-devcontainer /admin/integrations/devcontainers/envbuilder/add-envbuilder 301
+/admin/templates/managing-templates/devcontainers/devcontainer-security-caching /admin/integrations/devcontainers/envbuilder/envbuilder-security-caching 301
+/admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues /admin/integrations/devcontainers/envbuilder/envbuilder-releases-known-issues 301
