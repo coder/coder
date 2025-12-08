@@ -44,7 +44,8 @@
               "enabled": true,
               "threshold": 80
             }
-          }
+          },
+          "api_key_scope": "all"
         },
         {
           "id": "e3ce0177-ce0c-4136-af81-90d0751bf3de",
@@ -77,7 +78,8 @@
                 "threshold": 80
               }
             ]
-          }
+          },
+          "api_key_scope": "all"
         }
       ]
     }
