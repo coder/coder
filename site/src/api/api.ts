@@ -359,6 +359,8 @@ export type DeploymentConfig = Readonly<{
 
 type Claims = {
 	license_expires: number;
+	// nbf is a standard JWT claim for "not before" - the license valid from date
+	nbf?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -2825,7 +2827,8 @@ interface ClientApi extends ApiMethods {
 	getAxiosInstance: () => AxiosInstance;
 }
 
-class Api extends ApiMethods implements ClientApi {
+/** @public Exported for use by external consumers (e.g., VS Code extension). */
+export class Api extends ApiMethods implements ClientApi {
 	constructor() {
 		const scopedAxiosInstance = getConfiguredAxiosInstance();
 		super(scopedAxiosInstance);
