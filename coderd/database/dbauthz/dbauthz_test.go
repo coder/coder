@@ -324,6 +324,10 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		dbm.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), database.DeleteOldAuditLogConnectionEventsParams{}).Return(nil).AnyTimes()
 		check.Args(database.DeleteOldAuditLogConnectionEventsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("DeleteOldAuditLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldAuditLogs(gomock.Any(), database.DeleteOldAuditLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldAuditLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 }
 
 func (s *MethodTestSuite) TestConnectionLogs() {
@@ -354,6 +358,10 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 		dbm.EXPECT().CountAuthorizedConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}, gomock.Any()).Return(int64(0), nil).AnyTimes()
 		dbm.EXPECT().CountConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.CountConnectionLogsParams{}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
+	}))
+	s.Run("DeleteOldConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldConnectionLogs(gomock.Any(), database.DeleteOldConnectionLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldConnectionLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 }
 
@@ -3219,7 +3227,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("DeleteOldWorkspaceAgentLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -4697,7 +4705,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t := dbtime.Now()
-		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
 	}))
 }

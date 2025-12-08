@@ -173,6 +173,23 @@ ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 ```
 
+### Avoid Unnecessary Changes
+
+When fixing a bug or adding a feature, don't modify code unrelated to your
+task. Unnecessary changes make PRs harder to review and can introduce
+regressions.
+
+**Don't reword existing comments or code** unless the change is directly
+motivated by your task. Rewording comments to be shorter or "cleaner" wastes
+reviewer time and clutters the diff.
+
+**Don't delete existing comments** that explain non-obvious behavior. These
+comments preserve important context about why code works a certain way.
+
+**When adding tests for new behavior**, add new test cases instead of modifying
+existing ones. This preserves coverage for the original behavior and makes it
+clear what the new test covers.
+
 ## Detailed Development Guides
 
 @.claude/docs/ARCHITECTURE.md
@@ -180,6 +197,10 @@ ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 @.claude/docs/TESTING.md
 @.claude/docs/TROUBLESHOOTING.md
 @.claude/docs/DATABASE.md
+
+## Local Configuration
+
+These files may be gitignored, read manually if not auto-loaded.
 
 @AGENTS.local.md
 

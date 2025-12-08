@@ -1,10 +1,9 @@
-# Add a dev container template to Coder
+# Add an Envbuilder template
 
-A Coder administrator adds a dev container-compatible template to Coder
-(Envbuilder). This allows the template to prompt for the developer for their dev
-container repository's URL as a
-[parameter](../../extending-templates/parameters.md) when they create their
-workspace. Envbuilder clones the repo and builds a container from the
+A Coder administrator adds an Envbuilder-compatible template to Coder. This
+allows the template to prompt the developer for their dev container repository's
+URL as a [parameter](../../extending-templates/parameters.md) when they create
+their workspace. Envbuilder clones the repo and builds a container from the
 `devcontainer.json` specified in the repo.
 
 You can create template files through the Coder dashboard, CLI, or you can
@@ -143,4 +142,4 @@ Lifecycle scripts are managed by project developers.
 
 ## Next steps
 
-- [Dev container security and caching](./devcontainer-security-caching.md)
+- [Envbuilder security and caching](./envbuilder-security-caching.md)

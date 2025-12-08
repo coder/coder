@@ -829,6 +829,11 @@ type RetentionConfig struct {
 	// Keys are only deleted if they have been expired for at least this duration.
 	// Defaults to 7 days to preserve existing behavior.
 	APIKeys serpent.Duration `json:"api_keys" typescript:",notnull"`
+	// WorkspaceAgentLogs controls how long workspace agent logs are retained.
+	// Logs are deleted if the agent hasn't connected within this period.
+	// Logs from the latest build are always retained regardless of age.
+	// Defaults to 7 days to preserve existing behavior.
+	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -3418,6 +3423,17 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "7d",
 			Group:       &deploymentGroupRetention,
 			YAML:        "api_keys",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Workspace Agent Logs Retention",
+			Description: "How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.",
+			Flag:        "workspace-agent-logs-retention",
+			Env:         "CODER_WORKSPACE_AGENT_LOGS_RETENTION",
+			Value:       &c.Retention.WorkspaceAgentLogs,
+			Default:     "7d",
+			Group:       &deploymentGroupRetention,
+			YAML:        "workspace_agent_logs",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{

@@ -106,6 +106,9 @@ var _ OutputFormat = &tableFormat{}
 //
 // defaultColumns is optional and specifies the default columns to display. If
 // not specified, all columns are displayed by default.
+//
+// If the data is empty, an empty string is returned. Callers should check for
+// this and provide an appropriate message to the user.
 func TableFormat(out any, defaultColumns []string) OutputFormat {
 	v := reflect.Indirect(reflect.ValueOf(out))
 	if v.Kind() != reflect.Slice {

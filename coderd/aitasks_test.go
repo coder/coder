@@ -1680,8 +1680,8 @@ func TestTasksNotification(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, workspaceAgent.Apps, 1)
 			require.GreaterOrEqual(t, len(workspaceAgent.Apps[0].Statuses), 1)
-			latestStatusIndex := len(workspaceAgent.Apps[0].Statuses) - 1
-			require.Equal(t, tc.newAppStatus, workspaceAgent.Apps[0].Statuses[latestStatusIndex].State)
+			// Statuses are ordered by created_at DESC, so the first element is the latest.
+			require.Equal(t, tc.newAppStatus, workspaceAgent.Apps[0].Statuses[0].State)
 
 			if tc.isNotificationSent {
 				// Then: A notification is sent to the workspace owner (memberUser)

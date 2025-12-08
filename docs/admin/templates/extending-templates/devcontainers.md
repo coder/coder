@@ -25,7 +25,9 @@ This is the recommended approach for most use cases.
 
 ### Project Discovery
 
-Enable automatic discovery of Dev Containers in Git repositories. Project discovery automatically scans Git repositories for `.devcontainer/devcontainer.json` or `.devcontainer.json` files and surfaces them in the Coder UI. See the [Environment Variables](#environment-variables) section for detailed configuration options.
+Alternatively, enable automatic discovery of Dev Containers in Git repositories.
+The agent scans for `devcontainer.json` files and surfaces them in the Coder UI.
+See [Environment Variables](#environment-variables) for configuration options.
 
 ## Install the Dev Containers CLI
 
@@ -36,7 +38,7 @@ to ensure the `@devcontainers/cli` is installed in your workspace:
 ```terraform
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  source   = "registry.coder.com/coder/devcontainers-cli/coder"
   agent_id = coder_agent.dev.id
 }
 ```
@@ -71,6 +73,10 @@ resource "coder_devcontainer" "my-repository" {
 > Consider using the [`git-clone`](https://registry.coder.com/modules/git-clone)
 > module to ensure your repository is cloned into the workspace folder and ready
 > for automatic startup.
+
+For multi-repo workspaces, define multiple `coder_devcontainer` resources, each
+pointing to a different repository. Each one runs as a separate sub-agent with
+its own terminal and apps in the dashboard.
 
 ## Enable Dev Containers Integration
 
@@ -119,15 +125,17 @@ by setting this to `false`.
 
 Enables automatic discovery of Dev Containers in Git repositories.
 
-When enabled, the agent will:
+When enabled, the agent scans the configured working directory (set via the
+`directory` attribute in `coder_agent`, typically the user's home directory) for
+Git repositories. If the directory itself is a Git repository, it searches that
+project. Otherwise, it searches immediate subdirectories for Git repositories.
 
-- Scan the agent directory for Git repositories
-- Look for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
-- Surface discovered Dev Containers automatically in the Coder UI
-- Respect `.gitignore` patterns during discovery
+For each repository found, the agent looks for `devcontainer.json` files in the
+[standard locations](../../../user-guides/devcontainers/index.md#add-a-devcontainerjson)
+and surfaces discovered Dev Containers in the Coder UI. Discovery respects
+`.gitignore` patterns.
 
-You can disable automatic discovery by setting this to `false` if you prefer to
-use only the `coder_devcontainer` resource for explicit configuration.
+Set to `false` if you prefer explicit configuration via `coder_devcontainer`.
 
 ### CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE
 
@@ -142,67 +150,33 @@ always auto-start regardless of this setting.
 
 ## Per-Container Customizations
 
-Individual Dev Containers can be customized using the `customizations.coder` block
-in your `devcontainer.json` file. These customizations allow you to control
-container-specific behavior without modifying your template.
+> [!NOTE]
+>
+> Dev container sub-agents are created dynamically after workspace provisioning,
+> so Terraform resources like
+> [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
+> and [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+> cannot currently be attached to them. Modules from the
+> [Coder registry](https://registry.coder.com) that depend on these resources
+> are also not currently supported for sub-agents.
+>
+> To add tools to dev containers, use
+> [dev container features](../../../user-guides/devcontainers/working-with-dev-containers.md#dev-container-features).
+> For Coder-specific apps, use the
+> [`apps` customization](../../../user-guides/devcontainers/customizing-dev-containers.md#custom-apps).
 
-### Ignore Specific Containers
+Developers can customize individual dev containers using the `customizations.coder`
+block in their `devcontainer.json` file. Available options include:
 
-Use the `ignore` option to hide a Dev Container from Coder completely:
+- `ignore` — Hide a dev container from Coder completely
+- `autoStart` — Control whether the container starts automatically (requires
+  `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE` to be enabled)
+- `name` — Set a custom agent name
+- `displayApps` — Control which built-in apps appear
+- `apps` — Define custom applications
 
-```json
-{
-  "name": "My Dev Container",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "customizations": {
-    "coder": {
-      "ignore": true
-    }
-  }
-}
-```
-
-When `ignore` is set to `true`:
-
-- The Dev Container won't appear in the Coder UI
-- Coder won't manage or monitor the container
-
-This is useful when you have Dev Containers in your repository that you don't
-want Coder to manage.
-
-### Per-Container Auto-Start
-
-Control whether individual Dev Containers should auto-start using the
-`autoStart` option:
-
-```json
-{
-  "name": "My Dev Container",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "customizations": {
-    "coder": {
-      "autoStart": true
-    }
-  }
-}
-```
-
-**Important**: The `autoStart` option only applies when global auto-start is
-enabled via `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE=true`. If
-the global setting is disabled, containers won't auto-start regardless of this
-setting.
-
-When `autoStart` is set to `true`:
-
-- The Dev Container automatically builds and starts during workspace
-  initialization
-- Works on a per-container basis (you can enable it for some containers but not
-  others)
-
-When `autoStart` is set to `false` or omitted:
-
-- The Dev Container is discovered and shown in the UI
-- Users must manually start it via the UI
+For the full reference, see
+[Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md).
 
 ## Complete Template Example
 
@@ -232,7 +206,7 @@ resource "coder_agent" "dev" {
 
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  source   = "registry.coder.com/coder/devcontainers-cli/coder"
   agent_id = coder_agent.dev.id
 }
 
@@ -243,9 +217,10 @@ resource "coder_devcontainer" "my-repository" {
 }
 ```
 
-### Alternative: Project Discovery Mode
+### Alternative: Project Discovery with Autostart
 
-You can enable automatic starting of discovered Dev Containers:
+By default, discovered containers appear in the dashboard but developers must
+manually start them. To have them start automatically, enable autostart:
 
 ```terraform
 resource "docker_container" "workspace" {
@@ -261,11 +236,11 @@ resource "docker_container" "workspace" {
 }
 ```
 
-With this configuration:
+With autostart enabled:
 
-- Project discovery is enabled (default behavior)
-- Discovered containers are automatically started (via the env var)
-- The `coder_devcontainer` resource is **not** required
+- Discovered containers automatically build and start during workspace
+  initialization
+- The `coder_devcontainer` resource is not required
 - Developers can work with multiple projects seamlessly
 
 > [!NOTE]
@@ -273,8 +248,16 @@ With this configuration:
 > When using project discovery, you still need to install the devcontainers CLI
 > using the module or in your base image.
 
+## Example Template
+
+The [Docker (Dev Containers)](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)
+starter template demonstrates Dev Containers integration using Docker-in-Docker.
+It includes the `devcontainers-cli` module, `git-clone` module, and the
+`coder_devcontainer` resource.
+
 ## Next Steps
 
 - [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
+- [Customizing Dev Containers](../../../user-guides/devcontainers/customizing-dev-containers.md)
 - [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
 - [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)

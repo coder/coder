@@ -725,10 +725,10 @@ func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx
 }
 
 // DeleteOldAIBridgeRecords mocks base method.
-func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOldAIBridgeRecords", ctx, beforeTime)
-	ret0, _ := ret[0].(int32)
+	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -751,6 +751,36 @@ func (m *MockStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) DeleteOldAuditLogConnectionEvents(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAuditLogConnectionEvents", reflect.TypeOf((*MockStore)(nil).DeleteOldAuditLogConnectionEvents), ctx, arg)
+}
+
+// DeleteOldAuditLogs mocks base method.
+func (m *MockStore) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOldAuditLogsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldAuditLogs", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldAuditLogs indicates an expected call of DeleteOldAuditLogs.
+func (mr *MockStoreMockRecorder) DeleteOldAuditLogs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAuditLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldAuditLogs), ctx, arg)
+}
+
+// DeleteOldConnectionLogs mocks base method.
+func (m *MockStore) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldConnectionLogs", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldConnectionLogs indicates an expected call of DeleteOldConnectionLogs.
+func (mr *MockStoreMockRecorder) DeleteOldConnectionLogs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldConnectionLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldConnectionLogs), ctx, arg)
 }
 
 // DeleteOldNotificationMessages mocks base method.
@@ -796,11 +826,12 @@ func (mr *MockStoreMockRecorder) DeleteOldTelemetryLocks(ctx, periodEndingAtBefo
 }
 
 // DeleteOldWorkspaceAgentLogs mocks base method.
-func (m *MockStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
+func (m *MockStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOldWorkspaceAgentLogs", ctx, threshold)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteOldWorkspaceAgentLogs indicates an expected call of DeleteOldWorkspaceAgentLogs.

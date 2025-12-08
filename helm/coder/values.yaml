@@ -130,6 +130,8 @@ coder:
 
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
+    # coder.serviceAccount.labels -- The Coder service account labels.
+    labels: {}
     # coder.serviceAccount.name -- The service account name
     name: coder
     # coder.serviceAccount.disableCreate -- Whether to create the service account or use existing service account.

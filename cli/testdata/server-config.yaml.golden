@@ -761,3 +761,8 @@ retention:
   # an expired key. Set to 0 to disable automatic deletion of expired keys.
   # (default: 7d, type: duration)
   api_keys: 168h0m0s
+  # How long workspace agent logs are retained. Logs from non-latest builds are
+  # deleted if the agent hasn't connected within this period. Logs from the latest
+  # build are always retained. Set to 0 to disable automatic deletion.
+  # (default: 7d, type: duration)
+  workspace_agent_logs: 168h0m0s

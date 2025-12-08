@@ -187,6 +187,11 @@
 							"title": "Feature stages",
 							"description": "Information about pre-GA stages.",
 							"path": "./install/releases/feature-stages.md"
+						},
+						{
+							"title": "Upgrading from ESR 2.24 to 2.29",
+							"description": "Upgrade Guide for ESR Releases",
+							"path": "./install/releases/esr-2.24-2.29-upgrade.md"
 						}
 					]
 				}
@@ -327,6 +332,11 @@
 							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
 						},
 						{
+							"title": "Customizing dev containers",
+							"description": "Configure custom agent names, apps, and display options in devcontainer.json.",
+							"path": "./user-guides/devcontainers/customizing-dev-containers.md"
+						},
+						{
 							"title": "Troubleshooting dev containers",
 							"description": "Diagnose and resolve common issues with dev containers in your Coder workspace.",
 							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md"
@@ -363,6 +373,11 @@
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects",
 							"path": "./admin/setup/telemetry.md"
+						},
+						{
+							"title": "Data Retention",
+							"description": "Configure data retention policies for database tables",
+							"path": "./admin/setup/data-retention.md"
 						}
 					]
 				},
@@ -517,24 +532,24 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Dev containers",
-									"description": "Learn about using development containers in templates",
-									"path": "./admin/templates/managing-templates/devcontainers/index.md",
+									"title": "Envbuilder",
+									"description": "Build dev containers using Envbuilder for environments without Docker",
+									"path": "./admin/templates/managing-templates/envbuilder/index.md",
 									"children": [
 										{
-											"title": "Add a dev container template",
-											"description": "How to add a dev container template to Coder",
-											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
+											"title": "Add an Envbuilder template",
+											"description": "How to add an Envbuilder dev container template to Coder",
+											"path": "./admin/templates/managing-templates/envbuilder/add-envbuilder.md"
 										},
 										{
-											"title": "Dev container security and caching",
-											"description": "Configure dev container authentication and caching",
-											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
+											"title": "Envbuilder security and caching",
+											"description": "Configure Envbuilder authentication and caching",
+											"path": "./admin/templates/managing-templates/envbuilder/envbuilder-security-caching.md"
 										},
 										{
-											"title": "Dev container releases and known issues",
-											"description": "Dev container releases and known issues",
-											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
+											"title": "Envbuilder releases and known issues",
+											"description": "Envbuilder releases and known issues",
+											"path": "./admin/templates/managing-templates/envbuilder/envbuilder-releases-known-issues.md"
 										}
 									]
 								},
@@ -933,7 +948,7 @@
 				},
 				{
 					"title": "AI Bridge",
-					"description": "Centralized LLM and MCP proxy for platform teams",
+					"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 					"path": "./ai-coder/ai-bridge/index.md",
 					"icon_path": "./images/icons/api.svg",
 					"state": ["premium", "beta"],
