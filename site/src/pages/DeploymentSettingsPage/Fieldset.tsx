@@ -25,13 +25,17 @@ export const Fieldset: FC<FieldsetProps> = ({
 
 	return (
 		<form
-			className="rounded-lg border border-solid border-zinc-700 overflow-hidden"
+			className="rounded-lg border border-solid border-zinc-700 overflow-hidden mt-8"
 			onSubmit={onSubmit}
 		>
 			<header className="p-6">
-				<div className="text-xl font-semibold m-0">{title}</div>
+				<div className="text-xl font-semibold m-0 leading-[inherit]">
+					{title}
+				</div>
 				{subtitle && (
-					<div className="text-sm text-content-secondary mt-2">{subtitle}</div>
+					<div className="text-sm text-content-secondary mt-2 leading-[inherit]">
+						{subtitle}
+					</div>
 				)}
 				<div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
 					{children}
