@@ -596,6 +596,14 @@ resource "coder_agent" "dev" {
     # Allow synchronization between scripts.
     trap 'touch /tmp/.coder-startup-script.done' EXIT
 
+    # Authenticate GitHub CLI
+    if ! gh auth status >/dev/null 2>&1; then
+      echo "Logging into GitHub CLI…"
+      coder external-auth access-token github | gh auth login --hostname github.com --with-token
+    else
+      echo "Already logged into GitHub CLI."
+    fi
+
     # Increase the shutdown timeout of the docker service for improved cleanup.
     # The 240 was picked as it's lower than the 300 seconds we set for the
     # container shutdown grace period.
@@ -830,6 +838,13 @@ locals {
       to confirm it worked as expected
     -	Built-in tools - use for everything else:
       (file operations, git commands, builds & installs, one-off shell commands)
+
+    -- Workflow --
+    When starting new work:
+    1. If given a GitHub issue URL, use the `gh` CLI to read the full issue details with `gh issue view <issue-number>`.
+    2. Create a feature branch for the work using a descriptive name based on the issue or task.
+       Example: `git checkout -b fix/issue-123-oauth-error` or `git checkout -b feat/add-dark-mode`
+    3. Proceed with implementation following the CLAUDE.md guidelines.
 
     -- Context --
     There is an existing application in the current directory.

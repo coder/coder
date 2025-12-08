@@ -24,16 +24,27 @@
 				box-sizing: border-box;
 			}
 
+			:root {
+				--color-white: #FFFFFF;
+				--color-warning: #F3722C;
+				--color-surface-primary: #090B0B;
+				--color-zinc-900: #18181B;
+				--color-zinc-400: #A1A1AA;
+				--color-zinc-800: #27272A;
+			}
+
 			html,
 			body {
-				background-color: #05060b;
-				color: #a1a1aa;
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				font-family: sans-serif;
-				font-size: 16px;
 				height: 100%;
+
+				background: var(--color-surface-primary);
+				color: var(--color-zinc-400);
+
+				font-family: system-ui, sans-serif;
+				font-size: 16px;
 			}
 
 			header {
@@ -41,37 +52,38 @@
 			}
 
 			.container {
-				--side-padding: 24px;
+				--side-padding: 1.5rem;
 				width: 100%;
-				max-width: calc(500px + var(--side-padding) * 2);
+				max-width: calc(31.25rem + var(--side-padding) * 2);
 				padding: 0 var(--side-padding);
 			}
 
 			.coder-svg {
-				width: 80px;
-				margin-bottom: 24px;
+				width: 5rem;
+				margin-bottom: 1.5rem;
 			}
 
 			h1 {
-				font-size: 24px;
-				margin-bottom: 8px;
+				font-size: 1.5rem;
 				font-weight: 400;
-				color: white;
+				color: var(--color-white);
+
+				margin-bottom: 0.5rem;
 			}
 
 			p,
 			li {
 				line-height: 140%;
-				font-size: 14px;
+				font-size: 1rem;
 			}
-
 
 			.button-group {
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				gap: 12px;
-				margin-top: 24px;
+				gap: 0.75rem;
+
+				margin-top: 1.5rem;
 			}
 
 			.button-group a,
@@ -79,29 +91,37 @@
 				display: inline-flex;
 				align-items: center;
 				justify-content: center;
-				padding: 6px 16px;
-				border-radius: 4px;
-				border: 1px solid #2c3854;
-				text-decoration: none;
+
+				padding: 0.5rem 1rem;
+
+				border-radius: 0.375rem;
+				border: 1px solid var(--color-zinc-800);
 				background: none;
-				font-size: inherit;
-				color: inherit;
-				width: 200px;
-				height: 42px;
+
+				color: var(--color-white);
+				text-decoration: none;
+				font-size: 0.875rem;
+				font-weight: 400;
+
+				width: 12.5rem;
+				height: 2.5rem;
+
 				cursor: pointer;
 			}
 
 			.button-group a:hover,
 			.button-group button:hover {
-				border-color: hsl(222, 31%, 40%);
+				background-color: var(--color-zinc-900);
+				border-color: var(--color-zinc-800);
 			}
 
 			.warning {
-				margin-top: 24px;
-				border: 1px solid rgb(243, 140, 89);
-				background: rgb(13, 19, 33);
+				border: 1px solid var(--color-warning);
+				background: var(--color-zinc-900);
 				width: 100%;
-				padding: 24px;
+
+				margin: 1.5rem 0 0;
+				padding: 1.5rem;
 			}
 
 			.warning-title {
@@ -111,15 +131,16 @@
 			}
 
 			.warning-title h3 {
-				margin-left: 12px;
-				font-size: 16px;
-				font-weight: 500;
-				color: white;
+				font-size: 1rem;
+				font-weight: 400;
+				color: var(--color-white);
+
+				margin-left: 0.75rem;
 			}
 
 			.warning li {
-				padding-top: 10px;
-				margin-left: 30px;
+				padding-top: 0.625rem;
+				margin-left: 1.875rem;
 			}
 		</style>
 	</head>
