@@ -56,7 +56,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
 				"cursor-pointer flex flex-row items-center text-sm font-mono rounded-lg p-2",
 				"leading-normal text-content-primary border border-solid",
 				"border-gray-300 hover:bg-gray-200",
-				"dark:bg-zinc-800 dark:border-zinc-700 dark:hover:bg-zinc-800",
+				"dark:border-zinc-700 dark:hover:bg-zinc-800",
 				className,
 			)}
 		>
