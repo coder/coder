@@ -1,6 +1,6 @@
 # Pull Request Description Style Guide
 
-This guide documents the PR description style used in the Coder repository, based on analysis of recent merged PRs. This is specifically for PR descriptions - see [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general PR guidelines (size limits, review process, etc.).
+This guide documents the PR description style used in the Coder repository, based on analysis of recent merged PRs.
 
 ## PR Title Format
 
@@ -52,14 +52,14 @@ websocket listeners immediately when a config file changes.
 **Example (dependency update):**
 
 ```markdown
-Changes from https://github.com/coder/aibridge/pull/71/
+Changes from https://github.com/upstream/repo/pull/XXX/
 ```
 
 **Example (docs correction):**
 
 ```markdown
 Removes references to adding database replicas from the scaling docs,
-as Coder only allows a single connection URL. These passages where added in error.
+as Coder only allows a single connection URL. These passages were added in error.
 ```
 
 ### For Complex Changes: Use "Summary", "Problem", "Fix"
