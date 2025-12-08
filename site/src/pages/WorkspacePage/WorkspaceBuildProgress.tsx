@@ -120,7 +120,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 		return null;
 	}
 	return (
-		<div className="px-2">
+		<div className="px-0.5">
 			{variant === "task" && (
 				<div className="mb-1 text-center">
 					<div css={styles.label} data-chromatic="ignore">
