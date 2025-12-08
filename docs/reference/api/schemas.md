@@ -390,24 +390,30 @@
   },
   "enabled": true,
   "inject_coder_mcp_tools": true,
+  "max_concurrency": 0,
   "openai": {
     "base_url": "string",
     "key": "string"
   },
+  "rate_limit": 0,
+  "rate_window": 0,
   "retention": 0
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                                                 | Required | Restrictions | Description |
-|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
-| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
-| `enabled`                | boolean                                                              | false    |              |             |
-| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
-| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
-| `retention`              | integer                                                              | false    |              |             |
+| Name                     | Type                                                                 | Required | Restrictions | Description                   |
+|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------|
+| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                               |
+| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                               |
+| `enabled`                | boolean                                                              | false    |              |                               |
+| `inject_coder_mcp_tools` | boolean                                                              | false    |              |                               |
+| `max_concurrency`        | integer                                                              | false    |              | Overload protection settings. |
+| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                               |
+| `rate_limit`             | integer                                                              | false    |              |                               |
+| `rate_window`            | integer                                                              | false    |              |                               |
+| `retention`              | integer                                                              | false    |              |                               |
 
 ## codersdk.AIBridgeInterception
 
@@ -700,10 +706,13 @@
     },
     "enabled": true,
     "inject_coder_mcp_tools": true,
+    "max_concurrency": 0,
     "openai": {
       "base_url": "string",
       "key": "string"
     },
+    "rate_limit": 0,
+    "rate_window": 0,
     "retention": 0
   }
 }
@@ -2860,10 +2869,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "enabled": true,
         "inject_coder_mcp_tools": true,
+        "max_concurrency": 0,
         "openai": {
           "base_url": "string",
           "key": "string"
         },
+        "rate_limit": 0,
+        "rate_window": 0,
         "retention": 0
       }
     },
@@ -3382,10 +3394,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "enabled": true,
       "inject_coder_mcp_tools": true,
+      "max_concurrency": 0,
       "openai": {
         "base_url": "string",
         "key": "string"
       },
+      "rate_limit": 0,
+      "rate_window": 0,
       "retention": 0
     }
   },

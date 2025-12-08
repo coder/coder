@@ -44,10 +44,21 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 		return nil, xerrors.Errorf("create request pool: %w", err)
 	}
 
+	// Configure overload protection if any limits are set.
+	var overloadCfg *aibridged.OverloadConfig
+	bridgeCfg := coderAPI.DeploymentValues.AI.BridgeConfig
+	if bridgeCfg.MaxConcurrency.Value() > 0 || bridgeCfg.RateLimit.Value() > 0 {
+		overloadCfg = &aibridged.OverloadConfig{
+			MaxConcurrency: bridgeCfg.MaxConcurrency.Value(),
+			RateLimit:      bridgeCfg.RateLimit.Value(),
+			RateWindow:     bridgeCfg.RateWindow.Value(),
+		}
+	}
+
 	// Create daemon.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer)
+	}, logger, tracer, overloadCfg)
 	if err != nil {
 		return nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}

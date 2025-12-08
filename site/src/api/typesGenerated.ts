@@ -33,6 +33,12 @@ export interface AIBridgeConfig {
 	readonly bedrock: AIBridgeBedrockConfig;
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
+	/**
+	 * Overload protection settings.
+	 */
+	readonly max_concurrency: number;
+	readonly rate_limit: number;
+	readonly rate_window: number;
 }
 
 // From codersdk/aibridge.go

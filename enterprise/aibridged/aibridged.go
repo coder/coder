@@ -33,6 +33,9 @@ type Server struct {
 	// A pool of [aibridge.RequestBridge] instances, which service incoming requests.
 	requestBridgePool Pooler
 
+	// overloadProtection provides rate limiting and concurrency control.
+	overloadProtection *OverloadProtection
+
 	logger slog.Logger
 	tracer trace.Tracer
 	wg     sync.WaitGroup
@@ -50,7 +53,7 @@ type Server struct {
 	shutdownOnce sync.Once
 }
 
-func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer) (*Server, error) {
+func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer, overloadCfg *OverloadConfig) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -66,6 +69,16 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 		initConnectionCh: make(chan struct{}),
 
 		requestBridgePool: pool,
+	}
+
+	// Initialize overload protection if configured.
+	if overloadCfg != nil {
+		daemon.overloadProtection = NewOverloadProtection(*overloadCfg, logger)
+		logger.Info(ctx, "overload protection enabled",
+			slog.F("max_concurrency", overloadCfg.MaxConcurrency),
+			slog.F("rate_limit", overloadCfg.RateLimit),
+			slog.F("rate_window", overloadCfg.RateWindow),
+		)
 	}
 
 	daemon.wg.Add(1)

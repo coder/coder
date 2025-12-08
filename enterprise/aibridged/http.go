@@ -19,7 +19,18 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrOverloaded            = xerrors.New("server is overloaded")
 )
+
+// Handler returns an http.Handler that wraps the server with any configured
+// overload protection (rate limiting and concurrency control).
+func (s *Server) Handler() http.Handler {
+	var handler http.Handler = s
+	if s.overloadProtection != nil {
+		handler = s.overloadProtection.WrapHandler(handler)
+	}
+	return handler
+}
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
 // This function will validate that the given API key may be used to perform the request.
