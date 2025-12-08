@@ -57,9 +57,10 @@ type agentAttributes struct {
 	TroubleshootingURL       string                       `mapstructure:"troubleshooting_url"`
 	MOTDFile                 string                       `mapstructure:"motd_file"`
 	Metadata                 []agentMetadata              `mapstructure:"metadata"`
-	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
-	Order                    int64                        `mapstructure:"order"`
-	ResourcesMonitoring      []agentResourcesMonitoring   `mapstructure:"resources_monitoring"`
+	DisplayApps              []agentDisplayAppsAttributes   `mapstructure:"display_apps"`
+	Order                    int64                          `mapstructure:"order"`
+	ResourcesMonitoring      []agentResourcesMonitoring     `mapstructure:"resources_monitoring"`
+	BoundaryAudit            []agentBoundaryAuditAttributes `mapstructure:"boundary_audit"`
 }
 
 type agentDevcontainerAttributes struct {
@@ -82,6 +83,12 @@ type agentVolumeResourceMonitor struct {
 	Path      string `mapstructure:"path"`
 	Enabled   bool   `mapstructure:"enabled"`
 	Threshold int32  `mapstructure:"threshold"`
+}
+
+type agentBoundaryAuditAttributes struct {
+	OTELEndpoint string            `mapstructure:"otel_endpoint"`
+	OTELHeaders  map[string]string `mapstructure:"otel_headers"`
+	SendToCoderd bool              `mapstructure:"send_to_coderd"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -350,6 +357,16 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				}
 			}
 
+			var boundaryAudit *proto.BoundaryAuditConfig
+			if len(attrs.BoundaryAudit) > 0 {
+				ba := attrs.BoundaryAudit[0]
+				boundaryAudit = &proto.BoundaryAuditConfig{
+					OtelEndpoint: ba.OTELEndpoint,
+					OtelHeaders:  ba.OTELHeaders,
+					SendToCoderd: ba.SendToCoderd,
+				}
+			}
+
 			agent := &proto.Agent{
 				Name:                     tfResource.Name,
 				Id:                       attrs.ID,
@@ -365,6 +382,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				DisplayApps:              displayApps,
 				Order:                    attrs.Order,
 				ApiKeyScope:              attrs.APIKeyScope,
+				BoundaryAudit:            boundaryAudit,
 			}
 			// Support the legacy script attributes in the agent!
 			if attrs.StartupScript != "" {
