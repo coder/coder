@@ -241,9 +241,10 @@ func (z Object) WithGroupACL(groups map[string][]policy.Action) Object {
 // scoped to a coderd rather than a global.
 var workspaceACLDisabled bool
 
-// DisableWorkspaceACL disables workspace sharing for the deployment.
-func DisableWorkspaceACL() {
-	workspaceACLDisabled = true
+// SetWorkspaceACLDisabled disables/enables workspace sharing for the
+// deployment.
+func SetWorkspaceACLDisabled(v bool) {
+	workspaceACLDisabled = v
 }
 
 // WorkspaceACLDisabled returns true if workspace sharing is disabled

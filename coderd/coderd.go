@@ -334,7 +334,7 @@ func New(options *Options) *API {
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
-		rbac.DisableWorkspaceACL()
+		rbac.SetWorkspaceACLDisabled(true)
 	}
 
 	if options.PrometheusRegistry == nil {

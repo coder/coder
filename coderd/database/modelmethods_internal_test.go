@@ -143,6 +143,45 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest
+func TestWorkspaceACLDisabled(t *testing.T) {
+	uid := uuid.NewString()
+	gid := uuid.NewString()
+
+	ws := WorkspaceTable{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		UserACL: WorkspaceACL{
+			uid: WorkspaceACLEntry{Permissions: []policy.Action{policy.ActionSSH}},
+		},
+		GroupACL: WorkspaceACL{
+			gid: WorkspaceACLEntry{Permissions: []policy.Action{policy.ActionSSH}},
+		},
+	}
+
+	t.Run("ACLsOmittedWhenDisabled", func(t *testing.T) {
+		rbac.SetWorkspaceACLDisabled(true)
+		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(false) })
+
+		obj := ws.RBACObject()
+
+		require.Empty(t, obj.ACLUserList, "user ACLs should be empty when disabled")
+		require.Empty(t, obj.ACLGroupList, "group ACLs should be empty when disabled")
+	})
+
+	t.Run("ACLsIncludedWhenEnabled", func(t *testing.T) {
+		rbac.SetWorkspaceACLDisabled(false)
+
+		obj := ws.RBACObject()
+
+		require.NotEmpty(t, obj.ACLUserList, "user ACLs should be present when enabled")
+		require.NotEmpty(t, obj.ACLGroupList, "group ACLs should be present when enabled")
+		require.Contains(t, obj.ACLUserList, uid)
+		require.Contains(t, obj.ACLGroupList, gid)
+	})
+}
+
 // Helpers
 func requirePermission(t *testing.T, s rbac.Scope, resource string, action policy.Action) {
 	t.Helper()
