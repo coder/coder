@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -11,8 +10,6 @@ interface WorkspaceBuildLogsSectionProps {
 export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 	logs,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<div className="rounded-lg border border-solid border-zinc-700 overflow-hidden bg-surface-secondary">
 			<header className="bg-surface-secondary border-0 border-b border-solid border-zinc-700 p-3 text-sm font-semibold flex items-center rounded-t-lg">

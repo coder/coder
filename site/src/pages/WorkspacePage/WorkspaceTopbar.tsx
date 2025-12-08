@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
@@ -73,7 +72,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 }) => {
 	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
-	const theme = useTheme();
 
 	// Quota
 	const hasDailyCost = workspace.latest_build.daily_cost > 0;

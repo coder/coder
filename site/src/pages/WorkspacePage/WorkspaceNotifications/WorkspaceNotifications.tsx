@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
 	Template,

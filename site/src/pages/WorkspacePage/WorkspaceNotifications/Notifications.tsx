@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import type { AlertProps } from "components/Alert/Alert";
 import { Button, type ButtonProps } from "components/Button/Button";
 import { Pill } from "components/Pill/Pill";

@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import type { WorkspaceResource } from "api/typesGenerated";
 import {
@@ -22,8 +22,6 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 	isSelected,
 	resources,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>

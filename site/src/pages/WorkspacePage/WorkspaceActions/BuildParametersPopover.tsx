@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import visuallyHidden from "@mui/utils/visuallyHidden";
 import { richParameters } from "api/queries/templates";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type {
@@ -104,8 +102,6 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 	onSubmit,
 	setIsOpen,
 }) => {
-	const theme = useTheme();
-
 	if (
 		!workspace.template_use_classic_parameter_flow &&
 		ephemeralParameters &&
