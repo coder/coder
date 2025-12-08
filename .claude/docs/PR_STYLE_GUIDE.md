@@ -58,8 +58,8 @@ Changes from https://github.com/upstream/repo/pull/XXX/
 **Example (docs correction):**
 
 ```markdown
-Removes references to adding database replicas from the scaling docs,
-as Coder only allows a single connection URL. These passages were added in error.
+Removes incorrect references to database replicas from the scaling documentation.
+Coder only supports a single database connection URL.
 ```
 
 ### For Complex Changes: Use "Summary", "Problem", "Fix"
