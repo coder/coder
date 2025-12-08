@@ -3025,7 +3025,13 @@ type UpdateAppearanceConfig struct {
 }
 
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
-type ServiceBannerConfig = BannerConfig
+// Defined as a standalone struct instead of a type alias so code generators
+// that do not support aliases can still parse it.
+type ServiceBannerConfig struct {
+	Enabled         bool    `json:"enabled"`
+	Message         string  `json:"message,omitempty"`
+	BackgroundColor *string `json:"background_color,omitempty"`
+}
 
 type BannerConfig struct {
 	Enabled         bool   `json:"enabled"`
