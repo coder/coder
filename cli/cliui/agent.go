@@ -354,6 +354,9 @@ func (aw *agentWaiter) pollWhile(ctx context.Context, agent codersdk.WorkspaceAg
 			return agent, xerrors.Errorf("fetch: %w", err)
 		}
 	}
+	if err = ctx.Err(); err != nil {
+		return agent, err
+	}
 	return agent, nil
 }
 
