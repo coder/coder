@@ -2,12 +2,12 @@ package aibridged
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/aibridge"
 )
@@ -72,7 +72,7 @@ func (p *AmpProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request, 
 
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
+		return nil, xerrors.Errorf("read body: %w", err)
 	}
 
 	id := uuid.New()
@@ -81,7 +81,7 @@ func (p *AmpProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request, 
 	case ampRouteMessages:
 		var req aibridge.MessageNewParamsWrapper
 		if err := json.Unmarshal(payload, &req); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal request: %w", err)
+			return nil, xerrors.Errorf("failed to unmarshal request: %w", err)
 		}
 
 		// Reuse Anthropic interceptors as Amp uses the same API format
