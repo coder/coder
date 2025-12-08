@@ -31,7 +31,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 	// These are applied before requests reach the aibridged handler.
 	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
 	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Bridge")
-	rateLimiter := httpmw.RateLimitByIP(int(bridgeCfg.RateLimit.Value()), bridgeCfg.RateWindow.Value())
+	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), bridgeCfg.RateWindow.Value())
 
 	return func(r chi.Router) {
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))

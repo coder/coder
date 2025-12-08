@@ -147,18 +147,88 @@ func TestRateLimit(t *testing.T) {
 	})
 }
 
-func TestRateLimitByIP(t *testing.T) {
+func TestRateLimitByAuthToken(t *testing.T) {
 	t.Parallel()
 
-	t.Run("LimitsRequests", func(t *testing.T) {
+	t.Run("LimitsByAuthToken", func(t *testing.T) {
 		t.Parallel()
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.RateLimitByIP(2, time.Second))
+		rtr.Use(httpmw.RateLimitByAuthToken(2, time.Second))
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})
 
-		// Same IP should be rate limited after 2 requests.
+		// Same auth token should be rate limited after 2 requests.
+		for i := 0; i < 5; i++ {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", "Bearer test-token-123")
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			if i < 2 {
+				require.Equal(t, http.StatusOK, resp.StatusCode, "request %d should succeed", i)
+			} else {
+				require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "request %d should be rate limited", i)
+				// Verify Retry-After header is set.
+				require.NotEmpty(t, resp.Header.Get("Retry-After"), "Retry-After header should be set")
+			}
+		}
+	})
+
+	t.Run("LimitsByXApiKey", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByAuthToken(2, time.Second))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		// Same X-Api-Key should be rate limited after 2 requests.
+		for i := 0; i < 5; i++ {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("X-Api-Key", "test-api-key-456")
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			if i < 2 {
+				require.Equal(t, http.StatusOK, resp.StatusCode, "request %d should succeed", i)
+			} else {
+				require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "request %d should be rate limited", i)
+			}
+		}
+	})
+
+	t.Run("DifferentTokensNotLimited", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByAuthToken(1, time.Second))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		// Different tokens should not be rate limited against each other.
+		for i := 0; i < 5; i++ {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer token-%d", i))
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode, "request %d should succeed", i)
+		}
+	})
+
+	t.Run("FallsBackToIPWithoutToken", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByAuthToken(2, time.Second))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		// Without auth token, should fall back to IP-based rate limiting.
 		for i := 0; i < 5; i++ {
 			req := httptest.NewRequest("GET", "/", nil)
 			rec := httptest.NewRecorder()
@@ -173,30 +243,10 @@ func TestRateLimitByIP(t *testing.T) {
 		}
 	})
 
-	t.Run("DifferentIPsNotLimited", func(t *testing.T) {
-		t.Parallel()
-		rtr := chi.NewRouter()
-		rtr.Use(httpmw.RateLimitByIP(1, time.Second))
-		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			rw.WriteHeader(http.StatusOK)
-		})
-
-		// Different IPs should not be rate limited.
-		for i := 0; i < 5; i++ {
-			req := httptest.NewRequest("GET", "/", nil)
-			req.RemoteAddr = randRemoteAddr()
-			rec := httptest.NewRecorder()
-			rtr.ServeHTTP(rec, req)
-			resp := rec.Result()
-			_ = resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode, "request %d should succeed", i)
-		}
-	})
-
 	t.Run("DisabledWhenZero", func(t *testing.T) {
 		t.Parallel()
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.RateLimitByIP(0, time.Second))
+		rtr.Use(httpmw.RateLimitByAuthToken(0, time.Second))
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})
@@ -204,6 +254,7 @@ func TestRateLimitByIP(t *testing.T) {
 		// Should not be rate limited when limit is 0.
 		for i := 0; i < 10; i++ {
 			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", "Bearer same-token")
 			rec := httptest.NewRecorder()
 			rtr.ServeHTTP(rec, req)
 			resp := rec.Result()
