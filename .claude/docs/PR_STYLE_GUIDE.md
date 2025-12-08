@@ -39,7 +39,7 @@ Most PRs use a simple 1-2 paragraph format:
 [One sentence explaining technical details or context if needed]
 ```
 
-**Example from PR #21100:**
+**Example (bugfix):**
 
 ```markdown
 Previously, when a devcontainer config file was modified, the dirty
@@ -49,13 +49,13 @@ Add `broadcastUpdatesLocked()` call in `markDevcontainerDirty` to notify
 websocket listeners immediately when a config file changes.
 ```
 
-**Example from PR #21085:**
+**Example (dependency update):**
 
 ```markdown
 Changes from https://github.com/coder/aibridge/pull/71/
 ```
 
-**Example from PR #21077:**
+**Example (docs correction):**
 
 ```markdown
 Removes references to adding database replicas from the scaling docs,
@@ -77,7 +77,7 @@ Detailed explanation of the issue being addressed
 How the solution works
 ```
 
-**Example from PR #21101:**
+**Example (API documentation fix):**
 
 ```markdown
 ## Summary
@@ -106,7 +106,7 @@ The previous [component] had [specific issues]: [details].
 Refs #[issue-number]
 ```
 
-**Example from PR #21080** (dev containers docs rewrite):
+**Example (major documentation rewrite):**
 
 - Started with "This PR rewrites the dev containers documentation for GA readiness"
 - Listed specific inaccuracies being fixed
@@ -232,25 +232,25 @@ Only create non-draft PRs when the user explicitly requests it or when following
 
 ### Performance Improvements
 
-See PR #21099 - includes query timing metrics and explains the index solution
+Includes query timing metrics and explains the index solution
 
 ### Bug Fixes
 
-See PR #21100 - describes broken behavior then the fix in two sentences
+Describes broken behavior then the fix in two sentences
 
 ### Documentation
 
-See PR #21080 - long form explaining inaccuracies and improvements for major rewrite
-See PR #21077 - one sentence for simple correction
+- **Major rewrite**: Long form explaining inaccuracies and improvements
+- **Simple correction**: One sentence for simple correction
 
 ### Features
 
-See PR #21106 - simple statement of what was added and dependencies
+Simple statement of what was added and dependencies
 
 ### Refactoring
 
-See PR #21102 - explains why client-side sorting is now redundant
+Explains why client-side sorting is now redundant
 
 ### Configuration
 
-See PR #21083 - adds guidelines with issue reference
+Adds guidelines with issue reference
