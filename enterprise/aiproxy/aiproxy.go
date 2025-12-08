@@ -3,34 +3,26 @@ package aiproxy
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
-	"time"
 
-	"cdr.dev/slog"
+	"github.com/elazarl/goproxy"
 	"golang.org/x/xerrors"
 
-	"github.com/AdguardTeam/gomitmproxy"
-	"github.com/AdguardTeam/gomitmproxy/mitm"
+	"cdr.dev/slog"
 )
 
 type Server struct {
 	ctx            context.Context
 	logger         slog.Logger
-	proxy          *gomitmproxy.Proxy
+	proxy          *goproxy.ProxyHttpServer
+	httpServer     *http.Server
 	coderAccessURL string
-
-	// Map of session ID -> Coder token (captured from CONNECT auth)
-	sessionTokens   map[string]string
-	sessionTokensMu sync.RWMutex
 }
 
 type Options struct {
@@ -43,60 +35,96 @@ type Options struct {
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
 	logger.Info(ctx, "initializing AI proxy server")
 
-	mitmConfig, err := createMitmConfig(opts.CertFile, opts.KeyFile)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to create TLS proxy config: %w", err)
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", opts.ListenAddr)
-	if err != nil {
-		return nil, xerrors.Errorf("listen-address invalid: %w", err)
+	// Load CA certificate for MITM
+	if err := loadMitmCertificate(opts.CertFile, opts.KeyFile); err != nil {
+		return nil, xerrors.Errorf("failed to load MITM certificate: %w", err)
 	}
 
 	srv := &Server{
 		ctx:            ctx,
 		logger:         logger,
 		coderAccessURL: opts.CoderAccessURL,
-		sessionTokens:  make(map[string]string),
 	}
 
-	logger.Info(ctx, "starting AI proxy", slog.F("addr", addr.String()))
-	proxy := gomitmproxy.NewProxy(gomitmproxy.Config{
-		ListenAddr: addr,
-		OnRequest:  srv.requestHandler,
-		OnResponse: srv.responseHandler,
-		MITMConfig: mitmConfig,
+	proxy := goproxy.NewProxyHttpServer()
+	proxy.Verbose = false
+
+	// Custom MITM handler that extracts auth and rejects unauthenticated requests.
+	// The token is stored in ctx.UserData which goproxy propagates to subsequent
+	// request contexts for decrypted requests within this MITM session.
+	mitmWithAuth := goproxy.FuncHttpsHandler(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+		proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
+		coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
+
+		srv.logger.Info(srv.ctx, "CONNECT request",
+			slog.F("host", host),
+			slog.F("has_coder_token", coderToken != ""),
+		)
+
+		// Reject unauthenticated requests - proxy is a protected service
+		if coderToken == "" {
+			srv.logger.Warn(srv.ctx, "rejecting unauthenticated CONNECT request",
+				slog.F("host", host),
+			)
+			return goproxy.RejectConnect, host
+		}
+
+		// Store token in UserData - goproxy copies this to subsequent request contexts
+		ctx.UserData = coderToken
+
+		return goproxy.MitmConnect, host
 	})
 
-	if err := proxy.Start(); err != nil {
-		return nil, xerrors.Errorf("failed to start proxy: %w", err)
-	}
+	// Apply MITM only to allowlisted AI provider hosts
+	proxy.OnRequest(goproxy.ReqHostIs(
+		"api.anthropic.com:443",
+		"api.openai.com:443",
+		"ampcode.com:443",
+	)).HandleConnect(mitmWithAuth)
+
+	// Request handler for decrypted HTTPS traffic
+	proxy.OnRequest().DoFunc(srv.requestHandler)
+
+	// Response handler
+	proxy.OnResponse().DoFunc(srv.responseHandler)
 
 	srv.proxy = proxy
+
+	// Start HTTP server in background
+	srv.httpServer = &http.Server{
+		Addr:    opts.ListenAddr,
+		Handler: proxy,
+	}
+
+	go func() {
+		logger.Info(ctx, "starting AI proxy", slog.F("addr", opts.ListenAddr))
+		if err := srv.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error(ctx, "proxy server error", slog.Error(err))
+		}
+	}()
+
 	return srv, nil
 }
 
-// createMitmConfig creates the TLS MITM configuration.
-func createMitmConfig(certFile, keyFile string) (*mitm.Config, error) {
+// loadMitmCertificate loads the CA certificate for MITM into goproxy.
+func loadMitmCertificate(certFile, keyFile string) error {
 	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to read x509 keypair: %w", err)
+		return xerrors.Errorf("failed to load x509 keypair: %w", err)
 	}
-	privateKey := tlsCert.PrivateKey.(*rsa.PrivateKey)
 
-	x509c, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	x509Cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
 	if err != nil {
-		return nil, xerrors.Errorf("failed to parse cert: %w", err)
+		return xerrors.Errorf("failed to parse certificate: %w", err)
 	}
 
-	mitmConfig, err := mitm.NewConfig(x509c, privateKey, nil)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to create MITM config: %w", err)
+	goproxy.GoproxyCa = tls.Certificate{
+		Certificate: tlsCert.Certificate,
+		PrivateKey:  tlsCert.PrivateKey,
+		Leaf:        x509Cert,
 	}
 
-	mitmConfig.SetValidity(time.Hour * 24 * 365) // 1 year validity
-	mitmConfig.SetOrganization("coder aiproxy")
-	return mitmConfig, nil
+	return nil
 }
 
 // extractCoderTokenFromProxyAuth extracts the Coder session token from the
@@ -130,7 +158,7 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 
 // providerFromHost maps the request host to the aibridge provider name.
 // All requests through the proxy for known AI providers are routed through aibridge.
-// Unknown hosts return empty string and are passed through directly without aibridge
+// Unknown hosts return empty string and are passed through directly without aibridge.
 func providerFromHost(host string) string {
 	switch {
 	case strings.Contains(host, "api.anthropic.com"):
@@ -157,7 +185,6 @@ func mapPathForProvider(provider, originalPath string) string {
 			return "/amp" + strings.TrimPrefix(originalPath, ampPrefix)
 		}
 		// Other Amp routes (e.g., /api/internal) should not go through aibridge
-		//   TODO(ssncferreira): aiproxy could automatically passthrough providers' routes
 		return ""
 	case "anthropic":
 		return "/anthropic" + originalPath
@@ -168,56 +195,21 @@ func mapPathForProvider(provider, originalPath string) string {
 	}
 }
 
-// requestHandler intercepts HTTP requests.
-//
-// For CONNECT requests: captures the Coder session token from Proxy-Authorization
-// header. This must be done here (not in OnConnect) because gomitmproxy strips
-// hop-by-hop headers (including Proxy-Authorization) before calling OnConnect.
-//
-// For other requests: LLM requests are rewritten to aibridge, with the Coder session
-// token (captured during CONNECT) injected as "Authorization: Bearer <token>".
-//
-// Coder session token is passed via proxy basic auth: HTTPS_PROXY=http://ignored:<token>@host:port
-// We store the token by base session ID for later retrieval because subsequent requests
-// after CONNECT are child sessions that inherit the parent CONNECT session's base ID.
-// For example, "100011-1-1-4" shares the base ID "100011" with its parent CONNECT session.
-func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, *http.Response) {
-	req := session.Request()
-
-	// Capture Proxy-Authorization on CONNECT before gomitmproxy strips hop-by-hop headers.
-	if req.Method == http.MethodConnect {
-		proxyAuth := req.Header.Get("Proxy-Authorization")
-		coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
-
-		sessionID := session.ID()
-		baseID := strings.Split(sessionID, "-")[0]
-
-		srv.logger.Info(srv.ctx, "CONNECT request",
-			slog.F("addr", req.URL.Host),
-			slog.F("session_id", sessionID),
-			slog.F("base_id", baseID),
-			slog.F("proxyAuth", proxyAuth),
-			slog.F("has_coder_token", coderToken != ""),
-		)
-
-		if coderToken != "" {
-			srv.sessionTokensMu.Lock()
-			srv.sessionTokens[baseID] = coderToken
-			srv.sessionTokensMu.Unlock()
-		}
-
-		return nil, nil
-	}
+// requestHandler intercepts HTTP requests after MITM decryption.
+// LLM requests are rewritten to aibridge, with the Coder session token
+// (from ctx.UserData, set during CONNECT) injected as "Authorization: Bearer <token>".
+func (srv *Server) requestHandler(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+	// Get token from UserData (set during CONNECT, propagated by goproxy)
+	coderToken, _ := ctx.UserData.(string)
 
 	srv.logger.Info(srv.ctx, "received request",
 		slog.F("url", req.URL.String()),
 		slog.F("method", req.Method),
 		slog.F("host", req.Host),
+		slog.F("has_coder_token", coderToken != ""),
 	)
 
 	// Check if this request is for a supported AI provider.
-	// All requests through the proxy for known AI providers are routed through aibridge.
-	// Unknown hosts return empty string and are passed through directly without aibridge.
 	provider := providerFromHost(req.Host)
 	if provider == "" {
 		srv.logger.Info(srv.ctx, "unknown provider, passthrough",
@@ -239,25 +231,20 @@ func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, 
 		return req, nil
 	}
 
-	// Retrieve token stored during CONNECT using base session ID
-	sessionID := session.ID()
-	baseID := strings.Split(sessionID, "-")[0] // Get parent session ID
-
-	srv.sessionTokensMu.RLock()
-	coderToken := srv.sessionTokens[baseID]
-	srv.sessionTokensMu.RUnlock()
-
-	srv.logger.Info(srv.ctx, "looking up coder token",
-		slog.F("session_id", sessionID),
-		slog.F("base_id", baseID),
-		slog.F("has_coder_token", coderToken != ""),
-	)
+	// Reject unauthenticated requests
+	if coderToken == "" {
+		srv.logger.Warn(srv.ctx, "rejecting unauthenticated request",
+			slog.F("host", req.Host),
+			slog.F("path", originalPath),
+		)
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
+	}
 
 	// Rewrite URL to point to aibridged
 	newURL, err := url.Parse(srv.coderAccessURL)
 	if err != nil {
 		srv.logger.Error(srv.ctx, "failed to parse coder access URL", slog.Error(err))
-		return req, nil
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Internal proxy error")
 	}
 
 	newURL.Path = "/api/v2/aibridge" + aibridgePath
@@ -267,27 +254,23 @@ func (srv *Server) requestHandler(session *gomitmproxy.Session) (*http.Request, 
 	req.Host = newURL.Host
 
 	// Set Authorization header for coder's aibridge authentication
-	if coderToken != "" {
-		req.Header.Set("Authorization", "Bearer "+coderToken)
-	}
+	req.Header.Set("Authorization", "Bearer "+coderToken)
 
 	srv.logger.Info(srv.ctx, "rewriting request to aibridged",
-		slog.F("headers", req.Header),
-		slog.F("original_url", req.URL.String()),
 		slog.F("new_url", newURL.String()),
 		slog.F("provider", provider),
-		slog.F("has_coder_token", coderToken != ""),
 	)
 
 	return req, nil
 }
 
 // responseHandler handles responses from upstream.
-// For now, just passes through.
-func (srv *Server) responseHandler(session *gomitmproxy.Session) *http.Response {
-	req := session.Request()
-	resp := session.Response()
+func (srv *Server) responseHandler(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
+	if resp == nil {
+		return resp
+	}
 
+	req := ctx.Req
 	contentType := resp.Header.Get("Content-Type")
 	contentEncoding := resp.Header.Get("Content-Encoding")
 
@@ -295,12 +278,12 @@ func (srv *Server) responseHandler(session *gomitmproxy.Session) *http.Response 
 	if contentEncoding == "" && strings.Contains(contentType, "text") {
 		// Read the response body
 		var bodyBytes []byte
-		if resp != nil && resp.Body != nil {
+		if resp.Body != nil {
 			bodyBytes, _ = io.ReadAll(resp.Body)
 			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
 
-		if resp.StatusCode == 200 || resp.StatusCode == 202 {
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
 			srv.logger.Info(srv.ctx, "received response",
 				slog.F("url", req.URL.String()),
 				slog.F("method", req.Method),
@@ -319,32 +302,13 @@ func (srv *Server) responseHandler(session *gomitmproxy.Session) *http.Response 
 		}
 	}
 
-	// Without response body log
-	//if resp.StatusCode == 200 || resp.StatusCode == 202 {
-	//	srv.logger.Info(srv.ctx, "received response",
-	//		slog.F("url", req.URL.String()),
-	//		slog.F("method", req.Method),
-	//		slog.F("path", req.URL.Path),
-	//		slog.F("response_status", resp.StatusCode),
-	//
-	//	)
-	//} else {
-	//	srv.logger.Warn(srv.ctx, "received response",
-	//		slog.F("url", req.URL.String()),
-	//		slog.F("method", req.Method),
-	//		slog.F("path", req.URL.Path),
-	//		slog.F("response_status", resp.StatusCode),
-	//
-	//	)
-	//}
-
 	return resp
 }
 
 // Close shuts down the proxy server.
 func (srv *Server) Close() error {
-	if srv.proxy != nil {
-		srv.proxy.Close()
+	if srv.httpServer != nil {
+		return srv.httpServer.Shutdown(srv.ctx)
 	}
 	return nil
 }
