@@ -4,8 +4,11 @@ import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
 import {
+	BracesIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	FileCodeIcon,
+	TerminalIcon,
 	TextAlignStartIcon,
 } from "lucide-react";
 import {
@@ -99,6 +102,12 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			icon = FileTypeMarkdown;
 		} else if (filename.endsWith("Dockerfile")) {
 			icon = DockerIcon;
+		} else if (filename.endsWith(".sh")) {
+			icon = TerminalIcon;
+		} else if (filename.endsWith(".json")) {
+			icon = BracesIcon;
+		} else if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
+			icon = FileCodeIcon;
 		}
 
 		return (
