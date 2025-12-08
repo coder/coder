@@ -133,6 +133,7 @@ Then ask: "Could you provide a screenshot of the Template Insights page? I've ad
   - `> [!NOTE]` for additional information
   - `> [!WARNING]` for important warnings
   - `> [!TIP]` for helpful tips
+- **Tabs**: Use tabs to present related but parallel documentation paths (e.g., different installation methods, platform-specific instructions)
 
 ## Writing Style
 
@@ -251,6 +252,17 @@ When documenting features that depend on upcoming PRs:
 
 - Bullet or numbered list
 - Include version requirements, dependencies, permissions
+
+## Formatting and Linting
+
+**Always run these commands before submitting documentation:**
+
+```sh
+make fmt/markdown   # Format markdown tables and content
+make lint/markdown  # Lint and fix markdown issues
+```
+
+These ensure consistent formatting and catch common documentation errors.
 
 ## Formatting Conventions
 
