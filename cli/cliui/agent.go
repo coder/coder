@@ -152,7 +152,13 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				sw.Log(time.Time{}, codersdk.LogLevelInfo, "==> ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.")
 			}
 
-			err = func() error { // Use func because of defer in for loop.
+			err = func() error {
+				// In non-blocking mode, skip streaming logs.
+				// See: https://github.com/coder/coder/issues/13580
+				if !opts.Wait {
+					return nil
+				}
+
 				logStream, logsCloser, err := opts.FetchLogs(ctx, agent.ID, 0, follow)
 				if err != nil {
 					return xerrors.Errorf("fetch workspace agent startup logs: %w", err)
