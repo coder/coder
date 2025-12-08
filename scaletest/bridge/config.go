@@ -8,14 +8,26 @@ import (
 	"github.com/coder/coder/v2/scaletest/createusers"
 )
 
+type RequestMode string
+
+const (
+	RequestModeBridge RequestMode = "bridge"
+	RequestModeDirect RequestMode = "direct"
+)
+
 type Config struct {
+	// Mode determines how requests are made.
+	// "bridge": Create users in Coder and use their session tokens to make requests through AI Bridge.
+	// "direct": Make requests directly to UpstreamURL without user creation.
+	Mode RequestMode `json:"mode"`
+
 	// User is the configuration for the user to create.
-	// Required in full mode (when DirectURL is not set).
+	// Required in bridge mode.
 	User createusers.Config `json:"user"`
 
-	// DirectURL is the URL to make requests to directly.
-	// If set, enables direct mode and skips user creation.
-	DirectURL string `json:"direct_url"`
+	// UpstreamURL is the URL to make requests to directly.
+	// Only used in direct mode.
+	UpstreamURL string `json:"upstream_url"`
 
 	// DirectToken is the Bearer token for direct mode.
 	// If not set in direct mode, uses the client's token.
@@ -38,29 +50,33 @@ func (c Config) Validate() error {
 		return xerrors.New("metrics must be set")
 	}
 
-	// In direct mode, DirectURL must be set.
-	if c.DirectURL != "" {
-		if c.RequestCount <= 0 {
-			return xerrors.New("request_count must be greater than 0")
-		}
-		if c.Model == "" {
-			return xerrors.New("model must be set")
+	// Validate mode
+	if c.Mode != RequestModeBridge && c.Mode != RequestModeDirect {
+		return xerrors.New("mode must be either 'bridge' or 'direct'")
+	}
+
+	if c.RequestCount <= 0 {
+		return xerrors.New("request_count must be greater than 0")
+	}
+	if c.Model == "" {
+		return xerrors.New("model must be set")
+	}
+
+	if c.Mode == RequestModeDirect {
+		// In direct mode, UpstreamURL must be set.
+		if c.UpstreamURL == "" {
+			return xerrors.New("upstream_url must be set in direct mode")
 		}
 		return nil
 	}
 
-	// In full mode, User config is required.
+	// In bridge mode, User config is required.
 	if c.User.OrganizationID == uuid.Nil {
-		return xerrors.New("user organization_id must be set")
+		return xerrors.New("user organization_id must be set in bridge mode")
 	}
 
 	if err := c.User.Validate(); err != nil {
 		return xerrors.Errorf("user config: %w", err)
-	}
-
-	// Validate full mode has reasonable values (defaults will be set in CLI if not provided).
-	if c.RequestCount < 0 {
-		return xerrors.New("request_count must be non-negative")
 	}
 
 	return nil

@@ -24,7 +24,8 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 	var (
 		userCount    int64
 		noCleanup    bool
-		directURL    string
+		mode         string
+		upstreamURL  string
 		directToken  string
 		requestCount int64
 		model        string
@@ -52,14 +53,22 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
+			// Validate mode
+			if mode != "bridge" && mode != "direct" {
+				return xerrors.Errorf("--mode must be either 'bridge' or 'direct', got %q", mode)
+			}
+
 			var me codersdk.User
-			if directURL == "" {
-				// Full mode requires admin access
+			if mode == "bridge" {
+				// Bridge mode requires admin access to create users
 				var err error
 				me, err = requireAdmin(ctx, client)
 				if err != nil {
 					return err
 				}
+			} else if upstreamURL == "" {
+				// Direct mode requires upstream URL
+				return xerrors.Errorf("--upstream-url must be set when using --mode direct")
 			}
 
 			client.HTTPClient = &http.Client{
@@ -116,27 +125,28 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 				<-time.After(prometheusFlags.Wait)
 			}()
 
-			if directURL == "" {
-				_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
+			if mode == "bridge" {
+				_, _ = fmt.Fprintln(inv.Stderr, "Bridge mode: creating users and making requests through AI Bridge...")
 			} else {
-				_, _ = fmt.Fprintf(inv.Stderr, "Direct mode: making requests to %s\n", directURL)
+				_, _ = fmt.Fprintf(inv.Stderr, "Direct mode: making requests directly to %s\n", upstreamURL)
 			}
 
 			configs := make([]bridge.Config, 0, runnerCount)
 			for range runnerCount {
 				config := bridge.Config{
+					Mode:         bridge.RequestMode(mode),
 					Metrics:      metrics,
 					RequestCount: int(requestCount),
 					Model:        model,
 					Stream:       stream,
 				}
 
-				if directURL != "" {
+				if mode == "direct" {
 					// Direct mode
-					config.DirectURL = directURL
+					config.UpstreamURL = upstreamURL
 					config.DirectToken = directToken
 				} else {
-					// Full mode
+					// Bridge mode
 					if len(me.OrganizationIDs) == 0 {
 						return xerrors.Errorf("admin user must have at least one organization")
 					}
@@ -213,15 +223,22 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			Flag:          "user-count",
 			FlagShorthand: "c",
 			Env:           "CODER_SCALETEST_BRIDGE_USER_COUNT",
-			Description:   "Required: Number of concurrent runners (in full mode, each creates a user).",
+			Description:   "Required: Number of concurrent runners (in bridge mode, each creates a user).",
 			Value:         serpent.Int64Of(&userCount),
 			Required:      true,
 		},
 		{
-			Flag:        "direct-url",
-			Env:         "CODER_SCALETEST_BRIDGE_DIRECT_URL",
-			Description: "URL to make requests to directly (enables direct mode, conflicts with --user-count).",
-			Value:       serpent.StringOf(&directURL),
+			Flag:        "mode",
+			Env:         "CODER_SCALETEST_BRIDGE_MODE",
+			Default:     "direct",
+			Description: "Request mode: 'bridge' (create users and use AI Bridge) or 'direct' (make requests directly to upstream-url).",
+			Value:       serpent.StringOf(&mode),
+		},
+		{
+			Flag:        "upstream-url",
+			Env:         "CODER_SCALETEST_BRIDGE_UPSTREAM_URL",
+			Description: "URL to make requests to directly (required in direct mode, e.g., http://localhost:8080/v1/chat/completions).",
+			Value:       serpent.StringOf(&upstreamURL),
 		},
 		{
 			Flag:        "direct-token",
