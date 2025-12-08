@@ -69,10 +69,10 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	var token string
 	var requestURL string
 
-	// Determine mode: direct or full
-	if r.cfg.DirectURL != "" {
-		// Direct mode: skip user creation
-		requestURL = r.cfg.DirectURL
+	// Determine mode: direct or bridge
+	if r.cfg.Mode == RequestModeDirect {
+		// Direct mode: skip user creation, use upstream URL directly
+		requestURL = r.cfg.UpstreamURL
 		if r.cfg.DirectToken != "" {
 			token = r.cfg.DirectToken
 		} else if r.client.SessionToken() != "" {
@@ -80,7 +80,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		}
 		logger.Info(ctx, "bridge runner in direct mode", slog.F("url", requestURL))
 	} else {
-		// Full mode: create user and use AI Bridge endpoint
+		// Bridge mode: create user and use AI Bridge endpoint
 		r.client.SetLogger(logger)
 		r.client.SetLogBodies(true)
 
@@ -97,6 +97,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 		// Construct AI Bridge URL
 		requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/chat/completions", r.client.URL)
+		logger.Info(ctx, "bridge runner in bridge mode", slog.F("url", requestURL))
 	}
 
 	// Set defaults if not provided
@@ -258,8 +259,8 @@ func (r *Runner) handleStreamingResponse(ctx context.Context, logger slog.Logger
 }
 
 func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
-	// Only cleanup user in full mode
-	if r.cfg.DirectURL == "" && r.createUserRunner != nil {
+	// Only cleanup user in bridge mode
+	if r.cfg.Mode == RequestModeBridge && r.createUserRunner != nil {
 		_, _ = fmt.Fprintln(logs, "Cleaning up user...")
 		if err := r.createUserRunner.Cleanup(ctx, id, logs); err != nil {
 			return xerrors.Errorf("cleanup user: %w", err)
