@@ -3,11 +3,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	TextAlignStartIcon,
-} from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "lucide-react";
 import {
 	type CSSProperties,
 	type ElementType,
@@ -92,7 +88,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
 		let icon: ElementType | undefined;
 		if (isFolder(content)) {
-			icon = TextAlignStartIcon;
+			icon = FolderIcon;
 		} else if (filename.endsWith(".tf")) {
 			icon = FileTypeTerraform;
 		} else if (filename.endsWith(".md")) {
