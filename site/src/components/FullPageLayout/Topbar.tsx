@@ -20,13 +20,11 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
 		<header
 			{...props}
 			css={{
-				minHeight: 48,
 				borderBottom: `1px solid ${theme.palette.divider}`,
-				display: "flex",
-				alignItems: "center",
 				fontSize: 13,
 				lineHeight: "1.2",
 			}}
+			className="min-h-12 flex items-center"
 		/>
 	);
 };
@@ -39,15 +37,11 @@ export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 				{...props}
 				size="small"
 				css={{
-					padding: 0,
-					borderRadius: 0,
-					height: 48,
-					width: 48,
-
 					"& svg": {
 						fontSize: 20,
 					},
 				}}
+				className="p-0 rounded-none size-12"
 			/>
 		);
 	},
@@ -60,17 +54,7 @@ export const TopbarButton = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	return (
-		<div
-			{...props}
-			css={{
-				display: "flex",
-				gap: 8,
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		/>
-	);
+	return <div {...props} className="flex gap-2 items-center justify-center" />;
 };
 
 export const TopbarDivider: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {

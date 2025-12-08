@@ -46,7 +46,7 @@ export const GlobalSnackbar: FC = () => {
 			}
 			anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
 			message={
-				<div css={{ display: "flex" }}>
+				<div className="flex">
 					{notificationMsg.msgType === MsgType.Error && (
 						<ErrorIcon css={styles.errorIcon} />
 					)}
@@ -85,7 +85,7 @@ const AdditionalMessageDisplay: FC<AdditionalMessageDisplayProps> = ({
 
 	if (isNotificationList(message)) {
 		return (
-			<ul css={{ paddingLeft: 0 }}>
+			<ul className="pl-0">
 				{message.map((item, idx) => (
 					<li key={idx}>
 						<span css={styles.messageSubtitle}>{item}</span>

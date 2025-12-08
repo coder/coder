@@ -178,7 +178,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						>
 							<div>{user.status}</div>
 							{(user.status === "active" || user.status === "dormant") && (
-								<LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
+								<LastSeen at={user.last_seen_at} className="text-xs" />
 							)}
 						</TableCell>
 

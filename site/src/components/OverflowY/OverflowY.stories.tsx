@@ -15,12 +15,9 @@ const meta: Meta<typeof OverflowY> = {
 			<p
 				key={num}
 				css={{
-					height: "50px",
-					padding: 0,
-					margin: 0,
-					color: "black",
 					backgroundColor: i % 2 === 0 ? "white" : "gray",
 				}}
+				className="h-12.5 p-0 m-0 text-black"
 			>
 				Element {num}
 			</p>

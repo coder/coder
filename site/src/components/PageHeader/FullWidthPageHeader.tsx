@@ -1,5 +1,6 @@
 import { type CSSObject, useTheme } from "@emotion/react";
 import type { FC, PropsWithChildren, ReactNode } from "react";
+import { cn } from "utils/cn";
 
 interface FullWidthPageHeaderProps {
 	children?: ReactNode;
@@ -17,16 +18,8 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 			css={[
 				{
 					...(theme.typography.body2 as CSSObject),
-					padding: 24,
 					background: theme.palette.background.default,
 					borderBottom: `1px solid ${theme.palette.divider}`,
-					display: "flex",
-					alignItems: "center",
-					gap: 48,
-
-					zIndex: 10,
-					flexWrap: "wrap",
-
 					[theme.breakpoints.down("lg")]: {
 						position: "unset",
 						alignItems: "flex-start",
@@ -35,11 +28,11 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 						flexDirection: "column",
 					},
 				},
-				sticky && {
-					position: "sticky",
-					top: 0,
-				},
 			]}
+			className={cn(
+				"p-6 flex items-center gap-12 z-10 flex-wrap",
+				sticky && "sticky top-0",
+			)}
 		>
 			{children}
 		</header>
@@ -63,18 +56,7 @@ const _PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
 };
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
-	return (
-		<h1
-			css={{
-				fontSize: 18,
-				fontWeight: 500,
-				margin: 0,
-				lineHeight: "24px",
-			}}
-		>
-			{children}
-		</h1>
-	);
+	return <h1 className="text-lg leading-6 font-medium m-0">{children}</h1>;
 };
 
 export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
@@ -82,10 +64,9 @@ export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<span
 			css={{
-				fontSize: 14,
 				color: theme.palette.text.secondary,
-				display: "block",
 			}}
+			className="text-sm leading-none block"
 		>
 			{children}
 		</span>

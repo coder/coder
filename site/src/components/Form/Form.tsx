@@ -29,11 +29,9 @@ export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
 		<FormContext.Provider value={{ direction }}>
 			<form
 				{...formProps}
+				className="flex flex-col"
 				css={{
-					display: "flex",
-					flexDirection: "column",
 					gap: direction === "horizontal" ? 80 : 40,
-
 					[theme.breakpoints.down("md")]: {
 						gap: 64,
 					},

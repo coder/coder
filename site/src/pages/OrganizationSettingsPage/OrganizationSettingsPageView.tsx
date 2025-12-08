@@ -74,7 +74,7 @@ export const OrganizationSettingsPageView: FC<
 			</SettingsHeader>
 
 			{Boolean(error) && !isApiValidationError(error) && (
-				<div css={{ marginBottom: 32 }}>
+				<div className="mb-8">
 					<ErrorAlert error={error} />
 				</div>
 			)}
@@ -89,7 +89,7 @@ export const OrganizationSettingsPageView: FC<
 				>
 					<fieldset
 						disabled={form.isSubmitting}
-						css={{ border: "unset", padding: 0, margin: 0, width: "100%" }}
+						className="border-none p-0 m-0 w-full"
 					>
 						<FormFields>
 							<TextField

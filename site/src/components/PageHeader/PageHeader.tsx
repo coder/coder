@@ -1,4 +1,5 @@
 import type { FC, PropsWithChildren, ReactNode } from "react";
+import { cn } from "utils/cn";
 import { Stack } from "../Stack/Stack";
 
 interface PageHeaderProps {
@@ -14,19 +15,13 @@ export const PageHeader: FC<PageHeaderProps> = ({
 }) => {
 	return (
 		<header
-			className={className}
 			css={(theme) => ({
-				display: "flex",
-				alignItems: "center",
-				paddingTop: 48,
-				paddingBottom: 48,
-				gap: 32,
-
 				[theme.breakpoints.down("md")]: {
 					flexDirection: "column",
 					alignItems: "flex-start",
 				},
 			})}
+			className={cn("flex items-center py-12 gap-8", className)}
 			data-testid="header"
 		>
 			<hgroup>{children}</hgroup>
@@ -51,18 +46,7 @@ export const PageHeader: FC<PageHeaderProps> = ({
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<h1
-			css={{
-				fontSize: 24,
-				fontWeight: 400,
-				margin: 0,
-				display: "flex",
-				alignItems: "center",
-				lineHeight: "140%",
-			}}
-		>
-			{children}
-		</h1>
+		<h1 className="text-2xl font-normal m-0 flex items-center">{children}</h1>
 	);
 };
 
@@ -78,14 +62,10 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	return (
 		<h2
 			css={(theme) => ({
-				fontSize: 16,
 				color: theme.palette.text.secondary,
-				fontWeight: 400,
-				display: "block",
-				margin: 0,
 				marginTop: condensed ? 4 : 8,
-				lineHeight: "140%",
 			})}
+			className="text-base font-normal block m-0"
 		>
 			{children}
 		</h2>

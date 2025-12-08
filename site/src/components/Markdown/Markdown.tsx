@@ -85,12 +85,10 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 					) : (
 						<code
 							css={(theme) => ({
-								padding: "1px 4px",
 								background: theme.palette.divider,
-								borderRadius: 4,
 								color: theme.palette.text.primary,
-								fontSize: 14,
 							})}
+							className="py-[1px] px-1 rounded-sm text-sm leading-none"
 							{...props}
 						>
 							{children}
@@ -206,12 +204,10 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 				code: ({ node, className, children, style, ...props }) => (
 					<code
 						css={(theme) => ({
-							padding: "1px 4px",
 							background: theme.palette.divider,
-							borderRadius: 4,
 							color: theme.palette.text.primary,
-							fontSize: 14,
 						})}
+						className="py-[1px] px-1 rounded-sm text-sm leading-none"
 						{...props}
 					>
 						{children}

@@ -79,7 +79,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							inactivity period for all template workspaces?
 						</p>
 						<FormControlLabel
-							css={{ marginTop: 16 }}
+							className="mt-4"
 							control={
 								<Checkbox
 									size="small"
@@ -109,7 +109,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							dormancy period for all template workspaces?
 						</p>
 						<FormControlLabel
-							css={{ marginTop: 16 }}
+							className="mt-4"
 							control={
 								<Checkbox
 									size="small"

@@ -39,16 +39,8 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 				<h3
 					// Lets users hover over truncated text to see whole thing
 					title={header}
-					css={[
-						theme.typography.body1 as CSSObject,
-						{
-							lineHeight: 1.4,
-							margin: 0,
-							overflow: "hidden",
-							whiteSpace: "nowrap",
-							textOverflow: "ellipsis",
-						},
-					]}
+					css={[theme.typography.body1 as CSSObject]}
+					className="leading-[1.4] m-0 overflow-hidden whitespace-nowrap text-ellipsis"
 				>
 					{header}
 				</h3>

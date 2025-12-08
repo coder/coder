@@ -84,15 +84,6 @@ export const HelpTooltipIconTrigger = forwardRef<
 				ref={ref}
 				css={[
 					css`
-						display: flex;
-						align-items: center;
-						justify-content: center;
-						padding: 4px 0;
-						border: 0;
-						background: transparent;
-						cursor: pointer;
-						color: inherit;
-
 						& svg {
 							width: ${getIconSpacingFromSize(size)}px;
 							height: ${getIconSpacingFromSize(size)}px;
@@ -100,6 +91,7 @@ export const HelpTooltipIconTrigger = forwardRef<
 					`,
 					hoverEffect ? hoverEffectStyles : null,
 				]}
+				className="flex items-center justify-center py-1 border-none bg-transparent cursor-pointer text-inherit"
 			>
 				{children}
 			</button>

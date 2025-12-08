@@ -76,22 +76,18 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 				</TableCell>
 				<TableCell
 					css={{
-						fontSize: 14,
-						textAlign: "right",
 						color: latency
 							? getLatencyColor(theme, latency.latencyMS)
 							: theme.palette.text.secondary,
 					}}
+					className="text-sm text-right"
 				>
 					{latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
 				</TableCell>
 			</TableRow>
 			{shouldShowMessages && (
 				<TableRow>
-					<TableCell
-						colSpan={4}
-						css={{ padding: "0 !important", borderBottom: 0 }}
-					>
+					<TableCell colSpan={4} className="!p-0 border-b-0">
 						<ProxyMessagesRow
 							proxy={proxy as WorkspaceProxy}
 							extraWarnings={extraWarnings}
@@ -150,25 +146,11 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 				padding: "16px 64px",
 			}}
 		>
-			<div
-				id="nested-list-subheader"
-				css={{
-					marginBottom: 4,
-					fontSize: 13,
-					fontWeight: 600,
-				}}
-			>
+			<div id="nested-list-subheader" className="mb-1 text-[13px] font-medium">
 				{title}
 			</div>
 			{messages.map((error, index) => (
-				<pre
-					key={index}
-					css={{
-						margin: "0 0 8px",
-						fontSize: 14,
-						whiteSpace: "pre-wrap",
-					}}
-				>
+				<pre key={index} className="m-2 text-sm whitespace-pre-wrap">
 					{error}
 				</pre>
 			))}

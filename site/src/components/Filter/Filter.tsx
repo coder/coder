@@ -15,6 +15,7 @@ import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+import { cn } from "utils/cn";
 
 type PresetFilter = {
 	name: string;
@@ -133,8 +134,8 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 			{...skeletonProps}
 			css={(theme) => ({
 				backgroundColor: theme.palette.background.paper,
-				borderRadius: "6px",
 			})}
+			className={cn("rounded-md", skeletonProps.className)}
 		>
 			{children}
 		</Skeleton>
@@ -142,7 +143,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 };
 
 export const MenuSkeleton: FC = () => {
-	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
+	return <BaseSkeleton className="min-w-50 flex-shrink-0" />;
 };
 
 type FilterProps = {
@@ -201,12 +202,9 @@ export const Filter: FC<FilterProps> = ({
 
 	return (
 		<div
+			className="flex gap-2 mb-4"
 			css={{
-				display: "flex",
-				gap: 8,
-				marginBottom: 16,
 				flexWrap: "wrap",
-
 				[theme.breakpoints.up(singleRowBreakpoint)]: {
 					flexWrap: "nowrap",
 				},
@@ -219,7 +217,7 @@ export const Filter: FC<FilterProps> = ({
 				</>
 			) : (
 				<>
-					<InputGroup css={{ width: "100%" }}>
+					<InputGroup className="w-full">
 						<PresetMenu
 							onSelect={(query) => filter.update(query)}
 							presets={presets}
@@ -228,7 +226,7 @@ export const Filter: FC<FilterProps> = ({
 							learnMoreLink2={learnMoreLink2}
 						/>
 						<SearchField
-							css={{ flex: 1 }}
+							className="flex-1"
 							error={shouldDisplayError}
 							helperText={
 								shouldDisplayError
@@ -306,7 +304,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 			>
 				{presets.map((presetFilter) => (
 					<MenuItem
-						css={{ fontSize: 14 }}
+						className="text-sm leading-none"
 						key={presetFilter.name}
 						onClick={() => {
 							onSelect(presetFilter.query);

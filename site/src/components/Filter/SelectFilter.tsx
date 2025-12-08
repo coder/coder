@@ -97,13 +97,9 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 					) : (
 						<div
 							css={(theme) => ({
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								padding: 32,
 								color: theme.palette.text.secondary,
-								lineHeight: 1,
 							})}
+							className="flex items-center justify-center p-8 leading-none"
 						>
 							{emptyText || "No options found"}
 						</div>

@@ -27,13 +27,11 @@ export const Margins: FC<MarginsProps> = ({
 		<div
 			{...divProps}
 			css={{
-				marginLeft: "auto",
-				marginRight: "auto",
 				maxWidth: maxWidth,
 				paddingLeft: sidePadding,
 				paddingRight: sidePadding,
-				width: "100%",
 			}}
+			className="ml-auto mr-auto w-full"
 		>
 			{children}
 		</div>
