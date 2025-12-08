@@ -1,6 +1,5 @@
 import {
 	type CSSObject,
-	css,
 	type Interpolation,
 	type Theme,
 	useTheme,
