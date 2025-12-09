@@ -24,7 +24,7 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
 				fontSize: 13,
 				lineHeight: "1.2",
 			}}
-			className="min-h-12 flex items-center"
+			className={cn("min-h-12 flex items-center", props.className)}
 		/>
 	);
 };
