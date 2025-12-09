@@ -66,7 +66,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	return (
 		<Autocomplete<AutocompleteOption, false, false, false>
 			noOptionsText="No users or groups found"
-			value={value ?? null}
+			value={value}
 			id="user-or-group-autocomplete"
 			open={autoComplete.open}
 			onOpen={() => {
