@@ -430,9 +430,16 @@ func (w WorkspaceTable) RBACObject() rbac.Object {
 		return w.DormantRBAC()
 	}
 
-	return rbac.ResourceWorkspace.WithID(w.ID).
+	obj := rbac.ResourceWorkspace.
+		WithID(w.ID).
 		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String()).
+		WithOwner(w.OwnerID.String())
+
+	if rbac.WorkspaceACLDisabled() {
+		return obj
+	}
+
+	return obj.
 		WithGroupACL(w.GroupACL.RBACACL()).
 		WithACLUserList(w.UserACL.RBACACL())
 }

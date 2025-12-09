@@ -41,7 +41,7 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 		pool,
 		func(ctx context.Context) (aibridged.DRPCClient, error) {
 			return client, nil
-		}, logger)
+		}, logger, testTracer)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
@@ -290,7 +290,7 @@ func TestRouting(t *testing.T) {
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL}),
 				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
 			}
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, nil, logger)
+			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 			require.NoError(t, err)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
@@ -309,7 +309,7 @@ func TestRouting(t *testing.T) {
 			// Given: aibridged is started.
 			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 				return client, nil
-			}, logger)
+			}, logger, testTracer)
 			require.NoError(t, err, "create new aibridged")
 			t.Cleanup(func() {
 				_ = srv.Shutdown(testutil.Context(t, testutil.WaitShort))

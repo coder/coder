@@ -1290,8 +1290,14 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Returns existing file if duplicate",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadResponse"
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "Returns newly created file",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadResponse"
                         }
@@ -1800,7 +1806,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Add new license",
                 "operationId": "add-new-license",
@@ -1836,7 +1842,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Update license entitlements",
                 "operationId": "update-license-entitlements",
@@ -14206,6 +14212,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "disable_path_apps": {
+                    "type": "boolean"
+                },
+                "disable_workspace_sharing": {
                     "type": "boolean"
                 },
                 "docs_url": {

@@ -197,6 +197,8 @@ clear what the new test covers.
 @.claude/docs/TESTING.md
 @.claude/docs/TROUBLESHOOTING.md
 @.claude/docs/DATABASE.md
+@.claude/docs/PR_STYLE_GUIDE.md
+@.claude/docs/DOCS_STYLE_GUIDE.md
 
 ## Local Configuration
 

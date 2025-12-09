@@ -75,7 +75,18 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{Status: http.StatusInternalServerError, HideStatus: false, Title: "Internal Server Error", Description: err.Error(), RetryEnabled: false, DashboardURL: accessURL.String(), Warnings: nil})
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusInternalServerError,
+				HideStatus:  false,
+				Title:       "Internal Server Error",
+				Description: err.Error(),
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
 			return
 		}
 
@@ -85,7 +96,19 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			for i, err := range validationErrs {
 				errStr[i] = err.Detail
 			}
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{Status: http.StatusBadRequest, HideStatus: false, Title: "Invalid Query Parameters", Description: "One or more query parameters are missing or invalid.", RetryEnabled: false, DashboardURL: accessURL.String(), Warnings: errStr})
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				HideStatus:  false,
+				Title:       "Invalid Query Parameters",
+				Description: "One or more query parameters are missing or invalid.",
+				Warnings:    errStr,
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
 			return
 		}
 
