@@ -15,10 +15,10 @@ const Layout: FC = () => {
 			<title>{pageTitle("Settings")}</title>
 
 			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+				<Stack className="py-12 px-0" direction="row" spacing={6}>
 					<Sidebar user={me} />
 					<Suspense fallback={<Loader />}>
-						<main css={{ maxWidth: 800, width: "100%" }}>
+						<main className="max-w-[800px] w-full">
 							<Outlet />
 						</main>
 					</Suspense>

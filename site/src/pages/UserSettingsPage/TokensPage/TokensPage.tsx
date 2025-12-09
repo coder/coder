@@ -64,7 +64,7 @@ const TokensPage: FC = () => {
 };
 
 const TokenActions: FC = () => (
-	<Stack direction="row" justifyContent="end" css={{ marginBottom: 8 }}>
+	<Stack direction="row" justifyContent="end" className="mb-2">
 		<Button asChild variant="outline">
 			<RouterLink to="new">
 				<PlusIcon />

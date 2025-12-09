@@ -74,7 +74,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<p className="name">{workspace.name}</p>
 							<p className="label">workspace</p>
 						</div>
-						<div css={{ textAlign: "right" }}>
+						<div className="text-right">
 							<p className="info">{dayjs(workspace.created_at).fromNow()}</p>
 							<p className="label">created</p>
 						</div>
@@ -90,7 +90,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 						<TextField
 							fullWidth
 							autoFocus
-							css={{ marginTop: 32 }}
+							className="mt-8"
 							name="confirmation"
 							autoComplete="off"
 							id={`${hookId}-confirm`}
@@ -113,9 +113,9 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 						/>
 						{hasTask && (
 							<div css={styles.warnContainer}>
-								<div css={{ flexDirection: "column" }}>
+								<div className="flex flex-col">
 									<p className="info">This workspace is related to a task</p>
-									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
+									<span className="text-xs leading-none mt-1 block">
 										Deleting this workspace will also delete{" "}
 										<Link
 											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
@@ -129,7 +129,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 						)}
 						{canOrphan && (
 							<div css={styles.warnContainer}>
-								<div css={{ flexDirection: "column" }}>
+								<div className="flex flex-col">
 									<Checkbox
 										id="orphan_resources"
 										size="small"
@@ -143,9 +143,9 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 										data-testid="orphan-checkbox"
 									/>
 								</div>
-								<div css={{ flexDirection: "column" }}>
+								<div className="flex flex-col">
 									<p className="info">Orphan Resources</p>
-									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
+									<span className="text-xs leading-none mt-1 block">
 										As a Template Admin, you may skip resource cleanup to delete
 										a failed workspace. Resources such as volumes and virtual
 										machines will not be destroyed.&nbsp;

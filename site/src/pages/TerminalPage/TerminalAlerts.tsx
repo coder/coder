@@ -158,14 +158,11 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 		<Alert
 			{...props}
 			css={(theme) => ({
-				borderRadius: 0,
-				borderWidth: 0,
-				borderBottomWidth: 1,
 				borderBottomColor: theme.palette.divider,
 				backgroundColor: theme.palette.background.paper,
 				borderLeft: `3px solid ${theme.palette[props.severity!].light}`,
-				marginBottom: 1,
 			})}
+			className="rounded-none border-0 border-b-1 border-solid mb-[1px]"
 		/>
 	);
 };

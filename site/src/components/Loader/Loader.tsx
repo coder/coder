@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { Spinner } from "components/Spinner/Spinner";
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "utils/cn";
 
 interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
 	fullscreen?: boolean;

@@ -18,11 +18,9 @@ export const Troubleshooting: FC = () => {
 		<>
 			<div
 				css={{
-					fontSize: 14,
 					color: theme.palette.text.secondary,
-					lineHeight: "160%",
-					marginBottom: 16,
 				}}
+				className="text-sm leading-relaxed mb-4"
 			>
 				Send a test notification to troubleshoot your notification settings.
 			</div>

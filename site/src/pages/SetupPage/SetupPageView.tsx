@@ -143,22 +143,16 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 	return (
 		<SignInLayout>
-			<header css={{ textAlign: "center", marginBottom: 32 }}>
+			<header className="text-center mb-8">
 				<CoderIcon className="w-12 h-12" />
-				<h1
-					css={{
-						fontWeight: 400,
-						margin: 0,
-						marginTop: 16,
-					}}
-				>
+				<h1 className="font-normal m-0 mt-4">
 					Welcome to <strong>Coder</strong>
 				</h1>
 				<div
 					css={(theme) => ({
-						marginTop: 12,
 						color: theme.palette.text.secondary,
 					})}
+					className="mt-3"
 				>
 					Let&lsquo;s create your first admin user account
 				</div>
@@ -202,14 +196,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					/>
 					<label
 						htmlFor="trial"
-						css={{
-							display: "flex",
-							cursor: "pointer",
-							alignItems: "flex-start",
-							gap: 4,
-							marginTop: -4,
-							marginBottom: 8,
-						}}
+						className="flex cursor-pointer items-start gap-1 -mt-1 mb-2"
 					>
 						<Checkbox
 							id="trial"
@@ -220,17 +207,15 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							size="small"
 						/>
 
-						<div css={{ fontSize: 14, paddingTop: 4 }}>
-							<span css={{ display: "block", fontWeight: 600 }}>
+						<div className="text-sm leading-none pt-1">
+							<span className="block font-semibold">
 								Start a free trial of Enterprise
 							</span>
 							<span
 								css={(theme) => ({
-									display: "block",
-									fontSize: 13,
 									color: theme.palette.text.secondary,
-									lineHeight: "1.6",
 								})}
+								className="block text-[13px] leading-relaxed"
 							>
 								Get access to high availability, template RBAC, audit logging,
 								quotas, and more.
@@ -238,7 +223,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Link
 								href="https://coder.com/pricing"
 								target="_blank"
-								css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
+								className="mt-1 text-[13px] inline-block"
 							>
 								Read more
 							</Link>
@@ -331,11 +316,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<div
 								css={(theme) => ({
 									color: theme.palette.text.secondary,
-									fontSize: 11,
-									textAlign: "center",
-									marginTop: -5,
-									lineHeight: 1.5,
 								})}
+								className="text-[11px] text-center mt-[-5px] leading-normal"
 							>
 								Complete the form to receive your trial license and be contacted
 								about Coder products and solutions. The information you provide

@@ -76,7 +76,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					{apps?.length === 0 && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No OAuth2 applications have been configured.
 								</div>
 							</TableCell>
@@ -109,7 +109,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 			</TableCell>
 
 			<TableCell>
-				<div css={{ display: "flex", paddingLeft: 16 }}>
+				<div className="flex pl-4">
 					<ChevronRightIcon className="size-icon-sm" />
 				</div>
 			</TableCell>

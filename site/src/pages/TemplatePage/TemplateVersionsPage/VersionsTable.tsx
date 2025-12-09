@@ -69,7 +69,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 				{versions && versions.length === 0 && (
 					<TableRow>
 						<TableCell colSpan={999}>
-							<div css={{ padding: 32 }}>
+							<div className="p-8">
 								<EmptyState message={Language.emptyMessage} />
 							</div>
 						</TableCell>

@@ -47,24 +47,15 @@ const DERPRegionPage: FC = () => {
 				<hgroup>
 					<Link
 						css={{
-							fontSize: 12,
-							textDecoration: "none",
 							color: theme.palette.text.secondary,
-							fontWeight: 500,
-							display: "inline-flex",
-							alignItems: "center",
 							"&:hover": {
 								color: theme.palette.text.primary,
 							},
-							marginBottom: 8,
-							lineHeight: "1.2",
 						}}
+						className="text-xs no-underline font-medium inline-flex items-center mb-2 leading-tight"
 						to="/health/derp"
 					>
-						<ChevronLeftIcon
-							className="size-icon-xs"
-							css={{ verticalAlign: "middle", marginRight: 8 }}
-						/>
+						<ChevronLeftIcon className="size-icon-xs align-middle mr-2" />
 						Back to DERP
 					</Link>
 					<HeaderTitle>
@@ -88,7 +79,7 @@ const DERPRegionPage: FC = () => {
 				})}
 
 				<section>
-					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+					<div className="flex flex-wrap gap-3">
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Pill icon={<HashIcon className="size-icon-sm" />}>
@@ -123,9 +114,8 @@ const DERPRegionPage: FC = () => {
 							key={node!.HostName}
 							css={{
 								border: `1px solid ${theme.palette.divider}`,
-								borderRadius: 8,
-								fontSize: 14,
 							}}
+							className="text-sm leading-none rounded-lg"
 						>
 							<header css={reportStyles.header}>
 								<div>
@@ -177,20 +167,12 @@ type StatusCircleProps = { color: string };
 
 const StatusCircle: FC<StatusCircleProps> = ({ color }) => {
 	return (
-		<div
-			css={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		>
+		<div className="flex items-center justify-center">
 			<div
 				css={{
-					width: 8,
-					height: 8,
 					backgroundColor: color,
-					borderRadius: 9999,
 				}}
+				className="size-2 rounded-full"
 			/>
 		</div>
 	);

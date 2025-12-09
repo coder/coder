@@ -105,11 +105,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 			)}
 
 			{Object.entries(templatesByGroup).map(([group, templates]) => (
-				<Card
-					key={group}
-					variant="outlined"
-					css={{ background: "transparent", width: "100%" }}
-				>
+				<Card key={group} variant="outlined" className="bg-transparent w-full">
 					<List>
 						<ListItem css={styles.listHeader}>
 							<ListItemText css={styles.listItemText} primary={group} />

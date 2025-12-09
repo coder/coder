@@ -5,6 +5,7 @@ import {
 } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
+import { cn } from "utils/cn";
 
 type SectionLayout = "fixed" | "fluid";
 
@@ -34,27 +35,18 @@ export const Section: FC<SectionProps> = ({
 }) => {
 	return (
 		<section className={className} id={id} data-testid={id}>
-			<div css={{ maxWidth: layout === "fluid" ? "100%" : 500 }}>
+			<div className={cn(layout === "fluid" ? "w-full" : "max-w-[500px]")}>
 				{(title || description) && (
 					<div css={styles.header}>
 						<div>
 							{title && (
 								<Stack direction="row" alignItems="center">
-									<h4
-										css={{
-											fontSize: 24,
-											fontWeight: 500,
-											margin: 0,
-											marginBottom: 8,
-										}}
-									>
-										{title}
-									</h4>
+									<h4 className="text-2xl leading-normal m-0 mb-2">{title}</h4>
 									{featureStage && (
 										<FeatureStageBadge
 											contentType={featureStage}
 											size="md"
-											css={{ marginBottom: "5px" }}
+											className="mb-[5px]"
 										/>
 									)}
 								</Stack>
@@ -69,7 +61,7 @@ export const Section: FC<SectionProps> = ({
 						{toolbar && <div>{toolbar}</div>}
 					</div>
 				)}
-				{alert && <div css={{ marginBottom: 8 }}>{alert}</div>}
+				{alert && <div className="mb-2">{alert}</div>}
 				{children}
 			</div>
 		</section>

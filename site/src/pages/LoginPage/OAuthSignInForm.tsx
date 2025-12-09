@@ -18,7 +18,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 	authMethods,
 }) => {
 	return (
-		<div css={{ display: "grid", gap: "16px" }}>
+		<div className="grid gap-4">
 			{authMethods?.github.enabled && (
 				<Button
 					variant="outline"
@@ -80,7 +80,7 @@ const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
 	return (
 		<>
 			<img alt="" src={iconUrl} aria-labelledby={oidcId} />
-			<div id={oidcId} css={{ ...visuallyHidden }}>
+			<div id={oidcId} className="sr-only">
 				Open ID Connect
 			</div>
 		</>

@@ -31,7 +31,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 
 	return (
 		<form
-			css={{ marginTop: 10 }}
+			className="mt-2.5"
 			onSubmit={(event) => {
 				event.preventDefault();
 				const formData = new FormData(event.target as HTMLFormElement);

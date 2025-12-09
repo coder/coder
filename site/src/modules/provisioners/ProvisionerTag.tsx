@@ -35,7 +35,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 	const { valid, value: boolValue } = parseBool(tagValue);
 	const kv = (
 		<>
-			<span css={{ fontWeight: 600 }}>{tagName}</span> <span>{tagValue}</span>
+			<span className="font-semibold">{tagName}</span> <span>{tagValue}</span>
 		</>
 	);
 	const content = onDelete ? (

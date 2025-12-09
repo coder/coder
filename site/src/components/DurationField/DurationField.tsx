@@ -104,7 +104,7 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 				/>
 				<Select
 					disabled={props.disabled}
-					css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
+					className="w-[120px] [&_.MuiSelect-icon]:p-0.5"
 					value={state.unit}
 					onChange={(e) => {
 						const unit = e.target.value as TimeUnit;

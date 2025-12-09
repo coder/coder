@@ -52,9 +52,12 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 		<h2
 			css={(theme) => ({
 				color: theme.palette.text.secondary,
-				marginTop: condensed ? 4 : 8,
 			})}
-			className="text-base font-normal block mb-0 leading-[1.4]"
+			className={cn(
+				"text-base font-normal block mb-0 leading-[1.4]",
+				condensed && "mt-1",
+				!condensed && "mt-2",
+			)}
 		>
 			{children}
 		</h2>

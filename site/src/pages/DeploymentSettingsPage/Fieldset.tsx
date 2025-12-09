@@ -46,12 +46,9 @@ export const Fieldset: FC<FieldsetProps> = ({
 					theme.typography.body2 as CSSObject,
 					{
 						background: theme.palette.background.paper,
-						padding: "16px 24px",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "space-between",
 					},
 				]}
+				className="py-4 px-6 flex items-center justify-between"
 			>
 				<div className="text-content-secondary">{validation}</div>
 				{button || (

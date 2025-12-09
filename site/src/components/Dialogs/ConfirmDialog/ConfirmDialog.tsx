@@ -52,48 +52,6 @@ export interface ConfirmDialogProps
 	readonly title: string;
 }
 
-const styles = {
-	dialogWrapper: (theme) => ({
-		"& .MuiPaper-root": {
-			background: theme.palette.background.paper,
-			border: `1px solid ${theme.palette.divider}`,
-			width: "100%",
-			maxWidth: 440,
-		},
-		"& .MuiDialogActions-spacing": {
-			padding: "0 40px 40px",
-		},
-	}),
-	dialogContent: (theme) => ({
-		color: theme.palette.text.secondary,
-		padding: "40px 40px 20px",
-	}),
-	dialogTitle: (theme) => ({
-		margin: 0,
-		marginBottom: 16,
-		color: theme.palette.text.primary,
-		fontWeight: 400,
-		fontSize: 20,
-	}),
-	dialogDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-		fontSize: 16,
-
-		"& strong": {
-			color: theme.palette.text.primary,
-		},
-
-		"& p:not(.MuiFormHelperText-root)": {
-			margin: 0,
-		},
-
-		"& > p": {
-			margin: "8px 0",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
-
 /**
  * Quick-use version of the Dialog component with slightly alternative styles,
  * great to use for dialogs that don't have any interaction beyond yes / no.
@@ -119,14 +77,61 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 
 	return (
 		<Dialog
-			css={styles.dialogWrapper}
+			css={(theme) => ({
+				"& .MuiPaper-root": {
+					background: theme.palette.background.paper,
+					border: `1px solid ${theme.palette.divider}`,
+					width: "100%",
+					maxWidth: 440,
+				},
+				"& .MuiDialogActions-spacing": {
+					padding: "0 40px 40px",
+				},
+			})}
 			onClose={onClose}
 			open={open}
 			data-testid="dialog"
 		>
-			<div css={styles.dialogContent}>
-				<h3 css={styles.dialogTitle}>{title}</h3>
-				{description && <div css={styles.dialogDescription}>{description}</div>}
+			<div
+				css={(theme) => ({
+					color: theme.palette.text.secondary,
+					padding: "40px 40px 20px",
+				})}
+			>
+				<h3
+					css={(theme) => ({
+						margin: 0,
+						marginBottom: 16,
+						color: theme.palette.text.primary,
+						fontWeight: 400,
+						fontSize: 20,
+					})}
+				>
+					{title}
+				</h3>
+				{description && (
+					<div
+						css={(theme) => ({
+							color: theme.palette.text.secondary,
+							lineHeight: "160%",
+							fontSize: 16,
+
+							"& strong": {
+								color: theme.palette.text.primary,
+							},
+
+							"& p:not(.MuiFormHelperText-root)": {
+								margin: 0,
+							},
+
+							"& > p": {
+								margin: "8px 0",
+							},
+						})}
+					>
+						{description}
+					</div>
+				)}
 			</div>
 
 			<DialogActions>

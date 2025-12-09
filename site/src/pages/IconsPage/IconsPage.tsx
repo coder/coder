@@ -150,30 +150,13 @@ const IconsPage: FC = () => {
 								<img
 									alt={icon.url}
 									src={icon.url}
-									css={[
-										{
-											width: 60,
-											height: 60,
-											objectFit: "contain",
-											pointerEvents: "none",
-											padding: 12,
-										},
-										parseImageParameters(
-											theme.externalImages,
-											defaultParametersForBuiltinIcons.get(icon.url) ?? "",
-										),
-									]}
+									css={parseImageParameters(
+										theme.externalImages,
+										defaultParametersForBuiltinIcons.get(icon.url) ?? "",
+									)}
+									className="w-15 h-15 object-contain pointer-events-none p-3"
 								/>
-								<figcaption
-									css={{
-										width: 88,
-										height: 48,
-										fontSize: 13,
-										textOverflow: "ellipsis",
-										textAlign: "center",
-										overflow: "hidden",
-									}}
-								>
+								<figcaption className="w-22 h-12 text-[13px] text-center truncate">
 									{icon.description}
 								</figcaption>
 							</div>

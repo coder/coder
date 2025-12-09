@@ -201,18 +201,10 @@ export const Filter: FC<FilterProps> = ({
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div
-			className="flex gap-2 mb-4"
-			css={{
-				flexWrap: "wrap",
-				[theme.breakpoints.up(singleRowBreakpoint)]: {
-					flexWrap: "nowrap",
-				},
-			}}
-		>
+		<div className="flex gap-2 mb-4 flex-nowrap lg:flex-wrap">
 			{isLoading ? (
 				<>
-					<BaseSkeleton width="100%" />
+					<BaseSkeleton className="w-full" />
 					{optionsSkeleton}
 				</>
 			) : (
@@ -322,7 +314,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 						component="a"
 						href={learnMoreLink}
 						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
+						className="text-[13px] font-medium"
 						onClick={() => {
 							setIsOpen(false);
 						}}
@@ -336,7 +328,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 						component="a"
 						href={learnMoreLink2}
 						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
+						className="text-[13px] font-medium"
 						onClick={() => {
 							setIsOpen(false);
 						}}

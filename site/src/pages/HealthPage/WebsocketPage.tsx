@@ -65,11 +65,8 @@ const WebsocketPage = () => {
 						css={{
 							backgroundColor: theme.palette.background.paper,
 							border: `1px solid ${theme.palette.divider}`,
-							borderRadius: 8,
-							fontSize: 14,
-							padding: 24,
-							fontFamily: MONOSPACE_FONT_FAMILY,
 						}}
+						className="rounded-lg text-sm p-6 font-mono"
 					>
 						{websocket.body !== "" ? (
 							websocket.body

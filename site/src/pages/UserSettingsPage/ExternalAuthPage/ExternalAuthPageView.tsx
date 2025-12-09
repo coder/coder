@@ -152,9 +152,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 
 					{link?.validate_error && (
 						<span>
-							<span
-								css={{ paddingLeft: "1em", color: theme.palette.error.light }}
-							>
+							<span css={{ color: theme.palette.error.light }} className="pl-4">
 								Error:{" "}
 							</span>
 							{link?.validate_error}
@@ -162,7 +160,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 					)}
 				</Stack>
 			</TableCell>
-			<TableCell css={{ textAlign: "right" }}>
+			<TableCell className="text-right">
 				<Button
 					disabled={authenticated || externalAuthPollingState === "polling"}
 					onClick={() => {

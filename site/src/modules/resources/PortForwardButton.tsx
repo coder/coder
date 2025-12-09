@@ -251,18 +251,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 	return (
 		<>
-			<div
-				css={{
-					maxHeight: 320,
-					overflowY: "auto",
-				}}
-			>
-				<Stack
-					direction="column"
-					css={{
-						padding: 20,
-					}}
-				>
+			<div className="max-h-[320px] overflow-y-auto">
+				<Stack direction="column" className="p-5">
 					<Stack
 						direction="row"
 						justifyContent="space-between"
@@ -280,13 +270,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
 						</HelpTooltipText>
-						<Stack
-							direction="row"
-							gap={2}
-							css={{
-								paddingBottom: 8,
-							}}
-						>
+						<Stack direction="row" gap={2} className="pb-2">
 							<FormControl size="small" css={styles.protocolFormControl}>
 								<Select
 									css={styles.listeningPortProtocol}
@@ -427,9 +411,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 			</div>
 			<div
 				css={{
-					padding: 20,
 					borderTop: `1px solid ${theme.palette.divider}`,
 				}}
+				className="p-5"
 			>
 				<HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
 				<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
@@ -536,10 +520,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										>
 											<XIcon
 												css={{
-													width: 14,
-													height: 14,
 													color: theme.palette.text.primary,
 												}}
+												className="size-3.5"
 											/>
 										</Button>
 									</Stack>

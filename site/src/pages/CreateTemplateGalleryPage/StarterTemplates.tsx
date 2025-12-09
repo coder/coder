@@ -66,7 +66,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	return (
 		<Stack direction="row" spacing={4} alignItems="flex-start">
 			{starterTemplatesByTag && tags && (
-				<Stack css={{ width: 202, flexShrink: 0, position: "sticky" }}>
+				<Stack className="w-[202px] flex-shrink-0 sticky">
 					<h2 css={styles.sectionTitle}>Choose a starter template</h2>
 					<span css={styles.filterCaption}>Filter</span>
 					{tags.map((tag) => (
@@ -81,14 +81,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 				</Stack>
 			)}
 
-			<div
-				css={{
-					display: "flex",
-					flexWrap: "wrap",
-					gap: 32,
-					height: "max-content",
-				}}
-			>
+			<div className="flex flex-wrap gap-8 h-max">
 				{visibleTemplates?.map((example) => (
 					<TemplateExampleCard
 						css={(theme) => ({

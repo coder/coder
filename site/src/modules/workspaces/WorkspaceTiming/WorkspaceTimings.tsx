@@ -107,14 +107,14 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				onClick={() => setIsOpen((o) => !o)}
 			>
 				{isOpen ? (
-					<ChevronUpIcon css={{ width: 16, height: 16, marginRight: 16 }} />
+					<ChevronUpIcon className="size-4 mr-4" />
 				) : (
-					<ChevronDownIcon css={{ width: 16, height: 16, marginRight: 16 }} />
+					<ChevronDownIcon className="size-4 mr-4" />
 				)}
 				<span>Build timeline</span>
 				<span
+					className="ml-auto"
 					css={(theme) => ({
-						marginLeft: "auto",
 						color: theme.palette.text.secondary,
 					})}
 				>

@@ -70,25 +70,14 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 			<div css={styles.root}>
 				<main css={styles.container}>
 					<CustomLogo css={styles.logo} />
-					<h1
-						css={{
-							margin: 0,
-							marginBottom: 24,
-							fontSize: 20,
-							fontWeight: 600,
-							lineHeight: "28px",
-						}}
-					>
+					<h1 className="m-0 mb-6 text-lg font-semibold leading-7">
 						Choose a new password
 					</h1>
 					{changePasswordMutation.error &&
 					!isApiValidationError(changePasswordMutation.error) ? (
-						<ErrorAlert
-							error={changePasswordMutation.error}
-							css={{ marginBottom: 24 }}
-						/>
+						<ErrorAlert error={changePasswordMutation.error} className="mb-6" />
 					) : null}
-					<form css={{ width: "100%" }} onSubmit={form.handleSubmit}>
+					<form className="w-full" onSubmit={form.handleSubmit}>
 						<fieldset disabled={form.isSubmitting}>
 							<Stack spacing={2.5}>
 								<TextField

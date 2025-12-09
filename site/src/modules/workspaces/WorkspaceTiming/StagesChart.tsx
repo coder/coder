@@ -159,13 +159,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 													}}
 												>
 													{t.error && (
-														<CircleAlertIcon
-															className="size-icon-sm"
-															css={{
-																color: "#F87171",
-																marginRight: 4,
-															}}
-														/>
+														<CircleAlertIcon className="size-icon-sm text-[#F87171] mr-1" />
 													)}
 													<Blocks count={t.visibleResources} />
 												</ClickableBar>

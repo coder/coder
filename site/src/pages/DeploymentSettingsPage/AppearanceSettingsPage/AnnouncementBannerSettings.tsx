@@ -67,11 +67,9 @@ export const AnnouncementBannerSettings: FC<
 		<>
 			<div
 				css={{
-					borderRadius: 8,
 					border: `1px solid ${theme.palette.divider}`,
-					marginTop: 32,
-					overflow: "hidden",
 				}}
+				className="rounded-lg mt-8 overflow-hidden"
 			>
 				<div className="p-6">
 					<Stack
@@ -79,13 +77,7 @@ export const AnnouncementBannerSettings: FC<
 						justifyContent="space-between"
 						alignItems="center"
 					>
-						<h3
-							css={{
-								fontSize: 20,
-								margin: 0,
-								fontWeight: 600,
-							}}
-						>
+						<h3 className="text-xl font-semibold m-0 leading-none">
 							Announcement Banners
 						</h3>
 						<Button
@@ -100,14 +92,13 @@ export const AnnouncementBannerSettings: FC<
 					<div
 						css={{
 							color: theme.palette.text.secondary,
-							fontSize: 14,
-							marginTop: 8,
 						}}
+						className="text-sm mt-2 leading-none"
 					>
 						Display message banners to all users.
 					</div>
 
-					<div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
+					<div css={[theme.typography.body2 as CSSObject]} className="pt-4">
 						<Table>
 							<TableHeader>
 								<TableRow>
@@ -152,9 +143,9 @@ export const AnnouncementBannerSettings: FC<
 							theme.typography.body2 as CSSObject,
 							{
 								background: theme.palette.background.paper,
-								padding: "16px 24px",
 							},
 						]}
+						className="py-4 px-6"
 					>
 						<div className="text-content-secondary">
 							<p>

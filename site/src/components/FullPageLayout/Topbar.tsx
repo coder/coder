@@ -21,10 +21,11 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
 			{...props}
 			css={{
 				borderBottom: `1px solid ${theme.palette.divider}`,
-				fontSize: 13,
-				lineHeight: "1.2",
 			}}
-			className={cn("min-h-12 flex items-center", props.className)}
+			className={cn(
+				"min-h-12 flex items-center text-[13px] leading-tight",
+				props.className,
+			)}
 		/>
 	);
 };

@@ -23,7 +23,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<div css={styles.icon}>
 					<ExternalImage
 						src={example.icon}
-						css={{ width: "100%", height: "100%", objectFit: "contain" }}
+						className="w-full h-full object-contain"
 					/>
 				</div>
 
@@ -39,15 +39,13 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 			</div>
 
 			<div>
-				<h4 css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}>
-					{example.name}
-				</h4>
+				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
 				<span css={styles.description}>
 					{example.description}{" "}
 					<Link
 						component={RouterLink}
 						to={`/starter-templates/${example.id}`}
-						css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+						className="inline-block text-[13px] leading-none mt-2"
 					>
 						Read more
 					</Link>

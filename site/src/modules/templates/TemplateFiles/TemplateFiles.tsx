@@ -61,7 +61,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
 	return (
 		<div>
-			<div css={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
+			<div className="flex items-start gap-8">
 				<div css={styles.sidebar}>
 					<TemplateFileTree
 						fileTree={fileTree}
@@ -102,21 +102,16 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 											{filename}
 										</span>
 
-										<div css={{ marginLeft: "auto" }}>
+										<div className="ml-auto">
 											<Link
 												to={`${versionLink}/edit?path=${filename}`}
 												css={{
-													display: "flex",
-													gap: 4,
-													alignItems: "center",
-													fontSize: 14,
 													color: theme.palette.text.secondary,
-													textDecoration: "none",
-
 													"&:hover": {
 														color: theme.palette.text.primary,
 													},
 												}}
+												className="flex gap-1 items-center text-sm leading-none no-underline"
 											>
 												<EditIcon className="text-inherit size-icon-xs" />
 												Edit

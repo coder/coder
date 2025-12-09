@@ -14,6 +14,7 @@ import {
 	type HTMLAttributes,
 	type ReactElement,
 } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { healthyColor } from "./healthyColor";
 
@@ -23,11 +24,9 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<header
 			css={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "space-between",
 				padding: `36px ${CONTENT_PADDING}px`,
 			}}
+			className="flex items-center justify-between"
 			{...props}
 		/>
 	);
@@ -36,15 +35,10 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<h2
-			css={{
-				margin: 0,
-				lineHeight: "1.2",
-				fontSize: 20,
-				fontWeight: 500,
-				display: "flex",
-				alignItems: "center",
-				gap: 16,
-			}}
+			className={cn(
+				"m-0 leading-tight text-xl font-medium flex items-center gap-4",
+				props.className,
+			)}
 			{...props}
 		/>
 	);
@@ -73,11 +67,9 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 	return (
 		<div
 			css={{
-				width: 8,
-				height: 8,
-				borderRadius: 9999,
 				backgroundColor: healthyColor(theme, severity),
 			}}
+			className="size-2 rounded-full"
 		/>
 	);
 };
@@ -87,10 +79,8 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 		<main
 			css={{
 				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
-				display: "flex",
-				flexDirection: "column",
-				gap: 36,
 			}}
+			className="flex flex-col gap-9"
 			{...props}
 		/>
 	);
@@ -99,15 +89,7 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<div
-			css={{
-				lineHeight: "1.4",
-				display: "grid",
-				gridTemplateColumns: "auto auto",
-				gap: 12,
-				columnGap: 48,
-				width: "min-content",
-				whiteSpace: "nowrap",
-			}}
+			className="leading-snug grid grid-cols-[auto_auto] gap-x-3 gap-y-12 min-w-min whitespace-nowrap"
 			{...props}
 		/>
 	);
@@ -118,10 +100,9 @@ export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	return (
 		<span
 			css={{
-				fontSize: 14,
-				fontWeight: 500,
 				color: theme.palette.text.secondary,
 			}}
+			className="text-sm font-medium leading-none"
 			{...props}
 		/>
 	);
@@ -132,9 +113,9 @@ export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	return (
 		<span
 			css={{
-				fontSize: 14,
 				color: theme.palette.text.primary,
 			}}
+			className="text-sm leading-none"
 			{...props}
 		/>
 	);
@@ -142,16 +123,7 @@ export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 
 export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
 	return (
-		<h4
-			{...props}
-			css={{
-				fontSize: 14,
-				fontWeight: 500,
-				margin: 0,
-				lineHeight: "1.2",
-				marginBottom: 16,
-			}}
-		/>
+		<h4 {...props} className="text-sm font-medium m-0 leading-tight mb-4" />
 	);
 };
 
@@ -167,17 +139,9 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
 		<div
 			ref={ref}
 			css={{
-				display: "inline-flex",
-				alignItems: "center",
-				height: 32,
-				borderRadius: 9999,
 				border: `1px solid ${theme.palette.divider}`,
-				fontSize: 12,
-				fontWeight: 500,
-				padding: 8,
-				gap: 8,
-				cursor: "default",
 			}}
+			className="inline-flex items-center h-8 rounded-full text-xs font-medium gap-2 p-2 cursor-default"
 			{...divProps}
 		>
 			{cloneElement(icon, { className: "size-[14px]" })}
@@ -222,19 +186,13 @@ export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
 	return (
 		<div
 			css={{
-				fontFamily: "monospace",
-				fontSize: 13,
-				lineHeight: "160%",
-				padding: 24,
 				backgroundColor: theme.palette.background.paper,
-				overflowX: "auto",
-				whiteSpace: "pre-wrap",
-				wordBreak: "break-all",
 			}}
+			className="font-mono text-[13px] leading-[160%] p-6 overflow-x-auto whitespace-pre-wrap break-all"
 			{...divProps}
 		>
 			{lines.map((line, index) => (
-				<span css={{ display: "block" }} key={index}>
+				<span className="block" key={index}>
 					{line}
 				</span>
 			))}

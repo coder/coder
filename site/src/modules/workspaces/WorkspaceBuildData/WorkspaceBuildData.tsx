@@ -25,26 +25,19 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 			<BuildIcon
 				transition={build.transition}
 				css={{
-					width: 16,
-					height: 16,
 					color: theme.roles[statusType].fill.solid,
 				}}
+				className="size-4"
 			/>
-			<div css={{ overflow: "hidden" }}>
+			<div className="overflow-hidden">
 				<div
 					css={{
 						color: theme.palette.text.primary,
-						textOverflow: "ellipsis",
-						overflow: "hidden",
-						whiteSpace: "nowrap",
-						display: "flex",
-						alignItems: "center",
-						gap: 4,
 					}}
+					className="truncate flex items-center gap-1"
 				>
-					<span css={{ textTransform: "capitalize" }}>{build.transition}</span>{" "}
-					by{" "}
-					<span css={{ fontWeight: 500 }}>
+					<span className="capitalize">{build.transition}</span> by{" "}
+					<span className="font-medium">
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
 					{!systemBuildReasons.includes(build.reason) &&
@@ -66,9 +59,9 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 				</div>
 				<div
 					css={{
-						fontSize: 12,
 						color: theme.palette.text.secondary,
 					}}
+					className="text-sm leading-none"
 				>
 					{createDayString(build.created_at)}
 				</div>
@@ -83,12 +76,7 @@ export const WorkspaceBuildDataSkeleton = () => {
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
-				<Skeleton
-					variant="text"
-					width={60}
-					height={14}
-					css={{ marginTop: 2 }}
-				/>
+				<Skeleton variant="text" width={60} height={14} className="mt-0.5" />
 			</div>
 		</div>
 	);

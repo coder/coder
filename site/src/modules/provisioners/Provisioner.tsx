@@ -36,58 +36,28 @@ export const Provisioner: FC<ProvisionerProps> = ({
 	return (
 		<div
 			key={provisioner.name}
+			className="rounded-lg text-md leading-none"
 			css={[
 				{
-					borderRadius: 8,
 					border: `1px solid ${theme.palette.divider}`,
-					fontSize: 14,
 				},
 				isWarning && { borderColor: theme.palette.warning.light },
 			]}
 		>
-			<header
-				css={{
-					padding: 24,
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-					gap: 24,
-				}}
-			>
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 24,
-						objectFit: "fill",
-					}}
-				>
-					<div css={{ lineHeight: "160%" }}>
-						<h4 css={{ fontWeight: 500, margin: 0 }}>{provisioner.name}</h4>
+			<header className="p-6 flex items-center justify-between gap-6">
+				<div className="flex items-center gap-6 object-fill">
+					<div className="leading-[160%]">
+						<h4 className="font-semibold m-0">{provisioner.name}</h4>
 						<span css={{ color: theme.palette.text.secondary }}>
 							<code>{provisioner.version}</code>
 						</span>
 					</div>
 				</div>
-				<div
-					css={{
-						marginLeft: "auto",
-						display: "flex",
-						flexWrap: "wrap",
-						gap: 12,
-						justifyContent: "right",
-					}}
-				>
+				<div className="ml-auto flex flex-wrap gap-3 justify-end">
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Pill size="lg" icon={iconScope}>
-								<span
-									css={{
-										":first-letter": { textTransform: "uppercase" },
-									}}
-								>
-									{daemonScope}
-								</span>
+								<span className="first-letter:uppercase">{daemonScope}</span>
 							</Pill>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">Scope</TooltipContent>
@@ -101,16 +71,12 @@ export const Provisioner: FC<ProvisionerProps> = ({
 			<div
 				css={{
 					borderTop: `1px solid ${theme.palette.divider}`,
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-					padding: "8px 24px",
-					fontSize: 12,
 					color: theme.palette.text.secondary,
 				}}
+				className="flex items-center justify-between py-2 px-6 text-sm leading-none"
 			>
 				{warnings && warnings.length > 0 ? (
-					<div css={{ display: "flex", flexDirection: "column" }}>
+					<div className="flex flex-col">
 						{warnings.map((warning) => (
 							<span key={warning.code}>{warning.message}</span>
 						))}

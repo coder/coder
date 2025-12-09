@@ -54,20 +54,12 @@ const RequestOTP: FC<RequestOTPProps> = ({
 	return (
 		<div css={styles.container}>
 			<div>
-				<h1
-					css={{
-						margin: 0,
-						marginBottom: 24,
-						fontSize: 20,
-						fontWeight: 600,
-						lineHeight: "28px",
-					}}
-				>
+				<h1 className="m-0 mb-6 text-lg font-semibold leading-7">
 					Enter your email to reset the password
 				</h1>
-				{error ? <ErrorAlert error={error} css={{ marginBottom: 24 }} /> : null}
+				{error ? <ErrorAlert error={error} className="mb-6" /> : null}
 				<form
-					css={{ width: "100%" }}
+					className="w-full"
 					onSubmit={(e) => {
 						e.preventDefault();
 						const email = e.currentTarget.email.value;
@@ -112,18 +104,16 @@ const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
 
 	return (
 		<div
-			css={{
-				...styles.container,
-				maxWidth: 380,
-				fontWeight: 500,
-				fontSize: 14,
-				lineHeight: "24px",
-			}}
+			css={styles.container}
+			className="max-w-[380px] font-medium text-sm leading-6"
 		>
 			<div>
-				<p css={{ margin: 0, marginBottom: 56 }}>
+				<p className="m-0 mb-14">
 					If the account{" "}
-					<span css={{ fontWeight: 600, color: theme.palette.text.secondary }}>
+					<span
+						className="font-semibold"
+						css={{ color: theme.palette.text.secondary }}
+					>
 						{email}
 					</span>{" "}
 					exists, you will get an email with instructions on resetting your
@@ -132,12 +122,9 @@ const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
 
 				<p
 					css={{
-						margin: 0,
-						fontSize: 12,
-						lineHeight: "16px",
 						color: theme.palette.text.secondary,
-						marginBottom: 48,
 					}}
+					className="m-0 text-xs leading-4 mb-12"
 				>
 					Contact your deployment administrator if you encounter issues.
 				</p>
