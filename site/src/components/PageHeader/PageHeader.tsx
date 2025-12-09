@@ -21,7 +21,7 @@ export const PageHeader: FC<PageHeaderProps> = ({
 					alignItems: "flex-start",
 				},
 			})}
-			className={cn("flex items-center py-12 gap-8", className)}
+			className={cn("flex items-center pt-2 pb-12 gap-8", className)}
 			data-testid="header"
 		>
 			<hgroup>{children}</hgroup>
