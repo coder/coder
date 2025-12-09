@@ -26,7 +26,7 @@ const (
 	defaultListInterceptionsLimit = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
-	aiBridgeRateLimitWindow = time.Minute
+	aiBridgeRateLimitWindow = time.Second
 )
 
 // aibridgeHandler handles all aibridged-related endpoints.

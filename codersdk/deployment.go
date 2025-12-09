@@ -3413,7 +3413,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Rate Limit",
-			Description: "Maximum number of AI Bridge requests per minute. Set to 0 to disable rate limiting.",
+			Description: "Maximum number of AI Bridge requests per second. Set to 0 to disable rate limiting.",
 			Flag:        "aibridge-rate-limit",
 			Env:         "CODER_AIBRIDGE_RATE_LIMIT",
 			Value:       &c.AI.BridgeConfig.RateLimit,

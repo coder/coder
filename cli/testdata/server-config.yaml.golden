@@ -752,7 +752,7 @@ aibridge:
   # (unlimited).
   # (default: 0, type: int)
   maxConcurrency: 0
-  # Maximum number of AI Bridge requests per minute. Set to 0 to disable rate
+  # Maximum number of AI Bridge requests per second. Set to 0 to disable rate
   # limiting.
   # (default: 0, type: int)
   rateLimit: 0

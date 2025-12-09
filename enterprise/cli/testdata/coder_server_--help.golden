@@ -137,7 +137,7 @@ AI BRIDGE OPTIONS:
           The key to authenticate against the OpenAI API.
 
       --aibridge-rate-limit int, $CODER_AIBRIDGE_RATE_LIMIT (default: 0)
-          Maximum number of AI Bridge requests per minute. Set to 0 to disable
+          Maximum number of AI Bridge requests per second. Set to 0 to disable
           rate limiting.
 
 CLIENT OPTIONS: 
