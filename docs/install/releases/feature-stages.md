@@ -138,7 +138,8 @@ The transition from Beta to GA focuses primarily on:
 - **Compatibility**: Testing across a wider set of Coder versions and
   environments.
 
-A feature should fit at least 80% of planned use cases before reaching GA.
+A feature should fit at least 80% of planned use cases before reaching GA. Any
+changes after GA are incremental improvements or made by customer request.
 
 ### GA feature characteristics
 
