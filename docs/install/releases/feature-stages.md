@@ -39,8 +39,8 @@ early access features at any time.
 - **Experimental naming**: API routes and CLI commands for early access features
   use "experimental" naming conventions. These experimental routes are
   deprecated when the feature moves to Beta.
-- **Staging only**: If you plan to test an early access feature, use a staging
-  deployment.
+- **Staging only**: When testing out early access features, we strongly advise
+  using a staging deployment.
 
 <details><summary>To enable early access features:</summary>
 
