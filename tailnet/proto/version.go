@@ -56,9 +56,13 @@ import (
 //   - Added support for DeleteSubAgent RPC on the Agent API.
 //   - Added support for ListSubAgents RPC on the Agent API.
 //   - Add ORGANIZATION SharingLevel
+//
+// API v2.7:
+//   - Added support for ReportBoundaryLogs RPC on the Agent API for forwarding
+//     boundary audit logs to coderd.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 6
+	CurrentMinor = 7
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
