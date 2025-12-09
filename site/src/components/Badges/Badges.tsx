@@ -15,7 +15,7 @@ const badgeClasses = {
 	root: [
 		"text-[10px] h-6 font-semibold uppercase tracking-[0.085em]",
 		"px-3 rounded-full flex items-center w-fit whitespace-nowrap",
-		"border border-solid",
+		"border border-solid leading-none",
 	],
 	enabled: ["border-green-500 bg-green-950 text-green-50"],
 	error: ["border-red-600 bg-red-950 text-red-50"],
