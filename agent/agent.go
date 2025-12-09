@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
@@ -277,6 +278,10 @@ type agent struct {
 
 	logSender *agentsdk.LogSender
 
+	// boundaryLogProxy is a socket server that forwards boundary audit logs to coderd.
+	// It may be nil if there is a problem starting the server.
+	boundaryLogProxy *boundarylogproxy.Server
+
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
 	// labeled in Coder with the agent + workspace.
@@ -371,6 +376,7 @@ func (a *agent) init() {
 	)
 
 	a.initSocketServer()
+	a.startBoundaryLogProxyServer()
 
 	go a.runLoop()
 }
@@ -393,6 +399,21 @@ func (a *agent) initSocketServer() {
 
 	a.socketServer = server
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
+}
+
+// startBoundaryLogProxyServer starts the boundary log proxy socket server.
+func (a *agent) startBoundaryLogProxyServer() {
+	const boundaryAuditSocketPath = "/tmp/boundary-audit.sock"
+
+	proxy := boundarylogproxy.NewServer(a.logger, boundaryAuditSocketPath)
+	if err := proxy.Start(); err != nil {
+		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
+		return
+	}
+
+	a.boundaryLogProxy = proxy
+	a.logger.Info(a.hardCtx, "boundary log proxy server started",
+		slog.F("socket_path", boundaryAuditSocketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -1011,6 +1032,15 @@ func (a *agent) run() (retErr error) {
 			}
 			return err
 		})
+
+	// Forward boundary audit logs to coderd if boundary log forwarding is enabled.
+	// These are audit logs so they should continue during graceful shutdown.
+	if a.boundaryLogProxy != nil {
+		proxyFunc := func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
+			return a.boundaryLogProxy.RunForwarder(ctx, aAPI)
+		}
+		connMan.startAgentAPI("boundary log proxy", gracefulShutdownBehaviorRemain, proxyFunc)
+	}
 
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
 	// lifecycle reporting has to be via gracefulShutdownBehaviorRemain
@@ -1980,6 +2010,13 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+
+	if a.boundaryLogProxy != nil {
+		err = a.boundaryLogProxy.Close()
+		if err != nil {
+			a.logger.Warn(context.Background(), "close boundary log proxy", slog.Error(err))
+		}
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so
