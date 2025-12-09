@@ -109,9 +109,12 @@ jobs:
 
       - name: Extract repository info
         id: repo-info
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          echo "owner=${{ github.repository_owner }}" >> "${GITHUB_OUTPUT}"
-          echo "repo=${{ github.event.repository.name }}" >> "${GITHUB_OUTPUT}"
+          echo "owner=${REPO_OWNER}" >> "${GITHUB_OUTPUT}"
+          echo "repo=${REPO_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build code review prompt
         id: build-prompt
