@@ -1,16 +1,15 @@
-# Dev Containers Integration
+# Dev Containers
 
-The Dev Containers integration enables seamless creation and management of dev
-containers in Coder workspaces. This feature leverages the
-[`@devcontainers/cli`](https://github.com/devcontainers/cli) and
-[Docker](https://www.docker.com) to provide a streamlined development
-experience.
+[Dev containers](https://containers.dev/) define your development environment
+as code using a `devcontainer.json` file. Coder's Dev Containers integration
+uses the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and
+[Docker](https://www.docker.com) to seamlessly build and run these containers,
+with management in your dashboard.
 
-> [!NOTE]
-> This guide covers the Dev Containers Integration, which uses Docker.
-> For environments without Docker, administrators can configure
-> [Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md)
-> as an alternative.
+This guide covers the Dev Containers integration. For workspaces without Docker,
+administrators can configure
+[Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md) instead,
+which builds the workspace image itself from your dev container configuration.
 
 ## Prerequisites
 
@@ -20,7 +19,7 @@ experience.
 
 Dev Containers integration is enabled by default. Your workspace needs Docker
 (via Docker-in-Docker or a mounted socket) and the devcontainers CLI. Most
-templates with Dev Containers support include both—see
+templates with Dev Containers support include both. See
 [Configure a template for dev containers](../../admin/integrations/devcontainers/integration.md)
 for setup details.
 
@@ -115,8 +114,8 @@ in your `devcontainer.json`.
 
 ## Limitations
 
-- **Linux and macOS only** — Dev Containers are not supported on Windows
-  workspaces
+- **Linux only**: Dev Containers are currently not supported in Windows or
+  macOS workspaces
 - Changes to `devcontainer.json` require manual rebuild using the dashboard
   button
 - The `forwardPorts` property in `devcontainer.json` with `host:port` syntax

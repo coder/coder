@@ -1,14 +1,13 @@
 # Configure a template for Dev Containers
 
-> [!NOTE]
-> For environments without Docker, see [Envbuilder](./envbuilder/index.md) as an alternative.
+This guide covers the Dev Containers Integration, which uses Docker. For
+environments without Docker, see [Envbuilder](./envbuilder/index.md) as an
+alternative.
 
 To enable Dev Containers in workspaces, configure your template with the Dev Containers
 modules and configurations outlined in this doc.
 
-> [!NOTE]
->
-> Dev Containers require a **Linux or macOS workspace**. Windows is not supported.
+Dev Containers are currently not supported in Windows or macOS workspaces.
 
 ## Configuration Modes
 
@@ -63,19 +62,10 @@ resource "coder_devcontainer" "my-repository" {
 }
 ```
 
-> [!NOTE]
->
-> The `workspace_folder` attribute must specify the location of the dev
-> container's workspace and should point to a valid project folder containing a
-> `devcontainer.json` file.
-
-<!-- nolint:MD028/no-blanks-blockquote -->
-
-> [!TIP]
->
-> Consider using the [`git-clone`](https://registry.coder.com/modules/git-clone)
-> module to ensure your repository is cloned into the workspace folder and ready
-> for automatic startup.
+The `workspace_folder` attribute must point to a valid project folder containing
+a `devcontainer.json` file. Consider using the
+[`git-clone`](https://registry.coder.com/modules/git-clone) module to ensure
+your repository is cloned and ready for automatic startup.
 
 For multi-repo workspaces, define multiple `coder_devcontainer` resources, each
 pointing to a different repository. Each one runs as a separate sub-agent with

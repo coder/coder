@@ -321,7 +321,7 @@
 					"icon_path": "./images/icons/circle-dot.svg"
 				},
 				{
-					"title": "Dev Containers Integration",
+					"title": "Dev Containers",
 					"description": "Run containerized development environments in your Coder workspace using the dev containers specification.",
 					"path": "./user-guides/devcontainers/index.md",
 					"icon_path": "./images/icons/container.svg",
