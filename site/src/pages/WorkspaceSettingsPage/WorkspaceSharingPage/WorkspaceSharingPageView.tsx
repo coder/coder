@@ -1,6 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import MenuItem from "@mui/material/MenuItem";
-import Select, { type SelectProps } from "@mui/material/Select";
 import type {
 	Group,
 	User,
@@ -13,7 +10,6 @@ import type {
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -21,9 +17,14 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -87,7 +88,7 @@ const AddWorkspaceUserOrGroup: FC<AddWorkspaceUserOrGroupProps> = ({
 				}
 			}}
 		>
-			<Stack direction="row" alignItems="center" spacing={1}>
+			<div className="flex flex-row items-center gap-2">
 				<UserOrGroupAutocomplete
 					organizationId={organizationID}
 					value={selectedOption}
@@ -98,20 +99,17 @@ const AddWorkspaceUserOrGroup: FC<AddWorkspaceUserOrGroupProps> = ({
 				/>
 
 				<Select
-					defaultValue="use"
-					size="small"
-					css={styles.select}
+					value={selectedRole}
+					onValueChange={(value: WorkspaceRole) => setSelectedRole(value)}
 					disabled={isLoading}
-					onChange={(event) => {
-						setSelectedRole(event.target.value as WorkspaceRole);
-					}}
 				>
-					<MenuItem key="use" value="use">
-						Use
-					</MenuItem>
-					<MenuItem key="admin" value="admin">
-						Admin
-					</MenuItem>
+					<SelectTrigger className="w-40">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="use">Use</SelectItem>
+						<SelectItem value="admin">Admin</SelectItem>
+					</SelectContent>
 				</Select>
 
 				<Button
@@ -123,34 +121,51 @@ const AddWorkspaceUserOrGroup: FC<AddWorkspaceUserOrGroupProps> = ({
 					</Spinner>
 					Add member
 				</Button>
-			</Stack>
+			</div>
 		</form>
 	);
 };
 
-const RoleSelect: FC<SelectProps> = (props) => {
+interface RoleSelectProps {
+	value: WorkspaceRole;
+	disabled?: boolean;
+	onValueChange: (value: WorkspaceRole) => void;
+}
+
+const RoleSelect: FC<RoleSelectProps> = ({
+	value,
+	disabled,
+	onValueChange,
+}) => {
+	const roleLabels: Record<WorkspaceRole, string> = {
+		use: "Use",
+		admin: "Admin",
+		"": "",
+	};
+
 	return (
-		<Select
-			renderValue={(value) => <div css={styles.role}>{`${value}`}</div>}
-			css={styles.updateSelect}
-			{...props}
-		>
-			<MenuItem key="use" value="use" css={styles.menuItem}>
-				<div>
-					<div>Use</div>
-					<div css={styles.menuItemSecondary}>
+		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
+			<SelectTrigger className="w-40 h-auto">
+				<SelectValue>
+					<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
+						{roleLabels[value]}
+					</span>
+				</SelectValue>
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="use" className="flex-col items-start py-2 w-64">
+					<div className="font-medium text-content-primary">Use</div>
+					<div className="text-xs text-content-secondary leading-snug mt-0.5">
 						Can read and access this workspace.
 					</div>
-				</div>
-			</MenuItem>
-			<MenuItem key="admin" value="admin" css={styles.menuItem}>
-				<div>
-					<div>Admin</div>
-					<div css={styles.menuItemSecondary}>
+				</SelectItem>
+				<SelectItem value="admin" className="flex-col items-start py-2 w-64">
+					<div className="font-medium text-content-primary">Admin</div>
+					<div className="text-xs text-content-secondary leading-snug mt-0.5">
 						Can manage workspace metadata, permissions, and settings.
 					</div>
-				</div>
-			</MenuItem>
+				</SelectItem>
+			</SelectContent>
 		</Select>
 	);
 };
@@ -201,202 +216,146 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 	);
 
 	return (
-		<>
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Sharing</PageHeaderTitle>
-			</PageHeader>
-
-			<Stack spacing={2.5}>
-				{canUpdatePermissions && (
-					<AddWorkspaceUserOrGroup
-						organizationID={workspace.organization_id}
-						workspaceACL={workspaceACL}
-						isLoading={isAddingUser || isAddingGroup}
-						onSubmit={(value, role, resetAutocomplete) =>
-							"members" in value
-								? onAddGroup(value, role, resetAutocomplete)
-								: onAddUser(value, role, resetAutocomplete)
-						}
-					/>
-				)}
-				<Table>
-					<TableHeader>
+		<div className="flex flex-col gap-4">
+			{canUpdatePermissions && (
+				<AddWorkspaceUserOrGroup
+					organizationID={workspace.organization_id}
+					workspaceACL={workspaceACL}
+					isLoading={isAddingUser || isAddingGroup}
+					onSubmit={(value, role, resetAutocomplete) =>
+						"members" in value
+							? onAddGroup(value, role, resetAutocomplete)
+							: onAddUser(value, role, resetAutocomplete)
+					}
+				/>
+			)}
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="w-[60%] py-2">Member</TableHead>
+						<TableHead className="w-[40%] py-2">Role</TableHead>
+						<TableHead className="w-[1%] py-2" />
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{!workspaceACL ? (
+						<TableLoader />
+					) : isEmpty ? (
 						<TableRow>
-							<TableHead className="w-[60%]">Member</TableHead>
-							<TableHead className="w-[40%]">Role</TableHead>
-							<TableHead className="w-[1%]" />
+							<TableCell colSpan={999}>
+								<EmptyState
+									message="No shared members or groups yet"
+									description="Add a member or group using the controls above"
+								/>
+							</TableCell>
 						</TableRow>
-					</TableHeader>
-					<TableBody>
-						<ChooseOne>
-							<Cond condition={!workspaceACL}>
-								<TableLoader />
-							</Cond>
-							<Cond condition={isEmpty}>
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState
-											message="No shared members or groups yet"
-											description="Add a member or group using the controls above"
+					) : (
+						<>
+							{workspaceACL.group.map((group) => (
+								<TableRow key={group.id}>
+									<TableCell className="py-2">
+										<AvatarData
+											avatar={
+												<Avatar
+													size="lg"
+													fallback={group.display_name || group.name}
+													src={group.avatar_url}
+												/>
+											}
+											title={group.display_name || group.name}
+											subtitle={getGroupSubtitle(group)}
 										/>
 									</TableCell>
+									<TableCell className="py-2">
+										{canUpdatePermissions ? (
+											<RoleSelect
+												value={group.role}
+												disabled={updatingGroupId === group.id}
+												onValueChange={(value) => onUpdateGroup(group, value)}
+											/>
+										) : (
+											<div className="capitalize">{group.role}</div>
+										)}
+									</TableCell>
+
+									<TableCell className="py-2">
+										{canUpdatePermissions && (
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														size="icon-lg"
+														variant="subtle"
+														aria-label="Open menu"
+													>
+														<EllipsisVertical aria-hidden="true" />
+														<span className="sr-only">Open menu</span>
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem
+														className="text-content-destructive focus:text-content-destructive"
+														onClick={() => onRemoveGroup(group)}
+													>
+														Remove
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										)}
+									</TableCell>
 								</TableRow>
-							</Cond>
-							<Cond>
-								{workspaceACL?.group.map((group) => (
-									<TableRow key={group.id}>
-										<TableCell>
-											<AvatarData
-												avatar={
-													<Avatar
-														size="lg"
-														fallback={group.display_name || group.name}
-														src={group.avatar_url}
-													/>
-												}
-												title={group.display_name || group.name}
-												subtitle={getGroupSubtitle(group)}
+							))}
+
+							{workspaceACL.users.map((user) => (
+								<TableRow key={user.id}>
+									<TableCell className="py-2">
+										<AvatarData
+											title={user.username}
+											subtitle={user.name}
+											src={user.avatar_url}
+										/>
+									</TableCell>
+									<TableCell className="py-2">
+										{canUpdatePermissions ? (
+											<RoleSelect
+												value={user.role}
+												disabled={updatingUserId === user.id}
+												onValueChange={(value) => onUpdateUser(user, value)}
 											/>
-										</TableCell>
-										<TableCell>
-											<ChooseOne>
-												<Cond condition={canUpdatePermissions}>
-													<RoleSelect
-														value={group.role}
-														disabled={updatingGroupId === group.id}
-														onChange={(event) => {
-															onUpdateGroup(
-																group,
-																event.target.value as WorkspaceRole,
-															);
-														}}
-													/>
-												</Cond>
-												<Cond>
-													<div css={styles.role}>{group.role}</div>
-												</Cond>
-											</ChooseOne>
-										</TableCell>
+										) : (
+											<div className="capitalize">{user.role}</div>
+										)}
+									</TableCell>
 
-										<TableCell>
-											{canUpdatePermissions && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															size="icon-lg"
-															variant="subtle"
-															aria-label="Open menu"
-														>
-															<EllipsisVertical aria-hidden="true" />
-															<span className="sr-only">Open menu</span>
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onClick={() => onRemoveGroup(group)}
-														>
-															Remove
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-
-								{workspaceACL?.users.map((user) => (
-									<TableRow key={user.id}>
-										<TableCell>
-											<AvatarData
-												title={user.username}
-												subtitle={user.name}
-												src={user.avatar_url}
-											/>
-										</TableCell>
-										<TableCell>
-											<ChooseOne>
-												<Cond condition={canUpdatePermissions}>
-													<RoleSelect
-														value={user.role}
-														disabled={updatingUserId === user.id}
-														onChange={(event) => {
-															onUpdateUser(
-																user,
-																event.target.value as WorkspaceRole,
-															);
-														}}
-													/>
-												</Cond>
-												<Cond>
-													<div css={styles.role}>{user.role}</div>
-												</Cond>
-											</ChooseOne>
-										</TableCell>
-
-										<TableCell>
-											{canUpdatePermissions && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															size="icon-lg"
-															variant="subtle"
-															aria-label="Open menu"
-														>
-															<EllipsisVertical aria-hidden="true" />
-															<span className="sr-only">Open menu</span>
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onClick={() => onRemoveUser(user)}
-														>
-															Remove
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</Cond>
-						</ChooseOne>
-					</TableBody>
-				</Table>
-			</Stack>
-		</>
+									<TableCell className="py-2">
+										{canUpdatePermissions && (
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														size="icon-lg"
+														variant="subtle"
+														aria-label="Open menu"
+													>
+														<EllipsisVertical aria-hidden="true" />
+														<span className="sr-only">Open menu</span>
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem
+														className="text-content-destructive focus:text-content-destructive"
+														onClick={() => onRemoveUser(user)}
+													>
+														Remove
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										)}
+									</TableCell>
+								</TableRow>
+							))}
+						</>
+					)}
+				</TableBody>
+			</Table>
+		</div>
 	);
 };
-
-const styles = {
-	select: {
-		fontSize: 14,
-		width: 100,
-	},
-	updateSelect: {
-		margin: 0,
-		width: 200,
-		"& .MuiSelect-root": {
-			paddingTop: 12,
-			paddingBottom: 12,
-			".secondary": {
-				display: "none",
-			},
-		},
-	},
-	role: {
-		textTransform: "capitalize",
-	},
-	menuItem: {
-		lineHeight: "140%",
-		paddingTop: 12,
-		paddingBottom: 12,
-		whiteSpace: "normal",
-		inlineSize: "250px",
-	},
-	menuItemSecondary: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
