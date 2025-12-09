@@ -35,7 +35,6 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 				slog.F("http_method", l.HttpMethod),
 				slog.F("http_url", l.HttpUrl),
 				slog.F("event_time", logTime.Format(time.RFC3339Nano)),
-				slog.F("matched_rule", l.MatchedRule),
 			)
 		} else {
 			a.Log.Warn(ctx, "boundary request denied",
