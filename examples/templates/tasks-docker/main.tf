@@ -10,12 +10,21 @@ terraform {
   }
 }
 
+variable "docker_socket" {
+  default     = ""
+  description = "(Optional) Docker socket URI"
+  type        = string
+}
+
 # This template requires a valid Docker socket
 # However, you can reference our Kubernetes/VM
 # example templates and adapt the Claude Code module
 #
 # See: https://registry.coder.com/templates
-provider "docker" {}
+provider "docker" {
+  # Defaulting to null if the variable is an empty string lets us have an optional variable without having to set our own default
+  host = var.docker_socket != "" ? var.docker_socket : null
+}
 
 # A `coder_ai_task` resource enables Tasks and associates
 # the task with the coder_app that will act as an AI agent.

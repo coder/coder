@@ -290,12 +290,13 @@ fatal() {
 			pushd "${temp_template_dir}" && terraform init && popd
 
 			DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
+			printf 'docker_socket: "%s"\n' "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 			(
 				echo "Pushing tasks-docker template to '${first_org_name}'..."
-				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --yes --org "${first_org_name}"
+				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
 				if [ "${multi_org}" -gt "0" ]; then
 					echo "Pushing tasks-docker template to '${another_org}'..."
-					"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --yes --org "${another_org}"
+					"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
 				fi
 				rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 			) || echo "Failed to create tasks-docker template. The template files are in ${temp_template_dir}"
