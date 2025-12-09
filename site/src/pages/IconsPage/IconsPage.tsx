@@ -154,7 +154,7 @@ const IconsPage: FC = () => {
 										theme.externalImages,
 										defaultParametersForBuiltinIcons.get(icon.url) ?? "",
 									)}
-									className="w-15 h-15 object-contain pointer-events-none p-3"
+									className="w-[60px] h-[60px] object-contain pointer-events-none p-3"
 								/>
 								<figcaption className="w-22 h-12 text-[13px] text-center truncate">
 									{icon.description}
