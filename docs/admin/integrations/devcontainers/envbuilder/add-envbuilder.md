@@ -2,7 +2,7 @@
 
 A Coder administrator adds an Envbuilder-compatible template to Coder. This
 allows the template to prompt the developer for their dev container repository's
-URL as a [parameter](../../extending-templates/parameters.md) when they create
+URL as a [parameter](../../../templates/extending-templates/parameters.md) when they create
 their workspace. Envbuilder clones the repo and builds a container from the
 `devcontainer.json` specified in the repo.
 
@@ -127,7 +127,7 @@ their development environments:
 | [AWS EC2 dev container](https://github.com/coder/coder/tree/main/examples/templates/aws-devcontainer)               | Runs a development container inside a single EC2 instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
 
 Your template can prompt the user for a repo URL with
-[parameters](../../extending-templates/parameters.md):
+[parameters](../../../templates/extending-templates/parameters.md):
 
 ![Dev container parameter screen](../../../../images/templates/devcontainers.png)
 
