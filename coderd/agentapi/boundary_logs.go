@@ -2,50 +2,50 @@ package agentapi
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
 
+	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 )
 
 type BoundaryLogsAPI struct {
+	Log         slog.Logger
 	WorkspaceID uuid.UUID
 }
 
-func (a *BoundaryLogsAPI) ReportBoundaryLogs(_ context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
-	for _, log := range req.Logs {
-		workspaceID, err := uuid.FromBytes(log.WorkspaceId)
+func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
+	for _, l := range req.Logs {
+		workspaceID, err := uuid.FromBytes(l.WorkspaceId)
 		if err != nil {
 			workspaceID = a.WorkspaceID
 		}
 
-		decision := "allow"
-		level := "info"
-		if !log.Allowed {
-			decision = "deny"
-			level = "warn"
-		}
-
 		var logTime time.Time
-		if log.Time != nil {
-			logTime = log.Time.AsTime()
+		if l.Time != nil {
+			logTime = l.Time.AsTime()
 		} else {
 			logTime = time.Now()
 		}
 
-		// Format: [API] 2025-12-08 20:58:46.093 [warn] boundary: workspace.id=... decision=deny http.method="GET" http.url="..." time="..."
-		_, _ = fmt.Fprintf(os.Stderr, "[API] %s [%s] boundary: workspace.id=%s decision=%s http.method=%q http.url=%q time=%q\n",
-			logTime.Format("2006-01-02 15:04:05.000"),
-			level,
-			workspaceID.String(),
-			decision,
-			log.HttpMethod,
-			log.HttpUrl,
-			logTime.Format(time.RFC3339Nano),
-		)
+		if l.Allowed {
+			a.Log.Info(ctx, "boundary request allowed",
+				slog.F("workspace_id", workspaceID.String()),
+				slog.F("http_method", l.HttpMethod),
+				slog.F("http_url", l.HttpUrl),
+				slog.F("event_time", logTime.Format(time.RFC3339Nano)),
+				slog.F("matched_rule", l.MatchedRule),
+			)
+		} else {
+			a.Log.Warn(ctx, "boundary request denied",
+				slog.F("workspace_id", workspaceID.String()),
+				slog.F("http_method", l.HttpMethod),
+				slog.F("http_url", l.HttpUrl),
+				slog.F("event_time", logTime.Format(time.RFC3339Nano)),
+				slog.F("matched_rule", l.MatchedRule),
+			)
+		}
 	}
 
 	return &agentproto.ReportBoundaryLogsResponse{}, nil

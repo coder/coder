@@ -220,6 +220,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
+		Log:         opts.Log,
 		WorkspaceID: opts.WorkspaceID,
 	}
 
