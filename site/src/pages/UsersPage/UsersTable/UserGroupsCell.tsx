@@ -31,7 +31,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 					<Tooltip delayDuration={0}>
 						<TooltipTrigger asChild>
 							<button
-								className="cursor-pointer bg-transparent border-none p-0 color-inherit leading-none"
+								className="cursor-pointer bg-transparent border-none p-0 text-inherit leading-none"
 								type="button"
 							>
 								<div className="flex flex-row gap-2 items-center">
