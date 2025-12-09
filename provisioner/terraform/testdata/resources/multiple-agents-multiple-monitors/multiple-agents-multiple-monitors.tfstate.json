@@ -12,6 +12,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
@@ -73,6 +74,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
@@ -152,6 +154,7 @@
             "command": null,
             "display_name": null,
             "external": false,
+            "group": null,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
@@ -161,6 +164,7 @@
             "share": "owner",
             "slug": "app1",
             "subdomain": null,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
@@ -182,6 +186,7 @@
             "command": null,
             "display_name": null,
             "external": false,
+            "group": null,
             "healthcheck": [
               {
                 "interval": 5,
@@ -197,6 +202,7 @@
             "share": "owner",
             "slug": "app2",
             "subdomain": true,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
