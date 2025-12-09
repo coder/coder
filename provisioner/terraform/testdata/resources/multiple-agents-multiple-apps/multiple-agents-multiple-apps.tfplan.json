@@ -86,6 +86,7 @@
             "share": "owner",
             "slug": "app1",
             "subdomain": null,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
@@ -118,6 +119,7 @@
             "share": "owner",
             "slug": "app2",
             "subdomain": true,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
@@ -146,6 +148,7 @@
             "share": "owner",
             "slug": "app3",
             "subdomain": false,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
@@ -294,6 +297,7 @@
           "share": "owner",
           "slug": "app1",
           "subdomain": null,
+          "tooltip": null,
           "url": null
         },
         "after_unknown": {
@@ -337,6 +341,7 @@
           "share": "owner",
           "slug": "app2",
           "subdomain": true,
+          "tooltip": null,
           "url": null
         },
         "after_unknown": {
@@ -378,6 +383,7 @@
           "share": "owner",
           "slug": "app3",
           "subdomain": false,
+          "tooltip": null,
           "url": null
         },
         "after_unknown": {

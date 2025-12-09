@@ -164,6 +164,7 @@
             "share": "owner",
             "slug": "app1",
             "subdomain": null,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
@@ -201,6 +202,7 @@
             "share": "owner",
             "slug": "app2",
             "subdomain": true,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
