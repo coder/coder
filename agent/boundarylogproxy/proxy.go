@@ -1,5 +1,14 @@
 // Package boundarylogproxy provides a Unix socket server that receives boundary
 // audit logs and forwards them to coderd via the agent API.
+//
+// Wire Format:
+// Boundary sends length-prefixed protobuf messages over the Unix socket.
+// Each message is:
+//   - 4 bytes: big-endian uint32 length of the protobuf data
+//   - N bytes: protobuf-encoded BoundaryLogsRequest
+//
+// Boundary must generate its proto types with the same field numbers as the
+// agent proto (see agent/proto/agent.proto BoundaryLog and ReportBoundaryLogsRequest).
 package boundarylogproxy
 
 import (
@@ -138,7 +147,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			return
 		}
 
-		// Unmarshal proto message.
+		// Unmarshal proto message. Boundary's proto wire format must match
+		// the agent proto exactly (same field numbers and types).
 		var req agentproto.ReportBoundaryLogsRequest
 		if err := proto.Unmarshal(buf, &req); err != nil {
 			s.logger.Warn(s.ctx, "unmarshal error", slog.Error(err))
