@@ -49,19 +49,20 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			r.Get("/interceptions", api.aiBridgeListInterceptions)
 		})
 
-		// This is a bit funky but since aibridge only exposes a HTTP
-		// handler, this is how it has to be.
-		r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-			if api.aibridgedHandler == nil {
-				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
-					Message: "aibridged handler not mounted",
-				})
-				return
-			}
+		// Apply overload protection middleware to the aibridged handler.
+		// Concurrency limit is checked first for faster rejection under load.
+		r.Group(func(r chi.Router) {
+			r.Use(concurrencyLimiter, rateLimiter)
+			// This is a bit funky but since aibridge only exposes a HTTP
+			// handler, this is how it has to be.
+			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+				if api.aibridgedHandler == nil {
+					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+						Message: "aibridged handler not mounted",
+					})
+					return
+				}
 
-			// Build the handler with overload protection.
-			// Concurrency limit is checked first for faster rejection under load.
-			handler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				// Strip either the experimental or stable prefix.
 				// TODO: experimental route is deprecated and must be removed with Beta.
 				prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
@@ -72,7 +73,6 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					}
 				}
 			})
-			concurrencyLimiter(rateLimiter(handler)).ServeHTTP(rw, r)
 		})
 	}
 }

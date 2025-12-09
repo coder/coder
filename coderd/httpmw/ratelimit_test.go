@@ -257,12 +257,15 @@ func TestConcurrencyLimit(t *testing.T) {
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ConcurrencyLimit(maxConcurrency, "Test"))
 
-		// Track concurrent requests.
-		inHandler := make(chan struct{})
+		// Use a WaitGroup as a barrier to ensure all requests are in the handler
+		// before any of them proceed.
+		var handlersReady sync.WaitGroup
+		handlersReady.Add(maxConcurrency)
 		releaseHandler := make(chan struct{})
 
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			inHandler <- struct{}{}
+			handlersReady.Done()
+			// Wait until released.
 			<-releaseHandler
 			rw.WriteHeader(http.StatusOK)
 		})
@@ -298,11 +301,12 @@ func TestConcurrencyLimit(t *testing.T) {
 				defer resp.Body.Close()
 				results <- result{statusCode: resp.StatusCode}
 			}()
-			// Wait for request to enter handler.
-			<-inHandler
 		}
 
-		// Next request should be rejected.
+		// Wait for all requests to enter the handler.
+		handlersReady.Wait()
+
+		// Next request should be rejected since we're at capacity.
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/", nil)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
@@ -311,9 +315,7 @@ func TestConcurrencyLimit(t *testing.T) {
 		require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
 		// Release all blocked requests.
-		for i := 0; i < maxConcurrency; i++ {
-			releaseHandler <- struct{}{}
-		}
+		close(releaseHandler)
 		wg.Wait()
 		close(results)
 
