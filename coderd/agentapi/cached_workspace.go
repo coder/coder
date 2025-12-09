@@ -2,8 +2,9 @@ package agentapi
 
 import (
 	"context"
-	"fmt"
 	"sync"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -64,7 +65,7 @@ func (cws *CachedWorkspaceFields) ContextInject(ctx context.Context) (context.Co
 		if err != nil {
 			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
 			//nolint:gocritic
-			return ctx, fmt.Errorf("Cached workspace was present but RBAC object was invalid: %w", err)
+			return ctx, xerrors.Errorf("Cached workspace was present but RBAC object was invalid: %w", err)
 		}
 	}
 	return rbacCtx, nil
