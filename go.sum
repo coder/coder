@@ -1,5 +1,3 @@
-cdr.dev/slog v1.6.2-0.20250703074222-9df5e0a6c145 h1:Mk4axSLxKw3hjkf3PffBLQYta7nPVIWObuKCPDWgQLc=
-cdr.dev/slog v1.6.2-0.20250703074222-9df5e0a6c145/go.mod h1:NaoTA7KwopCrnaSb0JXTC0PTp/O/Y83Lndnq0OEV3ZQ=
 cdr.dev/slog v1.6.2-0.20251120224544-40ff19937ff2 h1:M4Z9eTbnHPdZI4GpBUNCae0lSgUucY+aW5j7+zB8lCk=
 cdr.dev/slog v1.6.2-0.20251120224544-40ff19937ff2/go.mod h1:NaoTA7KwopCrnaSb0JXTC0PTp/O/Y83Lndnq0OEV3ZQ=
 cel.dev/expr v0.24.0 h1:56OvJKSH3hDGL0ml5uSxZmz3/3Pq4tJ+fb1unVLAFcY=
