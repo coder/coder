@@ -6,7 +6,7 @@ This guide documents documentation patterns observed in the Coder repository, ba
 
 Before documenting a feature:
 
-1. **Research similar documentation** - Read 10+ similar pages in `docs/` to understand writing style, structure, and conventions for your content type (admin guides, tutorials, reference docs, etc.)
+1. **Research similar documentation** - Read recent documentation pages in `docs/` to understand writing style, structure, and conventions for your content type (admin guides, tutorials, reference docs, etc.)
 2. **Read the code implementation** - Check backend endpoints, frontend components, database queries
 3. **Verify permissions model** - Look up RBAC actions in `coderd/rbac/` (e.g., `view_insights` for Template Insights)
 4. **Check UI thresholds and defaults** - Review frontend code for color thresholds, time intervals, display logic
@@ -42,10 +42,7 @@ Template Insights provides detailed analytics and usage metrics for your Coder t
 
 ### Premium Feature Callout
 
-For Premium-only features:
-
-1. Add `(Premium)` suffix to the H1 heading - the documentation system automatically links these to premium pricing information
-2. Add premium badge in `manifest.json` with `"state": ["premium"]`
+For Premium-only features, add `(Premium)` suffix to the H1 heading. The documentation system automatically links these to premium pricing information. You should also add a premium badge in the `docs/manifest.json` file with `"state": ["premium"]`.
 
 ```markdown
 # Template Insights (Premium)
@@ -94,7 +91,7 @@ When you have multiple screenshots showing different aspects of a feature:
 
 ### Screenshot Guidelines
 
-**When screenshots are not available**: Use image placeholders with descriptive alt text and ask the user to provide screenshots:
+**When screenshots are not yet available**: If you're documenting a feature before screenshots exist, you can use image placeholders with descriptive alt text and ask the user to provide screenshots:
 
 ```markdown
 ![Placeholder: Template Insights page showing weekly active users chart](../../images/admin/templates/template-insights.png)
@@ -103,6 +100,7 @@ When you have multiple screenshots showing different aspects of a feature:
 Then ask: "Could you provide a screenshot of the Template Insights page? I've added a placeholder at [location]."
 
 **When documenting with screenshots**:
+
 - Illustrate features being discussed in preceding text
 - Show actual UI/data, not abstract concepts
 - Reference specific values shown when explaining features
@@ -133,7 +131,7 @@ Then ask: "Could you provide a screenshot of the Template Insights page? I've ad
   - `> [!NOTE]` for additional information
   - `> [!WARNING]` for important warnings
   - `> [!TIP]` for helpful tips
-- **Tabs**: Use tabs to present related but parallel documentation paths (e.g., different installation methods, platform-specific instructions)
+- **Tabs**: Use tabs for presenting related but parallel content, such as different installation methods or platform-specific instructions. Tabs work well when readers need to choose one path that applies to their specific situation.
 
 ## Writing Style
 
@@ -162,19 +160,19 @@ Then ask: "Could you provide a screenshot of the Template Insights page? I've ad
 
 ### Command Examples
 
-```markdown
+````markdown
 ```sh
 coder server --disable-template-insights
 ```
-```
+````
 
 ### Environment Variables
 
-```markdown
+````markdown
 ```sh
 CODER_DISABLE_TEMPLATE_INSIGHTS=true
 ```
-```
+````
 
 ### Code Comments
 
@@ -190,6 +188,8 @@ Use relative paths from current file location:
 
 - `[Template Permissions](./template-permissions.md)`
 - `[API documentation](../../reference/api/insights.md)`
+
+For cross-linking to Coder registry templates or other external Coder resources, reference the appropriate registry URLs.
 
 ### Cross-References
 
