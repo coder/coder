@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -28,30 +29,32 @@ type MCPProxyBuilder interface {
 	// The SessionKey from [Request] is used to authenticate against the Coder MCP server.
 	//
 	// NOTE: the [mcp.ServerProxier] instance may be proxying one or more MCP servers.
-	Build(ctx context.Context, req Request) (mcp.ServerProxier, error)
+	Build(ctx context.Context, req Request, tracer trace.Tracer) (mcp.ServerProxier, error)
 }
 
 var _ MCPProxyBuilder = &MCPProxyFactory{}
 
 type MCPProxyFactory struct {
 	logger   slog.Logger
+	tracer   trace.Tracer
 	clientFn ClientFunc
 }
 
-func NewMCPProxyFactory(logger slog.Logger, clientFn ClientFunc) *MCPProxyFactory {
+func NewMCPProxyFactory(logger slog.Logger, tracer trace.Tracer, clientFn ClientFunc) *MCPProxyFactory {
 	return &MCPProxyFactory{
 		logger:   logger,
+		tracer:   tracer,
 		clientFn: clientFn,
 	}
 }
 
-func (m *MCPProxyFactory) Build(ctx context.Context, req Request) (mcp.ServerProxier, error) {
+func (m *MCPProxyFactory) Build(ctx context.Context, req Request, tracer trace.Tracer) (mcp.ServerProxier, error) {
 	proxiers, err := m.retrieveMCPServerConfigs(ctx, req)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve configs: %w", err)
 	}
 
-	return mcp.NewServerProxyManager(proxiers), nil
+	return mcp.NewServerProxyManager(proxiers, tracer), nil
 }
 
 func (m *MCPProxyFactory) retrieveMCPServerConfigs(ctx context.Context, req Request) (map[string]mcp.ServerProxier, error) {
@@ -173,7 +176,6 @@ func (m *MCPProxyFactory) newStreamableHTTPServerProxy(cfg *proto.MCPServerConfi
 	// The proxy could then use its interface to retrieve a new access token and re-establish a connection.
 	// For now though, the short TTL of this cache should mostly mask this problem.
 	srv, err := mcp.NewStreamableHTTPServerProxy(
-		m.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())),
 		cfg.GetId(),
 		cfg.GetUrl(),
 		// See https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#token-requirements.
@@ -182,6 +184,8 @@ func (m *MCPProxyFactory) newStreamableHTTPServerProxy(cfg *proto.MCPServerConfi
 		},
 		allowlist,
 		denylist,
+		m.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())),
+		m.tracer,
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)

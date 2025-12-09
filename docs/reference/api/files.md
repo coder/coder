@@ -31,7 +31,7 @@ file: string
 
 ### Example responses
 
-> 201 Response
+> 200 Response
 
 ```json
 {
@@ -41,9 +41,10 @@ file: string
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                       |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
+| Status | Meaning                                                      | Description                        | Schema                                                       |
+|--------|--------------------------------------------------------------|------------------------------------|--------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)      | Returns existing file if duplicate | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Returns newly created file         | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

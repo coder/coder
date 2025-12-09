@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,8 +14,13 @@ import (
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/coder/aibridge"
+	aibtracing "github.com/coder/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -28,6 +34,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+var testTracer = otel.Tracer("aibridged_test")
+
 // TestIntegration is not an exhaustive test against the upstream AI providers' SDKs (see coder/aibridge for those).
 // This test validates that:
 //   - intercepted requests can be authenticated/authorized
@@ -35,10 +43,16 @@ import (
 //   - responses can be returned as expected
 //   - interceptions are logged, as well as their related prompt, token, and tool calls
 //   - MCP server configurations are returned as expected
+//   - tracing spans are properly recorded
 func TestIntegration(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	tracer := tp.Tracer(t.Name())
+	defer func() { _ = tp.Shutdown(t.Context()) }()
 
 	// Create mock MCP server.
 	var mcpTokenReceived string
@@ -169,13 +183,13 @@ func TestIntegration(t *testing.T) {
 
 	logger := testutil.Logger(t)
 	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, nil, logger)
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, tracer)
 	require.NoError(t, err)
 
 	// Given: aibridged is started.
 	srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger)
+	}, logger, tracer)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)
@@ -256,6 +270,44 @@ func TestIntegration(t *testing.T) {
 
 	// Then: the MCP server was initialized.
 	require.Contains(t, mcpTokenReceived, authLink.OAuthAccessToken, "mock MCP server not requested")
+
+	// Then: verify tracing spans were recorded.
+	spans := sr.Ended()
+	require.NotEmpty(t, spans)
+	i := slices.IndexFunc(spans, func(s sdktrace.ReadOnlySpan) bool { return s.Name() == "CachedBridgePool.Acquire" })
+	require.NotEqual(t, -1, i, "span named 'CachedBridgePool.Acquire' not found")
+
+	expectAttrs := []attribute.KeyValue{
+		attribute.String(aibtracing.InitiatorID, user.ID.String()),
+		attribute.String(aibtracing.APIKeyID, keyID),
+	}
+	require.Equal(t, spans[i].Attributes(), expectAttrs)
+
+	// Check for aibridge spans.
+	spanNames := make(map[string]bool)
+	for _, span := range spans {
+		spanNames[span.Name()] = true
+	}
+
+	expectedAibridgeSpans := []string{
+		"CachedBridgePool.Acquire",
+		"ServerProxyManager.Init",
+		"StreamableHTTPServerProxy.Init",
+		"StreamableHTTPServerProxy.Init.fetchTools",
+		"Intercept",
+		"Intercept.CreateInterceptor",
+		"Intercept.RecordInterception",
+		"Intercept.ProcessRequest",
+		"Intercept.ProcessRequest.Upstream",
+		"Intercept.RecordPromptUsage",
+		"Intercept.RecordTokenUsage",
+		"Intercept.RecordToolUsage",
+		"Intercept.RecordInterceptionEnded",
+	}
+
+	for _, expectedSpan := range expectedAibridgeSpans {
+		require.Contains(t, spanNames, expectedSpan)
+	}
 }
 
 // TestIntegrationWithMetrics validates that Prometheus metrics are correctly incremented
@@ -324,13 +376,13 @@ func TestIntegrationWithMetrics(t *testing.T) {
 	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
 
 	// Create pool with metrics.
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, metrics, logger)
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, metrics, testTracer)
 	require.NoError(t, err)
 
 	// Given: aibridged is started.
 	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger)
+	}, logger, testTracer)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)

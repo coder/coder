@@ -3483,6 +3483,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
 			version: 1,
 			features: {},
 			license_expires: 3420244800,
+			nbf: 1660104000, // valid from 8/10/2022
 		},
 	},
 	{
@@ -3497,6 +3498,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
 			version: 1,
 			features: {},
 			license_expires: 3420244800,
+			nbf: 1660104000, // valid from 8/10/2022
 		},
 	},
 	{
@@ -3510,6 +3512,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
 			version: 1,
 			features: {},
 			license_expires: 3420244800,
+			nbf: 1660104000, // valid from 8/10/2022
 		},
 	},
 	{
@@ -3523,6 +3526,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
 			version: 1,
 			features: {},
 			license_expires: 1660104000,
+			nbf: 1628568000, // valid from 8/10/2021
 		},
 	},
 	{
@@ -3536,6 +3540,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
 			version: 1,
 			features: {},
 			license_expires: 1682346425,
+			nbf: 1650810425, // valid from 4/24/2022
 		},
 	},
 ];

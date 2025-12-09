@@ -145,6 +145,8 @@ type outExpecter struct {
 	runeReader *bufio.Reader
 }
 
+// Deprecated: use ExpectMatchContext instead.
+// This uses a background context, so will not respect the test's context.
 func (e *outExpecter) ExpectMatch(str string) string {
 	return e.expectMatchContextFunc(str, e.ExpectMatchContext)
 }

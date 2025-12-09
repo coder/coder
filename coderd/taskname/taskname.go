@@ -71,6 +71,18 @@ Prompt: "Set up CI/CD pipeline" →
 	"task_name": "setup-cicd"
 }
 
+Prompt: "Work on https://github.com/coder/coder/issues/1234" →
+{
+	"display_name": "Work on coder/coder #1234",
+	"task_name": "coder-1234"
+}
+
+Prompt: "Fix https://github.com/org/repo/pull/567" →
+{
+	"display_name": "Fix org/repo PR #567",
+	"task_name": "repo-pr-567"
+}
+
 If a suitable name cannot be created, output exactly:
 {
 	"display_name": "Task Unnamed",

@@ -1,4 +1,4 @@
-# Dev container releases and known issues
+# Envbuilder releases and known issues
 
 ## Release channels
 
