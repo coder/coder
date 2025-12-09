@@ -129,7 +129,7 @@ We support two release channels: mainline and stable - read the
 - **Mainline** Coder release:
 
   - **Chart Registry**
-         
+  
     <!-- autoversion(mainline): "--version [version]" -->
 
     ```shell
