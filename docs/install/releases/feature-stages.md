@@ -80,9 +80,10 @@ stable release.
 
 - **Stable**: No
 - **Production-ready**: Not fully
-- **Support**: Best effort support (no SLA). Approximately 60% of support
-  tickets are escalated to the product team. You can also reach out via
-  [Documentation](../../README.md), [Discord](https://discord.gg/coder), and
+- **Support**: Best effort support (no SLA). Most support tickets for beta
+  features are escalated directly to the product team. These issues will be
+  resolved with changes to the feature in subsequent releases or a patch. You
+  can also reach out via [Discord](https://discord.gg/coder) and
   [GitHub issues](https://github.com/coder/coder/issues).
 
 Beta features are publicly available and tagged with a `Beta` label. They are
