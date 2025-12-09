@@ -291,7 +291,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					</div>
 				</Topbar>
 
-				<div className="flex-1 flex-basis-0 overflow-hidden relative">
+				<div className="flex flex-1 flex-basis-0 overflow-hidden relative">
 					{publishedVersion && (
 						<div
 							// We need this to reset the dismissable state of the component
