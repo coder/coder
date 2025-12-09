@@ -32,12 +32,7 @@ const (
 // aibridgeHandler handles all aibridged-related endpoints.
 func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
 	// Build the overload protection middleware chain for the aibridged handler.
-	// These are applied before requests reach the aibridged handler.
-	//
-	// TODO: Rate limiting currently applies to all AI Bridge requests, including
-	// pass-through requests that are simply forwarded without interception. Ideally,
-	// only actual interceptions should count toward the rate limit. This would
-	// require changes in the aibridge library where the interception decision is made.
+	// These limits are applied per-replica.
 	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
 	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Bridge")
 	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), aiBridgeRateLimitWindow)

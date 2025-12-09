@@ -1,6 +1,7 @@
 package httpmw_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func randRemoteAddr() string {
@@ -273,7 +275,8 @@ func TestConcurrencyLimit(t *testing.T) {
 		server := httptest.NewServer(rtr)
 		defer server.Close()
 
-		ctx := t.Context()
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
+		defer cancel()
 
 		// Start maxConcurrency requests that will block.
 		// We use channels to collect errors instead of require in goroutines.
@@ -303,8 +306,17 @@ func TestConcurrencyLimit(t *testing.T) {
 			}()
 		}
 
-		// Wait for all requests to enter the handler.
-		handlersReady.Wait()
+		// Wait for all requests to enter the handler with a timeout.
+		handlersReadyCh := make(chan struct{})
+		go func() {
+			handlersReady.Wait()
+			close(handlersReadyCh)
+		}()
+		select {
+		case <-handlersReadyCh:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for handlers to be ready")
+		}
 
 		// Next request should be rejected since we're at capacity.
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/", nil)

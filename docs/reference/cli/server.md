@@ -1790,7 +1790,7 @@ Length of time to retain data such as interceptions and all related records (tok
 | YAML        | <code>aibridge.maxConcurrency</code>         |
 | Default     | <code>0</code>                               |
 
-Maximum number of concurrent AI Bridge requests. Set to 0 to disable (unlimited).
+Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
 
 ### --aibridge-rate-limit
 
@@ -1801,7 +1801,7 @@ Maximum number of concurrent AI Bridge requests. Set to 0 to disable (unlimited)
 | YAML        | <code>aibridge.rateLimit</code>         |
 | Default     | <code>0</code>                          |
 
-Maximum number of AI Bridge requests per second. Set to 0 to disable rate limiting.
+Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
 
 ### --audit-logs-retention
 
