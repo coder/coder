@@ -89,9 +89,9 @@ func (c *RenderCache) Close() {
 func (c *RenderCache) get(templateVersionID, ownerID uuid.UUID, parameters map[string]string) (*preview.Output, bool) {
 	key := c.makeKey(templateVersionID, ownerID, parameters)
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	entry, ok := c.entries[key]
+	c.mu.RUnlock()
+
 	if !ok {
 		// Record miss
 		if c.cacheMisses != nil {
@@ -109,10 +109,15 @@ func (c *RenderCache) get(templateVersionID, ownerID uuid.UUID, parameters map[s
 		return nil, false
 	}
 
-	// Record hit
+	// Record hit and refresh timestamp
 	if c.cacheHits != nil {
 		c.cacheHits.Inc()
 	}
+
+	// Refresh timestamp on hit to keep frequently accessed entries alive
+	c.mu.Lock()
+	entry.timestamp = c.clock.Now()
+	c.mu.Unlock()
 
 	return entry.output, true
 }

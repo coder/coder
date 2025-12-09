@@ -285,6 +285,56 @@ func TestRenderCache_CleanupRemovesExpiredEntries(t *testing.T) {
 	require.Equal(t, float64(0), cacheSize.value, "all entries should be removed after cleanup")
 }
 
+func TestRenderCache_TimestampRefreshOnHit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+
+	trapTickerFunc := clock.Trap().TickerFunc("render-cache-cleanup")
+	defer trapTickerFunc.Close()
+
+	// Create cache with 1 second TTL for testing
+	cache := newRenderCache(clock, time.Second, nil, nil, nil)
+	defer cache.Close()
+
+	// Wait for the initial cleanup and ticker to be created
+	trapTickerFunc.MustWait(ctx).Release(ctx)
+
+	templateVersionID := uuid.New()
+	ownerID := uuid.New()
+	params := map[string]string{"region": "us-west-2"}
+	output := &preview.Output{}
+
+	// Put an entry at T=0
+	cache.put(templateVersionID, ownerID, params, output)
+
+	// Advance time to 600ms (still within TTL)
+	clock.Advance(600 * time.Millisecond)
+
+	// Access the entry - should hit and refresh timestamp to T=600ms
+	cached, ok := cache.get(templateVersionID, ownerID, params)
+	require.True(t, ok, "should hit cache")
+	require.Same(t, output, cached)
+
+	// Advance another 600ms (now at T=1200ms)
+	// Entry was created at T=0 but refreshed at T=600ms, so it should still be valid
+	clock.Advance(600 * time.Millisecond)
+
+	// Should still hit because timestamp was refreshed at T=600ms
+	cached, ok = cache.get(templateVersionID, ownerID, params)
+	require.True(t, ok, "should still hit cache because timestamp was refreshed")
+	require.Same(t, output, cached)
+
+	// Now advance another 1.1 seconds (to T=2300ms)
+	// Last refresh was at T=1200ms, so now it should be expired
+	clock.Advance(1100 * time.Millisecond)
+
+	// Should miss because more than 1 second since last access
+	_, ok = cache.get(templateVersionID, ownerID, params)
+	require.False(t, ok, "should miss cache after TTL from last access")
+}
+
 // Test implementations of prometheus interfaces
 type testCounter struct {
 	value float64
