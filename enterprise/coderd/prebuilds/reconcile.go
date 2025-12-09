@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -58,6 +59,9 @@ type StoreReconciler struct {
 	metrics *MetricsCollector
 	// Operational metrics
 	reconciliationDuration prometheus.Histogram
+
+	// renderCache caches template rendering results to avoid expensive re-parsing
+	renderCache *dynamicparameters.RenderCache
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -102,6 +106,7 @@ func NewStoreReconciler(store database.Store,
 		buildUsageChecker: buildUsageChecker,
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
+		renderCache:       dynamicparameters.NewRenderCache(),
 	}
 
 	if registerer != nil {
@@ -900,7 +905,8 @@ func (c *StoreReconciler) provision(
 	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
-		MarkPrebuild()
+		MarkPrebuild().
+		RenderCache(c.renderCache)
 
 	if transition != database.WorkspaceTransitionDelete {
 		// We don't specify the version for a delete transition,

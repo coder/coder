@@ -88,6 +88,9 @@ type Builder struct {
 	parameterRender                      dynamicparameters.Renderer
 	workspaceTags                        *map[string]string
 
+	// renderCache caches template rendering results
+	renderCache *dynamicparameters.RenderCache
+
 	prebuiltWorkspaceBuildStage  sdkproto.PrebuiltWorkspaceBuildStage
 	verifyNoLegacyParametersOnce bool
 }
@@ -250,6 +253,14 @@ func (b Builder) SetLastWorkspaceBuildJobInTx(job *database.ProvisionerJob) Buil
 func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
 	// nolint: revive
 	b.templateVersionPresetID = id
+	return b
+}
+
+// RenderCache sets the render cache to use for template rendering.
+// This allows multiple workspace builds to share cached render results.
+func (b Builder) RenderCache(cache *dynamicparameters.RenderCache) Builder {
+	// nolint: revive
+	b.renderCache = cache
 	return b
 }
 
@@ -684,6 +695,22 @@ func (b *Builder) getDynamicParameterRenderer() (dynamicparameters.Renderer, err
 	variableValues, err := b.getTemplateVersionVariables()
 	if err != nil {
 		return nil, xerrors.Errorf("get template version variables: %w", err)
+	}
+
+	// Pass render cache if available
+	if b.renderCache != nil {
+		renderer, err := dynamicparameters.Prepare(b.ctx, b.store, b.fileCache, tv.ID,
+			dynamicparameters.WithTemplateVersion(*tv),
+			dynamicparameters.WithProvisionerJob(*job),
+			dynamicparameters.WithTerraformValues(*tfVals),
+			dynamicparameters.WithTemplateVariableValues(variableValues),
+			dynamicparameters.WithRenderCache(b.renderCache),
+		)
+		if err != nil {
+			return nil, xerrors.Errorf("get template version renderer: %w", err)
+		}
+		b.parameterRender = renderer
+		return renderer, nil
 	}
 
 	renderer, err := dynamicparameters.Prepare(b.ctx, b.store, b.fileCache, tv.ID,
