@@ -95,7 +95,7 @@ exist.
   features, Beta features can be naturally discovered via the product and
   documentation without requiring `CODER_EXPERIMENTS` flags. Administrators can
   enable them through standard configuration.
-- **Stable API**: The goal for Beta is to achieve a generally stable feature set
+- **Generally Stable API, without Guarantees**: The goal for Beta is to achieve a generally stable feature set
   and API. Significant API changes are not expected between Beta and GA.
 - **Feature complete**: Beta features generally contain the same features as GA.
   The focus between Beta and GA is on stability and bug fixes, not adding new
@@ -104,7 +104,7 @@ exist.
   inform users that some rough edges may exist. We recommend testing in staging
   environments first.
 
-Beta features are typically ready for general availability within two to three
+Beta features will typically be ready for general availability within two to three
 releases. We keep documentation about Beta features up-to-date with the latest
 information, including planned features, limitations, and workarounds.
 
