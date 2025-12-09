@@ -152,7 +152,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 
 					{link?.validate_error && (
 						<span>
-							<span css={{ color: theme.palette.error.light }} className="pl-4">
+							<span css={{ color: theme.palette.error.light }} className="pl-3">
 								Error:{" "}
 							</span>
 							{link?.validate_error}

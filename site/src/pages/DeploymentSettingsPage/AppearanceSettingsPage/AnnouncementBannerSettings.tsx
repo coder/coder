@@ -93,7 +93,7 @@ export const AnnouncementBannerSettings: FC<
 						css={{
 							color: theme.palette.text.secondary,
 						}}
-						className="text-sm mt-2 leading-none"
+						className="text-sm leading-none"
 					>
 						Display message banners to all users.
 					</div>

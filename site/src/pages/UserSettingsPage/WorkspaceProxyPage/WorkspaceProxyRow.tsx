@@ -144,7 +144,7 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 				borderColor: theme.palette.divider,
 				backgroundColor: theme.palette.background.default,
 			}}
-			className="border-0 border-b border-solid py-4 px-6"
+			className="border-0 border-b border-solid py-4 px-16"
 		>
 			<div
 				id="nested-list-subheader"

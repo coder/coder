@@ -58,7 +58,7 @@ const DERPRegionPage: FC = () => {
 						<ChevronLeftIcon className="size-icon-xs align-middle mr-2" />
 						Back to DERP
 					</Link>
-					<HeaderTitle>
+					<HeaderTitle className="leading-tight">
 						<HealthyDot severity={severity as HealthSeverity} />
 						{region!.RegionName}
 					</HeaderTitle>

@@ -65,7 +65,7 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 					return (
 						<MenuItem
 							css={{ fontSize: 14 }}
-							className="text-sm justify-between leading-normal"
+							className="text-sm justify-between leading-relaxed"
 							key={option}
 							onClick={() => {
 								onChange(optionRange);

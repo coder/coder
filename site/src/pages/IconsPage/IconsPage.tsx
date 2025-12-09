@@ -156,7 +156,7 @@ const IconsPage: FC = () => {
 									)}
 									className="w-[60px] h-[60px] object-contain pointer-events-none p-3"
 								/>
-								<figcaption className="w-22 h-12 text-[13px] text-center truncate">
+								<figcaption className="w-[88px] h-12 text-[13px] text-center text-ellipsis overflow-hidden">
 									{icon.description}
 								</figcaption>
 							</div>

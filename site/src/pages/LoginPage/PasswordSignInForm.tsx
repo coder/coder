@@ -72,7 +72,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 				<Link
 					component={RouterLink}
 					to="/reset-password"
-					className="text-sm font-medium leading-4"
+					className="text-xs font-medium leading-4"
 				>
 					Forgot password?
 				</Link>

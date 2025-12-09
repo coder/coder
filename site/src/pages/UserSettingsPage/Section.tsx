@@ -41,7 +41,9 @@ export const Section: FC<SectionProps> = ({
 						<div>
 							{title && (
 								<Stack direction="row" alignItems="center">
-									<h4 className="text-2xl leading-normal m-0 mb-2">{title}</h4>
+									<h4 className="text-2xl font-medium leading-none m-0 mb-2">
+										{title}
+									</h4>
 									{featureStage && (
 										<FeatureStageBadge
 											contentType={featureStage}

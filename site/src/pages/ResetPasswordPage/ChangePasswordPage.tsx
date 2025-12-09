@@ -70,7 +70,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 			<div css={styles.root}>
 				<main css={styles.container}>
 					<CustomLogo css={styles.logo} />
-					<h1 className="m-0 mb-6 text-lg font-semibold leading-7">
+					<h1 className="m-0 mb-6 text-xl font-semibold leading-7">
 						Choose a new password
 					</h1>
 					{changePasswordMutation.error &&

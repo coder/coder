@@ -115,7 +115,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<div css={styles.warnContainer}>
 								<div className="flex flex-col">
 									<p className="info">This workspace is related to a task</p>
-									<span className="text-xs leading-none mt-1 block">
+									<span className="text-xs mt-1 block">
 										Deleting this workspace will also delete{" "}
 										<Link
 											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}

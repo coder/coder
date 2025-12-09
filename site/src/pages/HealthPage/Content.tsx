@@ -35,11 +35,11 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<h2
+			{...props}
 			className={cn(
 				"m-0 leading-tight text-xl font-medium flex items-center gap-4",
 				props.className,
 			)}
-			{...props}
 		/>
 	);
 };
@@ -89,7 +89,7 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<div
-			className="leading-snug grid grid-cols-[auto_auto] gap-x-3 gap-y-12 min-w-min whitespace-nowrap"
+			className="leading-snug grid grid-cols-[auto_auto] gap-x-12 gap-y-3 w-min whitespace-nowrap"
 			{...props}
 		/>
 	);
@@ -102,7 +102,7 @@ export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 			css={{
 				color: theme.palette.text.secondary,
 			}}
-			className="text-sm font-medium leading-none"
+			className="text-sm font-medium leading-snug"
 			{...props}
 		/>
 	);
@@ -115,7 +115,7 @@ export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 			css={{
 				color: theme.palette.text.primary,
 			}}
-			className="text-sm leading-none"
+			className="text-sm leading-none leading-snug"
 			{...props}
 		/>
 	);
@@ -141,8 +141,11 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
 			css={{
 				border: `1px solid ${theme.palette.divider}`,
 			}}
-			className="inline-flex items-center h-8 rounded-full text-xs font-medium gap-2 p-2 cursor-default"
 			{...divProps}
+			className={cn(
+				"inline-flex items-center h-8 rounded-full text-xs font-medium gap-2 p-2 cursor-default",
+				divProps.className,
+			)}
 		>
 			{cloneElement(icon, { className: "size-[14px]" })}
 			{children}
@@ -188,8 +191,11 @@ export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
 			css={{
 				backgroundColor: theme.palette.background.paper,
 			}}
-			className="font-mono text-[13px] leading-[160%] p-6 overflow-x-auto whitespace-pre-wrap break-all"
 			{...divProps}
+			className={cn(
+				"font-mono text-[13px] leading-[160%] p-6 overflow-x-auto whitespace-pre-wrap break-all",
+				divProps.className,
+			)}
 		>
 			{lines.map((line, index) => (
 				<span className="block" key={index}>

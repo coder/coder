@@ -61,7 +61,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 					css={{
 						color: theme.palette.text.secondary,
 					}}
-					className="text-sm leading-none"
+					className="text-xs leading-[18px]"
 				>
 					{createDayString(build.created_at)}
 				</div>

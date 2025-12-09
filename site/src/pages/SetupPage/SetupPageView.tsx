@@ -207,7 +207,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							size="small"
 						/>
 
-						<div className="text-sm leading-none pt-1">
+						<div className="text-sm leading-loose pt-1">
 							<span className="block font-semibold">
 								Start a free trial of Enterprise
 							</span>

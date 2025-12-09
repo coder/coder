@@ -54,7 +54,7 @@ const RequestOTP: FC<RequestOTPProps> = ({
 	return (
 		<div css={styles.container}>
 			<div>
-				<h1 className="m-0 mb-6 text-lg font-semibold leading-7">
+				<h1 className="m-0 mb-6 text-xl font-semibold leading-7">
 					Enter your email to reset the password
 				</h1>
 				{error ? <ErrorAlert error={error} className="mb-6" /> : null}

@@ -133,7 +133,7 @@ const WorkspaceProxyPage: FC = () => {
 									borderTop: `1px solid ${theme.palette.divider}`,
 									color: theme.palette.text.secondary,
 								}}
-								className="flex items-center justify-between py-2 px-4 text-xs leading-none"
+								className="flex items-center justify-between py-2.5 px-6 text-xs leading-relaxed"
 							>
 								{region.status?.status === "unregistered" ? (
 									<span>Has not connected yet</span>

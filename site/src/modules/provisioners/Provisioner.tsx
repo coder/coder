@@ -36,7 +36,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 	return (
 		<div
 			key={provisioner.name}
-			className="rounded-lg text-md leading-none"
+			className="rounded-lg text-sm leading-none"
 			css={[
 				{
 					border: `1px solid ${theme.palette.divider}`,
@@ -73,7 +73,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 					borderTop: `1px solid ${theme.palette.divider}`,
 					color: theme.palette.text.secondary,
 				}}
-				className="flex items-center justify-between py-2 px-6 text-sm leading-none"
+				className="flex items-center justify-between py-2 px-6 text-xs leading-loose"
 			>
 				{warnings && warnings.length > 0 ? (
 					<div className="flex flex-col">
