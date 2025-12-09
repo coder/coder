@@ -106,7 +106,7 @@ func TestTemplatePush(t *testing.T) {
 		inv = inv.WithContext(ctx)
 		w := clitest.StartWithWaiter(t, inv)
 
-		pty.ExpectNoMatchBefore(ctx, "Template message is longer than 72 characters", "Updated version at")
+		pty.ExpectNoMatchBefore(ctx, "Template message is longer than 72 characters", "Updated version")
 
 		w.RequireSuccess()
 
