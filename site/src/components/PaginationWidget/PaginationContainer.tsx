@@ -31,7 +31,7 @@ export const PaginationContainer: FC<PaginationProps> = ({
 			<div
 				{...delegatedProps}
 				className={cn(
-					"flex flex-col flex-nowrap row-gap-4",
+					"flex flex-col flex-nowrap gap-y-4",
 					delegatedProps.className,
 				)}
 			>

@@ -145,7 +145,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 								</div>
 								<div className="flex flex-col">
 									<p className="info">Orphan Resources</p>
-									<span className="text-xs leading-none mt-1 block">
+									<span className="text-xs leading-[18px] mt-1 block">
 										As a Template Admin, you may skip resource cleanup to delete
 										a failed workspace. Resources such as volumes and virtual
 										machines will not be destroyed.&nbsp;

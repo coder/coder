@@ -296,7 +296,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			</div>
 
 			{hasStartupFeatures && (
-				<section className="border-0 border-solid border-t border-border-default">
+				<section className="border-0 border-solid border-t border-surface-quaternary">
 					<Collapse in={showLogs}>
 						<AutoSizer disableHeight>
 							{({ width }) => (

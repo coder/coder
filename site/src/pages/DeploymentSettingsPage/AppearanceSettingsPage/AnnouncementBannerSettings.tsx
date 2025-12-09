@@ -77,9 +77,7 @@ export const AnnouncementBannerSettings: FC<
 						justifyContent="space-between"
 						alignItems="center"
 					>
-						<h3 className="text-xl font-semibold m-0 leading-none">
-							Announcement Banners
-						</h3>
+						<h3 className="text-xl font-semibold m-0">Announcement Banners</h3>
 						<Button
 							disabled={!isEntitled}
 							onClick={() => addBanner()}
@@ -93,7 +91,7 @@ export const AnnouncementBannerSettings: FC<
 						css={{
 							color: theme.palette.text.secondary,
 						}}
-						className="text-sm leading-none"
+						className="text-sm mt-2"
 					>
 						Display message banners to all users.
 					</div>

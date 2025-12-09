@@ -32,9 +32,9 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
 				},
 			}}
 			className={cn(
-				className,
 				"flex flex-nowrap items-center m-0 text-[13px] pb-2",
 				"h-9", // The size of a small button
+				className,
 			)}
 		>
 			{totalRecords !== undefined ? (
