@@ -46,6 +46,9 @@ type loader struct {
 	job                    *database.ProvisionerJob
 	terraformValues        *database.TemplateVersionTerraformValue
 	templateVariableValues *[]database.TemplateVersionVariable
+
+	// renderCache caches preview.Preview results
+	renderCache *RenderCache
 }
 
 // Prepare is the entrypoint for this package. It loads the necessary objects &
@@ -90,6 +93,13 @@ func WithTerraformValues(values database.TemplateVersionTerraformValue) func(r *
 		}
 	}
 }
+
+func WithRenderCache(cache *RenderCache) func(r *loader) {
+	return func(r *loader) {
+		r.renderCache = cache
+	}
+}
+
 
 func (r *loader) loadData(ctx context.Context, db database.Store) error {
 	if r.templateVersion == nil {
@@ -227,6 +237,13 @@ type dynamicRenderer struct {
 }
 
 func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	// Check cache first if available
+	if r.data.renderCache != nil {
+		if cached, ok := r.data.renderCache.get(r.data.templateVersionID, ownerID, values); ok {
+			return cached, nil
+		}
+	}
+
 	// Always start with the cached error, if we have one.
 	ownerErr := r.ownerErrors[ownerID]
 	if ownerErr == nil {
@@ -258,7 +275,14 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		Logger: slog.New(slog.DiscardHandler),
 	}
 
-	return preview.Preview(ctx, input, r.templateFS)
+	output, diags := preview.Preview(ctx, input, r.templateFS)
+
+	// Store in cache if successful and cache is available
+	if r.data.renderCache != nil && !diags.HasErrors() {
+		r.data.renderCache.put(r.data.templateVersionID, ownerID, values, output)
+	}
+
+	return output, diags
 }
 
 func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uuid.UUID) error {
