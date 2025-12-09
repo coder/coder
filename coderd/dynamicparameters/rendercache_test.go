@@ -2,14 +2,17 @@ package dynamicparameters
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
+	"github.com/coder/quartz"
 )
 
 func TestRenderCache_BasicOperations(t *testing.T) {
@@ -203,6 +206,83 @@ func TestRenderCache_Metrics(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, float64(3), cacheHits.value, "hits should be 3")
 	require.Equal(t, float64(1), cacheMisses.value, "misses should still be 1")
+}
+
+func TestRenderCache_TTL(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+
+	trapTickerFunc := clock.Trap().TickerFunc("render-cache-cleanup")
+	defer trapTickerFunc.Close()
+
+	// Create cache with short TTL for testing
+	cache := newRenderCache(clock, 100*time.Millisecond, nil, nil, nil)
+	defer cache.Close()
+
+	// Wait for the initial cleanup and ticker to be created
+	trapTickerFunc.MustWait(ctx).Release(ctx)
+
+	templateVersionID := uuid.New()
+	ownerID := uuid.New()
+	params := map[string]string{"region": "us-west-2"}
+	output := &preview.Output{}
+
+	// Put an entry
+	cache.put(templateVersionID, ownerID, params, output)
+
+	// Should be a hit immediately
+	cached, ok := cache.get(templateVersionID, ownerID, params)
+	require.True(t, ok, "should hit cache immediately")
+	require.Same(t, output, cached)
+
+	// Advance time beyond TTL
+	clock.Advance(150 * time.Millisecond)
+
+	// Should be a miss after TTL
+	_, ok = cache.get(templateVersionID, ownerID, params)
+	require.False(t, ok, "should miss cache after TTL expiration")
+}
+
+func TestRenderCache_CleanupRemovesExpiredEntries(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+
+	trapTickerFunc := clock.Trap().TickerFunc("render-cache-cleanup")
+	defer trapTickerFunc.Close()
+
+	cacheSize := &testGauge{}
+	cache := newRenderCache(clock, 100*time.Millisecond, nil, nil, cacheSize)
+	defer cache.Close()
+
+	// Wait for the initial cleanup and ticker to be created
+	trapTickerFunc.MustWait(ctx).Release(ctx)
+
+	// Initial size should be 0 after first cleanup
+	require.Equal(t, float64(0), cacheSize.value, "should have 0 entries initially")
+
+	templateVersionID := uuid.New()
+	ownerID := uuid.New()
+
+	// Add 3 entries
+	for i := 0; i < 3; i++ {
+		params := map[string]string{"index": string(rune(i))}
+		cache.put(templateVersionID, ownerID, params, &preview.Output{})
+	}
+
+	require.Equal(t, float64(3), cacheSize.value, "should have 3 entries")
+
+	// Advance time beyond TTL
+	clock.Advance(150 * time.Millisecond)
+
+	// Trigger cleanup by advancing to the next ticker event (15 minutes from start minus what we already advanced)
+	clock.Advance(15*time.Minute - 150*time.Millisecond).MustWait(ctx)
+
+	// All entries should be removed
+	require.Equal(t, float64(0), cacheSize.value, "all entries should be removed after cleanup")
 }
 
 // Test implementations of prometheus interfaces
