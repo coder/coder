@@ -533,25 +533,8 @@
 								},
 								{
 									"title": "Envbuilder",
-									"description": "Build dev containers using Envbuilder for environments without Docker",
-									"path": "./admin/templates/managing-templates/envbuilder/index.md",
-									"children": [
-										{
-											"title": "Add an Envbuilder template",
-											"description": "How to add an Envbuilder dev container template to Coder",
-											"path": "./admin/templates/managing-templates/envbuilder/add-envbuilder.md"
-										},
-										{
-											"title": "Envbuilder security and caching",
-											"description": "Configure Envbuilder authentication and caching",
-											"path": "./admin/templates/managing-templates/envbuilder/envbuilder-security-caching.md"
-										},
-										{
-											"title": "Envbuilder releases and known issues",
-											"description": "Envbuilder releases and known issues",
-											"path": "./admin/templates/managing-templates/envbuilder/envbuilder-releases-known-issues.md"
-										}
-									]
+									"description": "Shift environment definition to repositories",
+									"path": "./admin/templates/managing-templates/envbuilder.md"
 								},
 								{
 									"title": "Template Dependencies",
@@ -663,8 +646,8 @@
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
 								},
 								{
-									"title": "Configure a template for dev containers",
-									"description": "How to use configure your template for dev containers",
+									"title": "Dev Containers",
+									"description": "Extend templates with containerized dev environments",
 									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
@@ -764,6 +747,40 @@
 							"title": "OAuth2 Provider",
 							"description": "Use Coder as an OAuth2 provider",
 							"path": "./admin/integrations/oauth2-provider.md"
+						},
+						{
+							"title": "Dev Containers",
+							"description": "Configure dev container support using Docker or Envbuilder",
+							"path": "./admin/integrations/devcontainers/index.md",
+							"children": [
+								{
+									"title": "Dev Containers Integration",
+									"description": "Configure native dev containers with Docker",
+									"path": "./admin/integrations/devcontainers/integration.md"
+								},
+								{
+									"title": "Envbuilder",
+									"description": "Build dev containers without Docker",
+									"path": "./admin/integrations/devcontainers/envbuilder/index.md",
+									"children": [
+										{
+											"title": "Add an Envbuilder template",
+											"description": "How to add an Envbuilder template",
+											"path": "./admin/integrations/devcontainers/envbuilder/add-envbuilder.md"
+										},
+										{
+											"title": "Security and caching",
+											"description": "Configure authentication and caching",
+											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-security-caching.md"
+										},
+										{
+											"title": "Releases and known issues",
+											"description": "Release channels and known issues",
+											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-releases-known-issues.md"
+										}
+									]
+								}
+							]
 						}
 					]
 				},

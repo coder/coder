@@ -6,6 +6,12 @@ containers in Coder workspaces. This feature leverages the
 [Docker](https://www.docker.com) to provide a streamlined development
 experience.
 
+> [!NOTE]
+> This guide covers the Dev Containers Integration, which uses Docker.
+> For environments without Docker, administrators can configure
+> [Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md)
+> as an alternative.
+
 ## Prerequisites
 
 - Coder version 2.24.0 or later
@@ -15,7 +21,7 @@ experience.
 Dev Containers integration is enabled by default. Your workspace needs Docker
 (via Docker-in-Docker or a mounted socket) and the devcontainers CLI. Most
 templates with Dev Containers support include both—see
-[Configure a template for dev containers](../../admin/templates/extending-templates/devcontainers.md)
+[Configure a template for dev containers](../../admin/integrations/devcontainers/integration.md)
 for setup details.
 
 ## Features
@@ -118,10 +124,6 @@ in your `devcontainer.json`.
   supported. For single-container dev containers, use `coder port-forward` to
   access ports directly on the sub-agent.
 - Some advanced dev container features may have limited support
-
-> [!NOTE]
-> If your template uses Envbuilder rather than Docker-based dev containers, see
-> the [Envbuilder documentation](../../admin/templates/managing-templates/envbuilder/index.md).
 
 ## Next steps
 
