@@ -106,7 +106,6 @@ func NewStoreReconciler(store database.Store,
 		buildUsageChecker: buildUsageChecker,
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
-		renderCache:       dynamicparameters.NewRenderCache(),
 	}
 
 	if registerer != nil {
@@ -124,6 +123,30 @@ func NewStoreReconciler(store database.Store,
 			Help:      "Duration of each prebuilds reconciliation cycle.",
 			Buckets:   prometheus.DefBuckets,
 		})
+
+		// Create metrics for the render cache
+		renderCacheHits := factory.NewCounter(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "prebuilds",
+			Name:      "render_cache_hits_total",
+			Help:      "Total number of render cache hits.",
+		})
+		renderCacheMisses := factory.NewCounter(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "prebuilds",
+			Name:      "render_cache_misses_total",
+			Help:      "Total number of render cache misses.",
+		})
+		renderCacheSize := factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: "coderd",
+			Subsystem: "prebuilds",
+			Name:      "render_cache_size_entries",
+			Help:      "Current number of entries in the render cache.",
+		})
+
+		reconciler.renderCache = dynamicparameters.NewRenderCacheWithMetrics(renderCacheHits, renderCacheMisses, renderCacheSize)
+	} else {
+		reconciler.renderCache = dynamicparameters.NewRenderCache()
 	}
 
 	return reconciler

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/preview"
@@ -147,3 +149,121 @@ func TestRenderCache_PrebuildScenario(t *testing.T) {
 
 	// All three prebuilds shared the same cache entry
 }
+
+func TestRenderCache_Metrics(t *testing.T) {
+	t.Parallel()
+
+	// Create test metrics
+	cacheHits := &testCounter{}
+	cacheMisses := &testCounter{}
+	cacheSize := &testGauge{}
+
+	cache := NewRenderCacheWithMetrics(cacheHits, cacheMisses, cacheSize)
+	templateVersionID := uuid.New()
+	ownerID := uuid.New()
+	params := map[string]string{"region": "us-west-2"}
+
+	// Initially: 0 hits, 0 misses, 0 size
+	require.Equal(t, float64(0), cacheHits.value, "initial hits should be 0")
+	require.Equal(t, float64(0), cacheMisses.value, "initial misses should be 0")
+	require.Equal(t, float64(0), cacheSize.value, "initial size should be 0")
+
+	// First get - should be a miss
+	_, ok := cache.get(templateVersionID, ownerID, params)
+	require.False(t, ok)
+	require.Equal(t, float64(0), cacheHits.value, "hits should still be 0")
+	require.Equal(t, float64(1), cacheMisses.value, "misses should be 1")
+	require.Equal(t, float64(0), cacheSize.value, "size should still be 0")
+
+	// Put an entry
+	output := &preview.Output{}
+	cache.put(templateVersionID, ownerID, params, output)
+	require.Equal(t, float64(1), cacheSize.value, "size should be 1 after put")
+
+	// Second get - should be a hit
+	_, ok = cache.get(templateVersionID, ownerID, params)
+	require.True(t, ok)
+	require.Equal(t, float64(1), cacheHits.value, "hits should be 1")
+	require.Equal(t, float64(1), cacheMisses.value, "misses should still be 1")
+	require.Equal(t, float64(1), cacheSize.value, "size should still be 1")
+
+	// Third get - another hit
+	_, ok = cache.get(templateVersionID, ownerID, params)
+	require.True(t, ok)
+	require.Equal(t, float64(2), cacheHits.value, "hits should be 2")
+	require.Equal(t, float64(1), cacheMisses.value, "misses should still be 1")
+
+	// Put another entry with different params
+	params2 := map[string]string{"region": "us-east-1"}
+	cache.put(templateVersionID, ownerID, params2, output)
+	require.Equal(t, float64(2), cacheSize.value, "size should be 2 after second put")
+
+	// Get with different params - should be a hit
+	_, ok = cache.get(templateVersionID, ownerID, params2)
+	require.True(t, ok)
+	require.Equal(t, float64(3), cacheHits.value, "hits should be 3")
+	require.Equal(t, float64(1), cacheMisses.value, "misses should still be 1")
+}
+
+// Test implementations of prometheus interfaces
+type testCounter struct {
+	value float64
+}
+
+func (c *testCounter) Inc() {
+	c.value++
+}
+
+func (c *testCounter) Add(v float64) {
+	c.value += v
+}
+
+func (c *testCounter) Desc() *prometheus.Desc {
+	return nil
+}
+
+func (c *testCounter) Write(*dto.Metric) error {
+	return nil
+}
+
+func (c *testCounter) Describe(chan<- *prometheus.Desc) {}
+
+func (c *testCounter) Collect(chan<- prometheus.Metric) {}
+
+type testGauge struct {
+	value float64
+}
+
+func (g *testGauge) Set(v float64) {
+	g.value = v
+}
+
+func (g *testGauge) Inc() {
+	g.value++
+}
+
+func (g *testGauge) Dec() {
+	g.value--
+}
+
+func (g *testGauge) Add(v float64) {
+	g.value += v
+}
+
+func (g *testGauge) Sub(v float64) {
+	g.value -= v
+}
+
+func (g *testGauge) SetToCurrentTime() {}
+
+func (g *testGauge) Desc() *prometheus.Desc {
+	return nil
+}
+
+func (g *testGauge) Write(*dto.Metric) error {
+	return nil
+}
+
+func (g *testGauge) Describe(chan<- *prometheus.Desc) {}
+
+func (g *testGauge) Collect(chan<- prometheus.Metric) {}

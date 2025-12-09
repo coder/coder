@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/coder/preview"
 )
@@ -16,6 +17,11 @@ import (
 type RenderCache struct {
 	mu      sync.RWMutex
 	entries map[cacheKey]*preview.Output
+
+	// Metrics (optional)
+	cacheHits   prometheus.Counter
+	cacheMisses prometheus.Counter
+	cacheSize   prometheus.Gauge
 }
 
 type cacheKey struct {
@@ -31,6 +37,16 @@ func NewRenderCache() *RenderCache {
 	}
 }
 
+// NewRenderCacheWithMetrics creates a new render cache with Prometheus metrics.
+func NewRenderCacheWithMetrics(cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCache {
+	return &RenderCache{
+		entries:     make(map[cacheKey]*preview.Output),
+		cacheHits:   cacheHits,
+		cacheMisses: cacheMisses,
+		cacheSize:   cacheSize,
+	}
+}
+
 // NewRenderCacheForTest creates a new render cache for testing purposes.
 func NewRenderCacheForTest() *RenderCache {
 	return NewRenderCache()
@@ -42,6 +58,18 @@ func (c *RenderCache) get(templateVersionID, ownerID uuid.UUID, parameters map[s
 	defer c.mu.RUnlock()
 
 	output, ok := c.entries[key]
+
+	// Record metrics
+	if ok {
+		if c.cacheHits != nil {
+			c.cacheHits.Inc()
+		}
+	} else {
+		if c.cacheMisses != nil {
+			c.cacheMisses.Inc()
+		}
+	}
+
 	return output, ok
 }
 
@@ -51,6 +79,11 @@ func (c *RenderCache) put(templateVersionID, ownerID uuid.UUID, parameters map[s
 	defer c.mu.Unlock()
 
 	c.entries[key] = output
+
+	// Update cache size metric
+	if c.cacheSize != nil {
+		c.cacheSize.Set(float64(len(c.entries)))
+	}
 }
 
 func (c *RenderCache) makeKey(templateVersionID, ownerID uuid.UUID, parameters map[string]string) cacheKey {
