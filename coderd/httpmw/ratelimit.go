@@ -74,12 +74,19 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 }
 
 // RateLimitByAuthToken returns a handler that limits requests based on the
-// authentication token in the request. It uses APITokenFromRequest to extract
-// the token, with an additional fallback to the X-Api-Key header for AI provider
-// compatibility. If no token is found, it falls back to rate limiting by IP address.
+// authentication token in the request.
 //
-// This is useful for endpoints that handle authentication internally rather
-// than via ExtractAPIKeyMW middleware, providing per-user rate limiting.
+// This differs from [RateLimit] in several ways:
+//   - It extracts the token directly from request headers (Authorization Bearer
+//     or X-Api-Key) rather than from the request context, making it suitable for
+//     endpoints that handle authentication internally (like AI Bridge) rather than
+//     via [ExtractAPIKeyMW] middleware.
+//   - It does not support the bypass header for Owners.
+//   - It does not key by endpoint, so the limit applies across all endpoints using
+//     this middleware.
+//   - It includes a Retry-After header in 429 responses for backpressure signaling.
+//
+// If no token is found in the headers, it falls back to rate limiting by IP address.
 func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) http.Handler {
 	if count <= 0 {
 		return func(handler http.Handler) http.Handler {
