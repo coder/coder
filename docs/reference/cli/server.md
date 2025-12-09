@@ -1801,18 +1801,7 @@ Maximum number of concurrent AI Bridge requests. Set to 0 to disable (unlimited)
 | YAML        | <code>aibridge.rateLimit</code>         |
 | Default     | <code>0</code>                          |
 
-Maximum number of AI Bridge requests per rate window. Set to 0 to disable rate limiting.
-
-### --aibridge-rate-window
-
-|             |                                          |
-|-------------|------------------------------------------|
-| Type        | <code>duration</code>                    |
-| Environment | <code>$CODER_AIBRIDGE_RATE_WINDOW</code> |
-| YAML        | <code>aibridge.rateWindow</code>         |
-| Default     | <code>1m</code>                          |
-
-Duration of the rate limiting window for AI Bridge requests.
+Maximum number of AI Bridge requests per minute. Set to 0 to disable rate limiting.
 
 ### --audit-logs-retention
 

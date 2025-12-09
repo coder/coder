@@ -11892,9 +11892,6 @@ const docTemplate = `{
                 "rate_limit": {
                     "type": "integer"
                 },
-                "rate_window": {
-                    "type": "integer"
-                },
                 "retention": {
                     "type": "integer"
                 }

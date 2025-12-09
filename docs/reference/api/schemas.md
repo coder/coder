@@ -396,7 +396,6 @@
     "key": "string"
   },
   "rate_limit": 0,
-  "rate_window": 0,
   "retention": 0
 }
 ```
@@ -412,7 +411,6 @@
 | `max_concurrency`        | integer                                                              | false    |              |             |
 | `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 | `rate_limit`             | integer                                                              | false    |              |             |
-| `rate_window`            | integer                                                              | false    |              |             |
 | `retention`              | integer                                                              | false    |              |             |
 
 ## codersdk.AIBridgeInterception
@@ -712,7 +710,6 @@
       "key": "string"
     },
     "rate_limit": 0,
-    "rate_window": 0,
     "retention": 0
   }
 }
@@ -2875,7 +2872,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "key": "string"
         },
         "rate_limit": 0,
-        "rate_window": 0,
         "retention": 0
       }
     },
@@ -3401,7 +3397,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "key": "string"
       },
       "rate_limit": 0,
-      "rate_window": 0,
       "retention": 0
     }
   },

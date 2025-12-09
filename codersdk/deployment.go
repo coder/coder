@@ -3413,24 +3413,13 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Rate Limit",
-			Description: "Maximum number of AI Bridge requests per rate window. Set to 0 to disable rate limiting.",
+			Description: "Maximum number of AI Bridge requests per minute. Set to 0 to disable rate limiting.",
 			Flag:        "aibridge-rate-limit",
 			Env:         "CODER_AIBRIDGE_RATE_LIMIT",
 			Value:       &c.AI.BridgeConfig.RateLimit,
 			Default:     "0",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rateLimit",
-		},
-		{
-			Name:        "AI Bridge Rate Window",
-			Description: "Duration of the rate limiting window for AI Bridge requests.",
-			Flag:        "aibridge-rate-window",
-			Env:         "CODER_AIBRIDGE_RATE_WINDOW",
-			Value:       &c.AI.BridgeConfig.RateWindow,
-			Default:     "1m",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "rateWindow",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		// Retention settings
 		{
@@ -3504,7 +3493,6 @@ type AIBridgeConfig struct {
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
-	RateWindow          serpent.Duration        `json:"rate_window" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {

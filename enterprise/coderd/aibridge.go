@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -23,15 +24,23 @@ import (
 const (
 	maxListInterceptionsLimit     = 1000
 	defaultListInterceptionsLimit = 100
+	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
+	// requests. This is hardcoded to keep configuration simple.
+	aiBridgeRateLimitWindow = time.Minute
 )
 
 // aibridgeHandler handles all aibridged-related endpoints.
 func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
 	// Build the overload protection middleware chain for the aibridged handler.
 	// These are applied before requests reach the aibridged handler.
+	//
+	// TODO: Rate limiting currently applies to all AI Bridge requests, including
+	// pass-through requests that are simply forwarded without interception. Ideally,
+	// only actual interceptions should count toward the rate limit. This would
+	// require changes in the aibridge library where the interception decision is made.
 	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
 	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Bridge")
-	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), bridgeCfg.RateWindow.Value())
+	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), aiBridgeRateLimitWindow)
 
 	return func(r chi.Router) {
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))

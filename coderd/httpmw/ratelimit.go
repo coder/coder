@@ -74,9 +74,9 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 }
 
 // RateLimitByAuthToken returns a handler that limits requests based on the
-// authentication token in the request. It extracts the token from either the
-// Authorization header (Bearer token) or the X-Api-Key header. If no token is
-// found, it falls back to rate limiting by IP address.
+// authentication token in the request. It uses APITokenFromRequest to extract
+// the token, with an additional fallback to the X-Api-Key header for AI provider
+// compatibility. If no token is found, it falls back to rate limiting by IP address.
 //
 // This is useful for endpoints that handle authentication internally rather
 // than via ExtractAPIKeyMW middleware, providing per-user rate limiting.
@@ -92,8 +92,14 @@ func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) ht
 		window,
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
 			// Try to extract auth token for per-user rate limiting.
-			if token := extractAuthToken(r); token != "" {
+			// First check standard Coder auth methods.
+			if token := APITokenFromRequest(r); token != "" {
 				return token, nil
+			}
+			// Fallback to X-Api-Key header for AI provider compatibility
+			// (e.g., Anthropic uses this header).
+			if apiKey := r.Header.Get("X-Api-Key"); apiKey != "" {
+				return strings.TrimSpace(apiKey), nil
 			}
 			// Fall back to IP-based rate limiting if no token present.
 			return httprate.KeyByIP(r)
@@ -102,27 +108,10 @@ func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) ht
 			// Add Retry-After header for backpressure signaling.
 			w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
-				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
+				Message: "You've been rate limited. Please try again later.",
 			})
 		}),
 	)
-}
-
-// extractAuthToken extracts the authentication token from the request headers.
-// It checks the Authorization header (Bearer token) and the X-Api-Key header.
-func extractAuthToken(r *http.Request) string {
-	// Check Authorization header for Bearer token.
-	if auth := r.Header.Get("Authorization"); auth != "" {
-		parts := strings.SplitN(auth, " ", 2)
-		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-			return strings.TrimSpace(parts[1])
-		}
-	}
-	// Check X-Api-Key header.
-	if apiKey := r.Header.Get("X-Api-Key"); apiKey != "" {
-		return strings.TrimSpace(apiKey)
-	}
-	return ""
 }
 
 // ConcurrencyLimit returns a handler that limits the number of concurrent
