@@ -15,28 +15,15 @@ export const PageHeader: FC<PageHeaderProps> = ({
 }) => {
 	return (
 		<header
-			css={(theme) => ({
-				[theme.breakpoints.down("md")]: {
-					flexDirection: "column",
-					alignItems: "flex-start",
-				},
-			})}
-			className={cn("flex items-center py-12 gap-8", className)}
+			className={cn(
+				"flex flex-col md:flex-row items-start md:items-center py-12 gap-8",
+				className,
+			)}
 			data-testid="header"
 		>
 			<hgroup>{children}</hgroup>
 			{actions && (
-				<Stack
-					direction="row"
-					css={(theme) => ({
-						marginLeft: "auto",
-
-						[theme.breakpoints.down("md")]: {
-							marginLeft: "initial",
-							width: "100%",
-						},
-					})}
-				>
+				<Stack direction="row" className="md:ml-auto">
 					{actions}
 				</Stack>
 			)}
