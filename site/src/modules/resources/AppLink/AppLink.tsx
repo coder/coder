@@ -121,23 +121,24 @@ export const AppLink: FC<AppLinkProps> = ({
 	}
 
 	const canShare = app.sharing_level !== "owner";
-	const { shareTooltip, shareIcon: ShareIcon } =
-		app.external && canShare
+	const { shareTooltip, shareIcon: ShareIcon } = canShare
+		? app.external
 			? {
 					shareTooltip: "Open external URL",
 					shareIcon: SquareArrowOutUpRightIcon,
 				}
-			: (shareDetails[app.sharing_level] ?? {
-					shareTooltip: null,
-					shareIcon: null,
-				});
+			: shareDetails[app.sharing_level]
+		: {
+				shareTooltip: null,
+				shareIcon: null,
+			};
 
 	const button = grouped ? (
 		<DropdownMenuItem asChild>
 			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
 				{icon}
 				{link.label}
-				{canShare && <ShareIcon />}
+				{ShareIcon && <ShareIcon />}
 			</a>
 		</DropdownMenuItem>
 	) : (
@@ -145,7 +146,7 @@ export const AppLink: FC<AppLinkProps> = ({
 			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
 				{icon}
 				{link.label}
-				{canShare && <ShareIcon />}
+				{ShareIcon && <ShareIcon />}
 			</a>
 		</AgentButton>
 	);
@@ -171,10 +172,12 @@ export const AppLink: FC<AppLinkProps> = ({
 	return button;
 };
 
-const shareDetails: Record<
-	TypesGen.WorkspaceAppSharingLevel,
-	{ shareTooltip: string; shareIcon: LucideIcon }
-> = {
+const shareDetails: {
+	[SharingLevel in TypesGen.WorkspaceAppSharingLevel as Exclude<
+		SharingLevel,
+		"owner"
+	>]: { shareTooltip: string; shareIcon: LucideIcon };
+} = {
 	authenticated: {
 		shareTooltip: "Shared with all authenticated users",
 		shareIcon: UsersIcon,
