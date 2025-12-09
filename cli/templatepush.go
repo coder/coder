@@ -204,7 +204,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version %s at %s!\n",
+				pretty.Sprint(cliui.DefaultStyles.Keyword, job.Name),
+				pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
