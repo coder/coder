@@ -32,6 +32,9 @@ Alternatively, enable automatic discovery of Dev Containers in Git repositories.
 The agent scans for `devcontainer.json` files and surfaces them in the Coder UI.
 See [Environment Variables](#environment-variables) for configuration options.
 
+This approach is useful when developers frequently switch between repositories
+or work with many projects, as it reduces template maintenance overhead.
+
 ## Install the Dev Containers CLI
 
 Use the
