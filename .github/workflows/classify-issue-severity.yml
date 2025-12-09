@@ -1,0 +1,162 @@
+name: Classify Issue Severity
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  classify:
+    if: github.event.label.name == 'triage-check'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Classify Issue Severity with Claude
+        uses: actions/github-script@v7
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const apiKey = process.env.ANTHROPIC_API_KEY;
+
+            if (!apiKey) {
+              core.setFailed('ANTHROPIC_API_KEY secret is not configured');
+              return;
+            }
+
+            // Define severity criteria
+            const severityCriteria = {
+              s0: "Entire product and/or major feature (Tasks, Bridge, Boundaries, etc.) is broken in a way that makes it unusable for majority to all customers",
+              s1: "Core feature is broken without a workaround for limited number of customers",
+              s2: "Broken use cases or features with a workaround",
+              s3: "Issues that impair usability, cause incorrect behavior in non-critical areas, or degrade the experience, but do not block core workflows",
+              s4: "Bugs that confuse or annoy or are purely cosmetic, e.g. we don't plan on addressing them"
+            };
+
+            // Prepare the prompt for Claude
+            const systemPrompt = `You are an expert software engineer triaging customer-reported issues for Coder, a cloud development environment platform. Your job is to carefully analyze issue reports and classify them by severity.
+
+            Customers often overstate the severity of issues, so you need to read between the lines and assess the actual impact based on:
+            - What functionality is actually broken
+            - How many users are affected
+            - Whether there are workarounds
+            - Whether it blocks critical workflows
+            - The overall business impact
+
+            Severity Levels:
+            - s0: ${severityCriteria.s0}
+            - s1: ${severityCriteria.s1}
+            - s2: ${severityCriteria.s2}
+            - s3: ${severityCriteria.s3}
+            - s4: ${severityCriteria.s4}
+
+            Respond ONLY with a JSON object in this exact format:
+            {
+              "severity": "s0|s1|s2|s3|s4",
+              "reasoning": "2-3 sentences explaining your assessment"
+            }`;
+
+            const userPrompt = `Analyze this issue and classify its severity:
+
+            Title: ${issue.title}
+
+            Description:
+            ${issue.body || 'No description provided'}
+
+            Consider:
+            - What is actually broken vs. what the customer claims
+            - How many users are realistically affected
+            - Whether workarounds exist
+            - Whether this blocks critical workflows
+            - The actual business impact`;
+
+            try {
+              // Call Claude API
+              const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': apiKey,
+                  'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                  model: 'claude-3-5-sonnet-20241022',
+                  max_tokens: 1024,
+                  system: systemPrompt,
+                  messages: [
+                    {
+                      role: 'user',
+                      content: userPrompt
+                    }
+                  ]
+                })
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+              }
+
+              const data = await response.json();
+              const content = data.content[0].text;
+
+              // Parse the JSON response
+              const result = JSON.parse(content);
+              const severity = result.severity;
+              const reasoning = result.reasoning;
+
+              // Validate severity
+              if (!['s0', 's1', 's2', 's3', 's4'].includes(severity)) {
+                throw new Error(`Invalid severity level: ${severity}`);
+              }
+
+              // Post comment on the issue
+              const comment = `## 🤖 Automated Severity Classification
+
+**Severity Level:** \`${severity.toUpperCase()}\`
+
+**Analysis:** ${reasoning}
+
+---
+*This classification was performed by AI analysis of the issue description. Please review and adjust the severity label if needed.*`;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: comment
+              });
+
+              // Add severity label
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: [severity]
+              });
+
+              console.log(`Issue #${issue.number} classified as ${severity}`);
+
+            } catch (error) {
+              core.setFailed(`Failed to classify issue: ${error.message}`);
+
+              // Post error comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `## ⚠️ Severity Classification Failed
+
+An error occurred while trying to classify this issue automatically:
+\`\`\`
+${error.message}
+\`\`\`
+
+Please manually review and apply the appropriate severity label (s0-s4).`
+              });
+            }
