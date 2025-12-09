@@ -468,10 +468,27 @@ const PromptTextarea: FC<PromptTextareaProps> = ({
 	isSubmitting,
 	...props
 }) => {
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+			e.preventDefault();
+			// Trigger form submission by finding the closest form and submitting it
+			const form = e.currentTarget.closest("form");
+			if (form) {
+				form.requestSubmit();
+			}
+		}
+		// Call the original onKeyDown if it exists
+		if (props.onKeyDown) {
+			props.onKeyDown(e);
+		}
+	};
+
 	return (
 		<div className="relative">
 			<TextareaAutosize
 				{...props}
+				onKeyDown={handleKeyDown}
 				required
 				id="prompt"
 				name="prompt"
