@@ -460,6 +460,21 @@ message ListSubAgentsResponse {
 	repeated SubAgent agents = 1;
 }
 
+message BoundaryLog {
+	bytes workspace_id = 1;
+	google.protobuf.Timestamp time = 2;
+	bool allowed = 3;
+	string http_method = 4;
+	string http_url = 5;
+	string matched_rule = 6;
+}
+
+message ReportBoundaryLogsRequest {
+	repeated BoundaryLog logs = 1;
+}
+
+message ReportBoundaryLogsResponse {}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -477,4 +492,5 @@ service Agent {
 	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
+	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 }
