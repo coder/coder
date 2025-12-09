@@ -7,19 +7,10 @@ import {
 } from "api/queries/workspaces";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Link } from "components/Link/Link";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleHelp } from "lucide-react";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { workspaceChecks } from "modules/workspaces/permissions";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
@@ -46,34 +37,18 @@ const WorkspaceSharingPage: FC = () => {
 	const canUpdatePermissions = Boolean(permissions?.updateWorkspace);
 
 	return (
-		<div className="flex flex-col gap-6 max-w-screen-md">
+		<div className="flex flex-col gap-12 max-w-screen-md">
 			<title>{pageTitle(workspace.name, "Sharing")}</title>
 
-			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row items-center gap-2 justify-between w-full">
-					<span className="flex flex-row items-center gap-2">
-						<h1 className="text-3xl m-0">Workspace sharing</h1>
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<CircleHelp className="size-icon-xs text-content-secondary" />
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs text-sm">
-									Workspace sharing allows you to share workspaces with other
-									users and groups.
-									<br />
-									<Link
-										href={docs(
-											"/admin/templates/extending-templates/dynamic-parameters",
-										)}
-									>
-										View docs
-									</Link>
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-					</span>
-				</span>
+			<header className="flex flex-col">
+				<div className="flex flex-col gap-2">
+					<h1 className="text-3xl m-0">Workspace sharing</h1>
+					<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
+						Workspace sharing allows you to share workspaces with other users
+						and groups.
+						{/* TODO: ADD DOCS LINK HERE <Link href={docs("/admin/users/idp-sync")}>View docs</Link> */}
+					</p>
+				</div>
 			</header>
 
 			{workspaceACLQuery.isError && (
