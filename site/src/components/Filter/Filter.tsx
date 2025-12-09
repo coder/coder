@@ -175,9 +175,7 @@ export const Filter: FC<FilterProps> = ({
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
-	singleRowBreakpoint = "lg",
 }) => {
-	const theme = useTheme();
 	// Storing local copy of the filter query so that it can be updated more
 	// aggressively without re-renders rippling out to the rest of the app every
 	// single time. Exists for performance reasons - not really a good way to
@@ -201,7 +199,7 @@ export const Filter: FC<FilterProps> = ({
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex gap-2 mb-4 flex-nowrap lg:flex-wrap">
+		<div className="flex gap-2 mb-4 flex-wrap lg:flex-nowrap">
 			{isLoading ? (
 				<>
 					<BaseSkeleton className="w-full" />
