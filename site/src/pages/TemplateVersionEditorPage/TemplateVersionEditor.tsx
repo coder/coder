@@ -318,7 +318,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					)}
 
 					<Sidebar>
-						<div className="h-10.5 pr-2 pl-4 flex items-center">
+						<div className="h-[42px] pr-2 pl-4 flex items-center">
 							<span
 								css={{
 									color: theme.palette.text.primary,
