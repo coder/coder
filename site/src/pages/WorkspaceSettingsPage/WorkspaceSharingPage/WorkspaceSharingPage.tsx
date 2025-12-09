@@ -1,3 +1,4 @@
+import { getErrorMessage } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	setWorkspaceGroupRole,
@@ -5,11 +6,20 @@ import {
 	workspaceACL,
 } from "api/queries/workspaces";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { CircleHelp } from "lucide-react";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { workspaceChecks } from "modules/workspaces/permissions";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
@@ -36,8 +46,35 @@ const WorkspaceSharingPage: FC = () => {
 	const canUpdatePermissions = Boolean(permissions?.updateWorkspace);
 
 	return (
-		<>
+		<div className="flex flex-col gap-6 max-w-screen-md">
 			<title>{pageTitle(workspace.name, "Sharing")}</title>
+
+			<header className="flex flex-col items-start gap-2">
+				<span className="flex flex-row items-center gap-2 justify-between w-full">
+					<span className="flex flex-row items-center gap-2">
+						<h1 className="text-3xl m-0">Workspace sharing</h1>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelp className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Workspace sharing allows you to share workspaces with other
+									users and groups.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/dynamic-parameters",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</span>
+				</span>
+			</header>
 
 			{workspaceACLQuery.isError && (
 				<ErrorAlert error={workspaceACLQuery.error} />
@@ -51,21 +88,34 @@ const WorkspaceSharingPage: FC = () => {
 				workspaceACL={workspaceACLQuery.data}
 				canUpdatePermissions={canUpdatePermissions}
 				onAddUser={async (user, role, reset) => {
-					await addUserMutation.mutateAsync({
-						workspaceId: workspace.id,
-						userId: user.id,
-						role,
-					});
-					reset();
+					try {
+						await addUserMutation.mutateAsync({
+							workspaceId: workspace.id,
+							userId: user.id,
+							role,
+						});
+						displaySuccess("User added to workspace successfully!");
+						reset();
+					} catch (error) {
+						displayError(
+							getErrorMessage(error, "Failed to add user to workspace"),
+						);
+					}
 				}}
 				isAddingUser={addUserMutation.isPending}
 				onUpdateUser={async (user, role) => {
-					await updateUserMutation.mutateAsync({
-						workspaceId: workspace.id,
-						userId: user.id,
-						role,
-					});
-					displaySuccess("User role updated successfully!");
+					try {
+						await updateUserMutation.mutateAsync({
+							workspaceId: workspace.id,
+							userId: user.id,
+							role,
+						});
+						displaySuccess("User role updated successfully!");
+					} catch (error) {
+						displayError(
+							getErrorMessage(error, "Failed to update user role in workspace"),
+						);
+					}
 				}}
 				updatingUserId={
 					updateUserMutation.isPending
@@ -73,29 +123,51 @@ const WorkspaceSharingPage: FC = () => {
 						: undefined
 				}
 				onRemoveUser={async (user) => {
-					await removeUserMutation.mutateAsync({
-						workspaceId: workspace.id,
-						userId: user.id,
-						role: "",
-					});
-					displaySuccess("User removed successfully!");
+					try {
+						await removeUserMutation.mutateAsync({
+							workspaceId: workspace.id,
+							userId: user.id,
+							role: "",
+						});
+						displaySuccess("User removed successfully!");
+					} catch (error) {
+						displayError(
+							getErrorMessage(error, "Failed to remove user from workspace"),
+						);
+					}
 				}}
 				onAddGroup={async (group, role, reset) => {
-					await addGroupMutation.mutateAsync({
-						workspaceId: workspace.id,
-						groupId: group.id,
-						role,
-					});
-					reset();
+					try {
+						await addGroupMutation.mutateAsync({
+							workspaceId: workspace.id,
+							groupId: group.id,
+							role,
+						});
+						displaySuccess("Group added to workspace successfully!");
+						reset();
+					} catch (error) {
+						displayError(
+							getErrorMessage(error, "Failed to add group to workspace"),
+						);
+					}
 				}}
 				isAddingGroup={addGroupMutation.isPending}
 				onUpdateGroup={async (group, role) => {
-					await updateGroupMutation.mutateAsync({
-						workspaceId: workspace.id,
-						groupId: group.id,
-						role,
-					});
-					displaySuccess("Group role updated successfully!");
+					try {
+						await updateGroupMutation.mutateAsync({
+							workspaceId: workspace.id,
+							groupId: group.id,
+							role,
+						});
+						displaySuccess("Group role updated successfully!");
+					} catch (error) {
+						displayError(
+							getErrorMessage(
+								error,
+								"Failed to update group role in workspace",
+							),
+						);
+					}
 				}}
 				updatingGroupId={
 					updateGroupMutation.isPending
@@ -103,15 +175,21 @@ const WorkspaceSharingPage: FC = () => {
 						: undefined
 				}
 				onRemoveGroup={async (group) => {
-					await removeGroupMutation.mutateAsync({
-						workspaceId: workspace.id,
-						groupId: group.id,
-						role: "",
-					});
-					displaySuccess("Group removed successfully!");
+					try {
+						await removeGroupMutation.mutateAsync({
+							workspaceId: workspace.id,
+							groupId: group.id,
+							role: "",
+						});
+						displaySuccess("Group removed successfully!");
+					} catch (error) {
+						displayError(
+							getErrorMessage(error, "Failed to remove group from workspace"),
+						);
+					}
 				}}
 			/>
-		</>
+		</div>
 	);
 };
 
