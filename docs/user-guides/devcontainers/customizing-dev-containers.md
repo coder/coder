@@ -84,6 +84,8 @@ appears in `coder ssh` commands and the dashboard (e.g.,
 Control which built-in Coder apps appear for your dev container using
 `displayApps`:
 
+![Dev container with all display apps disabled](../../images/user-guides/devcontainers/devcontainer-apps-bar.png)_Disable built-in apps to reduce clutter or guide developers toward preferred tools_
+
 ```json
 {
   "name": "My Dev Container",

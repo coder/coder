@@ -11,6 +11,8 @@ administrators can configure
 [Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md) instead,
 which builds the workspace image itself from your dev container configuration.
 
+![Two dev containers running as sub-agents in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-agents with their own apps, SSH access, and port forwarding_
+
 ## Prerequisites
 
 - Coder version 2.24.0 or later
@@ -66,6 +68,8 @@ For more configuration options, see the
 Coder automatically discovers dev container configurations in your repositories
 and displays them in your workspace dashboard. From there, you can start a dev
 container with a single click.
+
+![Discovered dev containers with Start buttons](../../images/user-guides/devcontainers/devcontainer-discovery.png)_Coder detects dev container configurations and displays them with a Start button_
 
 If your template administrator has configured automatic startup (via the
 `coder_devcontainer` Terraform resource or autostart settings), your dev
