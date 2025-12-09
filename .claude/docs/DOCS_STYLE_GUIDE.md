@@ -100,6 +100,7 @@ When you have multiple screenshots showing different aspects of a feature:
 Then ask: "Could you provide a screenshot of the Template Insights page? I've added a placeholder at [location]."
 
 **When documenting with screenshots**:
+
 - Illustrate features being discussed in preceding text
 - Show actual UI/data, not abstract concepts
 - Reference specific values shown when explaining features
@@ -159,19 +160,19 @@ Then ask: "Could you provide a screenshot of the Template Insights page? I've ad
 
 ### Command Examples
 
-```markdown
+````markdown
 ```sh
 coder server --disable-template-insights
 ```
-```
+````
 
 ### Environment Variables
 
-```markdown
+````markdown
 ```sh
 CODER_DISABLE_TEMPLATE_INSIGHTS=true
 ```
-```
+````
 
 ### Code Comments
 
