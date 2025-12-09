@@ -259,6 +259,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					onChange={(e) => setPrompt(e.target.value)}
 					readOnly={isPromptReadOnly}
 					isSubmitting={createTaskMutation.isPending}
+					onFormSubmit={onSubmit}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">
@@ -462,20 +463,20 @@ async function createTaskWithLatestTemplateVersion(
 
 type PromptTextareaProps = TextareaAutosizeProps & {
 	isSubmitting?: boolean;
+	onFormSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
 };
 
 const PromptTextarea: FC<PromptTextareaProps> = ({
 	isSubmitting,
+	onFormSubmit,
 	...props
 }) => {
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
 		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
-			// Trigger form submission by finding the closest form and submitting it
-			const form = e.currentTarget.closest("form");
-			if (form) {
-				form.requestSubmit();
+			if (onFormSubmit) {
+				onFormSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
 			}
 		}
 		// Call the original onKeyDown if it exists
