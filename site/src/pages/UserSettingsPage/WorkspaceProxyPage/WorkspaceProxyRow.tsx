@@ -146,11 +146,17 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 				padding: "16px 64px",
 			}}
 		>
-			<div id="nested-list-subheader" className="mb-1 text-[13px] font-medium">
+			<div
+				id="nested-list-subheader"
+				className="mb-1 text-[13px] font-semibold"
+			>
 				{title}
 			</div>
 			{messages.map((error, index) => (
-				<pre key={index} className="m-2 text-sm whitespace-pre-wrap">
+				<pre
+					key={index}
+					className="mt-0 mb-2 text-sm whitespace-pre-wrap leading-[16px]"
+				>
 					{error}
 				</pre>
 			))}

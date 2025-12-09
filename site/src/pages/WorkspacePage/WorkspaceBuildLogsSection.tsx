@@ -12,7 +12,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 }) => {
 	return (
 		<div className="rounded-lg border border-solid border-zinc-700 overflow-hidden bg-surface-secondary">
-			<header className="bg-surface-secondary border-0 border-b border-solid border-zinc-700 p-3 text-sm font-semibold flex items-center rounded-t-lg">
+			<header className="bg-surface-secondary border-0 border-b border-solid border-zinc-700 p-2 pl-6 text-[13px] font-semibold flex items-center rounded-t-lg">
 				Build logs
 			</header>
 			<div className="h-100 overflow-y-auto">

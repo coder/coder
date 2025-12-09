@@ -69,13 +69,6 @@ export const HelpTooltipIconTrigger = forwardRef<
 		...buttonProps
 	} = props;
 
-	const hoverEffectStyles = css({
-		opacity: 0.5,
-		"&:hover": {
-			opacity: 0.75,
-		},
-	});
-
 	return (
 		<HelpTooltipTrigger asChild>
 			<button
@@ -89,9 +82,12 @@ export const HelpTooltipIconTrigger = forwardRef<
 							height: ${getIconSpacingFromSize(size)}px;
 						}
 					`,
-					hoverEffect ? hoverEffectStyles : null,
 				]}
-				className="flex items-center justify-center py-1 px-0 border-none bg-transparent cursor-pointer text-inherit"
+				className={cn(
+					"flex items-center justify-center py-1 px-0 border-none bg-transparent cursor-pointer text-inherit",
+					hoverEffect && "opacity-50 hover:opacity-75",
+					buttonProps.className,
+				)}
 			>
 				{children}
 			</button>

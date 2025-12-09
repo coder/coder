@@ -29,10 +29,7 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 					},
 				},
 			]}
-			className={cn(
-				"p-6 flex items-center gap-12 z-10 flex-wrap",
-				sticky && "sticky top-0",
-			)}
+			className={cn("p-6 flex gap-12 z-10 flex-wrap", sticky && "sticky top-0")}
 		>
 			{children}
 		</header>
@@ -66,7 +63,7 @@ export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
 			css={{
 				color: theme.palette.text.secondary,
 			}}
-			className="text-sm leading-none block"
+			className="text-sm leading-[22.4px] block"
 		>
 			{children}
 		</span>

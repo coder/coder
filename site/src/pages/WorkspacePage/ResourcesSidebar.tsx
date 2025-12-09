@@ -26,7 +26,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>
 			{failed && (
-				<p className="m-0 py-4 text-sm text-content-secondary leading-normal">
+				<p className="m-0 px-4 text-[13px] text-content-secondary leading-normal">
 					Your workspace build failed, so the necessary resources couldn&apos;t
 					be created.
 				</p>
@@ -54,7 +54,9 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					</div>
 					<div className="flex flex-col font-medium">
 						<span>{r.name}</span>
-						<span className="text-xs text-content-secondary">{r.type}</span>
+						<span className="text-xs leading-[18px] text-content-secondary">
+							{r.type}
+						</span>
 					</div>
 				</SidebarItem>
 			))}

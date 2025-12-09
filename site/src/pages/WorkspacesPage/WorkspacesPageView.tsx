@@ -208,7 +208,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 			</TableToolbar>
 			{pageNumberIsInvalid ? (
 				<EmptyState
-					className="border border-solid border-zinc-700 rounded-md"
+					className="border border-solid border-zinc-700 rounded-lg"
 					message="Page not found"
 					description="The page you are trying to access does not exist."
 					cta={

@@ -158,7 +158,7 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
 			<ResourcePageHeader
 				displayName={group!.display_name}
 				name={group!.name}
-				css={{ paddingTop: 8 }}
+				className="pt-2"
 			/>
 			<UpdateGroupForm
 				group={group!}

@@ -79,7 +79,7 @@ const WorkspaceSchedulePage: FC = () => {
 		<>
 			<title>{pageTitle(workspaceName, "Schedule")}</title>
 
-			<PageHeader className="pt-0">
+			<PageHeader className="pt-0 pb-12">
 				<PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
 			</PageHeader>
 

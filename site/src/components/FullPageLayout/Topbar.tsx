@@ -41,7 +41,7 @@ export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 						fontSize: 20,
 					},
 				}}
-				className="p-0 rounded-none size-12"
+				className={cn("p-0 rounded-none size-12", props.className)}
 			/>
 		);
 	},

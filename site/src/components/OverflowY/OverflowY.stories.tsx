@@ -17,7 +17,7 @@ const meta: Meta<typeof OverflowY> = {
 				css={{
 					backgroundColor: i % 2 === 0 ? "white" : "gray",
 				}}
-				className="h-12.5 p-0 m-0 text-black"
+				className="h-[50px] p-0 m-0 text-black"
 			>
 				Element {num}
 			</p>
