@@ -14214,6 +14214,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_workspace_sharing": {
+                    "type": "boolean"
+                },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
