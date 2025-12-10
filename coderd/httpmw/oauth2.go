@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -133,14 +134,18 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 					HttpOnly: true,
 				}))
 
+				authOpts := slices.Clone(opts)
 				var verifier = oauth2.GenerateVerifier()
+				authOpts = append(authOpts, oauth2.S256ChallengeOption(verifier))
+
 				http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{
 					Name:     codersdk.OAuth2PKCEChallenge,
 					Value:    verifier,
 					Path:     "/",
 					HttpOnly: true,
 				}))
-				http.Redirect(rw, r, config.AuthCodeURL(state, append(opts, oauth2.S256ChallengeOption(verifier))...), http.StatusTemporaryRedirect)
+
+				http.Redirect(rw, r, config.AuthCodeURL(state, authOpts...), http.StatusTemporaryRedirect)
 				return
 			}
 
@@ -170,13 +175,15 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				redirect = stateRedirect.Value
 			}
 
-			exchangeOpts := []oauth2.AuthCodeOption{}
 			pkceChallenge, err := r.Cookie(codersdk.OAuth2PKCEChallenge)
-			if err == nil {
-				exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pkceChallenge.Value))
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "PKCE challenge must be provided.",
+				})
+				return
 			}
 
-			oauthToken, err := config.Exchange(ctx, code, exchangeOpts...)
+			oauthToken, err := config.Exchange(ctx, code, oauth2.VerifierOption(pkceChallenge.Value))
 			if err != nil {
 				errorCode := http.StatusInternalServerError
 				detail := err.Error()
