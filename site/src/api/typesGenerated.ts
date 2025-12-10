@@ -1753,6 +1753,7 @@ export interface DeploymentValues {
 	readonly metrics_cache_refresh_interval?: number;
 	readonly agent_stat_refresh_interval?: number;
 	readonly agent_fallback_troubleshooting_url?: string;
+	readonly agent_metadata_min_interval?: number;
 	readonly browser_only?: boolean;
 	readonly scim_api_key?: string;
 	readonly external_token_encryption_keys?: string;

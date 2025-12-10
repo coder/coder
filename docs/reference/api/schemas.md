@@ -2844,6 +2844,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "agent_metadata_min_interval": 0,
     "agent_stat_refresh_interval": 0,
     "ai": {
       "bridge": {
@@ -3367,6 +3368,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "agent_metadata_min_interval": 0,
   "agent_stat_refresh_interval": 0,
   "ai": {
     "bridge": {
@@ -3781,6 +3783,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `additional_csp_policy`              | array of string                                                                                      | false    |              |                                                                    |
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `agent_metadata_min_interval`        | integer                                                                                              | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
 | `ai`                                 | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |

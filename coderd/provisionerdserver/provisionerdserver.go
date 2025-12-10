@@ -1613,7 +1613,11 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				if err := InsertWorkspaceResource(ctx, db, jobID, transition, resource, telemetrySnapshot); err != nil {
+				if err := InsertWorkspaceResource(ctx, db, jobID, transition, resource, telemetrySnapshot,
+					InsertWorkspaceResourceWithValidationMode(ValidationModeStrict),
+					InsertWorkspaceResourceWithDeploymentValues(s.DeploymentValues),
+					InsertWorkspaceResourceWithLogger(s.Logger),
+				); err != nil {
 					return xerrors.Errorf("insert resource: %w", err)
 				}
 			}
@@ -2014,6 +2018,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// Ensure that the agent IDs we set previously
 				// are written to the database.
 				InsertWorkspaceResourceWithAgentIDsFromProto(),
+				InsertWorkspaceResourceWithValidationMode(ValidationModeUpgrade),
+				InsertWorkspaceResourceWithDeploymentValues(s.DeploymentValues),
+				InsertWorkspaceResourceWithLogger(s.Logger),
 			)
 			if err != nil {
 				return xerrors.Errorf("insert provisioner job: %w", err)
@@ -2623,8 +2630,23 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 	return nil
 }
 
+// ValidationMode determines how agent metadata interval validation is enforced.
+type ValidationMode int
+
+const (
+	// ValidationModeStrict fails the operation if metadata intervals are below the minimum.
+	// Used for template imports.
+	ValidationModeStrict ValidationMode = iota
+	// ValidationModeUpgrade silently upgrades metadata intervals to meet the minimum.
+	// Used for workspace builds.
+	ValidationModeUpgrade
+)
+
 type insertWorkspaceResourceOptions struct {
 	useAgentIDsFromProto bool
+	validationMode       ValidationMode
+	deploymentValues     *codersdk.DeploymentValues
+	logger               slog.Logger
 }
 
 // InsertWorkspaceResourceOption represents a functional option for
@@ -2636,6 +2658,27 @@ type InsertWorkspaceResourceOption func(*insertWorkspaceResourceOptions)
 func InsertWorkspaceResourceWithAgentIDsFromProto() InsertWorkspaceResourceOption {
 	return func(opts *insertWorkspaceResourceOptions) {
 		opts.useAgentIDsFromProto = true
+	}
+}
+
+// InsertWorkspaceResourceWithValidationMode sets the validation mode for agent metadata intervals.
+func InsertWorkspaceResourceWithValidationMode(mode ValidationMode) InsertWorkspaceResourceOption {
+	return func(opts *insertWorkspaceResourceOptions) {
+		opts.validationMode = mode
+	}
+}
+
+// InsertWorkspaceResourceWithDeploymentValues sets the deployment values for validation.
+func InsertWorkspaceResourceWithDeploymentValues(dv *codersdk.DeploymentValues) InsertWorkspaceResourceOption {
+	return func(opts *insertWorkspaceResourceOptions) {
+		opts.deploymentValues = dv
+	}
+}
+
+// InsertWorkspaceResourceWithLogger sets the logger for logging validation actions.
+func InsertWorkspaceResourceWithLogger(logger slog.Logger) InsertWorkspaceResourceOption {
+	return func(opts *insertWorkspaceResourceOptions) {
+		opts.logger = logger
 	}
 }
 
@@ -2776,13 +2819,39 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, md := range prAgent.Metadata {
+			interval := md.Interval
+
+			// Apply minimum interval validation if configured
+			if opts.deploymentValues != nil && opts.deploymentValues.AgentMetadataMinInterval.Value() > 0 {
+				minInterval := opts.deploymentValues.AgentMetadataMinInterval.Value()
+				minIntervalSeconds := int64(minInterval.Seconds())
+
+				if interval < minIntervalSeconds {
+					if opts.validationMode == ValidationModeStrict {
+						// Template import - fail the operation
+						return xerrors.Errorf(
+							"agent %q metadata %q interval %ds is below minimum required %ds",
+							prAgent.Name, md.Key, interval, minIntervalSeconds,
+						)
+					}
+					// Workspace build - upgrade silently
+					opts.logger.Info(ctx, "upgrading agent metadata interval to meet minimum",
+						slog.F("agent", prAgent.Name),
+						slog.F("metadata_key", md.Key),
+						slog.F("original_interval_seconds", interval),
+						slog.F("upgraded_interval_seconds", minIntervalSeconds),
+					)
+					interval = minIntervalSeconds
+				}
+			}
+
 			p := database.InsertWorkspaceAgentMetadataParams{
 				WorkspaceAgentID: agentID,
 				DisplayName:      md.DisplayName,
 				Script:           md.Script,
 				Key:              md.Key,
 				Timeout:          md.Timeout,
-				Interval:         md.Interval,
+				Interval:         interval,
 				// #nosec G115 - Order represents a display order value that's always small and fits in int32
 				DisplayOrder: int32(md.Order),
 			}

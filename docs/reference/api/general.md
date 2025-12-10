@@ -160,6 +160,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scheme": "string",
       "user": {}
     },
+    "agent_metadata_min_interval": 0,
     "agent_stat_refresh_interval": 0,
     "ai": {
       "bridge": {
