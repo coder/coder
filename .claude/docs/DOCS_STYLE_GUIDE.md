@@ -300,6 +300,17 @@ Some content is auto-generated with comments:
 
 Don't manually edit auto-generated sections.
 
+## URL Redirects
+
+When renaming or moving documentation pages, redirects must be added to prevent broken links.
+
+**Important**: Redirects are NOT configured in this repository. The coder.com website runs on Vercel with Next.js and reads redirects from a separate repository:
+
+- **Redirect configuration**: https://github.com/coder/coder.com/blob/master/redirects.json
+- **Do NOT create** a `docs/_redirects` file - this format (used by Netlify/Cloudflare Pages) is not processed by coder.com
+
+When you rename or move a doc page, create a PR in coder/coder.com to add the redirect.
+
 ## Key Principles
 
 1. **Research first** - Verify against actual code implementation
@@ -307,3 +318,4 @@ Don't manually edit auto-generated sections.
 3. **Visual structure** - Organize around screenshots when available
 4. **Link everything** - Related docs, API endpoints, CLI references
 5. **Manifest inclusion** - Add to manifest.json for navigation
+6. **Add redirects** - When moving/renaming pages, add redirects in coder/coder.com repo

@@ -6,13 +6,12 @@ Unlike the [Dev Containers integration](../integration.md),
 Envbuilder transforms the workspace image itself rather than running containers
 inside the workspace.
 
-> [!NOTE]
->
-> For most use cases, we recommend the
-> [Dev Containers integration](../integration.md),
-> which uses the standard `@devcontainers/cli` and Docker. Envbuilder is an
-> alternative for environments where Docker is not available or for
-> administrator-controlled dev container workflows.
+Envbuilder is well-suited for Kubernetes-native deployments without privileged
+containers, environments where Docker is unavailable or restricted, and
+workflows where administrators need infrastructure-level control over image
+builds, caching, and security scanning. For workspaces with Docker available,
+the [Dev Containers Integration](../integration.md) offers container management
+with dashboard visibility and multi-container support.
 
 Dev containers provide developers with increased autonomy and control over their
 Coder cloud development environments.

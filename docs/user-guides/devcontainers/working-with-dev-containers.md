@@ -3,7 +3,7 @@
 The dev container integration appears in your Coder dashboard, providing a
 visual representation of the running environment:
 
-![Dev container integration in Coder dashboard](../../images/user-guides/devcontainers/devcontainer-agent-ports.png)
+![Two dev containers running as sub-agents in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-agents with their own apps, SSH access, and port forwarding_
 
 ## SSH access
 
@@ -151,5 +151,7 @@ feature from the [Coder features repository](https://github.com/coder/devcontain
 When you modify your `devcontainer.json`, you need to rebuild the container for
 changes to take effect. Coder detects changes and shows an **Outdated** status
 next to the dev container.
+
+![Dev container showing Outdated status with rebuild option](../../images/user-guides/devcontainers/devcontainer-outdated.png)_The Outdated indicator appears when changes to devcontainer.json are detected_
 
 Click **Rebuild** to recreate your dev container with the updated configuration.
