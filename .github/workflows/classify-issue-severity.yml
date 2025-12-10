@@ -81,7 +81,26 @@ jobs:
             4. **Determine** which severity level best matches the actual impact
             5. **Post a comment** on the issue with your assessment
 
-            Use the GitHub CLI to post your comment in this **exact format**:
+            ## Insufficient Information Fail-Safe
+
+            **It is completely acceptable to not classify an issue if you lack sufficient information.**
+
+            If the issue description is too vague, missing critical details, or doesn't provide enough context to make a confident assessment, DO NOT force a classification. Instead, acknowledge this and explain what additional information is needed.
+
+            Common scenarios where you should decline to classify:
+            - Issue has no description or minimal details
+            - Unclear what feature/component is affected
+            - No reproduction steps or error messages provided
+            - Ambiguous whether it's a bug, feature request, or question
+            - Missing information about user impact or frequency
+
+            ## Posting Your Assessment
+
+            Use the GitHub CLI to post your comment. Choose ONE of the two formats below:
+
+            ### Format 1: Confident Classification
+
+            If you have enough information to confidently classify:
 
             ```bash
             gh issue comment ${{ github.event.issue.number }} --body "## 🤖 Automated Severity Classification
@@ -95,11 +114,31 @@ jobs:
             *This classification was performed by AI analysis. Please review and adjust if needed.*"
             ```
 
+            ### Format 2: Insufficient Information
+
+            If you lack sufficient information to classify:
+
+            ```bash
+            gh issue comment ${{ github.event.issue.number }} --body "## 🤖 Automated Severity Classification
+
+            **Status:** Unable to classify - insufficient information
+
+            **Reasoning:**
+            [2-3 sentences explaining what critical information is missing and why it's needed to determine severity. Be specific about what additional details would help.]
+
+            **Suggested next steps:**
+            [Bullet list of specific information the reporter should provide]
+
+            ---
+            *This classification was performed by AI analysis. Please provide the requested information for proper severity assessment.*"
+            ```
+
             **Important**:
-            - Replace `[S0/S1/S2/S3/S4]` with your chosen severity (use uppercase)
-            - Replace the `[2-3 sentences...]` with your actual reasoning
+            - Replace `[S0/S1/S2/S3/S4]` with your chosen severity (use uppercase) - only if using Format 1
+            - Replace placeholders with your actual reasoning
             - Be specific and cite details from the issue that informed your decision
             - Show your work - explain why this is s2 and not s1 or s3, for example
+            - **Be honest** - it's better to request more info than to misclassify
 
           claude_args: |
             --allowedTools "Bash(gh issue:*)"
