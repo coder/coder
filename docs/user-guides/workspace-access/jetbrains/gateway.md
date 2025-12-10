@@ -1,6 +1,7 @@
 ## JetBrains Gateway
 
 > [! WARNING]
+>
 > Using Coder through JetBrains Gateway is not recommended at this time. Instead, we suggest using [JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) for stability and performance benefits.
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
