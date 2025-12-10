@@ -12,7 +12,7 @@ Owners of a workspace can grant access to other users or groups with scoped role
 
 This is helpful in a number of scenarios, including: 
 
-- Developers can do ad-hoc debugging, pair programming, and code reviews.
+- Developers can do ad-hoc debugging or pair programming.
 - A workspace can be owned by a group of users for QA, on-call rotations, or shared staging.
 - AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Tasks](https://coder.com/docs/ai-coder/tasks).)
 
