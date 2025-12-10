@@ -10,6 +10,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -18,8 +19,9 @@ import {
 } from "components/Dialog/Dialog";
 import { Spinner } from "components/Spinner/Spinner";
 import { Textarea } from "components/Textarea/Textarea";
+import { useFormik } from "formik";
 import type { FC } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
 type ModifyPromptDialogProps = {
@@ -35,7 +37,16 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 	open,
 	onOpenChange,
 }) => {
-	const [prompt, setPrompt] = useState(task.initial_prompt);
+	const formId = useId();
+	const formik = useFormik({
+		initialValues: {
+			prompt: task.initial_prompt,
+		},
+		onSubmit: (values) => {
+			updatePromptMutation.mutate(values.prompt);
+		},
+	});
+
 	const queryClient = useQueryClient();
 
 	const buildParametersQuery = useQuery(
@@ -43,7 +54,7 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 	);
 
 	const updatePromptMutation = useMutation({
-		mutationFn: async () => {
+		mutationFn: async (prompt: string) => {
 			const currentBuild = await API.getWorkspaceBuildByNumber(
 				workspace.owner_name,
 				workspace.name,
@@ -97,7 +108,7 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 	});
 
 	const workspaceBuildRunning = workspace.latest_build.status === "running";
-	const promptModified = prompt !== task.initial_prompt;
+	const promptModified = formik.dirty;
 	const promptCanBeModified =
 		prompt.length !== 0 && promptModified && !workspaceBuildRunning;
 
@@ -113,7 +124,7 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="space-y-4">
+				<form id={formId} className="space-y-4" onSubmit={formik.handleSubmit}>
 					{updatePromptMutation.error && (
 						<ErrorAlert error={updatePromptMutation.error} />
 					)}
@@ -123,33 +134,37 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 
 					<div>
 						<label
-							htmlFor="prompt"
+							htmlFor={`${formId}-prompt`}
 							className="block text-sm font-medium text-content-primary mb-2"
 						>
 							Prompt
 						</label>
 						<Textarea
-							id="prompt"
-							value={prompt}
-							onChange={(e) => setPrompt(e.target.value)}
+							id={`${formId}-prompt`}
+							name="prompt"
+							value={formik.values.prompt}
+							onChange={formik.handleChange}
 							rows={10}
 							disabled={updatePromptMutation.isPending || workspaceBuildRunning}
 							className="w-full"
 							placeholder="Enter your task prompt..."
 						/>
 					</div>
-				</div>
+				</form>
 
 				<DialogFooter>
+					<DialogClose asChild>
+						<Button
+							variant="outline"
+							onClick={() => onOpenChange(false)}
+							disabled={updatePromptMutation.isPending}
+						>
+							Cancel
+						</Button>
+					</DialogClose>
 					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-						disabled={updatePromptMutation.isPending}
-					>
-						Cancel
-					</Button>
-					<Button
-						onClick={() => updatePromptMutation.mutate()}
+						type="submit"
+						form={formId}
 						disabled={
 							!promptCanBeModified ||
 							updatePromptMutation.isPending ||

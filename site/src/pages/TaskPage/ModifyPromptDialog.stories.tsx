@@ -22,7 +22,6 @@ const mockTaskWorkspaceStarting: Workspace = {
 	},
 };
 
-// Mock build parameters for the workspace
 const mockBuildParameters: WorkspaceBuildParameter[] = [
 	{
 		name: AITaskPromptParameterName,
