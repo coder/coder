@@ -22,9 +22,9 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// ProvisionGraphWithAgent returns provision responses that will mock a fake
+// ProvisionGraphWithAgentAndAPIKeyScope returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
-func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string) []*proto.Response {
+func ProvisionGraphWithAgentAndAPIKeyScope(authToken string, apiKeyScope string) []*proto.Response {
 	return []*proto.Response{{
 		Type: &proto.Response_Graph{
 			Graph: &proto.GraphComplete{
@@ -214,7 +214,7 @@ func (*echo) Init(sess *provisionersdk.Session, req *proto.InitRequest, canceled
 
 	responses, err := readResponses(
 		sess,
-		"", // transition not supported for echo graph responses
+		"", // transition not supported for init graph responses
 		"init.protobuf")
 	if err != nil {
 		return &proto.InitComplete{Error: err.Error()}

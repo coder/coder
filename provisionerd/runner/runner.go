@@ -678,7 +678,6 @@ type templateImportProvision struct {
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Presets               []*sdkproto.Preset
 	Plan                  json.RawMessage
-	DailyCost             int32
 	HasAITasks            bool
 	HasExternalAgents     bool
 }
@@ -766,7 +765,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		ExternalAuthProviders: graphComplete.ExternalAuthProviders,
 		Presets:               graphComplete.Presets,
 		Plan:                  planComplete.Plan,
-		DailyCost:             planComplete.DailyCost,
 		HasAITasks:            graphComplete.HasAiTasks,
 		HasExternalAgents:     graphComplete.HasExternalAgents,
 	}, nil
