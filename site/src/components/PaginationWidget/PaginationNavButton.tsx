@@ -3,9 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 type PaginationNavButtonProps = Omit<
 	ButtonHTMLAttributes<HTMLButtonElement>,
-	| "aria-disabled"
-	// Need to omit color for MUI compatibility
-	| "color"
+	"aria-disabled"
 > & {
 	// Required/narrowed versions of default props
 	children: ReactNode;
