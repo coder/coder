@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import AnsiToHTML from "ansi-to-html";
 import { type Line, LogLine, LogLinePrefix } from "components/Logs/LogLine";
 import { type FC, type ReactNode, useMemo } from "react";
@@ -30,10 +29,10 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 		<LogLine className="pl-4" level={line.level} style={style}>
 			{sourceIcon}
 			<LogLinePrefix
-				css={styles.number}
 				style={{
 					minWidth: `${maxLineNumber.toString().length - 1}em`,
 				}}
+				className="w-[32px] text-right text-content-disabled flex-shrink-0"
 			>
 				{number}
 			</LogLinePrefix>
@@ -46,12 +45,3 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 		</LogLine>
 	);
 };
-
-const styles = {
-	number: (theme) => ({
-		width: 32,
-		textAlign: "right",
-		flexShrink: 0,
-		color: theme.palette.text.disabled,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

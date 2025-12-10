@@ -55,7 +55,11 @@ export const UserLoginTypeIsPassword: Story = {
 	args: set("oidc.section.authMethods", MockAuthMethodsAll, defaultArgs),
 };
 
-export const ConfirmingOIDCConversion: Story = {
+export const UserLoginTypeIsOIDC: Story = {
+	args: set("oidc.section.userLoginType", { login_type: "oidc" }, defaultArgs),
+};
+
+export const OIDCAuthenticated: Story = {
 	args: set(
 		"oidc.section",
 		{

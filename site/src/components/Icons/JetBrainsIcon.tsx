@@ -24,7 +24,7 @@ export const JetBrainsIcon = (props: SvgIconProps): JSX.Element => (
                25.59l85.73-58.84a7.35 7.35 0 0 0 3.17-6.05z"
 				fill="#fff"
 			/>
-			<path d="m60 60h60v60h-60z" css={{ fill: "#000 !important" }} />
+			<path d="m60 60h60v60h-60z" style={{ fill: "#000000 !important" }} />
 			<g fill="#fff">
 				<path d="m66.53 108.75h22.5v3.75h-22.5z" />
 				<path

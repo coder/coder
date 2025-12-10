@@ -132,10 +132,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 			variant="rectangular"
 			height={36}
 			{...skeletonProps}
-			css={(theme) => ({
-				backgroundColor: theme.palette.background.paper,
-			})}
-			className={cn("rounded-md", skeletonProps.className)}
+			className={cn("rounded-md bg-surface-secondary", skeletonProps.className)}
 		>
 			{children}
 		</Skeleton>
@@ -290,11 +287,11 @@ const PresetMenu: FC<PresetMenuProps> = ({
 					vertical: "top",
 					horizontal: "left",
 				}}
-				css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
+				className="[&_.MuiMenu-paper]:py-2"
 			>
 				{presets.map((presetFilter) => (
 					<MenuItem
-						className="text-sm leading-none"
+						className="text-sm leading-relaxed"
 						key={presetFilter.name}
 						onClick={() => {
 							onSelect(presetFilter.query);
@@ -304,9 +301,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 						{presetFilter.name}
 					</MenuItem>
 				))}
-				{learnMoreLink && (
-					<Divider css={{ borderColor: theme.palette.divider }} />
-				)}
+				{learnMoreLink && <Divider />}
 				{learnMoreLink && (
 					<MenuItem
 						component="a"

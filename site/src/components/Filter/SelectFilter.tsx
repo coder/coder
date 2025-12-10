@@ -95,12 +95,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 							})}
 						</SelectMenuList>
 					) : (
-						<div
-							css={(theme) => ({
-								color: theme.palette.text.secondary,
-							})}
-							className="flex items-center justify-center p-8 leading-none"
-						>
+						<div className="flex items-center justify-center p-8 leading-none text-content-secondary">
 							{emptyText || "No options found"}
 						</div>
 					)

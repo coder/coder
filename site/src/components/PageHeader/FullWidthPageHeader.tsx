@@ -37,19 +37,7 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 };
 
 const _PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
-	return (
-		<div
-			css={{
-				marginLeft: "auto",
-				[theme.breakpoints.down("md")]: {
-					marginLeft: "unset",
-				},
-			}}
-		>
-			{children}
-		</div>
-	);
+	return <div className="ml-[unset] md:ml-auto">{children}</div>;
 };
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
@@ -57,14 +45,8 @@ export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
 };
 
 export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
 	return (
-		<span
-			css={{
-				color: theme.palette.text.secondary,
-			}}
-			className="text-sm leading-[22.4px] block"
-		>
+		<span className="text-sm text-content-secondary leading-[22.4px] block">
 			{children}
 		</span>
 	);

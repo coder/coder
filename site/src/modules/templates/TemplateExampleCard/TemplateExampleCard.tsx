@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -6,6 +5,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Pill } from "components/Pill/Pill";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
+import { cn } from "utils/cn";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
@@ -18,19 +18,24 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	...divProps
 }) => {
 	return (
-		<div css={styles.card} {...divProps}>
-			<div css={styles.header}>
-				<div css={styles.icon}>
+		<div className={classNames.card} {...divProps}>
+			<div className={classNames.header}>
+				<div className={classNames.icon}>
 					<ExternalImage
 						src={example.icon}
 						className="w-full h-full object-contain"
 					/>
 				</div>
 
-				<div css={styles.tags}>
+				<div className={classNames.tags}>
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-							<Pill css={[styles.tag, activeTag === tag && styles.activeTag]}>
+							<Pill
+								className={cn([
+									classNames.tag,
+									activeTag === tag && classNames.activeTag,
+								])}
+							>
 								{tag}
 							</Pill>
 						</RouterLink>
@@ -40,7 +45,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div>
 				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
-				<span css={styles.description}>
+				<span className={classNames.description}>
 					{example.description}{" "}
 					<Link
 						component={RouterLink}
@@ -52,7 +57,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				</span>
 			</div>
 
-			<div css={styles.useButtonContainer}>
+			<div className={classNames.useButtonContainer}>
 				<Button asChild className="w-full">
 					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
 						Use template
@@ -63,66 +68,22 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	);
 };
 
-const styles = {
-	card: (theme) => ({
-		width: "320px",
-		padding: 24,
-		borderRadius: 6,
-		border: `1px solid ${theme.palette.divider}`,
-		textAlign: "left",
-		color: "inherit",
-		display: "flex",
-		flexDirection: "column",
-	}),
-
-	header: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		marginBottom: 24,
-	},
-
-	icon: {
-		flexShrink: 0,
-		paddingTop: 4,
-		width: 32,
-		height: 32,
-	},
-
-	tags: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: 8,
-		justifyContent: "end",
-	},
-
-	tag: (theme) => ({
-		borderColor: theme.palette.divider,
-		textDecoration: "none",
-		cursor: "pointer",
-		"&: hover": {
-			borderColor: theme.palette.primary.main,
-		},
-	}),
-
-	activeTag: (theme) => ({
-		borderColor: theme.roles.active.outline,
-		backgroundColor: theme.roles.active.background,
-	}),
-
-	description: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "1.6",
-		display: "block",
-	}),
-
-	useButtonContainer: {
-		display: "flex",
-		gap: 12,
-		flexDirection: "column",
-		paddingTop: 24,
-		marginTop: "auto",
-		alignItems: "center",
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	card: "w-[320px] p-6 rounded-md border border-solid border-border dark:border-surface-quaternary text-left text-inherit flex flex-col",
+	header: "flex items-center justify-between mb-6",
+	icon: "flex-shrink-0 pt-1 w-8 h-8",
+	tags: "flex flex-wrap gap-2 justify-end",
+	// TODO: Add over state
+	// "&: hover": {
+	// 	  borderColor: theme.palette.primary.main,
+	// },
+	tag: "border border-solid border-border dark:border-surface-quaternary text-decoration-none cursor-pointer",
+	// TODO: Add state
+	// activeTag: (theme) => ({
+	// 	borderColor: theme.roles.active.outline,
+	// 	backgroundColor: theme.roles.active.background,
+	// }),
+	activeTag: "",
+	description: "text-[13px] leading-relaxed block text-content-secondary",
+	useButtonContainer: "flex flex-col items-center gap-3 pt-6 mt-auto",
+};

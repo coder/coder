@@ -73,13 +73,18 @@ const NotificationPill: FC<NotificationPillProps> = ({
 	icon,
 	isTooltipOpen,
 }) => {
+	const theme = useTheme();
+
 	return (
 		<Pill
 			icon={icon}
-			css={(theme) => ({
-				"& svg": { color: theme.roles[severity].outline },
-				borderColor: isTooltipOpen ? theme.roles[severity].outline : undefined,
-			})}
+			style={{
+				"--pill-color": theme.roles[severity].outline,
+			}}
+			className={cn([
+				"[& svg]:text-[var(--pill-color)]",
+				isTooltipOpen && "border-[var(--pill-color)]",
+			])}
 		>
 			{items.length}
 		</Pill>

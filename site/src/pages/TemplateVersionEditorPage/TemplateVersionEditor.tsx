@@ -53,6 +53,7 @@ import {
 	unstable_usePrompt as usePrompt,
 } from "react-router";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { cn } from "utils/cn";
 import {
 	createFile,
 	existsFile,
@@ -234,15 +235,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						/>
 						<RouterLink
 							to={templateLink}
-							css={{
-								color: theme.palette.text.primary,
-							}}
-							className="no-underline hover:underline"
+							className="text-content-primary no-underline hover:underline"
 						>
 							{template.display_name || template.name}
 						</RouterLink>
 						<TopbarDivider />
-						<span css={{ color: theme.palette.text.secondary }}>
+						<span className="text-content-secondary">
 							{templateVersion.name}
 						</span>
 					</TopbarData>
@@ -319,23 +317,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
 					<Sidebar>
 						<div className="h-[42px] pr-2 pl-4 flex items-center">
-							<span
-								css={{
-									color: theme.palette.text.primary,
-									fontSize: 13,
-								}}
-							>
-								Files
-							</span>
+							<span className="text-content-primary text-[13px]">Files</span>
 
-							<div
-								className="ml-auto"
-								css={{
-									"& svg": {
-										fill: theme.palette.text.primary,
-									},
-								}}
-							>
+							<div className="ml-auto [&_svg]:text-content-primary">
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<IconButton
@@ -458,31 +442,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							)}
 						</div>
 
-						<div
-							css={{
-								borderTop: `1px solid ${theme.palette.divider}`,
-							}}
-							className="overflow-hidden flex flex-col"
-						>
+						<div className="overflow-hidden flex flex-col border-0 border-t border-solid border-border">
 							<div
-								css={{
-									borderBottom: selectedTab
-										? `1px solid ${theme.palette.divider}`
-										: 0,
-								}}
-								className="flex items-center"
+								className={cn(
+									"flex items-center",
+									selectedTab && "border-0 border-b border-solid border-border",
+								)}
 							>
 								<div
-									css={{
-										display: "flex",
-
-										"& .MuiTab-root": {
-											padding: 0,
-											fontSize: 14,
-											textTransform: "none",
-											letterSpacing: "unset",
-										},
-									}}
+									className={cn(
+										"flex",
+										"[&_.MuiTab-root]:p-0 [&_.MuiTab-root]:text-[14px]",
+										"[&_.MuiTab-root]:[text-transform:none]",
+										"[&_.MuiTab-root]:tracking-[unset]",
+									)}
 								>
 									<button
 										type="button"

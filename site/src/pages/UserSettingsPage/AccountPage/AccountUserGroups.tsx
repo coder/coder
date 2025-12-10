@@ -31,12 +31,7 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 				groups && (
 					<span>
 						You are in{" "}
-						<em
-							css={{
-								color: theme.palette.text.primary,
-							}}
-							className="[font-style:normal] font-semibold"
-						>
+						<em className="text-content-primary [font-style:normal] font-semibold">
 							{groups.length} group
 							{groups.length !== 1 && "s"}
 						</em>

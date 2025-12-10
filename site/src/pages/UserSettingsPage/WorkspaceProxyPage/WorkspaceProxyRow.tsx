@@ -75,12 +75,12 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 					<div className="flex items-center justify-end">{statusBadge}</div>
 				</TableCell>
 				<TableCell
-					css={{
-						color: latency
+					style={{
+						"--latency-color": latency
 							? getLatencyColor(theme, latency.latencyMS)
 							: theme.palette.text.secondary,
 					}}
-					className="text-sm text-right"
+					className="text-sm text-right text-[var(--latency-color)]"
 				>
 					{latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
 				</TableCell>
@@ -108,18 +108,14 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 	proxy,
 	extraWarnings,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<>
 			<ProxyMessagesList
-				title={<span css={{ color: theme.palette.error.light }}>Errors</span>}
+				title={<span className="text-content-destructive">Errors</span>}
 				messages={proxy.status?.report?.errors}
 			/>
 			<ProxyMessagesList
-				title={
-					<span css={{ color: theme.palette.warning.light }}>Warnings</span>
-				}
+				title={<span className="text-content-warning">Warnings</span>}
 				messages={[...(proxy.status?.report?.warnings ?? []), ...extraWarnings]}
 			/>
 		</>
@@ -132,20 +128,12 @@ interface ProxyMessagesListProps {
 }
 
 const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
-	const theme = useTheme();
-
 	if (!messages) {
 		return null;
 	}
 
 	return (
-		<div
-			css={{
-				borderColor: theme.palette.divider,
-				backgroundColor: theme.palette.background.default,
-			}}
-			className="border-0 border-b border-solid py-4 px-16"
-		>
+		<div className="border-0 border-b border-solid py-4 px-16 bg-surface-primary">
 			<div
 				id="nested-list-subheader"
 				className="mb-1 text-[13px] font-semibold"

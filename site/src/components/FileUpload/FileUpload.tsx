@@ -37,11 +37,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 	if (!isUploading && file) {
 		return (
 			<Stack
-				css={(theme) => ({
-					border: `1px solid ${theme.palette.divider}`,
-					background: theme.palette.background.paper,
-				})}
-				className="rounded-lg p-4"
+				className="rounded-lg p-4 border border-solid bg-surface-secondary"
 				direction="row"
 				justifyContent="space-between"
 				alignItems="center"
@@ -62,16 +58,9 @@ export const FileUpload: FC<FileUploadProps> = ({
 		<>
 			<div
 				data-testid="drop-zone"
-				css={[
-					(theme) => css`
-						border: 2px dashed ${theme.palette.divider};
-						&:hover {
-						background-color: ${theme.palette.background.paper};
-						}
-					`,
-				]}
 				className={cn(
 					"flex items-center justify-center rounded-lg p-12 cursor-pointer",
+					"border-2 border-dashed hover:bg-surface-secondary",
 					isUploading && "pointer-events-none opacity-75",
 				)}
 				{...clickable}
@@ -91,12 +80,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 
 					<Stack alignItems="center" spacing={0.5}>
 						<span className="text-base leading-none">{title}</span>
-						<span
-							css={(theme) => ({
-								color: theme.palette.text.secondary,
-							})}
-							className="text-center max-w-[400px] text-sm leading-normal mt-1"
-						>
+						<span className="text-center text-content-secondary max-w-[400px] text-sm leading-normal mt-1">
 							{description}
 						</span>
 					</Stack>

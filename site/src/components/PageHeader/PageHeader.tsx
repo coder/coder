@@ -50,11 +50,8 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 }) => {
 	return (
 		<h2
-			css={(theme) => ({
-				color: theme.palette.text.secondary,
-			})}
 			className={cn(
-				"text-base font-normal block mb-0 leading-[1.4]",
+				"text-base font-normal block mb-0 text-content-secondary leading-[1.4]",
 				condensed && "mt-1",
 				!condensed && "mt-2",
 			)}
@@ -66,15 +63,7 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 
 export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<span
-			css={(theme) => ({
-				fontSize: 12,
-				color: theme.palette.text.secondary,
-				fontWeight: 600,
-				textTransform: "uppercase",
-				letterSpacing: "0.1em",
-			})}
-		>
+		<span className="text-xs text-content-secondary font-semibold uppercase tracking-[0.1em]">
 			{children}
 		</span>
 	);

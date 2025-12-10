@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
@@ -135,12 +134,7 @@ const NotificationsPage: FC = () => {
 							return (
 								<Card variant="outlined" className="bg-transparent" key={group}>
 									<List>
-										<ListItem
-											css={(theme) => ({
-												background: theme.palette.background.paper,
-												borderBottom: `1px solid ${theme.palette.divider}`,
-											})}
-										>
+										<ListItem className="bg-surface-secondary dark:border-surface-quaternary border-0 border-b border-solid">
 											<ListItemIcon>
 												<Switch
 													id={group}
@@ -242,13 +236,7 @@ const NotificationsPage: FC = () => {
 															primary={tmpl.name}
 														/>
 														<ListItemIcon
-															css={(theme) => ({
-																color: theme.palette.text.secondary,
-																"& svg": {
-																	fontSize: "inherit",
-																},
-															})}
-															className="min-w-0 text-xl leading-none"
+															className="min-w-0 text-xl leading-none text-content-secondary [&_svg]:[font-size:inherit]"
 															aria-label="Delivery method"
 														>
 															<Tooltip>

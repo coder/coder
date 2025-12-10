@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import type { FC } from "react";
 import { cn } from "utils/cn";
@@ -21,18 +20,11 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
 	currentOffsetStart,
 	className,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<div
-			css={{
-				color: theme.palette.text.secondary,
-				"& strong": {
-					color: theme.palette.text.primary,
-				},
-			}}
 			className={cn(
 				"flex flex-nowrap items-center m-0 text-[13px] pb-2",
+				"text-content-secondary [&_strong]:text-content-primary",
 				"h-9", // The size of a small button
 				className,
 			)}

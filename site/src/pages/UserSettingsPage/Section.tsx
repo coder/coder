@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import {
 	FeatureStageBadge,
 	type featureStageBadgeTypes,
@@ -37,7 +36,7 @@ export const Section: FC<SectionProps> = ({
 		<section className={className} id={id} data-testid={id}>
 			<div className={cn(layout === "fluid" ? "w-full" : "max-w-[500px]")}>
 				{(title || description) && (
-					<div css={styles.header}>
+					<div className="mb-6 flex flew-row justify-between">
 						<div>
 							{title && (
 								<Stack direction="row" alignItems="center">
@@ -54,10 +53,10 @@ export const Section: FC<SectionProps> = ({
 								</Stack>
 							)}
 							{description && typeof description === "string" && (
-								<p css={styles.description}>{description}</p>
+								<p className={classNames.description}>{description}</p>
 							)}
 							{description && typeof description !== "string" && (
-								<div css={styles.description}>{description}</div>
+								<div className={classNames.description}>{description}</div>
 							)}
 						</div>
 						{toolbar && <div>{toolbar}</div>}
@@ -70,18 +69,6 @@ export const Section: FC<SectionProps> = ({
 	);
 };
 
-const styles = {
-	header: {
-		marginBottom: 24,
-		display: "flex",
-		flexDirection: "row",
-		justifyContent: "space-between",
-	},
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 16,
-		margin: 0,
-		marginTop: 4,
-		lineHeight: "140%",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	description: "text-content-secondary m-0 mt-1 leading-snug",
+};

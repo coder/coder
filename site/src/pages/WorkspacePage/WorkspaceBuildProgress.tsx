@@ -1,5 +1,3 @@
-import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import type { Template, TransitionStats, Workspace } from "api/typesGenerated";
 import dayjs, { type Dayjs } from "dayjs";
@@ -123,7 +121,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 		<div className="px-0.5">
 			{variant === "task" && (
 				<div className="mb-1 text-center">
-					<div css={styles.label} data-chromatic="ignore">
+					<div className={classNames.label} data-chromatic="ignore">
 						{progressText}
 					</div>
 				</div>
@@ -152,10 +150,10 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 			/>
 			{variant !== "task" && (
 				<div className="flex mt-1 justify-between">
-					<div css={styles.label}>
+					<div className={classNames.label}>
 						{capitalize(workspace.latest_build.status)} workspace...
 					</div>
-					<div css={styles.label} data-chromatic="ignore">
+					<div className={classNames.label} data-chromatic="ignore">
 						{progressText}
 					</div>
 				</div>
@@ -165,19 +163,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 };
 
 const classNames = {
-	bar: css`
-    transition: none;
-  `,
-	root: css`
-    border-radius: 0;
-  `,
+	root: "rounded-none",
+	bar: "transition-none",
+	label: "text-xs block font-semibold text-content-secondary leading-loose",
 };
-
-const styles = {
-	label: (theme) => ({
-		fontSize: 12,
-		display: "block",
-		fontWeight: 600,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

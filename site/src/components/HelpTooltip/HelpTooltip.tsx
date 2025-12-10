@@ -75,16 +75,12 @@ export const HelpTooltipIconTrigger = forwardRef<
 				{...buttonProps}
 				aria-label="More info"
 				ref={ref}
-				css={[
-					css`
-						& svg {
-							width: ${getIconSpacingFromSize(size)}px;
-							height: ${getIconSpacingFromSize(size)}px;
-						}
-					`,
-				]}
+				style={{
+					"--icon-spacing": `${getIconSpacingFromSize(size)}px`,
+				}}
 				className={cn(
-					"flex items-center justify-center py-1 px-0 border-none bg-transparent cursor-pointer text-inherit",
+					"flex items-center justify-center py-1 px-0 border-none bg-transparent",
+					"cursor-pointer text-inherit [&_svg]:size-[var(--icon-spacing)]",
 					hoverEffect && "opacity-50 hover:opacity-75",
 					buttonProps.className,
 				)}
@@ -100,7 +96,7 @@ export const HelpTooltipTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	...attrs
 }) => {
 	return (
-		<h4 css={styles.title} {...attrs}>
+		<h4 className={classNames.title} {...attrs}>
 			{children}
 		</h4>
 	);
@@ -111,7 +107,7 @@ export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	...attrs
 }) => {
 	return (
-		<p css={styles.text} {...attrs}>
+		<p className={classNames.text} css={styles.text} {...attrs}>
 			{children}
 		</p>
 	);
@@ -124,8 +120,14 @@ interface HelpTooltipLink {
 
 export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
 	return (
-		<Link href={href} target="_blank" rel="noreferrer" css={styles.link}>
-			<ExternalLinkIcon className="size-icon-xs" css={styles.linkIcon} />
+		<Link
+			href={href}
+			target="_blank"
+			rel="noreferrer"
+			className={classNames.link}
+			css={styles.link}
+		>
+			<ExternalLinkIcon className={classNames.linkIcon} />
 			{children}
 		</Link>
 	);
@@ -148,10 +150,11 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 		<button
 			type="button"
 			aria-label={ariaLabel ?? ""}
+			className={classNames.action}
 			css={styles.action}
 			onClick={onClick}
 		>
-			<Icon css={styles.actionIcon} />
+			<Icon className={classNames.actionIcon} />
 			{children}
 		</button>
 	);
@@ -159,7 +162,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 
 export const HelpTooltipLinksGroup: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack spacing={1} css={styles.linksGroup}>
+		<Stack spacing={1} className={classNames.linksGroup}>
 			{children}
 		</Stack>
 	);
@@ -174,55 +177,26 @@ const getIconSpacingFromSize = (size?: Size): number => {
 	}
 };
 
-const styles = {
-	title: (theme) => ({
-		marginTop: 0,
-		marginBottom: 8,
-		color: theme.palette.text.primary,
-		fontSize: 14,
-		lineHeight: "150%",
-		fontWeight: 600,
-	}),
+const classNames = {
+	title: "mt-0 mb-2 text-content-primary text-sm leading-relaxed font-semibold",
+	text: "my-1",
+	link: "flex items-center",
+	linkIcon: "size-icon-xs mr-2 text-inherit",
+	linksGroup: "mt-4",
+	action:
+		"flex items-center bg-transparent border-none p-0 cursor-pointer text-sm",
+	actionIcon: "text-inherit size-3.5 mr-2",
+};
 
+const styles = {
 	text: (theme) => ({
-		marginTop: 4,
-		marginBottom: 4,
 		...(theme.typography.body2 as CSSObject),
 	}),
-
 	link: (theme) => ({
-		display: "flex",
-		alignItems: "center",
 		...(theme.typography.body2 as CSSObject),
 		color: theme.roles.active.fill.outline,
 	}),
-
-	linkIcon: {
-		color: "inherit",
-		width: 14,
-		height: 14,
-		marginRight: 8,
-	},
-
-	linksGroup: {
-		marginTop: 16,
-	},
-
 	action: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		background: "none",
-		border: 0,
 		color: theme.palette.primary.light,
-		padding: 0,
-		cursor: "pointer",
-		fontSize: 14,
 	}),
-
-	actionIcon: {
-		color: "inherit",
-		width: 14,
-		height: 14,
-		marginRight: 8,
-	},
 } satisfies Record<string, Interpolation<Theme>>;

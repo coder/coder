@@ -1,6 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
 import type { FC, ReactNode } from "react";
+import { cn } from "utils/cn";
 import {
 	Dialog,
 	DialogActionButtons,
@@ -77,58 +77,21 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 
 	return (
 		<Dialog
-			css={(theme) => ({
-				"& .MuiPaper-root": {
-					background: theme.palette.background.paper,
-					border: `1px solid ${theme.palette.divider}`,
-					width: "100%",
-					maxWidth: 440,
-				},
-				"& .MuiDialogActions-spacing": {
-					padding: "0 40px 40px",
-				},
-			})}
+			className={cn(
+				"[&_.MuiPaper-root]:bg-surface-secondary [&_.MuiPaper-root]:border",
+				"[&_.MuiPaper-root]:border-solid [&_.MuiPaper-root]:w-full [&_.MuiPaper-root]:max-w-[440px]",
+				"[&_.MuiDialogActions-spacing]:pt-0 [&_.MuiDialogActions-spacing]:px-10 [&_.MuiDialogActions-spacing]:pb-10",
+			)}
 			onClose={onClose}
 			open={open}
 			data-testid="dialog"
 		>
-			<div
-				css={(theme) => ({
-					color: theme.palette.text.secondary,
-					padding: "40px 40px 20px",
-				})}
-			>
-				<h3
-					css={(theme) => ({
-						margin: 0,
-						marginBottom: 16,
-						color: theme.palette.text.primary,
-						fontWeight: 400,
-						fontSize: 20,
-					})}
-				>
+			<div className="pt-10 px-10 pb-5 text-content-secondary">
+				<h3 className="m-0 mb-4 font-normal text-xl text-content-primary">
 					{title}
 				</h3>
 				{description && (
-					<div
-						css={(theme) => ({
-							color: theme.palette.text.secondary,
-							lineHeight: "160%",
-							fontSize: 16,
-
-							"& strong": {
-								color: theme.palette.text.primary,
-							},
-
-							"& p:not(.MuiFormHelperText-root)": {
-								margin: 0,
-							},
-
-							"& > p": {
-								margin: "8px 0",
-							},
-						})}
-					>
+					<div className="text-content-secondary leading-relaxed text-base [&_strong]:text-content-primary [&_p:not(.MuiFormHelperText-root)]:m-0 [&_>p]:my-2">
 						{description}
 					</div>
 				)}

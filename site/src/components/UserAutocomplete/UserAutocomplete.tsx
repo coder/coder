@@ -160,11 +160,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 					size={size}
 					label={label}
 					placeholder="User email or username"
-					css={{
-						"&:not(:has(label))": {
-							margin: 0,
-						},
-					}}
+					className="[&:not(:has(label))]:m-0"
 					InputProps={{
 						...params.InputProps,
 						onChange: debouncedInputOnChange,

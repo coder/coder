@@ -14,7 +14,7 @@ const meta: Meta<typeof OverflowY> = {
 		children: numbers.map((num, i) => (
 			<p
 				key={num}
-				css={{
+				style={{
 					backgroundColor: i % 2 === 0 ? "white" : "gray",
 				}}
 				className="h-[50px] p-0 m-0 text-black"

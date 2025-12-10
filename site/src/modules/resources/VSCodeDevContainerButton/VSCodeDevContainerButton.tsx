@@ -75,11 +75,10 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 				open={isVariantMenuOpen}
 				anchorEl={menuAnchorRef.current}
 				onClose={() => setIsVariantMenuOpen(false)}
-				css={{
-					"& .MuiMenu-paper": {
-						width: menuAnchorRef.current?.clientWidth,
-					},
+				style={{
+					"--anchor-width": menuAnchorRef.current?.clientWidth,
 				}}
+				className="[&_.MuiMenu-paper]:w-[var(--anchor-width)]"
 			>
 				<MenuItem
 					className="text-sm leading-none"

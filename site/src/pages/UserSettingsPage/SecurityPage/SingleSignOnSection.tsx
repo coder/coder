@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { API } from "api/api";
@@ -17,6 +16,7 @@ import { Stack } from "components/Stack/Stack";
 import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { Section } from "../Section";
 
@@ -133,8 +133,6 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 	isConfirming,
 	error,
 }) => {
-	const theme = useTheme();
-
 	const noSsoEnabled = !authMethods.github.enabled && !authMethods.oidc.enabled;
 
 	return (
@@ -177,18 +175,12 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 						</>
 					) : (
 						<div
-							css={{
-								background: theme.palette.background.paper,
-								border: `1px solid ${theme.palette.divider}`,
-							}}
-							className="text-sm flex items-center gap-4 p-4 rounded-lg"
+							className={cn([
+								"text-sm flex items-center gap-4 p-4 rounded-lg border border-solid",
+								"bg-surface-secondary border-border dark:border-content-disabled",
+							])}
 						>
-							<CircleCheckIcon
-								css={{
-									color: theme.palette.success.light,
-								}}
-								className="size-icon-xs"
-							/>
+							<CircleCheckIcon className="size-icon-xs text-content-success" />
 							<span>
 								Authenticated with{" "}
 								<strong>

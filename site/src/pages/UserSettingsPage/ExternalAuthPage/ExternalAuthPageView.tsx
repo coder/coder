@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {
 	ExternalAuthLink,
@@ -114,7 +113,6 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	onUnlinkExternalAuth,
 	onValidateExternalAuth,
 }) => {
-	const theme = useTheme();
 	const name = app.display_name || app.id || app.type;
 	const authURL = `/external-auth/${app.id}`;
 
@@ -152,9 +150,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 
 					{link?.validate_error && (
 						<span>
-							<span css={{ color: theme.palette.error.light }} className="pl-3">
-								Error:{" "}
-							</span>
+							<span className="pl-3 text-content-destructive">Error: </span>
 							{link?.validate_error}
 						</span>
 					)}

@@ -33,6 +33,7 @@ import {
 	UserLockIcon,
 } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 
@@ -171,10 +172,10 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						</TableCell>
 
 						<TableCell
-							css={[
-								styles.status,
-								user.status === "suspended" && styles.suspended,
-							]}
+							className={cn([
+								"capitalize",
+								user.status === "suspended" && "text-content-secondary",
+							])}
 						>
 							<div>{user.status}</div>
 							{(user.status === "active" || user.status === "dormant") && (
@@ -263,27 +264,27 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 
 	if (value === "password") {
 		displayName = "Password";
-		icon = <UserLockIcon css={styles.icon} />;
+		icon = <UserLockIcon className={classNames.icon} />;
 	} else if (value === "none") {
 		displayName = "None";
-		icon = <BanIcon css={styles.icon} />;
+		icon = <BanIcon className={classNames.icon} />;
 	} else if (value === "github") {
 		displayName = "GitHub";
-		icon = <ExternalImage src="/icon/github.svg" css={styles.icon} />;
+		icon = <ExternalImage src="/icon/github.svg" className={classNames.icon} />;
 	} else if (value === "token") {
 		displayName = "Token";
-		icon = <KeyIcon css={styles.icon} />;
+		icon = <KeyIcon className={classNames.icon} />;
 	} else if (value === "oidc") {
 		displayName =
 			authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText;
 		icon =
 			authMethods.oidc.iconUrl === "" ? (
-				<ShieldIcon css={styles.icon} />
+				<ShieldIcon className={classNames.icon} />
 			) : (
 				<img
 					alt="Open ID Connect icon"
 					src={authMethods.oidc.iconUrl}
-					css={styles.icon}
+					className={classNames.icon}
 				/>
 			);
 	}
@@ -296,17 +297,6 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 	);
 };
 
-const styles = {
-	icon: {
-		width: 14,
-		height: 14,
-	},
-
-	status: {
-		textTransform: "capitalize",
-	},
-
-	suspended: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	icon: "size-3.5",
+};

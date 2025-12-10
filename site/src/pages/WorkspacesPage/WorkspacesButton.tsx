@@ -126,7 +126,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 				<span className="whitespace-nowrap text-ellipsis">
 					{template.display_name || template.name || "[Unnamed]"}
 				</span>
-				<span className="text-content-secondary text-xs">
+				<span className="text-content-secondary text-[13px]">
 					{/*
 					 * There are some templates that have -1 as their user count –
 					 * basically functioning like a null value in JS. Can safely just

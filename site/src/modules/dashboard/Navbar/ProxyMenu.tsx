@@ -63,7 +63,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 			<Skeleton
 				width="110px"
 				height={40}
-				css={{ borderRadius: 6, transform: "none" }}
+				className="rounded-md transform-none"
 			/>
 		);
 	}
@@ -76,7 +76,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				onClick={() => setIsOpen(true)}
 				size="lg"
 			>
-				<span css={{ ...visuallyHidden }}>
+				<span className="sr-only">
 					Latency for {selectedProxy?.display_name ?? "your region"}
 				</span>
 
@@ -106,48 +106,27 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				anchorEl={buttonRef.current}
 				onClick={closeMenu}
 				onClose={closeMenu}
-				css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
 				// autoFocus here does not affect modal focus; it affects whether the
 				// first item in the list will get auto-focus when the menu opens. Have
 				// to turn this off because otherwise, screen readers will skip over all
 				// the descriptive text and will only have access to the latency options
 				autoFocus={false}
-				className="z-0"
+				className="z-0 [&_.MuiMenu-paper]:py-2"
 			>
 				{proxyContextValue.proxies &&
 					proxyContextValue.proxies.length > 1 && [
 						<div
 							key="description"
-							css={{
-								width: "100%",
-								maxWidth: "320px",
-								fontSize: 14,
-								padding: 16,
-								lineHeight: "140%",
-							}}
+							className="w-full max-w-[320px] font-size-sm p-4 leading-snug"
 						>
 							<h4
 								tabIndex={-1}
-								css={{
-									fontSize: "inherit",
-									fontWeight: 600,
-									lineHeight: "inherit",
-									margin: 0,
-									marginBottom: 4,
-								}}
+								className="[font-size:inherit] font-semibold [line-height:inherit] m-0 mb-1"
 							>
 								Select a region nearest to you
 							</h4>
 
-							<p
-								css={{
-									fontSize: 13,
-									color: theme.palette.text.secondary,
-									lineHeight: "inherit",
-									marginTop: 0.5,
-									marginBottom: 0,
-								}}
-							>
+							<p className="font-[13px] text-content-secondary [line-height:inherit] mb-0 mt-[0.5px]">
 								Workspace proxies improve terminal and web app connections to
 								workspaces. This does not apply to{" "}
 								<Abbr title="Command-Line Interface" pronunciation="initialism">
@@ -204,7 +183,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
 				{Boolean(permissions.editWorkspaceProxies) && (
 					<MenuItem
-						css={{ fontSize: 14 }}
+						className="text-sm"
 						onClick={() => {
 							navigate("/deployment/workspace-proxies");
 						}}
@@ -214,7 +193,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm"
 					onClick={(e) => {
 						// Stop the menu from closing
 						e.stopPropagation();

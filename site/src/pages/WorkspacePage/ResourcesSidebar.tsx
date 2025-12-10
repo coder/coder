@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import type { WorkspaceResource } from "api/typesGenerated";
 import {
@@ -7,6 +6,7 @@ import {
 	SidebarItem,
 } from "components/FullPageLayout/Sidebar";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { getResourceIconPath } from "utils/workspace";
 
 type ResourcesSidebarProps = {
@@ -43,7 +43,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					onClick={() => onChange(r)}
 					isActive={isSelected(r)}
 					key={r.id}
-					css={styles.root}
+					className={classNames.root}
 				>
 					<div className="flex items-center justify-center leading-[0] w-4 h-4 p-0.5">
 						<img
@@ -66,7 +66,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 
 const ResourceSidebarItemSkeleton: FC = () => {
 	return (
-		<div css={[styles.root, { pointerEvents: "none" }]}>
+		<div className={cn([classNames.root, "pointer-events-none"])}>
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
@@ -76,11 +76,6 @@ const ResourceSidebarItemSkeleton: FC = () => {
 	);
 };
 
-const styles = {
-	root: {
-		lineHeight: "1.5",
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	root: "leading-normal flex items-center gap-3",
+};

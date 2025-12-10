@@ -30,7 +30,10 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 				size="small"
 				className="opacity-100 hover:opacity-100"
 			>
-				<HelpTooltipIcon css={{ color: iconColor }} />
+				<HelpTooltipIcon
+					style={{ "--icon-color": iconColor }}
+					className="text-[var(--icon-color)]"
+				/>
 			</HelpTooltipIconTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{title}</HelpTooltipTitle>
