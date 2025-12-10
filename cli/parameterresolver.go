@@ -34,6 +34,7 @@ type ParameterResolver struct {
 
 	promptRichParameters      bool
 	promptEphemeralParameters bool
+	nonInteractive            bool
 }
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
@@ -83,6 +84,11 @@ func (pr *ParameterResolver) WithPromptRichParameters(promptRichParameters bool)
 
 func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParameters bool) *ParameterResolver {
 	pr.promptEphemeralParameters = promptEphemeralParameters
+	return pr
+}
+
+func (pr *ParameterResolver) WithNonInteractive(nonInteractive bool) *ParameterResolver {
+	pr.nonInteractive = nonInteractive
 	return pr
 }
 
@@ -250,18 +256,39 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		if p != nil {
 			continue
 		}
-		// PreviewParameter has not been resolved yet, so CLI needs to determine if user should input it.
+		// Parameter has not been resolved yet, so CLI needs to determine if user should input it.
 
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 		promptParameterOption := pr.isLastBuildParameterInvalidOption(tvp)
 
-		if (tvp.Ephemeral && pr.promptEphemeralParameters) ||
+		needsInput := (tvp.Ephemeral && pr.promptEphemeralParameters) ||
 			(action == WorkspaceCreate && tvp.Required) ||
 			(action == WorkspaceCreate && !tvp.Ephemeral) ||
 			(action == WorkspaceUpdate && promptParameterOption) ||
 			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
-			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
+			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters)
+
+		if needsInput {
+			// In non-interactive mode, use default values or fail if required without default.
+			if pr.nonInteractive {
+				if tvp.DefaultValue != "" {
+					// Use default value
+					resolved = append(resolved, codersdk.WorkspaceBuildParameter{
+						Name:  tvp.Name,
+						Value: tvp.DefaultValue,
+					})
+				} else if tvp.Required {
+					// Required parameter with no default - fail
+					return nil, xerrors.Errorf(
+						"parameter %q is required but has no default value; provide it with --parameter %s=<value>",
+						tvp.Name, tvp.Name)
+				}
+				// Optional parameter with no default - skip (will use empty/server default)
+				continue
+			}
+
+			// Interactive mode - prompt user for input
 			parameterValue, err := cliui.RichParameter(inv, tvp, pr.richParametersDefaults)
 			if err != nil {
 				return nil, err

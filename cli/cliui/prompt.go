@@ -31,13 +31,14 @@ type PromptOptions struct {
 
 const skipPromptFlag = "yes"
 
-// SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
-// prompts.
+// SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to run
+// in non-interactive mode. When enabled, prompts are skipped, default values
+// are used where available, and the command fails if required inputs are missing.
 func SkipPromptOption() serpent.Option {
 	return serpent.Option{
 		Flag:          skipPromptFlag,
 		FlagShorthand: "y",
-		Description:   "Bypass prompts.",
+		Description:   "Run in non-interactive mode. Accepts default values and fails on required inputs.",
 		// Discard
 		Value: serpent.BoolOf(new(bool)),
 	}

@@ -18,7 +18,8 @@ OPTIONS:
           the template version to pull.
 
   -y, --yes bool
-          Bypass prompts.
+          Run in non-interactive mode. Accepts default values and fails on
+          required inputs.
 
       --zip bool
           Output the template as a zip archive to stdout.

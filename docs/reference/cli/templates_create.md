@@ -102,7 +102,7 @@ Requires workspace builds to use the active template version. This setting does 
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Run in non-interactive mode. Accepts default values and fails on required inputs.
 
 ### -O, --org
 

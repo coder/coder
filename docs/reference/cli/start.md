@@ -25,7 +25,7 @@ Return immediately after starting the workspace.
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Run in non-interactive mode. Accepts default values and fails on required inputs.
 
 ### --build-option
 

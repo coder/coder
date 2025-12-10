@@ -17,4 +17,4 @@ coder autoupdate [flags] <workspace> <always|never>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Run in non-interactive mode. Accepts default values and fails on required inputs.

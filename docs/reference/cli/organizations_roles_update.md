@@ -25,7 +25,7 @@ coder organizations roles update [flags] <role_name>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Run in non-interactive mode. Accepts default values and fails on required inputs.
 
 ### --dry-run
 

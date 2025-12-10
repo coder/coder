@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -14,6 +15,10 @@ import (
 type ExternalAuthOptions struct {
 	Fetch         func(context.Context) ([]codersdk.TemplateVersionExternalAuth, error)
 	FetchInterval time.Duration
+	// NonInteractive, when true, will cause the function to fail immediately
+	// if required external authentication is not already complete, rather than
+	// waiting for the user to authenticate via browser.
+	NonInteractive bool
 }
 
 func ExternalAuth(ctx context.Context, writer io.Writer, opts ExternalAuthOptions) error {
@@ -39,6 +44,14 @@ func ExternalAuth(ctx context.Context, writer io.Writer, opts ExternalAuthOption
 		}
 		if auth.Optional {
 			continue
+		}
+
+		// In non-interactive mode, fail immediately if required auth is missing.
+		if opts.NonInteractive {
+			return xerrors.Errorf(
+				"external authentication with %q is required but not authenticated; "+
+					"authenticate via browser first or ensure the template marks it as optional",
+				auth.DisplayName)
 		}
 
 		_, _ = fmt.Fprintf(writer, "You must authenticate with %s to create a workspace with this template. Visit:\n\n\t%s\n\n", auth.DisplayName, auth.AuthenticateURL)
