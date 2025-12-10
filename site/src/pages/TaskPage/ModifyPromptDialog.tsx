@@ -1,11 +1,7 @@
 import { API } from "api/api";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import {
-	AITaskPromptParameterName,
-	type Task,
-	type Workspace,
-} from "api/typesGenerated";
+import type { Task, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import {
@@ -21,7 +17,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Textarea } from "components/Textarea/Textarea";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
 type ModifyPromptDialogProps = {
