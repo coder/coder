@@ -2668,8 +2668,6 @@ func convertWorkspace(
 		appStatus = nil
 	}
 
-	sharedWith := sharedWorkspaceActors(ctx, experiments, logger, workspace)
-
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -2706,10 +2704,7 @@ func convertWorkspace(
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
 		TaskID:           workspace.TaskID,
-		// TODO(geokat): using a pointer that's serialized with
-		// "omitempty" so that we can hide it behind an experiment. This
-		// won't be necessary once workspace sharing is in GA.
-		SharedWith: sharedWith,
+		SharedWith:       sharedWorkspaceActors(ctx, experiments, logger, workspace),
 	}, nil
 }
 
@@ -2718,7 +2713,7 @@ func sharedWorkspaceActors(
 	experiments codersdk.Experiments,
 	logger slog.Logger,
 	workspace database.Workspace,
-) *[]codersdk.SharedWorkspaceActor {
+) []codersdk.SharedWorkspaceActor {
 	if !experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
 		return nil
 	}
@@ -2759,7 +2754,7 @@ func sharedWorkspaceActors(
 		})
 	}
 
-	return &out
+	return out
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {

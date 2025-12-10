@@ -4481,65 +4481,6 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 func TestWorkspacesSharedWith(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NilWhenExperimentDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		client, db, user := coderdenttest.NewWithDatabase(t, nil)
-
-		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        workspaceOwner.ID,
-			OrganizationID: user.OrganizationID,
-		}).Do().Workspace
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		// Fetch via single workspace endpoint
-		ws, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.Nil(t, ws.SharedWith, "SharedWith should be nil when experiment is disabled")
-
-		// Fetch via list endpoint
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.Nil(t, workspaces.Workspaces[0].SharedWith, "SharedWith should be nil when experiment is disabled")
-	})
-
-	t.Run("EmptyWhenNoACLs", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
-		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-				},
-			},
-		})
-
-		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        workspaceOwner.ID,
-			OrganizationID: user.OrganizationID,
-		}).Do().Workspace
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.NotNil(t, workspaces.Workspaces[0].SharedWith)
-		require.Empty(t, *workspaces.Workspaces[0].SharedWith, "SharedWith should be empty when no ACLs exist")
-	})
-
 	t.Run("ContainsActorsWithFullData", func(t *testing.T) {
 		t.Parallel()
 
@@ -4600,9 +4541,9 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
 		require.NotNil(t, workspaces.Workspaces[0].SharedWith)
-		require.Len(t, *workspaces.Workspaces[0].SharedWith, 2)
+		require.Len(t, workspaces.Workspaces[0].SharedWith, 2)
 
-		sharedWith := *workspaces.Workspaces[0].SharedWith
+		sharedWith := workspaces.Workspaces[0].SharedWith
 
 		// Find user actor in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
@@ -4687,9 +4628,9 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		ws, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.NotNil(t, ws.SharedWith)
-		require.Len(t, *ws.SharedWith, 2)
+		require.Len(t, ws.SharedWith, 2)
 
-		sharedWith := *ws.SharedWith
+		sharedWith := ws.SharedWith
 
 		// Find user actor in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor

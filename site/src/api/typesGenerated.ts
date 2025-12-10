@@ -5957,7 +5957,7 @@ export interface Workspace {
 	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	 */
 	readonly task_id?: string;
-	readonly shared_with?: SharedWorkspaceActor[];
+	readonly shared_with?: readonly SharedWorkspaceActor[];
 }
 
 // From codersdk/workspaces.go
