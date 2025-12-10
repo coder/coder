@@ -708,25 +708,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		stage = "Detecting ephemeral resources"
 	}
 
-	// use the notStopped so that if we attempt to gracefully cancel, the stream will still be available for us
-	// to send the cancel to the provisioner
-	nevermind := make(chan struct{})
-	defer close(nevermind)
-	go func() {
-		select {
-		case <-nevermind:
-			return
-		case <-r.notStopped.Done():
-			return
-		case <-r.notCanceled.Done():
-			_ = r.session.Send(&sdkproto.Request{
-				Type: &sdkproto.Request_Cancel{
-					Cancel: &sdkproto.CancelRequest{},
-				},
-			})
-		}
-	}()
-
 	planComplete, failed := r.plan(ctx, stage, &sdkproto.PlanRequest{
 		Metadata:                metadata,
 		RichParameterValues:     richParameterValues,
@@ -840,63 +821,6 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}, nil
 }
 
-func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto.Request) (
-	*sdkproto.Response, *proto.FailedJob,
-) {
-	// use the notStopped so that if we attempt to gracefully cancel, the stream
-	// will still be available for us to send the cancel to the provisioner
-	err := r.session.Send(req)
-	if err != nil {
-		return nil, r.failedWorkspaceBuildf("start provision: %s", err)
-	}
-	nevermind := make(chan struct{})
-	defer close(nevermind)
-	go func() {
-		select {
-		case <-nevermind:
-			return
-		case <-r.notStopped.Done():
-			return
-		case <-r.notCanceled.Done():
-			_ = r.session.Send(&sdkproto.Request{
-				Type: &sdkproto.Request_Cancel{
-					Cancel: &sdkproto.CancelRequest{},
-				},
-			})
-		}
-	}()
-
-	for {
-		msg, err := r.session.Recv()
-		if err != nil {
-			return nil, r.failedWorkspaceBuildf("recv workspace provision: %s", err)
-		}
-		switch msgType := msg.Type.(type) {
-		case *sdkproto.Response_Log:
-			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
-				slog.F("level", msgType.Log.Level),
-				slog.F("output", msgType.Log.Output),
-				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
-			)
-
-			r.queueLog(ctx, &proto.Log{
-				Source:    proto.LogSource_PROVISIONER,
-				Level:     msgType.Log.Level,
-				CreatedAt: time.Now().UnixMilli(),
-				Output:    msgType.Log.Output,
-				Stage:     stage,
-			})
-		case *sdkproto.Response_DataUpload:
-			continue // Only for template imports
-		case *sdkproto.Response_ChunkPiece:
-			continue // Only for template imports
-		default:
-			// Stop looping!
-			return msg, nil
-		}
-	}
-}
-
 func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
 	r.logger.Debug(ctx, "committing quota",
 		slog.F("cost", cost),
@@ -908,8 +832,7 @@ func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
 	const stage = "Commit quota"
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-		JobId: r.job.JobId,
-		// #nosec G115 - Safe conversion as cost is expected to be within int32 range for provisioning costs
+		JobId:     r.job.JobId,
 		DailyCost: cost,
 	})
 	if err != nil {
@@ -978,6 +901,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		return nil, failedJob
 	}
 
+	// timings collects all timings from each phase of the build
+	timings := make([]*sdkproto.Timing, 0)
+
 	// Initialize the Terraform working directory
 	initComplete, failedJob := r.init(ctx, true, r.job.GetTemplateSourceArchive())
 	if failedJob != nil {
@@ -986,8 +912,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if initComplete == nil {
 		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during init")
 	}
+	// Collect init timings
+	timings = append(timings, initComplete.Timings...)
 	if initComplete.Error != "" {
-		r.logger.Warn(context.Background(), "plan request failed",
+		r.logger.Warn(context.Background(), "init request failed",
 			slog.F("error", initComplete.Error),
 		)
 
@@ -995,7 +923,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			JobId: r.job.JobId,
 			Error: initComplete.Error,
 			Type: &proto.FailedJob_WorkspaceBuild_{
-				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{},
+				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+					State:   r.job.GetWorkspaceBuild().State,
+					Timings: timings,
+				},
 			},
 		}
 	}
@@ -1015,6 +946,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if planComplete == nil {
 		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during plan")
 	}
+	// Collect plan timings
+	timings = append(timings, planComplete.Timings...)
 	if planComplete.Error != "" {
 		r.logger.Warn(context.Background(), "plan request failed",
 			slog.F("error", planComplete.Error),
@@ -1024,7 +957,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			JobId: r.job.JobId,
 			Error: planComplete.Error,
 			Type: &proto.FailedJob_WorkspaceBuild_{
-				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{},
+				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+					Timings: timings,
+				},
 			},
 		}
 	}
@@ -1051,54 +986,17 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 
-	resp, failed := r.buildWorkspace(ctx, applyStage, &sdkproto.Request{
-		Type: &sdkproto.Request_Apply{
-			Apply: &sdkproto.ApplyRequest{
-				Metadata: r.job.GetWorkspaceBuild().Metadata,
-			},
-		},
-	})
-	if failed != nil {
-		return nil, failed
-	}
-	applyComplete := resp.GetApply()
-	if applyComplete == nil {
-		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
-	}
-
-	// Run Terraform Graph
-	graphComplete, failed := r.graph(ctx, &sdkproto.GraphRequest{
+	applyComplete, failed := r.apply(ctx, applyStage, &sdkproto.ApplyRequest{
 		Metadata: r.job.GetWorkspaceBuild().Metadata,
-		Source:   sdkproto.GraphSource_SOURCE_STATE,
 	})
 	if failed != nil {
 		return nil, failed
 	}
-	if graphComplete == nil {
-		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
+	if applyComplete == nil {
+		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during apply")
 	}
-	if graphComplete.Error != "" {
-		r.logger.Warn(context.Background(), "graph request failed",
-			slog.F("error", planComplete.Error),
-		)
-
-		return nil, &proto.FailedJob{
-			JobId: r.job.JobId,
-			Error: graphComplete.Error,
-			Type: &proto.FailedJob_WorkspaceBuild_{
-				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{},
-			},
-		}
-	}
-
-	// Prepend the plan timings (since they occurred first).
-	// Build up the full timing list in chronological order.
-	timings := make([]*sdkproto.Timing, 0, len(initComplete.Timings)+len(planComplete.Timings)+len(applyComplete.Timings)+len(graphComplete.Timings))
-	timings = append(timings, initComplete.Timings...)
-	timings = append(timings, planComplete.Timings...)
+	// Collect apply timings
 	timings = append(timings, applyComplete.Timings...)
-	timings = append(timings, graphComplete.Timings...)
-
 	if applyComplete.Error != "" {
 		r.logger.Warn(context.Background(), "apply failed; updating state",
 			slog.F("error", applyComplete.Error),
@@ -1110,6 +1008,37 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			Error: applyComplete.Error,
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+					State:   applyComplete.State,
+					Timings: timings,
+				},
+			},
+		}
+	}
+
+	// Run Terraform Graph
+	graphComplete, failed := r.graph(ctx, &sdkproto.GraphRequest{
+		Metadata: r.job.GetWorkspaceBuild().Metadata,
+		Source:   sdkproto.GraphSource_SOURCE_STATE,
+	})
+	if failed != nil {
+		return nil, failed
+	}
+	if graphComplete == nil {
+		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during graph")
+	}
+	// Collect graph timings
+	timings = append(timings, graphComplete.Timings...)
+	if graphComplete.Error != "" {
+		r.logger.Warn(context.Background(), "graph request failed",
+			slog.F("error", planComplete.Error),
+		)
+
+		return nil, &proto.FailedJob{
+			JobId: r.job.JobId,
+			Error: graphComplete.Error,
+			Type: &proto.FailedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+					// Graph does not change the state, so return the state returned from apply.
 					State:   applyComplete.State,
 					Timings: timings,
 				},
@@ -1131,7 +1060,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				State:     applyComplete.State,
 				Resources: graphComplete.Resources,
 				Timings:   timings,
-				Modules:   initComplete.Modules,
+				// Modules files are omitted for workspace builds, but the modules.json metadata
+				// is available from init to return.
+				Modules: initComplete.Modules,
 				// Resource replacements are discovered at plan time, only.
 				ResourceReplacements: planComplete.ResourceReplacements,
 				AiTasks:              graphComplete.AiTasks,
