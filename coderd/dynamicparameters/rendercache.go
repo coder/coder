@@ -15,9 +15,9 @@ import (
 	"github.com/coder/quartz"
 )
 
-// RenderCache is a simple in-memory cache for preview.Preview results.
+// RenderCacheImpl is a simple in-memory cache for preview.Preview results.
 // It caches based on (templateVersionID, ownerID, parameterValues).
-type RenderCache struct {
+type RenderCacheImpl struct {
 	mu      sync.RWMutex
 	entries map[cacheKey]*cacheEntry
 
@@ -46,17 +46,17 @@ type cacheKey struct {
 }
 
 // NewRenderCache creates a new render cache with a default TTL of 1 hour.
-func NewRenderCache() *RenderCache {
+func NewRenderCache() *RenderCacheImpl {
 	return newRenderCache(quartz.NewReal(), time.Hour, nil, nil, nil)
 }
 
 // NewRenderCacheWithMetrics creates a new render cache with Prometheus metrics.
-func NewRenderCacheWithMetrics(cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCache {
+func NewRenderCacheWithMetrics(cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCacheImpl {
 	return newRenderCache(quartz.NewReal(), time.Hour, cacheHits, cacheMisses, cacheSize)
 }
 
-func newRenderCache(clock quartz.Clock, ttl time.Duration, cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCache {
-	c := &RenderCache{
+func newRenderCache(clock quartz.Clock, ttl time.Duration, cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCacheImpl {
+	c := &RenderCacheImpl{
 		entries:     make(map[cacheKey]*cacheEntry),
 		clock:       clock,
 		cacheHits:   cacheHits,
@@ -74,19 +74,19 @@ func newRenderCache(clock quartz.Clock, ttl time.Duration, cacheHits, cacheMisse
 }
 
 // NewRenderCacheForTest creates a new render cache for testing purposes.
-func NewRenderCacheForTest() *RenderCache {
+func NewRenderCacheForTest() *RenderCacheImpl {
 	return NewRenderCache()
 }
 
 // Close stops the cleanup goroutine and waits for it to finish.
-func (c *RenderCache) Close() {
+func (c *RenderCacheImpl) Close() {
 	c.stopOnce.Do(func() {
 		close(c.stopCh)
 		<-c.doneCh
 	})
 }
 
-func (c *RenderCache) get(templateVersionID, ownerID uuid.UUID, parameters map[string]string) (*preview.Output, bool) {
+func (c *RenderCacheImpl) get(templateVersionID, ownerID uuid.UUID, parameters map[string]string) (*preview.Output, bool) {
 	key := c.makeKey(templateVersionID, ownerID, parameters)
 	c.mu.RLock()
 	entry, ok := c.entries[key]
@@ -122,7 +122,7 @@ func (c *RenderCache) get(templateVersionID, ownerID uuid.UUID, parameters map[s
 	return entry.output, true
 }
 
-func (c *RenderCache) put(templateVersionID, ownerID uuid.UUID, parameters map[string]string, output *preview.Output) {
+func (c *RenderCacheImpl) put(templateVersionID, ownerID uuid.UUID, parameters map[string]string, output *preview.Output) {
 	key := c.makeKey(templateVersionID, ownerID, parameters)
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -138,7 +138,7 @@ func (c *RenderCache) put(templateVersionID, ownerID uuid.UUID, parameters map[s
 	}
 }
 
-func (c *RenderCache) makeKey(templateVersionID, ownerID uuid.UUID, parameters map[string]string) cacheKey {
+func (c *RenderCacheImpl) makeKey(templateVersionID, ownerID uuid.UUID, parameters map[string]string) cacheKey {
 	return cacheKey{
 		templateVersionID: templateVersionID,
 		ownerID:          ownerID,
@@ -172,7 +172,7 @@ func hashParameters(params map[string]string) string {
 }
 
 // cleanupLoop runs periodically to remove expired cache entries.
-func (c *RenderCache) cleanupLoop(ctx context.Context) {
+func (c *RenderCacheImpl) cleanupLoop(ctx context.Context) {
 	defer close(c.doneCh)
 
 	// Run cleanup every 15 minutes
@@ -199,7 +199,7 @@ func (c *RenderCache) cleanupLoop(ctx context.Context) {
 }
 
 // cleanup removes expired entries from the cache.
-func (c *RenderCache) cleanup() {
+func (c *RenderCacheImpl) cleanup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

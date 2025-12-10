@@ -61,7 +61,7 @@ type StoreReconciler struct {
 	reconciliationDuration prometheus.Histogram
 
 	// renderCache caches template rendering results to avoid expensive re-parsing
-	renderCache *dynamicparameters.RenderCache
+	renderCache *dynamicparameters.RenderCacheImpl
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}

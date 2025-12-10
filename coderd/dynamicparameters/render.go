@@ -35,6 +35,23 @@ type Renderer interface {
 
 var ErrTemplateVersionNotReady = xerrors.New("template version job not finished")
 
+// RenderCache is an interface for caching preview.Preview results.
+type RenderCache interface {
+	get(templateVersionID, ownerID uuid.UUID, parameters map[string]string) (*preview.Output, bool)
+	put(templateVersionID, ownerID uuid.UUID, parameters map[string]string, output *preview.Output)
+}
+
+// noopRenderCache is a no-op implementation of RenderCache that doesn't cache anything.
+type noopRenderCache struct{}
+
+func (noopRenderCache) get(uuid.UUID, uuid.UUID, map[string]string) (*preview.Output, bool) {
+	return nil, false
+}
+
+func (noopRenderCache) put(uuid.UUID, uuid.UUID, map[string]string, *preview.Output) {
+	// no-op
+}
+
 // loader is used to load the necessary coder objects for rendering a template
 // version's parameters. The output is a Renderer, which is the object that uses
 // the cached objects to render the template version's parameters.
@@ -48,7 +65,7 @@ type loader struct {
 	templateVariableValues *[]database.TemplateVersionVariable
 
 	// renderCache caches preview.Preview results
-	renderCache *RenderCache
+	renderCache RenderCache
 }
 
 // Prepare is the entrypoint for this package. It loads the necessary objects &
@@ -57,6 +74,7 @@ type loader struct {
 func Prepare(ctx context.Context, db database.Store, cache files.FileAcquirer, versionID uuid.UUID, options ...func(r *loader)) (Renderer, error) {
 	l := &loader{
 		templateVersionID: versionID,
+		renderCache:       noopRenderCache{},
 	}
 
 	for _, opt := range options {
@@ -94,7 +112,7 @@ func WithTerraformValues(values database.TemplateVersionTerraformValue) func(r *
 	}
 }
 
-func WithRenderCache(cache *RenderCache) func(r *loader) {
+func WithRenderCache(cache RenderCache) func(r *loader) {
 	return func(r *loader) {
 		r.renderCache = cache
 	}
@@ -237,11 +255,9 @@ type dynamicRenderer struct {
 }
 
 func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
-	// Check cache first if available
-	if r.data.renderCache != nil {
-		if cached, ok := r.data.renderCache.get(r.data.templateVersionID, ownerID, values); ok {
-			return cached, nil
-		}
+	// Check cache first
+	if cached, ok := r.data.renderCache.get(r.data.templateVersionID, ownerID, values); ok {
+		return cached, nil
 	}
 
 	// Always start with the cached error, if we have one.
@@ -277,8 +293,8 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 
 	output, diags := preview.Preview(ctx, input, r.templateFS)
 
-	// Store in cache if successful and cache is available
-	if r.data.renderCache != nil && !diags.HasErrors() {
+	// Store in cache if successful
+	if !diags.HasErrors() {
 		r.data.renderCache.put(r.data.templateVersionID, ownerID, values, output)
 	}
 

@@ -89,7 +89,7 @@ type Builder struct {
 	workspaceTags                        *map[string]string
 
 	// renderCache caches template rendering results
-	renderCache *dynamicparameters.RenderCache
+	renderCache *dynamicparameters.RenderCacheImpl
 
 	prebuiltWorkspaceBuildStage  sdkproto.PrebuiltWorkspaceBuildStage
 	verifyNoLegacyParametersOnce bool
@@ -258,7 +258,7 @@ func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
 
 // RenderCache sets the render cache to use for template rendering.
 // This allows multiple workspace builds to share cached render results.
-func (b Builder) RenderCache(cache *dynamicparameters.RenderCache) Builder {
+func (b Builder) RenderCache(cache *dynamicparameters.RenderCacheImpl) Builder {
 	// nolint: revive
 	b.renderCache = cache
 	return b
