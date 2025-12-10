@@ -10,7 +10,9 @@ const fileTree: FileTree = {
 	"outputs.tf": "output my_output {}",
 	"README.md": "# Example\n\nThis is an example.",
 	"install.sh": "#!/bin/bash\necho 'Installing...'",
-	"config.txt": "key=value",
+	"config.json": '{"name": "example"}',
+	"docker-compose.yml": "version: '3'",
+	Dockerfile: "FROM ubuntu:latest",
 	"app.py": "print('Hello')",
 	folder: {
 		"nested.tf": "resource aws_instance my_instance {}",
