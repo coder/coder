@@ -7,6 +7,7 @@ on:
 permissions:
   issues: write
   contents: read
+  id-token: write
 
 jobs:
   classify:
@@ -14,149 +15,91 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Classify Issue Severity with Claude
-        uses: actions/github-script@v7
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: anthropics/claude-code-action@v1
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const issue = context.payload.issue;
-            const apiKey = process.env.ANTHROPIC_API_KEY;
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPOSITORY: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            ISSUE TITLE: ${{ github.event.issue.title }}
+            ISSUE BODY:
+            ${{ github.event.issue.body }}
+            AUTHOR: ${{ github.event.issue.user.login }}
 
-            if (!apiKey) {
-              core.setFailed('ANTHROPIC_API_KEY secret is not configured');
-              return;
-            }
+            ---
 
-            // Define severity criteria
-            const severityCriteria = {
-              s0: "Entire product and/or major feature (Tasks, Bridge, Boundaries, etc.) is broken in a way that makes it unusable for majority to all customers",
-              s1: "Core feature is broken without a workaround for limited number of customers",
-              s2: "Broken use cases or features with a workaround",
-              s3: "Issues that impair usability, cause incorrect behavior in non-critical areas, or degrade the experience, but do not block core workflows",
-              s4: "Bugs that confuse or annoy or are purely cosmetic, e.g. we don't plan on addressing them"
-            };
+            You are an expert software engineer triaging customer-reported issues for Coder, a cloud development environment platform.
 
-            // Prepare the prompt for Claude
-            const systemPrompt = `You are an expert software engineer triaging customer-reported issues for Coder, a cloud development environment platform. Your job is to carefully analyze issue reports and classify them by severity.
+            Your task is to carefully analyze the issue above and classify it into one of the following severity levels. **This requires deep reasoning and thoughtful analysis** - not just keyword matching.
 
-            Customers often overstate the severity of issues, so you need to read between the lines and assess the actual impact based on:
-            - What functionality is actually broken
-            - How many users are affected
-            - Whether there are workarounds
-            - Whether it blocks critical workflows
-            - The overall business impact
+            ## Severity Level Definitions
 
-            Severity Levels:
-            - s0: ${severityCriteria.s0}
-            - s1: ${severityCriteria.s1}
-            - s2: ${severityCriteria.s2}
-            - s3: ${severityCriteria.s3}
-            - s4: ${severityCriteria.s4}
+            - **s0**: Entire product and/or major feature (Tasks, Bridge, Boundaries, etc.) is broken in a way that makes it unusable for majority to all customers
 
-            Respond ONLY with a JSON object in this exact format:
-            {
-              "severity": "s0|s1|s2|s3|s4",
-              "reasoning": "2-3 sentences explaining your assessment"
-            }`;
+            - **s1**: Core feature is broken without a workaround for limited number of customers
 
-            const userPrompt = `Analyze this issue and classify its severity:
+            - **s2**: Broken use cases or features with a workaround
 
-            Title: ${issue.title}
+            - **s3**: Issues that impair usability, cause incorrect behavior in non-critical areas, or degrade the experience, but do not block core workflows
 
-            Description:
-            ${issue.body || 'No description provided'}
+            - **s4**: Bugs that confuse or annoy or are purely cosmetic, e.g. we don't plan on addressing them
 
-            Consider:
-            - What is actually broken vs. what the customer claims
-            - How many users are realistically affected
-            - Whether workarounds exist
-            - Whether this blocks critical workflows
-            - The actual business impact`;
+            ## Analysis Framework
 
-            try {
-              // Call Claude API
-              const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-api-key': apiKey,
-                  'anthropic-version': '2023-06-01'
-                },
-                body: JSON.stringify({
-                  model: 'claude-3-5-sonnet-20241022',
-                  max_tokens: 1024,
-                  system: systemPrompt,
-                  messages: [
-                    {
-                      role: 'user',
-                      content: userPrompt
-                    }
-                  ]
-                })
-              });
+            Customers often overstate the severity of issues. You need to read between the lines and assess the **actual impact** by reasoning through:
 
-              if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Claude API error: ${response.status} - ${errorText}`);
-              }
+            1. **What is actually broken?**
+               - Distinguish between what the customer *says* is broken vs. what is *actually* broken
+               - Is this a complete failure or a partial degradation?
+               - Does the error message or symptom indicate a critical vs. minor issue?
 
-              const data = await response.json();
-              const content = data.content[0].text;
+            2. **How many users are affected?**
+               - Is this affecting all customers, many customers, or a specific edge case?
+               - Does the issue description suggest widespread impact or isolated incident?
+               - Are there environmental factors that limit the scope?
 
-              // Parse the JSON response
-              const result = JSON.parse(content);
-              const severity = result.severity;
-              const reasoning = result.reasoning;
+            3. **Are there workarounds?**
+               - Can users accomplish their goal through an alternative path?
+               - Is there a manual process or configuration change that resolves it?
+               - Even if not mentioned, do you suspect a workaround exists?
 
-              // Validate severity
-              if (!['s0', 's1', 's2', 's3', 's4'].includes(severity)) {
-                throw new Error(`Invalid severity level: ${severity}`);
-              }
+            4. **Does it block critical workflows?**
+               - Can users still perform their core job functions?
+               - Is this interrupting active development work or just an inconvenience?
+               - What is the business impact if this remains unresolved?
 
-              // Post comment on the issue
-              const comment = `## 🤖 Automated Severity Classification
+            5. **What is the realistic urgency?**
+               - Does this need immediate attention or can it wait?
+               - Is this a regression or long-standing issue?
+               - What's the actual business risk?
 
-**Severity Level:** \`${severity.toUpperCase()}\`
+            ## Your Task
 
-**Analysis:** ${reasoning}
+            1. **Think deeply** about this issue using the framework above
+            2. **Reason through** each of the 5 analysis points
+            3. **Compare** the issue against all 5 severity levels (s0-s4)
+            4. **Determine** which severity level best matches the actual impact
+            5. **Post a comment** on the issue with your assessment
 
----
-*This classification was performed by AI analysis of the issue description. Please review and adjust the severity label if needed.*`;
+            Use the GitHub CLI to post your comment in this **exact format**:
 
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number,
-                body: comment
-              });
+            ```bash
+            gh issue comment ${{ github.event.issue.number }} --body "## 🤖 Automated Severity Classification
 
-              // Add severity label
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number,
-                labels: [severity]
-              });
+            **Recommended Severity:** \`[S0/S1/S2/S3/S4]\`
 
-              console.log(`Issue #${issue.number} classified as ${severity}`);
+            **Analysis:**
+            [2-3 sentences explaining your reasoning - focus on the actual impact, not just symptoms. Explain why you chose this severity level over others.]
 
-            } catch (error) {
-              core.setFailed(`Failed to classify issue: ${error.message}`);
+            ---
+            *This classification was performed by AI analysis. Please review and adjust if needed.*"
+            ```
 
-              // Post error comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number,
-                body: `## ⚠️ Severity Classification Failed
+            **Important**:
+            - Replace `[S0/S1/S2/S3/S4]` with your chosen severity (use uppercase)
+            - Replace the `[2-3 sentences...]` with your actual reasoning
+            - Be specific and cite details from the issue that informed your decision
+            - Show your work - explain why this is s2 and not s1 or s3, for example
 
-An error occurred while trying to classify this issue automatically:
-\`\`\`
-${error.message}
-\`\`\`
-
-Please manually review and apply the appropriate severity label (s0-s4).`
-              });
-            }
+          claude_args: |
+            --allowedTools "Bash(gh issue:*)"
