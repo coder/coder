@@ -91,11 +91,6 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 	});
 
 	const workspaceBuildRunning = workspace.latest_build.status === "running";
-	const promptModified = formik.dirty;
-	const promptCanBeModified =
-		formik.values.prompt.length !== 0 &&
-		promptModified &&
-		!workspaceBuildRunning;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -104,8 +99,7 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 					<DialogTitle>Modify Task Prompt</DialogTitle>
 					<DialogDescription>
 						Modifying the prompt will cancel the current workspace build and
-						restart it with the updated prompt. This is only possible while the
-						build is pending or starting.
+						restart it with the updated prompt.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -139,11 +133,7 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 
 				<DialogFooter>
 					<DialogClose asChild>
-						<Button
-							variant="outline"
-							onClick={() => onOpenChange(false)}
-							disabled={updatePromptMutation.isPending}
-						>
+						<Button variant="outline" disabled={updatePromptMutation.isPending}>
 							Cancel
 						</Button>
 					</DialogClose>
@@ -151,7 +141,9 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 						type="submit"
 						form={formId}
 						disabled={
-							!promptCanBeModified ||
+							!formik.dirty ||
+							formik.values.prompt === "" ||
+							workspaceBuildRunning ||
 							updatePromptMutation.isPending ||
 							buildParametersQuery.isLoading
 						}

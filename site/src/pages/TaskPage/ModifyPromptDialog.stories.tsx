@@ -96,19 +96,21 @@ export const UnchangedPrompt: Story = {
 
 export const Submitting: Story = {
 	beforeEach: async () => {
-		// Mock all API calls that happen before updateTaskPrompt
-		spyOn(API, "cancelWorkspaceBuild").mockResolvedValue({
-			message: "Workspace build canceled",
-		});
 		spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue({
 			...MockTaskWorkspace.latest_build,
 			status: "canceled",
+			job: {
+				...MockTaskWorkspace.latest_build.job,
+				completed_at: undefined,
+			},
+		});
+		spyOn(API, "cancelWorkspaceBuild").mockResolvedValue({
+			message: "Workspace build canceled",
 		});
 		spyOn(API, "waitForBuild").mockResolvedValue(undefined);
 		spyOn(API, "stopWorkspace").mockResolvedValue(
 			MockTaskWorkspace.latest_build,
 		);
-		// Mock updateTaskPrompt to never resolve (keeps it in pending state)
 		spyOn(API, "updateTaskInput").mockImplementation(() => {
 			return new Promise(() => {});
 		});
@@ -144,18 +146,22 @@ export const Submitting: Story = {
 
 export const Success: Story = {
 	beforeEach: async () => {
-		spyOn(API, "updateTaskInput").mockResolvedValue();
-		spyOn(API, "cancelWorkspaceBuild").mockResolvedValue({
-			message: "Workspace build canceled",
-		});
 		spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue({
 			...MockTaskWorkspace.latest_build,
 			status: "canceled",
+			job: {
+				...MockTaskWorkspace.latest_build.job,
+				completed_at: undefined,
+			},
+		});
+		spyOn(API, "cancelWorkspaceBuild").mockResolvedValue({
+			message: "Workspace build canceled",
 		});
 		spyOn(API, "waitForBuild").mockResolvedValue(undefined);
 		spyOn(API, "stopWorkspace").mockResolvedValue(
 			MockTaskWorkspace.latest_build,
 		);
+		spyOn(API, "updateTaskInput").mockResolvedValue();
 		spyOn(API, "startWorkspace").mockResolvedValue(
 			MockTaskWorkspace.latest_build,
 		);
@@ -205,26 +211,27 @@ export const Success: Story = {
 
 export const Failure: Story = {
 	beforeEach: async () => {
-		// Mock all API calls that happen before updateTaskPrompt
-		spyOn(API, "cancelWorkspaceBuild").mockResolvedValue({
-			message: "Workspace build canceled",
-		});
 		spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue({
 			...MockTaskWorkspace.latest_build,
 			status: "canceled",
+			job: {
+				...MockTaskWorkspace.latest_build.job,
+				completed_at: undefined,
+			},
+		});
+		spyOn(API, "cancelWorkspaceBuild").mockResolvedValue({
+			message: "Workspace build canceled",
 		});
 		spyOn(API, "waitForBuild").mockResolvedValue(undefined);
 		spyOn(API, "stopWorkspace").mockResolvedValue(
 			MockTaskWorkspace.latest_build,
 		);
-		// Mock updateTaskPrompt to reject with an error
 		spyOn(API, "updateTaskInput").mockRejectedValue(
 			mockApiError({
 				message: "Failed to update task prompt",
 				detail: "Build is not in a valid state for modification",
 			}),
 		);
-		// Don't need to mock startWorkspace since it won't be reached after the error
 	},
 	play: async ({ canvasElement, step }) => {
 		const body = within(canvasElement.ownerDocument.body);
