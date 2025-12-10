@@ -439,6 +439,16 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		require.NoError(t, err, "set workspace as dormant")
 		workspace.DormantAt = orig.DormantAt
 	}
+	if len(orig.UserACL) > 0 || len(orig.GroupACL) > 0 {
+		err = db.UpdateWorkspaceACLByID(genCtx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			UserACL:  orig.UserACL,
+			GroupACL: orig.GroupACL,
+		})
+		require.NoError(t, err, "set workspace ACL")
+		workspace.UserACL = orig.UserACL
+		workspace.GroupACL = orig.GroupACL
+	}
 	return workspace
 }
 

@@ -7,7 +7,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	FileIcon,
-	TextAlignStartIcon,
+	FolderIcon,
 } from "lucide-react";
 import {
 	type CSSProperties,
@@ -93,7 +93,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
 		let icon: ElementType | undefined;
 		if (isFolder(content)) {
-			icon = TextAlignStartIcon;
+			icon = FolderIcon;
 		} else if (filename.endsWith(".tf")) {
 			icon = FileTypeTerraform;
 		} else if (filename.endsWith(".md")) {
