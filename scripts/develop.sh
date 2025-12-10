@@ -164,6 +164,20 @@ fatal() {
 	echo "== FAIL: $*" >&2
 	kill -INT $ppid >/dev/null 2>&1
 }
+push_template() {
+	local template_name=$1
+	local temp_template_dir=$2
+	local first_org_name=$3
+	local another_org=$4
+
+	echo "Pushing ${template_name} template to '${first_org_name}'..."
+	"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
+	if [ "${multi_org}" -gt "0" ]; then
+		echo "Pushing ${template_name} template to '${another_org}'..."
+		"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
+	fi
+	rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
+}
 
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
 # to kill both at the same time. For more details, see:
@@ -248,20 +262,12 @@ fatal() {
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
-			echo "Pushing docker template to '${first_org_name}'..."
-			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
-			if [ "${multi_org}" -gt "0" ]; then
-				echo "Pushing docker template to '${another_org}'..."
-				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
-			fi
-			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
+			push_template "${template_name}" "${temp_template_dir}" "${first_org_name}" "${another_org}"
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi
 
 	# Also create the tasks-docker template if docker is available
 	template_name="tasks-docker"
-	# Determine the name of the default org with some jq hacks!
-	first_org_name=$("${CODER_DEV_SHIM}" organizations show me -o json | jq -r '.[] | select(.is_default) | .name')
 	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
 		# sometimes terraform isn't installed yet when we go to create the
 		# template
@@ -285,13 +291,7 @@ fatal() {
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_socket: "%s"\n' "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
-			echo "Pushing tasks-docker template to '${first_org_name}'..."
-			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
-			if [ "${multi_org}" -gt "0" ]; then
-				echo "Pushing tasks-docker template to '${another_org}'..."
-				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
-			fi
-			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
+			push_template "${template_name}" "${temp_template_dir}" "${first_org_name}" "${another_org}"
 		) || echo "Failed to create tasks-docker template. The template files are in ${temp_template_dir}"
 	fi
 
