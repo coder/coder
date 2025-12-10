@@ -234,7 +234,6 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
 		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-			e.preventDefault();
 			onSubmit(e);
 		}
 	};
