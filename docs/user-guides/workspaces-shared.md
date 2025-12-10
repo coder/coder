@@ -51,7 +51,7 @@ To list shared workspaces:
 1. Open a workspace that you own.
 2. Locate and click the 'Share' button. 
 
-(Add screenshot of where the button is located in the UI)
+<!-- Add screenshot of where the button is located in the UI -->
 
 3. Add the users or groups that you want to share the workspace with. For each one, select a role.
     -  `use` allows for connection via SSH and apps, the ability to start and stop the workspace, view logs and stats, and update on start when required.
