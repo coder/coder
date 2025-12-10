@@ -216,7 +216,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		},
 	});
 
-	const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+	const onSubmit = async (e: React.SyntheticEvent) => {
 		e.preventDefault();
 
 		try {
@@ -235,11 +235,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
 		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
-			// Get the form element and submit it
-			const form = e.currentTarget.form;
-			if (form) {
-				form.requestSubmit();
-			}
+			onSubmit(e);
 		}
 	};
 
