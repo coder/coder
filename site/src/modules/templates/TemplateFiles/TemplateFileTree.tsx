@@ -10,7 +10,7 @@ import {
 	FileCodeIcon,
 	FileIcon,
 	FolderIcon,
-  TerminalIcon,
+	TerminalIcon,
 } from "lucide-react";
 import {
 	type CSSProperties,
