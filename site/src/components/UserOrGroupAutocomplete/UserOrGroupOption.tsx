@@ -23,10 +23,6 @@ interface UserOrGroupOptionProps {
 	htmlProps: HTMLAttributes<HTMLLIElement>;
 }
 
-/**
- * Shared render component for user/group autocomplete options.
- * Displays avatar, name, and subtitle for both users and groups.
- */
 export const UserOrGroupOption = ({
 	option,
 	htmlProps,
@@ -45,10 +41,3 @@ export const UserOrGroupOption = ({
 		</li>
 	);
 };
-
-/**
- * Tailwind classes for the autocomplete container.
- * Apply to the MUI Autocomplete component.
- */
-export const autocompleteClassName =
-	"w-[300px] [&_.MuiFormControl-root]:w-full [&_.MuiInputBase-root]:w-full";

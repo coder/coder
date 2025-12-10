@@ -174,7 +174,6 @@ interface WorkspaceSharingPageViewProps {
 	workspace: Workspace;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
-	// User
 	onAddUser: (
 		user: WorkspaceUser | ({ role: WorkspaceRole } & User),
 		role: WorkspaceRole,
@@ -184,7 +183,6 @@ interface WorkspaceSharingPageViewProps {
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
 	updatingUserId: WorkspaceUser["id"] | undefined;
 	onRemoveUser: (user: WorkspaceUser) => void;
-	// Group
 	onAddGroup: (group: Group, role: WorkspaceRole, reset: () => void) => void;
 	isAddingGroup: boolean;
 	onUpdateGroup: (group: WorkspaceGroup, role: WorkspaceRole) => void;
@@ -196,13 +194,11 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 	workspace,
 	workspaceACL,
 	canUpdatePermissions,
-	// User
 	onAddUser,
 	isAddingUser,
 	updatingUserId,
 	onUpdateUser,
 	onRemoveUser,
-	// Group
 	onAddGroup,
 	isAddingGroup,
 	updatingGroupId,

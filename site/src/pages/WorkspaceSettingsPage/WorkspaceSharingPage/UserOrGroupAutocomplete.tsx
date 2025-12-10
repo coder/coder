@@ -5,7 +5,6 @@ import { groupsByOrganization } from "api/queries/groups";
 import { users } from "api/queries/users";
 import type { Group, User } from "api/typesGenerated";
 import {
-	autocompleteClassName,
 	isGroup,
 	UserOrGroupOption,
 } from "components/UserOrGroupAutocomplete/UserOrGroupOption";
@@ -83,7 +82,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	);
 
 	return (
-		<Autocomplete<AutocompleteOption, false, false, false>
+		<Autocomplete
 			noOptionsText="No users or groups found"
 			value={value}
 			id="workspace-user-or-group-autocomplete"
@@ -106,17 +105,17 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 				onChange(newValue ?? null);
 			}}
 			isOptionEqualToValue={(option, optionValue) =>
-				optionValue !== null && option.id === optionValue.id
+				option.id === optionValue.id
 			}
 			getOptionLabel={(option) =>
 				isGroup(option) ? option.display_name || option.name : option.email
 			}
-			renderOption={(props, option) => (
-				<UserOrGroupOption htmlProps={props} option={option} />
+			renderOption={({ key, ...props }, option) => (
+				<UserOrGroupOption key={key} htmlProps={props} option={option} />
 			)}
 			options={options}
 			loading={usersQuery.isFetching || groupsQuery.isFetching}
-			className={autocompleteClassName}
+			className="w-[300px] [&_.MuiFormControl-root]:w-full [&_.MuiInputBase-root]:w-full"
 			renderInput={(params) => (
 				<TextField
 					{...params}
