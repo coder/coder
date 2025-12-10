@@ -216,7 +216,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		},
 	});
 
-	const onSubmit = async (e: React.SyntheticEvent) => {
+	const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 
 		try {
@@ -228,6 +228,18 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
 			displayError(message, detail);
+		}
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+			e.preventDefault();
+			// Get the form element and submit it
+			const form = e.currentTarget.form;
+			if (form) {
+				form.requestSubmit();
+			}
 		}
 	};
 
@@ -259,7 +271,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					onChange={(e) => setPrompt(e.target.value)}
 					readOnly={isPromptReadOnly}
 					isSubmitting={createTaskMutation.isPending}
-					onFormSubmit={onSubmit}
+					onKeyDown={handleKeyDown}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">
@@ -463,33 +475,16 @@ async function createTaskWithLatestTemplateVersion(
 
 type PromptTextareaProps = TextareaAutosizeProps & {
 	isSubmitting?: boolean;
-	onFormSubmit?: (e: React.SyntheticEvent) => void;
 };
 
 const PromptTextarea: FC<PromptTextareaProps> = ({
 	isSubmitting,
-	onFormSubmit,
 	...props
 }) => {
-	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
-		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-			e.preventDefault();
-			if (onFormSubmit) {
-				onFormSubmit(e);
-			}
-		}
-		// Call the original onKeyDown if it exists
-		if (props.onKeyDown) {
-			props.onKeyDown(e);
-		}
-	};
-
 	return (
 		<div className="relative">
 			<TextareaAutosize
 				{...props}
-				onKeyDown={handleKeyDown}
 				required
 				id="prompt"
 				name="prompt"
