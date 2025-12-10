@@ -463,7 +463,7 @@ async function createTaskWithLatestTemplateVersion(
 
 type PromptTextareaProps = TextareaAutosizeProps & {
 	isSubmitting?: boolean;
-	onFormSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
+	onFormSubmit?: (e: React.SyntheticEvent) => void;
 };
 
 const PromptTextarea: FC<PromptTextareaProps> = ({
@@ -476,7 +476,7 @@ const PromptTextarea: FC<PromptTextareaProps> = ({
 		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
 			if (onFormSubmit) {
-				onFormSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
+				onFormSubmit(e);
 			}
 		}
 		// Call the original onKeyDown if it exists
