@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 
-# Usage: ./develop.sh [--agpl] [--with-tasks]
+# Usage: ./develop.sh [--agpl]
 #
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
 # Coder enterprise features).
-#
-# If the --with-tasks parameter is specified, creates the tasks-docker template
-# and pulls the container image in the background.
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck source=scripts/lib.sh
@@ -23,14 +20,13 @@ DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 multi_org=0
-with_tasks=0
 
 # Ensure that extant environment variables do not override
 # the config dir we use to override auth for dev.coder.com.
 unset CODER_SESSION_TOKEN
 unset CODER_URL
 
-args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password:,multi-organization,with-tasks -- "$@")"
+args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password:,multi-organization -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -52,10 +48,6 @@ while true; do
 		;;
 	--multi-organization)
 		multi_org=1
-		shift
-		;;
-	--with-tasks)
-		with_tasks=1
 		shift
 		;;
 	--debug)
@@ -82,11 +74,6 @@ fi
 
 if [ -n "${CODER_AGENT_URL:-}" ]; then
 	DEVELOP_IN_CODER=1
-fi
-
-# When using --with-tasks, use blank access URL to enable tunnel mode
-if [ "${with_tasks}" -gt "0" ]; then
-	CODER_DEV_ACCESS_URL=""
 fi
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
@@ -271,36 +258,41 @@ fatal() {
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi
 
-	# If --with-tasks flag is set and docker is available, create the tasks-docker template
-	if [ "${with_tasks}" -gt "0" ]; then
-		template_name="tasks-docker"
-		if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
-			echo "Initializing tasks-docker template..."
+	# Also create the tasks-docker template if docker is available
+	template_name="tasks-docker"
+	# Determine the name of the default org with some jq hacks!
+	first_org_name=$("${CODER_DEV_SHIM}" organizations show me -o json | jq -r '.[] | select(.is_default) | .name')
+	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
+		# sometimes terraform isn't installed yet when we go to create the
+		# template
+		echo "Waiting for terraform to be installed..."
+		sleep 5
 
-			# Pull the container image in the background to speed up workspace creation
-			container_image="codercom/example-universal:ubuntu"
-			echo "Pulling container image ${container_image} in background..."
-			docker pull "${container_image}" >/dev/null 2>&1 &
+		echo "Initializing tasks-docker template..."
 
-			# Create template from the examples directory
-			temp_template_dir="$(mktemp -d)"
-			cp -r "${PROJECT_ROOT}/examples/templates/tasks-docker/"* "${temp_template_dir}/"
+		# Pull the container image in the background to speed up workspace creation
+		container_image="codercom/example-universal:ubuntu"
+		echo "Pulling container image ${container_image} in background..."
+		docker pull "${container_image}" >/dev/null 2>&1 &
 
-			# Run terraform init
-			pushd "${temp_template_dir}" && terraform init && popd
+		# Create template from the examples directory
+		temp_template_dir="$(mktemp -d)"
+		cp -r "${PROJECT_ROOT}/examples/templates/tasks-docker/"* "${temp_template_dir}/"
 
-			DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
-			printf 'docker_socket: "%s"\n' "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
-			(
-				echo "Pushing tasks-docker template to '${first_org_name}'..."
-				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
-				if [ "${multi_org}" -gt "0" ]; then
-					echo "Pushing tasks-docker template to '${another_org}'..."
-					"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
-				fi
-				rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
-			) || echo "Failed to create tasks-docker template. The template files are in ${temp_template_dir}"
-		fi
+		# Run terraform init so we get a terraform.lock.hcl
+		pushd "${temp_template_dir}" && terraform init && popd
+
+		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
+		printf 'docker_socket: "%s"\n' "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
+		(
+			echo "Pushing tasks-docker template to '${first_org_name}'..."
+			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
+			if [ "${multi_org}" -gt "0" ]; then
+				echo "Pushing tasks-docker template to '${another_org}'..."
+				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
+			fi
+			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
+		) || echo "Failed to create tasks-docker template. The template files are in ${temp_template_dir}"
 	fi
 
 	if [ "${use_proxy}" -gt "0" ]; then

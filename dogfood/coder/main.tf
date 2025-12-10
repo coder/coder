@@ -924,7 +924,7 @@ resource "coder_script" "develop_sh" {
       echo "Waiting for agent startup script to finish... ($attempt/60)"
       sleep 10
     done
-    cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --with-tasks --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
+    cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
   EOT
 }
 
