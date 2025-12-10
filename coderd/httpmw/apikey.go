@@ -833,4 +833,3 @@ func ExtractAPIKeyFromHeader(header http.Header) string {
 	}
 	return ""
 }
-
