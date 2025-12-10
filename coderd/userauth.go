@@ -1172,6 +1172,7 @@ type OIDCConfig struct {
 	IconURL string
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
+	PKCEMethods         []promoauth.Oauth2PKCEChallengeMethod
 }
 
 // @Summary OpenID Connect Callback

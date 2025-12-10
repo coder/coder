@@ -41,13 +41,19 @@ func OAuth2(r *http.Request) OAuth2State {
 // a "code" URL parameter will be redirected.
 // AuthURLOpts are passed to the AuthCodeURL function. If this is nil,
 // the default option oauth2.AccessTypeOffline will be used.
-func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string) func(http.Handler) http.Handler {
+//
+// pkceMethods should be a list like ['S256', 'plain'] indicating
+// which PKCE methods are supported by the OAuth2 provider. If empty,
+// PKCE will not be used.
+func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string, pkceMethods []promoauth.Oauth2PKCEChallengeMethod) func(http.Handler) http.Handler {
 	opts := make([]oauth2.AuthCodeOption, 0, len(authURLOpts)+1)
 	opts = append(opts, oauth2.AccessTypeOffline)
 	for k, v := range authURLOpts {
 		opts = append(opts, oauth2.SetAuthURLParam(k, v))
 	}
 
+	// Only S256 PKCE is currently supported.
+	sha256PKCESupported := slices.Contains(pkceMethods, promoauth.PKCEChallengeMethodSha256)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -135,15 +141,17 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				}))
 
 				authOpts := slices.Clone(opts)
-				var verifier = oauth2.GenerateVerifier()
-				authOpts = append(authOpts, oauth2.S256ChallengeOption(verifier))
+				if sha256PKCESupported {
+					var verifier = oauth2.GenerateVerifier()
+					authOpts = append(authOpts, oauth2.S256ChallengeOption(verifier))
 
-				http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{
-					Name:     codersdk.OAuth2PKCEChallenge,
-					Value:    verifier,
-					Path:     "/",
-					HttpOnly: true,
-				}))
+					http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{
+						Name:     codersdk.OAuth2PKCEChallenge,
+						Value:    verifier,
+						Path:     "/",
+						HttpOnly: true,
+					}))
+				}
 
 				http.Redirect(rw, r, config.AuthCodeURL(state, authOpts...), http.StatusTemporaryRedirect)
 				return
@@ -175,15 +183,19 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				redirect = stateRedirect.Value
 			}
 
-			pkceChallenge, err := r.Cookie(codersdk.OAuth2PKCEChallenge)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "PKCE challenge must be provided.",
-				})
-				return
+			exchangeOpts := make([]oauth2.AuthCodeOption, 0)
+			if sha256PKCESupported {
+				pkceChallenge, err := r.Cookie(codersdk.OAuth2PKCEChallenge)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "PKCE challenge must be provided.",
+					})
+					return
+				}
+				exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pkceChallenge.Value))
 			}
 
-			oauthToken, err := config.Exchange(ctx, code, oauth2.VerifierOption(pkceChallenge.Value))
+			oauthToken, err := config.Exchange(ctx, code, exchangeOpts...)
 			if err != nil {
 				errorCode := http.StatusInternalServerError
 				detail := err.Error()

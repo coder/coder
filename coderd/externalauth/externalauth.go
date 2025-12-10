@@ -102,7 +102,8 @@ type Config struct {
 	// injected into Coder AI Bridge upstream requests.
 	// In the case of conflicts, items evaluated by this list override [MCPToolAllowRegex].
 	// This field can be nil if unspecified in the config.
-	MCPToolDenyRegex *regexp.Regexp
+	MCPToolDenyRegex              *regexp.Regexp
+	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -800,9 +801,11 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 		copyDefaultSettings(config, azureDevopsEntraDefaults(config))
 		return
 	default:
-		// No defaults for this type. We still want to run this apply with
-		// an empty set of defaults.
-		copyDefaultSettings(config, codersdk.ExternalAuthConfig{})
+		// Defaults apply to any provider that doesn't have specific defaults.
+		copyDefaultSettings(config, codersdk.ExternalAuthConfig{
+			// PKCE should always be enabled by default.
+			CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
+		})
 		return
 	}
 }
@@ -856,6 +859,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 		// This is a key emoji.
 		config.DisplayIcon = "/emojis/1f511.png"
 	}
+	if config.CodeChallengeMethodsSupported == nil {
+		config.CodeChallengeMethodsSupported = defaults.CodeChallengeMethodsSupported
+	}
 }
 
 // gitHubDefaults returns default config values for GitHub.
@@ -869,9 +875,10 @@ func gitHubDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 		DisplayIcon: "/icon/github.svg",
 		Regex:       `^(https?://)?github\.com(/.*)?$`,
 		// "workflow" is required for managing GitHub Actions in a repository.
-		Scopes:              []string{"repo", "workflow"},
-		DeviceCodeURL:       "https://github.com/login/device/code",
-		AppInstallationsURL: "https://api.github.com/user/installations",
+		Scopes:                        []string{"repo", "workflow"},
+		DeviceCodeURL:                 "https://github.com/login/device/code",
+		AppInstallationsURL:           "https://api.github.com/user/installations",
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 
 	if config.RevokeURL == "" && config.ClientID != "" {
@@ -886,6 +893,8 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 		DisplayName: "Bitbucket Server",
 		Scopes:      []string{"PUBLIC_REPOS", "REPO_READ", "REPO_WRITE"},
 		DisplayIcon: "/icon/bitbucket.svg",
+		// TODO: PKCE support? Test 'S256' as the string value
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	}
 	// Bitbucket servers will have some base url, e.g. https://bitbucket.coder.com.
 	// We will grab this from the Auth URL. This choice is a bit arbitrary,
@@ -923,14 +932,15 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 // Any user specific fields will override this if provided.
 func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
 	cloud := codersdk.ExternalAuthConfig{
-		AuthURL:     "https://gitlab.com/oauth/authorize",
-		TokenURL:    "https://gitlab.com/oauth/token",
-		ValidateURL: "https://gitlab.com/oauth/token/info",
-		RevokeURL:   "https://gitlab.com/oauth/revoke",
-		DisplayName: "GitLab",
-		DisplayIcon: "/icon/gitlab.svg",
-		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
-		Scopes:      []string{"write_repository"},
+		AuthURL:                       "https://gitlab.com/oauth/authorize",
+		TokenURL:                      "https://gitlab.com/oauth/token",
+		ValidateURL:                   "https://gitlab.com/oauth/token/info",
+		RevokeURL:                     "https://gitlab.com/oauth/revoke",
+		DisplayName:                   "GitLab",
+		DisplayIcon:                   "/icon/gitlab.svg",
+		Regex:                         `^(https?://)?gitlab\.com(/.*)?$`,
+		Scopes:                        []string{"write_repository"},
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 
 	if config.AuthURL == "" || config.AuthURL == cloud.AuthURL {
@@ -946,14 +956,15 @@ func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 
 	// At this point, assume it is self-hosted and use the AuthURL
 	return codersdk.ExternalAuthConfig{
-		DisplayName: cloud.DisplayName,
-		Scopes:      cloud.Scopes,
-		DisplayIcon: cloud.DisplayIcon,
-		AuthURL:     au.ResolveReference(&url.URL{Path: "/oauth/authorize"}).String(),
-		TokenURL:    au.ResolveReference(&url.URL{Path: "/oauth/token"}).String(),
-		ValidateURL: au.ResolveReference(&url.URL{Path: "/oauth/token/info"}).String(),
-		RevokeURL:   au.ResolveReference(&url.URL{Path: "/oauth/revoke"}).String(),
-		Regex:       fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(au.Host, ".", `\.`)),
+		DisplayName:                   cloud.DisplayName,
+		Scopes:                        cloud.Scopes,
+		DisplayIcon:                   cloud.DisplayIcon,
+		AuthURL:                       au.ResolveReference(&url.URL{Path: "/oauth/authorize"}).String(),
+		TokenURL:                      au.ResolveReference(&url.URL{Path: "/oauth/token"}).String(),
+		ValidateURL:                   au.ResolveReference(&url.URL{Path: "/oauth/token/info"}).String(),
+		RevokeURL:                     au.ResolveReference(&url.URL{Path: "/oauth/revoke"}).String(),
+		Regex:                         fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(au.Host, ".", `\.`)),
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 }
 
@@ -962,6 +973,8 @@ func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 		DisplayName: "JFrog Artifactory",
 		Scopes:      []string{"applied-permissions/user"},
 		DisplayIcon: "/icon/jfrog.svg",
+		// TODO: PKCE support? Test 'S256' as the string value
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	}
 	// Artifactory servers will have some base url, e.g. https://jfrog.coder.com.
 	// We will grab this from the Auth URL. This choice is not arbitrary. It is a
@@ -997,9 +1010,10 @@ func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 
 func giteaDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
 	defaults := codersdk.ExternalAuthConfig{
-		DisplayName: "Gitea",
-		Scopes:      []string{"read:repository", " write:repository", "read:user"},
-		DisplayIcon: "/icon/gitea.svg",
+		DisplayName:                   "Gitea",
+		Scopes:                        []string{"read:repository", " write:repository", "read:user"},
+		DisplayIcon:                   "/icon/gitea.svg",
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 	// Gitea's servers will have some base url, e.g: https://gitea.coder.com.
 	// If an auth url is not set, we will assume they are using the default
@@ -1031,6 +1045,8 @@ func azureDevopsEntraDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 		DisplayName: "Azure DevOps (Entra)",
 		DisplayIcon: "/icon/azure-devops.svg",
 		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
+		// TODO: PKCE support? Test 'S256' as the string value
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	}
 	// The tenant ID is required for urls and is in the auth url.
 	if config.AuthURL == "" {
@@ -1069,6 +1085,8 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/azure-devops.svg",
 		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
 		Scopes:      []string{"vso.code_write"},
+		// TODO: PKCE support? Test 'S256' as the string value
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
 	codersdk.EnhancedExternalAuthProviderBitBucketCloud: {
 		AuthURL:     "https://bitbucket.org/site/oauth2/authorize",
@@ -1078,6 +1096,8 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/bitbucket.svg",
 		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
 		Scopes:      []string{"account", "repository:write"},
+		// TODO: PKCE support? Test 'S256' as the string value
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
 	codersdk.EnhancedExternalAuthProviderSlack: {
 		AuthURL:     "https://slack.com/oauth/v2/authorize",
@@ -1087,6 +1107,8 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/slack.svg",
 		// See: https://api.slack.com/authentication/oauth-v2#exchanging
 		ExtraTokenKeys: []string{"authed_user"},
+		// TODO: PKCE support? Test 'S256' as the string value
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
 }
 
