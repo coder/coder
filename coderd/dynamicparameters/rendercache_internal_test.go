@@ -19,6 +19,7 @@ func TestRenderCache_BasicOperations(t *testing.T) {
 	t.Parallel()
 
 	cache := NewRenderCache()
+	defer cache.Close()
 	templateVersionID := uuid.New()
 	ownerID := uuid.New()
 	params := map[string]string{"region": "us-west-2"}
@@ -50,6 +51,8 @@ func TestRenderCache_DifferentKeysAreSeparate(t *testing.T) {
 	t.Parallel()
 
 	cache := NewRenderCache()
+	defer cache.Close()
+
 	templateVersion1 := uuid.New()
 	templateVersion2 := uuid.New()
 	owner1 := uuid.New()
@@ -83,6 +86,8 @@ func TestRenderCache_ParameterHashConsistency(t *testing.T) {
 	t.Parallel()
 
 	cache := NewRenderCache()
+	defer cache.Close()
+
 	templateVersionID := uuid.New()
 	ownerID := uuid.New()
 
@@ -103,6 +108,8 @@ func TestRenderCache_EmptyParameters(t *testing.T) {
 	t.Parallel()
 
 	cache := NewRenderCache()
+	defer cache.Close()
+
 	templateVersionID := uuid.New()
 	ownerID := uuid.New()
 
@@ -123,6 +130,7 @@ func TestRenderCache_PrebuildScenario(t *testing.T) {
 	// This test simulates the prebuild scenario where multiple prebuilds
 	// are created from the same template version with the same preset parameters.
 	cache := NewRenderCache()
+	defer cache.Close()
 
 	// In prebuilds, all instances use the same fixed ownerID
 	prebuildOwnerID := uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0") // database.PrebuildsSystemUserID
@@ -168,6 +176,8 @@ func TestRenderCache_Metrics(t *testing.T) {
 	})
 
 	cache := NewRenderCacheWithMetrics(cacheHits, cacheMisses, cacheSize)
+	defer cache.Close()
+
 	templateVersionID := uuid.New()
 	ownerID := uuid.New()
 	params := map[string]string{"region": "us-west-2"}
