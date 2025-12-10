@@ -16,6 +16,8 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/pproflabel"
+
+	"github.com/coder/quartz"
 )
 
 const (
@@ -47,6 +49,7 @@ type MetricsAggregator struct {
 
 	log                    slog.Logger
 	metricsCleanupInterval time.Duration
+	clock                  quartz.Clock
 
 	collectCh chan (chan []prometheus.Metric)
 	updateCh  chan updateRequest
@@ -151,7 +154,7 @@ func (am *annotatedMetric) shallowCopy() annotatedMetric {
 	}
 }
 
-func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, duration time.Duration, aggregateByLabels []string) (*MetricsAggregator, error) {
+func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, duration time.Duration, aggregateByLabels []string, options ...func(*MetricsAggregator)) (*MetricsAggregator, error) {
 	metricsCleanupInterval := defaultMetricsCleanupInterval
 	if duration > 0 {
 		metricsCleanupInterval = duration
@@ -192,9 +195,10 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		return nil, err
 	}
 
-	return &MetricsAggregator{
+	ma := &MetricsAggregator{
 		log:                    logger.Named(loggerName),
 		metricsCleanupInterval: metricsCleanupInterval,
+		clock:                  quartz.NewReal(),
 
 		store: map[metricKey]annotatedMetric{},
 
@@ -206,7 +210,19 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		cleanupHistogram: cleanupHistogram,
 
 		aggregateByLabels: aggregateByLabels,
-	}, nil
+	}
+
+	for _, option := range options {
+		option(ma)
+	}
+
+	return ma, nil
+}
+
+func WithClock(clock quartz.Clock) func(*MetricsAggregator) {
+	return func(ma *MetricsAggregator) {
+		ma.clock = clock
+	}
 }
 
 // labelAggregator is used to control cardinality of collected Prometheus metrics by pre-aggregating series based on given labels.
@@ -349,7 +365,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				ma.log.Debug(ctx, "clean expired metrics")
 
 				timer := prometheus.NewTimer(ma.cleanupHistogram)
-				now := time.Now()
+				now := ma.clock.Now()
 
 				for key, val := range ma.store {
 					if now.After(val.expiryDate) {
@@ -407,7 +423,7 @@ func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabel
 	}
 	key := cacheKeyForDesc(name, baseLabelNames, extraLabels)
 	if d, ok := ma.descCache[key]; ok {
-		d.lastUsed = time.Now()
+		d.lastUsed = ma.clock.Now()
 		ma.descCache[key] = d
 		return d.desc
 	}
@@ -419,7 +435,7 @@ func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabel
 		labels[nBase+i] = l.Name
 	}
 	d := prometheus.NewDesc(name, help, labels, nil)
-	ma.descCache[key] = descCacheEntry{d, time.Now()}
+	ma.descCache[key] = descCacheEntry{d, ma.clock.Now()}
 	return d
 }
 
@@ -497,7 +513,7 @@ func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabel
 		templateName:  labels.TemplateName,
 		metrics:       metrics,
 
-		timestamp: time.Now(),
+		timestamp: ma.clock.Now(),
 	}:
 	case <-ctx.Done():
 		ma.log.Debug(ctx, "update request is canceled")
@@ -508,7 +524,7 @@ func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabel
 
 // Move to a function for testability
 func (ma *MetricsAggregator) cleanupDescCache() {
-	now := time.Now()
+	now := ma.clock.Now()
 	for key, entry := range ma.descCache {
 		if now.Sub(entry.lastUsed) > ma.metricsCleanupInterval {
 			delete(ma.descCache, key)

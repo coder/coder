@@ -378,7 +378,12 @@ func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Re
 		slog.F("preset_count", len(invalidatedPresets)),
 	)
 
+	invalidated := db2sdk.InvalidatedPresets(invalidatedPresets)
+	if invalidated == nil {
+		invalidated = []codersdk.InvalidatedPreset{} // need to avoid nil value
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePresetsResponse{
-		Invalidated: db2sdk.InvalidatedPresets(invalidatedPresets),
+		Invalidated: invalidated,
 	})
 }

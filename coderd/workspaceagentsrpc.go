@@ -132,7 +132,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:    workspace.ID,
 		OrganizationID: workspace.OrganizationID,
 
-		Ctx:                               api.ctx,
+		AuthenticatedCtx:                  ctx,
 		Log:                               logger,
 		Clock:                             api.Clock,
 		Database:                          api.Database,
@@ -158,7 +158,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
-	})
+	}, workspace)
 
 	streamID := tailnet.StreamID{
 		Name: fmt.Sprintf("%s-%s-%s", workspace.OwnerUsername, workspace.Name, workspaceAgent.Name),
@@ -227,10 +227,11 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 	mux *yamux.Session,
 ) *agentConnectionMonitor {
 	monitor := &agentConnectionMonitor{
-		apiCtx:            api.ctx,
-		workspace:         workspace,
-		workspaceAgent:    workspaceAgent,
-		workspaceBuild:    workspaceBuild,
+		apiCtx:         api.ctx,
+		workspace:      workspace,
+		workspaceAgent: workspaceAgent,
+		workspaceBuild: workspaceBuild,
+
 		conn:              &yamuxPingerCloser{mux: mux},
 		pingPeriod:        api.AgentConnectionUpdateFrequency,
 		db:                api.Database,
@@ -452,6 +453,13 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 				WorkspaceID: m.workspaceBuild.WorkspaceID,
 				AgentID:     &m.workspaceAgent.ID,
 			})
+		}
+
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, m.workspace.RBACObject())
+		if err != nil {
+			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
+			//nolint:gocritic
+			m.logger.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
 		}
 		err = checkBuildIsLatest(ctx, m.db, m.workspaceBuild)
 		if err != nil {

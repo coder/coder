@@ -46,6 +46,13 @@ OPTIONS:
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
+      --disable-workspace-sharing bool, $CODER_DISABLE_WORKSPACE_SHARING
+          Disable workspace sharing (requires the "workspace-sharing" experiment
+          to be enabled). Workspace ACL checking is disabled and only owners can
+          have ssh, apps and terminal access to workspaces. Access based on the
+          'owner' role is also allowed unless disabled via
+          --disable-owner-workspace-access.
+
       --swagger-enable bool, $CODER_SWAGGER_ENABLE
           Expose the swagger endpoint via /swagger.
 
@@ -695,6 +702,33 @@ updating, and deleting workspace resources.
       --provisioner-daemons int, $CODER_PROVISIONER_DAEMONS (default: 3)
           Number of provisioner daemons to create on start. If builds are stuck
           in queued state for a long time, consider increasing this.
+
+RETENTION OPTIONS: 
+Configure data retention policies for various database tables. Retention
+policies automatically purge old data to reduce database size and improve
+performance. Setting a retention duration to 0 disables automatic purging for
+that data type.
+
+      --api-keys-retention duration, $CODER_API_KEYS_RETENTION (default: 7d)
+          How long expired API keys are retained before being deleted. Keeping
+          expired keys allows the backend to return a more helpful error when a
+          user tries to use an expired key. Set to 0 to disable automatic
+          deletion of expired keys.
+
+      --audit-logs-retention duration, $CODER_AUDIT_LOGS_RETENTION (default: 0)
+          How long audit log entries are retained. Set to 0 to disable (keep
+          indefinitely). We advise keeping audit logs for at least a year, and
+          in accordance with your compliance requirements.
+
+      --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
+          How long connection log entries are retained. Set to 0 to disable
+          (keep indefinitely).
+
+      --workspace-agent-logs-retention duration, $CODER_WORKSPACE_AGENT_LOGS_RETENTION (default: 7d)
+          How long workspace agent logs are retained. Logs from non-latest
+          builds are deleted if the agent hasn't connected within this period.
+          Logs from the latest build are always retained. Set to 0 to disable
+          automatic deletion.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal

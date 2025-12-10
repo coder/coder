@@ -63,33 +63,18 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 
 			if (currentBuild.status !== "stopped") {
 				await API.cancelWorkspaceBuild(workspace.latest_build.id);
-				try {
-					await API.waitForBuild(currentBuild);
-				} catch (error: unknown) {
-					if (error && typeof error === "object" && "status" in error) {
-						// `waitForBuild` throws when a build "fails", which it does
-						// when it is canceled.
-					} else {
-						throw error;
-					}
-				}
+				await API.waitForBuild(currentBuild);
 
 				const stopBuild = await API.stopWorkspace(workspace.id);
 				await API.waitForBuild(stopBuild);
 			}
 
 			await API.updateTaskInput(task.owner_name, task.id, prompt);
-
-			// Start a new build with the updated prompt
 			await API.startWorkspace(
 				workspace.id,
 				task.template_version_id,
 				undefined,
-				buildParametersQuery.data?.map((parameter) =>
-					parameter.name === AITaskPromptParameterName
-						? { ...parameter, value: prompt }
-						: parameter,
-				),
+				buildParametersQuery.data,
 			);
 		},
 		onSuccess: () => {
@@ -110,7 +95,9 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 	const workspaceBuildRunning = workspace.latest_build.status === "running";
 	const promptModified = formik.dirty;
 	const promptCanBeModified =
-		prompt.length !== 0 && promptModified && !workspaceBuildRunning;
+		formik.values.prompt.length !== 0 &&
+		promptModified &&
+		!workspaceBuildRunning;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

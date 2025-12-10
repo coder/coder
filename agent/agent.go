@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
@@ -97,6 +98,8 @@ type Options struct {
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
 	Clock                        quartz.Clock
+	SocketServerEnabled          bool
+	SocketPath                   string // Path for the agent socket server socket
 }
 
 type Client interface {
@@ -202,6 +205,8 @@ func New(options Options) Agent {
 
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
+		socketPath:          options.SocketPath,
+		socketServerEnabled: options.SocketServerEnabled,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -279,6 +284,10 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+
+	socketServerEnabled bool
+	socketPath          string
+	socketServer        *agentsocket.Server
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -358,7 +367,30 @@ func (a *agent) init() {
 			s.ExperimentalContainers = a.devcontainers
 		},
 	)
+
+	a.initSocketServer()
+
 	go a.runLoop()
+}
+
+// initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
+func (a *agent) initSocketServer() {
+	if !a.socketServerEnabled {
+		a.logger.Info(a.hardCtx, "socket server is disabled")
+		return
+	}
+
+	server, err := agentsocket.NewServer(
+		a.logger.Named("socket"),
+		agentsocket.WithPath(a.socketPath),
+	)
+	if err != nil {
+		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
+		return
+	}
+
+	a.socketServer = server
+	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -1095,7 +1127,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if err != nil {
 			return xerrors.Errorf("fetch metadata: %w", err)
 		}
-		a.logger.Info(ctx, "fetched manifest", slog.F("manifest", mp))
+		a.logger.Info(ctx, "fetched manifest")
 		manifest, err := agentsdk.ManifestFromProto(mp)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
@@ -1544,8 +1576,8 @@ func (a *agent) createTailnet(
 				break
 			}
 			clog := a.logger.Named("speedtest").With(
-				slog.F("remote", conn.RemoteAddr().String()),
-				slog.F("local", conn.LocalAddr().String()))
+				slog.F("remote", conn.RemoteAddr()),
+				slog.F("local", conn.LocalAddr()))
 			clog.Info(ctx, "accepted conn")
 			wg.Add(1)
 			closed := make(chan struct{})
@@ -1928,11 +1960,18 @@ func (a *agent) Close() error {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
 		}
 	}
+
 	a.setLifecycle(lifecycleState)
 
 	err = a.scriptRunner.Close()
 	if err != nil {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
+	}
+
+	if a.socketServer != nil {
+		if err := a.socketServer.Close(); err != nil {
+			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
+		}
 	}
 
 	if err := a.containerAPI.Close(); err != nil {
@@ -2150,14 +2189,19 @@ func (a *apiConnRoutineManager) startTailnetAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting tailnet routine")
 		err := f(ctx, a.tAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
-			logger.Debug(ctx, "swallowing context canceled")
+		if (xerrors.Is(err, context.Canceled) ||
+			xerrors.Is(err, io.EOF)) &&
+			ctx.Err() != nil {
+			logger.Debug(ctx, "swallowing error because context is canceled", slog.Error(err))
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with
-			// gracefulShutdownBehaviorRemain.  Note that we check both that the error is
-			// context.Canceled and that *our* context is currently canceled, because when Coderd
-			// unilaterally closes the API connection (for example if the build is outdated), it can
-			// sometimes show up as context.Canceled in our RPC calls.
+			// gracefulShutdownBehaviorRemain. Unfortunately, the dRPC library closes the stream
+			// when context is canceled on an RPC, so canceling the context can also show up as
+			// io.EOF. Also, when Coderd unilaterally closes the API connection (for example if the
+			// build is outdated), it can sometimes show up as context.Canceled in our RPC calls.
+			// We can't reliably distinguish between a context cancelation and a legit EOF, so we
+			// also check that *our* context is currently canceled. If it is, we can safely ignore
+			// the error.
 			return nil
 		}
 		logger.Debug(ctx, "routine exited", slog.Error(err))

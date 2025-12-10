@@ -90,7 +90,6 @@ func TestExpRpty(t *testing.T) {
 		wantLabel := "coder.devcontainers.TestExpRpty.Container"
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
 		pool, err := dockertest.NewPool("")
 		require.NoError(t, err, "Could not connect to docker")
 		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -128,14 +127,15 @@ func TestExpRpty(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch(" #")
+		pty.ExpectMatchContext(ctx, " #")
 		pty.WriteLine("hostname")
-		pty.ExpectMatch(ct.Container.Config.Hostname)
+		pty.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
 		pty.WriteLine("exit")
 		<-cmdDone
 	})

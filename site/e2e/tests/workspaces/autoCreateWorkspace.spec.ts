@@ -19,7 +19,7 @@ test.beforeAll(async ({ browser }) => {
 	await login(page, users.templateAdmin);
 
 	const richParameters: RichParameter[] = [
-		{ ...emptyParameter, name: "repo", type: "string" },
+		{ ...emptyParameter, name: "repo", displayName: "Repo", type: "string" },
 	];
 	template = await createTemplate(
 		page,

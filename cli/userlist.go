@@ -58,6 +58,11 @@ func (r *RootCmd) userList() *serpent.Command {
 				return err
 			}
 
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No users found.")
+				return nil
+			}
+
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},

@@ -34,7 +34,8 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 		!canViewConnectionLog &&
 		!canViewOrganizations &&
 		!canViewDeployment &&
-		!canViewHealth
+		!canViewHealth &&
+		!canViewAIBridge
 	) {
 		return null;
 	}
@@ -118,7 +119,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			{canViewAIBridge && (
 				<PopoverClose asChild>
 					<MenuItem component={NavLink} to="/aibridge" css={styles.menuItem}>
-						AI Bridge
+						AI Bridge Logs
 					</MenuItem>
 				</PopoverClose>
 			)}

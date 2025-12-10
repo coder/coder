@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
 	DERPRegionReport,
@@ -7,6 +6,11 @@ import type {
 	HealthSeverity,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
@@ -85,15 +89,21 @@ const DERPRegionPage: FC = () => {
 
 				<section>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-						<Tooltip title="Region ID">
-							<Pill icon={<HashIcon className="size-icon-sm" />}>
-								{region!.RegionID}
-							</Pill>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Pill icon={<HashIcon className="size-icon-sm" />}>
+									{region!.RegionID}
+								</Pill>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">Region ID</TooltipContent>
 						</Tooltip>
-						<Tooltip title="Region Code">
-							<Pill icon={<CodeIcon className="size-icon-sm" />}>
-								{region!.RegionCode}
-							</Pill>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Pill icon={<CodeIcon className="size-icon-sm" />}>
+									{region!.RegionCode}
+								</Pill>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">Region Code</TooltipContent>
 						</Tooltip>
 						<BooleanPill value={region!.EmbeddedRelay}>
 							Embedded Relay
@@ -127,13 +137,18 @@ const DERPRegionPage: FC = () => {
 								</div>
 
 								<div css={reportStyles.pills}>
-									<Tooltip title="Round trip ping">
-										<Pill
-											css={{ color: latencyColor }}
-											icon={<StatusCircle color={latencyColor} />}
-										>
-											{report.round_trip_ping_ms}ms
-										</Pill>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Pill
+												css={{ color: latencyColor }}
+												icon={<StatusCircle color={latencyColor} />}
+											>
+												{report.round_trip_ping_ms}ms
+											</Pill>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">
+											Round trip ping
+										</TooltipContent>
 									</Tooltip>
 									<BooleanPill value={report.can_exchange_messages}>
 										Exchange Messages

@@ -6,7 +6,8 @@ import { DockerIcon } from "components/Icons/DockerIcon";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
-	TextAlignStartIcon,
+	FileIcon,
+	FolderIcon,
 } from "lucide-react";
 import {
 	type CSSProperties,
@@ -92,13 +93,16 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
 		let icon: ElementType | undefined;
 		if (isFolder(content)) {
-			icon = TextAlignStartIcon;
+			icon = FolderIcon;
 		} else if (filename.endsWith(".tf")) {
 			icon = FileTypeTerraform;
 		} else if (filename.endsWith(".md")) {
 			icon = FileTypeMarkdown;
 		} else if (filename.endsWith("Dockerfile")) {
 			icon = DockerIcon;
+		} else {
+			// Default icon for files without a specific icon.
+			icon = FileIcon;
 		}
 
 		return (

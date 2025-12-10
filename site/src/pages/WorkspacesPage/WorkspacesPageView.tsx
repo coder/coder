@@ -20,8 +20,8 @@ import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import {
 	ChevronDownIcon,
 	CloudIcon,
+	PauseIcon,
 	PlayIcon,
-	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
@@ -146,7 +146,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									disabled={isRunningBatchAction}
 									variant="outline"
 									size="sm"
-									css={{ borderRadius: 9999, marginLeft: "auto" }}
+									className="ml-auto"
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
@@ -175,7 +175,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									}
 									onClick={onBatchStopTransition}
 								>
-									<SquareIcon /> Stop
+									<PauseIcon /> Stop
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>

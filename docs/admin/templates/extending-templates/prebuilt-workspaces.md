@@ -229,6 +229,32 @@ When a template's active version is updated:
 
 The system always maintains the desired number of prebuilt workspaces for the active template version.
 
+### Invalidating prebuilds
+
+When external dependencies change without a template version update, you can invalidate presets to force their prebuilt workspaces to be recreated.
+
+This is useful when:
+
+- A base VM image or container image has been updated externally
+- Infrastructure configuration has drifted from the desired state
+- A monorepo cloned during the prebuild has fallen behind its origin
+- You want to ensure prebuilt workspaces use the latest dependencies without publishing a new template version
+
+To invalidate presets:
+
+1. Navigate to **Templates** and select your template.
+1. Go to the **Prebuilds** tab.
+1. Click **Invalidate Prebuilds**.
+1. Confirm the action in the dialog.
+
+Once presets are invalidated, the **next reconciliation loop** run will delete the old prebuilt workspaces and create new ones to maintain the desired instance count.
+The process typically completes within a few reconciliation cycles (the interval is controlled by `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`, which defaults to 15 seconds).
+
+> [!NOTE]
+> Preset invalidation only affects unclaimed prebuilt workspaces owned by the `prebuilds` system user.
+> Workspaces that have already been claimed by users are not affected.
+> The invalidation is not instantaneous and will take effect during the next reconciliation loop run.
+
 ## Administration and troubleshooting
 
 ### Managing resource quotas

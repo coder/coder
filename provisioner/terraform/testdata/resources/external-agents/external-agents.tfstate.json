@@ -27,11 +27,11 @@
           "schema_version": 1,
           "values": {
             "access_port": 443,
-            "access_url": "https://dev.coder.com/",
+            "access_url": "https://mydeployment.coder.com",
             "id": "dfa1dbe8-ad31-410b-b201-a4ed4d884938",
             "is_prebuild": false,
             "is_prebuild_claim": false,
-            "name": "kacper",
+            "name": "default",
             "prebuild_count": 0,
             "start_count": 1,
             "template_id": "",
@@ -50,7 +50,7 @@
           "schema_version": 0,
           "values": {
             "email": "default@example.com",
-            "full_name": "kacpersaw",
+            "full_name": "default",
             "groups": [],
             "id": "f5e82b90-ea22-4288-8286-9cf7af651143",
             "login_type": null,

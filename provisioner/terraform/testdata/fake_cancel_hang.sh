@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
 VERSION=$1
 shift 1

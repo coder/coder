@@ -3437,6 +3437,8 @@ CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspa
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
 
+CREATE INDEX workspace_agents_auth_instance_id_deleted_idx ON workspace_agents USING btree (auth_instance_id, deleted);
+
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
@@ -3446,6 +3448,8 @@ CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_a
 COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
+
+CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
 
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
 

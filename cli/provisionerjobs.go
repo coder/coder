@@ -110,6 +110,11 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 				return xerrors.Errorf("display provisioner daemons: %w", err)
 			}
 
+			if out == "" {
+				cliui.Infof(inv.Stderr, "No provisioner jobs found.")
+				return nil
+			}
+
 			_, _ = fmt.Fprintln(inv.Stdout, out)
 
 			return nil

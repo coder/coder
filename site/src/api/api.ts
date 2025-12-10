@@ -359,6 +359,8 @@ export type DeploymentConfig = Readonly<{
 
 type Claims = {
 	license_expires: number;
+	// nbf is a standard JWT claim for "not before" - the license valid from date
+	nbf?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -1177,6 +1179,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	invalidateTemplatePresets = async (
+		templateId: string,
+	): Promise<TypesGen.InvalidatePresetsResponse> => {
+		const response = await this.axios.post<TypesGen.InvalidatePresetsResponse>(
+			`/api/v2/templates/${templateId}/prebuilds/invalidate`,
+		);
+		return response.data;
+	};
+
 	getWorkspace = async (
 		workspaceId: string,
 		params?: TypesGen.WorkspaceOptions,
@@ -1471,6 +1482,19 @@ class ApiMethods {
 		data: TypesGen.UpdateUserAppearanceSettingsRequest,
 	): Promise<TypesGen.UserAppearanceSettings> => {
 		const response = await this.axios.put("/api/v2/users/me/appearance", data);
+		return response.data;
+	};
+
+	getUserPreferenceSettings =
+		async (): Promise<TypesGen.UserPreferenceSettings> => {
+			const response = await this.axios.get("/api/v2/users/me/preferences");
+			return response.data;
+		};
+
+	updateUserPreferenceSettings = async (
+		req: TypesGen.UpdateUserPreferenceSettingsRequest,
+	): Promise<TypesGen.UserPreferenceSettings> => {
+		const response = await this.axios.put("/api/v2/users/me/preferences", req);
 		return response.data;
 	};
 
@@ -2771,15 +2795,18 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		if (process.env.NODE_ENV === "development") {
 			// Development mode uses a hard-coded CSRF token
 			instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
-			instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
 			tokenMetadataElement.setAttribute("content", csrfToken);
 		} else {
 			instance.defaults.headers.common["X-CSRF-TOKEN"] =
 				tokenMetadataElement.getAttribute("content") ?? "";
 		}
 	} else {
-		// Do not write error logs if we are in a FE unit test.
-		if (!process.env.JEST_WORKER_ID && !process.env.VITEST) {
+		// Do not write error logs if we are in a FE unit test or if there is no document (e.g., Electron)
+		if (
+			typeof document !== "undefined" &&
+			!process.env.JEST_WORKER_ID &&
+			!process.env.VITEST
+		) {
 			console.error("CSRF token not found");
 		}
 	}
@@ -2810,7 +2837,8 @@ interface ClientApi extends ApiMethods {
 	getAxiosInstance: () => AxiosInstance;
 }
 
-class Api extends ApiMethods implements ClientApi {
+/** @public Exported for use by external consumers (e.g., VS Code extension). */
+export class Api extends ApiMethods implements ClientApi {
 	constructor() {
 		const scopedAxiosInstance = getConfiguredAxiosInstance();
 		super(scopedAxiosInstance);

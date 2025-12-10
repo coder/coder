@@ -139,17 +139,17 @@ func (r *RootCmd) list() *serpent.Command {
 				return err
 			}
 
-			if len(res) == 0 && formatter.FormatID() != cliui.JSONFormat().ID() {
+			out, err := formatter.Format(inv.Context(), res)
+			if err != nil {
+				return err
+			}
+
+			if out == "" {
 				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "No workspaces found! Create one:\n")
 				_, _ = fmt.Fprintln(inv.Stderr)
 				_, _ = fmt.Fprintln(inv.Stderr, "  "+pretty.Sprint(cliui.DefaultStyles.Code, "coder create <name>"))
 				_, _ = fmt.Fprintln(inv.Stderr)
 				return nil
-			}
-
-			out, err := formatter.Format(inv.Context(), res)
-			if err != nil {
-				return err
 			}
 
 			_, err = fmt.Fprintln(inv.Stdout, out)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -323,6 +324,10 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		dbm.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), database.DeleteOldAuditLogConnectionEventsParams{}).Return(nil).AnyTimes()
 		check.Args(database.DeleteOldAuditLogConnectionEventsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("DeleteOldAuditLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldAuditLogs(gomock.Any(), database.DeleteOldAuditLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldAuditLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 }
 
 func (s *MethodTestSuite) TestConnectionLogs() {
@@ -353,6 +358,10 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 		dbm.EXPECT().CountAuthorizedConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}, gomock.Any()).Return(int64(0), nil).AnyTimes()
 		dbm.EXPECT().CountConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.CountConnectionLogsParams{}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
+	}))
+	s.Run("DeleteOldConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldConnectionLogs(gomock.Any(), database.DeleteOldConnectionLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldConnectionLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 }
 
@@ -1476,6 +1485,21 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserTerminalFont(gomock.Any(), arg).Return(uc, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
+	}))
+	s.Run("GetUserTaskNotificationAlertDismissed", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().GetUserTaskNotificationAlertDismissed(gomock.Any(), u.ID).Return(false, nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns(false)
+	}))
+	s.Run("UpdateUserTaskNotificationAlertDismissed", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		userConfig := database.UserConfig{UserID: user.ID, Key: "task_notification_alert_dismissed", Value: "false"}
+		userConfigValue, _ := strconv.ParseBool(userConfig.Value)
+		arg := database.UpdateUserTaskNotificationAlertDismissedParams{UserID: user.ID, TaskNotificationAlertDismissed: userConfigValue}
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserTaskNotificationAlertDismissed(gomock.Any(), arg).Return(false, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionUpdatePersonal).Returns(userConfigValue)
 	}))
 	s.Run("UpdateUserStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -3203,7 +3227,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("DeleteOldWorkspaceAgentLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -4681,7 +4705,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t := dbtime.Now()
-		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
 	}))
 }
@@ -4706,4 +4730,78 @@ func (s *MethodTestSuite) TestTelemetry() {
 		db.EXPECT().CalculateAIBridgeInterceptionsTelemetrySummary(gomock.Any(), gomock.Any()).Return(database.CalculateAIBridgeInterceptionsTelemetrySummaryRow{}, nil).AnyTimes()
 		check.Args(database.CalculateAIBridgeInterceptionsTelemetrySummaryParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
 	}))
+}
+
+func TestGetLatestWorkspaceBuildByWorkspaceID_FastPath(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	wsID := uuid.New()
+	orgID := uuid.New()
+
+	workspace := database.Workspace{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	build := database.WorkspaceBuild{
+		ID:          uuid.New(),
+		WorkspaceID: wsID,
+	}
+
+	wsIdentity := database.WorkspaceIdentity{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+
+	authorizer := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		dbm.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil).AnyTimes()
+		dbm.EXPECT().Wrappers().Return([]string{})
+
+		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, build, result)
+	})
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil).AnyTimes()
+		dbm.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil).AnyTimes()
+		dbm.EXPECT().Wrappers().Return([]string{})
+
+		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, build, result)
+	})
 }

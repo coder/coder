@@ -42,56 +42,63 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name      string
-			logFile   string
-			workspace string
-			config    string
-			opts      []agentcontainers.DevcontainerCLIUpOptions
-			wantArgs  string
-			wantError bool
+			name            string
+			logFile         string
+			workspace       string
+			config          string
+			opts            []agentcontainers.DevcontainerCLIUpOptions
+			wantArgs        string
+			wantError       bool
+			wantContainerID bool // If true, expect a container ID even when wantError is true.
 		}{
 			{
-				name:      "success",
-				logFile:   "up.log",
-				workspace: "/test/workspace",
-				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-				wantError: false,
+				name:            "success",
+				logFile:         "up.log",
+				workspace:       "/test/workspace",
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace",
+				wantError:       false,
+				wantContainerID: true,
 			},
 			{
-				name:      "success with config",
-				logFile:   "up.log",
-				workspace: "/test/workspace",
-				config:    "/test/config.json",
-				wantArgs:  "up --log-format json --workspace-folder /test/workspace --config /test/config.json",
-				wantError: false,
+				name:            "success with config",
+				logFile:         "up.log",
+				workspace:       "/test/workspace",
+				config:          "/test/config.json",
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace --config /test/config.json",
+				wantError:       false,
+				wantContainerID: true,
 			},
 			{
-				name:      "already exists",
-				logFile:   "up-already-exists.log",
-				workspace: "/test/workspace",
-				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-				wantError: false,
+				name:            "already exists",
+				logFile:         "up-already-exists.log",
+				workspace:       "/test/workspace",
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace",
+				wantError:       false,
+				wantContainerID: true,
 			},
 			{
-				name:      "docker error",
-				logFile:   "up-error-docker.log",
-				workspace: "/test/workspace",
-				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-				wantError: true,
+				name:            "docker error",
+				logFile:         "up-error-docker.log",
+				workspace:       "/test/workspace",
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace",
+				wantError:       true,
+				wantContainerID: false,
 			},
 			{
-				name:      "bad outcome",
-				logFile:   "up-error-bad-outcome.log",
-				workspace: "/test/workspace",
-				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-				wantError: true,
+				name:            "bad outcome",
+				logFile:         "up-error-bad-outcome.log",
+				workspace:       "/test/workspace",
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace",
+				wantError:       true,
+				wantContainerID: false,
 			},
 			{
-				name:      "does not exist",
-				logFile:   "up-error-does-not-exist.log",
-				workspace: "/test/workspace",
-				wantArgs:  "up --log-format json --workspace-folder /test/workspace",
-				wantError: true,
+				name:            "does not exist",
+				logFile:         "up-error-does-not-exist.log",
+				workspace:       "/test/workspace",
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace",
+				wantError:       true,
+				wantContainerID: false,
 			},
 			{
 				name:      "with remove existing container",
@@ -100,8 +107,21 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				opts: []agentcontainers.DevcontainerCLIUpOptions{
 					agentcontainers.WithRemoveExistingContainer(),
 				},
-				wantArgs:  "up --log-format json --workspace-folder /test/workspace --remove-existing-container",
-				wantError: false,
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace --remove-existing-container",
+				wantError:       false,
+				wantContainerID: true,
+			},
+			{
+				// This test verifies that when a lifecycle script like
+				// postCreateCommand fails, the CLI returns both an error
+				// and a container ID. The caller can then proceed with
+				// agent injection into the created container.
+				name:            "lifecycle script failure with container",
+				logFile:         "up-error-lifecycle-script.log",
+				workspace:       "/test/workspace",
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace",
+				wantError:       true,
+				wantContainerID: true,
 			},
 		}
 
@@ -122,10 +142,13 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				containerID, err := dccli.Up(ctx, tt.workspace, tt.config, tt.opts...)
 				if tt.wantError {
 					assert.Error(t, err, "want error")
-					assert.Empty(t, containerID, "expected empty container ID")
 				} else {
 					assert.NoError(t, err, "want no error")
+				}
+				if tt.wantContainerID {
 					assert.NotEmpty(t, containerID, "expected non-empty container ID")
+				} else {
+					assert.Empty(t, containerID, "expected empty container ID")
 				}
 			})
 		}

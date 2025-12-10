@@ -50,16 +50,11 @@ continuously improve the reliability and performance of the platform.
   and cloud areas, consider different namespaces in favor of zero-trust or
   multi-cloud deployments.
 
-### Database nodes
+### Database node
 
-| Users       | Node capacity        | Replicas | Storage | GCP                 | AWS             | Azure             |
-|-------------|----------------------|----------|---------|---------------------|-----------------|-------------------|
-| Up to 3,000 | 8 vCPU, 32 GB memory | 2 nodes  | 1.5 TB  | `db-custom-8-30720` | `db.m5.2xlarge` | `Standard_D8s_v3` |
-
-**Footnotes**:
-
-- Consider adding more replicas if the workspace activity is higher than 1500
-  workspace builds per day or to achieve higher RPS.
+| Users       | Node capacity        | Storage | GCP                 | AWS             | Azure             |
+|-------------|----------------------|---------|---------------------|-----------------|-------------------|
+| Up to 3,000 | 8 vCPU, 32 GB memory | 1.5 TB  | `db-custom-8-30720` | `db.m5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes for AWS instance types**:
 
