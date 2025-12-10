@@ -1,10 +1,10 @@
 # Coder Tasks
 
-Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider, powered by Coder workspaces.
+Coder Tasks is an API-first system for automating software development workflows with any AI coding agent, like Claude Code and Sourcegraph Amp. Tasks are designed for automation scenarios like CI/CD pipelines, GitHub Actions, scheduled jobs, and issue triaging where agents can work autonomously on well-defined tasks.
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)
 
-Coder Tasks is best for cases where the IDE is secondary, such as prototyping or running long-running background jobs. However, tasks run inside full workspaces so developers can [connect via an IDE](../user-guides/workspace-access) to take a task to completion.
+Each task runs inside an isolated Coder workspace and can be triggered programmatically via the Coder API, CLI, or through the web UI. Tasks excel at automating repetitive development work such as addressing bugs, updating documentation, or implementing small features, whether triggered by automation systems or manually through the interface.
 
 > [!NOTE]
 > Coder Tasks is free and open source. If you are a Coder Premium customer or want to run hundreds of tasks in the background, [contact us](https://coder.com/contact) for roadmap information and volume pricing.
@@ -24,6 +24,18 @@ Each task runs inside its own Coder workspace for isolation purposes. Agents lik
 ![High-Level Architecture](../images/guides/ai-agents/architecture-high-level.png)
 
 Coder's [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi). AgentAPI is an open source project developed by Coder which improves status reporting and the Chat UI, regardless of which agent you use.
+
+## Common Use Cases for Task Automation
+
+Tasks are designed for automation workflows where AI agents can work independently:
+
+- **CI/CD Integration**: Trigger tasks from GitHub Actions, GitLab CI, or Jenkins to automatically address issues, update dependencies, or generate documentation when code changes
+- **Issue Triage**: Automatically assign agents to labeled GitHub issues to investigate bugs, create reproduction steps, or propose fixes
+- **Scheduled Maintenance**: Run periodic tasks to update documentation, refactor code, add tests, or perform code quality improvements
+- **Code Review Assistance**: Spin up tasks to analyze pull requests, suggest improvements, or verify coding standards compliance
+- **Documentation Generation**: Automatically generate or update API documentation, README files, or architectural diagrams as code evolves
+
+For a complete walkthrough of GitHub Actions integration, see [Guide: Create a GitHub to Coder Tasks Workflow](./github-to-tasks.md).
 
 ## Getting Started with Tasks
 
@@ -141,9 +153,15 @@ Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API
 
 If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
 
-## Command Line Interface
+## Command Line Interface and API Access
 
-See [Tasks CLI](./cli.md).
+Tasks can be managed programmatically through the Coder CLI or REST API:
+
+- **CLI Commands**: See [Tasks CLI](./cli.md) for creating, monitoring, and managing tasks from scripts or CI/CD pipelines
+- **REST API**: See [Tasks API Reference](../reference/api/tasks.md) for HTTP endpoints to integrate task creation into your automation workflows
+- **GitHub Actions**: Use the [create-task-action](https://github.com/coder/create-task-action) to trigger tasks from GitHub workflows
+
+The API-first design enables tasks to be embedded into existing development workflows, version control systems, and issue tracking platforms.
 
 ## Next Steps
 
