@@ -40,7 +40,8 @@ func OAuth2(r *http.Request) OAuth2State {
 // a "code" URL parameter will be redirected.
 // AuthURLOpts are passed to the AuthCodeURL function. If this is nil,
 // the default option oauth2.AccessTypeOffline will be used.
-func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string) func(http.Handler) http.Handler {
+// pkceEnabled enables PKCE (Proof Key for Code Exchange) for enhanced security.
+func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string, pkceEnabled bool) func(http.Handler) http.Handler {
 	opts := make([]oauth2.AuthCodeOption, 0, len(authURLOpts)+1)
 	opts = append(opts, oauth2.AccessTypeOffline)
 	for k, v := range authURLOpts {
@@ -133,7 +134,20 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 					HttpOnly: true,
 				}))
 
-				http.Redirect(rw, r, config.AuthCodeURL(state, opts...), http.StatusTemporaryRedirect)
+				// Build auth URL options, adding PKCE if enabled
+				authOpts := opts
+				if pkceEnabled {
+					verifier := oauth2.GenerateVerifier()
+					http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{
+						Name:     codersdk.OAuth2PKCECookie,
+						Value:    verifier,
+						Path:     "/",
+						HttpOnly: true,
+					}))
+					authOpts = append(authOpts, oauth2.S256ChallengeOption(verifier))
+				}
+
+				http.Redirect(rw, r, config.AuthCodeURL(state, authOpts...), http.StatusTemporaryRedirect)
 				return
 			}
 
@@ -163,7 +177,20 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				redirect = stateRedirect.Value
 			}
 
-			oauthToken, err := config.Exchange(ctx, code)
+			// Build exchange options, including PKCE verifier if present
+			var exchangeOpts []oauth2.AuthCodeOption
+			if pkceEnabled {
+				pkceCookie, err := r.Cookie(codersdk.OAuth2PKCECookie)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "PKCE is enabled but verifier cookie is missing.",
+					})
+					return
+				}
+				exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pkceCookie.Value))
+			}
+
+			oauthToken, err := config.Exchange(ctx, code, exchangeOpts...)
 			if err != nil {
 				errorCode := http.StatusInternalServerError
 				detail := err.Error()
