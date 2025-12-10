@@ -38,6 +38,8 @@ const (
 	SessionTokenHeader = "Coder-Session-Token"
 	// OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
 	OAuth2StateCookie = "oauth_state"
+
+	OAuth2PKCEChallenge = "oauth_pkce_challenge"
 	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
 	OAuth2RedirectCookie = "oauth_redirect"
 

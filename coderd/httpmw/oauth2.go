@@ -133,7 +133,14 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 					HttpOnly: true,
 				}))
 
-				http.Redirect(rw, r, config.AuthCodeURL(state, opts...), http.StatusTemporaryRedirect)
+				var verifier = oauth2.GenerateVerifier()
+				http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{
+					Name:     codersdk.OAuth2PKCEChallenge,
+					Value:    verifier,
+					Path:     "/",
+					HttpOnly: true,
+				}))
+				http.Redirect(rw, r, config.AuthCodeURL(state, append(opts, oauth2.S256ChallengeOption(verifier))...), http.StatusTemporaryRedirect)
 				return
 			}
 
@@ -163,7 +170,13 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				redirect = stateRedirect.Value
 			}
 
-			oauthToken, err := config.Exchange(ctx, code)
+			exchangeOpts := []oauth2.AuthCodeOption{}
+			pkceChallenge, err := r.Cookie(codersdk.OAuth2PKCEChallenge)
+			if err == nil {
+				exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pkceChallenge.Value))
+			}
+
+			oauthToken, err := config.Exchange(ctx, code, exchangeOpts...)
 			if err != nil {
 				errorCode := http.StatusInternalServerError
 				detail := err.Error()
