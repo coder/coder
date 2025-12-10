@@ -169,12 +169,18 @@ push_template() {
 	local temp_template_dir=$2
 	local first_org_name=$3
 	local another_org=$4
+	local params_file="${temp_template_dir}/params.yaml"
+
+	local push_args="--directory ${temp_template_dir}"
+	if [ -f "${params_file}" ]; then
+		push_args="${push_args} --variables-file ${params_file}"
+	fi
 
 	echo "Pushing ${template_name} template to '${first_org_name}'..."
-	"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
+	"${CODER_DEV_SHIM}" templates push "${template_name}" ${push_args} --yes --org "${first_org_name}"
 	if [ "${multi_org}" -gt "0" ]; then
 		echo "Pushing ${template_name} template to '${another_org}'..."
-		"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
+		"${CODER_DEV_SHIM}" templates push "${template_name}" ${push_args} --yes --org "${another_org}"
 	fi
 	rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 }
@@ -288,8 +294,6 @@ push_template() {
 		# Run terraform init so we get a terraform.lock.hcl
 		pushd "${temp_template_dir}" && terraform init && popd
 
-		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
-		printf 'docker_socket: "%s"\n' "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
 			push_template "${template_name}" "${temp_template_dir}" "${first_org_name}" "${another_org}"
 		) || echo "Failed to create tasks-docker template. The template files are in ${temp_template_dir}"
