@@ -58,8 +58,10 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 			);
 
 			if (currentBuild.status !== "stopped") {
-				await API.cancelWorkspaceBuild(workspace.latest_build.id);
-				await API.waitForBuild(currentBuild);
+				if (!currentBuild.job.completed_at) {
+					await API.cancelWorkspaceBuild(currentBuild.id);
+					await API.waitForBuild(currentBuild);
+				}
 
 				const stopBuild = await API.stopWorkspace(workspace.id);
 				await API.waitForBuild(stopBuild);
