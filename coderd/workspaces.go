@@ -2668,8 +2668,6 @@ func convertWorkspace(
 		appStatus = nil
 	}
 
-	sharedWith := sharedWorkspaceActors(ctx, experiments, logger, workspace)
-
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,

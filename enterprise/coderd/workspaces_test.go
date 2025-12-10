@@ -4715,9 +4715,9 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		ws, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.NotNil(t, ws.SharedWith)
-		require.Len(t, *ws.SharedWith, 2)
+		require.Len(t, ws.SharedWith, 2)
 
-		sharedWith := *ws.SharedWith
+		sharedWith := ws.SharedWith
 
 		// Find user actor in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
