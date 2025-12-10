@@ -6,7 +6,7 @@ Multiple users can securely connect to a single Coder workspace for debugging, p
 
 ## Features
 
-Workspace sharing is available to all Coder users by default, but platform admins with a Premium subscription can choose to disable sharing within their organizations. 
+Workspace sharing is available to all Coder users by default, but platform admins with a Premium subscription can choose to disable sharing within their organizations or for their entire deployment. 
 
 Owners of a workspace can grant access to other users or groups with scoped roles. 
 
