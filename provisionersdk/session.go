@@ -249,9 +249,6 @@ func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *pr
 	if err != nil {
 		return nil, err
 	}
-	if complete.Error != "" {
-		return complete, nil
-	}
 
 	return complete, nil
 }
