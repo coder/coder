@@ -2,12 +2,12 @@ package dynamicparameters
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -41,21 +41,21 @@ type cacheEntry struct {
 
 type cacheKey struct {
 	templateVersionID uuid.UUID
-	ownerID          uuid.UUID
-	parameterHash    string
+	ownerID           uuid.UUID
+	parameterHash     uint64
 }
 
 // NewRenderCache creates a new render cache with a default TTL of 1 hour.
 func NewRenderCache() *RenderCacheImpl {
-	return newRenderCache(quartz.NewReal(), time.Hour, nil, nil, nil)
+	return newCache(quartz.NewReal(), time.Hour, nil, nil, nil)
 }
 
 // NewRenderCacheWithMetrics creates a new render cache with Prometheus metrics.
 func NewRenderCacheWithMetrics(cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCacheImpl {
-	return newRenderCache(quartz.NewReal(), time.Hour, cacheHits, cacheMisses, cacheSize)
+	return newCache(quartz.NewReal(), time.Hour, cacheHits, cacheMisses, cacheSize)
 }
 
-func newRenderCache(clock quartz.Clock, ttl time.Duration, cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCacheImpl {
+func newCache(clock quartz.Clock, ttl time.Duration, cacheHits, cacheMisses prometheus.Counter, cacheSize prometheus.Gauge) *RenderCacheImpl {
 	c := &RenderCacheImpl{
 		entries:     make(map[cacheKey]*cacheEntry),
 		clock:       clock,
@@ -87,7 +87,7 @@ func (c *RenderCacheImpl) Close() {
 }
 
 func (c *RenderCacheImpl) get(templateVersionID, ownerID uuid.UUID, parameters map[string]string) (*preview.Output, bool) {
-	key := c.makeKey(templateVersionID, ownerID, parameters)
+	key := makeKey(templateVersionID, ownerID, parameters)
 	c.mu.RLock()
 	entry, ok := c.entries[key]
 	c.mu.RUnlock()
@@ -123,7 +123,7 @@ func (c *RenderCacheImpl) get(templateVersionID, ownerID uuid.UUID, parameters m
 }
 
 func (c *RenderCacheImpl) put(templateVersionID, ownerID uuid.UUID, parameters map[string]string, output *preview.Output) {
-	key := c.makeKey(templateVersionID, ownerID, parameters)
+	key := makeKey(templateVersionID, ownerID, parameters)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -138,18 +138,18 @@ func (c *RenderCacheImpl) put(templateVersionID, ownerID uuid.UUID, parameters m
 	}
 }
 
-func (c *RenderCacheImpl) makeKey(templateVersionID, ownerID uuid.UUID, parameters map[string]string) cacheKey {
+func makeKey(templateVersionID, ownerID uuid.UUID, parameters map[string]string) cacheKey {
 	return cacheKey{
 		templateVersionID: templateVersionID,
-		ownerID:          ownerID,
-		parameterHash:    hashParameters(parameters),
+		ownerID:           ownerID,
+		parameterHash:     hashParameters(parameters),
 	}
 }
 
 // hashParameters creates a deterministic hash of the parameter map.
-func hashParameters(params map[string]string) string {
+func hashParameters(params map[string]string) uint64 {
 	if len(params) == 0 {
-		return ""
+		return 0
 	}
 
 	// Sort keys for deterministic hashing
@@ -160,15 +160,12 @@ func hashParameters(params map[string]string) string {
 	sort.Strings(keys)
 
 	// Hash the sorted key-value pairs
-	h := md5.New()
+	var b string
 	for _, k := range keys {
-		h.Write([]byte(k))
-		h.Write([]byte{0}) // separator
-		h.Write([]byte(params[k]))
-		h.Write([]byte{0}) // separator
+		b += fmt.Sprintf("%s:%s,", k, params[k])
 	}
 
-	return hex.EncodeToString(h.Sum(nil))
+	return xxhash.Sum64String(b)
 }
 
 // cleanupLoop runs periodically to remove expired cache entries.

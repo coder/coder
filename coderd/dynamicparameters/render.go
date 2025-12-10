@@ -118,7 +118,6 @@ func WithRenderCache(cache RenderCache) func(r *loader) {
 	}
 }
 
-
 func (r *loader) loadData(ctx context.Context, db database.Store) error {
 	if r.templateVersion == nil {
 		tv, err := db.GetTemplateVersionByID(ctx, r.templateVersionID)

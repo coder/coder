@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/testutil"
@@ -157,9 +157,15 @@ func TestRenderCache_Metrics(t *testing.T) {
 	t.Parallel()
 
 	// Create test metrics
-	cacheHits := &testCounter{}
-	cacheMisses := &testCounter{}
-	cacheSize := &testGauge{}
+	cacheHits := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_cache_hits_total",
+	})
+	cacheMisses := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_cache_misses_total",
+	})
+	cacheSize := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "test_cache_entries",
+	})
 
 	cache := NewRenderCacheWithMetrics(cacheHits, cacheMisses, cacheSize)
 	templateVersionID := uuid.New()
@@ -167,45 +173,45 @@ func TestRenderCache_Metrics(t *testing.T) {
 	params := map[string]string{"region": "us-west-2"}
 
 	// Initially: 0 hits, 0 misses, 0 size
-	require.Equal(t, float64(0), cacheHits.value, "initial hits should be 0")
-	require.Equal(t, float64(0), cacheMisses.value, "initial misses should be 0")
-	require.Equal(t, float64(0), cacheSize.value, "initial size should be 0")
+	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheHits), "initial hits should be 0")
+	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheMisses), "initial misses should be 0")
+	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheSize), "initial size should be 0")
 
 	// First get - should be a miss
 	_, ok := cache.get(templateVersionID, ownerID, params)
 	require.False(t, ok)
-	require.Equal(t, float64(0), cacheHits.value, "hits should still be 0")
-	require.Equal(t, float64(1), cacheMisses.value, "misses should be 1")
-	require.Equal(t, float64(0), cacheSize.value, "size should still be 0")
+	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheHits), "hits should still be 0")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheMisses), "misses should be 1")
+	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheSize), "size should still be 0")
 
 	// Put an entry
 	output := &preview.Output{}
 	cache.put(templateVersionID, ownerID, params, output)
-	require.Equal(t, float64(1), cacheSize.value, "size should be 1 after put")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheSize), "size should be 1 after put")
 
 	// Second get - should be a hit
 	_, ok = cache.get(templateVersionID, ownerID, params)
 	require.True(t, ok)
-	require.Equal(t, float64(1), cacheHits.value, "hits should be 1")
-	require.Equal(t, float64(1), cacheMisses.value, "misses should still be 1")
-	require.Equal(t, float64(1), cacheSize.value, "size should still be 1")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheHits), "hits should be 1")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheMisses), "misses should still be 1")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheSize), "size should still be 1")
 
 	// Third get - another hit
 	_, ok = cache.get(templateVersionID, ownerID, params)
 	require.True(t, ok)
-	require.Equal(t, float64(2), cacheHits.value, "hits should be 2")
-	require.Equal(t, float64(1), cacheMisses.value, "misses should still be 1")
+	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheHits), "hits should be 2")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheMisses), "misses should still be 1")
 
 	// Put another entry with different params
 	params2 := map[string]string{"region": "us-east-1"}
 	cache.put(templateVersionID, ownerID, params2, output)
-	require.Equal(t, float64(2), cacheSize.value, "size should be 2 after second put")
+	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheSize), "size should be 2 after second put")
 
 	// Get with different params - should be a hit
 	_, ok = cache.get(templateVersionID, ownerID, params2)
 	require.True(t, ok)
-	require.Equal(t, float64(3), cacheHits.value, "hits should be 3")
-	require.Equal(t, float64(1), cacheMisses.value, "misses should still be 1")
+	require.Equal(t, float64(3), promtestutil.ToFloat64(cacheHits), "hits should be 3")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheMisses), "misses should still be 1")
 }
 
 func TestRenderCache_TTL(t *testing.T) {
@@ -218,7 +224,7 @@ func TestRenderCache_TTL(t *testing.T) {
 	defer trapTickerFunc.Close()
 
 	// Create cache with short TTL for testing
-	cache := newRenderCache(clock, 100*time.Millisecond, nil, nil, nil)
+	cache := newCache(clock, 100*time.Millisecond, nil, nil, nil)
 	defer cache.Close()
 
 	// Wait for the initial cleanup and ticker to be created
@@ -254,15 +260,17 @@ func TestRenderCache_CleanupRemovesExpiredEntries(t *testing.T) {
 	trapTickerFunc := clock.Trap().TickerFunc("render-cache-cleanup")
 	defer trapTickerFunc.Close()
 
-	cacheSize := &testGauge{}
-	cache := newRenderCache(clock, 100*time.Millisecond, nil, nil, cacheSize)
+	cacheSize := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "test_cache_entries",
+	})
+	cache := newCache(clock, 100*time.Millisecond, nil, nil, cacheSize)
 	defer cache.Close()
 
 	// Wait for the initial cleanup and ticker to be created
 	trapTickerFunc.MustWait(ctx).Release(ctx)
 
 	// Initial size should be 0 after first cleanup
-	require.Equal(t, float64(0), cacheSize.value, "should have 0 entries initially")
+	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheSize), "should have 0 entries initially")
 
 	templateVersionID := uuid.New()
 	ownerID := uuid.New()
@@ -273,7 +281,7 @@ func TestRenderCache_CleanupRemovesExpiredEntries(t *testing.T) {
 		cache.put(templateVersionID, ownerID, params, &preview.Output{})
 	}
 
-	require.Equal(t, float64(3), cacheSize.value, "should have 3 entries")
+	require.Equal(t, float64(3), promtestutil.ToFloat64(cacheSize), "should have 3 entries")
 
 	// Advance time beyond TTL
 	clock.Advance(150 * time.Millisecond)
@@ -282,7 +290,7 @@ func TestRenderCache_CleanupRemovesExpiredEntries(t *testing.T) {
 	clock.Advance(15*time.Minute - 150*time.Millisecond).MustWait(ctx)
 
 	// All entries should be removed
-	require.Equal(t, float64(0), cacheSize.value, "all entries should be removed after cleanup")
+	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheSize), "all entries should be removed after cleanup")
 }
 
 func TestRenderCache_TimestampRefreshOnHit(t *testing.T) {
@@ -295,7 +303,7 @@ func TestRenderCache_TimestampRefreshOnHit(t *testing.T) {
 	defer trapTickerFunc.Close()
 
 	// Create cache with 1 second TTL for testing
-	cache := newRenderCache(clock, time.Second, nil, nil, nil)
+	cache := newCache(clock, time.Second, nil, nil, nil)
 	defer cache.Close()
 
 	// Wait for the initial cleanup and ticker to be created
@@ -334,66 +342,3 @@ func TestRenderCache_TimestampRefreshOnHit(t *testing.T) {
 	_, ok = cache.get(templateVersionID, ownerID, params)
 	require.False(t, ok, "should miss cache after TTL from last access")
 }
-
-// Test implementations of prometheus interfaces
-type testCounter struct {
-	value float64
-}
-
-func (c *testCounter) Inc() {
-	c.value++
-}
-
-func (c *testCounter) Add(v float64) {
-	c.value += v
-}
-
-func (c *testCounter) Desc() *prometheus.Desc {
-	return nil
-}
-
-func (c *testCounter) Write(*dto.Metric) error {
-	return nil
-}
-
-func (c *testCounter) Describe(chan<- *prometheus.Desc) {}
-
-func (c *testCounter) Collect(chan<- prometheus.Metric) {}
-
-type testGauge struct {
-	value float64
-}
-
-func (g *testGauge) Set(v float64) {
-	g.value = v
-}
-
-func (g *testGauge) Inc() {
-	g.value++
-}
-
-func (g *testGauge) Dec() {
-	g.value--
-}
-
-func (g *testGauge) Add(v float64) {
-	g.value += v
-}
-
-func (g *testGauge) Sub(v float64) {
-	g.value -= v
-}
-
-func (g *testGauge) SetToCurrentTime() {}
-
-func (g *testGauge) Desc() *prometheus.Desc {
-	return nil
-}
-
-func (g *testGauge) Write(*dto.Metric) error {
-	return nil
-}
-
-func (g *testGauge) Describe(chan<- *prometheus.Desc) {}
-
-func (g *testGauge) Collect(chan<- prometheus.Metric) {}
