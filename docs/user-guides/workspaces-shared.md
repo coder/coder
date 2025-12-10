@@ -2,7 +2,7 @@
 
 Multiple users can securely connect to a single Coder workspace for debugging, programming, and code review. 
 
-(Insert screenshot of UI here)
+<!-- Insert screenshot of UI here -->
 
 ## Features
 
