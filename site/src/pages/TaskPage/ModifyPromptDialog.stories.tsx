@@ -6,11 +6,7 @@ import {
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { workspaceBuildParametersKey } from "api/queries/workspaceBuilds";
-import {
-	AITaskPromptParameterName,
-	type Workspace,
-	type WorkspaceBuildParameter,
-} from "api/typesGenerated";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
 
@@ -23,10 +19,6 @@ const mockTaskWorkspaceStarting: Workspace = {
 };
 
 const mockBuildParameters: WorkspaceBuildParameter[] = [
-	{
-		name: AITaskPromptParameterName,
-		value: MockTask.initial_prompt,
-	},
 	{
 		name: "region",
 		value: "us-east-1",
@@ -200,10 +192,6 @@ export const Success: Story = {
 					MockTask.template_version_id,
 					undefined,
 					[
-						{
-							name: AITaskPromptParameterName,
-							value: "Create a REST API in Python",
-						},
 						{
 							name: "region",
 							value: "us-east-1",
