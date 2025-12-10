@@ -11,30 +11,37 @@ on:
 permissions:
   issues: write
   contents: read
-  id-token: write
 
 jobs:
-  classify:
+  analyze:
+    name: AI Analysis
     if: github.event.label.name == 'triage-check'
     runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.analysis.outputs.result }}
 
     steps:
-      - uses: anthropics/claude-code-action@f0c8eb29807907de7f5412d04afceb5e24817127 # v1.0.23
+      - name: Analyze Issue Severity
+        id: analysis
+        uses: anthropics/claude-code-action@f0c8eb29807907de7f5412d04afceb5e24817127 # v1.0.23
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            REPOSITORY: ${{ github.repository }}
-            ISSUE NUMBER: ${{ github.event.issue.number }}
-            ISSUE TITLE: ${{ github.event.issue.title }}
-            ISSUE BODY:
-            ${{ github.event.issue.body }}
-            AUTHOR: ${{ github.event.issue.user.login }}
-
-            ---
-
             You are an expert software engineer triaging customer-reported issues for Coder, a cloud development environment platform.
 
-            Your task is to carefully analyze the issue above and classify it into one of the following severity levels. **This requires deep reasoning and thoughtful analysis** - not just keyword matching.
+            Your task is to carefully analyze the issue and classify it into one of the following severity levels. **This requires deep reasoning and thoughtful analysis** - not just keyword matching.
+
+            ## Issue Details
+
+            Issue Number: ${{ github.event.issue.number }}
+
+            Issue Content:
+            ```
+            Title: ${{ github.event.issue.title }}
+
+            Description:
+            ${{ github.event.issue.body }}
+            ```
 
             ## Severity Level Definitions
 
@@ -83,13 +90,13 @@ jobs:
             2. **Reason through** each of the 5 analysis points
             3. **Compare** the issue against all 5 severity levels (s0-s4)
             4. **Determine** which severity level best matches the actual impact
-            5. **Post a comment** on the issue with your assessment
+            5. **Output your analysis as JSON**
 
             ## Insufficient Information Fail-Safe
 
             **It is completely acceptable to not classify an issue if you lack sufficient information.**
 
-            If the issue description is too vague, missing critical details, or doesn't provide enough context to make a confident assessment, DO NOT force a classification. Instead, acknowledge this and explain what additional information is needed.
+            If the issue description is too vague, missing critical details, or doesn't provide enough context to make a confident assessment, DO NOT force a classification.
 
             Common scenarios where you should decline to classify:
             - Issue has no description or minimal details
@@ -98,51 +105,132 @@ jobs:
             - Ambiguous whether it's a bug, feature request, or question
             - Missing information about user impact or frequency
 
-            ## Posting Your Assessment
+            ## Required Output Format
 
-            Use the GitHub CLI to post your comment. Choose ONE of the two formats below:
+            You MUST output ONLY valid JSON in one of these two formats. Do not include any other text, markdown, or explanations outside the JSON.
 
             ### Format 1: Confident Classification
 
-            If you have enough information to confidently classify:
-
-            ```bash
-            gh issue comment ${{ github.event.issue.number }} --body "## 🤖 Automated Severity Classification
-
-            **Recommended Severity:** \`[S0/S1/S2/S3/S4]\`
-
-            **Analysis:**
-            [2-3 sentences explaining your reasoning - focus on the actual impact, not just symptoms. Explain why you chose this severity level over others.]
-
-            ---
-            *This classification was performed by AI analysis. Please review and adjust if needed.*"
+            ```json
+            {
+              "status": "classified",
+              "severity": "s0|s1|s2|s3|s4",
+              "reasoning": "2-3 sentences explaining your reasoning - focus on the actual impact, not just symptoms. Explain why you chose this severity level over others."
+            }
             ```
 
             ### Format 2: Insufficient Information
 
-            If you lack sufficient information to classify:
-
-            ```bash
-            gh issue comment ${{ github.event.issue.number }} --body "## 🤖 Automated Severity Classification
-
-            **Status:** Unable to classify - insufficient information
-
-            **Reasoning:**
-            [2-3 sentences explaining what critical information is missing and why it's needed to determine severity. Be specific about what additional details would help.]
-
-            **Suggested next steps:**
-            [Bullet list of specific information the reporter should provide]
-
-            ---
-            *This classification was performed by AI analysis. Please provide the requested information for proper severity assessment.*"
+            ```json
+            {
+              "status": "insufficient_info",
+              "reasoning": "2-3 sentences explaining what critical information is missing and why it's needed to determine severity.",
+              "next_steps": [
+                "Specific information point 1",
+                "Specific information point 2",
+                "Specific information point 3"
+              ]
+            }
             ```
 
-            **Important**:
-            - Replace `[S0/S1/S2/S3/S4]` with your chosen severity (use uppercase) - only if using Format 1
-            - Replace placeholders with your actual reasoning
-            - Be specific and cite details from the issue that informed your decision
-            - Show your work - explain why this is s2 and not s1 or s3, for example
-            - **Be honest** - it's better to request more info than to misclassify
+            **Critical**: Output ONLY the JSON object, nothing else. The JSON will be parsed and validated.
 
-          claude_args: |
-            --allowedTools "Bash(gh issue:*)"
+  post-comment:
+    name: Post Classification Comment
+    needs: analyze
+    runs-on: ubuntu-latest
+    if: always() && needs.analyze.result != 'skipped'
+
+    steps:
+      - name: Parse and Validate Analysis
+        id: parse
+        run: |
+          # Parse the JSON output from claude-code-action
+          RESULT='${{ needs.analyze.outputs.result }}'
+
+          echo "Raw result: $RESULT"
+
+          # Extract JSON from the result
+          JSON=$(echo "$RESULT" | jq -r '.')
+
+          # Check if parsing succeeded
+          if [ $? -ne 0 ]; then
+            echo "Failed to parse JSON"
+            exit 1
+          fi
+
+          # Get status
+          STATUS=$(echo "$JSON" | jq -r '.status // empty')
+
+          if [ "$STATUS" = "classified" ]; then
+            # Validate severity is one of the allowed values
+            SEVERITY=$(echo "$JSON" | jq -r '.severity // empty')
+            if ! echo "$SEVERITY" | grep -Eq '^s[0-4]$'; then
+              echo "Invalid severity: $SEVERITY"
+              exit 1
+            fi
+
+            REASONING=$(echo "$JSON" | jq -r '.reasoning // empty')
+
+            # Set outputs
+            echo "status=classified" >> $GITHUB_OUTPUT
+            echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
+            echo "reasoning<<EOF" >> $GITHUB_OUTPUT
+            echo "$REASONING" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+
+          elif [ "$STATUS" = "insufficient_info" ]; then
+            REASONING=$(echo "$JSON" | jq -r '.reasoning // empty')
+            NEXT_STEPS=$(echo "$JSON" | jq -r '.next_steps | join("\n- ")' | sed 's/^/- /')
+
+            # Set outputs
+            echo "status=insufficient_info" >> $GITHUB_OUTPUT
+            echo "reasoning<<EOF" >> $GITHUB_OUTPUT
+            echo "$REASONING" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "next_steps<<EOF" >> $GITHUB_OUTPUT
+            echo "$NEXT_STEPS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "Unknown status: $STATUS"
+            exit 1
+          fi
+
+      - name: Post Classification Comment
+        if: steps.parse.outputs.status == 'classified'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SEVERITY_UPPER=$(echo "${{ steps.parse.outputs.severity }}" | tr '[:lower:]' '[:upper:]')
+
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --body "## 🤖 Automated Severity Classification
+
+          **Recommended Severity:** \`${SEVERITY_UPPER}\`
+
+          **Analysis:**
+          ${{ steps.parse.outputs.reasoning }}
+
+          ---
+          *This classification was performed by AI analysis. Please review and adjust if needed.*"
+
+      - name: Post Insufficient Information Comment
+        if: steps.parse.outputs.status == 'insufficient_info'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --body "## 🤖 Automated Severity Classification
+
+          **Status:** Unable to classify - insufficient information
+
+          **Reasoning:**
+          ${{ steps.parse.outputs.reasoning }}
+
+          **Suggested next steps:**
+          ${{ steps.parse.outputs.next_steps }}
+
+          ---
+          *This classification was performed by AI analysis. Please provide the requested information for proper severity assessment.*"
