@@ -6,7 +6,7 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
-import { useProviderFilterMenu } from "./filter/filter";
+import { useModelFilterMenu, useProviderFilterMenu } from "./filter/filter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 const RequestLogsPage: FC = () => {
@@ -38,7 +38,19 @@ const RequestLogsPage: FC = () => {
 			filter.update({
 				...filter.values,
 				provider: option?.value,
+				// Clear model when provider changes since model options depend on provider
+				model: undefined,
 			}),
+	});
+
+	const modelMenu = useModelFilterMenu({
+		value: filter.values.model,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				model: option?.value,
+			}),
+		provider: filter.values.provider,
 	});
 
 	return (
@@ -56,6 +68,7 @@ const RequestLogsPage: FC = () => {
 					menus: {
 						user: userMenu,
 						provider: providerMenu,
+						model: modelMenu,
 					},
 				}}
 			/>

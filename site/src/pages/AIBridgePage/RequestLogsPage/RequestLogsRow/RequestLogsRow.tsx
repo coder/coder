@@ -74,6 +74,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						<div className="font-medium">{interception.initiator.username}</div>
 					</div>
 				</TableCell>
+				<TableCell>{interception.model}</TableCell>
 				<TableCell>{firstPrompt?.prompt}</TableCell>
 				<TableCell>
 					<div className="flex items-center gap-4">

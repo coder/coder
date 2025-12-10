@@ -1,7 +1,12 @@
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import type { FC } from "react";
-import { ProviderFilter, type ProviderFilterMenu } from "./filter";
+import {
+	ModelFilter,
+	type ModelFilterMenu,
+	ProviderFilter,
+	type ProviderFilterMenu,
+} from "./filter";
 
 interface RequestLogsFilterProps {
 	filter: ReturnType<typeof useFilter>;
@@ -9,6 +14,7 @@ interface RequestLogsFilterProps {
 	menus: {
 		user: UserFilterMenu;
 		provider: ProviderFilterMenu;
+		model: ModelFilterMenu;
 	};
 }
 
@@ -37,6 +43,7 @@ export const RequestLogsFilter: FC<RequestLogsFilterProps> = ({
 				<>
 					<UserMenu menu={menus.user} />
 					<ProviderFilter menu={menus.provider} />
+					<ModelFilter menu={menus.model} />
 				</>
 			}
 		/>

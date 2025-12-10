@@ -18,10 +18,12 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	values: {
 		username: undefined,
 		provider: undefined,
+		model: undefined,
 	},
 	menus: {
 		user: MockMenu,
 		provider: MockMenu,
+		model: MockMenu,
 	},
 });
 
