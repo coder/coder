@@ -13,9 +13,10 @@ const fileTree: FileTree = {
 	"config.json": '{"name": "example"}',
 	"docker-compose.yml": "version: '3'",
 	Dockerfile: "FROM ubuntu:latest",
+	"app.py": "print('Hello')",
 	folder: {
 		"nested.tf": "resource aws_instance my_instance {}",
-		"setup.sh": "#!/bin/bash\necho 'Setting up...'",
+		"data.csv": "col1,col2\n1,2",
 	},
 };
 

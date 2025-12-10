@@ -8,8 +8,9 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	FileCodeIcon,
-	TerminalIcon,
-	TextAlignStartIcon,
+	FileIcon,
+	FolderIcon,
+  TerminalIcon,
 } from "lucide-react";
 import {
 	type CSSProperties,
@@ -95,7 +96,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
 		let icon: ElementType | undefined;
 		if (isFolder(content)) {
-			icon = TextAlignStartIcon;
+			icon = FolderIcon;
 		} else if (filename.endsWith(".tf")) {
 			icon = FileTypeTerraform;
 		} else if (filename.endsWith(".md")) {
@@ -108,6 +109,9 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			icon = BracesIcon;
 		} else if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
 			icon = FileCodeIcon;
+		} else {
+			// Default icon for files without a specific icon.
+			icon = FileIcon;
 		}
 
 		return (

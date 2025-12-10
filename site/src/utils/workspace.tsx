@@ -8,8 +8,8 @@ import utc from "dayjs/plugin/utc";
 import {
 	CircleAlertIcon,
 	HourglassIcon,
+	PauseIcon,
 	PlayIcon,
-	SquareIcon,
 } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
@@ -241,7 +241,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Stopped",
-				icon: <SquareIcon />,
+				icon: <PauseIcon />,
 			} as const;
 		case "deleting":
 			return {

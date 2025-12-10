@@ -2189,14 +2189,19 @@ func (a *apiConnRoutineManager) startTailnetAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting tailnet routine")
 		err := f(ctx, a.tAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
-			logger.Debug(ctx, "swallowing context canceled")
+		if (xerrors.Is(err, context.Canceled) ||
+			xerrors.Is(err, io.EOF)) &&
+			ctx.Err() != nil {
+			logger.Debug(ctx, "swallowing error because context is canceled", slog.Error(err))
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with
-			// gracefulShutdownBehaviorRemain.  Note that we check both that the error is
-			// context.Canceled and that *our* context is currently canceled, because when Coderd
-			// unilaterally closes the API connection (for example if the build is outdated), it can
-			// sometimes show up as context.Canceled in our RPC calls.
+			// gracefulShutdownBehaviorRemain. Unfortunately, the dRPC library closes the stream
+			// when context is canceled on an RPC, so canceling the context can also show up as
+			// io.EOF. Also, when Coderd unilaterally closes the API connection (for example if the
+			// build is outdated), it can sometimes show up as context.Canceled in our RPC calls.
+			// We can't reliably distinguish between a context cancelation and a legit EOF, so we
+			// also check that *our* context is currently canceled. If it is, we can safely ignore
+			// the error.
 			return nil
 		}
 		logger.Debug(ctx, "routine exited", slog.Error(err))

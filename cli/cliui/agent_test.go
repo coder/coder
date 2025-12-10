@@ -269,6 +269,87 @@ func TestAgent(t *testing.T) {
 			},
 		},
 		{
+			// Verify that in non-blocking mode (Wait=false), startup script
+			// logs are suppressed. This prevents dumping a wall of logs on
+			// users who explicitly pass --wait=no. See issue #13580.
+			name: "No logs in non-blocking mode",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+				Wait:          false,
+			},
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, logs chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
+					agent.StartedAt = ptr.Ref(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartError
+					agent.ReadyAt = ptr.Ref(time.Now())
+					// These logs should NOT be shown in non-blocking mode.
+					logs <- []codersdk.WorkspaceAgentLog{
+						{
+							CreatedAt: time.Now(),
+							Output:    "Startup script log 1",
+						},
+						{
+							CreatedAt: time.Now(),
+							Output:    "Startup script log 2",
+						},
+					}
+					return nil
+				},
+			},
+			// Note: Log content like "Startup script log 1" should NOT appear here.
+			want: []string{
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✘ Running workspace agent startup scripts (non-blocking)",
+				"Warning: A startup script exited with an error and your workspace may be incomplete.",
+				"For more information and troubleshooting, see",
+			},
+		},
+		{
+			// Verify that even after waiting for the agent to connect, logs
+			// are still suppressed in non-blocking mode. See issue #13580.
+			name: "No logs after connection wait in non-blocking mode",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+				Wait:          false,
+			},
+			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					return nil
+				},
+				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
+					return waitLines(t, output, "⧗ Waiting for the workspace agent to connect")
+				},
+				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, logs chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
+					agent.StartedAt = ptr.Ref(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartError
+					agent.ReadyAt = ptr.Ref(time.Now())
+					// These logs should NOT be shown in non-blocking mode,
+					// even though we waited for connection.
+					logs <- []codersdk.WorkspaceAgentLog{
+						{
+							CreatedAt: time.Now(),
+							Output:    "Startup script log 1",
+						},
+					}
+					return nil
+				},
+			},
+			// Note: Log content should NOT appear here despite waiting for connection.
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+				"✔ Waiting for the workspace agent to connect",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✘ Running workspace agent startup scripts (non-blocking)",
+				"Warning: A startup script exited with an error and your workspace may be incomplete.",
+				"For more information and troubleshooting, see",
+			},
+		},
+		{
 			name: "Error when shutting down",
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
@@ -484,6 +565,70 @@ func TestAgent(t *testing.T) {
 			},
 		}
 		require.NoError(t, cmd.Invoke().Run())
+	})
+
+	t.Run("ContextCancelDuringLogStreaming", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		agent := codersdk.WorkspaceAgent{
+			ID:               uuid.New(),
+			Status:           codersdk.WorkspaceAgentConnected,
+			FirstConnectedAt: ptr.Ref(time.Now()),
+			CreatedAt:        time.Now(),
+			LifecycleState:   codersdk.WorkspaceAgentLifecycleStarting,
+			StartedAt:        ptr.Ref(time.Now()),
+		}
+
+		logs := make(chan []codersdk.WorkspaceAgentLog, 1)
+		logStreamStarted := make(chan struct{})
+
+		cmd := &serpent.Command{
+			Handler: func(inv *serpent.Invocation) error {
+				return cliui.Agent(inv.Context(), io.Discard, agent.ID, cliui.AgentOptions{
+					FetchInterval: time.Millisecond,
+					Wait:          true,
+					Fetch: func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
+						return agent, nil
+					},
+					FetchLogs: func(_ context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
+						// Signal that log streaming has started.
+						select {
+						case <-logStreamStarted:
+						default:
+							close(logStreamStarted)
+						}
+						return logs, closeFunc(func() error { return nil }), nil
+					},
+				})
+			},
+		}
+
+		inv := cmd.Invoke().WithContext(ctx)
+		done := make(chan error, 1)
+		go func() {
+			done <- inv.Run()
+		}()
+
+		// Wait for log streaming to start.
+		select {
+		case <-logStreamStarted:
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("timed out waiting for log streaming to start")
+		}
+
+		// Cancel the context while streaming logs.
+		cancel()
+
+		// Verify that the agent function returns with a context error.
+		select {
+		case err := <-done:
+			require.ErrorIs(t, err, context.Canceled)
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("timed out waiting for agent to return after context cancellation")
+		}
 	})
 }
 

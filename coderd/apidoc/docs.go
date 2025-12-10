@@ -1290,8 +1290,14 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Returns existing file if duplicate",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadResponse"
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "Returns newly created file",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadResponse"
                         }
@@ -14206,6 +14212,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "disable_path_apps": {
+                    "type": "boolean"
+                },
+                "disable_workspace_sharing": {
                     "type": "boolean"
                 },
                 "docs_url": {

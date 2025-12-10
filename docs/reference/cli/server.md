@@ -1115,6 +1115,16 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.
 
+### --disable-workspace-sharing
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>bool</code>                             |
+| Environment | <code>$CODER_DISABLE_WORKSPACE_SHARING</code> |
+| YAML        | <code>disableWorkspaceSharing</code>          |
+
+Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+
 ### --session-duration
 
 |             |                                              |
