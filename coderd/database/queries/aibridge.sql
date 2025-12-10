@@ -179,6 +179,23 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
 
+-- name: ListAIBridgeDistinctModels :many
+-- Returns distinct models from aibridge_interceptions, optionally filtered by provider.
+SELECT DISTINCT
+	model
+FROM
+	aibridge_interceptions
+WHERE
+	-- Only include completed interceptions
+	ended_at IS NOT NULL
+	-- Filter by provider if specified
+	AND CASE
+		WHEN @provider::text != '' THEN provider = @provider::text
+		ELSE true
+	END
+ORDER BY
+	model ASC;
+
 -- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
 	*

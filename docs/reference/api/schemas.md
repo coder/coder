@@ -572,6 +572,22 @@
 | `count`   | integer                                                                 | false    |              |             |
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
 
+## codersdk.AIBridgeListModelsResponse
+
+```json
+{
+  "models": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type            | Required | Restrictions | Description |
+|----------|-----------------|----------|--------------|-------------|
+| `models` | array of string | false    |              |             |
+
 ## codersdk.AIBridgeOpenAIConfig
 
 ```json

@@ -738,6 +738,47 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 	return i, err
 }
 
+const listAIBridgeDistinctModels = `-- name: ListAIBridgeDistinctModels :many
+SELECT DISTINCT
+	model
+FROM
+	aibridge_interceptions
+WHERE
+	-- Only include completed interceptions
+	ended_at IS NOT NULL
+	-- Filter by provider if specified
+	AND CASE
+		WHEN $1::text != '' THEN provider = $1::text
+		ELSE true
+	END
+ORDER BY
+	model ASC
+`
+
+// Returns distinct models from aibridge_interceptions, optionally filtered by provider.
+func (q *sqlQuerier) ListAIBridgeDistinctModels(ctx context.Context, provider string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeDistinctModels, provider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var model string
+		if err := rows.Scan(&model); err != nil {
+			return nil, err
+		}
+		items = append(items, model)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
 	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id,

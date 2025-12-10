@@ -57,6 +57,11 @@ export interface AIBridgeListInterceptionsResponse {
 	readonly results: readonly AIBridgeInterception[];
 }
 
+// From codersdk/aibridge.go
+export interface AIBridgeListModelsResponse {
+	readonly models: readonly string[];
+}
+
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;

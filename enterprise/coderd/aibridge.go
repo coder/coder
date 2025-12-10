@@ -32,6 +32,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 		r.Group(func(r chi.Router) {
 			r.Use(middlewares...)
 			r.Get("/interceptions", api.aiBridgeListInterceptions)
+			r.Get("/models", api.aiBridgeListModels)
 		})
 
 		// This is a bit funky but since aibridge only exposes a HTTP
@@ -214,4 +215,34 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 	}
 
 	return items, nil
+}
+
+// aiBridgeListModels returns distinct models from AI Bridge interceptions.
+// Optional filter by provider with query param.
+//
+// @Summary List AI Bridge models
+// @ID list-ai-bridge-models
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Bridge
+// @Param provider query string false "Filter models by provider"
+// @Success 200 {object} codersdk.AIBridgeListModelsResponse
+// @Router /aibridge/models [get]
+func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	provider := r.URL.Query().Get("provider")
+
+	models, err := api.Database.ListAIBridgeDistinctModels(ctx, provider)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting AI Bridge models.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListModelsResponse{
+		Models: models,
+	})
 }

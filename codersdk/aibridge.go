@@ -62,6 +62,10 @@ type AIBridgeListInterceptionsResponse struct {
 	Results []AIBridgeInterception `json:"results"`
 }
 
+type AIBridgeListModelsResponse struct {
+	Models []string `json:"models"`
+}
+
 // @typescript-ignore AIBridgeListInterceptionsFilter
 type AIBridgeListInterceptionsFilter struct {
 	// Limit defaults to 100, max is 1000.
@@ -124,5 +128,26 @@ func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeL
 		return AIBridgeListInterceptionsResponse{}, ReadBodyAsError(res)
 	}
 	var resp AIBridgeListInterceptionsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// AIBridgeListModels returns distinct models from AI Bridge interceptions,
+// optionally filtered by provider.
+func (c *Client) AIBridgeListModels(ctx context.Context, provider string) (AIBridgeListModelsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/models", nil, func(r *http.Request) {
+		if provider != "" {
+			q := r.URL.Query()
+			q.Set("provider", provider)
+			r.URL.RawQuery = q.Encode()
+		}
+	})
+	if err != nil {
+		return AIBridgeListModelsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIBridgeListModelsResponse{}, ReadBodyAsError(res)
+	}
+	var resp AIBridgeListModelsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

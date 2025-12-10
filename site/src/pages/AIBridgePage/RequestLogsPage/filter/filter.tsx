@@ -1,3 +1,4 @@
+import { API } from "api/api";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -56,33 +57,6 @@ export const ProviderFilter: FC<ProviderFilterProps> = ({ menu }) => {
 	);
 };
 
-// Model options organized by provider
-const MODELS_BY_PROVIDER: Record<string, SelectFilterOption[]> = {
-	openai: [
-		{ label: "GPT-4o", value: "gpt-4o" },
-		{ label: "GPT-4o Mini", value: "gpt-4o-mini" },
-		{ label: "GPT-4 Turbo", value: "gpt-4-turbo" },
-		{ label: "GPT-4", value: "gpt-4" },
-		{ label: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" },
-		{ label: "o1", value: "o1" },
-		{ label: "o1 Mini", value: "o1-mini" },
-		{ label: "o1 Preview", value: "o1-preview" },
-		{ label: "o3 Mini", value: "o3-mini" },
-	],
-	anthropic: [
-		{ label: "Claude Sonnet 4", value: "claude-sonnet-4-20250514" },
-		{ label: "Claude 3.7 Sonnet", value: "claude-3-7-sonnet-20250219" },
-		{ label: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet-20241022" },
-		{ label: "Claude 3.5 Haiku", value: "claude-3-5-haiku-20241022" },
-		{ label: "Claude 3 Opus", value: "claude-3-opus-20240229" },
-		{ label: "Claude 3 Sonnet", value: "claude-3-sonnet-20240229" },
-		{ label: "Claude 3 Haiku", value: "claude-3-haiku-20240307" },
-	],
-};
-
-// Get all models as a flat list
-const ALL_MODELS: SelectFilterOption[] = Object.values(MODELS_BY_PROVIDER).flat();
-
 interface UseModelFilterMenuOptions
 	extends Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled"> {
 	provider: string | undefined;
@@ -94,23 +68,29 @@ export const useModelFilterMenu = ({
 	enabled,
 	provider,
 }: UseModelFilterMenuOptions) => {
-	// Get models based on selected provider, or all models if none selected
-	const getModelsForProvider = (): SelectFilterOption[] => {
-		if (!provider) {
-			return ALL_MODELS;
+	// Fetch models from API, optionally filtered by provider.
+	const fetchModels = async (): Promise<SelectFilterOption[]> => {
+		try {
+			const response = await API.experimental.getAIBridgeModels(provider);
+			return response.models.map((model) => ({
+				label: model,
+				value: model,
+			}));
+		} catch {
+			return [];
 		}
-		return MODELS_BY_PROVIDER[provider] ?? [];
 	};
 
 	return useFilterMenu({
 		id: "model",
 		getSelectedOption: async () => {
-			const models = getModelsForProvider();
-			return models.find((option) => option.value === value) ?? null;
+			if (!value) {
+				return null;
+			}
+			// Return the selected value directly without fetching all models.
+			return { label: value, value };
 		},
-		getOptions: async () => {
-			return getModelsForProvider();
-		},
+		getOptions: fetchModels,
 		value,
 		onChange,
 		enabled,

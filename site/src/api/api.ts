@@ -2750,6 +2750,17 @@ class ExperimentalApiMethods {
 			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
 		return response.data;
 	};
+
+	getAIBridgeModels = async (provider?: string) => {
+		const params = new URLSearchParams();
+		if (provider) {
+			params.set("provider", provider);
+		}
+		const url = `/api/experimental/aibridge/models${params.toString() ? `?${params.toString()}` : ""}`;
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListModelsResponse>(url);
+		return response.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
