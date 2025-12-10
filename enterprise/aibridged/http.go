@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
 
@@ -35,7 +36,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
 
-	key := strings.TrimSpace(ExtractAuthToken(r.Header))
+	key := strings.TrimSpace(httpmw.ExtractAPIKeyFromHeader(r.Header))
 	if key == "" {
 		logger.Warn(ctx, "no auth key provided")
 		http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
@@ -78,21 +79,4 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	handler.ServeHTTP(rw, r)
-}
-
-// ExtractAuthToken extracts authorization token from HTTP request using multiple sources.
-// These sources represent the different ways clients authenticate against AI providers.
-// It checks the Authorization header (Bearer token) and X-Api-Key header.
-// If neither are present, an empty string is returned.
-func ExtractAuthToken(header http.Header) string {
-	if auth := strings.TrimSpace(header.Get("Authorization")); auth != "" {
-		fields := strings.Fields(auth)
-		if len(fields) == 2 && strings.EqualFold(fields[0], "Bearer") {
-			return fields[1]
-		}
-	}
-	if apiKey := strings.TrimSpace(header.Get("X-Api-Key")); apiKey != "" {
-		return apiKey
-	}
-	return ""
 }

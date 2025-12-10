@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -98,15 +97,10 @@ func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) ht
 		count,
 		window,
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
-			// Try to extract auth token for per-user rate limiting.
-			// First check standard Coder auth methods.
-			if token := APITokenFromRequest(r); token != "" {
+			// Try to extract auth token for per-user rate limiting using
+			// AI provider authentication headers.
+			if token := ExtractAPIKeyFromHeader(r.Header); token != "" {
 				return token, nil
-			}
-			// Fallback to X-Api-Key header for AI provider compatibility
-			// (e.g., Anthropic uses this header).
-			if apiKey := r.Header.Get("X-Api-Key"); apiKey != "" {
-				return strings.TrimSpace(apiKey), nil
 			}
 			// Fall back to IP-based rate limiting if no token present.
 			return httprate.KeyByIP(r)
