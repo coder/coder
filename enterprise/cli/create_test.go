@@ -371,6 +371,9 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			notifications.NewNoopEnqueuer(),
 			newNoopUsageCheckerPtr(),
 		)
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -482,6 +485,9 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			notifications.NewNoopEnqueuer(),
 			newNoopUsageCheckerPtr(),
 		)
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 

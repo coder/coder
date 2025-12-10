@@ -1978,6 +1978,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 		)
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -2100,6 +2103,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 		)
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -2222,6 +2228,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 		)
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -2366,6 +2375,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 		)
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -2511,6 +2523,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 		)
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -2957,6 +2972,9 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		notifications.NewNoopEnqueuer(),
 		api.AGPL.BuildUsageChecker,
 	)
+	t.Cleanup(func() {
+		reconciler.Stop(context.Background(), nil)
+	})
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
 

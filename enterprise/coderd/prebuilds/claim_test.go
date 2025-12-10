@@ -168,6 +168,9 @@ func TestClaimPrebuild(t *testing.T) {
 
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+				t.Cleanup(func() {
+					reconciler.Stop(context.Background(), nil)
+				})
 				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 

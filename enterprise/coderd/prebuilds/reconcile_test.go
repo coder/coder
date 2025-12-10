@@ -53,6 +53,9 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		controller.Stop(context.Background(), nil)
+	})
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -96,6 +99,9 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		controller.Stop(context.Background(), nil)
+	})
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -426,6 +432,9 @@ func (tc testCase) run(t *testing.T) {
 		}
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+		t.Cleanup(func() {
+			controller.Stop(context.Background(), nil)
+		})
 
 		// Run the reconciliation multiple times to ensure idempotency
 		// 8 was arbitrary, but large enough to reasonably trust the result

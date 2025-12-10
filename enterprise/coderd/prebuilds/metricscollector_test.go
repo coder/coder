@@ -198,6 +198,9 @@ func TestMetricsCollector(t *testing.T) {
 									db, pubsub := dbtestutil.NewDB(t)
 									cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 									reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+									t.Cleanup(func() {
+										reconciler.Stop(context.Background(), nil)
+									})
 									ctx := testutil.Context(t, testutil.WaitLong)
 
 									createdUsers := []uuid.UUID{database.PrebuildsSystemUserID}
@@ -330,6 +333,9 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	db, pubsub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		reconciler.Stop(context.Background(), nil)
+	})
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	collector := prebuilds.NewMetricsCollector(db, logger, reconciler)
@@ -478,6 +484,9 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		registry := prometheus.NewPedanticRegistry()
 		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer(), newNoopUsageCheckerPtr())
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Ensure no pause setting is set (default state)
@@ -507,6 +516,9 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		registry := prometheus.NewPedanticRegistry()
 		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer(), newNoopUsageCheckerPtr())
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Set reconciliation to paused
@@ -536,6 +548,9 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		registry := prometheus.NewPedanticRegistry()
 		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer(), newNoopUsageCheckerPtr())
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Set reconciliation back to not paused
