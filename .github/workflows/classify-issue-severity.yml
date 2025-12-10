@@ -1,3 +1,7 @@
+# WIP: This workflow assists in evaluating the severity of incoming issues to help
+# with triaging tickets. It uses AI analysis to classify issues into severity levels
+# (s0-s4) when the 'triage-check' label is applied.
+
 name: Classify Issue Severity
 
 on:
