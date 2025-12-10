@@ -2001,6 +2001,7 @@ export interface ExternalAuthConfig {
 	 * DisplayIcon is a URL to an icon to display in the UI.
 	 */
 	readonly display_icon: string;
+	readonly code_challenge_methods_supported: readonly string[];
 }
 
 // From codersdk/externalauth.go
@@ -3042,6 +3043,9 @@ export interface OAuth2GithubConfig {
 	readonly allow_everyone: boolean;
 	readonly enterprise_base_url: string;
 }
+
+// From codersdk/client.go
+export const OAuth2PKCEChallenge = "oauth_pkce_challenge";
 
 // From codersdk/oauth2.go
 /**
