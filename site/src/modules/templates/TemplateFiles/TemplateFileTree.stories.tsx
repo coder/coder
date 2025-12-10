@@ -8,8 +8,13 @@ const fileTree: FileTree = {
 	"main.tf": "resource aws_instance my_instance {}",
 	"variables.tf": "variable my_var {}",
 	"outputs.tf": "output my_output {}",
+	"README.md": "# Example\n\nThis is an example.",
+	"install.sh": "#!/bin/bash\necho 'Installing...'",
+	"config.txt": "key=value",
+	"app.py": "print('Hello')",
 	folder: {
 		"nested.tf": "resource aws_instance my_instance {}",
+		"data.csv": "col1,col2\n1,2",
 	},
 };
 

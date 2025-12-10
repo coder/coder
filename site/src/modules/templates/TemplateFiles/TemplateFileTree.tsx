@@ -3,7 +3,12 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	ChevronRightIcon,
+	FileIcon,
+	FolderIcon,
+} from "lucide-react";
 import {
 	type CSSProperties,
 	type ElementType,
@@ -95,6 +100,9 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			icon = FileTypeMarkdown;
 		} else if (filename.endsWith("Dockerfile")) {
 			icon = DockerIcon;
+		} else {
+			// Default icon for files without a specific icon.
+			icon = FileIcon;
 		}
 
 		return (
