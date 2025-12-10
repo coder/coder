@@ -18,12 +18,12 @@ export const AIBridgeHelpTooltip: FC = () => {
 			<HelpTooltipContent>
 				<HelpTooltipTitle>What is AI Bridge?</HelpTooltipTitle>
 				<HelpTooltipText>
-					AI Bridge is a proxy that unifies and audits LLM usage across your
-					organization.
+					AI Bridge is a smart gateway for AI that provides centralized
+					management, auditing, and attribution for LLM usage.
 				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
 					<HelpTooltipLink href={docs("/ai-coder/ai-bridge")}>
-						What we track
+						Read the docs
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
 			</HelpTooltipContent>
