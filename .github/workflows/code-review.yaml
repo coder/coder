@@ -151,20 +151,24 @@ jobs:
             Catch bugs and security issues. Be thorough but accurate.
             Read full files to verify issues exist before commenting.
 
-          FIND THESE:
-            ✅ Security: auth bypass, injection, secret leaks, missing auth checks
-            ✅ Logic errors: race conditions, null derefs, off-by-one, wrong calculations
-            ✅ Error handling: unhandled errors that cause crashes or silent failures
-            ✅ Resource leaks: unclosed connections, goroutine leaks, memory leaks
-            ✅ Data corruption: concurrent writes, cache invalidation bugs
-            ✅ API misuse: incorrect parameters, missing required fields
+          FIND THESE (refer to AGENTS.md for Coder patterns):
+            ✅ Security: auth bypass, injection, secret leaks, wrong dbauthz context
+            ✅ Authorization: missing dbauthz.AsSystemRestricted on public endpoints
+            ✅ OAuth2: non-RFC-compliant errors (must use writeOAuth2Error)
+            ✅ Database: changes to queries/*.sql without running make gen
+            ✅ Race conditions: hardcoded names in tests, missing unique identifiers
+            ✅ Timing: using time.Sleep instead of quartz library
+            ✅ Logic errors: null derefs, off-by-one, wrong calculations
+            ✅ Error handling: unhandled errors causing crashes or silent failures
+            ✅ Resource leaks: unclosed connections, goroutine leaks
+            ✅ Missing tests for new functionality
 
           DON'T COMMENT ON:
-            ❌ Style preferences ("use const instead of let") unless they cause bugs
+            ❌ Style that matches existing Coder patterns (check AGENTS.md first)
+            ❌ Comments that "explain what" - Coder style is "explain why"
             ❌ Code that already exists (read the file first!)
-            ❌ Validation for impossible conditions (GitHub secrets are pre-validated)
-            ❌ Generic "best practices" that don't apply to this codebase
-            ❌ Adding error handling for errors that can't occur
+            ❌ Unnecessary changes unrelated to the PR (see AGENTS.md "Avoid Unnecessary Changes")
+            ❌ Validation for impossible conditions
 
           EXAMPLE OF BAD REVIEW (Don't do this):
 
@@ -184,36 +188,32 @@ jobs:
 
           EXAMPLE OF GOOD REVIEW (Do this):
 
-            PR adds user authentication to API
-            File: api/auth.go
+            PR adds OAuth2 token endpoint
+            File: coderd/oauth2/token.go
 
-            GOOD Comment on line 67:
-            Issue: Error from bcrypt.CompareHashAndPassword is not checked. If comparison
-            fails (e.g., corrupted hash in DB), err is non-nil but code continues and grants access.
+            GOOD Comment on line 89:
+            Issue: OAuth2 error returned with http.Error instead of writeOAuth2Error.
+            Per AGENTS.md and RFC 6749, OAuth2 endpoints must return errors in JSON format
+            with specific fields (error, error_description).
 
-            Impact: Authentication bypass - users could log in even if password check fails.
+            Impact: Non-compliant OAuth2 implementation. Breaks client libraries expecting RFC format.
 
             \`\`\`suggestion
-            if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-              return nil, fmt.Errorf("invalid password: %w", err)
-            }
+            writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "refresh token expired")
+            return
             \`\`\`
 
             GOOD Comment on line 156:
-            Issue: JWT token signed with empty secret when JWT_SECRET env var is missing.
-            token.SignedString("") creates a valid-looking token that can be forged.
+            Issue: Database query uses plain ctx instead of dbauthz.AsSystemRestricted(ctx).
+            Per AGENTS.md, public endpoints (no user auth) must use AsSystemRestricted for DB calls.
 
-            Impact: Security critical - anyone can create valid tokens and access any account.
+            Impact: Authorization bypass - fails to enforce row-level security on public endpoint.
 
             \`\`\`suggestion
-            jwtSecret := os.Getenv("JWT_SECRET")
-            if jwtSecret == "" {
-              return nil, errors.New("JWT_SECRET must be set")
-            }
-            signedToken, err := token.SignedString([]byte(jwtSecret))
+            app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
             \`\`\`
 
-            Result: Found 2 critical security bugs. Valuable review.
+            Result: Found 2 Coder-specific bugs that violate documented patterns. Valuable review.
 
           HOW GITHUB SUGGESTIONS WORK:
 
