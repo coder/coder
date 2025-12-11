@@ -1060,6 +1060,14 @@ func TestProvision(t *testing.T) {
 			},
 			SkipCacheProviders: true,
 		},
+		{
+			Name: "malicious-tar",
+			Files: map[string]string{
+				// Non-local path outside the working directory.
+				"../../../etc/passwd": "content",
+			},
+			InitErrorContains: "refusing to extract to non-local path",
+		},
 	}
 
 	// Remove unused cache dirs before running tests.
