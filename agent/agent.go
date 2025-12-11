@@ -373,7 +373,7 @@ func (a *agent) init() {
 	)
 
 	a.initSocketServer()
-	a.startBoundaryLogSocketServer()
+	a.startBoundaryLogProxyServer()
 
 	go a.runLoop()
 }
@@ -398,10 +398,10 @@ func (a *agent) initSocketServer() {
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
-// startBoundaryLogSocketServer starts the boundary log proxy socket server.
+// startBoundaryLogProxyServer starts the boundary log proxy socket server.
 // This creates the Unix socket and begins accepting connections from boundary
 // processes. Logs are buffered until the forwarder is started via startAgentAPI.
-func (a *agent) startBoundaryLogSocketServer() {
+func (a *agent) startBoundaryLogProxyServer() {
 	a.boundaryLogProxyMu.Lock()
 	defer a.boundaryLogProxyMu.Unlock()
 
