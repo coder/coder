@@ -44,6 +44,14 @@ respective local ports.
 coder port-forward myworkspace --tcp 3000,9990-9999
 ```
 
+Forward the remote TCP port `3000` and all ports from `9990` to `9999` to their
+respective local ports to the `agent` in your Workspace (typically main or dev).
+This is needed when you have multiple agents in your workspace.
+
+```console
+coder port-forward myworkspace.agent --tcp 3000,9990-9999
+```
+
 For more examples, see `coder port-forward --help`.
 
 ## Dashboard
