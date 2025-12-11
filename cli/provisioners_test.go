@@ -94,7 +94,7 @@ func TestProvisioners_Golden(t *testing.T) {
 	// Create a provisioner that's working on a job.
 	pd1 := dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{
 		Name:       "provisioner-1",
-		CreatedAt:  dbtime.Now().Add(time.Second),
+		CreatedAt:  now.Add(time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
 		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
