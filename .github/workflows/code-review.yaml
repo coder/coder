@@ -87,7 +87,7 @@ jobs:
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
 
             # Extract PR number from URL
-            PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
+PR_NUMBER=$(echo "${INPUTS_PR_URL}" | sed -n 's|.*/pull/\([0-9]*\)$|\1|p')
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
