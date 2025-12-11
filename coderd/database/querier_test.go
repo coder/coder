@@ -6082,7 +6082,6 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	t.Run("NilParentDoesNotReturnAllParentAgents", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A workspace agent
 		db, _ := dbtestutil.NewDB(t)
@@ -6097,6 +6096,8 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// When: We attempt to select agents with a null parent id
 		agents, err := db.GetWorkspaceAgentsByParentID(ctx, uuid.Nil)
