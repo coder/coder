@@ -276,8 +276,7 @@ type agent struct {
 
 	logSender *agentsdk.LogSender
 
-	boundaryLogProxy   *boundarylogproxy.Server
-	boundaryLogProxyMu sync.Mutex
+	boundaryLogProxy *boundarylogproxy.Server
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -398,20 +397,15 @@ func (a *agent) initSocketServer() {
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
-// startBoundaryLogProxyServer starts the boundary log proxy socket server.
-// This creates the Unix socket and begins accepting connections from boundary
-// processes. Logs are buffered until the forwarder is started via startAgentAPI.
+// startBoundaryLogProxyServer starts the boundary log proxy socket server if
+// CODER_BOUNDARY_LOG_SOCKET is set. The socket path is configured via the
+// workspace template so both the agent and boundary can use the same path.
 func (a *agent) startBoundaryLogProxyServer() {
-	a.boundaryLogProxyMu.Lock()
-	defer a.boundaryLogProxyMu.Unlock()
-
-	if a.boundaryLogProxy != nil {
-		// Already started.
+	socketPath := os.Getenv("CODER_BOUNDARY_LOG_SOCKET")
+	if socketPath == "" {
+		// Boundary log forwarding not configured.
 		return
 	}
-
-	// Create socket path in temp directory.
-	socketPath := filepath.Join(a.tempDir, "boundary-logs.sock")
 
 	proxy := boundarylogproxy.NewServer(a.logger, socketPath)
 	if err := proxy.Start(a.hardCtx); err != nil {
@@ -420,7 +414,7 @@ func (a *agent) startBoundaryLogProxyServer() {
 	}
 
 	a.boundaryLogProxy = proxy
-	a.logger.Info(a.hardCtx, "boundary log socket server started",
+	a.logger.Info(a.hardCtx, "boundary log proxy server started",
 		slog.F("socket_path", socketPath))
 }
 
@@ -1047,9 +1041,11 @@ func (a *agent) run() (retErr error) {
 		})
 
 
-	// Forward boundary audit logs to coderd. These are audit logs so they should
-	// be forwarded during graceful shutdown (gracefulShutdownBehaviorRemain).
-	connMan.startAgentAPI("boundary log forwarder", gracefulShutdownBehaviorRemain, a.forwardBoundaryLogs)
+	// Forward boundary audit logs to coderd if boundary log forwarding is enabled.
+	// These are audit logs so they should continue during graceful shutdown.
+	if a.boundaryLogProxy != nil {
+		connMan.startAgentAPI("boundary log forwarder", gracefulShutdownBehaviorRemain, a.forwardBoundaryLogs)
+	}
 
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
 	// lifecycle reporting has to be via gracefulShutdownBehaviorRemain
@@ -1451,13 +1447,6 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		// Hide Coder message on code-server's "Getting Started" page
 		"CS_DISABLE_GETTING_STARTED_OVERRIDE": "true",
 	}
-
-	// Add boundary log socket path if the proxy is running.
-	a.boundaryLogProxyMu.Lock()
-	if a.boundaryLogProxy != nil {
-		envs["CODER_BOUNDARY_LOG_SOCKET"] = a.boundaryLogProxy.SocketPath()
-	}
-	a.boundaryLogProxyMu.Unlock()
 
 	// This adds the ports dialog to code-server that enables
 	// proxying a port dynamically.
