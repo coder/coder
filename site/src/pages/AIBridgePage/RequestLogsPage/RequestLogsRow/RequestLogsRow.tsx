@@ -22,6 +22,18 @@ type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
 };
 
+const customisedDateLocale: Intl.DateTimeFormatOptions = {
+	// Hide the year from the date
+	year: undefined,
+	// Show the month as a short name
+	month: "short",
+	day: "numeric",
+	hour: "numeric",
+	minute: "2-digit",
+	second: "2-digit",
+	hour12: true,
+};
+
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -50,7 +62,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				className="select-none cursor-pointer hover:bg-surface-secondary"
 				onClick={() => setIsOpen(!isOpen)}
 			>
-				<TableCell className="w-48">
+				<TableCell className="w-48 whitespace-nowrap">
 					<div
 						className={cn([
 							"flex items-center gap-2",
@@ -63,7 +75,10 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<ChevronRightIcon className="size-icon-xs" />
 						)}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
-						{new Date(interception.started_at).toLocaleString()}
+						{new Date(interception.started_at).toLocaleString(
+							undefined,
+							customisedDateLocale,
+						)}
 					</div>
 				</TableCell>
 				<TableCell className="w-48">
