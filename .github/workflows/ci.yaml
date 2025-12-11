@@ -628,13 +628,14 @@ jobs:
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
       # short timeouts are used.
       # c.f. discussion on https://github.com/coder/coder/pull/15106
-      # Our Linux runners have 32 cores, but we use reduced parallelism for race detection.
+      # Our Linux runners have 32 cores, but we reduce parallelism since race detection adds a lot of overhead.
+      # We aim to have parallelism match CPU count (8*4=32) to avoid making flakes worse.
       - name: Run Tests
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "17"
-          test-parallelism-packages: "16"
-          test-parallelism-tests: "8"
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "4"
           race-detection: "true"
 
       - name: Upload Test Cache
