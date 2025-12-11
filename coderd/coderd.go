@@ -776,7 +776,7 @@ func New(options *Options) *API {
 		UsageTracker:           options.WorkspaceUsageTracker,
 		UpdateAgentMetricsFn:   options.UpdateAgentMetrics,
 		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
-		DisableDatabaseStorage: options.DeploymentValues.DisableTemplateInsights.Value(),
+		DisableDatabaseStorage: !options.DeploymentValues.TemplateInsights.Enable.Value(),
 	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
@@ -1533,7 +1533,7 @@ func New(options *Options) *API {
 				r.Use(
 					func(next http.Handler) http.Handler {
 						return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-							if options.DeploymentValues.DisableTemplateInsights.Value() {
+							if !options.DeploymentValues.TemplateInsights.Enable.Value() {
 								httpapi.Write(context.Background(), rw, http.StatusForbidden, codersdk.Response{
 									Message: "Forbidden.",
 									Detail:  "Template insights are disabled.",

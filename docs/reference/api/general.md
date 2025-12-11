@@ -233,7 +233,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
-    "disable_template_insights": true,
     "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
@@ -516,6 +515,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "scheme": "string",
         "user": {}
       }
+    },
+    "template_insights": {
+      "enable": true
     },
     "terms_of_service_url": "string",
     "tls": {

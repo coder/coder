@@ -269,16 +269,16 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
-### --disable-template-insights
+### --template-insights-enable
 
 |             |                                                    |
 |-------------|----------------------------------------------------|
 | Type        | <code>bool</code>                                  |
-| Environment | <code>$CODER_DISABLE_TEMPLATE_INSIGHTS</code>      |
-| YAML        | <code>introspection.disableTemplateInsights</code> |
-| Default     | <code>false</code>                                 |
+| Environment | <code>$CODER_TEMPLATE_INSIGHTS_ENABLE</code>       |
+| YAML        | <code>introspection.templateInsights.enable</code> |
+| Default     | <code>true</code>                                  |
 
-Disable storage and display of template insights.
+Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.
 
 ### --prometheus-enable
 

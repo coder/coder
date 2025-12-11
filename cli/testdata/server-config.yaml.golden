@@ -190,11 +190,16 @@ autobuildPollInterval: 1m0s
 # Interval to poll for hung and pending jobs and automatically terminate them.
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
-# Configure logging, tracing, and metrics exporting.
 introspection:
-  # Disable storage and display of template insights.
-  # (default: false, type: bool)
-  disableTemplateInsights: false
+  templateInsights:
+    # Enable the collection and display of template insights along with the associated
+    # API endpoints. This will also enable aggregating these insights into daily
+    # active users, application usage, and transmission rates for overall deployment
+    # stats. When disabled, these values will be zero, which will also affect what the
+    # bottom deployment overview bar displays. Disabling will also prevent Prometheus
+    # collection of these values.
+    # (default: true, type: bool)
+    enable: true
   prometheus:
     # Serve prometheus metrics on the address defined by prometheus address.
     # (default: <unset>, type: bool)

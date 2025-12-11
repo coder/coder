@@ -1788,7 +1788,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
-	readonly disable_template_insights?: boolean;
+	readonly template_insights?: TemplateInsightsConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -5077,6 +5077,11 @@ export interface TemplateFilter {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
 	readonly role: TemplateRole;
+}
+
+// From codersdk/deployment.go
+export interface TemplateInsightsConfig {
+	readonly enable: boolean;
 }
 
 // From codersdk/insights.go

@@ -223,12 +223,6 @@ Configure TLS for your SMTP server target.
       --email-tls-starttls bool, $CODER_EMAIL_TLS_STARTTLS
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
-INTROSPECTION OPTIONS: 
-Configure logging, tracing, and metrics exporting.
-
-      --disable-template-insights bool, $CODER_DISABLE_TEMPLATE_INSIGHTS (default: false)
-          Disable storage and display of template insights.
-
 INTROSPECTION / HEALTH CHECK OPTIONS: 
       --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
           Refresh interval for healthchecks.
@@ -274,6 +268,16 @@ INTROSPECTION / PROMETHEUS OPTIONS:
 
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
+
+INTROSPECTION / TEMPLATE INSIGHTS OPTIONS: 
+      --template-insights-enable bool, $CODER_TEMPLATE_INSIGHTS_ENABLE (default: true)
+          Enable the collection and display of template insights along with the
+          associated API endpoints. This will also enable aggregating these
+          insights into daily active users, application usage, and transmission
+          rates for overall deployment stats. When disabled, these values will
+          be zero, which will also affect what the bottom deployment overview
+          bar displays. Disabling will also prevent Prometheus collection of
+          these values.
 
 INTROSPECTION / TRACING OPTIONS: 
       --trace-logs bool, $CODER_TRACE_LOGS

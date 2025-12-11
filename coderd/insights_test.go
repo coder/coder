@@ -2407,7 +2407,9 @@ func TestGenericInsights_Disabled(t *testing.T) {
 			dbrollup.WithInterval(time.Millisecond*100),
 		),
 		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-			dv.DisableTemplateInsights = true
+			dv.TemplateInsights = codersdk.TemplateInsightsConfig{
+				Enable: false,
+			}
 		}),
 	})
 	user := coderdtest.CreateFirstUser(t, client)
