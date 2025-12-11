@@ -729,6 +729,7 @@ func TestConstantQueryParams(t *testing.T) {
 				authURL.RawQuery = url.Values{constantQueryParamKey: []string{constantQueryParamValue}}.Encode()
 				cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL = authURL.String()
 				require.Contains(t, cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL, constantQueryParam)
+				cfg.PKCEMethods = []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256}
 			},
 		},
 	})

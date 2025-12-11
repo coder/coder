@@ -774,10 +774,16 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 		panic("cannot use OIDCCallback with WithServing. This is only for the in memory usage")
 	}
 
+	opts := []oauth2.AuthCodeOption{}
+	if f.pkce {
+		verifier := oauth2.GenerateVerifier()
+		opts = append(opts, oauth2.S256ChallengeOption(oauth2.S256ChallengeFromVerifier(verifier)))
+	}
+
 	f.stateToIDTokenClaims.Store(state, idTokenClaims)
 
 	cli := f.HTTPClient(nil)
-	u := f.locked.Config().AuthCodeURL(state)
+	u := f.locked.Config().AuthCodeURL(state, opts...)
 	req, err := http.NewRequest("GET", u, nil)
 	require.NoError(t, err)
 
