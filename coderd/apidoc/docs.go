@@ -14631,6 +14631,12 @@ const docTemplate = `{
                 "client_id": {
                     "type": "string"
                 },
+                "code_challenge_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "device_code_url": {
                     "type": "string"
                 },

@@ -2944,6 +2944,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
+          "code_challenge_methods_supported": [
+            "string"
+          ],
           "device_code_url": "string",
           "device_flow": true,
           "display_icon": "string",
@@ -3467,6 +3470,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "app_installations_url": "string",
         "auth_url": "string",
         "client_id": "string",
+        "code_challenge_methods_supported": [
+          "string"
+        ],
         "device_code_url": "string",
         "device_flow": true,
         "display_icon": "string",
@@ -4202,6 +4208,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "app_installations_url": "string",
   "auth_url": "string",
   "client_id": "string",
+  "code_challenge_methods_supported": [
+    "string"
+  ],
   "device_code_url": "string",
   "device_flow": true,
   "display_icon": "string",
@@ -4224,21 +4233,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description                                                                             |
-|-------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------|
-| `app_install_url`       | string  | false    |              |                                                                                         |
-| `app_installations_url` | string  | false    |              |                                                                                         |
-| `auth_url`              | string  | false    |              |                                                                                         |
-| `client_id`             | string  | false    |              |                                                                                         |
-| `device_code_url`       | string  | false    |              |                                                                                         |
-| `device_flow`           | boolean | false    |              |                                                                                         |
-| `display_icon`          | string  | false    |              | Display icon is a URL to an icon to display in the UI.                                  |
-| `display_name`          | string  | false    |              | Display name is shown in the UI to identify the auth config.                            |
-| `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
-| `mcp_tool_allow_regex`  | string  | false    |              |                                                                                         |
-| `mcp_tool_deny_regex`   | string  | false    |              |                                                                                         |
-| `mcp_url`               | string  | false    |              |                                                                                         |
-| `no_refresh`            | boolean | false    |              |                                                                                         |
+| Name                               | Type            | Required | Restrictions | Description                                                                             |
+|------------------------------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `app_install_url`                  | string          | false    |              |                                                                                         |
+| `app_installations_url`            | string          | false    |              |                                                                                         |
+| `auth_url`                         | string          | false    |              |                                                                                         |
+| `client_id`                        | string          | false    |              |                                                                                         |
+| `code_challenge_methods_supported` | array of string | false    |              |                                                                                         |
+| `device_code_url`                  | string          | false    |              |                                                                                         |
+| `device_flow`                      | boolean         | false    |              |                                                                                         |
+| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                  |
+| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                            |
+| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
+| `mcp_tool_allow_regex`             | string          | false    |              |                                                                                         |
+| `mcp_tool_deny_regex`              | string          | false    |              |                                                                                         |
+| `mcp_url`                          | string          | false    |              |                                                                                         |
+| `no_refresh`                       | boolean         | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
 |`revoke_url`|string|false|||
@@ -13931,6 +13941,9 @@ None
       "app_installations_url": "string",
       "auth_url": "string",
       "client_id": "string",
+      "code_challenge_methods_supported": [
+        "string"
+      ],
       "device_code_url": "string",
       "device_flow": true,
       "display_icon": "string",
