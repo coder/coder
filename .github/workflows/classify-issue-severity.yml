@@ -142,9 +142,9 @@ jobs:
 
       - name: Extract Result from Execution File
         id: extract
+        env:
+          EXECUTION_FILE: ${{ steps.analysis.outputs.execution_file }}
         run: |
-          EXECUTION_FILE="${{ steps.analysis.outputs.execution_file }}"
-
           if [ ! -f "$EXECUTION_FILE" ]; then
             echo "Execution file not found: $EXECUTION_FILE"
             exit 1
