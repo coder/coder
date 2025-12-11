@@ -10,22 +10,26 @@ export type PaginationResult = PaginationResultInfo & {
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
 	query: PaginationResult;
 	paginationUnitLabel: string;
+	paginationPosition?: "top" | "bottom";
 };
 
 export const PaginationContainer: FC<PaginationProps> = ({
 	children,
 	query,
 	paginationUnitLabel,
+	paginationPosition = "top",
 	...delegatedProps
 }) => {
 	return (
 		<>
-			<PaginationHeader
-				limit={query.limit}
-				totalRecords={query.totalRecords}
-				currentOffsetStart={query.currentOffsetStart}
-				paginationUnitLabel={paginationUnitLabel}
-			/>
+			{paginationPosition === "top" && (
+				<PaginationHeader
+					limit={query.limit}
+					totalRecords={query.totalRecords}
+					currentOffsetStart={query.currentOffsetStart}
+					paginationUnitLabel={paginationUnitLabel}
+				/>
+			)}
 
 			<div
 				css={{
@@ -48,6 +52,16 @@ export const PaginationContainer: FC<PaginationProps> = ({
 					/>
 				)}
 			</div>
+
+			{paginationPosition === "bottom" && (
+				<PaginationHeader
+					limit={query.limit}
+					totalRecords={query.totalRecords}
+					currentOffsetStart={query.currentOffsetStart}
+					paginationUnitLabel={paginationUnitLabel}
+					className="pt-8 justify-end"
+				/>
+			)}
 		</>
 	);
 };

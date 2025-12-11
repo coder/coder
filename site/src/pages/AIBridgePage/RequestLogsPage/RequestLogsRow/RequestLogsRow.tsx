@@ -49,7 +49,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				className="select-none cursor-pointer hover:bg-surface-secondary"
 				onClick={() => setIsOpen(!isOpen)}
 			>
-				<TableCell>
+				<TableCell className="w-48">
 					<div
 						className={cn([
 							"flex items-center gap-2",
@@ -65,17 +65,18 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						{new Date(interception.started_at).toLocaleString()}
 					</div>
 				</TableCell>
-				<TableCell>
+				<TableCell className="w-48">
 					<div className="flex items-center gap-3">
 						<Avatar
 							fallback={interception.initiator.username}
 							src={interception.initiator.avatar_url}
+							size={"lg"}
 						/>
 						<div className="font-medium">{interception.initiator.username}</div>
 					</div>
 				</TableCell>
 				<TableCell>{firstPrompt?.prompt}</TableCell>
-				<TableCell>
+				<TableCell className="w-32">
 					<div className="flex items-center gap-4">
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
@@ -101,7 +102,8 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						</TooltipProvider>
 					</div>
 				</TableCell>
-				<TableCell>{toolCalls}</TableCell>
+				<TableCell className="w-32">Model</TableCell>
+				<TableCell className="w-32">{toolCalls}</TableCell>
 			</TableRow>
 			{isOpen && (
 				<TableRow>
