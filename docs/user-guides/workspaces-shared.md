@@ -1,6 +1,6 @@
 # Shared Workspaces
 
-Multiple users can securely connect to a single Coder workspace for debugging, programming, and code review. 
+Multiple users can securely connect to a single Coder workspace for programming and debugging. 
 
 <!-- Insert screenshot of UI here -->
 
