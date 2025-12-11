@@ -100,14 +100,19 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						)}
 					</div>
 				</TableCell>
-				<TableCell className="w-48">
-					<div className="flex items-center gap-3">
-						<Avatar
-							fallback={interception.initiator.username}
-							src={interception.initiator.avatar_url}
-							size={"lg"}
-						/>
-						<div className="font-medium">{interception.initiator.username}</div>
+				<TableCell className="w-48 max-w-48">
+					<div className="w-full min-w-0 overflow-hidden">
+						<div className="flex items-center gap-3 min-w-0">
+							<Avatar
+								fallback={interception.initiator.username}
+								src={interception.initiator.avatar_url}
+								size={"lg"}
+								className="flex-shrink-0"
+							/>
+							<div className="font-medium truncate min-w-0 flex-1 overflow-hidden">
+								{interception.initiator.username}
+							</div>
+						</div>
 					</div>
 				</TableCell>
 				<TableCell className="min-w-0">
