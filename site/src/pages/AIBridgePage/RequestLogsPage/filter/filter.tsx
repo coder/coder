@@ -6,6 +6,8 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
+import { AnthropicIcon } from "components/Icons/AnthropicIcon";
+import { OpenAiIcon } from "components/Icons/OpenAiIcon";
 import type { FC } from "react";
 import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
