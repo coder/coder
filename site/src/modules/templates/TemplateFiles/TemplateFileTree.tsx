@@ -3,7 +3,15 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "lucide-react";
+import {
+	BracesIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	FileCodeIcon,
+	FileIcon,
+	FolderIcon,
+	TerminalIcon,
+} from "lucide-react";
 import {
 	type CSSProperties,
 	type ElementType,
@@ -95,6 +103,15 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			icon = FileTypeMarkdown;
 		} else if (filename.endsWith("Dockerfile")) {
 			icon = DockerIcon;
+		} else if (filename.endsWith(".sh")) {
+			icon = TerminalIcon;
+		} else if (filename.endsWith(".json")) {
+			icon = BracesIcon;
+		} else if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
+			icon = FileCodeIcon;
+		} else {
+			// Default icon for files without a specific icon.
+			icon = FileIcon;
 		}
 
 		return (

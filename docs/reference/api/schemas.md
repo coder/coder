@@ -390,10 +390,12 @@
   },
   "enabled": true,
   "inject_coder_mcp_tools": true,
+  "max_concurrency": 0,
   "openai": {
     "base_url": "string",
     "key": "string"
   },
+  "rate_limit": 0,
   "retention": 0
 }
 ```
@@ -406,7 +408,9 @@
 | `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
 | `enabled`                | boolean                                                              | false    |              |             |
 | `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
+| `max_concurrency`        | integer                                                              | false    |              |             |
 | `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| `rate_limit`             | integer                                                              | false    |              |             |
 | `retention`              | integer                                                              | false    |              |             |
 
 ## codersdk.AIBridgeInterception
@@ -700,10 +704,12 @@
     },
     "enabled": true,
     "inject_coder_mcp_tools": true,
+    "max_concurrency": 0,
     "openai": {
       "base_url": "string",
       "key": "string"
     },
+    "rate_limit": 0,
     "retention": 0
   }
 }
@@ -2860,10 +2866,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "enabled": true,
         "inject_coder_mcp_tools": true,
+        "max_concurrency": 0,
         "openai": {
           "base_url": "string",
           "key": "string"
         },
+        "rate_limit": 0,
         "retention": 0
       }
     },
@@ -3383,10 +3391,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "enabled": true,
       "inject_coder_mcp_tools": true,
+      "max_concurrency": 0,
       "openai": {
         "base_url": "string",
         "key": "string"
       },
+      "rate_limit": 0,
       "retention": 0
     }
   },

@@ -182,7 +182,7 @@ const TaskPage = () => {
 
 	return (
 		<TaskPageLayout>
-			<title>{pageTitle(task.name)}</title>
+			<title>{pageTitle(task.display_name)}</title>
 
 			<TaskTopbar task={task} workspace={workspace} />
 			{content}
