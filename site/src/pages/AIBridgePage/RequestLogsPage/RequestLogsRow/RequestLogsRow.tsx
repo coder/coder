@@ -1,5 +1,6 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -102,8 +103,17 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						</TooltipProvider>
 					</div>
 				</TableCell>
-				<TableCell className="w-32">Model</TableCell>
-				<TableCell className="w-32">{toolCalls}</TableCell>
+				<TableCell className="w-40 max-w-40">
+					<div className="w-full min-w-0 overflow-hidden">
+						<Badge className="gap-2 w-full">
+							<div className="size-[18px] bg-red-500 flex-shrink-0"></div>
+							<span className="truncate min-w-0 w-full">
+								{interception.model}
+							</span>
+						</Badge>
+					</div>
+				</TableCell>
+				<TableCell className="w-32 text-center">{toolCalls}</TableCell>
 			</TableRow>
 			{isOpen && (
 				<TableRow>
