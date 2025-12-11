@@ -36,6 +36,8 @@ import (
 // activity bumping from stat reporting so we can disable stats collection
 // entirely when template insights are disabled rather than having to still
 // collect stats but then drop them here.
+//
+// https://github.com/coder/internal/issues/196
 
 type ReporterOptions struct {
 	Database              database.Store
