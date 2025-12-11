@@ -39,7 +39,7 @@ export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
 						Workspace permissions
 					</p>
 				</div>
-				<ul className="m-0 p-0 list-none max-h-48 overflow-y-auto">
+				<ul className="flex flex-col gap-1 m-0 p-0 list-none max-h-48 overflow-y-auto">
 					{sortedActors.map((actor) => {
 						const isAdmin = actor.roles.includes("admin");
 						return (
