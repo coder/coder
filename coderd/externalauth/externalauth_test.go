@@ -792,7 +792,7 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 
 	const providerID = "test-idp"
 	fake := oidctest.NewFakeIDP(t,
-		append([]oidctest.FakeIDPOpt{}, settings.FakeIDPOpts...)...,
+		append([]oidctest.FakeIDPOpt{oidctest.WithPKCE()}, settings.FakeIDPOpts...)...,
 	)
 
 	f := promoauth.NewFactory(prometheus.NewRegistry())
@@ -800,12 +800,13 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 	config := &externalauth.Config{
 		InstrumentedOAuth2Config: f.New("test-oauth2",
 			fake.OIDCConfig(t, nil, settings.CoderOIDCConfigOpts...)),
-		ID:            providerID,
-		ClientID:      cid,
-		ClientSecret:  cs,
-		ValidateURL:   fake.WellknownConfig().UserInfoURL,
-		RevokeURL:     fake.WellknownConfig().RevokeURL,
-		RevokeTimeout: 1 * time.Second,
+		ID:                            providerID,
+		ClientID:                      cid,
+		ClientSecret:                  cs,
+		ValidateURL:                   fake.WellknownConfig().UserInfoURL,
+		RevokeURL:                     fake.WellknownConfig().RevokeURL,
+		RevokeTimeout:                 1 * time.Second,
+		CodeChallengeMethodsSupported: []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256},
 	}
 	settings.ExternalAuthOpt(config)
 
