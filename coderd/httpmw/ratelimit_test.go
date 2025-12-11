@@ -1,7 +1,6 @@
 package httpmw_test
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -275,8 +274,7 @@ func TestConcurrencyLimit(t *testing.T) {
 		server := httptest.NewServer(rtr)
 		defer server.Close()
 
-		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Start maxConcurrency requests that will block.
 		// We use channels to collect errors instead of require in goroutines.
