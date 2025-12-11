@@ -546,10 +546,8 @@ func TestTemplatePush(t *testing.T) {
 					require.NoError(t, tt.setupDaemon(setupCtx, store, owner, wantTags, now))
 
 					ctx := testutil.Context(t, testutil.WaitMedium)
-					cancelCtx, cancel := context.WithCancel(ctx)
-					defer cancel()
-					inv = inv.WithContext(cancelCtx)
-					w := clitest.StartWithWaiter(t, inv)
+					inv = inv.WithContext(ctx)
+					clitest.Start(t, inv) // Only used for output, disregard exit status.
 
 					require.Eventually(t, func() bool {
 						jobs, err := store.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
@@ -565,9 +563,6 @@ func TestTemplatePush(t *testing.T) {
 					if tt.expectOutput != "" {
 						pty.ExpectMatchContext(ctx, tt.expectOutput)
 					}
-
-					cancel()
-					_ = w.Wait()
 				})
 			}
 		})
@@ -1106,20 +1101,21 @@ func TestTemplatePush(t *testing.T) {
 			pty.ExpectMatchContext(ctx, "Upload")
 			pty.WriteLine("yes")
 
-			pty.ExpectMatchContext(ctx, "var.string_var")
-			pty.ExpectMatchContext(ctx, "Enter value:")
-			pty.WriteLine("test-string")
+			// Variables are prompted in alphabetical order.
+			// Boolean variable automatically selects the first option ("true")
+			pty.ExpectMatchContext(ctx, "var.bool_var")
 
 			pty.ExpectMatchContext(ctx, "var.number_var")
 			pty.ExpectMatchContext(ctx, "Enter value:")
 			pty.WriteLine("42")
 
-			// Boolean variable automatically selects the first option ("true")
-			pty.ExpectMatchContext(ctx, "var.bool_var")
-
 			pty.ExpectMatchContext(ctx, "var.sensitive_var")
 			pty.ExpectMatchContext(ctx, "Enter value:")
 			pty.WriteLine("secret-value")
+
+			pty.ExpectMatchContext(ctx, "var.string_var")
+			pty.ExpectMatchContext(ctx, "Enter value:")
+			pty.WriteLine("test-string")
 
 			w.RequireSuccess()
 		})
