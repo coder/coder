@@ -288,7 +288,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 							<Spinner loading={isWaitingForStart} />
 							Start workspace
 						</Button>
-						<Button size="sm" onClick={onEditPrompt}>
+						<Button size="sm" onClick={onEditPrompt} variant="outline">
 							Edit Prompt
 						</Button>
 					</div>
