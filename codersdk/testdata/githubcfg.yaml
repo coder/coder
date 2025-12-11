@@ -24,3 +24,5 @@ externalAuthProviders:
     regex: ^https://example.com/.*$
     display_name: GitHub
     display_icon: /static/icons/github.svg
+    code_challenge_methods_supported:
+      - S256
