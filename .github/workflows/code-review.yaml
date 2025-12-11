@@ -165,7 +165,10 @@ jobs:
             1. Read the entire PR diff and understand what it does
             2. Read full file content for files you'll comment on (verify issues exist)
             3. Identify real issues (security bugs, logic errors, missing error handling)
-            4. For each issue, verify it's actually wrong and would impact functionality
+            4. For each issue:
+               - Verify it's actually wrong and would impact functionality
+               - Determine exact line(s) to comment on: single line OR range (start_line to line)
+               - Write ONLY the replacement code in suggestion block, not surrounding context
             5. Submit ONE review with inline comments
 
             IMPORTANT: Finding 0 issues is valid - don't invent problems.
@@ -180,26 +183,25 @@ jobs:
 
           CRITICAL: GITHUB SUGGESTION BLOCKS
 
-            Your suggestion REPLACES the commented line. Don't include surrounding context.
+            Your suggestion REPLACES the commented lines. Match the exact scope.
 
-            Example - File has these lines:
+            SINGLE-LINE FIX - File has these lines:
             49: # Extract PR number
             50: PR_NUM=\$(echo "\$URL" | grep -oP '\\d+')
             51: echo "pr_num=\${PR_NUM}"
 
-            ❌ WRONG - commenting on line 50:
-            \`\`\`suggestion
-            # Extract PR number
-            PR_NUM=\$(echo "\$URL" | sed 's|.*/\\([0-9]*\\)$|\\1|')
-            echo "pr_num=\${PR_NUM}"
-            \`\`\`
-            Result: Lines 49 and 51 now appear twice. Broken!
+            ❌ WRONG - commenting on line 50 but including surrounding lines:
+            {"line": 50, "body": "Fix regex\n\n\`\`\`suggestion\n# Extract PR number\nPR_NUM=\$(echo \"\$URL\" | sed 's|.*/\\([0-9]*\\)$|\\1|')\necho \"pr_num=\${PR_NUM}\"\n\`\`\`"}
+            Result: Lines 49 and 51 now duplicated. Broken!
 
-            ✅ CORRECT - commenting on line 50:
-            \`\`\`suggestion
-            PR_NUM=\$(echo "\$URL" | sed 's|.*/\\([0-9]*\\)$|\\1|')
-            \`\`\`
+            ✅ CORRECT - commenting on line 50 only:
+            {"line": 50, "body": "Fix regex\n\n\`\`\`suggestion\nPR_NUM=\$(echo \"\$URL\" | sed 's|.*/\\([0-9]*\\)$|\\1|')\n\`\`\`"}
             Result: Only line 50 is replaced. Perfect!
+
+            MULTI-LINE FIX - To replace lines 50-51 with multiple new lines:
+            ✅ CORRECT:
+            {"start_line": 50, "line": 51, "body": "Add error handling\n\n\`\`\`suggestion\nif [[ -z \"\${URL}\" ]]; then\n  echo \"Error: URL is empty\"\n  exit 1\nfi\nPR_NUM=\$(sed 's|.*/\\([0-9]*\\)$|\\1|' <<<\"\$URL\")\n\`\`\`"}
+            Result: Lines 50-51 replaced with 5 new lines. The suggestion can be any number of lines!
 
           HOW TO SUBMIT THE REVIEW:
 
@@ -217,7 +219,14 @@ jobs:
                   "path": "path/to/file.go",
                   "line": 123,
                   "side": "RIGHT",
-                  "body": "**Issue:** [What's wrong and why]\n\n\`\`\`suggestion\n[Fixed code]\n\`\`\`"
+                  "body": "**Issue:** [What's wrong and why]\n\n\`\`\`suggestion\n[Fixed single line]\n\`\`\`"
+                },
+                {
+                  "path": "path/to/other.go",
+                  "start_line": 50,
+                  "line": 52,
+                  "side": "RIGHT",
+                  "body": "**Issue:** [Multi-line issue]\n\n\`\`\`suggestion\n[Line 1 of replacement]\n[Line 2 of replacement]\n[Line 3 of replacement]\n[As many lines as needed]\n\`\`\`"
                 }
               ]
             }
@@ -228,10 +237,28 @@ jobs:
             gh api repos/${REPO_OWNER}/${REPO_NAME}/pulls/${PR_NUMBER}/reviews --method POST --input review.json
 
           INLINE COMMENT FORMAT:
+            Single-line comment (replace line 50):
+            {
+              "path": "file.go",
+              "line": 50,
+              "side": "RIGHT",
+              "body": "Issue\n\n\`\`\`suggestion\n[replacement - can be 1 or many lines]\n\`\`\`"
+            }
+
+            Multi-line comment (replace lines 50-52 with any number of new lines):
+            {
+              "path": "file.go",
+              "start_line": 50,
+              "line": 52,
+              "side": "RIGHT",
+              "body": "Issue\n\n\`\`\`suggestion\n[line 1]\n[line 2]\n[line 3]\n[as many as needed]\n\`\`\`"
+            }
+
             - path: relative path from repo root (no leading /)
-            - line: line number (integer)
-            - side: "RIGHT" (for new/changed code)
-            - body: Issue description + \`\`\`suggestion block
+            - line: last line to replace (or only line for single-line)
+            - start_line: first line to replace (only needed for multi-line)
+            - side: always "RIGHT" (for new/changed code)
+            - Suggestion block can contain any number of lines
 
           QUALITY GUIDELINES:
             - Only comment on real issues that matter
