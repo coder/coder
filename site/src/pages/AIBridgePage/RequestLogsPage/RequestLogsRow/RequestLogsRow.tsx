@@ -59,7 +59,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	return (
 		<>
 			<TableRow
-				className="select-none cursor-pointer hover:bg-surface-secondary"
+				className="select-none cursor-pointer"
 				onClick={() => setIsOpen(!isOpen)}
 			>
 				<TableCell className="w-48 whitespace-nowrap">
