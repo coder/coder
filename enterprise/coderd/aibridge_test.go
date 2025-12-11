@@ -799,7 +799,9 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 	go func() {
 		defer close(done)
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
-		require.NoError(t, err)
+		if err != nil {
+			return
+		}
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
 		resp, err := httpClient.Do(req)
