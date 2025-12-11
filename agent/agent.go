@@ -372,7 +372,6 @@ func (a *agent) init() {
 	)
 
 	a.initSocketServer()
-	a.startBoundaryLogProxyServer()
 
 	go a.runLoop()
 }
@@ -397,16 +396,10 @@ func (a *agent) initSocketServer() {
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
-// startBoundaryLogProxyServer starts the boundary log proxy socket server if
-// CODER_BOUNDARY_LOG_SOCKET is set. The socket path is configured via the
-// workspace template so both the agent and boundary can use the same path.
-func (a *agent) startBoundaryLogProxyServer() {
-	socketPath := os.Getenv("CODER_BOUNDARY_LOG_SOCKET")
-	if socketPath == "" {
-		// Boundary log forwarding not configured.
-		return
-	}
-
+// startBoundaryLogProxyServer starts the boundary log proxy socket server.
+// The socket path is configured via CODER_BOUNDARY_LOG_SOCKET in the workspace
+// template so both the agent and boundary can use the same path.
+func (a *agent) startBoundaryLogProxyServer(socketPath string) {
 	proxy := boundarylogproxy.NewServer(a.logger, socketPath)
 	if err := proxy.Start(a.hardCtx); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
@@ -1219,6 +1212,11 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 		// The startup script should only execute on the first run!
 		if oldManifest == nil {
+			// Start boundary log proxy if configured via CODER_BOUNDARY_LOG_SOCKET.
+			if socketPath := manifest.EnvironmentVariables["CODER_BOUNDARY_LOG_SOCKET"]; socketPath != "" {
+				a.startBoundaryLogProxyServer(socketPath)
+			}
+
 			a.setLifecycle(codersdk.WorkspaceAgentLifecycleStarting)
 
 			// Perform overrides early so that Git auth can work even if users
