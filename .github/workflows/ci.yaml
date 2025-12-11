@@ -456,7 +456,8 @@ jobs:
           # Our Linux runners have 16 cores.
           test-parallelism-packages: "16"
           test-parallelism-tests: "8"
-          # By default, run tests with cache. On main, run tests without cache.
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
 
       - name: Test with PostgreSQL Database (macOS)
@@ -467,7 +468,8 @@ jobs:
           # Our macOS runners have 8 cores.
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
-          # By default, run tests with cache. On main, run tests without cache.
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
           # Only the CLI and Agent are officially supported on macOS; the rest are too flaky.
           test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
@@ -479,12 +481,11 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our Windows runners have 32 cores. On Windows Postgres chokes when
-          # we have 16x16=256 tests running in parallel, so we use 16x16=256
-          # but may need to reduce if issues arise.
-          test-parallelism-packages: "16"
+          # Our Windows runners have 32 cores.
+          test-parallelism-packages: "32"
           test-parallelism-tests: "16"
-          # By default, run tests with cache. On main, run tests without cache.
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
           # Only the CLI and Agent are officially supported on Windows; the rest are too flaky.
           test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
@@ -568,7 +569,8 @@ jobs:
           # Our Linux runners have 16 cores.
           test-parallelism-packages: "16"
           test-parallelism-tests: "8"
-          # By default, run tests with cache. On main, run tests without cache.
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
 
       - name: Upload Test Cache
