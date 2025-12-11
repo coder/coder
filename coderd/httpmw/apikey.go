@@ -812,24 +812,3 @@ func CustomRedirectToLogin(rw http.ResponseWriter, r *http.Request, redirect str
 
 	http.Redirect(rw, r, u.String(), code)
 }
-
-// ExtractAPIKeyFromHeader extracts an authorization token from HTTP headers.
-// It checks the Authorization header (Bearer token) and X-Api-Key header,
-// which represent the different ways clients authenticate against AI providers.
-// If neither are present, an empty string is returned.
-//
-// This differs from [APITokenFromRequest] in that it only checks headers commonly
-// used by AI providers, not Coder-specific authentication methods like cookies
-// or the Coder-Session-Token header.
-func ExtractAPIKeyFromHeader(header http.Header) string {
-	if auth := strings.TrimSpace(header.Get("Authorization")); auth != "" {
-		fields := strings.Fields(auth)
-		if len(fields) == 2 && strings.EqualFold(fields[0], "Bearer") {
-			return fields[1]
-		}
-	}
-	if apiKey := strings.TrimSpace(header.Get("X-Api-Key")); apiKey != "" {
-		return apiKey
-	}
-	return ""
-}

@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/httprate"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -98,8 +99,8 @@ func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) ht
 		window,
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
 			// Try to extract auth token for per-user rate limiting using
-			// AI provider authentication headers.
-			if token := ExtractAPIKeyFromHeader(r.Header); token != "" {
+			// AI provider authentication headers (Authorization Bearer or X-Api-Key).
+			if token := aibridge.ExtractAuthToken(r.Header); token != "" {
 				return token, nil
 			}
 			// Fall back to IP-based rate limiting if no token present.
