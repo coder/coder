@@ -87,7 +87,7 @@ jobs:
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
 
             # Extract PR number from URL
-            PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
+            PR_NUMBER=$(echo "${INPUTS_PR_URL}" | sed -n 's|.*/pull/\([0-9]*\)$|\1|p')
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
@@ -158,7 +158,7 @@ jobs:
             🟡 IMPORTANT: Race conditions, hardcoded test names, missing unique identifiers
             🟡 IMPORTANT: Database changes without make gen, unhandled errors causing crashes
             🟡 IMPORTANT: Resource leaks, timing bugs (time.Sleep instead of quartz)
-            🔵 NITPICK: Portability issues (grep -oP vs sed), minor improvements, readability
+            🔵 NITPICK: Portability issues (grep -oP is GNU-only, use sed for macOS/BSD)
 
           COMMENT WITH SUGGESTIONS:
             - For CRITICAL/IMPORTANT issues: Standard inline suggestions
@@ -221,8 +221,7 @@ jobs:
             \`\`\`
 
             GOOD Comment on line 234 (NITPICK):
-            Issue: [NITPICK] grep -oP uses Perl regex which is GNU-specific. Works on GitHub Actions
-            but sed is more portable across all Unix systems.
+            Issue: [NITPICK] grep -oP is GNU-specific. sed is more portable for macOS/BSD users.
 
             \`\`\`suggestion
             PR_NUM=\$(echo "\${URL}" | sed -n 's|.*/pull/\\([0-9]*\\)$|\\1|p')
