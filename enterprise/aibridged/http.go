@@ -9,7 +9,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/aibridge"
-	coderaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
 
@@ -36,7 +36,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
 
-	key := strings.TrimSpace(coderaibridge.ExtractAuthToken(r.Header))
+	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
 	if key == "" {
 		logger.Warn(ctx, "no auth key provided")
 		http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)

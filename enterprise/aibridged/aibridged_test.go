@@ -17,7 +17,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/aibridge"
-	coderaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	mock "github.com/coder/coder/v2/enterprise/aibridged/aibridgedmock"
@@ -221,7 +221,7 @@ func TestExtractAuthToken(t *testing.T) {
 			for k, v := range tc.headers {
 				headers.Add(k, v)
 			}
-			key := coderaibridge.ExtractAuthToken(headers)
+			key := agplaibridge.ExtractAuthToken(headers)
 			require.Equal(t, tc.expectedKey, key)
 		})
 	}
