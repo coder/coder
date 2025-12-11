@@ -163,12 +163,10 @@ jobs:
 
           REVIEW PROCESS:
             1. Read the entire PR diff and understand what it does
-            2. Identify real issues (security bugs, logic errors, missing error handling)
-            3. For each issue, verify:
-               - Is it actually wrong or problematic?
-               - Would fixing it change the code?
-               - Does it impact functionality, security, or maintainability?
-            4. Submit ONE review with inline comments for issues found
+            2. Read full file content for files you'll comment on (verify issues exist)
+            3. Identify real issues (security bugs, logic errors, missing error handling)
+            4. For each issue, verify it's actually wrong and would impact functionality
+            5. Submit ONE review with inline comments
 
             IMPORTANT: Finding 0 issues is valid - don't invent problems.
 
@@ -179,6 +177,29 @@ jobs:
             4. Performance problems (N+1 queries, unbounded loops)
             5. Missing tests for new functionality
             6. Style issues that conflict with existing Coder patterns
+
+          CRITICAL: GITHUB SUGGESTION BLOCKS
+
+            Your suggestion REPLACES the commented line. Don't include surrounding context.
+
+            Example - File has these lines:
+            49: # Extract PR number
+            50: PR_NUM=\$(echo "\$URL" | grep -oP '\\d+')
+            51: echo "pr_num=\${PR_NUM}"
+
+            ❌ WRONG - commenting on line 50:
+            \`\`\`suggestion
+            # Extract PR number
+            PR_NUM=\$(echo "\$URL" | sed 's|.*/\\([0-9]*\\)$|\\1|')
+            echo "pr_num=\${PR_NUM}"
+            \`\`\`
+            Result: Lines 49 and 51 now appear twice. Broken!
+
+            ✅ CORRECT - commenting on line 50:
+            \`\`\`suggestion
+            PR_NUM=\$(echo "\$URL" | sed 's|.*/\\([0-9]*\\)$|\\1|')
+            \`\`\`
+            Result: Only line 50 is replaced. Perfect!
 
           HOW TO SUBMIT THE REVIEW:
 
@@ -210,21 +231,7 @@ jobs:
             - path: relative path from repo root (no leading /)
             - line: line number (integer)
             - side: "RIGHT" (for new/changed code)
-            - body: Issue description + suggestion block
-
-          GITHUB SUGGESTION SYNTAX:
-            Use \`\`\`suggestion (NOT \`\`\`go or other language tag)
-            Include only the corrected lines with exact indentation
-            GitHub will show a one-click "Commit suggestion" button
-
-            Example:
-            **Issue:** Missing error context makes debugging harder.
-
-            \`\`\`suggestion
-            if err != nil {
-                return xerrors.Errorf("fetch user: %w", err)
-            }
-            \`\`\`
+            - body: Issue description + \`\`\`suggestion block
 
           QUALITY GUIDELINES:
             - Only comment on real issues that matter
