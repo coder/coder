@@ -268,6 +268,10 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 		}
 	}
 
+	// Close the render cache to stop its cleanup goroutine
+	// This must be done regardless of whether the reconciler is running
+	c.renderCache.Close()
+
 	// If the reconciler is not running, there's nothing else to do.
 	if !c.running.Load() {
 		return
@@ -292,9 +296,6 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	case <-c.done:
 		c.logger.Info(context.Background(), "reconciler stopped")
 	}
-
-	// Close the render cache to stop its cleanup goroutine
-	c.renderCache.Close()
 }
 
 // ReconcileAll will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
