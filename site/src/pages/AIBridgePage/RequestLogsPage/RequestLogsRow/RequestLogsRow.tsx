@@ -1,6 +1,8 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
+import { AnthropicIcon } from "components/Icons/AnthropicIcon";
+import { OpenAiIcon } from "components/Icons/OpenAiIcon";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -13,6 +15,7 @@ import {
 	ArrowUpIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	CircleQuestionMarkIcon,
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
@@ -32,6 +35,22 @@ const customisedDateLocale: Intl.DateTimeFormatOptions = {
 	minute: "2-digit",
 	second: "2-digit",
 	hour12: true,
+};
+
+export const RequestLogsRowProviderIcon = ({
+	provider,
+}: {
+	provider: string;
+}) => {
+	const iconClassName = "size-icon-sm flex-shrink-0";
+	switch (provider) {
+		case "openai":
+			return <OpenAiIcon className={iconClassName} />;
+		case "anthropic":
+			return <AnthropicIcon className={iconClassName} />;
+		default:
+			return <CircleQuestionMarkIcon className={iconClassName} />;
+	}
 };
 
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
@@ -119,8 +138,10 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell className="w-40 max-w-40">
 					<div className="w-full min-w-0 overflow-hidden">
-						<Badge className="gap-2 w-full">
-							<div className="size-[18px] bg-red-500 flex-shrink-0"></div>
+						<Badge className="gap-0.5 w-full">
+							<div className="flex-shrink-0 flex items-center">
+								<RequestLogsRowProviderIcon provider={interception.provider} />
+							</div>
 							<span className="truncate min-w-0 w-full">
 								{interception.model}
 							</span>
