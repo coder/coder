@@ -150,8 +150,14 @@ jobs:
             exit 1
           fi
 
-          # Extract the result from the execution file
-          RESULT=$(jq -r '.result // empty' < "$EXECUTION_FILE")
+          # The execution file is an array of conversation messages
+          # Extract the last assistant message's text content
+          RESULT=$(jq -r '.[].content[]? | select(.type == "text") | .text' < "$EXECUTION_FILE" | tail -n 1)
+
+          if [ -z "$RESULT" ]; then
+            echo "No text content found in execution file"
+            exit 1
+          fi
 
           {
             echo "result<<EOF"
