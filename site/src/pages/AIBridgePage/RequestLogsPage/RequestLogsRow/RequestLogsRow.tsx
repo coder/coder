@@ -78,29 +78,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell>{firstPrompt?.prompt}</TableCell>
 				<TableCell className="w-32">
-					<div className="flex items-center gap-4">
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<div className="flex items-center gap-1">
-										<ArrowDownIcon className="size-icon-xs" />
-										<div>{inputTokens}</div>
-									</div>
-								</TooltipTrigger>
-								<TooltipContent>Input Tokens</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<div className="flex items-center gap-1">
-										<ArrowUpIcon className="size-icon-xs" />
-										<div>{outputTokens}</div>
-									</div>
-								</TooltipTrigger>
-								<TooltipContent>Output Tokens</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+					<div className="flex items-center">
+						<Badge className="gap-0 rounded-e-none">
+							<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
+							<span className="truncate min-w-0 w-full">{inputTokens}</span>
+						</Badge>
+						<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
+							<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
+							<span className="truncate min-w-0 w-full">{outputTokens}</span>
+						</Badge>
 					</div>
 				</TableCell>
 				<TableCell className="w-40 max-w-40">
