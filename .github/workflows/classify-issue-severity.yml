@@ -1,0 +1,246 @@
+# WIP: This workflow assists in evaluating the severity of incoming issues to help
+# with triaging tickets. It uses AI analysis to classify issues into severity levels
+# (s0-s4) when the 'triage-check' label is applied.
+
+name: Classify Issue Severity
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: AI Analysis
+    if: github.event.label.name == 'triage-check'
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.analysis.outputs.result }}
+
+    steps:
+      - name: Analyze Issue Severity
+        id: analysis
+        uses: anthropics/claude-code-action@f0c8eb29807907de7f5412d04afceb5e24817127 # v1.0.23
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are an expert software engineer triaging customer-reported issues for Coder, a cloud development environment platform.
+
+            Your task is to carefully analyze the issue and classify it into one of the following severity levels. **This requires deep reasoning and thoughtful analysis** - not just keyword matching.
+
+            ## Issue Details
+
+            Issue Number: ${{ github.event.issue.number }}
+
+            Issue Content:
+            ```
+            Title: ${{ github.event.issue.title }}
+
+            Description:
+            ${{ github.event.issue.body }}
+            ```
+
+            ## Severity Level Definitions
+
+            - **s0**: Entire product and/or major feature (Tasks, Bridge, Boundaries, etc.) is broken in a way that makes it unusable for majority to all customers
+
+            - **s1**: Core feature is broken without a workaround for limited number of customers
+
+            - **s2**: Broken use cases or features with a workaround
+
+            - **s3**: Issues that impair usability, cause incorrect behavior in non-critical areas, or degrade the experience, but do not block core workflows
+
+            - **s4**: Bugs that confuse or annoy or are purely cosmetic, e.g. we don't plan on addressing them
+
+            ## Analysis Framework
+
+            Customers often overstate the severity of issues. You need to read between the lines and assess the **actual impact** by reasoning through:
+
+            1. **What is actually broken?**
+               - Distinguish between what the customer *says* is broken vs. what is *actually* broken
+               - Is this a complete failure or a partial degradation?
+               - Does the error message or symptom indicate a critical vs. minor issue?
+
+            2. **How many users are affected?**
+               - Is this affecting all customers, many customers, or a specific edge case?
+               - Does the issue description suggest widespread impact or isolated incident?
+               - Are there environmental factors that limit the scope?
+
+            3. **Are there workarounds?**
+               - Can users accomplish their goal through an alternative path?
+               - Is there a manual process or configuration change that resolves it?
+               - Even if not mentioned, do you suspect a workaround exists?
+
+            4. **Does it block critical workflows?**
+               - Can users still perform their core job functions?
+               - Is this interrupting active development work or just an inconvenience?
+               - What is the business impact if this remains unresolved?
+
+            5. **What is the realistic urgency?**
+               - Does this need immediate attention or can it wait?
+               - Is this a regression or long-standing issue?
+               - What's the actual business risk?
+
+            ## Your Task
+
+            1. **Think deeply** about this issue using the framework above
+            2. **Reason through** each of the 5 analysis points
+            3. **Compare** the issue against all 5 severity levels (s0-s4)
+            4. **Determine** which severity level best matches the actual impact
+            5. **Output your analysis as JSON**
+
+            ## Insufficient Information Fail-Safe
+
+            **It is completely acceptable to not classify an issue if you lack sufficient information.**
+
+            If the issue description is too vague, missing critical details, or doesn't provide enough context to make a confident assessment, DO NOT force a classification.
+
+            Common scenarios where you should decline to classify:
+            - Issue has no description or minimal details
+            - Unclear what feature/component is affected
+            - No reproduction steps or error messages provided
+            - Ambiguous whether it's a bug, feature request, or question
+            - Missing information about user impact or frequency
+
+            ## Required Output Format
+
+            You MUST output ONLY valid JSON in one of these two formats. Do not include any other text, markdown, or explanations outside the JSON.
+
+            ### Format 1: Confident Classification
+
+            ```json
+            {
+              "status": "classified",
+              "severity": "s0|s1|s2|s3|s4",
+              "reasoning": "2-3 sentences explaining your reasoning - focus on the actual impact, not just symptoms. Explain why you chose this severity level over others."
+            }
+            ```
+
+            ### Format 2: Insufficient Information
+
+            ```json
+            {
+              "status": "insufficient_info",
+              "reasoning": "2-3 sentences explaining what critical information is missing and why it's needed to determine severity.",
+              "next_steps": [
+                "Specific information point 1",
+                "Specific information point 2",
+                "Specific information point 3"
+              ]
+            }
+            ```
+
+            **Critical**: Output ONLY the JSON object, nothing else. The JSON will be parsed and validated.
+
+  post-comment:
+    name: Post Classification Comment
+    needs: analyze
+    runs-on: ubuntu-latest
+    if: always() && needs.analyze.result != 'skipped'
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Parse and Validate Analysis
+        id: parse
+        env:
+          RESULT: ${{ needs.analyze.outputs.result }}
+        run: |
+          # Parse the JSON output from claude-code-action
+          echo "Raw result: $RESULT"
+
+          # Extract JSON from the result
+          JSON=$(echo "$RESULT" | jq -r '.')
+
+          # Check if parsing succeeded
+          if ! echo "$JSON" | jq -e . > /dev/null 2>&1; then
+            echo "Failed to parse JSON"
+            exit 1
+          fi
+
+          # Get status
+          STATUS=$(echo "$JSON" | jq -r '.status // empty')
+
+          if [ "$STATUS" = "classified" ]; then
+            # Validate severity is one of the allowed values
+            SEVERITY=$(echo "$JSON" | jq -r '.severity // empty')
+            if ! echo "$SEVERITY" | grep -Eq '^s[0-4]$'; then
+              echo "Invalid severity: $SEVERITY"
+              exit 1
+            fi
+
+            REASONING=$(echo "$JSON" | jq -r '.reasoning // empty')
+
+            # Set outputs
+            {
+              echo "status=classified"
+              echo "severity=$SEVERITY"
+              echo "reasoning<<EOF"
+              echo "$REASONING"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+
+          elif [ "$STATUS" = "insufficient_info" ]; then
+            REASONING=$(echo "$JSON" | jq -r '.reasoning // empty')
+            NEXT_STEPS=$(echo "$JSON" | jq -r '.next_steps | join("\n- ")' | sed 's/^/- /')
+
+            # Set outputs
+            {
+              echo "status=insufficient_info"
+              echo "reasoning<<EOF"
+              echo "$REASONING"
+              echo "EOF"
+              echo "next_steps<<EOF"
+              echo "$NEXT_STEPS"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "Unknown status: $STATUS"
+            exit 1
+          fi
+
+      - name: Post Classification Comment
+        if: steps.parse.outputs.status == 'classified'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEVERITY: ${{ steps.parse.outputs.severity }}
+          REASONING: ${{ steps.parse.outputs.reasoning }}
+        run: |
+          SEVERITY_UPPER=$(echo "$SEVERITY" | tr '[:lower:]' '[:upper:]')
+
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "## 🤖 Automated Severity Classification
+
+          **Recommended Severity:** \`${SEVERITY_UPPER}\`
+
+          **Analysis:**
+          ${REASONING}
+
+          ---
+          *This classification was performed by AI analysis. Please review and adjust if needed.*"
+
+      - name: Post Insufficient Information Comment
+        if: steps.parse.outputs.status == 'insufficient_info'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REASONING: ${{ steps.parse.outputs.reasoning }}
+          NEXT_STEPS: ${{ steps.parse.outputs.next_steps }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "## 🤖 Automated Severity Classification
+
+          **Status:** Unable to classify - insufficient information
+
+          **Reasoning:**
+          ${REASONING}
+
+          **Suggested next steps:**
+          ${NEXT_STEPS}
+
+          ---
+          *This classification was performed by AI analysis. Please provide the requested information for proper severity assessment.*"
