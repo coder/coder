@@ -141,33 +141,34 @@ jobs:
 
           SETUP:
             cd ~/coder
-            export GH_TOKEN=\$(coder external-auth access-token github)
-            export GITHUB_TOKEN="\${GH_TOKEN}"
+               export GH_TOKEN=\$(coder external-auth access-token github)
+               export GITHUB_TOKEN="\${GH_TOKEN}"
             gh auth status || exit 1
-            git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
-            git checkout pr-${PR_NUMBER}
+               git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+               git checkout pr-${PR_NUMBER}
 
           YOUR JOB:
             Catch bugs and security issues. Be thorough but accurate.
             Read full files to verify issues exist before commenting.
 
           FIND THESE (refer to AGENTS.md for Coder patterns):
-            ✅ Security: auth bypass, injection, secret leaks, wrong dbauthz context
-            ✅ Authorization: missing dbauthz.AsSystemRestricted on public endpoints
-            ✅ OAuth2: non-RFC-compliant errors (must use writeOAuth2Error)
-            ✅ Database: changes to queries/*.sql without running make gen
-            ✅ Race conditions: hardcoded names in tests, missing unique identifiers
-            ✅ Timing: using time.Sleep instead of quartz library
-            ✅ Logic errors: null derefs, off-by-one, wrong calculations
-            ✅ Error handling: unhandled errors causing crashes or silent failures
-            ✅ Resource leaks: unclosed connections, goroutine leaks
-            ✅ Missing tests for new functionality
+            🔴 CRITICAL: Security, auth bypass, injection, secret leaks, wrong dbauthz context
+            🔴 CRITICAL: Authorization bugs, missing dbauthz.AsSystemRestricted on public endpoints
+            🔴 CRITICAL: OAuth2 non-RFC-compliant errors (must use writeOAuth2Error)
+            🟡 IMPORTANT: Race conditions, hardcoded test names, missing unique identifiers
+            🟡 IMPORTANT: Database changes without make gen, unhandled errors causing crashes
+            🟡 IMPORTANT: Resource leaks, timing bugs (time.Sleep instead of quartz)
+            🔵 NITPICK: Portability issues (grep -oP vs sed), minor improvements, readability
+
+          COMMENT WITH SUGGESTIONS:
+            - For CRITICAL/IMPORTANT issues: Standard inline suggestions
+            - For NITPICKS: Prefix with "[NITPICK]" in the issue description
+            - Don't just mention issues in summary - make them actionable with suggestions!
 
           DON'T COMMENT ON:
             ❌ Style that matches existing Coder patterns (check AGENTS.md first)
-            ❌ Comments that "explain what" - Coder style is "explain why"
             ❌ Code that already exists (read the file first!)
-            ❌ Unnecessary changes unrelated to the PR (see AGENTS.md "Avoid Unnecessary Changes")
+            ❌ Unnecessary changes unrelated to the PR
             ❌ Validation for impossible conditions
 
           EXAMPLE OF BAD REVIEW (Don't do this):
@@ -184,7 +185,10 @@ jobs:
             BAD Comment 3 on line 92: "Regex should use \\$$ instead of \\$"
             → WRONG: This is YAML, not bash. Doesn't understand context.
 
-            Result: 3 false positives, wasted everyone's time.
+            Summary was generic:
+            "Found 3 issues. See comments."
+
+            Result: 3 false positives + vague summary. Wasted everyone's time.
 
           EXAMPLE OF GOOD REVIEW (Do this):
 
@@ -213,7 +217,18 @@ jobs:
             app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
             \`\`\`
 
-            Result: Found 2 Coder-specific bugs that violate documented patterns. Valuable review.
+            GOOD Comment on line 234 (NITPICK):
+            Issue: [NITPICK] grep -oP uses Perl regex which is GNU-specific. Works on GitHub Actions
+            but sed is more portable across all Unix systems.
+
+            \`\`\`suggestion
+            PR_NUM=\$(echo "\${URL}" | sed -n 's|.*/pull/\\([0-9]*\\)$|\\1|p')
+            \`\`\`
+
+            Summary for this review:
+            "## 🔍 Code Review\\n\\nReviewed OAuth2 token endpoint and authorization logic.\\n\\n**Found 3 issues** (2 critical auth/security bugs, 1 portability nitpick) - see inline suggestions for one-click fixes.\\n\\n---\\n*AI review via Coder Tasks*"
+
+            Result: Found real bugs, clear summary, actionable suggestions. Valuable review.
 
           HOW GITHUB SUGGESTIONS WORK:
 
@@ -247,14 +262,30 @@ jobs:
             {
               "event": "COMMENT",
               "commit_id": "COMMIT_SHA_HERE",
-              "body": "## 🔍 Code Review\\n\\n[Summary]\\n\\n**Found:** X issues\\n\\n---\\n*AI review*",
+              "body": "## 🔍 Code Review\\n\\n[Your natural language summary here]\\n\\n---\\n*AI review via Coder Tasks*",
               "comments": [
-                {"path": "file.go", "line": 123, "side": "RIGHT", "body": "Issue\\n\\n\`\`\`suggestion\\n[code]\\n\`\`\`"}
+                {"path": "file.go", "line": 123, "side": "RIGHT", "body": "Issue: [why]\\n\\n\`\`\`suggestion\\n[code]\\n\`\`\`"}
               ]
             }
             EOF
             sed -i "s/COMMIT_SHA_HERE/\${COMMIT_SHA}/" review.json
             gh api repos/${REPO_OWNER}/${REPO_NAME}/pulls/${PR_NUMBER}/reviews --method POST --input review.json
+
+          SUMMARY FORMAT (1-10 lines, natural language):
+
+            If FOUND ISSUES:
+            "## 🔍 Code Review\\n\\nReviewed [what the PR does in 5-8 words].\\n\\n**Found X issues** (Y critical, Z nitpicks) - see inline suggestions for fixes.\\n\\n---\\n*AI review via Coder Tasks*"
+
+            Example with issues:
+            "## 🔍 Code Review\\n\\nReviewed OAuth2 token endpoint implementation.\\n\\n**Found 3 issues** (2 critical security bugs, 1 portability nitpick) - see inline suggestions for one-click fixes.\\n\\n---\\n*AI review via Coder Tasks*"
+
+            If NO ISSUES:
+            "## 🔍 Code Review\\n\\nReviewed [what the PR does in 5-8 words].\\n\\n✅ **Looks good** - no production-breaking issues found. Code follows Coder patterns and handles errors properly.\\n\\n---\\n*AI review via Coder Tasks*"
+
+            Example no issues:
+            "## 🔍 Code Review\\n\\nReviewed GitHub Actions workflow for code review.\\n\\n✅ **Looks good** - no production-breaking issues found. Proper error handling, validation, and scoped permissions throughout.\\n\\n---\\n*AI review via Coder Tasks*"
+
+            Keep it conversational, specific, and under 10 lines!
 
           CRITICAL RULES:
             1. Read ENTIRE files before commenting - use read_file or grep to verify
@@ -262,15 +293,19 @@ jobs:
             3. Suggestion block = ONLY replacement lines (never include unchanged surrounding lines)
             4. Single line: {"line": 50} | Multi-line: {"start_line": 50, "line": 52}
             5. Explain IMPACT ("causes crash/leak/bypass" not "could be better")
-            6. No issues = {"event": "COMMENT", "comments": [], "body": "**Looks good**"}
+            6. Make ALL observations actionable - don't just mention them in summary
+            7. No issues at all = {"event": "COMMENT", "comments": [], "body": "**Looks good**"}
 
           BEFORE SUBMITTING:
             - Read the files you're commenting on
             - Verify each issue exists at the exact line number
             - Check your suggestions don't duplicate surrounding lines
-            - Make sure the issue actually matters (not style nitpicks)
+            - Write a natural, conversational summary (see format below)
+            - If you found an observation, make it a suggestion (not just summary text)
+            - Use [NITPICK] prefix for minor/portability improvements
 
-          Now review this PR. Be thorough but accurate.
+          Now review this PR. Be thorough but accurate. Make all observations actionable.
+          Write a clear summary that humans actually want to read.
 
           EOF
           )
