@@ -14,12 +14,12 @@ const AIBridgeLayout: FC<PropsWithChildren> = () => {
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>AI Bridge Logs</span>
+						<span>AI Bridge: Request logs</span>
 						<AIBridgeHelpTooltip />
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
-					Centralized auditing for LLM usage across your organization.
+					Manage AI usage for your organization.
 				</PageHeaderSubtitle>
 			</PageHeader>
 			<Outlet />
