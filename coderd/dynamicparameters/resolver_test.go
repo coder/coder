@@ -29,6 +29,25 @@ func TestResolveParameters(t *testing.T) {
 
 		// A single immutable parameter with no previous value.
 		render.EXPECT().
+			RenderWithoutCache(gomock.Any(), gomock.Any(), gomock.Any()).
+			AnyTimes().
+			Return(&preview.Output{
+				Parameters: []previewtypes.Parameter{
+					{
+						ParameterData: previewtypes.ParameterData{
+							Name:         "immutable",
+							Type:         previewtypes.ParameterTypeString,
+							FormType:     provider.ParameterFormTypeInput,
+							Mutable:      false,
+							DefaultValue: previewtypes.StringLiteral("foo"),
+							Required:     true,
+						},
+						Value:       previewtypes.StringLiteral("foo"),
+						Diagnostics: nil,
+					},
+				},
+			}, nil)
+		render.EXPECT().
 			Render(gomock.Any(), gomock.Any(), gomock.Any()).
 			AnyTimes().
 			Return(&preview.Output{
@@ -78,7 +97,7 @@ func TestResolveParameters(t *testing.T) {
 
 		// A single immutable parameter with no previous value.
 		render.EXPECT().
-			Render(gomock.Any(), gomock.Any(), gomock.Any()).
+			RenderWithoutCache(gomock.Any(), gomock.Any(), gomock.Any()).
 			// Return the mutable param first
 			Return(&preview.Output{
 				Parameters: []previewtypes.Parameter{

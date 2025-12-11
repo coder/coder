@@ -69,3 +69,18 @@ func (mr *MockRendererMockRecorder) Render(ctx, ownerID, values any) *gomock.Cal
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Render", reflect.TypeOf((*MockRenderer)(nil).Render), ctx, ownerID, values)
 }
+
+// RenderWithoutCache mocks base method.
+func (m *MockRenderer) RenderWithoutCache(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenderWithoutCache", ctx, ownerID, values)
+	ret0, _ := ret[0].(*preview.Output)
+	ret1, _ := ret[1].(hcl.Diagnostics)
+	return ret0, ret1
+}
+
+// RenderWithoutCache indicates an expected call of RenderWithoutCache.
+func (mr *MockRendererMockRecorder) RenderWithoutCache(ctx, ownerID, values any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenderWithoutCache", reflect.TypeOf((*MockRenderer)(nil).RenderWithoutCache), ctx, ownerID, values)
+}

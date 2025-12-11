@@ -101,17 +101,17 @@ func TestRenderCache_PrebuildWithResolveParameters(t *testing.T) {
 
 	// After first prebuild:
 	// - ResolveParameters calls Render() twice:
-	//   1. With previousValuesMap (empty {})  → miss, creates cache entry
-	//   2. With values.ValuesMap() ({preset}) → miss, creates cache entry
-	// Expected: 0 hits, 2 misses, 2 cache entries
+	//   1. RenderWithoutCache with previousValuesMap (empty {}) → no cache operation
+	//   2. Render with values.ValuesMap() ({preset}) → miss, creates cache entry
+	// Expected: 0 hits, 1 miss, 1 cache entry
 	t.Logf("After first prebuild: hits=%v, misses=%v, size=%v",
 		promtestutil.ToFloat64(cacheHits),
 		promtestutil.ToFloat64(cacheMisses),
 		promtestutil.ToFloat64(cacheSize))
 
 	require.Equal(t, float64(0), promtestutil.ToFloat64(cacheHits), "first prebuild should have 0 hits")
-	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheMisses), "first prebuild should have 2 misses")
-	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheSize), "should have 2 cache entries after first prebuild")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheMisses), "first prebuild should have 1 miss")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheSize), "should have 1 cache entry after first prebuild")
 
 	// === SECOND PREBUILD ===
 	// Second build: previous values now set to preset values
@@ -130,17 +130,17 @@ func TestRenderCache_PrebuildWithResolveParameters(t *testing.T) {
 
 	// After second prebuild:
 	// - ResolveParameters calls Render() twice:
-	//   1. With previousValuesMap ({preset}) → HIT (cache entry from first prebuild's 2nd render)
-	//   2. With values.ValuesMap() ({preset})  → HIT (same cache entry)
-	// Expected: 2 hits, 2 misses (still), 2 cache entries (still)
+	//   1. RenderWithoutCache with previousValuesMap ({preset}) → no cache operation
+	//   2. Render with values.ValuesMap() ({preset}) → HIT (cache entry from first prebuild's 2nd render)
+	// Expected: 1 hit, 1 miss (still), 1 cache entry (still)
 	t.Logf("After second prebuild: hits=%v, misses=%v, size=%v",
 		promtestutil.ToFloat64(cacheHits),
 		promtestutil.ToFloat64(cacheMisses),
 		promtestutil.ToFloat64(cacheSize))
 
-	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheHits), "second prebuild should have 2 hits")
-	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheMisses), "misses should still be 2")
-	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheSize), "should still have 2 cache entries")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheHits), "second prebuild should have 1 hit")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheMisses), "misses should still be 1")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheSize), "should still have 1 cache entry")
 
 	// === THIRD PREBUILD ===
 	values3, err := ResolveParameters(ctx, prebuildOwnerID, mockRenderer, false,
@@ -153,22 +153,22 @@ func TestRenderCache_PrebuildWithResolveParameters(t *testing.T) {
 
 	// After third prebuild:
 	// - ResolveParameters calls Render() twice:
-	//   1. With previousValuesMap ({preset}) → HIT
-	//   2. With values.ValuesMap() ({preset})  → HIT
-	// Expected: 4 hits, 2 misses (still), 2 cache entries (still)
+	//   1. RenderWithoutCache with previousValuesMap ({preset}) → no cache operation
+	//   2. Render with values.ValuesMap() ({preset}) → HIT
+	// Expected: 2 hits, 1 miss (still), 1 cache entry (still)
 	t.Logf("After third prebuild: hits=%v, misses=%v, size=%v",
 		promtestutil.ToFloat64(cacheHits),
 		promtestutil.ToFloat64(cacheMisses),
 		promtestutil.ToFloat64(cacheSize))
 
-	require.Equal(t, float64(4), promtestutil.ToFloat64(cacheHits), "third prebuild should have 4 total hits")
-	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheMisses), "misses should still be 2")
-	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheSize), "should still have 2 cache entries")
+	require.Equal(t, float64(2), promtestutil.ToFloat64(cacheHits), "third prebuild should have 2 total hits")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheMisses), "misses should still be 1")
+	require.Equal(t, float64(1), promtestutil.ToFloat64(cacheSize), "should still have 1 cache entry")
 
 	// Summary: With 3 prebuilds, we should have:
-	// - 4 cache hits (2 from 2nd prebuild, 2 from 3rd prebuild)
-	// - 2 cache misses (2 from 1st prebuild)
-	// - 2 cache entries (one for empty params, one for preset params)
+	// - 2 cache hits (1 from 2nd prebuild, 1 from 3rd prebuild)
+	// - 1 cache miss (1 from 1st prebuild)
+	// - 1 cache entry (for preset params only - introspection renders are not cached)
 }
 
 // mockRenderer is a simple renderer that uses the cache for testing
@@ -186,6 +186,11 @@ func (m *mockRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map
 
 	// Not in cache, "render" (just return our mock output) and cache it
 	m.cache.put(m.templateVersionID, ownerID, values, m.output)
+	return m.output, nil
+}
+
+func (m *mockRenderer) RenderWithoutCache(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	// For test purposes, just return output without caching
 	return m.output, nil
 }
 

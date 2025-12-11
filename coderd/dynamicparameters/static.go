@@ -40,6 +40,15 @@ func (r *loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 }
 
 func (r *staticRender) Render(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	return r.render(values)
+}
+
+func (r *staticRender) RenderWithoutCache(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	// Static renderer doesn't use cache, so this is the same as Render
+	return r.render(values)
+}
+
+func (r *staticRender) render(values map[string]string) (*preview.Output, hcl.Diagnostics) {
 	params := r.staticParams
 	for i := range params {
 		param := &params[i]

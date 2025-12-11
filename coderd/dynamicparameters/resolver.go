@@ -69,7 +69,10 @@ func ResolveParameters(
 	//
 	// This is how the form should look to the user on their workspace settings page.
 	// This is the original form truth that our validations should initially be based on.
-	output, diags := renderer.Render(ctx, ownerID, previousValuesMap)
+	//
+	// Skip caching this render - it's only used for introspection to identify ephemeral
+	// parameters. The actual values used for the build will be rendered and cached below.
+	output, diags := renderer.RenderWithoutCache(ctx, ownerID, previousValuesMap)
 	if diags.HasErrors() {
 		// Top level diagnostics should break the build. Previous values (and new) should
 		// always be valid. If there is a case where this is not true, then this has to

@@ -30,6 +30,7 @@ import (
 // Forgetting to do so will result in a memory leak.
 type Renderer interface {
 	Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
+	RenderWithoutCache(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
 	Close()
 }
 
@@ -259,9 +260,19 @@ type dynamicRenderer struct {
 }
 
 func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
-	// Check cache first
-	if cached, ok := r.data.renderCache.get(r.data.templateVersionID, ownerID, values); ok {
-		return cached, nil
+	return r.render(ctx, ownerID, values, true)
+}
+
+func (r *dynamicRenderer) RenderWithoutCache(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	return r.render(ctx, ownerID, values, false)
+}
+
+func (r *dynamicRenderer) render(ctx context.Context, ownerID uuid.UUID, values map[string]string, useCache bool) (*preview.Output, hcl.Diagnostics) {
+	// Check cache first if enabled
+	if useCache {
+		if cached, ok := r.data.renderCache.get(r.data.templateVersionID, ownerID, values); ok {
+			return cached, nil
+		}
 	}
 
 	// Always start with the cached error, if we have one.
@@ -297,8 +308,8 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 
 	output, diags := preview.Preview(ctx, input, r.templateFS)
 
-	// Store in cache if successful
-	if !diags.HasErrors() {
+	// Store in cache if successful and caching is enabled
+	if useCache && !diags.HasErrors() {
 		r.data.renderCache.put(r.data.templateVersionID, ownerID, values, output)
 	}
 
