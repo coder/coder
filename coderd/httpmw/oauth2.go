@@ -142,7 +142,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 
 				authOpts := slices.Clone(opts)
 				if sha256PKCESupported {
-					var verifier = oauth2.GenerateVerifier()
+					verifier := oauth2.GenerateVerifier()
 					authOpts = append(authOpts, oauth2.S256ChallengeOption(verifier))
 
 					http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{

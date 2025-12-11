@@ -214,8 +214,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
-		// We only support S256 PKCE challenge method.
-		PKCEMethods: pkceSupport.CodeChallengeMethodsSupported,
+		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
 	}, nil
 }
 
