@@ -3,6 +3,7 @@ package workspacetraffic
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -131,8 +132,11 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	closeConn := func() error {
 		closeOnce.Do(func() {
 			closeErr = conn.Close()
-			if closeErr != nil {
+			if errors.Is(closeErr, io.EOF) {
+				closeErr = nil
+			} else if closeErr != nil {
 				logger.Error(ctx, "close agent connection", slog.Error(closeErr))
+				closeErr = xerrors.Errorf("close agent connection: %w", closeErr)
 			}
 		})
 		return closeErr
