@@ -467,6 +467,8 @@ jobs:
         with:
           postgres-version: "13"
           # Our macOS runners have 8 cores.
+          # Even though this parallelism seems high, we've observed relatively low flakiness in the past.
+          # See https://github.com/coder/coder/pull/21091#discussion_r2609891540.
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
