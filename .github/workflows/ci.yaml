@@ -363,12 +363,6 @@ jobs:
           sudo mdutil -X /
           sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
 
-      # Set up RAM disks to speed up the rest of the job. This action is in
-      # a separate repository to allow its use before actions/checkout.
-      - name: Setup RAM Disks
-        if: runner.os == 'Windows'
-        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
-
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
@@ -426,27 +420,11 @@ jobs:
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
-      - name: Setup RAM disk for Embedded Postgres (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        # The default C: drive is extremely slow:
-        # https://github.com/actions/runner-images/issues/8755
-        run: mkdir -p "R:/temp/embedded-pg"
-
-      - name: Setup RAM disk for Embedded Postgres (macOS)
+      - name: Setup macOS (install google-chrome, silence zsh warning)
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          # Postgres runs faster on a ramdisk on macOS.
-          mkdir -p /tmp/tmpfs
-          sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
-
-          # Install google-chrome for scaletests.
-          # As another concern, should we really have this kind of external dependency
-          # requirement on standard CI?
           brew install google-chrome
-
-          # macOS will output "The default interactive shell is now zsh" intermittently in CI.
           touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
 
       - name: Test with PostgreSQL Database (Linux)
@@ -476,7 +454,6 @@ jobs:
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
           # Only the CLI and Agent are officially supported on macOS; the rest are too flaky.
           test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
-          embedded-pg-path: "/tmp/tmpfs/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Test with PostgreSQL Database (Windows)
@@ -492,7 +469,6 @@ jobs:
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
           # Only the CLI and Agent are officially supported on Windows; the rest are too flaky.
           test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
-          embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Upload failed test db dumps

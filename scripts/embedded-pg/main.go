@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -78,14 +79,62 @@ func main() {
 	// Windows can't handle.
 	// Related issue:
 	// https://github.com/fergusstrange/embedded-postgres/issues/145
+	//
+	// Optimized for CI: speed over durability, crash safety disabled.
 	paramQueries := []string{
-		`ALTER SYSTEM SET effective_cache_size = '1GB';`,
+		// Disable durability, data doesn't need to survive a crash.
 		`ALTER SYSTEM SET fsync = 'off';`,
-		`ALTER SYSTEM SET full_page_writes = 'off';`,
-		`ALTER SYSTEM SET max_connections = '1000';`,
-		`ALTER SYSTEM SET shared_buffers = '1GB';`,
 		`ALTER SYSTEM SET synchronous_commit = 'off';`,
+		`ALTER SYSTEM SET full_page_writes = 'off';`,
+		`ALTER SYSTEM SET wal_level = 'minimal';`,
+		`ALTER SYSTEM SET max_wal_senders = '0';`,
+
+		// Minimize disk writes by batching and avoiding flushes.
+		`ALTER SYSTEM SET checkpoint_timeout = '30min';`,
+		`ALTER SYSTEM SET max_wal_size = '4GB';`,
+		`ALTER SYSTEM SET min_wal_size = '1GB';`,
+		`ALTER SYSTEM SET backend_flush_after = '0';`,
+		`ALTER SYSTEM SET checkpoint_flush_after = '0';`,
+		`ALTER SYSTEM SET wal_buffers = '64MB';`,
+		`ALTER SYSTEM SET bgwriter_lru_maxpages = '0';`,
+
+		// Tests are short-lived and each uses its own database.
+		`ALTER SYSTEM SET autovacuum = 'off';`,
+		`ALTER SYSTEM SET track_activities = 'off';`,
+		`ALTER SYSTEM SET track_counts = 'off';`,
+
+		// Reduce overhead from JIT and logging.
+		`ALTER SYSTEM SET jit = 'off';`,
+		`ALTER SYSTEM SET log_checkpoints = 'off';`,
+		`ALTER SYSTEM SET log_connections = 'off';`,
+		`ALTER SYSTEM SET log_disconnections = 'off';`,
+
+		`ALTER SYSTEM SET max_connections = '1000';`,
 		`ALTER SYSTEM SET client_encoding = 'UTF8';`,
+	}
+
+	// Memory and I/O settings tuned per Depot runner specs:
+	// - macOS: 24GB RAM, fast disk (has disk accelerator)
+	// - Windows: 128GB RAM, slow disk (EBS, no accelerator)
+	switch runtime.GOOS {
+	case "darwin":
+		paramQueries = append(paramQueries,
+			`ALTER SYSTEM SET shared_buffers = '4GB';`,
+			`ALTER SYSTEM SET effective_cache_size = '8GB';`,
+			`ALTER SYSTEM SET work_mem = '32MB';`,
+			`ALTER SYSTEM SET maintenance_work_mem = '512MB';`,
+			`ALTER SYSTEM SET temp_buffers = '64MB';`,
+			`ALTER SYSTEM SET random_page_cost = '1.0';`,
+		)
+	case "windows":
+		paramQueries = append(paramQueries,
+			`ALTER SYSTEM SET shared_buffers = '8GB';`,
+			`ALTER SYSTEM SET effective_cache_size = '32GB';`,
+			`ALTER SYSTEM SET work_mem = '64MB';`,
+			`ALTER SYSTEM SET maintenance_work_mem = '1GB';`,
+			`ALTER SYSTEM SET temp_buffers = '128MB';`,
+			`ALTER SYSTEM SET random_page_cost = '4.0';`,
+		)
 	}
 	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")
 	if err != nil {
