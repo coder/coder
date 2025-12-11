@@ -461,7 +461,7 @@ jobs:
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
 
       - name: Test with PostgreSQL Database (macOS)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && github.ref == 'refs/heads/main'
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
@@ -477,7 +477,7 @@ jobs:
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Test with PostgreSQL Database (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && github.ref == 'refs/heads/main'
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
