@@ -18,7 +18,7 @@ jobs:
     if: github.event.label.name == 'triage-check'
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ steps.analysis.outputs.result }}
+      result: ${{ steps.extract.outputs.result }}
 
     steps:
       - name: Checkout repository
@@ -139,6 +139,25 @@ jobs:
             ```
 
             **Critical**: Output ONLY the JSON object, nothing else. The JSON will be parsed and validated.
+
+      - name: Extract Result from Execution File
+        id: extract
+        env:
+          EXECUTION_FILE: ${{ steps.analysis.outputs.execution_file }} # zizmor: ignore[template-injection]
+        run: |
+          if [ ! -f "$EXECUTION_FILE" ]; then
+            echo "Execution file not found: $EXECUTION_FILE"
+            exit 1
+          fi
+
+          # Extract the result from the execution file
+          RESULT=$(jq -r '.result // empty' < "$EXECUTION_FILE")
+
+          {
+            echo "result<<EOF"
+            echo "$RESULT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
   post-comment:
     name: Post Classification Comment
