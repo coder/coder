@@ -111,6 +111,8 @@ func main() {
 
 		`ALTER SYSTEM SET max_connections = '1000';`,
 		`ALTER SYSTEM SET client_encoding = 'UTF8';`,
+
+		`ALTER SYSTEM SET random_page_cost = '1.0';`,
 	}
 
 	// Memory and I/O settings tuned per Depot runner specs:
@@ -124,7 +126,6 @@ func main() {
 			`ALTER SYSTEM SET work_mem = '32MB';`,
 			`ALTER SYSTEM SET maintenance_work_mem = '512MB';`,
 			`ALTER SYSTEM SET temp_buffers = '64MB';`,
-			`ALTER SYSTEM SET random_page_cost = '1.0';`,
 		)
 	case "windows":
 		paramQueries = append(paramQueries,
@@ -133,7 +134,6 @@ func main() {
 			`ALTER SYSTEM SET work_mem = '64MB';`,
 			`ALTER SYSTEM SET maintenance_work_mem = '1GB';`,
 			`ALTER SYSTEM SET temp_buffers = '128MB';`,
-			`ALTER SYSTEM SET random_page_cost = '4.0';`,
 		)
 	}
 	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")
