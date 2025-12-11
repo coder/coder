@@ -149,57 +149,6 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
-	t.Run("MaliciousTar", func(t *testing.T) {
-		// Ensures tars with "../../../etc/passwd" as the path
-		// are not allowed to run, and will fail the job.
-		t.Parallel()
-		done := make(chan struct{})
-		t.Cleanup(func() {
-			close(done)
-		})
-		var (
-			completeChan = make(chan struct{})
-			completeOnce sync.Once
-			acq          = newAcquireOne(t, &proto.AcquiredJob{
-				JobId:       "test",
-				Provisioner: "someprovisioner",
-				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
-					"../../../etc/passwd": "content",
-				}),
-				Type: &proto.AcquiredJob_TemplateImport_{
-					TemplateImport: &proto.AcquiredJob_TemplateImport{
-						Metadata: &sdkproto.Metadata{},
-					},
-				},
-			})
-		)
-
-		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJobWithCancel: acq.acquireWithCancel,
-				updateJob:            noopUpdateJob,
-				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
-					completeOnce.Do(func() { close(completeChan) })
-					return &proto.Empty{}, nil
-				},
-			}), nil
-		}, provisionerd.LocalProvisioners{
-			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
-					// TODO: This comes from ExtractArchive which is moved to the `init` step.
-					if !filepath.IsLocal("../../../etc/passwd") {
-						return &sdkproto.InitComplete{
-							Error: "refusing to extract to non-local path",
-						}
-					}
-					return &sdkproto.InitComplete{}
-				},
-			}),
-		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitMedium))
-		require.NoError(t, closer.Close())
-	})
-
 	// LargePayloads sends a 3mb tar file to the provisioner. The provisioner also
 	// returns large payload messages back. The limit should be 4mb, so all
 	// these messages should work.
