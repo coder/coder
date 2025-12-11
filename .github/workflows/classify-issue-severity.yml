@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # zizmor: ignore[excessive-permissions] - Required by claude-code-action for OIDC auth
 
 jobs:
   analyze:
