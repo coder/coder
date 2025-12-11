@@ -9,7 +9,6 @@ on:
     types: [labeled]
 
 permissions:
-  issues: write
   contents: read
 
 jobs:
@@ -140,21 +139,24 @@ jobs:
     needs: analyze
     runs-on: ubuntu-latest
     if: always() && needs.analyze.result != 'skipped'
+    permissions:
+      issues: write
+      contents: read
 
     steps:
       - name: Parse and Validate Analysis
         id: parse
+        env:
+          RESULT: ${{ needs.analyze.outputs.result }}
         run: |
           # Parse the JSON output from claude-code-action
-          RESULT='${{ needs.analyze.outputs.result }}'
-
           echo "Raw result: $RESULT"
 
           # Extract JSON from the result
           JSON=$(echo "$RESULT" | jq -r '.')
 
           # Check if parsing succeeded
-          if [ $? -ne 0 ]; then
+          if ! echo "$JSON" | jq -e . > /dev/null 2>&1; then
             echo "Failed to parse JSON"
             exit 1
           fi
@@ -173,24 +175,28 @@ jobs:
             REASONING=$(echo "$JSON" | jq -r '.reasoning // empty')
 
             # Set outputs
-            echo "status=classified" >> $GITHUB_OUTPUT
-            echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
-            echo "reasoning<<EOF" >> $GITHUB_OUTPUT
-            echo "$REASONING" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            {
+              echo "status=classified"
+              echo "severity=$SEVERITY"
+              echo "reasoning<<EOF"
+              echo "$REASONING"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
 
           elif [ "$STATUS" = "insufficient_info" ]; then
             REASONING=$(echo "$JSON" | jq -r '.reasoning // empty')
             NEXT_STEPS=$(echo "$JSON" | jq -r '.next_steps | join("\n- ")' | sed 's/^/- /')
 
             # Set outputs
-            echo "status=insufficient_info" >> $GITHUB_OUTPUT
-            echo "reasoning<<EOF" >> $GITHUB_OUTPUT
-            echo "$REASONING" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            echo "next_steps<<EOF" >> $GITHUB_OUTPUT
-            echo "$NEXT_STEPS" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            {
+              echo "status=insufficient_info"
+              echo "reasoning<<EOF"
+              echo "$REASONING"
+              echo "EOF"
+              echo "next_steps<<EOF"
+              echo "$NEXT_STEPS"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "Unknown status: $STATUS"
             exit 1
@@ -200,17 +206,19 @@ jobs:
         if: steps.parse.outputs.status == 'classified'
         env:
           GH_TOKEN: ${{ github.token }}
+          SEVERITY: ${{ steps.parse.outputs.severity }}
+          REASONING: ${{ steps.parse.outputs.reasoning }}
         run: |
-          SEVERITY_UPPER=$(echo "${{ steps.parse.outputs.severity }}" | tr '[:lower:]' '[:upper:]')
+          SEVERITY_UPPER=$(echo "$SEVERITY" | tr '[:lower:]' '[:upper:]')
 
-          gh issue comment ${{ github.event.issue.number }} \
-            --repo ${{ github.repository }} \
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
             --body "## 🤖 Automated Severity Classification
 
           **Recommended Severity:** \`${SEVERITY_UPPER}\`
 
           **Analysis:**
-          ${{ steps.parse.outputs.reasoning }}
+          ${REASONING}
 
           ---
           *This classification was performed by AI analysis. Please review and adjust if needed.*"
@@ -219,18 +227,20 @@ jobs:
         if: steps.parse.outputs.status == 'insufficient_info'
         env:
           GH_TOKEN: ${{ github.token }}
+          REASONING: ${{ steps.parse.outputs.reasoning }}
+          NEXT_STEPS: ${{ steps.parse.outputs.next_steps }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} \
-            --repo ${{ github.repository }} \
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
             --body "## 🤖 Automated Severity Classification
 
           **Status:** Unable to classify - insufficient information
 
           **Reasoning:**
-          ${{ steps.parse.outputs.reasoning }}
+          ${REASONING}
 
           **Suggested next steps:**
-          ${{ steps.parse.outputs.next_steps }}
+          ${NEXT_STEPS}
 
           ---
           *This classification was performed by AI analysis. Please provide the requested information for proper severity assessment.*"
