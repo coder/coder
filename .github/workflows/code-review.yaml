@@ -185,10 +185,13 @@ jobs:
             BAD Comment 3 on line 92: "Regex should use \\$$ instead of \\$"
             → WRONG: This is YAML, not bash. Doesn't understand context.
 
+            BAD Comment 4 on line 115: "Missing set -euo pipefail. If REPO_OWNER is empty, workflow continues."
+            → WRONG: set -u catches undefined vars, not empty strings. GitHub context vars are always defined.
+
             Summary was generic:
             "Found 3 issues. See comments."
 
-            Result: 3 false positives + vague summary. Wasted everyone's time.
+            Result: 4 false positives + vague summary. Wasted everyone's time.
 
           EXAMPLE OF GOOD REVIEW (Do this):
 
