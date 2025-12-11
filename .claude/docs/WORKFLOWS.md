@@ -121,6 +121,20 @@
 - Use `testutil.WaitLong` for timeouts in tests
 - Always use `t.Parallel()` in tests
 
+## Git Workflow
+
+### Working on PR branches
+
+When working on an existing PR branch:
+
+```sh
+git fetch origin
+git checkout branch-name
+git pull origin branch-name
+```
+
+Then make your changes and push normally. Don't use `git push --force` unless the user specifically asks for it.
+
 ## Commit Style
 
 - Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
