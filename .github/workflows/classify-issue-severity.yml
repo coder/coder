@@ -31,7 +31,8 @@ jobs:
         uses: anthropics/claude-code-action@f0c8eb29807907de7f5412d04afceb5e24817127 # v1.0.23
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: --json-schema '{"type":"object","properties":{"status":{"type":"string","enum":["classified","insufficient_info"]},"severity":{"type":"string","enum":["s0","s1","s2","s3","s4"]},"reasoning":{"type":"string"},"next_steps":{"type":"array","items":{"type":"string"}}},"required":["status","reasoning"],"allOf":[{"if":{"properties":{"status":{"const":"classified"}}},"then":{"required":["severity"]}},{"if":{"properties":{"status":{"const":"insufficient_info"}}},"then":{"required":["next_steps"]}}]}'
+          claude_args: |
+            --json-schema '{"type":"object","properties":{"status":{"type":"string"},"severity":{"type":"string"},"reasoning":{"type":"string"},"next_steps":{"type":"array","items":{"type":"string"}}},"required":["status","reasoning"]}'
           prompt: |
             You are an expert software engineer triaging customer-reported issues for Coder, a cloud development environment platform.
 
