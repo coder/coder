@@ -101,6 +101,7 @@ type Options struct {
 	Clock                        quartz.Clock
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
+	BoundaryLogSocket            string // Path for the boundary audit log socket
 }
 
 type Client interface {
@@ -208,6 +209,7 @@ func New(options Options) Agent {
 		containerAPIOptions: options.DevcontainerAPIOptions,
 		socketPath:          options.SocketPath,
 		socketServerEnabled: options.SocketServerEnabled,
+		boundaryLogSocket:   options.BoundaryLogSocket,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -291,6 +293,7 @@ type agent struct {
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
+	boundaryLogSocket   string
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -372,6 +375,7 @@ func (a *agent) init() {
 	)
 
 	a.initSocketServer()
+	a.startBoundaryLogProxyServer()
 
 	go a.runLoop()
 }
@@ -396,11 +400,15 @@ func (a *agent) initSocketServer() {
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
-// startBoundaryLogProxyServer starts the boundary log proxy socket server.
-// The socket path is configured via CODER_BOUNDARY_LOG_SOCKET in the workspace
-// template so both the agent and boundary can use the same path.
-func (a *agent) startBoundaryLogProxyServer(socketPath string) {
-	proxy := boundarylogproxy.NewServer(a.logger, socketPath)
+// startBoundaryLogProxyServer starts the boundary log proxy socket server if
+// configured via the --boundary-log-socket flag or CODER_AGENT_BOUNDARY_LOG_SOCKET
+// env var.
+func (a *agent) startBoundaryLogProxyServer() {
+	if a.boundaryLogSocket == "" {
+		return
+	}
+
+	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogSocket)
 	if err := proxy.Start(a.hardCtx); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
 		return
@@ -408,7 +416,7 @@ func (a *agent) startBoundaryLogProxyServer(socketPath string) {
 
 	a.boundaryLogProxy = proxy
 	a.logger.Info(a.hardCtx, "boundary log proxy server started",
-		slog.F("socket_path", socketPath))
+		slog.F("socket_path", a.boundaryLogSocket))
 }
 
 // forwardBoundaryLogs forwards buffered boundary audit logs to coderd.
@@ -1212,11 +1220,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 		// The startup script should only execute on the first run!
 		if oldManifest == nil {
-			// Start boundary log proxy if configured via CODER_BOUNDARY_LOG_SOCKET.
-			if socketPath := manifest.EnvironmentVariables["CODER_BOUNDARY_LOG_SOCKET"]; socketPath != "" {
-				a.startBoundaryLogProxyServer(socketPath)
-			}
-
 			a.setLifecycle(codersdk.WorkspaceAgentLifecycleStarting)
 
 			// Perform overrides early so that Git auth can work even if users
