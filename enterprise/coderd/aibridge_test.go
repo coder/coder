@@ -703,3 +703,133 @@ func TestAIBridgeRouting(t *testing.T) {
 		})
 	}
 }
+
+func TestAIBridgeRateLimiting(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	// Set a low rate limit for testing.
+	dv.AI.BridgeConfig.RateLimit = 2
+
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	// Register a simple test handler.
+	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})
+	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	httpClient := &http.Client{}
+	url := client.URL.String() + "/api/v2/aibridge/test"
+
+	// Make requests up to the limit - should succeed.
+	for range 2 {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	// Next request should be rate limited.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	require.NoError(t, err)
+	req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	require.NotEmpty(t, resp.Header.Get("Retry-After"))
+}
+
+func TestAIBridgeConcurrencyLimiting(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	// Set a low concurrency limit for testing.
+	dv.AI.BridgeConfig.MaxConcurrency = 1
+
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	// Register a handler that blocks until signaled.
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		started <- struct{}{}
+		<-unblock
+		rw.WriteHeader(http.StatusOK)
+	})
+	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	httpClient := &http.Client{}
+	url := client.URL.String() + "/api/v2/aibridge/test"
+
+	// Start a request that will block.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		resp, err := httpClient.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+
+	// Wait for the first request to start processing.
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first request to start")
+	}
+
+	// Second request should be rejected with 503.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	require.NoError(t, err)
+	req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+	// Unblock the first request and wait for it to complete.
+	close(unblock)
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first request to complete")
+	}
+}
