@@ -67,10 +67,9 @@ runs:
         LC_CTYPE: "en_US.UTF-8"
         LC_ALL: "en_US.UTF-8"
       run: |
-        set -o errexit
-        set -o pipefail
+        set -euo pipefail
 
-        if [ "${RACE_DETECTION}" == "true" ]; then
+        if [[ ${RACE_DETECTION} == true ]]; then
           gotestsum --junitfile="gotests.xml" --packages="${TEST_PACKAGES}" -- \
             -race \
             -parallel "${TEST_NUM_PARALLEL_TESTS}" \
