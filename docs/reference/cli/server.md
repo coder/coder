@@ -1781,6 +1781,28 @@ Whether to inject Coder's MCP tools into intercepted AI Bridge requests (require
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
 
+### --aibridge-max-concurrency
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>int</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_MAX_CONCURRENCY</code> |
+| YAML        | <code>aibridge.maxConcurrency</code>         |
+| Default     | <code>0</code>                               |
+
+Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
+
+### --aibridge-rate-limit
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>int</code>                        |
+| Environment | <code>$CODER_AIBRIDGE_RATE_LIMIT</code> |
+| YAML        | <code>aibridge.rateLimit</code>         |
+| Default     | <code>0</code>                          |
+
+Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
+
 ### --audit-logs-retention
 
 |             |                                          |
