@@ -776,7 +776,7 @@ func New(options *Options) *API {
 		UsageTracker:           options.WorkspaceUsageTracker,
 		UpdateAgentMetricsFn:   options.UpdateAgentMetrics,
 		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
-		DisableDatabaseStorage: !options.DeploymentValues.TemplateInsights.Enable.Value(),
+		DisableDatabaseInserts: !options.DeploymentValues.TemplateInsights.Enable.Value(),
 	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {

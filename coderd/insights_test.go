@@ -754,7 +754,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
 			Database:               db,
 			AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
-			DisableDatabaseStorage: disableStorage,
+			DisableDatabaseInserts: disableStorage,
 		})
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
@@ -1665,7 +1665,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
 			Database:               db,
 			AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
-			DisableDatabaseStorage: disableStorage,
+			DisableDatabaseInserts: disableStorage,
 		})
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")

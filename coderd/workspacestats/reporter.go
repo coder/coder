@@ -48,9 +48,9 @@ type ReporterOptions struct {
 	UsageTracker          *UsageTracker
 	UpdateAgentMetricsFn  func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 
-	// DisableDatabaseStorage prevents storing stats in the database.  The
+	// DisableDatabaseInserts prevents inserting stats in the database.  The
 	// reporter will still call UpdateAgentMetricsFn and bump workspace activity.
-	DisableDatabaseStorage bool
+	DisableDatabaseInserts bool
 
 	AppStatBatchSize int
 }
@@ -114,7 +114,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 			return nil
 		}
 
-		if !r.opts.DisableDatabaseStorage {
+		if !r.opts.DisableDatabaseInserts {
 			if err := tx.InsertWorkspaceAppStats(ctx, batch); err != nil {
 				return err
 			}
@@ -140,7 +140,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 // nolint:revive // usage is a control flag while we have the experiment
 func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.WorkspaceIdentity, workspaceAgent database.WorkspaceAgent, stats *agentproto.Stats, usage bool) error {
 	// update agent stats
-	if !r.opts.DisableDatabaseStorage {
+	if !r.opts.DisableDatabaseInserts {
 		r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
 	}
 

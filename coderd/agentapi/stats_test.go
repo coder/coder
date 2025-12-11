@@ -617,7 +617,7 @@ func TestUpdateStats(t *testing.T) {
 					}, labels)
 					assert.Equal(t, req.Stats.Metrics, metrics)
 				},
-				DisableDatabaseStorage: true,
+				DisableDatabaseInserts: true,
 			}),
 			AgentStatsRefreshInterval: 10 * time.Second,
 			TimeNowFn: func() time.Time {
