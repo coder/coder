@@ -1534,8 +1534,8 @@ func New(options *Options) *API {
 					func(next http.Handler) http.Handler {
 						return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 							if !options.DeploymentValues.TemplateInsights.Enable.Value() {
-								httpapi.Write(context.Background(), rw, http.StatusForbidden, codersdk.Response{
-									Message: "Forbidden.",
+								httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
+									Message: "Not Found.",
 									Detail:  "Template insights are disabled.",
 								})
 								return

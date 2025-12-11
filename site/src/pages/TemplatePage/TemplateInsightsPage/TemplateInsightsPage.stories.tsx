@@ -29,8 +29,8 @@ export const Loading: Story = {
 	},
 };
 
-const forbidden = mockApiError({
-	message: "Forbidden.",
+const notFound = mockApiError({
+	message: "Not Found.",
 	detail: "Template insights are disabled.",
 });
 
@@ -38,15 +38,15 @@ export const LoadingError: Story = {
 	args: {
 		templateInsights: {
 			data: undefined,
-			error: forbidden,
+			error: notFound,
 		},
 		userLatency: {
 			data: undefined,
-			error: forbidden,
+			error: notFound,
 		},
 		userActivity: {
 			data: undefined,
-			error: forbidden,
+			error: notFound,
 		},
 	},
 };

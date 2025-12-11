@@ -2418,8 +2418,8 @@ func TestGenericInsights_Disabled(t *testing.T) {
 	tests := []struct {
 		name string
 		fn   func(ctx context.Context) error
-		// ok means there should be no error, otherwise assume forbidden due to
-		// being disabled.
+		// ok means there should be no error, otherwise assume 404 due to being
+		// disabled.
 		ok bool
 	}{
 		{
@@ -2478,7 +2478,7 @@ func TestGenericInsights_Disabled(t *testing.T) {
 				require.Error(t, err)
 				cerr := coderdtest.SDKError(t, err)
 				require.Contains(t, cerr.Error(), "disabled")
-				require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+				require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 			}
 		})
 	}
