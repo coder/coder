@@ -151,11 +151,13 @@ jobs:
           fi
 
           # Extract the result from the execution file
-          RESULT=$(cat "$EXECUTION_FILE" | jq -r '.result // empty')
+          RESULT=$(jq -r '.result // empty' < "$EXECUTION_FILE")
 
-          echo "result<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$RESULT" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "result<<EOF"
+            echo "$RESULT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
   post-comment:
     name: Post Classification Comment
