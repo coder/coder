@@ -325,6 +325,7 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go-pg:
+    name: test-go-pg (${{ matrix.os }})
     # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
     # when changing runner sizes
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || matrix.os && matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-32' || matrix.os }}
@@ -341,6 +342,17 @@ jobs:
           - ubuntu-latest
           - macos-latest
           - windows-2022
+        # Use the GitHub ref to determine if we should run on all OSes.
+        # Evaluates to true on main, false otherwise.
+        isMain:
+          - ${{ github.ref == 'refs/heads/main' }}
+        # macOS and Windows are tested on main only to improve CI speed, and we don't see much use on these platforms.
+        # See nightly-gauntlet.yaml for comprehensive macOS/Windows coverage.
+        exclude:
+          - isMain: false
+            os: macos-latest
+          - isMain: false
+            os: windows-2022
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
@@ -461,7 +473,7 @@ jobs:
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
 
       - name: Test with PostgreSQL Database (macOS)
-        if: runner.os == 'macOS' && github.ref == 'refs/heads/main'
+        if: runner.os == 'macOS'
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
@@ -477,7 +489,7 @@ jobs:
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Test with PostgreSQL Database (Windows)
-        if: runner.os == 'Windows' && github.ref == 'refs/heads/main'
+        if: runner.os == 'Windows'
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
