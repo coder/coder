@@ -142,20 +142,58 @@ jobs:
 
             **Critical**: Output ONLY the JSON object, nothing else. The JSON will be parsed and validated.
 
-      - name: Extract Result from Structured Output
+      - name: Extract Result with Fallback
         id: extract
         env:
           STRUCTURED_OUTPUT: ${{ steps.analysis.outputs.structured_output }}
+          EXECUTION_FILE: ${{ steps.analysis.outputs.execution_file }}
         run: |
-          if [ -z "$STRUCTURED_OUTPUT" ]; then
-            echo "No structured output returned from Claude"
+          # Try to use structured_output first (preferred method)
+          if [ -n "$STRUCTURED_OUTPUT" ] && [ "$STRUCTURED_OUTPUT" != "null" ]; then
+            echo "✅ Using structured_output from claude-code-action"
+            RESULT="$STRUCTURED_OUTPUT"
+          else
+            echo "⚠️ structured_output not available, falling back to execution file parsing"
+
+            if [ ! -f "$EXECUTION_FILE" ]; then
+              echo "❌ Execution file not found: $EXECUTION_FILE"
+              exit 1
+            fi
+
+            # Debug: Show what messages we have
+            echo "Messages in execution file:"
+            jq -r '.[] | "  - type: \(.type), subtype: \(.subtype // "none")"' < "$EXECUTION_FILE" || echo "Failed to parse execution file"
+
+            # Try to extract from StructuredOutput tool call as fallback
+            echo "Attempting to extract from StructuredOutput tool call..."
+            RESULT=$(jq -r '
+              .[] |
+              select(.type == "assistant") |
+              .message.content[] |
+              select(.type == "tool_use" and .name == "StructuredOutput") |
+              .input |
+              @json
+            ' < "$EXECUTION_FILE" | head -1)
+
+            if [ -z "$RESULT" ] || [ "$RESULT" = "null" ]; then
+              echo "❌ Could not extract structured output from any source"
+              echo "Execution file contents:"
+              cat "$EXECUTION_FILE"
+              exit 1
+            fi
+
+            echo "✅ Extracted from StructuredOutput tool call"
+          fi
+
+          # Validate the result is valid JSON
+          if ! echo "$RESULT" | jq -e . > /dev/null 2>&1; then
+            echo "❌ Result is not valid JSON: $RESULT"
             exit 1
           fi
 
-          # The structured_output is already in JSON format matching our schema
           {
             echo "result<<EOF"
-            echo "$STRUCTURED_OUTPUT"
+            echo "$RESULT"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
