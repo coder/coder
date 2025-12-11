@@ -1116,8 +1116,14 @@
 					}
 				],
 				"responses": {
+					"200": {
+						"description": "Returns existing file if duplicate",
+						"schema": {
+							"$ref": "#/definitions/codersdk.UploadResponse"
+						}
+					},
 					"201": {
-						"description": "Created",
+						"description": "Returns newly created file",
 						"schema": {
 							"$ref": "#/definitions/codersdk.UploadResponse"
 						}
@@ -1570,7 +1576,7 @@
 				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
-				"tags": ["Organizations"],
+				"tags": ["Enterprise"],
 				"summary": "Add new license",
 				"operationId": "add-new-license",
 				"parameters": [
@@ -1602,7 +1608,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Organizations"],
+				"tags": ["Enterprise"],
 				"summary": "Update license entitlements",
 				"operationId": "update-license-entitlements",
 				"responses": {
@@ -12790,6 +12796,9 @@
 					"type": "boolean"
 				},
 				"disable_path_apps": {
+					"type": "boolean"
+				},
+				"disable_workspace_sharing": {
 					"type": "boolean"
 				},
 				"docs_url": {

@@ -5240,6 +5240,79 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 	})
 }
 
+// nolint:tparallel,paralleltest // Subtests modify package global.
+func TestWorkspaceSharingDisabled(t *testing.T) {
+	t.Run("CanAccessWhenEnabled", func(t *testing.T) {
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					// DisableWorkspaceSharing is false (default)
+				}),
+			})
+			admin            = coderdtest.CreateFirstUser(t, client)
+			_, wsOwner       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			userClient, user = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create workspace with ACL granting access to user
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        wsOwner.ID,
+			OrganizationID: admin.OrganizationID,
+			UserACL: database.WorkspaceACL{
+				user.ID.String(): database.WorkspaceACLEntry{
+					Permissions: []policy.Action{
+						policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect,
+					},
+				},
+			},
+		}).Do().Workspace
+
+		// User SHOULD be able to access workspace when sharing is enabled
+		fetchedWs, err := userClient.Workspace(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Equal(t, ws.ID, fetchedWs.ID)
+	})
+
+	t.Run("NoAccessWhenDisabled", func(t *testing.T) {
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					dv.DisableWorkspaceSharing = true
+				}),
+			})
+			admin            = coderdtest.CreateFirstUser(t, client)
+			_, wsOwner       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			userClient, user = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create workspace with ACL granting access to user directly in DB
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        wsOwner.ID,
+			OrganizationID: admin.OrganizationID,
+			UserACL: database.WorkspaceACL{
+				user.ID.String(): database.WorkspaceACLEntry{
+					Permissions: []policy.Action{
+						policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect,
+					},
+				},
+			},
+		}).Do().Workspace
+
+		// User should NOT be able to access workspace when sharing is disabled
+		_, err := userClient.Workspace(ctx, ws.ID)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}
+
 func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 	t.Parallel()
 

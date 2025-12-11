@@ -47,6 +47,13 @@ OPTIONS:
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
+      --disable-workspace-sharing bool, $CODER_DISABLE_WORKSPACE_SHARING
+          Disable workspace sharing (requires the "workspace-sharing" experiment
+          to be enabled). Workspace ACL checking is disabled and only owners can
+          have ssh, apps and terminal access to workspaces. Access based on the
+          'owner' role is also allowed unless disabled via
+          --disable-owner-workspace-access.
+
       --swagger-enable bool, $CODER_SWAGGER_ENABLE
           Expose the swagger endpoint via /swagger.
 

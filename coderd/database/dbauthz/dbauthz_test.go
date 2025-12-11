@@ -4731,3 +4731,155 @@ func (s *MethodTestSuite) TestTelemetry() {
 		check.Args(database.CalculateAIBridgeInterceptionsTelemetrySummaryParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
 	}))
 }
+
+func TestGetLatestWorkspaceBuildByWorkspaceID_FastPath(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	wsID := uuid.New()
+	orgID := uuid.New()
+
+	workspace := database.Workspace{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	build := database.WorkspaceBuild{
+		ID:          uuid.New(),
+		WorkspaceID: wsID,
+	}
+
+	wsIdentity := database.WorkspaceIdentity{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+
+	authorizer := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		dbm.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil).AnyTimes()
+		dbm.EXPECT().Wrappers().Return([]string{})
+
+		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, build, result)
+	})
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil).AnyTimes()
+		dbm.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil).AnyTimes()
+		dbm.EXPECT().Wrappers().Return([]string{})
+
+		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, build, result)
+	})
+}
+
+func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	ownerID := uuid.New()
+	wsID := uuid.New()
+	orgID := uuid.New()
+
+	agent := database.WorkspaceAgent{
+		ID:   agentID,
+		Name: "test-agent",
+	}
+
+	workspace := database.Workspace{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	wsIdentity := database.WorkspaceIdentity{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+
+	authorizer := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// GetWorkspaceByAgentID should NOT be called
+		mockDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agent, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetWorkspaceAgentByID(ctx, agentID)
+		require.NoError(t, err)
+		require.Equal(t, agent, result)
+	})
+
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// GetWorkspaceByAgentID SHOULD be called
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(workspace, nil)
+		mockDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agent, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetWorkspaceAgentByID(ctx, agentID)
+		require.NoError(t, err)
+		require.Equal(t, agent, result)
+	})
+}
