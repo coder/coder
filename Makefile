@@ -1113,17 +1113,15 @@ test-postgres-docker:
 		done
 	}
 
-	# Make sure to not overallocate work_mem and max_connections as each
-	# connection will be allowed to use this much memory. Try adjusting
-	# shared_buffers instead, if needed.
+	# Optimized for CI: data lives on tmpfs (ramdisk) so durability
+	# settings don't matter, but we still tune for speed.
 	#
-	# - work_mem=8MB * max_connections=1000 = 8GB
-	# - shared_buffers=2GB + effective_cache_size=1GB = 3GB
-	#
-	# This leaves 5GB for the rest of the system _and_ storing the
-	# database in memory (--tmpfs).
-	#
-	# https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM
+	# Memory budget (16GB container limit):
+	# - shared_buffers: 2GB
+	# - wal_buffers: 64MB
+	# - work_mem: 8MB per-operation (can add up with parallel queries)
+	# - maintenance_work_mem: 256MB
+	# - Remainder for OS, tmpfs, and postgres per-connection overhead
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -1137,13 +1135,24 @@ test-postgres-docker:
 		--memory 16GB \
 		${POSTGRES_IMAGE} \
 		-c shared_buffers=2GB \
-		-c effective_cache_size=1GB \
+		-c effective_cache_size=4GB \
 		-c work_mem=8MB \
+		-c maintenance_work_mem=256MB \
 		-c max_connections=1000 \
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
-		-c log_statement=all
+		-c wal_level=minimal \
+		-c max_wal_senders=0 \
+		-c wal_buffers=64MB \
+		-c checkpoint_timeout=30min \
+		-c max_wal_size=4GB \
+		-c min_wal_size=1GB \
+		-c bgwriter_lru_maxpages=0 \
+		-c autovacuum=off \
+		-c jit=off \
+		-c track_activities=off \
+		-c track_counts=off
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$(date) - waiting for database to start"
