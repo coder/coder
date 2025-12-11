@@ -1175,6 +1175,14 @@ type OIDCConfig struct {
 	PKCEMethods         []promoauth.Oauth2PKCEChallengeMethod
 }
 
+// PKCESupported is to prevent nil pointer dereference.
+func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	if o == nil {
+		return nil
+	}
+	return o.PKCEMethods
+}
+
 // @Summary OpenID Connect Callback
 // @ID openid-connect-callback
 // @Security CoderSessionToken

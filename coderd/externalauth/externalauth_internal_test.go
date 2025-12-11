@@ -196,3 +196,45 @@ func Test_bitbucketServerConfigDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestUntyped(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    codersdk.ExternalAuthConfig
+		expected codersdk.ExternalAuthConfig
+	}{
+		{
+			// Unknown Type uses S256 by default.
+			name: "RandomValues",
+			input: codersdk.ExternalAuthConfig{
+				Type:        "unknown",
+				AuthURL:     "https://auth.com/auth",
+				ValidateURL: "https://validate.com/validate",
+				TokenURL:    "https://token.com/token",
+				RevokeURL:   "https://token.com/revoke",
+				Regex:       "random",
+			},
+			expected: codersdk.ExternalAuthConfig{
+				ID:                            "unknown",
+				Type:                          "unknown",
+				DisplayName:                   "unknown",
+				DisplayIcon:                   "/emojis/1f511.png",
+				AuthURL:                       "https://auth.com/auth",
+				ValidateURL:                   "https://validate.com/validate",
+				TokenURL:                      "https://token.com/token",
+				RevokeURL:                     "https://token.com/revoke",
+				Regex:                         `random`,
+				CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
+			},
+		},
+	}
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			applyDefaultsToConfig(&c.input)
+			require.Equal(t, c.input, c.expected)
+		})
+	}
+}

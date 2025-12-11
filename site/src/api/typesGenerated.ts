@@ -2051,6 +2051,7 @@ export interface ExternalAuthLinkProvider {
 	readonly allow_refresh: boolean;
 	readonly allow_validate: boolean;
 	readonly supports_revocation: boolean;
+	readonly code_challenge_methods_supported: readonly string[];
 }
 
 // From codersdk/externalauth.go

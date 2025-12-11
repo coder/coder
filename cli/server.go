@@ -2771,6 +2771,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.MCPToolAllowRegex = v.Value
 		case "MCP_TOOL_DENY_REGEX":
 			provider.MCPToolDenyRegex = v.Value
+		case "PKCE_METHODS":
+			provider.CodeChallengeMethodsSupported = strings.Split(v.Value, " ")
 		}
 		providers[providerNum] = provider
 	}

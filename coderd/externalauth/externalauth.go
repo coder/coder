@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -724,24 +725,25 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		}
 
 		cfg := &Config{
-			InstrumentedOAuth2Config: instrumented,
-			ID:                       entry.ID,
-			ClientID:                 entry.ClientID,
-			ClientSecret:             entry.ClientSecret,
-			Regex:                    regex,
-			Type:                     entry.Type,
-			NoRefresh:                entry.NoRefresh,
-			ValidateURL:              entry.ValidateURL,
-			RevokeURL:                entry.RevokeURL,
-			RevokeTimeout:            tokenRevocationTimeout,
-			AppInstallationsURL:      entry.AppInstallationsURL,
-			AppInstallURL:            entry.AppInstallURL,
-			DisplayName:              entry.DisplayName,
-			DisplayIcon:              entry.DisplayIcon,
-			ExtraTokenKeys:           entry.ExtraTokenKeys,
-			MCPURL:                   entry.MCPURL,
-			MCPToolAllowRegex:        mcpToolAllow,
-			MCPToolDenyRegex:         mcpToolDeny,
+			InstrumentedOAuth2Config:      instrumented,
+			ID:                            entry.ID,
+			ClientID:                      entry.ClientID,
+			ClientSecret:                  entry.ClientSecret,
+			Regex:                         regex,
+			Type:                          entry.Type,
+			NoRefresh:                     entry.NoRefresh,
+			ValidateURL:                   entry.ValidateURL,
+			RevokeURL:                     entry.RevokeURL,
+			RevokeTimeout:                 tokenRevocationTimeout,
+			AppInstallationsURL:           entry.AppInstallationsURL,
+			AppInstallURL:                 entry.AppInstallURL,
+			DisplayName:                   entry.DisplayName,
+			DisplayIcon:                   entry.DisplayIcon,
+			ExtraTokenKeys:                entry.ExtraTokenKeys,
+			MCPURL:                        entry.MCPURL,
+			MCPToolAllowRegex:             mcpToolAllow,
+			MCPToolDenyRegex:              mcpToolDeny,
+			CodeChallengeMethodsSupported: slice.StringEnums[promoauth.Oauth2PKCEChallengeMethod](entry.CodeChallengeMethodsSupported),
 		}
 
 		if entry.DeviceFlow {
@@ -801,11 +803,8 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 		copyDefaultSettings(config, azureDevopsEntraDefaults(config))
 		return
 	default:
-		// Defaults apply to any provider that doesn't have specific defaults.
-		copyDefaultSettings(config, codersdk.ExternalAuthConfig{
-			// PKCE should always be enabled by default.
-			CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
-		})
+		// Global defaults are specified at the end of the `copyDefaultSettings` function.
+		copyDefaultSettings(config, codersdk.ExternalAuthConfig{})
 		return
 	}
 }
@@ -847,6 +846,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if len(config.ExtraTokenKeys) == 0 {
 		config.ExtraTokenKeys = defaults.ExtraTokenKeys
 	}
+	if config.CodeChallengeMethodsSupported == nil {
+		config.CodeChallengeMethodsSupported = defaults.CodeChallengeMethodsSupported
+	}
 
 	// Apply defaults if it's still empty...
 	if config.ID == "" {
@@ -860,7 +862,7 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 		config.DisplayIcon = "/emojis/1f511.png"
 	}
 	if config.CodeChallengeMethodsSupported == nil {
-		config.CodeChallengeMethodsSupported = defaults.CodeChallengeMethodsSupported
+		config.CodeChallengeMethodsSupported = []string{string(promoauth.PKCEChallengeMethodSha256)}
 	}
 }
 
