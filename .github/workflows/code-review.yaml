@@ -169,7 +169,7 @@ jobs:
             ❌ Style that matches existing Coder patterns (check AGENTS.md first)
             ❌ Code that already exists (read the file first!)
             ❌ Unnecessary changes unrelated to the PR
-            ❌ Validation for impossible conditions
+            ❌ Claiming set -u prevents empty strings (it only catches undefined vars)
 
           EXAMPLE OF BAD REVIEW (Don't do this):
 
@@ -185,8 +185,8 @@ jobs:
             BAD Comment 3 on line 92: "Regex should use \\$$ instead of \\$"
             → WRONG: This is YAML, not bash. Doesn't understand context.
 
-            BAD Comment 4 on line 115: "Missing set -euo pipefail. If REPO_OWNER is empty, workflow continues."
-            → WRONG: set -u catches undefined vars, not empty strings. GitHub context vars are always defined.
+            BAD Comment 4: "Missing set -euo pipefail. Without it, empty values get written to output."
+            → WRONG: set -u = undefined vars only (not empty strings). Say "for consistency" not "prevents empty values".
 
             Summary was generic:
             "Found 3 issues. See comments."
@@ -297,7 +297,8 @@ jobs:
             4. Single line: {"line": 50} | Multi-line: {"start_line": 50, "line": 52}
             5. Explain IMPACT ("causes crash/leak/bypass" not "could be better")
             6. Make ALL observations actionable - don't just mention them in summary
-            7. No issues at all = {"event": "COMMENT", "comments": [], "body": "**Looks good**"}
+            7. set -u = undefined vars only. Don't claim it catches empty strings. It doesn't.
+            8. No issues at all = {"event": "COMMENT", "comments": [], "body": "**Looks good**"}
 
           BEFORE SUBMITTING:
             - Read the files you're commenting on
