@@ -21,6 +21,9 @@ jobs:
       result: ${{ steps.analysis.outputs.result }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Analyze Issue Severity
         id: analysis
         uses: anthropics/claude-code-action@f0c8eb29807907de7f5412d04afceb5e24817127 # v1.0.23
