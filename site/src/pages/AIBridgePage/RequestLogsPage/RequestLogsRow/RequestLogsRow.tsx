@@ -91,7 +91,20 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						<div className="font-medium">{interception.initiator.username}</div>
 					</div>
 				</TableCell>
-				<TableCell>{firstPrompt?.prompt}</TableCell>
+				<TableCell className="min-w-0">
+					{/*
+						This looks scary, but essentially what we're doing is ensuring that the
+						prompt is truncated and won't escape its bounding container with an `absolute`.
+
+						Alternatively we could use a `table-fixed` table, but that would break worse
+						on mobile with the `min-w-0`. This is a bit of a hack, but it works.
+					*/}
+					<div className="w-full h-4 min-w-48 relative">
+						<div className="absolute inset-0 leading-none overflow-hidden truncate">
+							{firstPrompt?.prompt}
+						</div>
+					</div>
+				</TableCell>
 				<TableCell className="w-32">
 					<div className="flex items-center">
 						<Badge className="gap-0 rounded-e-none">
