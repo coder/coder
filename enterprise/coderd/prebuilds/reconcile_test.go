@@ -1221,6 +1221,9 @@ func TestRunLoop(t *testing.T) {
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		reconciler.Stop(context.Background(), nil)
+	})
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -1349,6 +1352,9 @@ func TestFailedBuildBackoff(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		reconciler.Stop(context.Background(), nil)
+	})
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -1471,6 +1477,7 @@ func TestReconciliationLock(t *testing.T) {
 				prometheus.NewRegistry(),
 				newNoopEnqueuer(),
 				newNoopUsageCheckerPtr())
+			defer reconciler.Stop(context.Background(), nil)
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
 				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
@@ -1501,6 +1508,9 @@ func TestTrackResourceReplacement(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		reconciler.Stop(context.Background(), nil)
+	})
 
 	// Given: a template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
@@ -2108,6 +2118,9 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 				reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+				t.Cleanup(func() {
+					reconciler.Stop(context.Background(), nil)
+				})
 				owner := coderdtest.CreateFirstUser(t, client)
 
 				// Given: a template with a version containing a preset with 1 prebuild instance
@@ -2345,6 +2358,9 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 		reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+		t.Cleanup(func() {
+			reconciler.Stop(context.Background(), nil)
+		})
 		owner := coderdtest.CreateFirstUser(t, client)
 
 		// Given: template A with 2 versions
@@ -2410,6 +2426,9 @@ func TestReconciliationStats(t *testing.T) {
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		reconciler.Stop(context.Background(), nil)
+	})
 	owner := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2921,6 +2940,9 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+	t.Cleanup(func() {
+		reconciler.Stop(context.Background(), nil)
+	})
 
 	// Setup a template with a preset that should create prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
