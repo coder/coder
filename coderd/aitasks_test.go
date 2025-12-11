@@ -811,6 +811,12 @@ func TestTasks(t *testing.T) {
 					require.NoError(t, err)
 					coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+					// If we're going to cancel the transition, we want to close the provisioner
+					// to stop the job completing before we can cancel it.
+					if tt.cancelTransition {
+						provisioner.Close()
+					}
+
 					// Given: We transition the task's workspace
 					build := coderdtest.CreateWorkspaceBuild(t, client, workspace, tt.transition)
 					if tt.cancelTransition {
