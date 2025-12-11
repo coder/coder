@@ -39,6 +39,7 @@ var ErrTemplateVersionNotReady = xerrors.New("template version job not finished"
 type RenderCache interface {
 	get(templateVersionID, ownerID uuid.UUID, parameters map[string]string) (*preview.Output, bool)
 	put(templateVersionID, ownerID uuid.UUID, parameters map[string]string, output *preview.Output)
+	Close()
 }
 
 // noopRenderCache is a no-op implementation of RenderCache that doesn't cache anything.
@@ -49,6 +50,10 @@ func (noopRenderCache) get(uuid.UUID, uuid.UUID, map[string]string) (*preview.Ou
 }
 
 func (noopRenderCache) put(uuid.UUID, uuid.UUID, map[string]string, *preview.Output) {
+	// no-op
+}
+
+func (noopRenderCache) Close() {
 	// no-op
 }
 

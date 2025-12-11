@@ -61,7 +61,7 @@ type StoreReconciler struct {
 	reconciliationDuration prometheus.Histogram
 
 	// renderCache caches template rendering results to avoid expensive re-parsing
-	renderCache *dynamicparameters.RenderCacheImpl
+	renderCache dynamicparameters.RenderCache
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -294,9 +294,7 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	}
 
 	// Close the render cache to stop its cleanup goroutine
-	if c.renderCache != nil {
-		c.renderCache.Close()
-	}
+	c.renderCache.Close()
 }
 
 // ReconcileAll will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
