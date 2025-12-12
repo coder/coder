@@ -760,7 +760,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
+			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
@@ -793,7 +793,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
+			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},

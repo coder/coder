@@ -1500,18 +1500,18 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			ProvisionApply: []*proto.Response{
+			ProvisionPlan: []*proto.Response{
 				{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
-							Error: "failed to import",
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Error: "failed to plan",
 						},
 					},
 				},
 			},
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

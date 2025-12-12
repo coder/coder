@@ -403,68 +403,46 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			ExtraFiles:        nil,
 		}
 	}
-	// source apply from the graph if graph exists
-	if responses.ProvisionApply == nil && len(responses.ProvisionGraph) > 0 {
-		for _, resp := range responses.ProvisionGraph {
-			if resp.GetLog() != nil {
-				responses.ProvisionApply = append(responses.ProvisionApply, resp)
-				continue
-			}
-			responses.ProvisionApply = append(responses.ProvisionApply, &proto.Response{
-				Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{
-					Error: resp.GetGraph().GetError(),
-				}},
-			})
-		}
-	}
-	if responses.ProvisionGraph == nil {
-		for _, resp := range responses.ProvisionApply {
-			if resp.GetLog() != nil {
-				responses.ProvisionGraph = append(responses.ProvisionGraph, resp)
-				continue
-			}
-			responses.ProvisionGraph = append(responses.ProvisionGraph, &proto.Response{
-				Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-					Error: resp.GetApply().GetError(),
-				}},
-			})
-		}
+
+	// Apply sane defaults for missing responses.
+	if responses.Parse == nil {
+		responses.Parse = ParseComplete
 	}
 	if responses.ProvisionInit == nil {
-		for _, resp := range responses.ProvisionGraph {
-			if resp.GetLog() != nil {
-				responses.ProvisionInit = append(responses.ProvisionInit, resp)
-				continue
-			}
-			responses.ProvisionInit = append(responses.ProvisionInit, &proto.Response{
-				Type: &proto.Response_Init{
-					Init: &proto.InitComplete{
-						Error:           resp.GetGraph().GetError(),
-						Timings:         nil,
-						Modules:         nil,
-						ModuleFiles:     nil,
-						ModuleFilesHash: nil,
-					},
-				},
-			},
-			)
-		}
+		responses.ProvisionInit = InitComplete
 	}
 	if responses.ProvisionPlan == nil {
+		responses.ProvisionPlan = PlanComplete
+
+		// If a graph response exists, make sure it matches the plan.
 		for _, resp := range responses.ProvisionGraph {
 			if resp.GetLog() != nil {
-				responses.ProvisionPlan = append(responses.ProvisionPlan, resp)
 				continue
 			}
-			responses.ProvisionPlan = append(responses.ProvisionPlan, &proto.Response{
-				Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Error: resp.GetGraph().GetError(),
-					Plan:  []byte("{}"),
-					//nolint:gosec // the number of resources will not exceed int32
-					AiTaskCount: int32(len(resp.GetGraph().GetAiTasks())),
-				}},
-			})
+			if g := resp.GetGraph(); g != nil {
+				dailycost := int32(0)
+				for _, r := range g.GetResources() {
+					dailycost += r.DailyCost
+				}
+				responses.ProvisionPlan = []*proto.Response{{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Plan: []byte("{}"),
+							//nolint:gosec // the number of resources will not exceed int32
+							AiTaskCount: int32(len(g.GetAiTasks())),
+							DailyCost:   dailycost,
+						},
+					},
+				}}
+				break
+			}
 		}
+	}
+	if responses.ProvisionApply == nil {
+		responses.ProvisionApply = ApplyComplete
+	}
+	if responses.ProvisionGraph == nil {
+		responses.ProvisionGraph = GraphComplete
 	}
 
 	for _, resp := range responses.ProvisionPlan {
