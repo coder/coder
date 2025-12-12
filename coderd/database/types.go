@@ -112,8 +112,26 @@ func (t WorkspaceACL) Value() (driver.Value, error) {
 
 type WorkspaceACLEntry struct {
 	Permissions []policy.Action `json:"permissions"`
-	Name        string          `json:"name"`
-	AvatarURL   string          `json:"avatar_url"`
+}
+
+// WorkspaceACLDisplayInfo supplements workspace ACLs with the actors'
+// display info.
+type WorkspaceACLDisplayInfo map[string]struct {
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+// WorkspaceACLDisplayInfo is only used to read from the DB.
+func (w *WorkspaceACLDisplayInfo) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), w)
+	case []byte:
+		return json.Unmarshal(v, w)
+	case json.RawMessage:
+		return json.Unmarshal(v, w)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
 }
 
 type ExternalAuthProvider struct {

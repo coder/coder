@@ -692,11 +692,26 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 			TaskID:                  r.TaskID,
 		}
 
-		if err := workspaces[i].UserACL.Scan(r.UserACL); err != nil {
+		var err error
+
+		err = workspaces[i].UserACL.Scan(r.UserACL)
+		if err != nil {
 			return nil, xerrors.Errorf("scan user ACL %q: %w", r.UserACL, err)
 		}
-		if err := workspaces[i].GroupACL.Scan(r.GroupACL); err != nil {
+		err = workspaces[i].GroupACL.Scan(r.GroupACL)
+		if err != nil {
 			return nil, xerrors.Errorf("scan group ACL %q: %w", r.GroupACL, err)
+		}
+
+		err = workspaces[i].UserACLDisplayInfo.Scan(r.UserACLDisplayInfo)
+		if err != nil {
+			return nil, xerrors.Errorf("scan user ACL display info %q: %w",
+				r.UserACLDisplayInfo, err)
+		}
+		err = workspaces[i].GroupACLDisplayInfo.Scan(r.GroupACLDisplayInfo)
+		if err != nil {
+			return nil, xerrors.Errorf("scan group ACL display info %q: %w",
+				r.GroupACLDisplayInfo, err)
 		}
 	}
 

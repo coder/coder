@@ -2732,8 +2732,8 @@ func sharedWorkspaceActors(
 			ID:        userID,
 			ActorType: codersdk.SharedWorkspaceActorTypeUser,
 			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-			Name:      aclEntry.Name,
-			AvatarURL: aclEntry.AvatarURL,
+			Name:      workspace.UserACLDisplayInfo[id].Name,
+			AvatarURL: workspace.UserACLDisplayInfo[id].AvatarURL,
 		})
 	}
 
@@ -2749,8 +2749,8 @@ func sharedWorkspaceActors(
 			ID:        groupID,
 			ActorType: codersdk.SharedWorkspaceActorTypeGroup,
 			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
-			Name:      aclEntry.Name,
-			AvatarURL: aclEntry.AvatarURL,
+			Name:      workspace.GroupACLDisplayInfo[id].Name,
+			AvatarURL: workspace.GroupACLDisplayInfo[id].AvatarURL,
 		})
 	}
 
