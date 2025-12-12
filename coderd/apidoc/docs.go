@@ -11883,8 +11883,14 @@ const docTemplate = `{
                 "inject_coder_mcp_tools": {
                     "type": "boolean"
                 },
+                "max_concurrency": {
+                    "type": "integer"
+                },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                },
+                "rate_limit": {
+                    "type": "integer"
                 },
                 "retention": {
                     "type": "integer"
