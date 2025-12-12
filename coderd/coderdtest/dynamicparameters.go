@@ -50,12 +50,24 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 	}
 
 	files := echo.WithExtraFiles(extraFiles)
+	files.ProvisionInit = []*proto.Response{{
+		Type: &proto.Response_Init{
+			Init: &proto.InitComplete{
+				ModuleFiles: args.ModulesArchive,
+			},
+		},
+	}}
 	files.ProvisionPlan = []*proto.Response{{
 		Type: &proto.Response_Plan{
 			Plan: &proto.PlanComplete{
-				Plan:        args.Plan,
-				ModuleFiles: args.ModulesArchive,
-				Parameters:  args.StaticParams,
+				Plan: args.Plan,
+			},
+		},
+	}}
+	files.ProvisionGraph = []*proto.Response{{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
+				Parameters: args.StaticParams,
 			},
 		},
 	}}

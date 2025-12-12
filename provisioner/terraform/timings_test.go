@@ -4,6 +4,7 @@ package terraform_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,65 +36,66 @@ func TestTimingsFromProvision(t *testing.T) {
 	ctx, api := setupProvisioner(t, &provisionerServeOptions{
 		binaryPath: fakeBin,
 	})
-	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: testutil.CreateTar(t, nil),
-	})
+	sess := configure(ctx, t, api, &proto.Config{})
 
 	ctx, cancel := context.WithTimeout(ctx, testutil.WaitLong)
 	t.Cleanup(cancel)
+
+	var timings []*proto.Timing
+
+	handleResponse := func(t *testing.T, stage string) {
+		t.Helper()
+		for {
+			select {
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			default:
+			}
+
+			msg, err := sess.Recv()
+			require.NoError(t, err)
+
+			if log := msg.GetLog(); log != nil {
+				t.Logf("%s: %s: %s", stage, log.Level.String(), log.Output)
+				continue
+			}
+			switch {
+			case msg.GetInit() != nil:
+				timings = append(timings, msg.GetInit().GetTimings()...)
+			case msg.GetPlan() != nil:
+				timings = append(timings, msg.GetPlan().GetTimings()...)
+			case msg.GetApply() != nil:
+				timings = append(timings, msg.GetApply().GetTimings()...)
+			case msg.GetGraph() != nil:
+				timings = append(timings, msg.GetGraph().GetTimings()...)
+			}
+			break
+		}
+	}
+
+	// When: configured, our fake terraform will fake an init setup
+	err = sendInit(sess, testutil.CreateTar(t, nil))
+	require.NoError(t, err)
+	handleResponse(t, "init")
 
 	// When: a plan is executed in the provisioner, our fake terraform will be executed and will produce a
 	// state file and some log content.
 	err = sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	var timings []*proto.Timing
-
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatal(ctx.Err())
-		default:
-		}
-
-		msg, err := sess.Recv()
-		require.NoError(t, err)
-
-		if log := msg.GetLog(); log != nil {
-			t.Logf("%s: %s: %s", "plan", log.Level.String(), log.Output)
-		}
-		if c := msg.GetPlan(); c != nil {
-			require.Empty(t, c.Error)
-			// Capture the timing information returned by the plan process.
-			timings = append(timings, c.GetTimings()...)
-			break
-		}
-	}
+	handleResponse(t, "plan")
 
 	// When: the plan has completed, let's trigger an apply.
 	err = sendApply(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatal(ctx.Err())
-		default:
-		}
+	handleResponse(t, "apply")
 
-		msg, err := sess.Recv()
-		require.NoError(t, err)
+	// When: the apply has completed, graph the results
+	err = sendGraph(sess, proto.GraphSource_SOURCE_STATE)
+	require.NoError(t, err)
 
-		if log := msg.GetLog(); log != nil {
-			t.Logf("%s: %s: %s", "apply", log.Level.String(), log.Output)
-		}
-		if c := msg.GetApply(); c != nil {
-			require.Empty(t, c.Error)
-			// Capture the timing information returned by the apply process.
-			timings = append(timings, c.GetTimings()...)
-			break
-		}
-	}
+	handleResponse(t, "graph")
 
 	// Sort the timings stably to keep reduce flakiness.
 	terraform_internal.StableSortTimings(t, timings)
@@ -116,10 +118,19 @@ func TestTimingsFromProvision(t *testing.T) {
 {"start":"2024-08-15T08:26:39.626722Z", "end":"2024-08-15T08:26:39.669954Z", "action":"create", "source":"docker", "resource":"docker_image.main", "stage":"apply", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.627335Z", "end":"2024-08-15T08:26:39.660616Z", "action":"create", "source":"docker", "resource":"docker_volume.home_volume", "stage":"apply", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.682223Z", "end":"2024-08-15T08:26:40.186482Z", "action":"create", "source":"docker", "resource":"docker_container.workspace[0]", "stage":"apply", "state":"COMPLETED"}`))
-	graphTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2000-01-01T01:01:01.123456Z", "end":"2000-01-01T01:01:01.123456Z", "action":"building terraform dependency graph", "source":"terraform", "resource":"state file", "stage":"graph", "state":"COMPLETED"}`))
-	graphTiming := graphTimings[0]
+	// Graphing is omitted as it is captured by the stage timing, which uses now()
 
-	require.Len(t, timings, len(initTimings)+len(planTimings)+len(applyTimings)+len(graphTimings))
+	totals := make(map[string]int)
+	for _, ti := range timings {
+		totals[ti.Stage]++
+		data, _ := json.Marshal(ti) // for debugging
+		t.Logf("Timings log (%s) :: %s", ti.Stage, string(data))
+	}
+	require.Equal(t, len(initTimings), totals["init"], "init")
+	require.Equal(t, len(planTimings), totals["plan"], "plan")
+	require.Equal(t, len(applyTimings), totals["apply"], "apply")
+	// Lastly total
+	require.Len(t, timings, len(initTimings)+len(planTimings)+len(applyTimings))
 
 	// init/graph timings are computed dynamically during provisioning whereas plan/apply come from the logs (fixtures) in
 	// provisioner/terraform/testdata/timings-aggregation/fake-terraform.sh.
@@ -134,9 +145,6 @@ func TestTimingsFromProvision(t *testing.T) {
 		case string(database.ProvisionerJobTimingStageInit):
 			require.True(t, terraform_internal.TimingsAreEqual(t, []*proto.Timing{initTimings[iCursor]}, []*proto.Timing{tim}))
 			iCursor++
-		case string(database.ProvisionerJobTimingStageGraph):
-			tim.Start, tim.End = graphTiming.Start, graphTiming.End
-			require.True(t, terraform_internal.TimingsAreEqual(t, []*proto.Timing{graphTiming}, []*proto.Timing{tim}))
 		case string(database.ProvisionerJobTimingStagePlan):
 			require.True(t, terraform_internal.TimingsAreEqual(t, []*proto.Timing{planTimings[pCursor]}, []*proto.Timing{tim}))
 			pCursor++

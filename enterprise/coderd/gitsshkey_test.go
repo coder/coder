@@ -62,7 +62,7 @@ func TestAgentGitSSHKeyCustomRoles(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, org.ID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 	})
 	project := coderdtest.CreateTemplate(t, client, org.ID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)

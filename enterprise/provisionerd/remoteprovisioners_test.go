@@ -74,9 +74,13 @@ func TestRemoteConnector_Mainline(t *testing.T) {
 			c := resp.Client
 			s, err := c.Session(ctx)
 			require.NoError(t, err)
-			err = s.Send(&sdkproto.Request{Type: &sdkproto.Request_Config{Config: &sdkproto.Config{
+			err = s.Send(&sdkproto.Request{Type: &sdkproto.Request_Config{Config: &sdkproto.Config{}}})
+			require.NoError(t, err)
+			err = s.Send(&sdkproto.Request{Type: &sdkproto.Request_Init{Init: &sdkproto.InitRequest{
 				TemplateSourceArchive: arc,
 			}}})
+			require.NoError(t, err)
+			_, err = s.Recv()
 			require.NoError(t, err)
 			err = s.Send(&sdkproto.Request{Type: &sdkproto.Request_Parse{Parse: &sdkproto.ParseRequest{}}})
 			require.NoError(t, err)

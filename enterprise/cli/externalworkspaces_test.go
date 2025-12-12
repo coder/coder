@@ -24,10 +24,10 @@ import (
 func completeWithExternalAgent() *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "coder_external_agent",
@@ -46,27 +46,6 @@ func completeWithExternalAgent() *echo.Responses {
 				},
 			},
 		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "coder_external_agent",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "external-agent",
-										OperatingSystem: "linux",
-										Architecture:    "amd64",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 }
 
@@ -74,31 +53,10 @@ func completeWithExternalAgent() *echo.Responses {
 func completeWithRegularAgent() *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "regular-agent",
-										OperatingSystem: "linux",
-										Architecture:    "amd64",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "compute",

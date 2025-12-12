@@ -71,6 +71,7 @@ func TestTemplateVersionsArchive(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyFailed,
 			ProvisionPlan:  echo.PlanFailed,
+			ProvisionInit:  echo.InitComplete,
 		}, func(request *codersdk.CreateTemplateVersionRequest) {
 			request.TemplateID = template.ID
 		})

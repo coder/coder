@@ -32,9 +32,9 @@ test("app", async ({ context, page }) => {
 	}
 	const appName = "test-app";
 	const template = await createTemplate(page, {
-		apply: [
+		graph: [
 			{
-				apply: {
+				graph: {
 					resources: [
 						{
 							agents: [

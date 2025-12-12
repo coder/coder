@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 test("create workspace", async ({ page }) => {
 	await login(page, users.templateAdmin);
 	const template = await createTemplate(page, {
-		apply: [{ apply: { resources: [{ name: "example" }] } }],
+		graph: [{ graph: { resources: [{ name: "example" }] } }],
 	});
 
 	await login(page, users.member);
