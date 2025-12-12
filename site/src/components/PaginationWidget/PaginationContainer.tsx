@@ -10,14 +10,12 @@ export type PaginationResult = PaginationResultInfo & {
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
 	query: PaginationResult;
 	paginationUnitLabel: string;
-	paginationPosition?: "top" | "bottom";
 };
 
 export const PaginationContainer: FC<PaginationProps> = ({
 	children,
 	query,
 	paginationUnitLabel,
-	paginationPosition = "top",
 	...delegatedProps
 }) => {
 	return (

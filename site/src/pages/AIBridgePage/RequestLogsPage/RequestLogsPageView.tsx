@@ -50,7 +50,6 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 			<PaginationContainer
 				query={interceptionsQuery}
 				paginationUnitLabel="interceptions"
-				paginationPosition="bottom"
 			>
 				<Table className="text-sm">
 					<TableHeader>
