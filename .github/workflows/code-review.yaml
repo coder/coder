@@ -88,6 +88,10 @@ jobs:
 
             # Extract PR number from URL
             PR_NUMBER=$(echo "${INPUTS_PR_URL}" | sed -n 's|.*/pull/\([0-9]*\)$|\1|p')
+            if [[ -z "${PR_NUMBER}" ]]; then
+              echo "::error::Failed to extract PR number from URL: ${INPUTS_PR_URL}"
+              exit 1
+            fi
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
@@ -158,7 +162,19 @@ jobs:
             ❌ Style that matches existing Coder patterns (check AGENTS.md first)
             ❌ Code that already exists (read the file first!)
             ❌ Unnecessary changes unrelated to the PR
-            ❌ Claiming set -u prevents empty strings (it only catches undefined vars)
+
+          IMPORTANT - UNDERSTAND set -u:
+            set -u only catches UNDEFINED/UNSET variables. It does NOT catch empty strings.
+
+            Examples:
+            - unset VAR; echo \${VAR}         → ERROR with set -u (undefined)
+            - VAR=""; echo \${VAR}            → OK with set -u (defined, just empty)
+            - VAR="\${INPUT:-}"; echo \${VAR} → OK with set -u (always defined, may be empty)
+
+            GitHub Actions context variables (github.*, inputs.*) are ALWAYS defined.
+            They may be empty strings, but they are never undefined.
+
+            Don't comment on set -u unless you see actual undefined variable access.
           </instructions>
 
           <github_api_documentation>
