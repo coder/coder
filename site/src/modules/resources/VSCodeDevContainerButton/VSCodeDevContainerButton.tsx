@@ -75,28 +75,27 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 				open={isVariantMenuOpen}
 				anchorEl={menuAnchorRef.current}
 				onClose={() => setIsVariantMenuOpen(false)}
-				css={{
-					"& .MuiMenu-paper": {
-						width: menuAnchorRef.current?.clientWidth,
-					},
+				style={{
+					"--anchor-width": menuAnchorRef.current?.clientWidth,
 				}}
+				className="[&_.MuiMenu-paper]:w-[var(--anchor-width)]"
 			>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm leading-none"
 					onClick={() => {
 						selectVariant("vscode");
 					}}
 				>
-					<VSCodeIcon css={{ width: 12, height: 12 }} />
+					<VSCodeIcon className="size-3" />
 					{DisplayAppNameMap.vscode}
 				</MenuItem>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm leading-none"
 					onClick={() => {
 						selectVariant("vscode-insiders");
 					}}
 				>
-					<VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
+					<VSCodeInsidersIcon className="size-3" />
 					{DisplayAppNameMap.vscode_insiders}
 				</MenuItem>
 			</Menu>

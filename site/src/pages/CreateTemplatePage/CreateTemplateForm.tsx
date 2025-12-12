@@ -30,6 +30,7 @@ import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import {
 	displayNameValidator,
@@ -389,19 +390,15 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						type="button"
 						onClick={onOpenBuildLogsDrawer}
 						css={(theme) => ({
-							backgroundColor: "transparent",
-							border: 0,
-							fontWeight: 500,
-							fontSize: 14,
-							cursor: "pointer",
 							color: theme.palette.text.secondary,
-
 							"&:hover": {
-								textDecoration: "underline",
-								textUnderlineOffset: 4,
 								color: theme.palette.text.primary,
 							},
 						})}
+						className={cn([
+							"bg-transparent border-0 font-medium text-sm leading-normal cursor-pointer",
+							"hover:underline hover:underline-offset-4",
+						])}
 					>
 						Show build logs
 					</button>

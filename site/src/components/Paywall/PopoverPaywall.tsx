@@ -28,7 +28,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			]}
 		>
 			<div>
-				<Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
+				<Stack direction="row" alignItems="center" className="mb-6">
 					<h5 css={styles.title}>{message}</h5>
 					<PremiumBadge />
 				</Stack>
@@ -38,7 +38,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 					href={documentationLink}
 					target="_blank"
 					rel="noreferrer"
-					css={{ fontWeight: 600 }}
+					className="font-semibold"
 				>
 					Read the documentation
 				</Link>

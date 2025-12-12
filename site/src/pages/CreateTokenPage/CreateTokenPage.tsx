@@ -72,12 +72,7 @@ const CreateTokenPage: FC = () => {
 			<CodeExample
 				secret={false}
 				code={newToken?.key ?? ""}
-				css={{
-					minHeight: "auto",
-					userSelect: "all",
-					width: "100%",
-					marginTop: 24,
-				}}
+				className="min-h-[auto] select-all w-full mt-6"
 			/>
 		</>
 	);

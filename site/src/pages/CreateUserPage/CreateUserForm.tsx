@@ -124,7 +124,7 @@ export const CreateUserForm: FC<
 	return (
 		<FullPageForm title="Create user">
 			{isApiError(error) && !hasApiFieldErrors(error) && (
-				<ErrorAlert error={error} css={{ marginBottom: 32 }} />
+				<ErrorAlert error={error} className="mb-8" />
 			)}
 			<form onSubmit={form.handleSubmit} autoComplete="off">
 				<Stack spacing={2.5}>
@@ -188,21 +188,9 @@ export const CreateUserForm: FC<
 							const language = authMethodLanguage[value];
 							return (
 								<MenuItem key={value} id={`item-${value}`} value={value}>
-									<Stack
-										spacing={0}
-										css={{
-											maxWidth: 400,
-										}}
-									>
+									<Stack spacing={0} className="max-w-100">
 										{language.displayName}
-										<span
-											css={(theme) => ({
-												fontSize: 14,
-												color: theme.palette.text.secondary,
-												wordWrap: "normal",
-												whiteSpace: "break-spaces",
-											})}
-										>
+										<span className="text-sm text-content-secondary whitespace-break-spaces break-normal">
 											{language.description}
 										</span>
 									</Stack>

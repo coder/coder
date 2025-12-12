@@ -75,7 +75,7 @@ const DERPPage: FC = () => {
 
 				<section>
 					<SectionLabel>Flags</SectionLabel>
-					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+					<div className="flex flex-wrap gap-3">
 						{flags.map((flag) => (
 							<BooleanPill key={flag} value={safeNetcheck[flag]}>
 								{flag}
@@ -86,7 +86,7 @@ const DERPPage: FC = () => {
 
 				<section>
 					<SectionLabel>Regions</SectionLabel>
-					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+					<div className="flex flex-wrap gap-3">
 						{Object.values(regions ?? {})
 							.filter((region) => {
 								// Values can technically be null
@@ -123,10 +123,10 @@ const DERPPage: FC = () => {
 					<Logs
 						lines={logs}
 						css={(theme) => ({
-							borderRadius: 8,
 							border: `1px solid ${theme.palette.divider}`,
 							color: theme.palette.text.secondary,
 						})}
+						className="rounded-lg"
 					/>
 				</section>
 			</Main>

@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
@@ -133,13 +132,9 @@ const NotificationsPage: FC = () => {
 							});
 
 							return (
-								<Card
-									variant="outlined"
-									css={{ background: "transparent" }}
-									key={group}
-								>
+								<Card variant="outlined" className="bg-transparent" key={group}>
 									<List>
-										<ListItem css={styles.listHeader}>
+										<ListItem className="bg-surface-secondary dark:border-surface-quaternary border-0 border-b border-solid">
 											<ListItemIcon>
 												<Switch
 													id={group}
@@ -158,7 +153,16 @@ const NotificationsPage: FC = () => {
 												/>
 											</ListItemIcon>
 											<ListItemText
-												css={styles.listItemText}
+												css={{
+													[`& .${listItemTextClasses.primary}`]: {
+														fontSize: 14,
+														fontWeight: 500,
+														textTransform: "capitalize",
+													},
+													[`& .${listItemTextClasses.secondary}`]: {
+														fontSize: 14,
+													},
+												}}
 												primary={group}
 												primaryTypographyProps={{
 													component: "label",
@@ -219,11 +223,20 @@ const NotificationsPage: FC = () => {
 																component: "label",
 																htmlFor: tmpl.id,
 															}}
-															css={styles.listItemText}
+															css={{
+																[`& .${listItemTextClasses.primary}`]: {
+																	fontSize: 14,
+																	fontWeight: 500,
+																	textTransform: "capitalize",
+																},
+																[`& .${listItemTextClasses.secondary}`]: {
+																	fontSize: 14,
+																},
+															}}
 															primary={tmpl.name}
 														/>
 														<ListItemIcon
-															css={styles.listItemEndIcon}
+															className="min-w-0 text-xl leading-none text-content-secondary [&_svg]:[font-size:inherit]"
 															aria-label="Delivery method"
 														>
 															<Tooltip>
@@ -272,29 +285,3 @@ function canSeeNotificationGroup(
 			return false;
 	}
 }
-
-const styles = {
-	listHeader: (theme) => ({
-		background: theme.palette.background.paper,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-	}),
-	listItemText: {
-		[`& .${listItemTextClasses.primary}`]: {
-			fontSize: 14,
-			fontWeight: 500,
-			textTransform: "capitalize",
-		},
-		[`& .${listItemTextClasses.secondary}`]: {
-			fontSize: 14,
-		},
-	},
-	listItemEndIcon: (theme) => ({
-		minWidth: 0,
-		fontSize: 20,
-		color: theme.palette.text.secondary,
-
-		"& svg": {
-			fontSize: "inherit",
-		},
-	}),
-} as Record<string, Interpolation<Theme>>;

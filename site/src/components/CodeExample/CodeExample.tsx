@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { Button } from "components/Button/Button";
 import {
 	Tooltip,
@@ -7,7 +6,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { cn } from "utils/cn";
 import { CopyButton } from "../CopyButton/CopyButton";
 
 interface CodeExampleProps {
@@ -52,8 +51,21 @@ export const CodeExample: FC<CodeExampleProps> = ({
 	);
 
 	return (
-		<div css={styles.container} className={className}>
-			<code css={[styles.code, secret && styles.secret]}>
+		<div
+			className={cn(
+				"cursor-pointer flex flex-row items-center text-sm font-mono rounded-lg p-2",
+				"leading-normal text-content-primary border border-solid",
+				"border-gray-300 hover:bg-gray-200",
+				"dark:border-zinc-700 dark:hover:bg-zinc-800",
+				className,
+			)}
+		>
+			<code
+				className={cn(
+					"px-2 flex-grow break-all",
+					secret && "[text-security:disc] [-webkit-text-security:disc]",
+				)}
+			>
 				{secret ? (
 					<>
 						{/*
@@ -99,33 +111,3 @@ export const CodeExample: FC<CodeExampleProps> = ({
 function obfuscateText(text: string): string {
 	return new Array(text.length).fill("*").join("");
 }
-
-const styles = {
-	container: (theme) => ({
-		cursor: "pointer",
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		color: theme.experimental.l1.text,
-		fontFamily: MONOSPACE_FONT_FAMILY,
-		fontSize: 14,
-		borderRadius: 8,
-		padding: 8,
-		lineHeight: "150%",
-		border: `1px solid ${theme.experimental.l1.outline}`,
-
-		"&:hover": {
-			backgroundColor: theme.experimental.l2.hover.background,
-		},
-	}),
-
-	code: {
-		padding: "0 8px",
-		flexGrow: 1,
-		wordBreak: "break-all",
-	},
-
-	secret: {
-		"-webkit-text-security": "disc", // also supported by firefox
-	},
-} satisfies Record<string, Interpolation<Theme>>;

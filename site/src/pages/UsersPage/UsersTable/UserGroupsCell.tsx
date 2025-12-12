@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import type { Group } from "api/typesGenerated";
@@ -20,28 +19,19 @@ type GroupsCellProps = {
 };
 
 export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
-	const theme = useTheme();
-
 	return (
 		<TableCell>
 			{userGroups === undefined ? (
 				// Felt right to add emphasis to the undefined state for semantics
 				// ("hey, this isn't normal"), but the default italics looked weird in
 				// the table UI
-				<em css={{ fontStyle: "normal" }}>N/A</em>
+				<em className="not-italic">N/A</em>
 			) : (
 				<TooltipProvider>
 					<Tooltip delayDuration={0}>
 						<TooltipTrigger asChild>
 							<button
-								css={{
-									cursor: "pointer",
-									backgroundColor: "transparent",
-									border: "none",
-									padding: 0,
-									color: "inherit",
-									lineHeight: "1",
-								}}
+								className="cursor-pointer bg-transparent border-none p-0 text-inherit leading-none"
 								type="button"
 							>
 								<div className="flex flex-row gap-2 items-center">
@@ -63,23 +53,14 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 							<OverflowY maxHeight={400}>
 								<List
 									component="ul"
-									css={{
-										display: "flex",
-										flexFlow: "column nowrap",
-										fontSize: theme.typography.body2.fontSize,
-										padding: "4px 2px",
-										gap: 0,
-									}}
+									className="flex flex-col flex-nowrap py-1 px-0.5 gap-0 text-sm leading-tight"
 								>
 									{userGroups.map((group) => {
 										const groupName = group.display_name || group.name;
 										return (
 											<ListItem
 												key={group.id}
-												css={{
-													columnGap: 10,
-													alignItems: "center",
-												}}
+												className="gap-x-2.5 items-center"
 											>
 												<Avatar
 													size="sm"
@@ -88,15 +69,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 													fallback={groupName}
 												/>
 
-												<span
-													css={{
-														whiteSpace: "nowrap",
-														textOverflow: "ellipsis",
-														overflow: "hidden",
-														lineHeight: 1,
-														margin: 0,
-													}}
-												>
+												<span className="whitespace-nowrap text-ellipsis overflow-hidden leading-none m-0">
 													{groupName || <em>N/A</em>}
 												</span>
 											</ListItem>

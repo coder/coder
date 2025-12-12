@@ -23,7 +23,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 				variant="rectangular"
 				height={36}
 				width={170}
-				css={{ borderRadius: 8 }}
+				className="rounded-lg"
 			/>
 		);
 	}

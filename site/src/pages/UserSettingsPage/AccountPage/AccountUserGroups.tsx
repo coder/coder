@@ -31,13 +31,7 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 				groups && (
 					<span>
 						You are in{" "}
-						<em
-							css={{
-								fontStyle: "normal",
-								color: theme.palette.text.primary,
-								fontWeight: 600,
-							}}
-						>
+						<em className="text-content-primary [font-style:normal] font-semibold">
 							{groups.length} group
 							{groups.length !== 1 && "s"}
 						</em>
@@ -45,7 +39,7 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 				)
 			}
 		>
-			<div css={{ display: "flex", flexFlow: "column nowrap", rowGap: "24px" }}>
+			<div className="flex flex-col flex-nowrap gap-6">
 				{isApiError(error) && <ErrorAlert error={error} />}
 
 				{groups && (

@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {
 	ExternalAuthLink,
@@ -114,7 +113,6 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	onUnlinkExternalAuth,
 	onValidateExternalAuth,
 }) => {
-	const theme = useTheme();
 	const name = app.display_name || app.id || app.type;
 	const authURL = `/external-auth/${app.id}`;
 
@@ -152,17 +150,13 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 
 					{link?.validate_error && (
 						<span>
-							<span
-								css={{ paddingLeft: "1em", color: theme.palette.error.light }}
-							>
-								Error:{" "}
-							</span>
+							<span className="pl-3 text-content-destructive">Error: </span>
 							{link?.validate_error}
 						</span>
 					)}
 				</Stack>
 			</TableCell>
-			<TableCell css={{ textAlign: "right" }}>
+			<TableCell className="text-right">
 				<Button
 					disabled={authenticated || externalAuthPollingState === "polling"}
 					onClick={() => {

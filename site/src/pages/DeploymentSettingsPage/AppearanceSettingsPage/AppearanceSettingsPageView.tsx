@@ -132,14 +132,7 @@ export const AppearanceSettingsPageView: FC<
 						endAdornment: (
 							<InputAdornment
 								position="end"
-								css={{
-									width: 24,
-									height: 24,
-
-									"& img": {
-										maxWidth: "100%",
-									},
-								}}
+								className="size-6 [&_img]:max-w-full"
 							>
 								<img
 									alt=""

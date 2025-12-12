@@ -15,6 +15,7 @@ import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+import { cn } from "utils/cn";
 
 type PresetFilter = {
 	name: string;
@@ -131,10 +132,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 			variant="rectangular"
 			height={36}
 			{...skeletonProps}
-			css={(theme) => ({
-				backgroundColor: theme.palette.background.paper,
-				borderRadius: "6px",
-			})}
+			className={cn("rounded-md bg-surface-secondary", skeletonProps.className)}
 		>
 			{children}
 		</Skeleton>
@@ -142,7 +140,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 };
 
 export const MenuSkeleton: FC = () => {
-	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
+	return <BaseSkeleton className="min-w-50 flex-shrink-0" />;
 };
 
 type FilterProps = {
@@ -174,9 +172,7 @@ export const Filter: FC<FilterProps> = ({
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
-	singleRowBreakpoint = "lg",
 }) => {
-	const theme = useTheme();
 	// Storing local copy of the filter query so that it can be updated more
 	// aggressively without re-renders rippling out to the rest of the app every
 	// single time. Exists for performance reasons - not really a good way to
@@ -200,26 +196,15 @@ export const Filter: FC<FilterProps> = ({
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div
-			css={{
-				display: "flex",
-				gap: 8,
-				marginBottom: 16,
-				flexWrap: "wrap",
-
-				[theme.breakpoints.up(singleRowBreakpoint)]: {
-					flexWrap: "nowrap",
-				},
-			}}
-		>
+		<div className="flex gap-2 mb-4 flex-wrap lg:flex-nowrap">
 			{isLoading ? (
 				<>
-					<BaseSkeleton width="100%" />
+					<BaseSkeleton className="w-full" />
 					{optionsSkeleton}
 				</>
 			) : (
 				<>
-					<InputGroup css={{ width: "100%" }}>
+					<InputGroup className="w-full">
 						<PresetMenu
 							onSelect={(query) => filter.update(query)}
 							presets={presets}
@@ -228,7 +213,7 @@ export const Filter: FC<FilterProps> = ({
 							learnMoreLink2={learnMoreLink2}
 						/>
 						<SearchField
-							css={{ flex: 1 }}
+							className="flex-1"
 							error={shouldDisplayError}
 							helperText={
 								shouldDisplayError
@@ -302,11 +287,11 @@ const PresetMenu: FC<PresetMenuProps> = ({
 					vertical: "top",
 					horizontal: "left",
 				}}
-				css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
+				className="[&_.MuiMenu-paper]:py-2"
 			>
 				{presets.map((presetFilter) => (
 					<MenuItem
-						css={{ fontSize: 14 }}
+						className="text-sm leading-relaxed"
 						key={presetFilter.name}
 						onClick={() => {
 							onSelect(presetFilter.query);
@@ -316,15 +301,13 @@ const PresetMenu: FC<PresetMenuProps> = ({
 						{presetFilter.name}
 					</MenuItem>
 				))}
-				{learnMoreLink && (
-					<Divider css={{ borderColor: theme.palette.divider }} />
-				)}
+				{learnMoreLink && <Divider />}
 				{learnMoreLink && (
 					<MenuItem
 						component="a"
 						href={learnMoreLink}
 						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
+						className="text-[13px] font-medium"
 						onClick={() => {
 							setIsOpen(false);
 						}}
@@ -338,7 +321,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 						component="a"
 						href={learnMoreLink2}
 						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
+						className="text-[13px] font-medium"
 						onClick={() => {
 							setIsOpen(false);
 						}}

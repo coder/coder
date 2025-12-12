@@ -61,7 +61,7 @@ export const UpdateBuildParametersDialog: FC<
 				Workspace parameters
 			</DialogTitle>
 			<DialogContent css={styles.content}>
-				<DialogContentText css={{ margin: 0 }}>
+				<DialogContentText className="m-0">
 					This template has new parameters that must be configured to complete
 					the update
 				</DialogContentText>

@@ -418,10 +418,7 @@ const TerminalPage: FC = () => {
 				</title>
 			)}
 
-			<div
-				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
-				data-status={connectionStatus}
-			>
+			<div className="flex flex-col h-screen" data-status={connectionStatus}>
 				<TerminalAlerts
 					agent={workspaceAgent}
 					status={connectionStatus}
@@ -437,15 +434,7 @@ const TerminalPage: FC = () => {
 			</div>
 
 			{latency && isDebugging && (
-				<span
-					css={{
-						position: "absolute",
-						bottom: 24,
-						right: 24,
-						color: theme.palette.text.disabled,
-						fontSize: 14,
-					}}
-				>
+				<span className="absolute bottom-6 right-6 text-sm leading-none text-content-disabled">
 					Latency: {latency.latencyMS.toFixed(0)}ms
 				</span>
 			)}

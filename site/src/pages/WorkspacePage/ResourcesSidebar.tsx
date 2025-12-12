@@ -1,4 +1,3 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import type { WorkspaceResource } from "api/typesGenerated";
 import {
@@ -7,6 +6,7 @@ import {
 	SidebarItem,
 } from "components/FullPageLayout/Sidebar";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { getResourceIconPath } from "utils/workspace";
 
 type ResourcesSidebarProps = {
@@ -22,21 +22,11 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 	isSelected,
 	resources,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>
 			{failed && (
-				<p
-					css={{
-						margin: 0,
-						padding: "0 16px",
-						fontSize: 13,
-						color: theme.palette.text.secondary,
-						lineHeight: "1.5",
-					}}
-				>
+				<p className="m-0 px-4 text-[13px] text-content-secondary leading-normal">
 					Your workspace build failed, so the necessary resources couldn&apos;t
 					be created.
 				</p>
@@ -53,30 +43,18 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					onClick={() => onChange(r)}
 					isActive={isSelected(r)}
 					key={r.id}
-					css={styles.root}
+					className={classNames.root}
 				>
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							lineHeight: 0,
-							width: 16,
-							height: 16,
-							padding: 2,
-						}}
-					>
+					<div className="flex items-center justify-center leading-[0] w-4 h-4 p-0.5">
 						<img
-							css={{ width: "100%", height: "100%", objectFit: "contain" }}
+							className="w-full h-full object-contain"
 							src={getResourceIconPath(r.type)}
 							alt=""
 						/>
 					</div>
-					<div
-						css={{ display: "flex", flexDirection: "column", fontWeight: 500 }}
-					>
+					<div className="flex flex-col font-medium">
 						<span>{r.name}</span>
-						<span css={{ fontSize: 12, color: theme.palette.text.secondary }}>
+						<span className="text-xs leading-[18px] text-content-secondary">
 							{r.type}
 						</span>
 					</div>
@@ -88,26 +66,16 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 
 const ResourceSidebarItemSkeleton: FC = () => {
 	return (
-		<div css={[styles.root, { pointerEvents: "none" }]}>
+		<div className={cn([classNames.root, "pointer-events-none"])}>
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
-				<Skeleton
-					variant="text"
-					width={60}
-					height={14}
-					css={{ marginTop: 2 }}
-				/>
+				<Skeleton variant="text" width={60} height={14} className="mt-0.5" />
 			</div>
 		</div>
 	);
 };
 
-const styles = {
-	root: {
-		lineHeight: "1.5",
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	root: "leading-normal flex items-center gap-3",
+};

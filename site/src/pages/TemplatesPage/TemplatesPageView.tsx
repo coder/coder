@@ -130,12 +130,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 
 			<TableCell css={styles.secondary}>
 				{showOrganizations ? (
-					<Stack
-						spacing={0}
-						css={{
-							width: "100%",
-						}}
-					>
+					<Stack spacing={0} className="w-full">
 						<span css={styles.cellPrimaryLine}>
 							{template.organization_display_name}
 						</span>
@@ -282,7 +277,7 @@ const TableLoader: FC = () => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+					<div className="flex items-center gap-2">
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

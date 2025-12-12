@@ -19,27 +19,20 @@ export default function TemplateDocsPage() {
 				css={{
 					background: theme.palette.background.paper,
 					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: 8,
 				}}
+				className="rounded-lg"
 				id="readme"
 			>
 				<div
 					css={{
 						color: theme.palette.text.secondary,
-						fontWeight: 600,
-						padding: "16px 24px",
 						borderBottom: `1px solid ${theme.palette.divider}`,
 					}}
+					className="font-semibold py-4 px-6"
 				>
 					README.md
 				</div>
-				<div
-					css={{
-						padding: "0 24px 40px",
-						maxWidth: 800,
-						margin: "auto",
-					}}
-				>
+				<div className="pt-0 px-6 pb-10 max-w-[800px] m-auto">
 					<MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
 				</div>
 			</div>

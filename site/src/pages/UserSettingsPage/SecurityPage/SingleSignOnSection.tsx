@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { API } from "api/api";
@@ -17,6 +16,7 @@ import { Stack } from "components/Stack/Stack";
 import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { Section } from "../Section";
 
@@ -133,8 +133,6 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 	isConfirming,
 	error,
 }) => {
-	const theme = useTheme();
-
 	const noSsoEnabled = !authMethods.github.enabled && !authMethods.oidc.enabled;
 
 	return (
@@ -144,7 +142,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 				title="Single Sign On"
 				description="Authenticate in Coder using one-click"
 			>
-				<div css={{ display: "grid", gap: "16px" }}>
+				<div className="grid gap-4">
 					{userLoginType.login_type === "password" ? (
 						<>
 							{authMethods.github.enabled && (
@@ -177,23 +175,12 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 						</>
 					) : (
 						<div
-							css={{
-								background: theme.palette.background.paper,
-								borderRadius: 8,
-								border: `1px solid ${theme.palette.divider}`,
-								padding: 16,
-								display: "flex",
-								gap: 16,
-								alignItems: "center",
-								fontSize: 14,
-							}}
+							className={cn([
+								"text-sm flex items-center gap-4 p-4 rounded-lg border border-solid",
+								"bg-surface-secondary border-border dark:border-content-disabled",
+							])}
 						>
-							<CircleCheckIcon
-								css={{
-									color: theme.palette.success.light,
-								}}
-								className="size-icon-xs"
-							/>
+							<CircleCheckIcon className="size-icon-xs text-content-success" />
 							<span>
 								Authenticated with{" "}
 								<strong>
@@ -202,7 +189,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 										: getOIDCLabel(authMethods.oidc)}
 								</strong>
 							</span>
-							<div css={{ marginLeft: "auto", lineHeight: 1 }}>
+							<div className="ml-auto leading-none">
 								{userLoginType.login_type === "github" ? (
 									<ExternalImage src="/icon/github.svg" />
 								) : (
@@ -235,11 +222,7 @@ const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 	}
 
 	return (
-		<img
-			alt="Open ID Connect icon"
-			src={oidcAuth.iconUrl}
-			css={{ width: 16, height: 16 }}
-		/>
+		<img alt="Open ID Connect icon" src={oidcAuth.iconUrl} className="size-4" />
 	);
 };
 

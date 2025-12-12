@@ -34,10 +34,9 @@ const meta: Meta<typeof TemplateFileTree> = {
 			return (
 				<div
 					css={{
-						maxWidth: 260,
-						borderRadius: 8,
 						border: `1px solid ${theme.palette.divider}`,
 					}}
+					className="max-w-[260px] rounded-lg"
 				>
 					<Story />
 				</div>

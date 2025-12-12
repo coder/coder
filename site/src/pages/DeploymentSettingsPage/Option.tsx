@@ -3,6 +3,7 @@ import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { cn } from "utils/cn";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -58,7 +59,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (typeof value === "object" && !Array.isArray(value)) {
 		return (
-			<ul css={{ listStyle: "none" }} className="option-array">
+			<ul className="option-array list-none">
 				{Object.entries(value)
 					.sort((a, b) => a[0].localeCompare(b[0]))
 					.map(([option, isEnabled]) => (
@@ -67,20 +68,16 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 							css={[
 								styles.option,
 								!isEnabled && {
-									marginLeft: 32,
 									color: theme.palette.text.disabled,
 								},
 							]}
-							className={`option-array-item-${option} ${
-								isEnabled ? "option-enabled" : "option-disabled"
-							}`}
+							className={cn([
+								`option-array-item-${option}`,
+								isEnabled && "option-enabled",
+								!isEnabled && "option-disabled ml-8",
+							])}
 						>
-							<div
-								css={{
-									display: "inline-flex",
-									alignItems: "center",
-								}}
-							>
+							<div className="inline-flex items-center">
 								{isEnabled && <WrenchIcon className="size-4 mx-2" />}
 								{option}
 							</div>
@@ -127,16 +124,10 @@ export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<div
 			{...props}
-			className="OptionConfigFlag"
 			css={{
-				fontSize: 10,
-				fontWeight: 600,
-				display: "block",
 				backgroundColor: theme.palette.divider,
-				lineHeight: 1,
-				padding: "2px 4px",
-				borderRadius: 1,
 			}}
+			className="OptionConfigFlag text-[10px] leading-none font-semibold block py-0.5 px-1 rounded-[1px]"
 		/>
 	);
 };

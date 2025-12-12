@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
 	Template,
@@ -213,7 +212,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 					This workspace build job is waiting for a provisioner to become
 					available. If you have been waiting for an extended period of time,
 					please contact your administrator for assistance.
-					<span css={{ display: "block", marginTop: 12 }}>
+					<span className="block mt-3">
 						Position in queue:{" "}
 						<strong>{workspace.latest_build.job.queue_position}</strong>
 					</span>
@@ -247,7 +246,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	}
 
 	return (
-		<div css={styles.notificationsGroup}>
+		<div className="flex items-center gap-3">
 			{infoNotifications.length > 0 && (
 				<Notifications
 					items={infoNotifications}
@@ -266,14 +265,6 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	notificationsGroup: {
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
 
 export const findTroubleshootingURL = (
 	workspaceBuild: WorkspaceBuild,

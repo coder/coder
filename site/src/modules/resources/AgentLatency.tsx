@@ -48,7 +48,8 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 				<span
 					role="presentation"
 					aria-label="latency"
-					css={{ cursor: "pointer", color: latency.color }}
+					css={{ color: latency.color }}
+					className="cursor-pointer"
 				>
 					{Math.round(latency.latency_ms)}ms
 				</span>
@@ -59,7 +60,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 					This is the latency overhead on non peer to peer connections. The
 					first row is the preferred relay.
 				</HelpTooltipText>
-				<Stack direction="column" spacing={1} css={{ marginTop: 16 }}>
+				<Stack direction="column" spacing={1} className="mt-4">
 					{Object.entries(agent.latency)
 						.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
 						.map(([regionName, region]) => (

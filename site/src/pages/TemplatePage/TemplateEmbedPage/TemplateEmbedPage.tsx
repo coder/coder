@@ -174,9 +174,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 							</div>
 
 							{templateParameters.length > 0 && (
-								<div
-									css={{ display: "flex", flexDirection: "column", gap: 36 }}
-								>
+								<div className="flex flex-col gap-9">
 									{templateParameters.map((parameter) => {
 										const parameterValue =
 											buttonValues[`param.${parameter.name}`] ?? "";
@@ -205,30 +203,13 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 							// 80px for padding, 36px is for the status bar. We want to use `vh`
 							// so that it will be relative to the screen and not the parent layout.
 							height: "calc(100vh - (80px + 36px))",
-							top: 40,
-							position: "sticky",
-							display: "flex",
-							padding: 64,
-							flex: 1,
-							alignItems: "center",
-							justifyContent: "center",
-							borderRadius: 8,
 							backgroundColor: theme.palette.background.paper,
 							border: `1px solid ${theme.palette.divider}`,
 						})}
+						className="top-10 sticky flex p-16 flex-1 items-center justify-center rounded-lg"
 					>
 						<img src="/open-in-coder.svg" alt="Open in Coder button" />
-						<div
-							css={{
-								padding: "48px 16px",
-								position: "absolute",
-								bottom: 0,
-								left: 0,
-								display: "flex",
-								justifyContent: "center",
-								width: "100%",
-							}}
-						>
+						<div className="py-12 px-4 absolute bottom-0 left-0 flex justify-center w-full">
 							<Button
 								className="rounded-full"
 								disabled={clipboard.showCopiedSuccess}

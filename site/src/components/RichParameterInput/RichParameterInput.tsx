@@ -222,7 +222,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 			data-testid={`parameter-field-${parameter.name}`}
 		>
 			<ParameterLabel parameter={parameter} isPreset={isPreset} />
-			<div css={{ display: "flex", flexDirection: "column" }}>
+			<div className="flex flex-col">
 				<RichParameterField
 					{...fieldProps}
 					onChange={onChange}

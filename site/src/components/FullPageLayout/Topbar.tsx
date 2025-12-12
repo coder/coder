@@ -14,19 +14,14 @@ import {
 import { cn } from "utils/cn";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
-	const theme = useTheme();
-
 	return (
 		<header
 			{...props}
-			css={{
-				minHeight: 48,
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				display: "flex",
-				alignItems: "center",
-				fontSize: 13,
-				lineHeight: "1.2",
-			}}
+			className={cn(
+				"min-h-12 flex items-center text-[13px] leading-tight",
+				"border-0 border-b border-solid",
+				props.className,
+			)}
 		/>
 	);
 };
@@ -38,16 +33,10 @@ export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 				ref={ref}
 				{...props}
 				size="small"
-				css={{
-					padding: 0,
-					borderRadius: 0,
-					height: 48,
-					width: 48,
-
-					"& svg": {
-						fontSize: 20,
-					},
-				}}
+				className={cn(
+					"p-0 rounded-none size-12 [&_svg]:text-xl leading-none",
+					props.className,
+				)}
 			/>
 		);
 	},
@@ -60,23 +49,12 @@ export const TopbarButton = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	return (
-		<div
-			{...props}
-			css={{
-				display: "flex",
-				gap: 8,
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		/>
-	);
+	return <div {...props} className="flex gap-2 items-center justify-center" />;
 };
 
 export const TopbarDivider: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
-	const theme = useTheme();
 	return (
-		<span {...props} css={{ color: theme.palette.divider }}>
+		<span {...props} className={cn("text-surface-quaternary", props.className)}>
 			/
 		</span>
 	);

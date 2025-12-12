@@ -1,6 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 
 interface ArrowProps {
 	margin?: boolean;
@@ -18,20 +18,8 @@ export const DropdownArrow: FC<ArrowProps> = ({
 	return (
 		<Arrow
 			aria-label={close ? "close-dropdown" : "open-dropdown"}
-			css={[styles.base, margin && styles.withMargin]}
+			className={cn("size-4 text-current", margin && "ml-2")}
 			style={{ color }}
 		/>
 	);
 };
-
-const styles = {
-	base: {
-		color: "currentcolor",
-		width: 16,
-		height: 16,
-	},
-
-	withMargin: {
-		marginLeft: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

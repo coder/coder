@@ -62,7 +62,7 @@ export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
 				{Object.entries(insightsIntervals).map(([interval, { label }]) => {
 					return (
 						<MenuItem
-							css={{ fontSize: 14, justifyContent: "space-between" }}
+							className="text-sm leading-none justify-between"
 							key={interval}
 							onClick={() => {
 								onChange(interval as InsightsInterval);
@@ -70,7 +70,7 @@ export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
 							}}
 						>
 							{label}
-							<div css={{ width: 16, height: 16 }}>
+							<div className="size-4">
 								{value === interval && <CheckIcon className="size-icon-xs" />}
 							</div>
 						</MenuItem>
