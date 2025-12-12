@@ -2001,6 +2001,10 @@ export interface ExternalAuthConfig {
 	 * DisplayIcon is a URL to an icon to display in the UI.
 	 */
 	readonly display_icon: string;
+	/**
+	 * CodeChallengeMethodsSupported lists the PKCE code challenge methods
+	 * The only one supported by Coder is "S256"
+	 */
 	readonly code_challenge_methods_supported: readonly string[];
 }
 
@@ -3046,7 +3050,12 @@ export interface OAuth2GithubConfig {
 }
 
 // From codersdk/client.go
-export const OAuth2PKCEChallenge = "oauth_pkce_challenge";
+/**
+ * OAuth2PKCEVerifier is the name of the cookie that stores the oauth2 PKCE
+ * verifier. This is the raw verifier that when hashed, will match the challenge
+ * sent in the initial oauth2 request.
+ */
+export const OAuth2PKCEVerifier = "oauth_pkce_verifier";
 
 // From codersdk/oauth2.go
 /**
