@@ -1,6 +1,6 @@
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import type { FC, HTMLAttributes } from "react";
-import { PaginationHeader } from "./PaginationHeader";
+import { PaginationAmount } from "./PaginationHeader";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
 export type PaginationResult = PaginationResultInfo & {
@@ -10,58 +10,43 @@ export type PaginationResult = PaginationResultInfo & {
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {
 	query: PaginationResult;
 	paginationUnitLabel: string;
-	paginationPosition?: "top" | "bottom";
 };
 
 export const PaginationContainer: FC<PaginationProps> = ({
 	children,
 	query,
 	paginationUnitLabel,
-	paginationPosition = "top",
 	...delegatedProps
 }) => {
 	return (
-		<>
-			{paginationPosition === "top" && (
-				<PaginationHeader
-					limit={query.limit}
+		<div
+			css={{
+				display: "flex",
+				flexFlow: "column nowrap",
+				rowGap: "16px",
+			}}
+			{...delegatedProps}
+		>
+			{children}
+
+			<PaginationAmount
+				limit={query.limit}
+				totalRecords={query.totalRecords}
+				currentOffsetStart={query.currentOffsetStart}
+				paginationUnitLabel={paginationUnitLabel}
+				className="justify-end"
+			/>
+
+			{query.isSuccess && (
+				<PaginationWidgetBase
 					totalRecords={query.totalRecords}
-					currentOffsetStart={query.currentOffsetStart}
-					paginationUnitLabel={paginationUnitLabel}
+					currentPage={query.currentPage}
+					pageSize={query.limit}
+					onPageChange={query.onPageChange}
+					hasPreviousPage={query.hasPreviousPage}
+					hasNextPage={query.hasNextPage}
 				/>
 			)}
-
-			<div
-				css={{
-					display: "flex",
-					flexFlow: "column nowrap",
-					rowGap: "16px",
-				}}
-				{...delegatedProps}
-			>
-				{children}
-
-				{paginationPosition === "bottom" && (
-					<PaginationHeader
-						limit={query.limit}
-						totalRecords={query.totalRecords}
-						currentOffsetStart={query.currentOffsetStart}
-						paginationUnitLabel={paginationUnitLabel}
-						className="pt-8 justify-end"
-					/>
-				)}
-
-				{query.isSuccess && (
-					<PaginationWidgetBase
-						totalRecords={query.totalRecords}
-						currentPage={query.currentPage}
-						pageSize={query.limit}
-						onPageChange={query.onPageChange}
-						hasPreviousPage={query.hasPreviousPage}
-						hasNextPage={query.hasNextPage}
-					/>
-				)}
-			</div>
-		</>
+		</div>
 	);
 };
