@@ -41,7 +41,8 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20250829055706-6eaf
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
 // 2. update to the latest gVisor
-replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20240522052547-769cdd7f7818
+// 3. testsmallbuffers build tag for reduced memory usage in tests
+replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20251212125616-14162b99a46a
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371

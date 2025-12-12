@@ -1018,7 +1018,8 @@ endif
 
 # default to 8x8 parallelism to avoid overwhelming our workspaces. Hopefully we can remove these defaults
 # when we get our test suite's resource utilization under control.
-GOTEST_FLAGS := -v -p $(or $(TEST_NUM_PARALLEL_PACKAGES),"8") -parallel=$(or $(TEST_NUM_PARALLEL_TESTS),"8")
+# Use testsmallbuffers tag to reduce wireguard memory allocation in tests (from ~18GB to negligible).
+GOTEST_FLAGS := -tags=testsmallbuffers -v -p $(or $(TEST_NUM_PARALLEL_PACKAGES),"8") -parallel=$(or $(TEST_NUM_PARALLEL_TESTS),"8")
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
@@ -1089,6 +1090,7 @@ test-postgres: test-postgres-docker
 		--jsonfile="gotests.json" \
 		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="./..." -- \
+		-tags=testsmallbuffers \
 		-timeout=20m \
 		-count=1
 .PHONY: test-postgres
@@ -1161,7 +1163,7 @@ test-postgres-docker:
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
 test-race:
-	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 -parallel 4 -p 4 ./...
+	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -tags=testsmallbuffers -race -count=1 -parallel 4 -p 4 ./...
 .PHONY: test-race
 
 test-tailnet-integration:
@@ -1171,6 +1173,7 @@ test-tailnet-integration:
 		TS_DEBUG_NETCHECK=true \
 		GOTRACEBACK=single \
 		go test \
+			-tags=testsmallbuffers \
 			-exec "sudo -E" \
 			-timeout=5m \
 			-count=1 \
