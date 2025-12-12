@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,6 +19,20 @@ import (
 
 	"cdr.dev/slog"
 )
+
+// goproxyLogger adapts slog.Logger to goproxy's Logger interface.
+type goproxyLogger struct {
+	ctx    context.Context
+	logger slog.Logger
+}
+
+func (l *goproxyLogger) Printf(format string, v ...any) {
+	// goproxy's format includes "[%03d] " session prefix and trailing newline.
+	// We strip the newline since slog adds its own.
+	msg := fmt.Sprintf(format, v...)
+	msg = strings.TrimSuffix(msg, "\n")
+	l.logger.Debug(l.ctx, msg)
+}
 
 // certCache implements goproxy.CertStorage to cache generated leaf certificates.
 type certCache struct {
@@ -85,7 +100,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	proxy := goproxy.NewProxyHttpServer()
-	proxy.Verbose = false
+	proxy.Verbose = true
+	proxy.Logger = &goproxyLogger{ctx: ctx, logger: logger.Named("goproxy")}
 	proxy.CertStore = &certCache{certs: make(map[string]*tls.Certificate)}
 
 	// Custom MITM handler that extracts auth and rejects unauthenticated requests.
