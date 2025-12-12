@@ -354,17 +354,18 @@ WITH
     WHERE id IN (SELECT id FROM to_delete)
     RETURNING 1
   )
-SELECT
+SELECT (
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
-  (SELECT COUNT(*) FROM interceptions) as total_deleted
+  (SELECT COUNT(*) FROM interceptions)
+)::bigint as total_deleted
 `
 
 // Cumulative count.
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
-	var total_deleted int32
+	var total_deleted int64
 	err := row.Scan(&total_deleted)
 	return total_deleted, err
 }
@@ -1107,24 +1108,20 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 	return err
 }
 
-const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :one
+const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :execrows
 WITH expired_keys AS (
 	SELECT id
 	FROM api_keys
 	-- expired keys only
 	WHERE expires_at < $1::timestamptz
 	LIMIT $2
-),
-deleted_rows AS (
-	 DELETE FROM
-		 api_keys
-	 USING
-		 expired_keys
-	 WHERE
-		 api_keys.id = expired_keys.id
-	 RETURNING api_keys.id
- )
-SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows
+)
+DELETE FROM
+	api_keys
+USING
+	expired_keys
+WHERE
+	api_keys.id = expired_keys.id
 `
 
 type DeleteExpiredAPIKeysParams struct {
@@ -1133,10 +1130,11 @@ type DeleteExpiredAPIKeysParams struct {
 }
 
 func (q *sqlQuerier) DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
-	var deleted_count int64
-	err := row.Scan(&deleted_count)
-	return deleted_count, err
+	result, err := q.db.ExecContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
@@ -1635,6 +1633,37 @@ type DeleteOldAuditLogConnectionEventsParams struct {
 func (q *sqlQuerier) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOldAuditLogConnectionEvents, arg.BeforeTime, arg.LimitCount)
 	return err
+}
+
+const deleteOldAuditLogs = `-- name: DeleteOldAuditLogs :execrows
+WITH old_logs AS (
+    SELECT id
+    FROM audit_logs
+    WHERE
+        "time" < $1::timestamp with time zone
+        AND action NOT IN ('connect', 'disconnect', 'open', 'close')
+    ORDER BY "time" ASC
+    LIMIT $2
+)
+DELETE FROM audit_logs
+USING old_logs
+WHERE audit_logs.id = old_logs.id
+`
+
+type DeleteOldAuditLogsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes old audit logs based on retention policy, excluding deprecated
+// connection events (connect, disconnect, open, close) which are handled
+// separately by DeleteOldAuditLogConnectionEvents.
+func (q *sqlQuerier) DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldAuditLogs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
@@ -4180,6 +4209,21 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 
 const getTemplateAppInsightsByTemplate = `-- name: GetTemplateAppInsightsByTemplate :many
 WITH
+	filtered_stats AS (
+		SELECT
+		was.workspace_id,
+		was.user_id,
+		was.agent_id,
+		was.access_method,
+		was.slug_or_port,
+		was.session_started_at,
+		was.session_ended_at
+		FROM
+			workspace_app_stats AS was
+		WHERE
+			was.session_ended_at >= $1::timestamptz
+			AND was.session_started_at <  $2::timestamptz
+	),
 	-- This CTE is used to explode app usage into minute buckets, then
 	-- flatten the users app usage within the template so that usage in
 	-- multiple workspaces under one template is only counted once for
@@ -4187,45 +4231,45 @@ WITH
 	app_insights AS (
 		SELECT
 			w.template_id,
-			was.user_id,
+			fs.user_id,
 			-- Both app stats and agent stats track web terminal usage, but
 			-- by different means. The app stats value should be more
 			-- accurate so we don't want to discard it just yet.
 			CASE
-				WHEN was.access_method = 'terminal'
+				WHEN fs.access_method = 'terminal'
 				THEN '[terminal]' -- Unique name, app names can't contain brackets.
-				ELSE was.slug_or_port
+				ELSE fs.slug_or_port
 			END::text AS app_name,
 			COALESCE(wa.display_name, '') AS display_name,
 			(wa.slug IS NOT NULL)::boolean AS is_app,
 			COUNT(DISTINCT s.minute_bucket) AS app_minutes
 		FROM
-			workspace_app_stats AS was
+			filtered_stats AS fs
 		JOIN
 			workspaces AS w
 		ON
-			w.id = was.workspace_id
+			w.id = fs.workspace_id
 		-- We do a left join here because we want to include user IDs that have used
 		-- e.g. ports when counting active users.
 		LEFT JOIN
 			workspace_apps wa
 		ON
-			wa.agent_id = was.agent_id
-			AND wa.slug = was.slug_or_port
+			wa.agent_id = fs.agent_id
+			AND wa.slug = fs.slug_or_port
 		-- Generate a series of minute buckets for each session for computing the
 		-- mintes/bucket.
 		CROSS JOIN
 			generate_series(
-				date_trunc('minute', was.session_started_at),
+				date_trunc('minute', fs.session_started_at),
 				-- Subtract 1 μs to avoid creating an extra series.
-				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+				date_trunc('minute', fs.session_ended_at - '1 microsecond'::interval),
 				'1 minute'::interval
 			) AS s(minute_bucket)
 		WHERE
 			s.minute_bucket >= $1::timestamptz
 			AND s.minute_bucket < $2::timestamptz
 		GROUP BY
-			w.template_id, was.user_id, was.access_method, was.slug_or_port, wa.display_name, wa.slug
+			w.template_id, fs.user_id, fs.access_method, fs.slug_or_port, wa.display_name, wa.slug
 	)
 
 SELECT
@@ -5080,37 +5124,52 @@ WITH
 		FROM
 			template_usage_stats
 	),
+	filtered_app_stats AS (
+        SELECT
+            was.workspace_id,
+            was.user_id,
+            was.agent_id,
+            was.access_method,
+            was.slug_or_port,
+            was.session_started_at,
+            was.session_ended_at
+        FROM
+            workspace_app_stats AS was
+        WHERE
+            was.session_ended_at >= (SELECT t FROM latest_start)
+            AND was.session_started_at < NOW()
+    ),
 	workspace_app_stat_buckets AS (
 		SELECT
 			-- Truncate the minute to the nearest half hour, this is the bucket size
 			-- for the data.
 			date_trunc('hour', s.minute_bucket) + trunc(date_part('minute', s.minute_bucket) / 30) * 30 * '1 minute'::interval AS time_bucket,
 			w.template_id,
-			was.user_id,
+			fas.user_id,
 			-- Both app stats and agent stats track web terminal usage, but
 			-- by different means. The app stats value should be more
 			-- accurate so we don't want to discard it just yet.
 			CASE
-				WHEN was.access_method = 'terminal'
+				WHEN fas.access_method = 'terminal'
 				THEN '[terminal]' -- Unique name, app names can't contain brackets.
-				ELSE was.slug_or_port
+				ELSE fas.slug_or_port
 			END AS app_name,
 			COUNT(DISTINCT s.minute_bucket) AS app_minutes,
 			-- Store each unique minute bucket for later merge between datasets.
 			array_agg(DISTINCT s.minute_bucket) AS minute_buckets
 		FROM
-			workspace_app_stats AS was
+			filtered_app_stats AS fas
 		JOIN
 			workspaces AS w
 		ON
-			w.id = was.workspace_id
+			w.id = fas.workspace_id
 		-- Generate a series of minute buckets for each session for computing the
 		-- mintes/bucket.
 		CROSS JOIN
 			generate_series(
-				date_trunc('minute', was.session_started_at),
+				date_trunc('minute', fas.session_started_at),
 				-- Subtract 1 μs to avoid creating an extra series.
-				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+				date_trunc('minute', fas.session_ended_at - '1 microsecond'::interval),
 				'1 minute'::interval
 			) AS s(minute_bucket)
 		WHERE
@@ -5119,7 +5178,7 @@ WITH
 			s.minute_bucket >= (SELECT t FROM latest_start)
 			AND s.minute_bucket < NOW()
 		GROUP BY
-			time_bucket, w.template_id, was.user_id, was.access_method, was.slug_or_port
+			time_bucket, w.template_id, fas.user_id, fas.access_method, fas.slug_or_port
 	),
 	agent_stats_buckets AS (
 		SELECT
@@ -17818,7 +17877,7 @@ func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg Update
 	return err
 }
 
-const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
+const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :execrows
 WITH
 	latest_builds AS (
 		SELECT
@@ -17861,12 +17920,15 @@ WITH
 DELETE FROM workspace_agent_logs WHERE agent_id IN (SELECT id FROM old_agents)
 `
 
-// If an agent hasn't connected in the last 7 days, we purge it's logs.
+// If an agent hasn't connected within the retention period, we purge its logs.
 // Exception: if the logs are related to the latest build, we keep those around.
 // Logs can take up a lot of space, so it's important we clean up frequently.
-func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
-	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
-	return err
+func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
@@ -19342,27 +19404,32 @@ func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]G
 }
 
 const getDeploymentWorkspaceAgentStats = `-- name: GetDeploymentWorkspaceAgentStats :one
-WITH agent_stats AS (
-	SELECT
-		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
-		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-	 FROM workspace_agent_stats
-	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
-), latest_agent_stats AS (
-	SELECT
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
-	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, usage, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
-		FROM workspace_agent_stats WHERE created_at > $1
-	) AS a WHERE a.rn = 1
+WITH stats AS (
+    SELECT
+        agent_id,
+        created_at,
+        rx_bytes,
+        tx_bytes,
+        connection_median_latency_ms,
+        session_count_vscode,
+        session_count_ssh,
+        session_count_jetbrains,
+        session_count_reconnecting_pty,
+        ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+    FROM workspace_agent_stats
+    WHERE created_at > $1
 )
-SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
+SELECT
+    coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
+    coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+    coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
+    coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
+    coalesce(SUM(session_count_vscode) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
+    coalesce(SUM(session_count_ssh) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
+    coalesce(SUM(session_count_jetbrains) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
+    coalesce(SUM(session_count_reconnecting_pty) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
+FROM stats
 `
 
 type GetDeploymentWorkspaceAgentStatsRow struct {
@@ -20214,6 +20281,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 
 const getWorkspaceAppStatusesByAppIDs = `-- name: GetWorkspaceAppStatusesByAppIDs :many
 SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
+ORDER BY created_at DESC, id DESC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {

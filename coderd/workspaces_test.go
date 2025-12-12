@@ -346,6 +346,81 @@ func TestWorkspace(t *testing.T) {
 			assert.False(t, agent2.Health.Healthy)
 			assert.NotEmpty(t, agent2.Health.Reason)
 		})
+
+		t.Run("Sub-agent excluded", func(t *testing.T) {
+			t.Parallel()
+			// This test verifies that sub-agents (e.g., devcontainer agents)
+			// are excluded from the workspace health calculation. When a
+			// devcontainer is rebuilding, the sub-agent may be temporarily
+			// disconnected, but this should not make the workspace unhealthy.
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Response{{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Name: "parent",
+									Auth: &proto.Agent_Token{},
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Get the workspace and parent agent.
+			workspace, err := client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+			parentAgent := workspace.LatestBuild.Resources[0].Agents[0]
+			require.True(t, parentAgent.Health.Healthy, "parent agent should be healthy initially")
+
+			// Create a sub-agent with a short connection timeout so it becomes
+			// unhealthy quickly (simulating a devcontainer rebuild scenario).
+			subAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
+				ResourceID:               parentAgent.ResourceID,
+				Name:                     "subagent",
+				ConnectionTimeoutSeconds: 1,
+			})
+
+			// Wait for the sub-agent to become unhealthy due to timeout.
+			var subAgentUnhealthy bool
+			require.Eventually(t, func() bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				if err != nil {
+					return false
+				}
+				for _, res := range workspace.LatestBuild.Resources {
+					for _, agent := range res.Agents {
+						if agent.ID == subAgent.ID && !agent.Health.Healthy {
+							subAgentUnhealthy = true
+							return true
+						}
+					}
+				}
+				return false
+			}, testutil.WaitShort, testutil.IntervalFast, "sub-agent should become unhealthy")
+
+			require.True(t, subAgentUnhealthy, "sub-agent should be unhealthy")
+
+			// Verify that the workspace is still healthy because sub-agents
+			// are excluded from the health calculation.
+			assert.True(t, workspace.Health.Healthy, "workspace should be healthy despite unhealthy sub-agent")
+			assert.Empty(t, workspace.Health.FailingAgents, "failing agents should not include sub-agent")
+		})
 	})
 
 	t.Run("Archived", func(t *testing.T) {
@@ -5162,6 +5237,79 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		acl, err := workspaceOwnerClient.WorkspaceACL(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.Equal(t, acl.Users[0].ID, toShareWithUser.ID)
+	})
+}
+
+// nolint:tparallel,paralleltest // Subtests modify package global.
+func TestWorkspaceSharingDisabled(t *testing.T) {
+	t.Run("CanAccessWhenEnabled", func(t *testing.T) {
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					// DisableWorkspaceSharing is false (default)
+				}),
+			})
+			admin            = coderdtest.CreateFirstUser(t, client)
+			_, wsOwner       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			userClient, user = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create workspace with ACL granting access to user
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        wsOwner.ID,
+			OrganizationID: admin.OrganizationID,
+			UserACL: database.WorkspaceACL{
+				user.ID.String(): database.WorkspaceACLEntry{
+					Permissions: []policy.Action{
+						policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect,
+					},
+				},
+			},
+		}).Do().Workspace
+
+		// User SHOULD be able to access workspace when sharing is enabled
+		fetchedWs, err := userClient.Workspace(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Equal(t, ws.ID, fetchedWs.ID)
+	})
+
+	t.Run("NoAccessWhenDisabled", func(t *testing.T) {
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					dv.DisableWorkspaceSharing = true
+				}),
+			})
+			admin            = coderdtest.CreateFirstUser(t, client)
+			_, wsOwner       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			userClient, user = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create workspace with ACL granting access to user directly in DB
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        wsOwner.ID,
+			OrganizationID: admin.OrganizationID,
+			UserACL: database.WorkspaceACL{
+				user.ID.String(): database.WorkspaceACLEntry{
+					Permissions: []policy.Action{
+						policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect,
+					},
+				},
+			},
+		}).Do().Workspace
+
+		// User should NOT be able to access workspace when sharing is disabled
+		_, err := userClient.Workspace(ctx, ws.ID)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
 

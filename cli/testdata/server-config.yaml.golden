@@ -497,6 +497,12 @@ disablePathApps: false
 # workspaces.
 # (default: <unset>, type: bool)
 disableOwnerWorkspaceAccess: false
+# Disable workspace sharing (requires the "workspace-sharing" experiment to be
+# enabled). Workspace ACL checking is disabled and only owners can have ssh, apps
+# and terminal access to workspaces. Access based on the 'owner' role is also
+# allowed unless disabled via --disable-owner-workspace-access.
+# (default: <unset>, type: bool)
+disableWorkspaceSharing: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
@@ -742,6 +748,14 @@ aibridge:
   # (token, prompt, tool use).
   # (default: 60d, type: duration)
   retention: 1440h0m0s
+  # Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
+  # (unlimited).
+  # (default: 0, type: int)
+  maxConcurrency: 0
+  # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
+  # (unlimited).
+  # (default: 0, type: int)
+  rateLimit: 0
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for
@@ -761,3 +775,8 @@ retention:
   # an expired key. Set to 0 to disable automatic deletion of expired keys.
   # (default: 7d, type: duration)
   api_keys: 168h0m0s
+  # How long workspace agent logs are retained. Logs from non-latest builds are
+  # deleted if the agent hasn't connected within this period. Logs from the latest
+  # build are always retained. Set to 0 to disable automatic deletion.
+  # (default: 7d, type: duration)
+  workspace_agent_logs: 168h0m0s

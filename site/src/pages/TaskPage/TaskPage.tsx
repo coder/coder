@@ -32,6 +32,7 @@ import {
 	type ReactNode,
 	useLayoutEffect,
 	useRef,
+	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -42,6 +43,7 @@ import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
+import { ModifyPromptDialog } from "./ModifyPromptDialog";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
@@ -56,6 +58,7 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const TaskPage = () => {
+	const [isModifyDialogOpen, setIsModifyDialogOpen] = useState(false);
 	const { taskId, username } = useParams() as {
 		taskId: string;
 		username: string;
@@ -122,7 +125,12 @@ const TaskPage = () => {
 	const agent = selectAgent(workspace);
 
 	if (waitingStatuses.includes(workspace.latest_build.status)) {
-		content = <BuildingWorkspace workspace={workspace} />;
+		content = (
+			<BuildingWorkspace
+				workspace={workspace}
+				onEditPrompt={() => setIsModifyDialogOpen(true)}
+			/>
+		);
 	} else if (workspace.latest_build.status === "failed") {
 		content = (
 			<div className="w-full min-h-80 flex items-center justify-center">
@@ -144,7 +152,12 @@ const TaskPage = () => {
 			</div>
 		);
 	} else if (workspace.latest_build.status !== "running") {
-		content = <WorkspaceNotRunning workspace={workspace} />;
+		content = (
+			<WorkspaceNotRunning
+				workspace={workspace}
+				onEditPrompt={() => setIsModifyDialogOpen(true)}
+			/>
+		);
 	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
@@ -182,10 +195,17 @@ const TaskPage = () => {
 
 	return (
 		<TaskPageLayout>
-			<title>{pageTitle(task.name)}</title>
+			<title>{pageTitle(task.display_name)}</title>
 
 			<TaskTopbar task={task} workspace={workspace} />
 			{content}
+
+			<ModifyPromptDialog
+				task={task}
+				workspace={workspace}
+				open={isModifyDialogOpen}
+				onOpenChange={setIsModifyDialogOpen}
+			/>
 		</TaskPageLayout>
 	);
 };
@@ -194,9 +214,13 @@ export default TaskPage;
 
 type WorkspaceNotRunningProps = {
 	workspace: Workspace;
+	onEditPrompt: () => void;
 };
 
-const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
+const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
+	workspace,
+	onEditPrompt,
+}) => {
 	const queryClient = useQueryClient();
 
 	const { data: buildParameters } = useQuery(
@@ -264,6 +288,9 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 							<Spinner loading={isWaitingForStart} />
 							Start workspace
 						</Button>
+						<Button size="sm" onClick={onEditPrompt} variant="outline">
+							Edit Prompt
+						</Button>
 					</div>
 				</div>
 			</div>
@@ -282,9 +309,15 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 	);
 };
 
-type BuildingWorkspaceProps = { workspace: Workspace };
+type BuildingWorkspaceProps = {
+	workspace: Workspace;
+	onEditPrompt: () => void;
+};
 
-const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({ workspace }) => {
+const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
+	workspace,
+	onEditPrompt,
+}) => {
 	const { data: template } = useQuery(
 		templateQueryOptions(workspace.template_id),
 	);
@@ -343,6 +376,15 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({ workspace }) => {
 								logs={buildLogs ?? []}
 							/>
 						</ScrollArea>
+
+						<div className="flex flex-col items-center gap-3 mt-4">
+							<p className="text-content-secondary text-sm m-0 max-w-md text-center">
+								You can edit the prompt while we prepare the environment
+							</p>
+							<Button size="sm" onClick={onEditPrompt}>
+								Edit Prompt
+							</Button>
+						</div>
 					</div>
 				</div>
 			</div>

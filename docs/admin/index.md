@@ -52,7 +52,7 @@ For any information not strictly contained in these sections, check out our
 ### Development containers (dev containers)
 
 - A
-  [Development Container](./templates/managing-templates/devcontainers/index.md)
+  [Development Container](./integrations/devcontainers/index.md)
   is an open-source specification for defining development environments (called
   dev containers). It is generally stored in VCS alongside associated source
   code. It can reference an existing base image, or a custom Dockerfile that

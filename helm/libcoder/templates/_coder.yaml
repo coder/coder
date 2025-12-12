@@ -101,6 +101,9 @@ metadata:
   annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+    {{- with .Values.coder.serviceAccount.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 {{- end -}}
 {{- define "libcoder.serviceaccount" -}}
 {{- include "libcoder.util.merge" (append . "libcoder.serviceaccount.tpl") -}}

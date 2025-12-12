@@ -360,8 +360,9 @@ WITH
     RETURNING 1
   )
 -- Cumulative count.
-SELECT
+SELECT (
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
-  (SELECT COUNT(*) FROM interceptions) as total_deleted;
+  (SELECT COUNT(*) FROM interceptions)
+)::bigint as total_deleted;

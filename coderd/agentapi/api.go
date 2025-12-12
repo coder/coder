@@ -197,6 +197,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		AgentFn:          api.agent,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
+		Workspace:        api.cachedWorkspaceFields,
 		Log:              opts.Log,
 	}
 

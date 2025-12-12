@@ -89,10 +89,12 @@ func TestProvisioners_Golden(t *testing.T) {
 	replace[version.ID.String()] = "00000000-0000-0000-cccc-000000000000"
 	replace[workspace.LatestBuild.ID.String()] = "00000000-0000-0000-dddd-000000000000"
 
+	now := dbtime.Now()
+
 	// Create a provisioner that's working on a job.
 	pd1 := dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{
 		Name:       "provisioner-1",
-		CreatedAt:  dbtime.Now().Add(1 * time.Second),
+		CreatedAt:  now.Add(time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
 		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
@@ -100,12 +102,13 @@ func TestProvisioners_Golden(t *testing.T) {
 	w1 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
 		OwnerID:    member.ID,
 		TemplateID: template.ID,
+		CreatedAt:  now.Add(time.Second),
 	})
 	wb1ID := uuid.MustParse("00000000-0000-0000-dddd-000000000001")
 	job1 := dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
 		WorkerID:  uuid.NullUUID{UUID: pd1.ID, Valid: true},
 		Input:     json.RawMessage(`{"workspace_build_id":"` + wb1ID.String() + `"}`),
-		CreatedAt: dbtime.Now().Add(2 * time.Second),
+		CreatedAt: now.Add(time.Second),
 		StartedAt: sql.NullTime{Time: coderdAPI.Clock.Now(), Valid: true},
 		Tags:      database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
 	})
@@ -114,12 +117,13 @@ func TestProvisioners_Golden(t *testing.T) {
 		JobID:             job1.ID,
 		WorkspaceID:       w1.ID,
 		TemplateVersionID: version.ID,
+		CreatedAt:         now.Add(time.Second),
 	})
 
 	// Create a provisioner that completed a job previously and is offline.
 	pd2 := dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{
 		Name:       "provisioner-2",
-		CreatedAt:  dbtime.Now().Add(2 * time.Second),
+		CreatedAt:  now.Add(2 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Hour), Valid: true},
 		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization"},
@@ -127,12 +131,13 @@ func TestProvisioners_Golden(t *testing.T) {
 	w2 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
 		OwnerID:    member.ID,
 		TemplateID: template.ID,
+		CreatedAt:  now.Add(2 * time.Second),
 	})
 	wb2ID := uuid.MustParse("00000000-0000-0000-dddd-000000000002")
 	job2 := dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
 		WorkerID:    uuid.NullUUID{UUID: pd2.ID, Valid: true},
 		Input:       json.RawMessage(`{"workspace_build_id":"` + wb2ID.String() + `"}`),
-		CreatedAt:   dbtime.Now().Add(3 * time.Second),
+		CreatedAt:   now.Add(2 * time.Second),
 		StartedAt:   sql.NullTime{Time: coderdAPI.Clock.Now().Add(-2 * time.Hour), Valid: true},
 		CompletedAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Hour), Valid: true},
 		Tags:        database.StringMap{"owner": "", "scope": "organization"},
@@ -142,17 +147,19 @@ func TestProvisioners_Golden(t *testing.T) {
 		JobID:             job2.ID,
 		WorkspaceID:       w2.ID,
 		TemplateVersionID: version.ID,
+		CreatedAt:         now.Add(2 * time.Second),
 	})
 
 	// Create a pending job.
 	w3 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
 		OwnerID:    member.ID,
 		TemplateID: template.ID,
+		CreatedAt:  now.Add(3 * time.Second),
 	})
 	wb3ID := uuid.MustParse("00000000-0000-0000-dddd-000000000003")
 	job3 := dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
 		Input:     json.RawMessage(`{"workspace_build_id":"` + wb3ID.String() + `"}`),
-		CreatedAt: dbtime.Now().Add(4 * time.Second),
+		CreatedAt: now.Add(3 * time.Second),
 		Tags:      database.StringMap{"owner": "", "scope": "organization"},
 	})
 	dbgen.WorkspaceBuild(t, coderdAPI.Database, database.WorkspaceBuild{
@@ -160,12 +167,13 @@ func TestProvisioners_Golden(t *testing.T) {
 		JobID:             job3.ID,
 		WorkspaceID:       w3.ID,
 		TemplateVersionID: version.ID,
+		CreatedAt:         now.Add(3 * time.Second),
 	})
 
 	// Create a provisioner that is idle.
 	_ = dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{
 		Name:       "provisioner-3",
-		CreatedAt:  dbtime.Now().Add(3 * time.Second),
+		CreatedAt:  now.Add(4 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
 		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization"},

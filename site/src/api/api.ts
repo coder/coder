@@ -359,6 +359,8 @@ export type DeploymentConfig = Readonly<{
 
 type Claims = {
 	license_expires: number;
+	// nbf is a standard JWT claim for "not before" - the license valid from date
+	nbf?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -2714,6 +2716,16 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
 	};
 
+	updateTaskInput = async (
+		user: string,
+		id: string,
+		input: string,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/tasks/${user}/${id}/input`, {
+			input,
+		} satisfies TypesGen.UpdateTaskInputRequest);
+	};
+
 	createTaskFeedback = async (
 		_taskId: string,
 		_req: CreateTaskFeedbackRequest,
@@ -2783,15 +2795,18 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		if (process.env.NODE_ENV === "development") {
 			// Development mode uses a hard-coded CSRF token
 			instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
-			instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
 			tokenMetadataElement.setAttribute("content", csrfToken);
 		} else {
 			instance.defaults.headers.common["X-CSRF-TOKEN"] =
 				tokenMetadataElement.getAttribute("content") ?? "";
 		}
 	} else {
-		// Do not write error logs if we are in a FE unit test.
-		if (!process.env.JEST_WORKER_ID && !process.env.VITEST) {
+		// Do not write error logs if we are in a FE unit test or if there is no document (e.g., Electron)
+		if (
+			typeof document !== "undefined" &&
+			!process.env.JEST_WORKER_ID &&
+			!process.env.VITEST
+		) {
 			console.error("CSRF token not found");
 		}
 	}
@@ -2822,7 +2837,8 @@ interface ClientApi extends ApiMethods {
 	getAxiosInstance: () => AxiosInstance;
 }
 
-class Api extends ApiMethods implements ClientApi {
+/** @public Exported for use by external consumers (e.g., VS Code extension). */
+export class Api extends ApiMethods implements ClientApi {
 	constructor() {
 		const scopedAxiosInstance = getConfiguredAxiosInstance();
 		super(scopedAxiosInstance);

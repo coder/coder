@@ -47,16 +47,11 @@ deployment reliability under load.
 - Nodes can be distributed in 2 regions, not necessarily evenly split, depending
   on developer team sizes
 
-### Database nodes
+### Database node
 
-| Users       | Node capacity        | Replicas | Storage | GCP                 | AWS            | Azure             |
-|-------------|----------------------|----------|---------|---------------------|----------------|-------------------|
-| Up to 2,000 | 4 vCPU, 16 GB memory | 1 node   | 1 TB    | `db-custom-4-15360` | `db.m5.xlarge` | `Standard_D4s_v3` |
-
-**Footnotes**:
-
-- Consider adding more replicas if the workspace activity is higher than 500
-  workspace builds per day or to achieve higher RPS.
+| Users       | Node capacity        | Storage | GCP                 | AWS            | Azure             |
+|-------------|----------------------|---------|---------------------|----------------|-------------------|
+| Up to 2,000 | 4 vCPU, 16 GB memory | 1 TB    | `db-custom-4-15360` | `db.m5.xlarge` | `Standard_D4s_v3` |
 
 **Footnotes for AWS instance types**:
 

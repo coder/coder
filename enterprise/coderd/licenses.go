@@ -59,7 +59,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Tags Organizations
+// @Tags Enterprise
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
 // @Success 201 {object} codersdk.License
 // @Router /licenses [post]
@@ -163,7 +163,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @ID update-license-entitlements
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Organizations
+// @Tags Enterprise
 // @Success 201 {object} codersdk.Response
 // @Router /licenses/refresh-entitlements [post]
 func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request) {

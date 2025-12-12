@@ -1,4 +1,4 @@
-# Dev container security and caching
+# Envbuilder security and caching
 
 Ensure Envbuilder can only pull pre-approved images and artifacts by configuring
 it with your existing HTTP proxies, firewalls, and artifact managers.
@@ -26,7 +26,7 @@ of caching:
 
   - Caches the entire image, skipping the build process completely (except for
     post-build
-    [lifecycle scripts](./add-devcontainer.md#dev-container-lifecycle-scripts)).
+    [lifecycle scripts](./add-envbuilder.md#dev-container-lifecycle-scripts)).
 
 Note that caching requires push access to a registry, and may require approval
 from relevant infrastructure team(s).
@@ -62,5 +62,5 @@ You may also wish to consult a
 
 ## Next steps
 
-- [Dev container releases and known issues](./devcontainer-releases-known-issues.md)
+- [Envbuilder releases and known issues](./envbuilder-releases-known-issues.md)
 - [Dotfiles](../../../../user-guides/workspace-dotfiles.md)
