@@ -239,8 +239,19 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								)}
 
 								<dt>Initiator:</dt>
-								<dd data-chromatic="ignore">
-									{interception.initiator.username}
+								<dd
+									data-chromatic="ignore"
+									className="flex items-center gap-1.5"
+								>
+									<Avatar
+										fallback={interception.initiator.username}
+										src={interception.initiator.avatar_url}
+										size={"sm"}
+										className="flex-shrink-0"
+									/>
+									<span className="truncate min-w-0 w-full">
+										{interception.initiator.username}
+									</span>
 								</dd>
 
 								<dt>Model:</dt>
