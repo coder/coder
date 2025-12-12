@@ -150,6 +150,17 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// The token is stored in ctx.UserData which goproxy propagates to subsequent
 	// request contexts for decrypted requests within this MITM session.
 	mitmWithAuth := goproxy.FuncHttpsHandler(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+		// Restrict CONNECT to standard HTTP/HTTPS ports to prevent request smuggling.
+		// Attackers could use non-standard ports to bypass security controls.
+		port := extractPort(host)
+		if port != "443" && port != "80" {
+			srv.logger.Warn(srv.ctx, "rejecting connect to non-standard port",
+				slog.F("host", host),
+				slog.F("port", port),
+			)
+			return goproxy.RejectConnect, host
+		}
+
 		proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
 		coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
 
@@ -250,6 +261,15 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	}
 
 	return credentials[1]
+}
+
+// extractPort extracts the port from a host:port string.
+// Returns "443" as the default if no port is specified (standard HTTPS).
+func extractPort(host string) string {
+	if i := strings.LastIndex(host, ":"); i != -1 {
+		return host[i+1:]
+	}
+	return "443" // Default HTTPS port
 }
 
 // canonicalHost strips the port from a host:port string and lowercases it.
