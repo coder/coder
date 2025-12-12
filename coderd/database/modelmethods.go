@@ -658,7 +658,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	return users
 }
 
-func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
+func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 	workspaces := make([]Workspace, len(rows))
 	for i, r := range rows {
 		workspaces[i] = Workspace{
@@ -679,6 +679,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			Favorite:                r.Favorite,
 			OwnerAvatarUrl:          r.OwnerAvatarUrl,
 			OwnerUsername:           r.OwnerUsername,
+			OwnerName:               r.OwnerName,
 			OrganizationName:        r.OrganizationName,
 			OrganizationDisplayName: r.OrganizationDisplayName,
 			OrganizationIcon:        r.OrganizationIcon,
@@ -690,9 +691,31 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			NextStartAt:             r.NextStartAt,
 			TaskID:                  r.TaskID,
 		}
+
+		var err error
+
+		err = workspaces[i].UserACL.Scan(r.UserACL)
+		if err != nil {
+			return nil, xerrors.Errorf("scan user ACL %q: %w", r.UserACL, err)
+		}
+		err = workspaces[i].GroupACL.Scan(r.GroupACL)
+		if err != nil {
+			return nil, xerrors.Errorf("scan group ACL %q: %w", r.GroupACL, err)
+		}
+
+		err = workspaces[i].UserACLDisplayInfo.Scan(r.UserACLDisplayInfo)
+		if err != nil {
+			return nil, xerrors.Errorf("scan user ACL display info %q: %w",
+				r.UserACLDisplayInfo, err)
+		}
+		err = workspaces[i].GroupACLDisplayInfo.Scan(r.GroupACLDisplayInfo)
+		if err != nil {
+			return nil, xerrors.Errorf("scan group ACL display info %q: %w",
+				r.GroupACLDisplayInfo, err)
+		}
 	}
 
-	return workspaces
+	return workspaces, nil
 }
 
 func (g Group) IsEveryone() bool {
