@@ -766,7 +766,9 @@ type ExternalAuthConfig struct {
 	// DisplayName is shown in the UI to identify the auth config.
 	DisplayName string `json:"display_name" yaml:"display_name"`
 	// DisplayIcon is a URL to an icon to display in the UI.
-	DisplayIcon                   string   `json:"display_icon" yaml:"display_icon"`
+	DisplayIcon string `json:"display_icon" yaml:"display_icon"`
+	// CodeChallengeMethodsSupported lists the PKCE code challenge methods
+	// The only one supported by Coder is "S256"
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported" yaml:"code_challenge_methods_supported"`
 }
 

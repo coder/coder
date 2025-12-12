@@ -1071,6 +1071,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 			// Always invalidate the code after it is used.
 			f.codeToStateMap.Delete(code)
+			f.codeToChallengeMap.Delete(code)
 
 			idTokenClaims, ok := f.getClaims(f.stateToIDTokenClaims, stateStr)
 			if !ok {
