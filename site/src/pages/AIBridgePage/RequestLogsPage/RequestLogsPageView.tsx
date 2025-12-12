@@ -56,7 +56,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 					<TableHeader>
 						<TableRow className="text-xs">
 							<TableHead>Timestamp</TableHead>
-							<TableHead>User</TableHead>
+							<TableHead>Initiator</TableHead>
 							<TableHead>Prompt</TableHead>
 							<TableHead>Tokens</TableHead>
 							<TableHead>Model</TableHead>
