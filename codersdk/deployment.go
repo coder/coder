@@ -680,6 +680,9 @@ type OIDCConfig struct {
 	IconURL                   serpent.URL                            `json:"icon_url" typescript:",notnull"`
 	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
 	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
+	// PKCEEnabled enables PKCE (Proof Key for Code Exchange) for the OIDC flow.
+	// This is recommended for enhanced security, especially for public clients.
+	PKCEEnabled serpent.Bool `json:"pkce_enabled" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -2185,6 +2188,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.OIDC.SkipIssuerChecks,
 			Group: &deploymentGroupOIDC,
 			YAML:  "dangerousSkipIssuerChecks",
+		},
+		{
+			Name:        "OIDC PKCE",
+			Description: "Enable PKCE (Proof Key for Code Exchange) for OIDC authentication. This adds an extra layer of security to the authorization code flow by preventing authorization code interception attacks.",
+			Flag:        "oidc-pkce",
+			Env:         "CODER_OIDC_PKCE",
+			Default:     "false",
+			Value:       &c.OIDC.PKCEEnabled,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "pkce",
 		},
 		// Telemetry settings
 		telemetryEnable,

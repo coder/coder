@@ -40,6 +40,8 @@ const (
 	OAuth2StateCookie = "oauth_state"
 	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
 	OAuth2RedirectCookie = "oauth_redirect"
+	// OAuth2PKCECookie is the name of the cookie that stores the PKCE code verifier.
+	OAuth2PKCECookie = "oauth_pkce"
 
 	// PathAppSessionTokenCookie is the name of the cookie that stores an
 	// application-scoped API token on workspace proxy path app domains.
