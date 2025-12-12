@@ -141,17 +141,8 @@ You must add the SSH key to your Git provider.
 security extension that prevents authorization code interception attacks. Coder supports PKCE when
 acting as an OAuth client to external identity providers.
 
-### OIDC Providers
-
-For OIDC providers, PKCE support is automatically detected from the provider's
-`/.well-known/openid-configuration` endpoint. If the provider advertises support for PKCE,
-Coder will use it automatically. No manual configuration is required.
-
-### OAuth Providers (External Auth)
-
-For OAuth providers configured via external authentication, Coder will usually assume PKCE support is available with "S256" as the code challenge method.
-
-Manual configuration is available to override any default behavior.
+Coder will usually assume PKCE support is available with "S256" as the code challenge method. Manual
+configuration is available to override any default behavior.
 
 ```env
 # Enable PKCE with S256 (recommended when supported)
