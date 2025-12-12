@@ -99,7 +99,7 @@
 							// "@mui/material/TextField": "Use shadcn/ui Input component instead.",
 							// "@mui/material/ToggleButton": "Use shadcn/ui Toggle or custom component instead.",
 							// "@mui/material/ToggleButtonGroup": "Use shadcn/ui Toggle or custom component instead.",
-							// "@mui/material/Tooltip": "Use shadcn/ui Tooltip component instead.",
+							"@mui/material/Tooltip": "Use components/Tooltip/Tooltip instead.",
 							"@mui/material/Typography": "Use native HTML elements instead. Eg: <span>, <p>, <h1>, etc.",
 							// "@mui/material/useMediaQuery": "Use Tailwind responsive classes or custom hook instead.",
 							// "@mui/system": "Use Tailwind CSS instead.",

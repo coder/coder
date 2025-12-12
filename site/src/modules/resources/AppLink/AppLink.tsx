@@ -155,7 +155,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>{button}</TooltipTrigger>
-				<TooltipContent>
+				<TooltipContent className="max-w-xs">
 					{primaryTooltip ? (
 						primaryTooltip
 					) : app.tooltip ? (
