@@ -37,7 +37,7 @@ const customisedDateLocale: Intl.DateTimeFormatOptions = {
 	hour12: true,
 };
 
-export const RequestLogsRowProviderIcon = ({
+const RequestLogsRowProviderIcon = ({
 	provider,
 	...props
 }: {
