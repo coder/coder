@@ -7,8 +7,8 @@ import {
 } from "components/Tooltip/Tooltip";
 import {
 	BanIcon,
-	CircleStopIcon,
 	CloudIcon,
+	PauseIcon,
 	PlayIcon,
 	PowerIcon,
 	RotateCcwIcon,
@@ -130,7 +130,7 @@ export const StopButton: FC<ActionButtonProps> = ({
 			onClick={() => handleAction()}
 			data-testid="workspace-stop-button"
 		>
-			<CircleStopIcon />
+			<PauseIcon />
 			{loading ? <>Stopping&hellip;</> : "Stop"}
 		</TopbarButton>
 	);

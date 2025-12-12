@@ -1457,6 +1457,8 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	}
+
+	api.broadcastUpdatesLocked()
 }
 
 // cleanupSubAgents removes subagents that are no longer managed by

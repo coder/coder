@@ -234,6 +234,8 @@ func (w *fakeWatcher) sendEventWaitNextCalled(ctx context.Context, event fsnotif
 // fakeSubAgentClient implements SubAgentClient for testing purposes.
 type fakeSubAgentClient struct {
 	logger slog.Logger
+
+	mu     sync.Mutex // Protects following.
 	agents map[uuid.UUID]agentcontainers.SubAgent
 
 	listErrC   chan error // If set, send to return error, close to return nil.
@@ -254,6 +256,8 @@ func (m *fakeSubAgentClient) List(ctx context.Context) ([]agentcontainers.SubAge
 			}
 		}
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var agents []agentcontainers.SubAgent
 	for _, agent := range m.agents {
 		agents = append(agents, agent)
@@ -282,6 +286,9 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 	if agent.OperatingSystem == "" {
 		return agentcontainers.SubAgent{}, xerrors.New("operating system must be set")
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	for _, a := range m.agents {
 		if a.Name == agent.Name {
@@ -314,6 +321,8 @@ func (m *fakeSubAgentClient) Delete(ctx context.Context, id uuid.UUID) error {
 			}
 		}
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.agents == nil {
 		m.agents = make(map[uuid.UUID]agentcontainers.SubAgent)
 	}
@@ -1632,6 +1641,77 @@ func TestAPI(t *testing.T) {
 		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
 	})
 
+	// Verify that modifying a config file broadcasts the dirty status
+	// over websocket immediately.
+	t.Run("FileWatcherDirtyBroadcast", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		configPath := "/workspace/project/.devcontainer/devcontainer.json"
+		fWatcher := newFakeWatcher(t)
+		fLister := &fakeContainerCLI{
+			containers: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{
+					{
+						ID:           "container-id",
+						FriendlyName: "container-name",
+						Running:      true,
+						Labels: map[string]string{
+							agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
+							agentcontainers.DevcontainerConfigFileLabel:  configPath,
+						},
+					},
+				},
+			},
+		}
+
+		mClock := quartz.NewMock(t)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+		api := agentcontainers.NewAPI(
+			slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			agentcontainers.WithContainerCLI(fLister),
+			agentcontainers.WithWatcher(fWatcher),
+			agentcontainers.WithClock(mClock),
+		)
+		api.Start()
+		defer api.Close()
+
+		srv := httptest.NewServer(api.Routes())
+		defer srv.Close()
+
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		wsConn, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/watch", nil)
+		require.NoError(t, err)
+		if resp != nil && resp.Body != nil {
+			defer resp.Body.Close()
+		}
+		defer wsConn.Close(websocket.StatusNormalClosure, "")
+
+		// Read and discard initial state.
+		_, _, err = wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		fWatcher.waitNext(ctx)
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+			Name: configPath,
+			Op:   fsnotify.Write,
+		})
+
+		// Verify dirty status is broadcast without advancing the clock.
+		_, msg, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var response codersdk.WorkspaceAgentListContainersResponse
+		err = json.Unmarshal(msg, &response)
+		require.NoError(t, err)
+		require.Len(t, response.Devcontainers, 1)
+		assert.True(t, response.Devcontainers[0].Dirty,
+			"devcontainer should be marked as dirty after config file modification")
+	})
+
 	t.Run("SubAgentLifecycle", func(t *testing.T) {
 		t.Parallel()
 
@@ -2162,6 +2242,10 @@ func TestAPI(t *testing.T) {
 			nowRecreateSuccessTrap.MustWait(ctx).MustRelease(ctx)
 			nowRecreateSuccessTrap.Close()
 
+			// Advance the clock to run the devcontainer state update routine.
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
 			req = httptest.NewRequest(http.MethodGet, "/", nil)
 			rec = httptest.NewRecorder()
 			r.ServeHTTP(rec, req)
@@ -2178,7 +2262,7 @@ func TestAPI(t *testing.T) {
 			// available for use.
 			require.Len(t, response.Devcontainers, 1)
 			assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, response.Devcontainers[0].Status)
-			assert.NotNil(t, response.Devcontainers[0].Container)
+			require.NotNil(t, response.Devcontainers[0].Container)
 			assert.Equal(t, testContainer.ID, response.Devcontainers[0].Container.ID)
 		})
 

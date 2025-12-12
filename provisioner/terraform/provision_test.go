@@ -156,7 +156,7 @@ func TestProvision_Cancel(t *testing.T) {
 			binPath := filepath.Join(dir, "terraform")
 
 			// Example: exec /path/to/terrafork_fake_cancel.sh 1.2.1 apply "$@"
-			content := fmt.Sprintf("#!/bin/sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
+			content := fmt.Sprintf("#!/usr/bin/env sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
 			err := os.WriteFile(binPath, []byte(content), 0o755) //#nosec
 			require.NoError(t, err)
 			t.Logf("wrote fake terraform script to %s", binPath)

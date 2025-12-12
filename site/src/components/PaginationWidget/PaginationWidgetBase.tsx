@@ -41,7 +41,6 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 	return (
 		<div className="flex flex-row items-center justify-center px-5 gap-x-1.5">
 			<PaginationNavButton
-				disabledMessage="You are already on the first page"
 				disabled={isPrevDisabled}
 				aria-label="Previous page"
 				onClick={() => {
@@ -68,7 +67,6 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 			)}
 
 			<PaginationNavButton
-				disabledMessage="You are already on the last page"
 				disabled={isNextDisabled}
 				aria-label="Next page"
 				onClick={() => {

@@ -1290,8 +1290,14 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Returns existing file if duplicate",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadResponse"
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "Returns newly created file",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadResponse"
                         }
@@ -1800,7 +1806,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Add new license",
                 "operationId": "add-new-license",
@@ -1836,7 +1842,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Update license entitlements",
                 "operationId": "update-license-entitlements",
@@ -11877,8 +11883,14 @@ const docTemplate = `{
                 "inject_coder_mcp_tools": {
                     "type": "boolean"
                 },
+                "max_concurrency": {
+                    "type": "integer"
+                },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                },
+                "rate_limit": {
+                    "type": "integer"
                 },
                 "retention": {
                     "type": "integer"
@@ -14206,6 +14218,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "disable_path_apps": {
+                    "type": "boolean"
+                },
+                "disable_workspace_sharing": {
                     "type": "boolean"
                 },
                 "docs_url": {
@@ -17744,6 +17759,10 @@ const docTemplate = `{
                 },
                 "connection_logs": {
                     "description": "ConnectionLogs controls how long connection log entries are retained.\nSet to 0 to disable (keep indefinitely).",
+                    "type": "integer"
+                },
+                "workspace_agent_logs": {
+                    "description": "WorkspaceAgentLogs controls how long workspace agent logs are retained.\nLogs are deleted if the agent hasn't connected within this period.\nLogs from the latest build are always retained regardless of age.\nDefaults to 7 days to preserve existing behavior.",
                     "type": "integer"
                 }
             }

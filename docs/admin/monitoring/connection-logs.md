@@ -106,6 +106,14 @@ connection log entry, when `code-server` is opened:
 [API] 2025-07-03 06:57:16.157 [info]  coderd: connection_log  request_id=de3f6004-6cc1-4880-a296-d7c6ca1abf75  ID=f0249951-d454-48f6-9504-e73340fa07b7  Time="2025-07-03T06:57:16.144719Z"  OrganizationID=0665a54f-0b77-4a58-94aa-59646fa38a74  WorkspaceOwnerID=6dea5f8c-ecec-4cf0-a5bd-bc2c63af2efa  WorkspaceID=3c0b37c8-e58c-4980-b9a1-2732410480a5  WorkspaceName=dev  AgentName=main  Type=workspace_app  Code=200  Ip=127.0.0.1  UserAgent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"  UserID=6dea5f8c-ecec-4cf0-a5bd-bc2c63af2efa  SlugOrPort=code-server  ConnectionID=<nil>  DisconnectReason=""  ConnectionStatus=connected
 ```
 
+## Data Retention
+
+Coder supports configurable retention policies that automatically purge old
+Connection Logs. To enable automated purging, configure the
+`--connection-logs-retention` flag or `CODER_CONNECTION_LOGS_RETENTION`
+environment variable. For comprehensive configuration options, see
+[Data Retention](../setup/data-retention.md).
+
 ## How to Enable Connection Logs
 
 This feature is only available with a [Premium license](../licensing/index.md).

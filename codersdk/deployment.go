@@ -495,6 +495,7 @@ type DeploymentValues struct {
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
+	DisableWorkspaceSharing         serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode        serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
@@ -829,6 +830,11 @@ type RetentionConfig struct {
 	// Keys are only deleted if they have been expired for at least this duration.
 	// Defaults to 7 days to preserve existing behavior.
 	APIKeys serpent.Duration `json:"api_keys" typescript:",notnull"`
+	// WorkspaceAgentLogs controls how long workspace agent logs are retained.
+	// Logs are deleted if the agent hasn't connected within this period.
+	// Logs from the latest build are always retained regardless of age.
+	// Defaults to 7 days to preserve existing behavior.
+	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -2724,6 +2730,15 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
+			Name:        "Disable Workspace Sharing",
+			Description: `Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.`,
+			Flag:        "disable-workspace-sharing",
+			Env:         "CODER_DISABLE_WORKSPACE_SHARING",
+
+			Value: &c.DisableWorkspaceSharing,
+			YAML:  "disableWorkspaceSharing",
+		},
+		{
 			Name:        "Session Duration",
 			Description: "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
 			Flag:        "session-duration",
@@ -3386,6 +3401,26 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "retention",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
+		{
+			Name:        "AI Bridge Max Concurrency",
+			Description: "Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).",
+			Flag:        "aibridge-max-concurrency",
+			Env:         "CODER_AIBRIDGE_MAX_CONCURRENCY",
+			Value:       &c.AI.BridgeConfig.MaxConcurrency,
+			Default:     "0",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "maxConcurrency",
+		},
+		{
+			Name:        "AI Bridge Rate Limit",
+			Description: "Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).",
+			Flag:        "aibridge-rate-limit",
+			Env:         "CODER_AIBRIDGE_RATE_LIMIT",
+			Value:       &c.AI.BridgeConfig.RateLimit,
+			Default:     "0",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "rateLimit",
+		},
 		// Retention settings
 		{
 			Name:        "Audit Logs Retention",
@@ -3421,6 +3456,17 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Workspace Agent Logs Retention",
+			Description: "How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.",
+			Flag:        "workspace-agent-logs-retention",
+			Env:         "CODER_WORKSPACE_AGENT_LOGS_RETENTION",
+			Value:       &c.Retention.WorkspaceAgentLogs,
+			Default:     "7d",
+			Group:       &deploymentGroupRetention,
+			YAML:        "workspace_agent_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name: "Enable Authorization Recordings",
 			Description: "All api requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
@@ -3445,6 +3491,8 @@ type AIBridgeConfig struct {
 	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
 	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
+	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
+	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {

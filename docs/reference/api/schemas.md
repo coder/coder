@@ -390,10 +390,12 @@
   },
   "enabled": true,
   "inject_coder_mcp_tools": true,
+  "max_concurrency": 0,
   "openai": {
     "base_url": "string",
     "key": "string"
   },
+  "rate_limit": 0,
   "retention": 0
 }
 ```
@@ -406,7 +408,9 @@
 | `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
 | `enabled`                | boolean                                                              | false    |              |             |
 | `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
+| `max_concurrency`        | integer                                                              | false    |              |             |
 | `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| `rate_limit`             | integer                                                              | false    |              |             |
 | `retention`              | integer                                                              | false    |              |             |
 
 ## codersdk.AIBridgeInterception
@@ -700,10 +704,12 @@
     },
     "enabled": true,
     "inject_coder_mcp_tools": true,
+    "max_concurrency": 0,
     "openai": {
       "base_url": "string",
       "key": "string"
     },
+    "rate_limit": 0,
     "retention": 0
   }
 }
@@ -2860,10 +2866,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "enabled": true,
         "inject_coder_mcp_tools": true,
+        "max_concurrency": 0,
         "openai": {
           "base_url": "string",
           "key": "string"
         },
+        "rate_limit": 0,
         "retention": 0
       }
     },
@@ -2917,6 +2925,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -3150,7 +3159,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
-      "connection_logs": 0
+      "connection_logs": 0,
+      "workspace_agent_logs": 0
     },
     "scim_api_key": "string",
     "session_lifetime": {
@@ -3381,10 +3391,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "enabled": true,
       "inject_coder_mcp_tools": true,
+      "max_concurrency": 0,
       "openai": {
         "base_url": "string",
         "key": "string"
       },
+      "rate_limit": 0,
       "retention": 0
     }
   },
@@ -3438,6 +3450,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
+  "disable_workspace_sharing": true,
   "docs_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -3671,7 +3684,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "retention": {
     "api_keys": 0,
     "audit_logs": 0,
-    "connection_logs": 0
+    "connection_logs": 0,
+    "workspace_agent_logs": 0
   },
   "scim_api_key": "string",
   "session_lifetime": {
@@ -3791,6 +3805,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_owner_workspace_exec`       | boolean                                                                                              | false    |              |                                                                    |
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
+| `disable_workspace_sharing`          | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
@@ -7523,17 +7538,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "api_keys": 0,
   "audit_logs": 0,
-  "connection_logs": 0
+  "connection_logs": 0,
+  "workspace_agent_logs": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                  |
-|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_keys`        | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior. |
-| `audit_logs`      | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                        |
-| `connection_logs` | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                              |
+| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
+| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
+| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
+| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
 
 ## codersdk.Role
 
