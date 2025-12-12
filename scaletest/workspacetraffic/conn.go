@@ -147,8 +147,9 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 	var closers []func() error
 	defer func() {
 		if err != nil {
-			for _, c := range closers {
-				if err2 := c(); err2 != nil {
+			// Reverse order, like defer.
+			for i := len(closers) - 1; i >= 0; i-- {
+				if err2 := closers[i](); err2 != nil {
 					err = errors.Join(err, err2)
 				}
 			}
@@ -227,8 +228,9 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 				}
 			}
 		}
-		for _, c := range closers {
-			if err := c(); err != nil {
+		// Reverse order, like defer.
+		for i := len(closers) - 1; i >= 0; i-- {
+			if err := closers[i](); err != nil {
 				if !errors.Is(err, io.EOF) {
 					merr = errors.Join(merr, err)
 				}
