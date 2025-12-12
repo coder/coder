@@ -185,9 +185,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 
 			duration := clk.Since(start)
 			iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
+			recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
 			recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
 			recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
 			recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
+			recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
 
 			return nil
 		}, database.DefaultTXOptions().WithID("db_purge")); err != nil {
