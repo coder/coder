@@ -309,6 +309,13 @@
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
+					"title": "Workspace Sharing",
+					"description": "Sharing workspaces",
+					"path": "./user-guides/shared-workspaces.md",
+					"icon_path": "./images/icons/generic.svg",
+					"state": ["beta"]
+				},
+				{
 					"title": "Workspace Scheduling",
 					"description": "Cost control with workspace schedules",
 					"path": "./user-guides/workspace-scheduling.md",
