@@ -23,76 +23,107 @@ import (
 
 func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
 	now := dbtime.Now()
-	fConn := &fakePingerCloser{}
-	ctrl := gomock.NewController(t)
-	mDB := dbmock.NewMockStore(ctrl)
-	fUpdater := &fakeUpdater{}
-	logger := testutil.Logger(t)
-	agent := database.WorkspaceAgent{
-		ID: uuid.New(),
-		FirstConnectedAt: sql.NullTime{
-			Time:  now.Add(-time.Minute),
-			Valid: true,
+	agentID := uuid.UUID{1}
+	replicaID := uuid.UUID{2}
+	testCases := []struct {
+		name           string
+		agent          database.WorkspaceAgent
+		initialMatcher connectionUpdateMatcher
+	}{
+		{
+			name: "no disconnected at",
+			agent: database.WorkspaceAgent{
+				ID: agentID,
+				FirstConnectedAt: sql.NullTime{
+					Time:  now.Add(-time.Minute),
+					Valid: true,
+				},
+			},
+			initialMatcher: connectionUpdate(agentID, replicaID),
+		},
+		{
+			name: "disconnected at",
+			agent: database.WorkspaceAgent{
+				ID: agentID,
+				FirstConnectedAt: sql.NullTime{
+					Time:  now.Add(-time.Minute),
+					Valid: true,
+				},
+				DisconnectedAt: sql.NullTime{
+					Time:  now.Add(-2 * time.Minute),
+					Valid: true,
+				},
+			},
+			initialMatcher: connectionUpdate(agentID, replicaID, withDisconnectedAt(now.Add(-2*time.Minute))),
 		},
 	}
-	build := database.WorkspaceBuild{
-		ID:          uuid.New(),
-		WorkspaceID: uuid.New(),
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			fConn := &fakePingerCloser{}
+			ctrl := gomock.NewController(t)
+			mDB := dbmock.NewMockStore(ctrl)
+			fUpdater := &fakeUpdater{}
+			logger := testutil.Logger(t)
+			build := database.WorkspaceBuild{
+				ID:          uuid.New(),
+				WorkspaceID: uuid.New(),
+			}
+
+			uut := &agentConnectionMonitor{
+				apiCtx:            ctx,
+				workspaceAgent:    tc.agent,
+				workspaceBuild:    build,
+				conn:              fConn,
+				db:                mDB,
+				replicaID:         replicaID,
+				updater:           fUpdater,
+				logger:            logger,
+				pingPeriod:        testutil.IntervalFast,
+				disconnectTimeout: testutil.WaitShort,
+			}
+			uut.init()
+
+			connected := mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
+				gomock.Any(),
+				tc.initialMatcher,
+			).
+				AnyTimes().
+				Return(nil)
+			mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
+				gomock.Any(),
+				connectionUpdate(agentID, replicaID, withDisconnectedAfter(now)),
+			).
+				After(connected).
+				Times(1).
+				Return(nil)
+			mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), build.WorkspaceID).
+				AnyTimes().
+				Return(database.WorkspaceBuild{ID: build.ID}, nil)
+
+			closeCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			done := make(chan struct{})
+			go func() {
+				uut.monitor(closeCtx)
+				close(done)
+			}()
+			// wait a couple intervals, but not long enough for a disconnect
+			time.Sleep(3 * testutil.IntervalFast)
+			fConn.requireNotClosed(t)
+			fUpdater.requireEventuallySomeUpdates(t, build.WorkspaceID)
+			n := fUpdater.getUpdates()
+			cancel()
+			fConn.requireEventuallyClosed(t, websocket.StatusGoingAway, "canceled")
+
+			// make sure we got at least one additional update on close
+			_ = testutil.TryReceive(ctx, t, done)
+			m := fUpdater.getUpdates()
+			require.Greater(t, m, n)
+		})
 	}
-	replicaID := uuid.New()
-
-	uut := &agentConnectionMonitor{
-		apiCtx:            ctx,
-		workspaceAgent:    agent,
-		workspaceBuild:    build,
-		conn:              fConn,
-		db:                mDB,
-		replicaID:         replicaID,
-		updater:           fUpdater,
-		logger:            logger,
-		pingPeriod:        testutil.IntervalFast,
-		disconnectTimeout: testutil.WaitShort,
-	}
-	uut.init()
-
-	connected := mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
-		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID),
-	).
-		AnyTimes().
-		Return(nil)
-	mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
-		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID, withDisconnected()),
-	).
-		After(connected).
-		Times(1).
-		Return(nil)
-	mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), build.WorkspaceID).
-		AnyTimes().
-		Return(database.WorkspaceBuild{ID: build.ID}, nil)
-
-	closeCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		uut.monitor(closeCtx)
-		close(done)
-	}()
-	// wait a couple intervals, but not long enough for a disconnect
-	time.Sleep(3 * testutil.IntervalFast)
-	fConn.requireNotClosed(t)
-	fUpdater.requireEventuallySomeUpdates(t, build.WorkspaceID)
-	n := fUpdater.getUpdates()
-	cancel()
-	fConn.requireEventuallyClosed(t, websocket.StatusGoingAway, "canceled")
-
-	// make sure we got at least one additional update on close
-	_ = testutil.TryReceive(ctx, t, done)
-	m := fUpdater.getUpdates()
-	require.Greater(t, m, n)
 }
 
 func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
@@ -141,7 +172,7 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 		Return(nil)
 	mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID, withDisconnected()),
+		connectionUpdate(agent.ID, replicaID, withDisconnectedAfter(now)),
 	).
 		After(connected).
 		Times(1).
@@ -204,7 +235,7 @@ func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
 		Return(nil)
 	mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID, withDisconnected()),
+		connectionUpdate(agent.ID, replicaID, withDisconnectedAfter(now)),
 	).
 		After(connected).
 		Times(1).
@@ -289,7 +320,7 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 		Return(nil)
 	mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID, withDisconnected()),
+		connectionUpdate(agent.ID, replicaID, withDisconnectedAfter(now)),
 	).
 		After(connected).
 		Times(1).
@@ -392,9 +423,10 @@ func (f *fakeUpdater) getUpdates() int {
 }
 
 type connectionUpdateMatcher struct {
-	agentID      uuid.UUID
-	replicaID    uuid.UUID
-	disconnected bool
+	agentID           uuid.UUID
+	replicaID         uuid.UUID
+	disconnectedAt    sql.NullTime
+	disconnectedAfter sql.NullTime
 }
 
 type connectionUpdateMatcherOption func(m connectionUpdateMatcher) connectionUpdateMatcher
@@ -410,9 +442,22 @@ func connectionUpdate(id, replica uuid.UUID, opts ...connectionUpdateMatcherOpti
 	return m
 }
 
-func withDisconnected() connectionUpdateMatcherOption {
+func withDisconnectedAfter(t time.Time) connectionUpdateMatcherOption {
 	return func(m connectionUpdateMatcher) connectionUpdateMatcher {
-		m.disconnected = true
+		m.disconnectedAfter = sql.NullTime{
+			Valid: true,
+			Time:  t,
+		}
+		return m
+	}
+}
+
+func withDisconnectedAt(t time.Time) connectionUpdateMatcherOption {
+	return func(m connectionUpdateMatcher) connectionUpdateMatcher {
+		m.disconnectedAt = sql.NullTime{
+			Valid: true,
+			Time:  t,
+		}
 		return m
 	}
 }
@@ -431,15 +476,23 @@ func (m connectionUpdateMatcher) Matches(x interface{}) bool {
 	if args.LastConnectedReplicaID.UUID != m.replicaID {
 		return false
 	}
-	if args.DisconnectedAt.Valid != m.disconnected {
+	if m.disconnectedAfter.Valid {
+		if !args.DisconnectedAt.Valid {
+			return false
+		}
+		if !args.DisconnectedAt.Time.After(m.disconnectedAfter.Time) {
+			return false
+		}
+		// disconnectedAfter takes precedence over disconnectedAt
+	} else if args.DisconnectedAt != m.disconnectedAt {
 		return false
 	}
 	return true
 }
 
 func (m connectionUpdateMatcher) String() string {
-	return fmt.Sprintf("{agent=%s, replica=%s, disconnected=%t}",
-		m.agentID.String(), m.replicaID.String(), m.disconnected)
+	return fmt.Sprintf("{agent=%s, replica=%s, disconnectedAt=%v, disconnectedAfter=%v}",
+		m.agentID.String(), m.replicaID.String(), m.disconnectedAt, m.disconnectedAfter)
 }
 
 func (connectionUpdateMatcher) Got(x interface{}) string {
@@ -447,6 +500,6 @@ func (connectionUpdateMatcher) Got(x interface{}) string {
 	if !ok {
 		return fmt.Sprintf("type=%T", x)
 	}
-	return fmt.Sprintf("{agent=%s, replica=%s, disconnected=%t}",
-		args.ID, args.LastConnectedReplicaID.UUID, args.DisconnectedAt.Valid)
+	return fmt.Sprintf("{agent=%s, replica=%s, disconnectedAt=%v}",
+		args.ID, args.LastConnectedReplicaID.UUID, args.DisconnectedAt)
 }
