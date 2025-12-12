@@ -1018,7 +1018,7 @@ func TestUserOAuth2Github(t *testing.T) {
 			Value: "somestate",
 		})
 		req.AddCookie(&http.Cookie{
-			Name:  codersdk.OAuth2PKCEChallenge,
+			Name:  codersdk.OAuth2PKCEVerifier,
 			Value: oauth2.GenerateVerifier(),
 		})
 		require.NoError(t, err)
@@ -2465,7 +2465,7 @@ func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Re
 		Value: state,
 	})
 	req.AddCookie(&http.Cookie{
-		Name:  codersdk.OAuth2PKCEChallenge,
+		Name:  codersdk.OAuth2PKCEVerifier,
 		Value: oauth2.GenerateVerifier(),
 	})
 	res, err := client.HTTPClient.Do(req)

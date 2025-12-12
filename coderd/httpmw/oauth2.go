@@ -146,7 +146,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 					authOpts = append(authOpts, oauth2.S256ChallengeOption(verifier))
 
 					http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{
-						Name:     codersdk.OAuth2PKCEChallenge,
+						Name:     codersdk.OAuth2PKCEVerifier,
 						Value:    verifier,
 						Path:     "/",
 						HttpOnly: true,
@@ -185,14 +185,14 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 
 			exchangeOpts := make([]oauth2.AuthCodeOption, 0)
 			if sha256PKCESupported {
-				pkceChallenge, err := r.Cookie(codersdk.OAuth2PKCEChallenge)
+				pkceVerifier, err := r.Cookie(codersdk.OAuth2PKCEVerifier)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: "PKCE challenge must be provided.",
 					})
 					return
 				}
-				exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pkceChallenge.Value))
+				exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pkceVerifier.Value))
 			}
 
 			oauthToken, err := config.Exchange(ctx, code, exchangeOpts...)
