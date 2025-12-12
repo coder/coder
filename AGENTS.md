@@ -103,6 +103,18 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ### Full workflows available in imported WORKFLOWS.md
 
+### Git Workflow
+
+When working on existing PRs, check out the branch first:
+
+```sh
+git fetch origin
+git checkout branch-name
+git pull origin branch-name
+```
+
+Don't use `git push --force` unless explicitly requested.
+
 ### New Feature Checklist
 
 - [ ] Run `git pull` to ensure latest code

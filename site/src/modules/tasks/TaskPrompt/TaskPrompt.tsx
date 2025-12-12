@@ -216,7 +216,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		},
 	});
 
-	const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+	const onSubmit = async (e: React.SyntheticEvent) => {
 		e.preventDefault();
 
 		try {
@@ -228,6 +228,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
 			displayError(message, detail);
+		}
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+			onSubmit(e);
 		}
 	};
 
@@ -259,6 +266,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					onChange={(e) => setPrompt(e.target.value)}
 					readOnly={isPromptReadOnly}
 					isSubmitting={createTaskMutation.isPending}
+					onKeyDown={handleKeyDown}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">
