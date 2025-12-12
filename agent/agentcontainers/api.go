@@ -1021,7 +1021,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
 			continue // This state is handled by the recreation routine.
 
-		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopping:
+		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusDeleting:
 			continue // This state is handled by the delete routine.
 
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusError && (dc.Container == nil || dc.Container.CreatedAt.Before(api.recreateErrorTimes[dc.WorkspaceFolder])):
@@ -1275,17 +1275,17 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Similarly, if already stopping, don't allow another delete.
-	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopping {
+	// Similarly, if already deleting, don't allow another delete.
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusDeleting {
 		api.mu.Unlock()
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Devcontainer is stopping",
-			Detail:  fmt.Sprintf("Devcontainer %q is currently stopping.", dc.Name),
+			Message: "Devcontainer is already being deleted",
+			Detail:  fmt.Sprintf("Devcontainer %q is already being deleted.", dc.Name),
 		})
 		return
 	}
 
-	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopping
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusDeleting
 	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.broadcastUpdatesLocked()

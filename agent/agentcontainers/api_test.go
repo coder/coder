@@ -1135,7 +1135,7 @@ func TestAPI(t *testing.T) {
 						Name:            "test-devcontainer-1",
 						WorkspaceFolder: workspaceFolder1,
 						ConfigPath:      configPath1,
-						Status:          codersdk.WorkspaceAgentDevcontainerStatusStopping,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusDeleting,
 						Container:       &devContainer1,
 					},
 				},
