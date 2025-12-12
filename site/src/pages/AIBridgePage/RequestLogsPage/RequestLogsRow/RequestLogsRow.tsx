@@ -131,27 +131,54 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell className="w-32">
 					<div className="flex items-center">
-						<Badge className="gap-0 rounded-e-none">
-							<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
-							<span className="truncate min-w-0 w-full">{inputTokens}</span>
-						</Badge>
-						<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
-							<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
-							<span className="truncate min-w-0 w-full">{outputTokens}</span>
-						</Badge>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge className="gap-0 rounded-e-none">
+										<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
+										<span className="truncate min-w-0 w-full">
+											{inputTokens}
+										</span>
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent>{inputTokens} Input Tokens</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
+										<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
+										<span className="truncate min-w-0 w-full">
+											{outputTokens}
+										</span>
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent>{outputTokens} Output Tokens</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					</div>
 				</TableCell>
 				<TableCell className="w-40 max-w-40">
-					<div className="w-full min-w-0 overflow-hidden">
-						<Badge className="gap-0.5 w-full">
-							<div className="flex-shrink-0 flex items-center">
-								<RequestLogsRowProviderIcon provider={interception.provider} />
-							</div>
-							<span className="truncate min-w-0 w-full">
-								{interception.model}
-							</span>
-						</Badge>
-					</div>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="w-full min-w-0 overflow-hidden">
+									<Badge className="gap-0.5 w-full">
+										<div className="flex-shrink-0 flex items-center">
+											<RequestLogsRowProviderIcon
+												provider={interception.provider}
+											/>
+										</div>
+										<span className="truncate min-w-0 w-full">
+											{interception.model}
+										</span>
+									</Badge>
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>{interception.model}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</TableCell>
 				<TableCell className="w-32 text-center">{toolCalls}</TableCell>
 			</TableRow>
