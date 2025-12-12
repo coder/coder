@@ -71,6 +71,8 @@ const (
 	EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
 )
 
+var ErrAgentClosing = xerrors.New("agent is closing")
+
 type Options struct {
 	Filesystem             afero.Fs
 	LogDir                 string
@@ -401,6 +403,7 @@ func (a *agent) runLoop() {
 	// need to keep retrying up to the hardCtx so that we can send graceful shutdown-related
 	// messages.
 	ctx := a.hardCtx
+	defer a.logger.Info(ctx, "agent main loop exited")
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
 		err := a.run()
@@ -1348,7 +1351,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			a.closeMutex.Unlock()
 			if closing {
 				_ = network.Close()
-				return xerrors.New("agent is closing")
+				return xerrors.Errorf("agent closed while creating tailnet: %w", ErrAgentClosing)
 			}
 		} else {
 			// Update the wireguard IPs if the agent ID changed.
@@ -1471,7 +1474,7 @@ func (a *agent) trackGoroutine(fn func()) error {
 	a.closeMutex.Lock()
 	defer a.closeMutex.Unlock()
 	if a.closing {
-		return xerrors.New("track conn goroutine: agent is closing")
+		return xerrors.Errorf("track conn goroutine: %w", ErrAgentClosing)
 	}
 	a.closeWaitGroup.Add(1)
 	go func() {
@@ -2152,16 +2155,7 @@ func (a *apiConnRoutineManager) startAgentAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting agent routine")
 		err := f(ctx, a.aAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
-			logger.Debug(ctx, "swallowing context canceled")
-			// Don't propagate context canceled errors to the error group, because we don't want the
-			// graceful context being canceled to halt the work of routines with
-			// gracefulShutdownBehaviorRemain.  Note that we check both that the error is
-			// context.Canceled and that *our* context is currently canceled, because when Coderd
-			// unilaterally closes the API connection (for example if the build is outdated), it can
-			// sometimes show up as context.Canceled in our RPC calls.
-			return nil
-		}
+		err = shouldPropagateError(ctx, logger, err)
 		logger.Debug(ctx, "routine exited", slog.Error(err))
 		if err != nil {
 			return xerrors.Errorf("error in routine %s: %w", name, err)
@@ -2189,27 +2183,41 @@ func (a *apiConnRoutineManager) startTailnetAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting tailnet routine")
 		err := f(ctx, a.tAPI)
-		if (xerrors.Is(err, context.Canceled) ||
-			xerrors.Is(err, io.EOF)) &&
-			ctx.Err() != nil {
-			logger.Debug(ctx, "swallowing error because context is canceled", slog.Error(err))
-			// Don't propagate context canceled errors to the error group, because we don't want the
-			// graceful context being canceled to halt the work of routines with
-			// gracefulShutdownBehaviorRemain. Unfortunately, the dRPC library closes the stream
-			// when context is canceled on an RPC, so canceling the context can also show up as
-			// io.EOF. Also, when Coderd unilaterally closes the API connection (for example if the
-			// build is outdated), it can sometimes show up as context.Canceled in our RPC calls.
-			// We can't reliably distinguish between a context cancelation and a legit EOF, so we
-			// also check that *our* context is currently canceled. If it is, we can safely ignore
-			// the error.
-			return nil
-		}
+		err = shouldPropagateError(ctx, logger, err)
 		logger.Debug(ctx, "routine exited", slog.Error(err))
 		if err != nil {
 			return xerrors.Errorf("error in routine %s: %w", name, err)
 		}
 		return nil
 	})
+}
+
+// shouldPropagateError decides whether an error from an API connection routine should be propagated to the
+// apiConnRoutineManager. Its purpose is to prevent errors related to shutting down from propagating to the manager's
+// error group, which will tear down the API connection and potentially stop graceful shutdown from succeeding.
+func shouldPropagateError(ctx context.Context, logger slog.Logger, err error) error {
+	if (xerrors.Is(err, context.Canceled) ||
+		xerrors.Is(err, io.EOF)) &&
+		ctx.Err() != nil {
+		logger.Debug(ctx, "swallowing error because context is canceled", slog.Error(err))
+		// Don't propagate context canceled errors to the error group, because we don't want the
+		// graceful context being canceled to halt the work of routines with
+		// gracefulShutdownBehaviorRemain. Unfortunately, the dRPC library closes the stream
+		// when context is canceled on an RPC, so canceling the context can also show up as
+		// io.EOF. Also, when Coderd unilaterally closes the API connection (for example if the
+		// build is outdated), it can sometimes show up as context.Canceled in our RPC calls.
+		// We can't reliably distinguish between a context cancelation and a legit EOF, so we
+		// also check that *our* context is currently canceled. If it is, we can safely ignore
+		// the error.
+		return nil
+	}
+	if xerrors.Is(err, ErrAgentClosing) {
+		logger.Debug(ctx, "swallowing error because agent is closing")
+		// This can only be generated when the agent is closing, so we never want it to propagate to other routines.
+		// (They are signaled to exit via canceled contexts.)
+		return nil
+	}
+	return err
 }
 
 func (a *apiConnRoutineManager) wait() error {
