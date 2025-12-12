@@ -185,11 +185,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 			{isOpen && (
 				<TableRow>
 					<TableCell colSpan={999} className="p-4 border-t-0">
-						<div className="flex flex-col gap-4">
+						<div className="flex flex-col gap-6">
 							<dl
 								className={cn([
 									"text-xs text-content-secondary",
-									"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
+									"m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 items-center",
 									"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
 								])}
 							>
