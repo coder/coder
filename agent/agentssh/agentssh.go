@@ -829,13 +829,19 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	session.DisablePTYEmulation()
 
 	var opts []sftp.ServerOption
-	// Change current working directory to the users home
-	// directory so that SFTP connections land there.
-	homedir, err := userHomeDir()
-	if err != nil {
-		logger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
-	} else {
-		opts = append(opts, sftp.WithServerWorkingDirectory(homedir))
+	// Change current working directory to the configured
+	// directory (or home directory if not set) so that SFTP
+	// connections land there.
+	dir := s.config.WorkingDirectory()
+	if dir == "" {
+		var err error
+		dir, err = userHomeDir()
+		if err != nil {
+			logger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
+		}
+	}
+	if dir != "" {
+		opts = append(opts, sftp.WithServerWorkingDirectory(dir))
 	}
 
 	server, err := sftp.NewServer(session, opts...)
