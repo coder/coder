@@ -1,4 +1,3 @@
-import { getErrorMessage } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	setWorkspaceGroupRole,
@@ -6,11 +5,13 @@ import {
 	workspaceACL,
 } from "api/queries/workspaces";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { workspaceChecks } from "modules/workspaces/permissions";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
@@ -21,10 +22,10 @@ const WorkspaceSharingPage: FC = () => {
 
 	const workspaceACLQuery = useQuery(workspaceACL(workspace.id));
 	const checks = workspaceChecks(workspace);
-	const permissionsQuery = useQuery({
+	const permissionsQuery = useQuery<WorkspacePermissions>({
 		...checkAuthorization({ checks }),
 	});
-	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
+	const permissions = permissionsQuery.data;
 
 	const addUserMutation = useMutation(setWorkspaceUserRole(queryClient));
 	const updateUserMutation = useMutation(setWorkspaceUserRole(queryClient));
@@ -36,6 +37,14 @@ const WorkspaceSharingPage: FC = () => {
 
 	const canUpdatePermissions = Boolean(permissions?.updateWorkspace);
 
+	const mutationError =
+		addUserMutation.error ??
+		updateUserMutation.error ??
+		removeUserMutation.error ??
+		addGroupMutation.error ??
+		updateGroupMutation.error ??
+		removeGroupMutation.error;
+
 	return (
 		<div className="flex flex-col gap-12 max-w-screen-md">
 			<title>{pageTitle(workspace.name, "Sharing")}</title>
@@ -45,8 +54,8 @@ const WorkspaceSharingPage: FC = () => {
 					<h1 className="text-3xl m-0">Workspace sharing</h1>
 					<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
 						Workspace sharing allows you to share workspaces with other users
-						and groups.
-						{/* TODO: ADD DOCS LINK HERE <Link href={docs("/admin/users/idp-sync")}>View docs</Link> */}
+						and groups.{" "}
+						<Link href={docs("/user-guides/shared-workspaces")}>View docs</Link>
 					</p>
 				</div>
 			</header>
@@ -57,40 +66,29 @@ const WorkspaceSharingPage: FC = () => {
 			{permissionsQuery.isError && (
 				<ErrorAlert error={permissionsQuery.error} />
 			)}
+			{Boolean(mutationError) && <ErrorAlert error={mutationError} />}
 
 			<WorkspaceSharingPageView
 				workspace={workspace}
 				workspaceACL={workspaceACLQuery.data}
 				canUpdatePermissions={canUpdatePermissions}
 				onAddUser={async (user, role, reset) => {
-					try {
-						await addUserMutation.mutateAsync({
-							workspaceId: workspace.id,
-							userId: user.id,
-							role,
-						});
-						displaySuccess("User added to workspace successfully!");
-						reset();
-					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to add user to workspace"),
-						);
-					}
+					await addUserMutation.mutateAsync({
+						workspaceId: workspace.id,
+						userId: user.id,
+						role,
+					});
+					displaySuccess("User added to workspace successfully!");
+					reset();
 				}}
 				isAddingUser={addUserMutation.isPending}
 				onUpdateUser={async (user, role) => {
-					try {
-						await updateUserMutation.mutateAsync({
-							workspaceId: workspace.id,
-							userId: user.id,
-							role,
-						});
-						displaySuccess("User role updated successfully!");
-					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to update user role in workspace"),
-						);
-					}
+					await updateUserMutation.mutateAsync({
+						workspaceId: workspace.id,
+						userId: user.id,
+						role,
+					});
+					displaySuccess("User role updated successfully!");
 				}}
 				updatingUserId={
 					updateUserMutation.isPending
@@ -98,51 +96,30 @@ const WorkspaceSharingPage: FC = () => {
 						: undefined
 				}
 				onRemoveUser={async (user) => {
-					try {
-						await removeUserMutation.mutateAsync({
-							workspaceId: workspace.id,
-							userId: user.id,
-							role: "",
-						});
-						displaySuccess("User removed successfully!");
-					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to remove user from workspace"),
-						);
-					}
+					await removeUserMutation.mutateAsync({
+						workspaceId: workspace.id,
+						userId: user.id,
+						role: "",
+					});
+					displaySuccess("User removed successfully!");
 				}}
 				onAddGroup={async (group, role, reset) => {
-					try {
-						await addGroupMutation.mutateAsync({
-							workspaceId: workspace.id,
-							groupId: group.id,
-							role,
-						});
-						displaySuccess("Group added to workspace successfully!");
-						reset();
-					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to add group to workspace"),
-						);
-					}
+					await addGroupMutation.mutateAsync({
+						workspaceId: workspace.id,
+						groupId: group.id,
+						role,
+					});
+					displaySuccess("Group added to workspace successfully!");
+					reset();
 				}}
 				isAddingGroup={addGroupMutation.isPending}
 				onUpdateGroup={async (group, role) => {
-					try {
-						await updateGroupMutation.mutateAsync({
-							workspaceId: workspace.id,
-							groupId: group.id,
-							role,
-						});
-						displaySuccess("Group role updated successfully!");
-					} catch (error) {
-						displayError(
-							getErrorMessage(
-								error,
-								"Failed to update group role in workspace",
-							),
-						);
-					}
+					await updateGroupMutation.mutateAsync({
+						workspaceId: workspace.id,
+						groupId: group.id,
+						role,
+					});
+					displaySuccess("Group role updated successfully!");
 				}}
 				updatingGroupId={
 					updateGroupMutation.isPending
@@ -150,18 +127,12 @@ const WorkspaceSharingPage: FC = () => {
 						: undefined
 				}
 				onRemoveGroup={async (group) => {
-					try {
-						await removeGroupMutation.mutateAsync({
-							workspaceId: workspace.id,
-							groupId: group.id,
-							role: "",
-						});
-						displaySuccess("Group removed successfully!");
-					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to remove group from workspace"),
-						);
-					}
+					await removeGroupMutation.mutateAsync({
+						workspaceId: workspace.id,
+						groupId: group.id,
+						role: "",
+					});
+					displaySuccess("Group removed successfully!");
 				}}
 			/>
 		</div>

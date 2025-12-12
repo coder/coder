@@ -175,7 +175,7 @@ interface WorkspaceSharingPageViewProps {
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
 	onAddUser: (
-		user: WorkspaceUser | ({ role: WorkspaceRole } & User),
+		user: WorkspaceUser,
 		role: WorkspaceRole,
 		reset: () => void,
 	) => void;
