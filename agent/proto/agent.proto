@@ -460,15 +460,22 @@ message ListSubAgentsResponse {
 	repeated SubAgent agents = 1;
 }
 
+// NOTE: BoundaryLog and ReportBoundaryLogsRequest must stay wire-compatible with
+// github.com/coder/boundary/proto/logs.proto which boundary uses to send logs
+// over the Unix socket to the agent.
 message BoundaryLog {
-	bytes workspace_id = 1;
-	google.protobuf.Timestamp time = 2;
-	bool allowed = 3;
-	string http_method = 4;
-	string http_url = 5;
-	string matched_rule = 6;
-}
+	message HttpRequest {
+		string method = 1;
+		string url = 2;
+		string matched_rule = 3; // Only populated when allowed = false
+	}
 
+	bool allowed = 1;
+	google.protobuf.Timestamp time = 2;
+	oneof resource {
+		HttpRequest http_request = 3;
+	}
+}
 message ReportBoundaryLogsRequest {
 	repeated BoundaryLog logs = 1;
 }

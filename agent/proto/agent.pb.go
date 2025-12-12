@@ -3240,14 +3240,17 @@ func (x *ListSubAgentsResponse) GetAgents() []*SubAgent {
 	return nil
 }
 
+// NOTE: BoundaryLog and ReportBoundaryLogsRequest must stay wire-compatible with
+// github.com/coder/boundary/proto/logs.proto which boundary uses to send logs
+// over the Unix socket to the agent.
 type BoundaryLog struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	WorkspaceId   []byte                 `protobuf:"bytes,1,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
-	Time          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=time,proto3" json:"time,omitempty"`
-	Allowed       bool                   `protobuf:"varint,3,opt,name=allowed,proto3" json:"allowed,omitempty"`
-	HttpMethod    string                 `protobuf:"bytes,4,opt,name=http_method,json=httpMethod,proto3" json:"http_method,omitempty"`
-	HttpUrl       string                 `protobuf:"bytes,5,opt,name=http_url,json=httpUrl,proto3" json:"http_url,omitempty"`
-	MatchedRule   string                 `protobuf:"bytes,6,opt,name=matched_rule,json=matchedRule,proto3" json:"matched_rule,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Allowed bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	Time    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=time,proto3" json:"time,omitempty"`
+	// Types that are valid to be assigned to Resource:
+	//
+	//	*BoundaryLog_HttpRequest_
+	Resource      isBoundaryLog_Resource `protobuf_oneof:"resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3282,11 +3285,11 @@ func (*BoundaryLog) Descriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{42}
 }
 
-func (x *BoundaryLog) GetWorkspaceId() []byte {
+func (x *BoundaryLog) GetAllowed() bool {
 	if x != nil {
-		return x.WorkspaceId
+		return x.Allowed
 	}
-	return nil
+	return false
 }
 
 func (x *BoundaryLog) GetTime() *timestamppb.Timestamp {
@@ -3296,33 +3299,31 @@ func (x *BoundaryLog) GetTime() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *BoundaryLog) GetAllowed() bool {
+func (x *BoundaryLog) GetResource() isBoundaryLog_Resource {
 	if x != nil {
-		return x.Allowed
+		return x.Resource
 	}
-	return false
+	return nil
 }
 
-func (x *BoundaryLog) GetHttpMethod() string {
+func (x *BoundaryLog) GetHttpRequest() *BoundaryLog_HttpRequest {
 	if x != nil {
-		return x.HttpMethod
+		if x, ok := x.Resource.(*BoundaryLog_HttpRequest_); ok {
+			return x.HttpRequest
+		}
 	}
-	return ""
+	return nil
 }
 
-func (x *BoundaryLog) GetHttpUrl() string {
-	if x != nil {
-		return x.HttpUrl
-	}
-	return ""
+type isBoundaryLog_Resource interface {
+	isBoundaryLog_Resource()
 }
 
-func (x *BoundaryLog) GetMatchedRule() string {
-	if x != nil {
-		return x.MatchedRule
-	}
-	return ""
+type BoundaryLog_HttpRequest_ struct {
+	HttpRequest *BoundaryLog_HttpRequest `protobuf:"bytes,3,opt,name=http_request,json=httpRequest,proto3,oneof"`
 }
+
+func (*BoundaryLog_HttpRequest_) isBoundaryLog_Resource() {}
 
 type ReportBoundaryLogsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -4360,6 +4361,66 @@ func (x *CreateSubAgentResponse_AppCreationError) GetError() string {
 	return ""
 }
 
+type BoundaryLog_HttpRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Method        string                 `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	MatchedRule   string                 `protobuf:"bytes,3,opt,name=matched_rule,json=matchedRule,proto3" json:"matched_rule,omitempty"` // Only populated when allowed = false
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundaryLog_HttpRequest) Reset() {
+	*x = BoundaryLog_HttpRequest{}
+	mi := &file_agent_proto_agent_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundaryLog_HttpRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundaryLog_HttpRequest) ProtoMessage() {}
+
+func (x *BoundaryLog_HttpRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_agent_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundaryLog_HttpRequest.ProtoReflect.Descriptor instead.
+func (*BoundaryLog_HttpRequest) Descriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{42, 0}
+}
+
+func (x *BoundaryLog_HttpRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *BoundaryLog_HttpRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *BoundaryLog_HttpRequest) GetMatchedRule() string {
+	if x != nil {
+		return x.MatchedRule
+	}
+	return ""
+}
+
 var File_agent_proto_agent_proto protoreflect.FileDescriptor
 
 const file_agent_proto_agent_proto_rawDesc = "" +
@@ -4721,15 +4782,17 @@ const file_agent_proto_agent_proto_rawDesc = "" +
 	"\x16DeleteSubAgentResponse\"\x16\n" +
 	"\x14ListSubAgentsRequest\"I\n" +
 	"\x15ListSubAgentsResponse\x120\n" +
-	"\x06agents\x18\x01 \x03(\v2\x18.coder.agent.v2.SubAgentR\x06agents\"\xd9\x01\n" +
-	"\vBoundaryLog\x12!\n" +
-	"\fworkspace_id\x18\x01 \x01(\fR\vworkspaceId\x12.\n" +
-	"\x04time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x18\n" +
-	"\aallowed\x18\x03 \x01(\bR\aallowed\x12\x1f\n" +
-	"\vhttp_method\x18\x04 \x01(\tR\n" +
-	"httpMethod\x12\x19\n" +
-	"\bhttp_url\x18\x05 \x01(\tR\ahttpUrl\x12!\n" +
-	"\fmatched_rule\x18\x06 \x01(\tR\vmatchedRule\"L\n" +
+	"\x06agents\x18\x01 \x03(\v2\x18.coder.agent.v2.SubAgentR\x06agents\"\x8d\x02\n" +
+	"\vBoundaryLog\x12\x18\n" +
+	"\aallowed\x18\x01 \x01(\bR\aallowed\x12.\n" +
+	"\x04time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12L\n" +
+	"\fhttp_request\x18\x03 \x01(\v2'.coder.agent.v2.BoundaryLog.HttpRequestH\x00R\vhttpRequest\x1aZ\n" +
+	"\vHttpRequest\x12\x16\n" +
+	"\x06method\x18\x01 \x01(\tR\x06method\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12!\n" +
+	"\fmatched_rule\x18\x03 \x01(\tR\vmatchedRuleB\n" +
+	"\n" +
+	"\bresource\"L\n" +
 	"\x19ReportBoundaryLogsRequest\x12/\n" +
 	"\x04logs\x18\x01 \x03(\v2\x1b.coder.agent.v2.BoundaryLogR\x04logs\"\x1c\n" +
 	"\x1aReportBoundaryLogsResponse*c\n" +
@@ -4771,7 +4834,7 @@ func file_agent_proto_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
-var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
+var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
 var file_agent_proto_agent_proto_goTypes = []any{
 	(AppHealth)(0),                                      // 0: coder.agent.v2.AppHealth
 	(WorkspaceApp_SharingLevel)(0),                      // 1: coder.agent.v2.WorkspaceApp.SharingLevel
@@ -4849,20 +4912,21 @@ var file_agent_proto_agent_proto_goTypes = []any{
 	(*CreateSubAgentRequest_App)(nil),                                 // 73: coder.agent.v2.CreateSubAgentRequest.App
 	(*CreateSubAgentRequest_App_Healthcheck)(nil),                     // 74: coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
 	(*CreateSubAgentResponse_AppCreationError)(nil),                   // 75: coder.agent.v2.CreateSubAgentResponse.AppCreationError
-	(*durationpb.Duration)(nil),                                       // 76: google.protobuf.Duration
-	(*proto.DERPMap)(nil),                                             // 77: coder.tailnet.v2.DERPMap
-	(*timestamppb.Timestamp)(nil),                                     // 78: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                                             // 79: google.protobuf.Empty
+	(*BoundaryLog_HttpRequest)(nil),                                   // 76: coder.agent.v2.BoundaryLog.HttpRequest
+	(*durationpb.Duration)(nil),                                       // 77: google.protobuf.Duration
+	(*proto.DERPMap)(nil),                                             // 78: coder.tailnet.v2.DERPMap
+	(*timestamppb.Timestamp)(nil),                                     // 79: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                                             // 80: google.protobuf.Empty
 }
 var file_agent_proto_agent_proto_depIdxs = []int32{
 	1,  // 0: coder.agent.v2.WorkspaceApp.sharing_level:type_name -> coder.agent.v2.WorkspaceApp.SharingLevel
 	59, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
 	2,  // 2: coder.agent.v2.WorkspaceApp.health:type_name -> coder.agent.v2.WorkspaceApp.Health
-	76, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
+	77, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
 	60, // 4: coder.agent.v2.WorkspaceAgentMetadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
 	61, // 5: coder.agent.v2.WorkspaceAgentMetadata.description:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
 	62, // 6: coder.agent.v2.Manifest.environment_variables:type_name -> coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	77, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
+	78, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
 	15, // 8: coder.agent.v2.Manifest.scripts:type_name -> coder.agent.v2.WorkspaceAgentScript
 	14, // 9: coder.agent.v2.Manifest.apps:type_name -> coder.agent.v2.WorkspaceApp
 	61, // 10: coder.agent.v2.Manifest.metadata:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
@@ -4870,22 +4934,22 @@ var file_agent_proto_agent_proto_depIdxs = []int32{
 	63, // 12: coder.agent.v2.Stats.connections_by_proto:type_name -> coder.agent.v2.Stats.ConnectionsByProtoEntry
 	64, // 13: coder.agent.v2.Stats.metrics:type_name -> coder.agent.v2.Stats.Metric
 	22, // 14: coder.agent.v2.UpdateStatsRequest.stats:type_name -> coder.agent.v2.Stats
-	76, // 15: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
+	77, // 15: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
 	4,  // 16: coder.agent.v2.Lifecycle.state:type_name -> coder.agent.v2.Lifecycle.State
-	78, // 17: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
+	79, // 17: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
 	25, // 18: coder.agent.v2.UpdateLifecycleRequest.lifecycle:type_name -> coder.agent.v2.Lifecycle
 	66, // 19: coder.agent.v2.BatchUpdateAppHealthRequest.updates:type_name -> coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
 	5,  // 20: coder.agent.v2.Startup.subsystems:type_name -> coder.agent.v2.Startup.Subsystem
 	29, // 21: coder.agent.v2.UpdateStartupRequest.startup:type_name -> coder.agent.v2.Startup
 	60, // 22: coder.agent.v2.Metadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
 	31, // 23: coder.agent.v2.BatchUpdateMetadataRequest.metadata:type_name -> coder.agent.v2.Metadata
-	78, // 24: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
+	79, // 24: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
 	6,  // 25: coder.agent.v2.Log.level:type_name -> coder.agent.v2.Log.Level
 	34, // 26: coder.agent.v2.BatchCreateLogsRequest.logs:type_name -> coder.agent.v2.Log
 	39, // 27: coder.agent.v2.GetAnnouncementBannersResponse.announcement_banners:type_name -> coder.agent.v2.BannerConfig
 	42, // 28: coder.agent.v2.WorkspaceAgentScriptCompletedRequest.timing:type_name -> coder.agent.v2.Timing
-	78, // 29: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
-	78, // 30: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
+	79, // 29: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
+	79, // 30: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
 	7,  // 31: coder.agent.v2.Timing.stage:type_name -> coder.agent.v2.Timing.Stage
 	8,  // 32: coder.agent.v2.Timing.status:type_name -> coder.agent.v2.Timing.Status
 	67, // 33: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.config:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
@@ -4894,67 +4958,68 @@ var file_agent_proto_agent_proto_depIdxs = []int32{
 	70, // 36: coder.agent.v2.PushResourcesMonitoringUsageRequest.datapoints:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
 	9,  // 37: coder.agent.v2.Connection.action:type_name -> coder.agent.v2.Connection.Action
 	10, // 38: coder.agent.v2.Connection.type:type_name -> coder.agent.v2.Connection.Type
-	78, // 39: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
+	79, // 39: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
 	47, // 40: coder.agent.v2.ReportConnectionRequest.connection:type_name -> coder.agent.v2.Connection
 	73, // 41: coder.agent.v2.CreateSubAgentRequest.apps:type_name -> coder.agent.v2.CreateSubAgentRequest.App
 	11, // 42: coder.agent.v2.CreateSubAgentRequest.display_apps:type_name -> coder.agent.v2.CreateSubAgentRequest.DisplayApp
 	49, // 43: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
 	75, // 44: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
 	49, // 45: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
-	78, // 46: coder.agent.v2.BoundaryLog.time:type_name -> google.protobuf.Timestamp
-	56, // 47: coder.agent.v2.ReportBoundaryLogsRequest.logs:type_name -> coder.agent.v2.BoundaryLog
-	76, // 48: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
-	78, // 49: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
-	76, // 50: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
-	76, // 51: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
-	3,  // 52: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
-	65, // 53: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
-	0,  // 54: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
-	78, // 55: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
-	71, // 56: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
-	72, // 57: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
-	74, // 58: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
-	12, // 59: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
-	13, // 60: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
-	19, // 61: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
-	21, // 62: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
-	23, // 63: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
-	26, // 64: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
-	27, // 65: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
-	30, // 66: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
-	32, // 67: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
-	35, // 68: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
-	37, // 69: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
-	40, // 70: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	43, // 71: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
-	45, // 72: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
-	48, // 73: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
-	50, // 74: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
-	52, // 75: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
-	54, // 76: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
-	57, // 77: coder.agent.v2.Agent.ReportBoundaryLogs:input_type -> coder.agent.v2.ReportBoundaryLogsRequest
-	17, // 78: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
-	20, // 79: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
-	24, // 80: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
-	25, // 81: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
-	28, // 82: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
-	29, // 83: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
-	33, // 84: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
-	36, // 85: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
-	38, // 86: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
-	41, // 87: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	44, // 88: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
-	46, // 89: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
-	79, // 90: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
-	51, // 91: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
-	53, // 92: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
-	55, // 93: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
-	58, // 94: coder.agent.v2.Agent.ReportBoundaryLogs:output_type -> coder.agent.v2.ReportBoundaryLogsResponse
-	78, // [78:95] is the sub-list for method output_type
-	61, // [61:78] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	79, // 46: coder.agent.v2.BoundaryLog.time:type_name -> google.protobuf.Timestamp
+	76, // 47: coder.agent.v2.BoundaryLog.http_request:type_name -> coder.agent.v2.BoundaryLog.HttpRequest
+	56, // 48: coder.agent.v2.ReportBoundaryLogsRequest.logs:type_name -> coder.agent.v2.BoundaryLog
+	77, // 49: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
+	79, // 50: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
+	77, // 51: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
+	77, // 52: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
+	3,  // 53: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
+	65, // 54: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
+	0,  // 55: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
+	79, // 56: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
+	71, // 57: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
+	72, // 58: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
+	74, // 59: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
+	12, // 60: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
+	13, // 61: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
+	19, // 62: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
+	21, // 63: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
+	23, // 64: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
+	26, // 65: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
+	27, // 66: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
+	30, // 67: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
+	32, // 68: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
+	35, // 69: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
+	37, // 70: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
+	40, // 71: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+	43, // 72: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
+	45, // 73: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
+	48, // 74: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
+	50, // 75: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
+	52, // 76: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
+	54, // 77: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
+	57, // 78: coder.agent.v2.Agent.ReportBoundaryLogs:input_type -> coder.agent.v2.ReportBoundaryLogsRequest
+	17, // 79: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
+	20, // 80: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
+	24, // 81: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
+	25, // 82: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
+	28, // 83: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
+	29, // 84: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
+	33, // 85: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
+	36, // 86: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
+	38, // 87: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
+	41, // 88: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+	44, // 89: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
+	46, // 90: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
+	80, // 91: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
+	51, // 92: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
+	53, // 93: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
+	55, // 94: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
+	58, // 95: coder.agent.v2.Agent.ReportBoundaryLogs:output_type -> coder.agent.v2.ReportBoundaryLogsResponse
+	79, // [79:96] is the sub-list for method output_type
+	62, // [62:79] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_agent_proto_agent_proto_init() }
@@ -4965,6 +5030,9 @@ func file_agent_proto_agent_proto_init() {
 	file_agent_proto_agent_proto_msgTypes[3].OneofWrappers = []any{}
 	file_agent_proto_agent_proto_msgTypes[30].OneofWrappers = []any{}
 	file_agent_proto_agent_proto_msgTypes[33].OneofWrappers = []any{}
+	file_agent_proto_agent_proto_msgTypes[42].OneofWrappers = []any{
+		(*BoundaryLog_HttpRequest_)(nil),
+	}
 	file_agent_proto_agent_proto_msgTypes[56].OneofWrappers = []any{}
 	file_agent_proto_agent_proto_msgTypes[59].OneofWrappers = []any{}
 	file_agent_proto_agent_proto_msgTypes[61].OneofWrappers = []any{}
@@ -4974,7 +5042,7 @@ func file_agent_proto_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_proto_agent_proto_rawDesc), len(file_agent_proto_agent_proto_rawDesc)),
 			NumEnums:      14,
-			NumMessages:   62,
+			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
