@@ -24,8 +24,7 @@ deployment.
 - Metrics
   - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all
     Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
-  - Capture Coder Server and External Provisioner daemons metrics
-  [via Prometheus](#how-to-capture-coder-server-metrics-with-prometheus).
+  - Capture Coder Server and External Provisioner daemons metrics [via Prometheus](#how-to-capture-coder-server-metrics-with-prometheus).
 
 Retain metric time series for at least six months. This allows you to see
 performance trends relative to user growth.
