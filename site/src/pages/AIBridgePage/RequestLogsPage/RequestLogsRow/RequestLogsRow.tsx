@@ -31,40 +31,60 @@ type RequestLogsRowProps = {
 function tokenUsageMetadataMerge(
 	...objects: Array<AIBridgeInterception["token_usages"][number]["metadata"]>
 ): unknown {
-	// Filter out empty objects
 	const nonEmptyObjects = objects.filter((obj) => Object.keys(obj).length > 0);
+	if (nonEmptyObjects.length === 0) {
+		return null;
+	}
 
-	// If all objects were empty, return null
-	if (nonEmptyObjects.length === 0) return null;
-
-	// Check if all objects have the same keys
-	const keySets = nonEmptyObjects.map((obj) =>
-		Object.keys(obj).sort().join(","),
+	const allKeys = new Set(nonEmptyObjects.flatMap((obj) => Object.keys(obj)));
+	const commonKeys = Array.from(allKeys).filter((key) =>
+		nonEmptyObjects.every((obj) => key in obj),
 	);
-	// If the keys are different, just instantly return the objects
-	if (new Set(keySets).size > 1) return nonEmptyObjects;
+	if (commonKeys.length === 0) {
+		return null;
+	}
 
-	// Group the objects by key
-	const grouped = Object.fromEntries(
-		Object.keys(nonEmptyObjects[0]).map((key) => [
-			key,
-			nonEmptyObjects.map((obj) => obj[key]),
-		]),
-	);
-
-	// Map the grouped values to a new object
-	const result = Object.fromEntries(
-		Object.entries(grouped).map(([key, values]: [string, unknown[]]) => {
+	// Check for unresolvable conflicts: values that aren't all numeric or all
+	// the same.
+	for (const key of allKeys) {
+		const objectsWithKey = nonEmptyObjects.filter((obj) => key in obj);
+		if (objectsWithKey.length > 1) {
+			const values = objectsWithKey.map((obj) => obj[key]);
 			const allNumeric = values.every((v: unknown) => typeof v === "number");
 			const allSame = new Set(values).size === 1;
+			if (!allNumeric && !allSame) {
+				return nonEmptyObjects;
+			}
+		}
+	}
 
-			if (allNumeric)
-				return [key, values.reduce((acc, v) => acc + (v as number), 0)];
-			if (allSame) return [key, values[0]];
-			return [key, null]; // Mark conflict
-		}),
-	);
+	// Merge common keys: sum numeric values, preserve identical values, mark
+	// conflicts as null.
+	const result: Record<string, unknown> = {};
+	for (const key of commonKeys) {
+		const values = nonEmptyObjects.map((obj) => obj[key]);
+		const allNumeric = values.every((v: unknown) => typeof v === "number");
+		const allSame = new Set(values).size === 1;
 
+		if (allNumeric) {
+			result[key] = values.reduce((acc, v) => acc + (v as number), 0);
+		} else if (allSame) {
+			result[key] = values[0];
+		} else {
+			result[key] = null;
+		}
+	}
+
+	// Add non-common keys from the first object that has them.
+	for (const obj of nonEmptyObjects) {
+		for (const key of Object.keys(obj)) {
+			if (!commonKeys.includes(key) && !(key in result)) {
+				result[key] = obj[key];
+			}
+		}
+	}
+
+	// If any conflicts were marked, return original objects.
 	return Object.values(result).some((v: unknown) => v === null)
 		? nonEmptyObjects
 		: result;
