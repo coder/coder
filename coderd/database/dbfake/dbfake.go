@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wspubsub"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -130,10 +129,7 @@ func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sd
 	b.taskAppID, err = uuid.Parse(takeFirst(appSeed.Id, uuid.NewString()))
 	require.NoError(b.t, err)
 
-	return b.Params(database.WorkspaceBuildParameter{
-		Name:  codersdk.AITaskPromptParameterName,
-		Value: b.taskSeed.Prompt,
-	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+	return b.WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Apps = []*sdkproto.App{
 			{
 				Id:   b.taskAppID.String(),

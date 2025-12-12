@@ -108,22 +108,6 @@ export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
 }
 
-// From codersdk/aitasks.go
-/**
- * AITaskPromptParameterName is the name of the parameter used to pass prompts
- * to AI tasks.
- *
- * Deprecated: This constant is deprecated and maintained only for backwards
- * compatibility with older templates. Task prompts are now stored directly
- * in the tasks.prompt database column. New code should access prompts via
- * the Task.InitialPrompt field returned from task endpoints.
- *
- * This constant will be removed in a future major version. Templates should
- * not rely on this parameter name, as the backend will continue to create it
- * automatically for compatibility but reads from tasks.prompt.
- */
-export const AITaskPromptParameterName = "AI Prompt";
-
 // From codersdk/allowlist.go
 /**
  * APIAllowListTarget represents a single allow-list entry using the canonical

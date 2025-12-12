@@ -28,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -131,31 +130,10 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check if the template defines the AI Prompt parameter.
-	templateParams, err := api.Database.GetTemplateVersionParameters(ctx, req.TemplateVersionID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	var richParams []codersdk.WorkspaceBuildParameter
-	if _, hasAIPromptParam := slice.Find(templateParams, func(param database.TemplateVersionParameter) bool {
-		return param.Name == codersdk.AITaskPromptParameterName
-	}); hasAIPromptParam {
-		// Only add the AI Prompt parameter if the template defines it.
-		richParams = []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
-		}
-	}
-
 	createReq := codersdk.CreateWorkspaceRequest{
 		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
-		RichParameterValues:     richParams,
 	}
 
 	var owner workspaceOwner

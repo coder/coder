@@ -268,16 +268,16 @@ Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder
    coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
    ```
 
-1. **Create the new Workspace**
-   1. In your Coder Deployment, click **Workspaces** in the upper left hand corner
-   1. Click **New workspace** and choose **tasks-docker**
-   1. Fill in the Workspace name. Add in an AI Prompt for Claude Code like "Make the background yellow". Click **Create workspace**
+1. **Create a Task**
+   1. In your Coder deployment, click **Tasks** in the navigation
+   1. In the "Prompt your AI agent to start a task" box, enter a prompt like "Make the background yellow"
+   1. Select the **tasks-docker** template from the dropdown and click the submit button
 1. **See Tasks in action**
-   1. Once your workspace is running, click **View tasks** with your workspace. This will bring you to the Tasks view where you can see Claude Code (left panel), preview the sample application, and interact with the code in code-server. You might need to wait for Claude Code to finish changing the background color of the application.
-   1. Navigate to the **Tasks** tab in the upper left hand corner
+   1. Your task will appear in the table below. Click on it to open the task view where you can follow the initialization
+   1. Once active, you'll see Claude Code on the left panel and can preview the sample application or interact with the code in code-server on the right. You might need to wait for Claude Code to finish changing the background color of the application.
    1. Try typing in a new request to Claude Code: "make the background red"
-   1. Let's exit out of this specific Task view, so we can see all the running tasks
-   1. You can start a new task by prompting in the "Prompt your AI agent to start a task" box. You can select which template to run this from, so tasks-docker here, and that will spin up a new Workspace
+   1. Click the back arrow to return to the task overview (you can also see all your tasks in the sidebar)
+   1. You can start a new task from the prompt box at the top of the page
 
    ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
 
