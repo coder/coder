@@ -73,6 +73,7 @@ resource "coder_agent" "dev" {
 
 # See https://registry.coder.com/modules/coder/claude-code for more information
 module "claude-code" {
+  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
   version             = ">= 4.0.0"
   agent_id            = coder_agent.dev.id
@@ -80,6 +81,12 @@ module "claude-code" {
   claude_api_key      = data.coder_workspace_owner.me.session_token # Use the Coder session token to authenticate with AI Bridge
   ai_prompt           = data.coder_task.me.prompt
   ... # other claude-code configuration
+}
+
+# The coder_ai_task resource associates the task to the app.
+resource "coder_ai_task" "task" {
+  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  app_id = module.claude-code[0].task_app_id
 }
 ```
 
