@@ -79,6 +79,7 @@ const (
 	SubjectTypeFileReader                   SubjectType = "file_reader"
 	SubjectTypeUsagePublisher               SubjectType = "usage_publisher"
 	SubjectAibridged                        SubjectType = "aibridged"
+	SubjectTypeDBPurge                      SubjectType = "dbpurge"
 )
 
 const (
