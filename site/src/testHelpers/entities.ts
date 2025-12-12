@@ -4502,6 +4502,7 @@ export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
 	allow_refresh: true,
 	allow_validate: true,
 	supports_revocation: false,
+	code_challenge_methods_supported: ["S256"],
 };
 
 export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {

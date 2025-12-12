@@ -770,6 +770,10 @@ type GithubOAuth2Config struct {
 	DefaultProviderConfigured bool
 }
 
+func (*GithubOAuth2Config) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	return []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256}
+}
+
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	if !c.DeviceFlowEnabled {
 		return c.OAuth2Config.Exchange(ctx, code, opts...)
@@ -1172,6 +1176,15 @@ type OIDCConfig struct {
 	IconURL string
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
+	PKCEMethods         []promoauth.Oauth2PKCEChallengeMethod
+}
+
+// PKCESupported is to prevent nil pointer dereference.
+func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	if o == nil {
+		return nil
+	}
+	return o.PKCEMethods
 }
 
 // @Summary OpenID Connect Callback

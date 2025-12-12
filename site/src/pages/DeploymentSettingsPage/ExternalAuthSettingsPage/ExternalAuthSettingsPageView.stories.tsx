@@ -27,6 +27,7 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 					mcp_url: "",
 					mcp_tool_allow_regex: "",
 					mcp_tool_deny_regex: "",
+					code_challenge_methods_supported: ["S256"],
 				},
 			],
 		},

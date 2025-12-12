@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -417,14 +418,15 @@ func ExternalAuthConfigs(auths []*externalauth.Config) []codersdk.ExternalAuthLi
 
 func ExternalAuthConfig(cfg *externalauth.Config) codersdk.ExternalAuthLinkProvider {
 	return codersdk.ExternalAuthLinkProvider{
-		ID:                 cfg.ID,
-		Type:               cfg.Type,
-		Device:             cfg.DeviceAuth != nil,
-		DisplayName:        cfg.DisplayName,
-		DisplayIcon:        cfg.DisplayIcon,
-		AllowRefresh:       !cfg.NoRefresh,
-		AllowValidate:      cfg.ValidateURL != "",
-		SupportsRevocation: cfg.RevokeURL != "",
+		ID:                            cfg.ID,
+		Type:                          cfg.Type,
+		Device:                        cfg.DeviceAuth != nil,
+		DisplayName:                   cfg.DisplayName,
+		DisplayIcon:                   cfg.DisplayIcon,
+		AllowRefresh:                  !cfg.NoRefresh,
+		AllowValidate:                 cfg.ValidateURL != "",
+		SupportsRevocation:            cfg.RevokeURL != "",
+		CodeChallengeMethodsSupported: slice.ToStrings(cfg.CodeChallengeMethodsSupported),
 	}
 }
 

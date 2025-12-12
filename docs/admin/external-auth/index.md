@@ -133,6 +133,23 @@ You must add the SSH key to your Git provider.
    - [GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account#adding-a-new-ssh-key-to-your-account)
    - [GitLab](https://docs.gitlab.com/user/ssh/#add-an-ssh-key-to-your-gitlab-account)
 
+## PKCE Support
+
+[PKCE (Proof Key for Code Exchange)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0
+security extension that prevents authorization code interception attacks. Coder supports PKCE when
+acting as an OAuth client to external identity providers.
+
+Coder will usually assume PKCE support is available with "S256" as the code challenge method. Manual
+configuration is available to override any default behavior.
+
+```env
+# Enable PKCE with S256 (recommended when supported)
+CODER_EXTERNAL_AUTH_0_PKCE_METHODS="S256"
+
+# Disable PKCE entirely
+CODER_EXTERNAL_AUTH_0_PKCE_METHODS="none"
+```
+
 ## Git-provider specific env variables
 
 ### Azure DevOps

@@ -11,6 +11,13 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type Oauth2PKCEChallengeMethod string
+
+const (
+	PKCEChallengeMethodSha256 Oauth2PKCEChallengeMethod = "S256"
+	PKCEChallengeMethodNone   Oauth2PKCEChallengeMethod = ""
+)
+
 type Oauth2Source string
 
 const (

@@ -38,6 +38,10 @@ const (
 	SessionTokenHeader = "Coder-Session-Token"
 	// OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
 	OAuth2StateCookie = "oauth_state"
+	// OAuth2PKCEVerifier is the name of the cookie that stores the oauth2 PKCE
+	// verifier. This is the raw verifier that when hashed, will match the challenge
+	// sent in the initial oauth2 request.
+	OAuth2PKCEVerifier = "oauth_pkce_verifier"
 	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
 	OAuth2RedirectCookie = "oauth_redirect"
 
