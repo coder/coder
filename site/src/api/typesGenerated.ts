@@ -2003,7 +2003,7 @@ export interface ExternalAuthConfig {
 	readonly display_icon: string;
 	/**
 	 * CodeChallengeMethodsSupported lists the PKCE code challenge methods
-	 * The only one supported by Coder is "S256"
+	 * The only one supported by Coder is "S256".
 	 */
 	readonly code_challenge_methods_supported: readonly string[];
 }

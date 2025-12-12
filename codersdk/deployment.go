@@ -768,7 +768,7 @@ type ExternalAuthConfig struct {
 	// DisplayIcon is a URL to an icon to display in the UI.
 	DisplayIcon string `json:"display_icon" yaml:"display_icon"`
 	// CodeChallengeMethodsSupported lists the PKCE code challenge methods
-	// The only one supported by Coder is "S256"
+	// The only one supported by Coder is "S256".
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported" yaml:"code_challenge_methods_supported"`
 }
 
@@ -1674,8 +1674,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Env:   "CODER_BLOCK_DIRECT",
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
-			YAML:  "blockDirect", Annotations: serpent.Annotations{}.
-				Mark(annotationExternalProxies, "true"),
+			YAML:  "blockDirect", Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Force WebSockets",
