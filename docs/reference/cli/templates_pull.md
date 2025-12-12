@@ -41,7 +41,7 @@ The name of the template version to pull. Use 'active' to pull the active versio
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Run in non-interactive mode. Accepts default values and fails on required inputs.
 
 ### -O, --org
 

@@ -21,7 +21,7 @@ coder provisioner keys delete [flags] <name>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Run in non-interactive mode. Accepts default values and fails on required inputs.
 
 ### -O, --org
 

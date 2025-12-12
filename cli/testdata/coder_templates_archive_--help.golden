@@ -14,7 +14,8 @@ OPTIONS:
           versions are archived.
 
   -y, --yes bool
-          Bypass prompts.
+          Run in non-interactive mode. Accepts default values and fails on
+          required inputs.
 
 ———
 Run `coder --help` for a list of global options.

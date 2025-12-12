@@ -29,6 +29,17 @@ const PresetNone = "none"
 
 var ErrNoPresetFound = xerrors.New("no preset found")
 
+// isNonInteractive checks if the command is running in non-interactive mode
+// (i.e., the --yes/-y flag was provided).
+func isNonInteractive(inv *serpent.Invocation) bool {
+	if inv.ParsedFlags().Lookup("yes") != nil {
+		if skip, _ := inv.ParsedFlags().GetBool("yes"); skip {
+			return true
+		}
+	}
+	return false
+}
+
 type CreateOptions struct {
 	BeforeCreate func(ctx context.Context, client *codersdk.Client, template codersdk.Template, templateVersionID uuid.UUID) error
 	AfterCreate  func(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) error
@@ -75,6 +86,9 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			if workspaceName == "" {
+				if isNonInteractive(inv) {
+					return xerrors.New("workspace name is required in non-interactive mode; provide it as an argument")
+				}
 				workspaceName, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
@@ -122,62 +136,76 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			var templateVersionID uuid.UUID
 			switch {
 			case templateName == "":
-				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
-
 				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{})
 				if err != nil {
 					return err
 				}
 
-				slices.SortFunc(templates, func(a, b codersdk.Template) int {
-					return slice.Descending(a.ActiveUserCount, b.ActiveUserCount)
-				})
+				// In non-interactive mode, auto-select if only one template exists,
+				// otherwise require explicit --template flag.
+				if isNonInteractive(inv) {
+					if len(templates) == 0 {
+						return xerrors.New("no templates available")
+					}
+					if len(templates) > 1 {
+						return xerrors.New("multiple templates available; use the --template flag to specify which one")
+					}
+					// Only one template available - auto-select it
+					template = templates[0]
+					templateVersionID = template.ActiveVersionID
+				} else {
+					_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
-				templateNames := make([]string, 0, len(templates))
-				templateByName := make(map[string]codersdk.Template, len(templates))
+					slices.SortFunc(templates, func(a, b codersdk.Template) int {
+						return slice.Descending(a.ActiveUserCount, b.ActiveUserCount)
+					})
 
-				// If more than 1 organization exists in the list of templates,
-				// then include the organization name in the select options.
-				uniqueOrganizations := make(map[uuid.UUID]bool)
-				for _, template := range templates {
-					uniqueOrganizations[template.OrganizationID] = true
-				}
+					templateNames := make([]string, 0, len(templates))
+					templateByName := make(map[string]codersdk.Template, len(templates))
 
-				for _, template := range templates {
-					templateName := template.Name
-					if len(uniqueOrganizations) > 1 {
-						templateName += cliui.Placeholder(
-							fmt.Sprintf(
-								" (%s)",
-								template.OrganizationName,
-							),
-						)
+					// If more than 1 organization exists in the list of templates,
+					// then include the organization name in the select options.
+					uniqueOrganizations := make(map[uuid.UUID]bool)
+					for _, tpl := range templates {
+						uniqueOrganizations[tpl.OrganizationID] = true
 					}
 
-					if template.ActiveUserCount > 0 {
-						templateName += cliui.Placeholder(
-							fmt.Sprintf(
-								" used by %s",
-								formatActiveDevelopers(template.ActiveUserCount),
-							),
-						)
+					for _, tpl := range templates {
+						tplName := tpl.Name
+						if len(uniqueOrganizations) > 1 {
+							tplName += cliui.Placeholder(
+								fmt.Sprintf(
+									" (%s)",
+									tpl.OrganizationName,
+								),
+							)
+						}
+
+						if tpl.ActiveUserCount > 0 {
+							tplName += cliui.Placeholder(
+								fmt.Sprintf(
+									" used by %s",
+									formatActiveDevelopers(tpl.ActiveUserCount),
+								),
+							)
+						}
+
+						templateNames = append(templateNames, tplName)
+						templateByName[tplName] = tpl
 					}
 
-					templateNames = append(templateNames, templateName)
-					templateByName[templateName] = template
-				}
+					// Move the cursor up a single line for nicer display!
+					option, err := cliui.Select(inv, cliui.SelectOptions{
+						Options:    templateNames,
+						HideSearch: true,
+					})
+					if err != nil {
+						return err
+					}
 
-				// Move the cursor up a single line for nicer display!
-				option, err := cliui.Select(inv, cliui.SelectOptions{
-					Options:    templateNames,
-					HideSearch: true,
-				})
-				if err != nil {
-					return err
+					template = templateByName[option]
+					templateVersionID = template.ActiveVersionID
 				}
-
-				template = templateByName[option]
-				templateVersionID = template.ActiveVersionID
 			case sourceWorkspace.LatestBuild.TemplateVersionID != uuid.Nil:
 				template, err = client.Template(inv.Context(), sourceWorkspace.TemplateID)
 				if err != nil {
@@ -297,19 +325,28 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 					if !errors.Is(err, ErrNoPresetFound) {
 						return xerrors.Errorf("unable to resolve preset: %w", err)
 					}
-					// If no preset found, prompt the user to choose a preset
-					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
-						return xerrors.Errorf("unable to prompt user for preset: %w", err)
+					// No preset found - in non-interactive mode, skip presets instead of prompting
+					if isNonInteractive(inv) {
+						// Leave preset as nil, effectively skipping presets
+						preset = nil
+					} else {
+						// Interactive mode - prompt the user to choose a preset
+						if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
+							return xerrors.Errorf("unable to prompt user for preset: %w", err)
+						}
 					}
 				}
 
-				// Convert preset parameters into workspace build parameters
-				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
-				// Inform the user which preset was applied and its parameters
-				displayAppliedPreset(inv, preset, presetParameters)
-			} else {
+				// Convert preset parameters into workspace build parameters (if a preset was selected)
+				if preset != nil {
+					presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
+					// Inform the user which preset was applied and its parameters
+					displayAppliedPreset(inv, preset, presetParameters)
+				}
+			}
+			if preset == nil {
 				// Inform the user that no preset was applied
-				_, _ = fmt.Fprintf(inv.Stdout, "%s", cliui.Bold("No preset applied."))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Bold("No preset applied."))
 			}
 
 			if opts.BeforeCreate != nil {
@@ -330,6 +367,8 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				RichParameterDefaults: cliBuildParameterDefaults,
 
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
+
+				NonInteractive: isNonInteractive(inv),
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -460,6 +499,8 @@ type prepWorkspaceBuildArgs struct {
 	RichParameters        []codersdk.WorkspaceBuildParameter
 	RichParameterFile     string
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
+
+	NonInteractive bool
 }
 
 // resolvePreset returns the preset matching the given presetName (if specified),
@@ -562,7 +603,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).
-		WithRichParametersDefaults(args.RichParameterDefaults)
+		WithRichParametersDefaults(args.RichParameterDefaults).
+		WithNonInteractive(args.NonInteractive)
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err
@@ -572,6 +614,7 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 			return client.TemplateVersionExternalAuth(ctx, templateVersion.ID)
 		},
+		NonInteractive: args.NonInteractive,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("template version git auth: %w", err)

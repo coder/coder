@@ -17,7 +17,7 @@ coder templates archive [flags] [template-name...]
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Run in non-interactive mode. Accepts default values and fails on required inputs.
 
 ### --all
 
