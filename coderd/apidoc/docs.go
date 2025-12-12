@@ -14287,6 +14287,9 @@ const docTemplate = `{
                 "pg_connection_url": {
                     "type": "string"
                 },
+                "pg_connection_url_file": {
+                    "type": "string"
+                },
                 "pprof": {
                     "$ref": "#/definitions/codersdk.PprofConfig"
                 },

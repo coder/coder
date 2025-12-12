@@ -9,7 +9,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -21,8 +20,9 @@ import (
 
 func (*RootCmd) resetPassword() *serpent.Command {
 	var (
-		postgresURL  string
-		postgresAuth string
+		postgresURL     string
+		postgresURLFile string
+		postgresAuth    string
 	)
 
 	root := &serpent.Command{
@@ -37,13 +37,13 @@ func (*RootCmd) resetPassword() *serpent.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			sqlDriver := "postgres"
-			if codersdk.PostgresAuth(postgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
-				var err error
-				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("register aws rds iam auth: %w", err)
-				}
+			sqlDriver, postgresURL, err := ResolvePostgresParams(inv.Context(), PostgresParams{
+				URL:     postgresURL,
+				URLFile: postgresURLFile,
+				Auth:    postgresAuth,
+			}, "postgres")
+			if err != nil {
+				return err
 			}
 
 			sqlDB, err := ConnectToPostgres(inv.Context(), logger, sqlDriver, postgresURL, nil)
@@ -105,6 +105,12 @@ func (*RootCmd) resetPassword() *serpent.Command {
 			Description: "URL of a PostgreSQL database to connect to.",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Value:       serpent.StringOf(&postgresURL),
+		},
+		{
+			Flag:        "postgres-url-file",
+			Description: "Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.",
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Value:       serpent.StringOf(&postgresURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",

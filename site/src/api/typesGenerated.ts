@@ -1742,6 +1742,7 @@ export interface DeploymentValues {
 	readonly cache_directory?: string;
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
+	readonly pg_connection_url_file?: string;
 	readonly pg_auth?: string;
 	readonly oauth2?: OAuth2Config;
 	readonly oidc?: OIDCConfig;

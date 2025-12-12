@@ -13,7 +13,6 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -26,6 +25,7 @@ import (
 func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 	var (
 		newUserDBURL              string
+		newUserDBURLFile          string
 		newUserPgAuth             string
 		newUserSSHKeygenAlgorithm string
 		newUserUsername           string
@@ -52,6 +52,15 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			ctx, cancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer cancel()
 
+			sqlDriver, newUserDBURL, err := ResolvePostgresParams(ctx, PostgresParams{
+				URL:     newUserDBURL,
+				URLFile: newUserDBURLFile,
+				Auth:    newUserPgAuth,
+			}, "postgres")
+			if err != nil {
+				return err
+			}
+
 			if newUserDBURL == "" {
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", cfg.PostgresPath())
 				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "")
@@ -62,14 +71,6 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					_ = closePg()
 				}()
 				newUserDBURL = url
-			}
-
-			sqlDriver := "postgres"
-			if codersdk.PostgresAuth(newUserPgAuth) == codersdk.PostgresAuthAWSIAMRDS {
-				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("register aws rds iam auth: %w", err)
-				}
 			}
 
 			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL, nil)
@@ -256,6 +257,12 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
 			Value:       serpent.StringOf(&newUserDBURL),
+		},
+		serpent.Option{
+			Env:         "CODER_PG_CONNECTION_URL_FILE",
+			Flag:        "postgres-url-file",
+			Description: "Path to a file containing the URL of a PostgreSQL database. The file contents will be read and used as the connection URL. This is an alternative to --postgres-url for cases where the URL is stored in a file, such as a Docker or Kubernetes secret.",
+			Value:       serpent.StringOf(&newUserDBURLFile),
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",
