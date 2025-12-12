@@ -4,6 +4,8 @@ package terraform_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,14 +17,18 @@ import (
 func TestParse(t *testing.T) {
 	t.Parallel()
 
-	ctx, api := setupProvisioner(t, nil)
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		// Fake all actual terraform, since parse doesn't need it.
+		binaryPath: filepath.Join(cwd, "testdata", "timings-aggregation", "fake-terraform.sh"),
+	})
 
 	testCases := []struct {
-		Name     string
-		Files    map[string]string
-		Response *proto.ParseComplete
-		// If ErrorContains is not empty, then the InitComplete should have an Error containing the given string
-		ErrorContains      string
+		Name               string
+		Files              map[string]string
+		Response           *proto.ParseComplete
 		ParseErrorContains string
 	}{
 		{
@@ -82,7 +88,7 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
 			},
-			ErrorContains: `initialize terraform: exit status 1`,
+			ParseErrorContains: `The ";" character is not valid.`,
 		},
 		{
 			Name: "multiple-variables",
@@ -208,13 +214,6 @@ func TestParse(t *testing.T) {
 			Name: "workspace-tags",
 			Files: map[string]string{
 				`main.tf`: `
-					terraform {
-					  required_providers {
-						coder = {
-						  source = "coder/coder"
-						}
-					  }
-					}
 				`,
 				"parameters.tf": `data "coder_parameter" "os_selector" {
 					name         = "os_selector"
@@ -277,13 +276,6 @@ func TestParse(t *testing.T) {
 			Name: "workspace-tags-in-a-single-file",
 			Files: map[string]string{
 				"main.tf": `
-				  terraform {
-				    required_providers {
-				     coder = {
-				  	   source = "coder/coder"
-				  	 }
-				    }
-				  }
 				  data "coder_parameter" "os_selector" {
 					name         = "os_selector"
 					display_name = "Operating System"
@@ -347,13 +339,6 @@ func TestParse(t *testing.T) {
 			Name: "workspace-tags-duplicate-tag",
 			Files: map[string]string{
 				"main.tf": `
-				  terraform {
-				    required_providers {
-				     coder = {
-				  	   source = "coder/coder"
-				  	 }
-				    }
-				  }
 				  data "coder_workspace_tags" "custom_workspace_tags" {
 					tags = {
 					  "cluster" = "developers"
@@ -370,14 +355,6 @@ func TestParse(t *testing.T) {
 			Name: "workspace-tags-wrong-tag-format",
 			Files: map[string]string{
 				"main.tf": `
-					terraform {
-					  required_providers {
-						coder = {
-						  source = "coder/coder"
-						}
-					  }
-					}
-
 					data "coder_workspace_tags" "custom_workspace_tags" {
 						tags {
 						  cluster = "developers"
@@ -413,18 +390,13 @@ func TestParse(t *testing.T) {
 			err := sendInit(session, testutil.CreateTar(t, testCase.Files))
 			require.NoError(t, err)
 
-			// Init stage
+			// Init stage -- a fake terraform, will always succeed quickly.
 			for {
 				msg, err := session.Recv()
 				require.NoError(t, err)
 				if msgLog, ok := msg.Type.(*proto.Response_Log); ok {
 					t.Logf("init log: %s", msgLog.Log.Output)
 					continue
-				}
-
-				if testCase.ErrorContains != "" {
-					require.Contains(t, msg.GetInit().GetError(), testCase.ErrorContains)
-					return // Stop test at this point
 				}
 				break
 			}
