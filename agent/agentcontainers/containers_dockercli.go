@@ -583,6 +583,22 @@ func (dcli *dockerCLI) ExecAs(ctx context.Context, containerName, uid string, ar
 	return stdout, nil
 }
 
+func (dcli *dockerCLI) Stop(ctx context.Context, containerName string) error {
+	_, stderr, err := runCmd(ctx, dcli.execer, "docker", "stop", containerName)
+	if err != nil {
+		return xerrors.Errorf("stop %s: %w: %s", containerName, err, stderr)
+	}
+	return nil
+}
+
+func (dcli *dockerCLI) Remove(ctx context.Context, containerName string) error {
+	_, stderr, err := runCmd(ctx, dcli.execer, "docker", "rm", containerName)
+	if err != nil {
+		return xerrors.Errorf("remove %s: %w: %s", containerName, err, stderr)
+	}
+	return nil
+}
+
 // runCmd is a helper function that runs a command with the given
 // arguments and returns the stdout and stderr output.
 func runCmd(ctx context.Context, execer agentexec.Execer, cmd string, args ...string) (stdout, stderr []byte, err error) {

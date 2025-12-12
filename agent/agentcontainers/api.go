@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner"
@@ -743,6 +744,7 @@ func (api *API) Routes() http.Handler {
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
 	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
 		r.Post("/recreate", api.handleDevcontainerRecreate)
+		r.Delete("/", api.handleDevcontainerDelete)
 	})
 
 	return r
@@ -1019,6 +1021,9 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
 			continue // This state is handled by the recreation routine.
 
+		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopping:
+			continue // This state is handled by the delete routine.
+
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusError && (dc.Container == nil || dc.Container.CreatedAt.Before(api.recreateErrorTimes[dc.WorkspaceFolder])):
 			continue // The devcontainer needs to be recreated.
 
@@ -1224,6 +1229,137 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 	}, nil
 }
 
+func (api *API) devcontainerByIDLocked(devcontainerID string) (codersdk.WorkspaceAgentDevcontainer, error) {
+	for _, knownDC := range api.knownDevcontainers {
+		if knownDC.ID.String() == devcontainerID {
+			return knownDC, nil
+		}
+	}
+
+	return codersdk.WorkspaceAgentDevcontainer{}, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{
+		Message: "Devcontainer not found.",
+		Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
+	})
+}
+
+func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx            = r.Context()
+		devcontainerID = chi.URLParam(r, "devcontainer")
+	)
+
+	if devcontainerID == "" {
+		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing devcontainer ID",
+			Detail:  "Devcontainer ID is required to delete a devcontainer.",
+		})
+		return
+	}
+
+	api.mu.Lock()
+
+	dc, err := api.devcontainerByIDLocked(devcontainerID)
+	if err != nil {
+		api.mu.Unlock()
+		httperror.WriteResponseError(ctx, w, err)
+		return
+	}
+
+	// Check if the devcontainer is currently starting - if so, we can't delete it.
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+		api.mu.Unlock()
+		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
+			Message: "Devcontainer is starting",
+			Detail:  fmt.Sprintf("Devcontainer %q is currently starting and cannot be deleted.", dc.Name),
+		})
+		return
+	}
+
+	// Similarly, if already stopping, don't allow another delete.
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopping {
+		api.mu.Unlock()
+		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
+			Message: "Devcontainer is stopping",
+			Detail:  fmt.Sprintf("Devcontainer %q is currently stopping.", dc.Name),
+		})
+		return
+	}
+
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopping
+	dc.Error = ""
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
+
+	// Gather the information we need before unlocking.
+	workspaceFolder := dc.WorkspaceFolder
+	dcName := dc.Name
+	var containerID string
+	if dc.Container != nil {
+		containerID = dc.Container.ID
+	}
+	proc, hasSubAgent := api.injectedSubAgentProcs[workspaceFolder]
+	var subAgentID uuid.UUID
+	if hasSubAgent && proc.agent.ID != uuid.Nil {
+		subAgentID = proc.agent.ID
+		// Stop the subagent process context to ensure it stops.
+		proc.stop()
+	}
+
+	// Unlock the mutex while we perform potentially slow operations
+	// (network calls, docker commands) to avoid blocking other operations.
+	api.mu.Unlock()
+
+	// Stop and remove the container if it exists.
+	if containerID != "" {
+		if err := api.ccli.Stop(ctx, containerID); err != nil {
+			api.logger.Error(ctx, "unable to stop container", slog.Error(err))
+
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "An internal error occurred stopping the container",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		if err := api.ccli.Remove(ctx, containerID); err != nil {
+			api.logger.Error(ctx, "unable to remove container", slog.Error(err))
+
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "An internal error occurred removing the container",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	// Delete the subagent if it exists.
+	if subAgentID != uuid.Nil {
+		client := *api.subAgentClient.Load()
+		if err := client.Delete(ctx, subAgentID); err != nil {
+			api.logger.Error(ctx, "unable to delete agent", slog.Error(err))
+
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "An internal error occurred deleting the agent",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	api.mu.Lock()
+	delete(api.devcontainerNames, dcName)
+	delete(api.knownDevcontainers, workspaceFolder)
+	delete(api.devcontainerLogSourceIDs, workspaceFolder)
+	delete(api.recreateSuccessTimes, workspaceFolder)
+	delete(api.recreateErrorTimes, workspaceFolder)
+	delete(api.usingWorkspaceFolderName, workspaceFolder)
+	delete(api.injectedSubAgentProcs, workspaceFolder)
+	api.broadcastUpdatesLocked()
+	api.mu.Unlock()
+
+	httpapi.Write(ctx, w, http.StatusNoContent, nil)
+}
+
 // handleDevcontainerRecreate handles the HTTP request to recreate a
 // devcontainer by referencing the container.
 func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Request) {
@@ -1240,20 +1376,10 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 
 	api.mu.Lock()
 
-	var dc codersdk.WorkspaceAgentDevcontainer
-	for _, knownDC := range api.knownDevcontainers {
-		if knownDC.ID.String() == devcontainerID {
-			dc = knownDC
-			break
-		}
-	}
-	if dc.ID == uuid.Nil {
+	dc, err := api.devcontainerByIDLocked(devcontainerID)
+	if err != nil {
 		api.mu.Unlock()
-
-		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
-			Message: "Devcontainer not found.",
-			Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
-		})
+		httperror.WriteResponseError(ctx, w, err)
 		return
 	}
 	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
