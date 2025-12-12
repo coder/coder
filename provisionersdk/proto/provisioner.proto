@@ -244,6 +244,7 @@ message Devcontainer {
   string workspace_folder = 1;
   string config_path = 2;
   string name = 3;
+  repeated string build_cache_from = 4;
 }
 
 enum AppOpenIn {

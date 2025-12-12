@@ -63,9 +63,10 @@ type agentAttributes struct {
 }
 
 type agentDevcontainerAttributes struct {
-	AgentID         string `mapstructure:"agent_id"`
-	WorkspaceFolder string `mapstructure:"workspace_folder"`
-	ConfigPath      string `mapstructure:"config_path"`
+	AgentID         string   `mapstructure:"agent_id"`
+	WorkspaceFolder string   `mapstructure:"workspace_folder"`
+	ConfigPath      string   `mapstructure:"config_path"`
+	BuildCacheFrom  []string `mapstructure:"build_cache_from"`
 }
 
 type agentResourcesMonitoring struct {
@@ -676,6 +677,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Name:            resource.Name,
 						WorkspaceFolder: attrs.WorkspaceFolder,
 						ConfigPath:      attrs.ConfigPath,
+						BuildCacheFrom:  attrs.BuildCacheFrom,
 					})
 				}
 			}

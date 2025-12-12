@@ -17294,7 +17294,7 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 
 const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
-	id, workspace_agent_id, created_at, workspace_folder, config_path, name
+	id, workspace_agent_id, created_at, workspace_folder, config_path, name, build_cache_from
 FROM
 	workspace_agent_devcontainers
 WHERE
@@ -17319,6 +17319,7 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
 			&i.Name,
+			pq.Array(&i.BuildCacheFrom),
 		); err != nil {
 			return nil, err
 		}
@@ -17335,15 +17336,16 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 
 const insertWorkspaceAgentDevcontainers = `-- name: InsertWorkspaceAgentDevcontainers :many
 INSERT INTO
-	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path)
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path, build_cache_from)
 SELECT
 	$1::uuid AS workspace_agent_id,
 	$2::timestamptz AS created_at,
 	unnest($3::uuid[]) AS id,
 	unnest($4::text[]) AS name,
 	unnest($5::text[]) AS workspace_folder,
-	unnest($6::text[]) AS config_path
-RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path, workspace_agent_devcontainers.name
+	unnest($6::text[]) AS config_path,
+	unnest($7::text[][]) AS build_cache_from
+RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path, workspace_agent_devcontainers.name, workspace_agent_devcontainers.build_cache_from
 `
 
 type InsertWorkspaceAgentDevcontainersParams struct {
@@ -17353,6 +17355,7 @@ type InsertWorkspaceAgentDevcontainersParams struct {
 	Name             []string    `db:"name" json:"name"`
 	WorkspaceFolder  []string    `db:"workspace_folder" json:"workspace_folder"`
 	ConfigPath       []string    `db:"config_path" json:"config_path"`
+	BuildCacheFrom   [][]string  `db:"build_cache_from" json:"build_cache_from"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg InsertWorkspaceAgentDevcontainersParams) ([]WorkspaceAgentDevcontainer, error) {
@@ -17363,6 +17366,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 		pq.Array(arg.Name),
 		pq.Array(arg.WorkspaceFolder),
 		pq.Array(arg.ConfigPath),
+		pq.Array(arg.BuildCacheFrom),
 	)
 	if err != nil {
 		return nil, err
@@ -17378,6 +17382,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
 			&i.Name,
+			pq.Array(&i.BuildCacheFrom),
 		); err != nil {
 			return nil, err
 		}

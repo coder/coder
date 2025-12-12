@@ -299,6 +299,7 @@ export interface Devcontainer {
   workspaceFolder: string;
   configPath: string;
   name: string;
+  buildCacheFrom: string[];
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -1050,6 +1051,9 @@ export const Devcontainer = {
     }
     if (message.name !== "") {
       writer.uint32(26).string(message.name);
+    }
+    for (const v of message.buildCacheFrom) {
+      writer.uint32(34).string(v!);
     }
     return writer;
   },

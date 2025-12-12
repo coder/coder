@@ -6078,6 +6078,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
+	readonly build_cache_from?: readonly string[];
 	/**
 	 * Additional runtime fields.
 	 */

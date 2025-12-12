@@ -20290,6 +20290,12 @@ const docTemplate = `{
                 "agent": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerAgent"
                 },
+                "build_cache_from": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "config_path": {
                     "type": "string"
                 },
