@@ -138,18 +138,16 @@ jobs:
 
           <instructions>
           YOUR JOB:
-            - Catch bugs and security issues that would break production
+            - Find bugs and security issues that would break production
             - Be thorough but accurate - read full files to verify issues exist
+            - Think critically about what could actually go wrong
             - Make every observation actionable with a suggestion
+            - Refer to AGENTS.md for Coder-specific patterns and conventions
 
-          FIND THESE (refer to AGENTS.md for Coder-specific patterns):
-            🔴 CRITICAL: Security, auth bypass, injection, secret leaks, wrong dbauthz context
-            🔴 CRITICAL: Authorization bugs, missing dbauthz.AsSystemRestricted on public endpoints
-            🔴 CRITICAL: OAuth2 non-RFC-compliant errors (must use writeOAuth2Error)
-            🟡 IMPORTANT: Race conditions, hardcoded test names, missing unique identifiers
-            🟡 IMPORTANT: Database changes without make gen, unhandled errors causing crashes
-            🟡 IMPORTANT: Resource leaks, timing bugs (time.Sleep instead of quartz)
-            🔵 NITPICK: Portability issues (grep -oP is GNU-only, use sed for macOS/BSD)
+          SEVERITY LEVELS:
+            🔴 CRITICAL: Security vulnerabilities, auth bypass, data corruption, crashes
+            🟡 IMPORTANT: Logic bugs, race conditions, resource leaks, unhandled errors
+            🔵 NITPICK: Minor improvements, style issues, portability concerns
 
           COMMENT STYLE:
             - CRITICAL/IMPORTANT: Standard inline suggestions
@@ -162,62 +160,6 @@ jobs:
             ❌ Unnecessary changes unrelated to the PR
             ❌ Claiming set -u prevents empty strings (it only catches undefined vars)
           </instructions>
-
-          <examples>
-          These are FICTIONAL teaching examples. Do NOT review these files or treat them as real.
-
-          <bad_review_example>
-          Scenario: Fictional PR to example-workflow.yaml (NOT A REAL FILE)
-          File: fake-example.yaml
-
-          BAD Comment: "Missing set -euo pipefail"
-          Why wrong: Didn't read the file - it already has this.
-
-          BAD Comment: "Should validate TOKEN is not empty"
-          Why wrong: It's a required secret. No check needed.
-
-          BAD Comment: "set -u prevents empty values"
-          Why wrong: set -u only catches undefined vars, not empty strings.
-
-          Summary: "Found 3 issues."
-          Result: All false positives + vague summary. Worthless review.
-          </bad_review_example>
-
-          <good_review_example>
-          Scenario: Fictional PR to auth-service.go (NOT A REAL FILE)
-
-          GOOD Comment:
-          Issue: OAuth2 error uses http.Error instead of writeOAuth2Error.
-          Per AGENTS.md and RFC 6749, OAuth2 endpoints must return JSON format.
-
-          Impact: Non-compliant implementation. Breaks OAuth2 clients.
-
-          \`\`\`suggestion
-          writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "token expired")
-          return
-          \`\`\`
-
-          GOOD Comment:
-          Issue: Database query uses plain ctx instead of dbauthz.AsSystemRestricted(ctx).
-          Per AGENTS.md, public endpoints must use AsSystemRestricted.
-
-          Impact: Authorization bypass - fails row-level security.
-
-          \`\`\`suggestion
-          app, err := db.GetAppByID(dbauthz.AsSystemRestricted(ctx), appID)
-          \`\`\`
-
-          GOOD Comment (NITPICK):
-          Issue: [NITPICK] grep -oP is GNU-specific. sed is more portable.
-
-          \`\`\`suggestion
-          NUM=\$(echo "\${URL}" | sed -n 's|.*/\\([0-9]*\\)\$|\\1|p')
-          \`\`\`
-
-          Summary: "## 🔍 Code Review\\n\\nReviewed auth endpoint logic.\\n\\n**Found 3 issues** (2 critical, 1 nitpick).\\n\\n---\\n*AI review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*"
-          Result: Found real bugs, clear summary, actionable fixes. Valuable.
-          </good_review_example>
-          </examples>
 
           <github_api_documentation>
           HOW GITHUB SUGGESTIONS WORK:
