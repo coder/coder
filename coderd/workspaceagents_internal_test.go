@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -318,4 +320,153 @@ func TestWatchAgentContainers(t *testing.T) {
 			require.False(t, ok, "channel is expected to be closed")
 		}
 	})
+}
+
+func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		agentConnected     bool  // Controls FirstConnectedAt/LastConnectedAt validity
+		agentConnError     error // Error returned by fakeAgentProvider.AgentConn (nil = success)
+		deleteError        error // Error returned by DeleteDevcontainer mock (nil = success)
+		expectedStatusCode int
+	}{
+		{
+			name:               "OK",
+			agentConnected:     true,
+			agentConnError:     nil,
+			deleteError:        nil,
+			expectedStatusCode: http.StatusNoContent,
+		},
+		{
+			name:               "AgentNotConnected",
+			agentConnected:     false,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:           "DevcontainerNotFound",
+			agentConnected: true,
+			deleteError: func() error {
+				body, _ := json.Marshal(codersdk.Response{
+					Message: "Devcontainer not found.",
+				})
+				return codersdk.ReadBodyAsError(&http.Response{
+					StatusCode: http.StatusNotFound,
+					Body:       io.NopCloser(bytes.NewReader(body)),
+					Request:    &http.Request{URL: &url.URL{}},
+				})
+			}(),
+			expectedStatusCode: http.StatusNotFound,
+		},
+		{
+			name:               "AgentConnectionFailure",
+			agentConnected:     true,
+			agentConnError:     xerrors.New("connection failed"),
+			expectedStatusCode: http.StatusInternalServerError,
+		},
+		{
+			name:               "InternalError",
+			agentConnected:     true,
+			deleteError:        xerrors.New("internal error"),
+			expectedStatusCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitShort)
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+
+				mCtrl        = gomock.NewController(t)
+				mDB          = dbmock.NewMockStore(mCtrl)
+				mCoordinator = tailnettest.NewMockCoordinator(mCtrl)
+
+				agentID        = uuid.New()
+				resourceID     = uuid.New()
+				jobID          = uuid.New()
+				buildID        = uuid.New()
+				workspaceID    = uuid.New()
+				devcontainerID = uuid.NewString()
+
+				r = chi.NewMux()
+
+				api = API{
+					ctx: ctx,
+					Options: &Options{
+						AgentInactiveDisconnectTimeout: testutil.WaitShort,
+						Database:                       mDB,
+						Logger:                         logger,
+						DeploymentValues:               &codersdk.DeploymentValues{},
+						TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
+					},
+				}
+			)
+
+			var tailnetCoordinator tailnet.Coordinator = mCoordinator
+			api.TailnetCoordinator.Store(&tailnetCoordinator)
+
+			// Setup agent provider based on test case.
+			if tc.agentConnected && tc.agentConnError == nil {
+				mAgentConn := agentconnmock.NewMockAgentConn(mCtrl)
+				mAgentConn.EXPECT().DeleteDevcontainer(gomock.Any(), devcontainerID).Return(tc.deleteError)
+				api.agentProvider = fakeAgentProvider{
+					agentConn: func(_ context.Context, _ uuid.UUID) (_ workspacesdk.AgentConn, release func(), _ error) {
+						return mAgentConn, func() {}, nil
+					},
+				}
+			} else if tc.agentConnError != nil {
+				api.agentProvider = fakeAgentProvider{
+					agentConn: func(_ context.Context, _ uuid.UUID) (_ workspacesdk.AgentConn, release func(), _ error) {
+						return nil, nil, tc.agentConnError
+					},
+				}
+			}
+
+			// Setup database mocks for ExtractWorkspaceAgentParam middleware.
+			mDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(database.WorkspaceAgent{
+				ID:               agentID,
+				ResourceID:       resourceID,
+				LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
+				FirstConnectedAt: sql.NullTime{Valid: tc.agentConnected, Time: dbtime.Now()},
+				LastConnectedAt:  sql.NullTime{Valid: tc.agentConnected, Time: dbtime.Now()},
+			}, nil)
+			mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), resourceID).Return(database.WorkspaceResource{
+				ID:    resourceID,
+				JobID: jobID,
+			}, nil)
+			mDB.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).Return(database.ProvisionerJob{
+				ID:   jobID,
+				Type: database.ProvisionerJobTypeWorkspaceBuild,
+			}, nil)
+			mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), jobID).Return(database.WorkspaceBuild{
+				WorkspaceID: workspaceID,
+				ID:          buildID,
+			}, nil)
+
+			// Allow db2sdk.WorkspaceAgent to complete.
+			mCoordinator.EXPECT().Node(gomock.Any()).Return(nil)
+
+			// Mount the HTTP handler and create the test server.
+			r.With(httpmw.ExtractWorkspaceAgentParam(mDB)).
+				Delete("/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}", api.workspaceAgentDeleteDevcontainer)
+
+			srv := httptest.NewServer(r)
+			defer srv.Close()
+
+			// Send the DELETE request using the test server's client.
+			req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+				fmt.Sprintf("%s/workspaceagents/%s/containers/devcontainers/%s", srv.URL, agentID, devcontainerID), nil)
+			require.NoError(t, err)
+
+			resp, err := srv.Client().Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+		})
+	}
 }
