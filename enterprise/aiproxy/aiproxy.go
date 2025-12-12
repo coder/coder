@@ -77,6 +77,13 @@ type Options struct {
 	CertFile       string
 	KeyFile        string
 	CoderAccessURL string
+	// UpstreamProxy is the URL of an upstream HTTP proxy to chain requests through.
+	// If empty, requests are made directly to targets.
+	// Format: http://[user:pass@]host:port or https://[user:pass@]host:port
+	UpstreamProxy string
+	// UpstreamProxyCACert is the PEM-encoded CA certificate to trust for the upstream
+	// proxy's TLS interception. Required when chaining through an SSL-bumping proxy.
+	UpstreamProxyCACert []byte
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -101,8 +108,43 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.Verbose = true
-	proxy.Logger = &goproxyLogger{ctx: ctx, logger: logger.Named("goproxy")}
+	// proxy.Logger = &goproxyLogger{ctx: ctx, logger: logger.Named("goproxy")}
 	proxy.CertStore = &certCache{certs: make(map[string]*tls.Certificate)}
+
+	// Configure upstream proxy for chaining if specified
+	if opts.UpstreamProxy != "" {
+		upstreamURL, err := url.Parse(opts.UpstreamProxy)
+		if err != nil {
+			return nil, xerrors.Errorf("invalid UpstreamProxy URL %q: %w", opts.UpstreamProxy, err)
+		}
+		logger.Info(ctx, "configuring upstream proxy", slog.F("upstream", upstreamURL.Host))
+
+		tlsConfig := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+
+		// Add upstream proxy CA to trusted roots if provided
+		if len(opts.UpstreamProxyCACert) > 0 {
+			rootCAs, err := x509.SystemCertPool()
+			if err != nil {
+				rootCAs = x509.NewCertPool()
+			}
+			if !rootCAs.AppendCertsFromPEM(opts.UpstreamProxyCACert) {
+				return nil, xerrors.Errorf("failed to parse upstream proxy CA certificate")
+			}
+			tlsConfig.RootCAs = rootCAs
+			logger.Info(ctx, "configured upstream proxy CA certificate")
+		}
+
+		// Configure HTTP transport to use upstream proxy
+		proxy.Tr = &http.Transport{
+			Proxy:           http.ProxyURL(upstreamURL),
+			TLSClientConfig: tlsConfig,
+		}
+
+		// Configure CONNECT requests to go through upstream proxy
+		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
+	}
 
 	// Custom MITM handler that extracts auth and rejects unauthenticated requests.
 	// The token is stored in ctx.UserData which goproxy propagates to subsequent
