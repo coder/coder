@@ -7,19 +7,17 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 var (
-	safeParams  = []string{"page", "limit", "offset"}
+	safeParams  = []string{"page", "limit", "offset", "path"}
 	countParams = []string{"ids", "template_ids"}
 )
 
@@ -124,83 +122,16 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 	}
 }
 
-type RequestLogger interface {
-	WithFields(fields ...slog.Field)
-	WriteLog(ctx context.Context, status int)
-	WithAuthContext(actor rbac.Subject)
-}
-
 type SlogRequestLogger struct {
-	log     slog.Logger
-	written bool
-	message string
-	start   time.Time
-	// Protects actors map for concurrent writes.
-	mu     sync.RWMutex
-	actors map[rbac.SubjectType]rbac.Subject
-}
-
-var _ RequestLogger = &SlogRequestLogger{}
-
-func NewRequestLogger(log slog.Logger, message string, start time.Time) RequestLogger {
-	return &SlogRequestLogger{
-		log:     log,
-		written: false,
-		message: message,
-		start:   start,
-		actors:  make(map[rbac.SubjectType]rbac.Subject),
-	}
+	log       slog.Logger
+	written   bool
+	message   string
+	start     time.Time
+	addFields func()
 }
 
 func (c *SlogRequestLogger) WithFields(fields ...slog.Field) {
 	c.log = c.log.With(fields...)
-}
-
-func (c *SlogRequestLogger) WithAuthContext(actor rbac.Subject) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.actors[actor.Type] = actor
-}
-
-func (c *SlogRequestLogger) addAuthContextFields() {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	usr, ok := c.actors[rbac.SubjectTypeUser]
-	if ok {
-		c.log = c.log.With(
-			slog.F("requestor_id", usr.ID),
-			slog.F("requestor_name", usr.FriendlyName),
-			slog.F("requestor_email", usr.Email),
-		)
-	} else {
-		// If there is no user, we log the requestor name for the first
-		// actor in a defined order.
-		for _, v := range actorLogOrder {
-			subj, ok := c.actors[v]
-			if !ok {
-				continue
-			}
-			c.log = c.log.With(
-				slog.F("requestor_name", subj.FriendlyName),
-			)
-			break
-		}
-	}
-}
-
-var actorLogOrder = []rbac.SubjectType{
-	rbac.SubjectTypeAutostart,
-	rbac.SubjectTypeCryptoKeyReader,
-	rbac.SubjectTypeCryptoKeyRotator,
-	rbac.SubjectTypeJobReaper,
-	rbac.SubjectTypeNotifier,
-	rbac.SubjectTypePrebuildsOrchestrator,
-	rbac.SubjectTypeSubAgentAPI,
-	rbac.SubjectTypeProvisionerd,
-	rbac.SubjectTypeResourceMonitor,
-	rbac.SubjectTypeSystemReadProvisionerDaemons,
-	rbac.SubjectTypeSystemRestricted,
 }
 
 func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
@@ -210,9 +141,9 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 	c.written = true
 	end := time.Now()
 
-	// Right before we write the log, we try to find the user in the actors
-	// and add the fields to the log.
-	c.addAuthContextFields()
+	if c.addFields != nil {
+		c.addFields()
+	}
 
 	logger := c.log.With(
 		slog.F("took", end.Sub(c.start)),

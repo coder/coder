@@ -1,5 +1,6 @@
 import {
 	MockDeletedWorkspace,
+	MockDisplayNameTasks,
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
@@ -558,6 +559,38 @@ export const WorkspaceStartFailureWithDialog: Story = {
 			const dialogTitle = await body.findByText("Error building workspace");
 			expect(dialogTitle).toBeInTheDocument();
 		});
+	},
+};
+
+const longDisplayName =
+	"Implement comprehensive authentication and authorization system with role-based access control";
+export const LongDisplayName: Story = {
+	parameters: {
+		queries: [
+			{
+				// Sidebar: uses getTasks() which returns an array
+				key: ["tasks", { owner: MockTask.owner_name }],
+				data: [
+					{ ...MockDisplayNameTasks[0], display_name: longDisplayName },
+					...MockDisplayNameTasks.slice(1),
+				],
+			},
+			{
+				// TaskTopbar: uses getTask() which returns a single task
+				key: ["tasks", MockTask.owner_name, MockTask.id],
+				data: { ...MockDisplayNameTasks[0], display_name: longDisplayName },
+			},
+			{
+				// Workspace data for the task
+				key: [
+					"workspace",
+					MockTask.owner_name,
+					MockTask.workspace_name,
+					"settings",
+				],
+				data: MockWorkspace,
+			},
+		],
 	},
 };
 

@@ -396,7 +396,7 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldAIBridgeRecords(ctx, beforeTime)
 	m.queryLatencies.WithLabelValues("DeleteOldAIBridgeRecords").Observe(time.Since(start).Seconds())
@@ -408,6 +408,20 @@ func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context
 	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
 	m.queryLatencies.WithLabelValues("DeleteOldAuditLogConnectionEvents").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOldAuditLogsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldAuditLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldConnectionLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldConnectionLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteOldNotificationMessages(ctx context.Context) error {
@@ -431,11 +445,11 @@ func (m queryMetricsStore) DeleteOldTelemetryLocks(ctx context.Context, periodEn
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) error {
+func (m queryMetricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) (int64, error) {
 	start := time.Now()
-	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
+	r0, r1 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -1842,6 +1856,13 @@ func (m queryMetricsStore) GetUserStatusCounts(ctx context.Context, arg database
 	start := time.Now()
 	r0, r1 := m.s.GetUserStatusCounts(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserStatusCounts").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserTaskNotificationAlertDismissed(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3348,6 +3369,13 @@ func (m queryMetricsStore) UpdateUserStatus(ctx context.Context, arg database.Up
 	user, err := m.s.UpdateUserStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserStatus").Observe(time.Since(start).Seconds())
 	return user, err
+}
+
+func (m queryMetricsStore) UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg database.UpdateUserTaskNotificationAlertDismissedParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserTaskNotificationAlertDismissed(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateUserTerminalFont(ctx context.Context, arg database.UpdateUserTerminalFontParams) (database.UserConfig, error) {

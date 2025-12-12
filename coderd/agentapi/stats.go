@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -17,6 +18,7 @@ import (
 
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
+	Workspace                 *CachedWorkspaceFields
 	Database                  database.Store
 	Log                       slog.Logger
 	StatsReporter             *workspacestats.Reporter
@@ -42,18 +44,39 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		return res, nil
 	}
 
-	workspaceAgent, err := a.AgentFn(ctx)
+	// Inject RBAC object into context for dbauthz fast path, avoid having to
+	// call GetWorkspaceAgentByID on every stats update.
+
+	rbacCtx := ctx
+	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		var err error
+		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
+		if err != nil {
+			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
+			//nolint:gocritic
+			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
+		}
+	}
+
+	workspaceAgent, err := a.AgentFn(rbacCtx)
 	if err != nil {
 		return nil, err
 	}
-	getWorkspaceAgentByIDRow, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
+
+	// If cache is empty (prebuild or invalid), fall back to DB
+	var ws database.WorkspaceIdentity
+	var ok bool
+	if ws, ok = a.Workspace.AsWorkspaceIdentity(); !ok {
+		w, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
+		}
+		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
-	workspace := getWorkspaceAgentByIDRow
+
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
-		slog.F("workspace_id", workspace.ID),
+		slog.F("workspace_id", ws.ID),
 		slog.F("payload", req),
 	)
 
@@ -70,9 +93,8 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	err = a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
-		workspace,
+		ws,
 		workspaceAgent,
-		getWorkspaceAgentByIDRow.TemplateName,
 		req.Stats,
 		false,
 	)

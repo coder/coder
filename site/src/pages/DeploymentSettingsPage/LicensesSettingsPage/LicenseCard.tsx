@@ -85,6 +85,19 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 							{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
 						</span>
 					</Stack>
+					{license.claims.nbf && (
+						<Stack
+							direction="column"
+							spacing={0}
+							alignItems="center"
+							width="134px" // standardize width of date column
+						>
+							<span css={styles.secondaryMaincolor}>Valid From</span>
+							<span css={styles.licenseExpires} className="license-valid-from">
+								{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
+							</span>
+						</Stack>
+					)}
 					<Stack
 						direction="column"
 						spacing={0}

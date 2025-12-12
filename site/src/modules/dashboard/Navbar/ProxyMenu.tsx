@@ -112,6 +112,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				// to turn this off because otherwise, screen readers will skip over all
 				// the descriptive text and will only have access to the latency options
 				autoFocus={false}
+				className="z-0"
 			>
 				{proxyContextValue.proxies &&
 					proxyContextValue.proxies.length > 1 && [

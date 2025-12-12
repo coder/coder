@@ -199,10 +199,9 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
 		var (
-			desc                 = "Failed to proxy request to application: " + theErr.Error()
-			additionalInfo       = ""
-			additionalButtonLink = ""
-			additionalButtonText = ""
+			desc           = "Failed to proxy request to application: " + theErr.Error()
+			additionalInfo = ""
+			actions        = []site.Action{}
 		)
 
 		var tlsError tls.RecordHeaderError
@@ -222,21 +221,28 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 				app = app.ChangePortProtocol(targetProtocol)
 
 				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
-				additionalButtonLink = switchURL.String()
-				additionalButtonText = fmt.Sprintf("Switch to %s", strings.ToUpper(targetProtocol))
+				actions = append(actions, site.Action{
+					URL:  switchURL.String(),
+					Text: fmt.Sprintf("Switch to %s", strings.ToUpper(targetProtocol)),
+				})
 				additionalInfo += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(targetProtocol))
 			}
 		}
 
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
-			Status:               http.StatusBadGateway,
-			Title:                "Bad Gateway",
-			Description:          desc,
-			RetryEnabled:         true,
-			DashboardURL:         dashboardURL.String(),
-			AdditionalInfo:       additionalInfo,
-			AdditionalButtonLink: additionalButtonLink,
-			AdditionalButtonText: additionalButtonText,
+			Status:      http.StatusBadGateway,
+			Title:       "Bad Gateway",
+			Description: desc,
+			Actions: append(actions, []site.Action{
+				{
+					Text: "Retry",
+				},
+				{
+					URL:  dashboardURL.String(),
+					Text: "Back to site",
+				},
+			}...),
+			AdditionalInfo: additionalInfo,
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)

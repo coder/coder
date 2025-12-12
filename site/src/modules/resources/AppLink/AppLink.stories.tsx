@@ -77,6 +77,19 @@ export const ExternalAppNotInstalled: Story = {
 	},
 };
 
+export const ExternalAppShareable: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			url: "vscode://open",
+			external: true,
+			sharing_level: "authenticated",
+		},
+		agent: MockWorkspaceAgent,
+	},
+};
+
 export const SharingLevelOwner: Story = {
 	args: {
 		workspace: MockWorkspace,

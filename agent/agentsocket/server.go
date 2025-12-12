@@ -7,8 +7,6 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
-
-	"github.com/hashicorp/yamux"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -33,11 +31,17 @@ type Server struct {
 	wg       sync.WaitGroup
 }
 
-func NewServer(path string, logger slog.Logger) (*Server, error) {
+// NewServer creates a new agent socket server.
+func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
+	options := &options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	logger = logger.Named("agentsocket-server")
 	server := &Server{
 		logger: logger,
-		path:   path,
+		path:   options.path,
 		service: &DRPCAgentSocketService{
 			logger:      logger,
 			unitManager: unit.NewManager(),
@@ -61,14 +65,6 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 		},
 	})
 
-	if server.path == "" {
-		var err error
-		server.path, err = getDefaultSocketPath()
-		if err != nil {
-			return nil, xerrors.Errorf("get default socket path: %w", err)
-		}
-	}
-
 	listener, err := createSocket(server.path)
 	if err != nil {
 		return nil, xerrors.Errorf("create socket: %w", err)
@@ -91,6 +87,7 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 	return server, nil
 }
 
+// Close stops the server and cleans up resources.
 func (s *Server) Close() error {
 	s.mu.Lock()
 
@@ -134,52 +131,8 @@ func (s *Server) acceptConnections() {
 		return
 	}
 
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		default:
-		}
-
-		conn, err := listener.Accept()
-		if err != nil {
-			s.logger.Warn(s.ctx, "error accepting connection", slog.Error(err))
-			continue
-		}
-
-		s.mu.Lock()
-		if s.listener == nil {
-			s.mu.Unlock()
-			_ = conn.Close()
-			return
-		}
-		s.wg.Add(1)
-		s.mu.Unlock()
-
-		go func() {
-			defer s.wg.Done()
-			s.handleConnection(conn)
-		}()
-	}
-}
-
-func (s *Server) handleConnection(conn net.Conn) {
-	defer conn.Close()
-
-	s.logger.Debug(s.ctx, "new connection accepted", slog.F("remote_addr", conn.RemoteAddr()))
-
-	config := yamux.DefaultConfig()
-	config.LogOutput = nil
-	config.Logger = slog.Stdlib(s.ctx, s.logger.Named("agentsocket-yamux"), slog.LevelInfo)
-	session, err := yamux.Server(conn, config)
+	err := s.drpcServer.Serve(s.ctx, listener)
 	if err != nil {
-		s.logger.Warn(s.ctx, "failed to create yamux session", slog.Error(err))
-		return
-	}
-	defer session.Close()
-
-	err = s.drpcServer.Serve(s.ctx, session)
-	if err != nil {
-		s.logger.Debug(s.ctx, "drpc server finished", slog.Error(err))
+		s.logger.Warn(s.ctx, "error serving drpc server", slog.Error(err))
 	}
 }

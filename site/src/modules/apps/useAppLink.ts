@@ -55,7 +55,7 @@ export const useAppLink = (
 			// When browser recognizes the protocol and is able to navigate to the app,
 			// it will blur away, and will stop the timer. Otherwise,
 			// an error message will be displayed.
-			const openAppExternallyFailedTimeout = 500;
+			const openAppExternallyFailedTimeout = 1500;
 			const openAppExternallyFailed = setTimeout(() => {
 				// Check if this is a JetBrains IDE app
 				// starts with "jetbrains-gateway://connect#type=coder" (from https://registry.coder.com/modules/coder/jetbrains-gateway)

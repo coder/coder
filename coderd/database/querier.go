@@ -104,8 +104,13 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Cumulative count.
-	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error)
+	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
+	// Deletes old audit logs based on retention policy, excluding deprecated
+	// connection events (connect, disconnect, open, close) which are handled
+	// separately by DeleteOldAuditLogConnectionEvents.
+	DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error)
+	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error
 	// Delete provisioner daemons that have been created at least a week ago
@@ -115,10 +120,10 @@ type sqlcQuerier interface {
 	DeleteOldProvisionerDaemons(ctx context.Context) error
 	// Deletes old telemetry locks from the telemetry_locks table.
 	DeleteOldTelemetryLocks(ctx context.Context, periodEndingAtBefore time.Time) error
-	// If an agent hasn't connected in the last 7 days, we purge it's logs.
+	// If an agent hasn't connected within the retention period, we purge its logs.
 	// Exception: if the logs are related to the latest build, we keep those around.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
-	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error
+	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
@@ -447,6 +452,7 @@ type sqlcQuerier interface {
 	// We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
 	// the result shows the total number of users in each status on any particular day.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
+	GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
@@ -714,6 +720,7 @@ type sqlcQuerier interface {
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserSecret(ctx context.Context, arg UpdateUserSecretParams) (UserSecret, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
+	UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (bool, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error

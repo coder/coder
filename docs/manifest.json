@@ -187,6 +187,11 @@
 							"title": "Feature stages",
 							"description": "Information about pre-GA stages.",
 							"path": "./install/releases/feature-stages.md"
+						},
+						{
+							"title": "Upgrading from ESR 2.24 to 2.29",
+							"description": "Upgrade Guide for ESR Releases",
+							"path": "./install/releases/esr-2.24-2.29-upgrade.md"
 						}
 					]
 				}
@@ -316,7 +321,7 @@
 					"icon_path": "./images/icons/circle-dot.svg"
 				},
 				{
-					"title": "Dev Containers Integration",
+					"title": "Dev Containers",
 					"description": "Run containerized development environments in your Coder workspace using the dev containers specification.",
 					"path": "./user-guides/devcontainers/index.md",
 					"icon_path": "./images/icons/container.svg",
@@ -325,6 +330,11 @@
 							"title": "Working with dev containers",
 							"description": "Access dev containers via SSH, your IDE, or web terminal.",
 							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
+						},
+						{
+							"title": "Customizing dev containers",
+							"description": "Configure custom agent names, apps, and display options in devcontainer.json.",
+							"path": "./user-guides/devcontainers/customizing-dev-containers.md"
 						},
 						{
 							"title": "Troubleshooting dev containers",
@@ -363,6 +373,11 @@
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects",
 							"path": "./admin/setup/telemetry.md"
+						},
+						{
+							"title": "Data Retention",
+							"description": "Configure data retention policies for database tables",
+							"path": "./admin/setup/data-retention.md"
 						}
 					]
 				},
@@ -517,26 +532,9 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Dev containers",
-									"description": "Learn about using development containers in templates",
-									"path": "./admin/templates/managing-templates/devcontainers/index.md",
-									"children": [
-										{
-											"title": "Add a dev container template",
-											"description": "How to add a dev container template to Coder",
-											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
-										},
-										{
-											"title": "Dev container security and caching",
-											"description": "Configure dev container authentication and caching",
-											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
-										},
-										{
-											"title": "Dev container releases and known issues",
-											"description": "Dev container releases and known issues",
-											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
-										}
-									]
+									"title": "Envbuilder",
+									"description": "Shift environment definition to repositories",
+									"path": "./admin/templates/managing-templates/envbuilder.md"
 								},
 								{
 									"title": "Template Dependencies",
@@ -648,8 +646,8 @@
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
 								},
 								{
-									"title": "Configure a template for dev containers",
-									"description": "How to use configure your template for dev containers",
+									"title": "Dev Containers",
+									"description": "Extend templates with containerized dev environments",
 									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
@@ -749,6 +747,40 @@
 							"title": "OAuth2 Provider",
 							"description": "Use Coder as an OAuth2 provider",
 							"path": "./admin/integrations/oauth2-provider.md"
+						},
+						{
+							"title": "Dev Containers",
+							"description": "Configure dev container support using Docker or Envbuilder",
+							"path": "./admin/integrations/devcontainers/index.md",
+							"children": [
+								{
+									"title": "Dev Containers Integration",
+									"description": "Configure native dev containers with Docker",
+									"path": "./admin/integrations/devcontainers/integration.md"
+								},
+								{
+									"title": "Envbuilder",
+									"description": "Build dev containers without Docker",
+									"path": "./admin/integrations/devcontainers/envbuilder/index.md",
+									"children": [
+										{
+											"title": "Add an Envbuilder template",
+											"description": "How to add an Envbuilder template",
+											"path": "./admin/integrations/devcontainers/envbuilder/add-envbuilder.md"
+										},
+										{
+											"title": "Security and caching",
+											"description": "Configure authentication and caching",
+											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-security-caching.md"
+										},
+										{
+											"title": "Releases and known issues",
+											"description": "Release channels and known issues",
+											"path": "./admin/integrations/devcontainers/envbuilder/envbuilder-releases-known-issues.md"
+										}
+									]
+								}
+							]
 						}
 					]
 				},
@@ -891,30 +923,31 @@
 					"title": "Coder Tasks",
 					"description": "Run Coding Agents on your Own Infrastructure",
 					"path": "./ai-coder/tasks.md",
-					"state": ["beta"],
 					"children": [
 						{
 							"title": "Understanding Coder Tasks",
 							"description": "Core principles and concepts behind Coder Tasks",
-							"path": "./ai-coder/tasks-core-principles.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-core-principles.md"
 						},
 						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
-							"path": "./ai-coder/custom-agents.md",
-							"state": ["beta"]
+							"path": "./ai-coder/custom-agents.md"
 						},
 						{
 							"title": "Tasks Migration Guide",
 							"description": "Changes to Coder Tasks made in v2.28",
-							"path": "./ai-coder/tasks-migration.md",
-							"state": ["beta"]
+							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
 							"title": "Security \u0026 Boundaries",
 							"description": "Learn about security and boundaries when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
+						},
+						{
+							"title": "Create a GitHub to Coder Tasks Workflow",
+							"description": "How to setup Coder Tasks to run in GitHub",
+							"path": "./ai-coder/github-to-tasks.md"
 						}
 					]
 				},
@@ -932,10 +965,10 @@
 				},
 				{
 					"title": "AI Bridge",
-					"description": "Centralized LLM and MCP proxy for platform teams",
+					"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 					"path": "./ai-coder/ai-bridge/index.md",
 					"icon_path": "./images/icons/api.svg",
-					"state": ["premium", "early access"],
+					"state": ["premium", "beta"],
 					"children": [
 						{
 							"title": "Setup",

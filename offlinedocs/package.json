@@ -20,7 +20,7 @@
 		"framer-motion": "^10.18.0",
 		"front-matter": "4.0.2",
 		"lodash": "4.17.21",
-		"next": "15.5.6",
+		"next": "15.5.9",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"react-icons": "4.12.0",
@@ -30,14 +30,14 @@
 		"sanitize-html": "2.17.0"
 	},
 	"devDependencies": {
-		"@types/lodash": "4.17.20",
-		"@types/node": "20.19.24",
+		"@types/lodash": "4.17.21",
+		"@types/node": "20.19.25",
 		"@types/react": "18.3.12",
 		"@types/react-dom": "18.3.1",
 		"@types/sanitize-html": "2.16.0",
 		"eslint": "8.57.1",
 		"eslint-config-next": "14.2.33",
-		"prettier": "3.6.2",
+		"prettier": "3.7.3",
 		"typescript": "5.9.3"
 	},
 	"engines": {

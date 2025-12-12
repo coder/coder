@@ -2,6 +2,8 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -622,11 +624,15 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// As an implementation detail of the workspace build transition, we also delete
+	// the associated task. This means that we have a race between provisionerdserver
+	// and here with deleting the task. In a real world scenario we'll never lose the
+	// race but we should still handle it anyways.
 	_, err := api.Database.DeleteTask(ctx, database.DeleteTaskParams{
 		ID:        task.ID,
 		DeletedAt: dbtime.Time(now),
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete task",
 			Detail:  err.Error(),

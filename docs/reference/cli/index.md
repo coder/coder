@@ -177,8 +177,9 @@ Disable network telemetry. Network telemetry is collected when connecting to wor
 |-------------|---------------------------------|
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_USE_KEYRING</code> |
+| Default     | <code>true</code>               |
 
-Store and retrieve session tokens using the operating system keyring. Currently only supported on Windows. By default, tokens are stored in plain text files.
+Store and retrieve session tokens using the operating system keyring. This flag is ignored and file-based storage is used when --global-config is set or keyring usage is not supported on the current platform. Set to false to force file-based storage on supported platforms.
 
 ### --global-config
 

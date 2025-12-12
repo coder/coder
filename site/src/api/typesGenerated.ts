@@ -33,6 +33,8 @@ export interface AIBridgeConfig {
 	readonly bedrock: AIBridgeBedrockConfig;
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
+	readonly max_concurrency: number;
+	readonly rate_limit: number;
 }
 
 // From codersdk/aibridge.go
@@ -1772,12 +1774,14 @@ export interface DeploymentValues {
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
 	readonly disable_owner_workspace_exec?: boolean;
+	readonly disable_workspace_sharing?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
 	readonly web_terminal_renderer?: string;
 	readonly allow_workspace_renames?: boolean;
 	readonly healthcheck?: HealthcheckConfig;
+	readonly retention?: RetentionConfig;
 	readonly cli_upgrade_message?: string;
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
@@ -2103,6 +2107,7 @@ export type FeatureName =
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
+	| "task_batch_actions"
 	| "template_rbac"
 	| "user_limit"
 	| "user_role_management"
@@ -2128,6 +2133,7 @@ export const FeatureNames: FeatureName[] = [
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
+	"task_batch_actions",
 	"template_rbac",
 	"user_limit",
 	"user_role_management",
@@ -4154,6 +4160,39 @@ export interface Response {
 	readonly validations?: readonly ValidationError[];
 }
 
+// From codersdk/deployment.go
+/**
+ * RetentionConfig contains configuration for data retention policies.
+ * These settings control how long various types of data are retained in the database
+ * before being automatically purged. Setting a value to 0 disables retention for that
+ * data type (data is kept indefinitely).
+ */
+export interface RetentionConfig {
+	/**
+	 * AuditLogs controls how long audit log entries are retained.
+	 * Set to 0 to disable (keep indefinitely).
+	 */
+	readonly audit_logs: number;
+	/**
+	 * ConnectionLogs controls how long connection log entries are retained.
+	 * Set to 0 to disable (keep indefinitely).
+	 */
+	readonly connection_logs: number;
+	/**
+	 * APIKeys controls how long expired API keys are retained before being deleted.
+	 * Keys are only deleted if they have been expired for at least this duration.
+	 * Defaults to 7 days to preserve existing behavior.
+	 */
+	readonly api_keys: number;
+	/**
+	 * WorkspaceAgentLogs controls how long workspace agent logs are retained.
+	 * Logs are deleted if the agent hasn't connected within this period.
+	 * Logs from the latest build are always retained regardless of age.
+	 * Defaults to 7 days to preserve existing behavior.
+	 */
+	readonly workspace_agent_logs: number;
+}
+
 // From codersdk/roles.go
 /**
  * Role is a longer form of SlimRole that includes permissions details.
@@ -5478,6 +5517,11 @@ export interface UpdateUserPasswordRequest {
 }
 
 // From codersdk/users.go
+export interface UpdateUserPreferenceSettingsRequest {
+	readonly task_notification_alert_dismissed: boolean;
+}
+
+// From codersdk/users.go
 export interface UpdateUserProfileRequest {
 	readonly username: string;
 	readonly name: string;
@@ -5703,6 +5747,11 @@ export interface UserLoginType {
 export interface UserParameter {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/users.go
+export interface UserPreferenceSettings {
+	readonly task_notification_alert_dismissed: boolean;
 }
 
 // From codersdk/deployment.go
