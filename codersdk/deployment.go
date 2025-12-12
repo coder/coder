@@ -511,6 +511,7 @@ type DeploymentValues struct {
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
+	TemplateInsights                TemplateInsightsConfig               `json:"template_insights,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -608,6 +609,10 @@ type DERPConfig struct {
 	ForceWebSockets serpent.Bool   `json:"force_websockets" typescript:",notnull"`
 	URL             serpent.String `json:"url" typescript:",notnull"`
 	Path            serpent.String `json:"path" typescript:",notnull"`
+}
+
+type TemplateInsightsConfig struct {
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -1079,6 +1084,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Parent: &deploymentGroupIntrospection,
 			Name:   "pprof",
 			YAML:   "pprof",
+		}
+		deploymentGroupIntrospectionTemplateInsights = serpent.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Template Insights",
+			YAML:   "templateInsights",
 		}
 		deploymentGroupIntrospectionPrometheus = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
@@ -1700,6 +1710,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.DERP.Config.Path,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "configPath",
+		},
+		{
+			Name:        "Enable Template Insights",
+			Description: "Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.",
+			Flag:        "template-insights-enable",
+			Env:         "CODER_TEMPLATE_INSIGHTS_ENABLE",
+			Default:     "true",
+			Value:       &c.TemplateInsights.Enable,
+			Group:       &deploymentGroupIntrospectionTemplateInsights,
+			YAML:        "enable",
 		},
 		// TODO: support Git Auth settings.
 		// Prometheus settings

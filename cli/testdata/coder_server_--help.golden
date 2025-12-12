@@ -277,6 +277,16 @@ INTROSPECTION / PROMETHEUS OPTIONS:
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
 
+INTROSPECTION / TEMPLATE INSIGHTS OPTIONS: 
+      --template-insights-enable bool, $CODER_TEMPLATE_INSIGHTS_ENABLE (default: true)
+          Enable the collection and display of template insights along with the
+          associated API endpoints. This will also enable aggregating these
+          insights into daily active users, application usage, and transmission
+          rates for overall deployment stats. When disabled, these values will
+          be zero, which will also affect what the bottom deployment overview
+          bar displays. Disabling will also prevent Prometheus collection of
+          these values.
+
 INTROSPECTION / TRACING OPTIONS: 
       --trace-logs bool, $CODER_TRACE_LOGS
           Enables capturing of logs as events in traces. This is useful for
