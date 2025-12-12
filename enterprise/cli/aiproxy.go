@@ -32,7 +32,7 @@ func newAIProxy(coderAPI *coderd.API) (*aiproxy.Server, error) {
 	// For now, expect certs in current working directory
 	srv, err := aiproxy.New(ctx, logger, aiproxy.Options{
 		ListenAddr:          ":8888",
-		CertFile:            filepath.Join(".", "mitm-chain.crt"),
+		CertFile:            filepath.Join(".", "mitm-cross-signed.crt"),
 		KeyFile:             filepath.Join(".", "mitm.key"),
 		CoderAccessURL:      coderAPI.AccessURL.String(),
 		UpstreamProxy:       os.Getenv("CODER_AI_PROXY_UPSTREAM"),
