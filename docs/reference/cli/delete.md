@@ -37,4 +37,4 @@ Delete a workspace without deleting its resources. This can delete a workspace i
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

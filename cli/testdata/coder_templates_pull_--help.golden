@@ -18,7 +18,7 @@ OPTIONS:
           the template version to pull.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
       --zip bool
           Output the template as a zip archive to stdout.

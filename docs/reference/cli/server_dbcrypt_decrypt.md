@@ -45,4 +45,4 @@ Keys required to decrypt existing data. Must be a comma-separated list of base64
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

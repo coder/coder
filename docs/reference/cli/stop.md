@@ -17,4 +17,4 @@ coder stop [flags] <workspace>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

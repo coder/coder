@@ -23,7 +23,7 @@ This command generates a file containing detailed troubleshooting information ab
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### -O, --output-file
 

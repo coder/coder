@@ -21,7 +21,7 @@ coder provisioner keys delete [flags] <name>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### -O, --org
 
