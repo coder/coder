@@ -252,7 +252,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
 		},
 	}, clk, prometheus.NewRegistry())
-  
+
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -466,7 +466,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk)
+			}, clk, prometheus.NewRegistry())
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1199,7 +1199,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 						Retention: serpent.Duration(tc.retention),
 					},
 				},
-			}, clk)
+			}, clk, prometheus.NewRegistry())
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1286,7 +1286,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk)
+			}, clk, prometheus.NewRegistry())
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1376,7 +1376,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, clk)
+		}, clk, prometheus.NewRegistry())
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -1496,7 +1496,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk)
+			}, clk, prometheus.NewRegistry())
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
