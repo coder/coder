@@ -71,6 +71,7 @@ runs:
 
         if [[ ${RACE_DETECTION} == true ]]; then
           gotestsum --junitfile="gotests.xml" --packages="${TEST_PACKAGES}" -- \
+            -tags=testsmallbuffers \
             -race \
             -parallel "${TEST_NUM_PARALLEL_TESTS}" \
             -p "${TEST_NUM_PARALLEL_PACKAGES}"
