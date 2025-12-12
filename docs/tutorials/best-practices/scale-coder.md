@@ -17,13 +17,13 @@ deployment.
 
 - Log output
   - Capture log output from from Coder Server instances and external provisioner daemons
-  and store them in a searchable log store like Loki, CloudWatch logs, or other tools.
+    and store them in a searchable log store like Loki, CloudWatch logs, or other tools.
   - Retain logs for a minimum of thirty days, ideally ninety days.
   This allows you investigate when anomalous behaviors began.
 
 - Metrics
   - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all
-  Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
+    Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
   - Capture Coder Server and External Provisioner daemons metrics
   [via Prometheus](#how-to-capture-coder-server-metrics-with-prometheus).
 
@@ -47,7 +47,7 @@ they affect the end-user experience.
 
 - Tail latency of Coder Server API requests
   - High tail latency can indicate Coder Server or the PostgreSQL database is underprovisioned
-  for the load.
+    for the load.
   - Use the `coderd_api_request_latencies_seconds` metric.
 
 - Tail latency of database queries
