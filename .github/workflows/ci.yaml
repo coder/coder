@@ -327,7 +327,7 @@ jobs:
   test-go-pg:
     # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
     # when changing runner sizes
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || matrix.os && matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-32' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || matrix.os && matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
@@ -336,7 +336,6 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     strategy:
-      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
@@ -417,83 +416,82 @@ jobs:
           find . -type f ! -path ./.git/\*\* | mtimehash
           find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
-      - name: Normalize Terraform Path for Caching
-        shell: bash
-        # Terraform gets installed in a random directory, so we need to normalize
-        # the path or many cached tests will be invalidated.
-        run: |
-          mkdir -p "$RUNNER_TEMP/sym"
-          source scripts/normalize_path.sh
-          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
-
-      - name: Setup RAM disk for Embedded Postgres (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        # The default C: drive is extremely slow:
-        # https://github.com/actions/runner-images/issues/8755
-        run: mkdir -p "R:/temp/embedded-pg"
-
-      - name: Setup RAM disk for Embedded Postgres (macOS)
-        if: runner.os == 'macOS'
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "13"
+          TS_DEBUG_DISCO: "true"
+          LC_CTYPE: "en_US.UTF-8"
+          LC_ALL: "en_US.UTF-8"
         shell: bash
         run: |
-          # Postgres runs faster on a ramdisk on macOS.
-          mkdir -p /tmp/tmpfs
-          sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+          set -o errexit
+          set -o pipefail
 
-          # Install google-chrome for scaletests.
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            # Create a temp dir on the R: ramdisk drive for Windows. The default
+            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
+            mkdir -p "R:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "${EMBEDDED_PG_CACHE_DIR}"
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            # Postgres runs faster on a ramdisk on macOS too
+            mkdir -p /tmp/tmpfs
+            sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache "${EMBEDDED_PG_CACHE_DIR}"
+          elif [ "$RUNNER_OS" == "Linux" ]; then
+            make test-postgres-docker
+          fi
+
+          # if macOS, install google-chrome for scaletests
           # As another concern, should we really have this kind of external dependency
           # requirement on standard CI?
-          brew install google-chrome
+          if [ "${RUNNER_OS}" == "macOS" ]; then
+            brew install google-chrome
+          fi
 
-          # macOS will output "The default interactive shell is now zsh" intermittently in CI.
-          touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          # macOS will output "The default interactive shell is now zsh"
+          # intermittently in CI...
+          if [ "${RUNNER_OS}" == "macOS" ]; then
+            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          fi
 
-      - name: Test with PostgreSQL Database (Linux)
-        if: runner.os == 'Linux'
-        uses: ./.github/actions/test-go-pg
-        with:
-          postgres-version: "13"
-          # Our Linux runners have 16 cores.
-          test-parallelism-packages: "16"
-          test-parallelism-tests: "8"
-          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
-          # On main, run tests without cache for the inverse.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          if [ "${RUNNER_OS}" == "Windows" ]; then
+            # Our Windows runners have 16 cores.
+            # On Windows Postgres chokes up when we have 16x16=256 tests
+            # running in parallel, and dbtestutil.NewDB starts to take more than
+            # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
+            # Postgres tends not to choke.
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=16
+            # Only the CLI and Agent are officially supported on Windows and the rest are too flaky
+            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
+          elif [ "${RUNNER_OS}" == "macOS" ]; then
+            # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
+            # because the tests complete faster and Postgres doesn't choke. It seems
+            # that macOS's tmpfs is faster than the one on Windows.
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=16
+            # Only the CLI and Agent are officially supported on macOS and the rest are too flaky
+            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
+          elif [ "${RUNNER_OS}" == "Linux" ]; then
+            # Our Linux runners have 8 cores.
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=8
+          fi
 
-      - name: Test with PostgreSQL Database (macOS)
-        if: runner.os == 'macOS'
-        uses: ./.github/actions/test-go-pg
-        with:
-          postgres-version: "13"
-          # Our macOS runners have 8 cores.
-          # Even though this parallelism seems high, we've observed relatively low flakiness in the past.
-          # See https://github.com/coder/coder/pull/21091#discussion_r2609891540.
-          test-parallelism-packages: "8"
-          test-parallelism-tests: "16"
-          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
-          # On main, run tests without cache for the inverse.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-          # Only the CLI and Agent are officially supported on macOS; the rest are too flaky.
-          test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
-          embedded-pg-path: "/tmp/tmpfs/embedded-pg"
-          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
+          # by default, run tests with cache
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            # on main, run tests without cache
+            export TEST_COUNT="1"
+          fi
 
-      - name: Test with PostgreSQL Database (Windows)
-        if: runner.os == 'Windows'
-        uses: ./.github/actions/test-go-pg
-        with:
-          postgres-version: "13"
-          # Our Windows runners have 32 cores.
-          test-parallelism-packages: "32"
-          test-parallelism-tests: "16"
-          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
-          # On main, run tests without cache for the inverse.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-          # Only the CLI and Agent are officially supported on Windows; the rest are too flaky.
-          test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
-          embedded-pg-path: "R:/temp/embedded-pg"
-          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
+          mkdir -p "$RUNNER_TEMP/sym"
+          source scripts/normalize_path.sh
+          # terraform gets installed in a random directory, so we need to normalize
+          # the path to the terraform binary or a bunch of cached tests will be
+          # invalidated. See scripts/normalize_path.sh for more details.
+          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
+
+          make test
 
       - name: Upload failed test db dumps
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -523,7 +521,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-pg-17:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
@@ -556,25 +554,12 @@ jobs:
         with:
           key-prefix: test-go-pg-17-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Normalize Terraform Path for Caching
-        shell: bash
-        # Terraform gets installed in a random directory, so we need to normalize
-        # the path or many cached tests will be invalidated.
-        run: |
-          mkdir -p "$RUNNER_TEMP/sym"
-          source scripts/normalize_path.sh
-          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
-
       - name: Test with PostgreSQL Database
-        uses: ./.github/actions/test-go-pg
-        with:
-          postgres-version: "17"
-          # Our Linux runners have 16 cores.
-          test-parallelism-packages: "16"
-          test-parallelism-tests: "8"
-          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
-          # On main, run tests without cache for the inverse.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+        env:
+          POSTGRES_VERSION: "17"
+          TS_DEBUG_DISCO: "true"
+        run: |
+          make test-postgres
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -590,7 +575,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-race-pg:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-32' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
@@ -618,28 +603,16 @@ jobs:
         with:
           key-prefix: test-go-race-pg-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Normalize Terraform Path for Caching
-        shell: bash
-        # Terraform gets installed in a random directory, so we need to normalize
-        # the path or many cached tests will be invalidated.
-        run: |
-          mkdir -p "$RUNNER_TEMP/sym"
-          source scripts/normalize_path.sh
-          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
-
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
       # short timeouts are used.
       # c.f. discussion on https://github.com/coder/coder/pull/15106
-      # Our Linux runners have 32 cores, but we reduce parallelism since race detection adds a lot of overhead.
-      # We aim to have parallelism match CPU count (8*4=32) to avoid making flakes worse.
       - name: Run Tests
-        uses: ./.github/actions/test-go-pg
-        with:
-          postgres-version: "17"
-          test-parallelism-packages: "8"
-          test-parallelism-tests: "4"
-          race-detection: "true"
+        env:
+          POSTGRES_VERSION: "17"
+        run: |
+          make test-postgres-docker
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -race -parallel 4 -p 4
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
