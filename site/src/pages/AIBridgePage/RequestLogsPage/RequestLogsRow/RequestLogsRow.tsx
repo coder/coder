@@ -21,6 +21,11 @@ type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
 };
 
+type TokenUsageMetadataMerged =
+	| null
+	| Record<string, unknown>
+	| Array<Record<string, unknown>>;
+
 /**
  * This function merges multiple objects with the same keys into a single object.
  * It's super unconventional, but it's only a temporary workaround until we
@@ -32,7 +37,7 @@ function tokenUsageMetadataMerge(
 	...objects: Array<
 		AIBridgeInterception["token_usages"][number]["metadata"] | null
 	>
-): unknown {
+): TokenUsageMetadataMerged {
 	const validObjects = objects.filter((obj) => obj !== null);
 
 	// Filter out empty objects
