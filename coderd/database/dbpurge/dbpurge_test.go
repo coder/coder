@@ -252,6 +252,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
 		},
 	}, clk, prometheus.NewRegistry())
+
 	defer closer.Close()
 	<-done // doTick() has now run.
 
