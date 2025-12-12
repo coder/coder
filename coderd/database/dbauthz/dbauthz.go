@@ -626,19 +626,9 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "dbpurge"},
 				DisplayName: "DB Purge Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					// DeleteOldWorkspaceAgentLogs
-					// DeleteOldWorkspaceAgentStats
-					// DeleteOldProvisionerDaemons
-					// DeleteOldTelemetryLocks
-					// DeleteOldAuditLogConnectionEvents
-					// DeleteOldConnectionLogs
-					rbac.ResourceSystem.Type: {policy.ActionDelete},
-					// DeleteOldNotificationMessages
-					rbac.ResourceNotificationMessage.Type: {policy.ActionDelete},
-					// ExpirePrebuildsAPIKeys
-					// DeleteExpiredAPIKeys
-					rbac.ResourceApiKey.Type: {policy.ActionDelete},
-					// DeleteOldAIBridgeRecords
+					rbac.ResourceSystem.Type:               {policy.ActionDelete},
+					rbac.ResourceNotificationMessage.Type:  {policy.ActionDelete},
+					rbac.ResourceApiKey.Type:               {policy.ActionDelete},
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
 				}),
 				User:    []rbac.Permission{},
