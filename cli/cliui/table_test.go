@@ -472,6 +472,15 @@ alice  1
 		require.NoError(t, err)
 		compareTables(t, expected, out)
 	})
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+
+		var in []tableTest4
+		out, err := cliui.DisplayTable(in, "", nil)
+		require.NoError(t, err)
+		require.Empty(t, out)
+	})
 }
 
 // compareTables normalizes the incoming table lines

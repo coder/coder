@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -42,7 +43,7 @@ func TestMCPRegex(t *testing.T) {
 			t.Parallel()
 
 			logger := testutil.Logger(t)
-			f := NewMCPProxyFactory(logger, nil)
+			f := NewMCPProxyFactory(logger, otel.Tracer("aibridged_test"), nil)
 
 			_, err := f.newStreamableHTTPServerProxy(&proto.MCPServerConfig{
 				Id:             "mock",

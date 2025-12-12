@@ -27,11 +27,11 @@
           "schema_version": 1,
           "values": {
             "access_port": 443,
-            "access_url": "https://dev.coder.com/",
+            "access_url": "https://mydeployment.coder.com",
             "id": "bca94359-107b-43c9-a272-99af4b239aad",
             "is_prebuild": false,
             "is_prebuild_claim": false,
-            "name": "coder",
+            "name": "default",
             "prebuild_count": 0,
             "start_count": 1,
             "template_id": "",
@@ -50,7 +50,7 @@
           "schema_version": 0,
           "values": {
             "email": "default@example.com",
-            "full_name": "coder",
+            "full_name": "default",
             "groups": [],
             "id": "cb8c55f2-7f66-4e69-a584-eb08f4a7cf04",
             "login_type": null,
@@ -79,8 +79,9 @@
           "schema_version": 1,
           "values": {
             "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "enabled": false,
             "id": "c4f032b8-97e4-42b0-aa2f-30a9e698f8d4",
-            "prompt": "default",
+            "prompt": null,
             "sidebar_app": []
           },
           "sensitive_values": {

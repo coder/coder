@@ -1732,7 +1732,7 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
-func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
 		return -1, err
 	}
@@ -1747,6 +1747,20 @@ func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, thresho
 		return err
 	}
 	return q.db.DeleteOldAuditLogConnectionEvents(ctx, threshold)
+}
+
+func (q *querier) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOldAuditLogsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldAuditLogs(ctx, arg)
+}
+
+func (q *querier) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldConnectionLogs(ctx, arg)
 }
 
 func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
@@ -1770,9 +1784,9 @@ func (q *querier) DeleteOldTelemetryLocks(ctx context.Context, beforeTime time.T
 	return q.db.DeleteOldTelemetryLocks(ctx, beforeTime)
 }
 
-func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
+func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.DeleteOldWorkspaceAgentLogs(ctx, threshold)
 }
@@ -2441,6 +2455,18 @@ func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Contex
 }
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+	// Fast path: Check if we have a workspace RBAC object in context.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Errors here will result in falling back to GetWorkspaceByAgentID,
+		// in case the cached data is stale.
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
+			return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+		}
+
+		q.log.Debug(ctx, "fast path authorization failed for GetLatestWorkspaceBuildByWorkspaceID, using slow path",
+			slog.F("workspace_id", workspaceID))
+	}
+
 	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
@@ -3534,6 +3560,21 @@ func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context
 }
 
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+	// Fast path: Check if we have a workspace RBAC object in context.
+	// In the agent API this is set at agent connection time to avoid the expensive
+	// GetWorkspaceByAgentID query for every agent operation.
+	// NOTE: The cached RBAC object is refreshed every 5 minutes in agentapi/api.go.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Errors here will result in falling back to GetWorkspaceByAgentID,
+		// in case the cached data is stale.
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
+			return q.db.GetWorkspaceAgentByID(ctx, id)
+		}
+		q.log.Debug(ctx, "fast path authorization failed for GetWorkspaceAgentByID, using slow path",
+			slog.F("agent_id", id))
+	}
+
+	// Slow path: Fallback to fetching the workspace for authorization
 	if _, err := q.GetWorkspaceByAgentID(ctx, id); err != nil {
 		return database.WorkspaceAgent{}, err
 	}

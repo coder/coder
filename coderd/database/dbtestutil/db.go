@@ -76,7 +76,7 @@ func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub
 	return db, ps, sqlDB
 }
 
-var DefaultTimezone = "Canada/Newfoundland"
+var DefaultTimezone = "America/St_Johns"
 
 // NowInDefaultTimezone returns the current time rounded to the nearest microsecond in the default timezone
 // used by postgres in tests. Useful for object equality checks.

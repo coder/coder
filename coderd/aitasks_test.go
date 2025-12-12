@@ -811,6 +811,12 @@ func TestTasks(t *testing.T) {
 					require.NoError(t, err)
 					coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+					// If we're going to cancel the transition, we want to close the provisioner
+					// to stop the job completing before we can cancel it.
+					if tt.cancelTransition {
+						provisioner.Close()
+					}
+
 					// Given: We transition the task's workspace
 					build := coderdtest.CreateWorkspaceBuild(t, client, workspace, tt.transition)
 					if tt.cancelTransition {
@@ -1680,8 +1686,8 @@ func TestTasksNotification(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, workspaceAgent.Apps, 1)
 			require.GreaterOrEqual(t, len(workspaceAgent.Apps[0].Statuses), 1)
-			latestStatusIndex := len(workspaceAgent.Apps[0].Statuses) - 1
-			require.Equal(t, tc.newAppStatus, workspaceAgent.Apps[0].Statuses[latestStatusIndex].State)
+			// Statuses are ordered by created_at DESC, so the first element is the latest.
+			require.Equal(t, tc.newAppStatus, workspaceAgent.Apps[0].Statuses[0].State)
 
 			if tc.isNotificationSent {
 				// Then: A notification is sent to the workspace owner (memberUser)

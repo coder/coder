@@ -84,6 +84,20 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
+		// We don't want these to be configurable via YAML because they are secrets.
+		// However, we do want to allow them to be shown in documentation.
+		"AI Bridge OpenAI Key": {
+			yaml: true,
+		},
+		"AI Bridge Anthropic Key": {
+			yaml: true,
+		},
+		"AI Bridge Bedrock Access Key": {
+			yaml: true,
+		},
+		"AI Bridge Bedrock Access Key Secret": {
+			yaml: true,
+		},
 	}
 
 	set := (&codersdk.DeploymentValues{}).Options()
@@ -686,6 +700,68 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectNotificationsEnabled, dv.Notifications.Enabled())
+		})
+	}
+}
+
+func TestRetentionConfigParsing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                   string
+		environment            []serpent.EnvVar
+		expectedAuditLogs      time.Duration
+		expectedConnectionLogs time.Duration
+		expectedAPIKeys        time.Duration
+	}{
+		{
+			name:                   "Defaults",
+			environment:            []serpent.EnvVar{},
+			expectedAuditLogs:      0,
+			expectedConnectionLogs: 0,
+			expectedAPIKeys:        7 * 24 * time.Hour, // 7 days default
+		},
+		{
+			name: "IndividualRetentionSet",
+			environment: []serpent.EnvVar{
+				{Name: "CODER_AUDIT_LOGS_RETENTION", Value: "30d"},
+				{Name: "CODER_CONNECTION_LOGS_RETENTION", Value: "60d"},
+				{Name: "CODER_API_KEYS_RETENTION", Value: "14d"},
+			},
+			expectedAuditLogs:      30 * 24 * time.Hour,
+			expectedConnectionLogs: 60 * 24 * time.Hour,
+			expectedAPIKeys:        14 * 24 * time.Hour,
+		},
+		{
+			name: "AllRetentionSet",
+			environment: []serpent.EnvVar{
+				{Name: "CODER_AUDIT_LOGS_RETENTION", Value: "365d"},
+				{Name: "CODER_CONNECTION_LOGS_RETENTION", Value: "30d"},
+				{Name: "CODER_API_KEYS_RETENTION", Value: "0"},
+			},
+			expectedAuditLogs:      365 * 24 * time.Hour,
+			expectedConnectionLogs: 30 * 24 * time.Hour,
+			expectedAPIKeys:        0, // Explicitly disabled
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := codersdk.DeploymentValues{}
+			opts := dv.Options()
+
+			err := opts.SetDefaults()
+			require.NoError(t, err)
+
+			err = opts.ParseEnv(tt.environment)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedAuditLogs, dv.Retention.AuditLogs.Value(), "audit logs retention mismatch")
+			assert.Equal(t, tt.expectedConnectionLogs, dv.Retention.ConnectionLogs.Value(), "connection logs retention mismatch")
+			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
 		})
 	}
 }

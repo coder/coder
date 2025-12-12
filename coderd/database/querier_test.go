@@ -4082,7 +4082,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 	t.Skip("https://github.com/coder/internal/issues/464")
 
 	timezones := []string{
-		"Canada/Newfoundland",
+		"America/St_Johns",
 		"Africa/Johannesburg",
 		"America/New_York",
 		"Europe/London",
@@ -6082,8 +6082,6 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	t.Run("NilParentDoesNotReturnAllParentAgents", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
 		// Given: A workspace agent
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
@@ -6097,6 +6095,8 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// When: We attempt to select agents with a null parent id
 		agents, err := db.GetWorkspaceAgentsByParentID(ctx, uuid.Nil)

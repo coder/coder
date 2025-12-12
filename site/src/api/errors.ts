@@ -31,7 +31,8 @@ export const isApiError = (err: unknown): err is ApiError => {
 	);
 };
 
-const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
+/** @public Exported for use by external consumers (e.g., VS Code extension). */
+export const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
 	return (
 		typeof err === "object" &&
 		err !== null &&

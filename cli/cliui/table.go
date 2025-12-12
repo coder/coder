@@ -180,6 +180,12 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 func renderTable(out any, sort string, headers table.Row, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
 
+	// Return empty string for empty data. Callers should check for this
+	// and provide an appropriate message to the user.
+	if v.Kind() == reflect.Slice && v.Len() == 0 {
+		return "", nil
+	}
+
 	headers = filterHeaders(headers, filterColumns)
 	columnConfigs := createColumnConfigs(headers, filterColumns)
 

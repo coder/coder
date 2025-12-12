@@ -350,6 +350,21 @@ GROUP BY
 -- GetTemplateAppInsightsByTemplate is used for Prometheus metrics. Keep
 -- in sync with GetTemplateAppInsights and UpsertTemplateUsageStats.
 WITH
+	filtered_stats AS (
+		SELECT
+		was.workspace_id,
+		was.user_id,
+		was.agent_id,
+		was.access_method,
+		was.slug_or_port,
+		was.session_started_at,
+		was.session_ended_at
+		FROM
+			workspace_app_stats AS was
+		WHERE
+			was.session_ended_at >= @start_time::timestamptz
+			AND was.session_started_at <  @end_time::timestamptz
+	),
 	-- This CTE is used to explode app usage into minute buckets, then
 	-- flatten the users app usage within the template so that usage in
 	-- multiple workspaces under one template is only counted once for
@@ -357,45 +372,45 @@ WITH
 	app_insights AS (
 		SELECT
 			w.template_id,
-			was.user_id,
+			fs.user_id,
 			-- Both app stats and agent stats track web terminal usage, but
 			-- by different means. The app stats value should be more
 			-- accurate so we don't want to discard it just yet.
 			CASE
-				WHEN was.access_method = 'terminal'
+				WHEN fs.access_method = 'terminal'
 				THEN '[terminal]' -- Unique name, app names can't contain brackets.
-				ELSE was.slug_or_port
+				ELSE fs.slug_or_port
 			END::text AS app_name,
 			COALESCE(wa.display_name, '') AS display_name,
 			(wa.slug IS NOT NULL)::boolean AS is_app,
 			COUNT(DISTINCT s.minute_bucket) AS app_minutes
 		FROM
-			workspace_app_stats AS was
+			filtered_stats AS fs
 		JOIN
 			workspaces AS w
 		ON
-			w.id = was.workspace_id
+			w.id = fs.workspace_id
 		-- We do a left join here because we want to include user IDs that have used
 		-- e.g. ports when counting active users.
 		LEFT JOIN
 			workspace_apps wa
 		ON
-			wa.agent_id = was.agent_id
-			AND wa.slug = was.slug_or_port
+			wa.agent_id = fs.agent_id
+			AND wa.slug = fs.slug_or_port
 		-- Generate a series of minute buckets for each session for computing the
 		-- mintes/bucket.
 		CROSS JOIN
 			generate_series(
-				date_trunc('minute', was.session_started_at),
+				date_trunc('minute', fs.session_started_at),
 				-- Subtract 1 μs to avoid creating an extra series.
-				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+				date_trunc('minute', fs.session_ended_at - '1 microsecond'::interval),
 				'1 minute'::interval
 			) AS s(minute_bucket)
 		WHERE
 			s.minute_bucket >= @start_time::timestamptz
 			AND s.minute_bucket < @end_time::timestamptz
 		GROUP BY
-			w.template_id, was.user_id, was.access_method, was.slug_or_port, wa.display_name, wa.slug
+			w.template_id, fs.user_id, fs.access_method, fs.slug_or_port, wa.display_name, wa.slug
 	)
 
 SELECT
@@ -480,37 +495,52 @@ WITH
 		FROM
 			template_usage_stats
 	),
+	filtered_app_stats AS (
+        SELECT
+            was.workspace_id,
+            was.user_id,
+            was.agent_id,
+            was.access_method,
+            was.slug_or_port,
+            was.session_started_at,
+            was.session_ended_at
+        FROM
+            workspace_app_stats AS was
+        WHERE
+            was.session_ended_at >= (SELECT t FROM latest_start)
+            AND was.session_started_at < NOW()
+    ),
 	workspace_app_stat_buckets AS (
 		SELECT
 			-- Truncate the minute to the nearest half hour, this is the bucket size
 			-- for the data.
 			date_trunc('hour', s.minute_bucket) + trunc(date_part('minute', s.minute_bucket) / 30) * 30 * '1 minute'::interval AS time_bucket,
 			w.template_id,
-			was.user_id,
+			fas.user_id,
 			-- Both app stats and agent stats track web terminal usage, but
 			-- by different means. The app stats value should be more
 			-- accurate so we don't want to discard it just yet.
 			CASE
-				WHEN was.access_method = 'terminal'
+				WHEN fas.access_method = 'terminal'
 				THEN '[terminal]' -- Unique name, app names can't contain brackets.
-				ELSE was.slug_or_port
+				ELSE fas.slug_or_port
 			END AS app_name,
 			COUNT(DISTINCT s.minute_bucket) AS app_minutes,
 			-- Store each unique minute bucket for later merge between datasets.
 			array_agg(DISTINCT s.minute_bucket) AS minute_buckets
 		FROM
-			workspace_app_stats AS was
+			filtered_app_stats AS fas
 		JOIN
 			workspaces AS w
 		ON
-			w.id = was.workspace_id
+			w.id = fas.workspace_id
 		-- Generate a series of minute buckets for each session for computing the
 		-- mintes/bucket.
 		CROSS JOIN
 			generate_series(
-				date_trunc('minute', was.session_started_at),
+				date_trunc('minute', fas.session_started_at),
 				-- Subtract 1 μs to avoid creating an extra series.
-				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+				date_trunc('minute', fas.session_ended_at - '1 microsecond'::interval),
 				'1 minute'::interval
 			) AS s(minute_bucket)
 		WHERE
@@ -519,7 +549,7 @@ WITH
 			s.minute_bucket >= (SELECT t FROM latest_start)
 			AND s.minute_bucket < NOW()
 		GROUP BY
-			time_bucket, w.template_id, was.user_id, was.access_method, was.slug_or_port
+			time_bucket, w.template_id, fas.user_id, fas.access_method, fas.slug_or_port
 	),
 	agent_stats_buckets AS (
 		SELECT

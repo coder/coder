@@ -132,8 +132,21 @@ log entry:
 > Audit Logs provide critical security and compliance information. Purging Audit Logs may impact your organization's ability
 > to investigate security incidents or meet compliance requirements. Consult your security and compliance teams before purging any audit data.
 
-Audit Logs are not automatically purged from the database, though they can account for a large amount of disk usage.
-Use the following query to determine the amount of disk space used by the `audit_logs` table.
+### Data Retention
+
+Coder supports configurable retention policies that automatically purge old
+Audit Logs. To enable automated purging, configure the
+`--audit-logs-retention` flag or `CODER_AUDIT_LOGS_RETENTION` environment
+variable. For comprehensive configuration options, see
+[Data Retention](../setup/data-retention.md).
+
+### Manual Purging
+
+Alternatively, you can purge Audit Logs manually by running SQL queries
+directly against the database.
+
+Audit Logs can account for a large amount of disk usage. Use the following
+query to determine the amount of disk space used by the `audit_logs` table.
 
 ```sql
 SELECT
