@@ -895,7 +895,7 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 		DisplayName: "Bitbucket Server",
 		Scopes:      []string{"PUBLIC_REPOS", "REPO_READ", "REPO_WRITE"},
 		DisplayIcon: "/icon/bitbucket.svg",
-		// TODO: PKCE support? Test 'S256' as the string value
+		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	}
 	// Bitbucket servers will have some base url, e.g. https://bitbucket.coder.com.
@@ -975,7 +975,7 @@ func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 		DisplayName: "JFrog Artifactory",
 		Scopes:      []string{"applied-permissions/user"},
 		DisplayIcon: "/icon/jfrog.svg",
-		// TODO: PKCE support? Test 'S256' as the string value
+		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	}
 	// Artifactory servers will have some base url, e.g. https://jfrog.coder.com.
@@ -1047,7 +1047,7 @@ func azureDevopsEntraDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 		DisplayName: "Azure DevOps (Entra)",
 		DisplayIcon: "/icon/azure-devops.svg",
 		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
-		// TODO: PKCE support? Test 'S256' as the string value
+		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	}
 	// The tenant ID is required for urls and is in the auth url.
@@ -1087,7 +1087,7 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/azure-devops.svg",
 		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
 		Scopes:      []string{"vso.code_write"},
-		// TODO: PKCE support? Test 'S256' as the string value
+		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
 	codersdk.EnhancedExternalAuthProviderBitBucketCloud: {
@@ -1098,7 +1098,7 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/bitbucket.svg",
 		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
 		Scopes:      []string{"account", "repository:write"},
-		// TODO: PKCE support? Test 'S256' as the string value
+		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
 	codersdk.EnhancedExternalAuthProviderSlack: {
@@ -1109,7 +1109,7 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/slack.svg",
 		// See: https://api.slack.com/authentication/oauth-v2#exchanging
 		ExtraTokenKeys: []string{"authed_user"},
-		// TODO: PKCE support? Test 'S256' as the string value
+		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
 }

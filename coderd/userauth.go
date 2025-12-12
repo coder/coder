@@ -770,6 +770,10 @@ type GithubOAuth2Config struct {
 	DefaultProviderConfigured bool
 }
 
+func (*GithubOAuth2Config) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	return []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256}
+}
+
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	if !c.DeviceFlowEnabled {
 		return c.OAuth2Config.Exchange(ctx, code, opts...)

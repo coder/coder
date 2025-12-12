@@ -169,7 +169,7 @@ type FakeIDP struct {
 	// clientID to be used by coderd
 	clientID     string
 	clientSecret string
-	pkce         bool // TODO: Implement for refresh token flow as well
+	pkce         bool // TODO(Emyrk): Implement for refresh token flow as well
 	// externalProviderID is optional to match the provider in coderd for
 	// redirectURLs.
 	externalProviderID string
@@ -1054,13 +1054,17 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			if f.pkce {
 				challenge, ok := f.codeToChallengeMap.Load(code)
 				if !ok {
-					httpError(rw, http.StatusBadRequest, xerrors.New("code challenge not found for code"))
+					httpError(rw, http.StatusBadRequest, xerrors.New("pkce: challenge not found for code"))
 					return
 				}
 				codeVerifier := values.Get("code_verifier")
+				if codeVerifier == "" {
+					httpError(rw, http.StatusBadRequest, xerrors.New("pkce: missing code_verifier"))
+					return
+				}
 				expecter := oauth2.S256ChallengeFromVerifier(codeVerifier)
 				if challenge != expecter {
-					httpError(rw, http.StatusBadRequest, xerrors.New("invalid code verifier"))
+					httpError(rw, http.StatusBadRequest, xerrors.New("pkce: invalid code verifier"))
 					return
 				}
 			}
