@@ -311,7 +311,7 @@
 				{
 					"title": "Workspace Sharing",
 					"description": "Sharing workspaces",
-					"path": "./user-guides/workspace-shared.md",
+					"path": "./user-guides/shared-workspaces.md",
 					"icon_path": "./images/icons/generic.svg",
 					"state": ["beta"]
 				},
