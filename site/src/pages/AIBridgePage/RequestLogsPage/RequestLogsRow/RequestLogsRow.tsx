@@ -285,7 +285,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="flex flex-col gap-2">
 									<div>Prompts</div>
 									<div
-										className="bg-surface-secondary rounded-md p-4"
+										className="bg-surface-secondary rounded-md p-4 text-xs leading-4"
 										data-chromatic="ignore"
 									>
 										{interception.user_prompts.map((prompt) => (
