@@ -45,6 +45,7 @@ import (
 // fakeContainerCLI implements the agentcontainers.ContainerCLI interface for
 // testing.
 type fakeContainerCLI struct {
+	mu         sync.Mutex
 	containers codersdk.WorkspaceAgentListContainersResponse
 	listErr    error
 	arch       string
@@ -72,6 +73,9 @@ func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args .
 }
 
 func (f *fakeContainerCLI) Stop(ctx context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.containers.Devcontainers = slice.Filter(f.containers.Devcontainers, func(dc codersdk.WorkspaceAgentDevcontainer) bool {
 		return dc.Container.ID == name
 	})
@@ -84,6 +88,9 @@ func (f *fakeContainerCLI) Stop(ctx context.Context, name string) error {
 }
 
 func (f *fakeContainerCLI) Remove(ctx context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.containers.Containers = slice.Filter(f.containers.Containers, func(container codersdk.WorkspaceAgentContainer) bool {
 		return container.ID == name
 	})
@@ -1147,7 +1154,7 @@ func TestAPI(t *testing.T) {
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      http.StatusConflict,
-				wantBody:        "Devcontainer is stopping",
+				wantBody:        "Devcontainer is already being deleted",
 			},
 			{
 				name:           "Container stop fails",

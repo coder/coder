@@ -20344,6 +20344,7 @@ const docTemplate = `{
                 "stopped",
                 "starting",
                 "stopping",
+                "deleting",
                 "error"
             ],
             "x-enum-varnames": [
@@ -20351,6 +20352,7 @@ const docTemplate = `{
                 "WorkspaceAgentDevcontainerStatusStopped",
                 "WorkspaceAgentDevcontainerStatusStarting",
                 "WorkspaceAgentDevcontainerStatusStopping",
+                "WorkspaceAgentDevcontainerStatusDeleting",
                 "WorkspaceAgentDevcontainerStatusError"
             ]
         },

@@ -1021,6 +1021,9 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
 			continue // This state is handled by the recreation routine.
 
+		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopping:
+			continue // This state is handled by the stopping routine.
+
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusDeleting:
 			continue // This state is handled by the delete routine.
 
@@ -1265,7 +1268,8 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Check if the devcontainer is currently starting - if so, we can't delete it.
+	// NOTE(DanielleMaywood):
+	// We currently do not support cancelling the startup of a dev container.
 	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
 		api.mu.Unlock()
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
@@ -1275,7 +1279,6 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Similarly, if already deleting, don't allow another delete.
 	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusDeleting {
 		api.mu.Unlock()
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
@@ -1285,34 +1288,39 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusDeleting
-	dc.Error = ""
-	api.knownDevcontainers[dc.WorkspaceFolder] = dc
-	api.broadcastUpdatesLocked()
-
-	// Gather the information we need before unlocking.
-	workspaceFolder := dc.WorkspaceFolder
-	dcName := dc.Name
-	var containerID string
+	var (
+		workspaceFolder = dc.WorkspaceFolder
+		containerID     string
+		subAgentID      uuid.UUID
+	)
 	if dc.Container != nil {
 		containerID = dc.Container.ID
 	}
-	proc, hasSubAgent := api.injectedSubAgentProcs[workspaceFolder]
-	var subAgentID uuid.UUID
-	if hasSubAgent && proc.agent.ID != uuid.Nil {
+	if proc, hasSubAgent := api.injectedSubAgentProcs[workspaceFolder]; hasSubAgent && proc.agent.ID != uuid.Nil {
 		subAgentID = proc.agent.ID
-		// Stop the subagent process context to ensure it stops.
 		proc.stop()
 	}
 
-	// Unlock the mutex while we perform potentially slow operations
-	// (network calls, docker commands) to avoid blocking other operations.
 	api.mu.Unlock()
 
 	// Stop and remove the container if it exists.
 	if containerID != "" {
+		api.mu.Lock()
+		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopping
+		dc.Error = ""
+		api.knownDevcontainers[dc.WorkspaceFolder] = dc
+		api.broadcastUpdatesLocked()
+		api.mu.Unlock()
+
 		if err := api.ccli.Stop(ctx, containerID); err != nil {
 			api.logger.Error(ctx, "unable to stop container", slog.Error(err))
+
+			api.mu.Lock()
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+			dc.Error = err.Error()
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.broadcastUpdatesLocked()
+			api.mu.Unlock()
 
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
 				Message: "An internal error occurred stopping the container",
@@ -1320,9 +1328,25 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 			})
 			return
 		}
+	}
 
+	api.mu.Lock()
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusDeleting
+	dc.Error = ""
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
+	api.mu.Unlock()
+
+	if containerID != "" {
 		if err := api.ccli.Remove(ctx, containerID); err != nil {
 			api.logger.Error(ctx, "unable to remove container", slog.Error(err))
+
+			api.mu.Lock()
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+			dc.Error = err.Error()
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.broadcastUpdatesLocked()
+			api.mu.Unlock()
 
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
 				Message: "An internal error occurred removing the container",
@@ -1338,6 +1362,13 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		if err := client.Delete(ctx, subAgentID); err != nil {
 			api.logger.Error(ctx, "unable to delete agent", slog.Error(err))
 
+			api.mu.Lock()
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+			dc.Error = err.Error()
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.broadcastUpdatesLocked()
+			api.mu.Unlock()
+
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
 				Message: "An internal error occurred deleting the agent",
 				Detail:  err.Error(),
@@ -1347,7 +1378,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 	}
 
 	api.mu.Lock()
-	delete(api.devcontainerNames, dcName)
+	delete(api.devcontainerNames, dc.Name)
 	delete(api.knownDevcontainers, workspaceFolder)
 	delete(api.devcontainerLogSourceIDs, workspaceFolder)
 	delete(api.recreateSuccessTimes, workspaceFolder)

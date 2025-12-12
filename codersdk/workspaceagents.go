@@ -401,6 +401,7 @@ const (
 	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
 	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
 	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusStopping WorkspaceAgentDevcontainerStatus = "stopping"
 	WorkspaceAgentDevcontainerStatusDeleting WorkspaceAgentDevcontainerStatus = "deleting"
 	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
 )
