@@ -31,7 +31,7 @@ const customisedDateLocale: Intl.DateTimeFormatOptions = {
 	// Show the month as a short name
 	month: "short",
 	day: "numeric",
-	hour: "numeric",
+	hour: "2-digit",
 	minute: "2-digit",
 	second: "2-digit",
 	hour12: true,
@@ -198,14 +198,20 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Start Time:</dt>
 								<dd data-chromatic="ignore">
-									{new Date(interception.started_at).toLocaleString()}
+									{new Date(interception.started_at).toLocaleString(
+										undefined,
+										customisedDateLocale,
+									)}
 								</dd>
 
 								{interception.ended_at && (
 									<>
 										<dt>End Time:</dt>
 										<dd data-chromatic="ignore">
-											{new Date(interception.ended_at).toLocaleString()}
+											{new Date(interception.started_at).toLocaleString(
+												undefined,
+												customisedDateLocale,
+											)}
 										</dd>
 									</>
 								)}
