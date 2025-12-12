@@ -281,12 +281,3 @@ func (e *timingSpan) toProto() *proto.Timing {
 		State:    e.state,
 	}
 }
-
-func createGraphTimingsEvent(event timingKind) (time.Time, *timingSpan) {
-	return dbtime.Now(), &timingSpan{
-		kind:     event,
-		action:   "building terraform dependency graph",
-		provider: "terraform",
-		resource: "state file",
-	}
-}

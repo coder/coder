@@ -1598,15 +1598,29 @@ export const ChunkPiece = {
 export interface Provisioner {
   /**
    * Session represents provisioning a single template import or workspace.  The daemon always sends Config followed
-   * by one of the requests (ParseRequest, PlanRequest, ApplyRequest).  The provisioner should respond with a stream
-   * of zero or more Logs, followed by the corresponding complete message (ParseComplete, PlanComplete,
-   * ApplyComplete).  The daemon may then send a new request.  A request to apply MUST be preceded by a request plan,
-   * and the provisioner should store the plan data on the Session after a successful plan, so that the daemon may
-   * request an apply.  If the daemon closes the Session without an apply, the plan data may be safely discarded.
+   * by one of the requests (InitRequest, ParseRequest, PlanRequest, ApplyRequest, GraphRequest).  The provisioner
+	 * should respond with a stream of zero or more Logs, followed by the corresponding complete message
+	 * (InitComplete, ParseComplete, PlanComplete, ApplyComplete, GraphComplete).
+   * The daemon may then send a new request.
+	 *
+	 * A request to Parse or Plan MUST be preceded by a request init. The provisioner should store the init data on
+	 * the session after a successful init. If the daemon closes the session, the init data may be safely discarded.
+	 *
+	 * A request to apply MUST be preceded by a request plan, and the provisioner should store the plan data on the
+	 * Session after a successful plan, so that the daemon may request an apply.  If the daemon closes
+	 * the Session without an apply, the plan data may be safely discarded.
+	 *
+	 * A request to graph MUST be preceded by a plan or an apply.
+	 *
+	 * The order of requests is then one of the following:
+	 * 1. Init -> Parse
+	 * 2. Init -> Plan -> Graph
+	 * 3. Init -> Plan -> Apply -> Graph
    *
-   * The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous ParseRequest,
-   * PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
-   * that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
+   * The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous InitRequest,
+	 * ParseRequest, PlanRequest, ApplyRequest, or GraphRequest.  The provisioner MUST reply with a complete message
+	 * corresponding to the request that was canceled.  If the provisioner has already completed the request,
+	 * it may ignore the CancelRequest.
    */
   Session(request: Observable<Request>): Observable<Response>;
 }
