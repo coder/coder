@@ -46,6 +46,8 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		parameterFlags     workspaceParameterFlags
 		autoUpdates        string
 		copyParametersFrom string
+		noWait             bool
+		noPrompt           bool
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -75,6 +77,9 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			if workspaceName == "" {
+				if noPrompt {
+					return xerrors.Errorf("workspace name is required; use the first argument or specify with the command")
+				}
 				workspaceName, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
@@ -122,6 +127,9 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			var templateVersionID uuid.UUID
 			switch {
 			case templateName == "":
+				if noPrompt {
+					return xerrors.Errorf("template name is required; use --template to specify one")
+				}
 				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
 				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{})
@@ -298,6 +306,9 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 						return xerrors.Errorf("unable to resolve preset: %w", err)
 					}
 					// If no preset found, prompt the user to choose a preset
+					if noPrompt {
+						return xerrors.Errorf("preset selection required but prompting is disabled; use --preset to specify one or --preset=none to skip")
+					}
 					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
 						return xerrors.Errorf("unable to prompt user for preset: %w", err)
 					}
@@ -330,6 +341,8 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				RichParameterDefaults: cliBuildParameterDefaults,
 
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
+
+				NoPrompt: noPrompt,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -368,6 +381,11 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
+
+			if noWait {
+				_, _ = fmt.Fprintf(inv.Stdout, "The %s workspace has been created. Building in the background...\n", cliui.Keyword(workspace.Name))
+				return nil
+			}
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
@@ -436,6 +454,18 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Description: "Specify the source workspace name to copy parameters from.",
 			Value:       serpent.StringOf(&copyParametersFrom),
 		},
+		serpent.Option{
+			Flag:        "no-wait",
+			Env:         "CODER_NO_WAIT",
+			Description: "Return immediately after creating the workspace. The workspace build will continue in the background.",
+			Value:       serpent.BoolOf(&noWait),
+		},
+		serpent.Option{
+			Flag:        "no-prompt",
+			Env:         "CODER_NO_PROMPT",
+			Description: "Disable all prompts. Parameters with default values will use those defaults. Required parameters without defaults will cause the command to fail.",
+			Value:       serpent.BoolOf(&noPrompt),
+		},
 		cliui.SkipPromptOption(),
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
@@ -460,6 +490,9 @@ type prepWorkspaceBuildArgs struct {
 	RichParameters        []codersdk.WorkspaceBuildParameter
 	RichParameterFile     string
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
+
+	// NoPrompt causes the build to fail if user input would be required
+	NoPrompt bool
 }
 
 // resolvePreset returns the preset matching the given presetName (if specified),
@@ -562,7 +595,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).
-		WithRichParametersDefaults(args.RichParameterDefaults)
+		WithRichParametersDefaults(args.RichParameterDefaults).
+		WithNoPrompt(args.NoPrompt)
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err

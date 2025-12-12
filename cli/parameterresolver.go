@@ -34,6 +34,9 @@ type ParameterResolver struct {
 
 	promptRichParameters      bool
 	promptEphemeralParameters bool
+
+	// noPrompt causes the resolver to return an error if user input would be required
+	noPrompt bool
 }
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
@@ -83,6 +86,11 @@ func (pr *ParameterResolver) WithPromptRichParameters(promptRichParameters bool)
 
 func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParameters bool) *ParameterResolver {
 	pr.promptEphemeralParameters = promptEphemeralParameters
+	return pr
+}
+
+func (pr *ParameterResolver) WithNoPrompt(noPrompt bool) *ParameterResolver {
+	pr.noPrompt = noPrompt
 	return pr
 }
 
@@ -255,13 +263,31 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 		promptParameterOption := pr.isLastBuildParameterInvalidOption(tvp)
 
-		if (tvp.Ephemeral && pr.promptEphemeralParameters) ||
+		needsInput := (tvp.Ephemeral && pr.promptEphemeralParameters) ||
 			(action == WorkspaceCreate && tvp.Required) ||
 			(action == WorkspaceCreate && !tvp.Ephemeral) ||
 			(action == WorkspaceUpdate && promptParameterOption) ||
 			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
-			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
+			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters)
+
+		if needsInput {
+			// If the parameter has a default value and we're in no-prompt mode, use the default
+			if pr.noPrompt {
+				if tvp.DefaultValue != "" {
+					resolved = append(resolved, codersdk.WorkspaceBuildParameter{
+						Name:  tvp.Name,
+						Value: tvp.DefaultValue,
+					})
+					continue
+				}
+				if tvp.Required {
+					return nil, xerrors.Errorf("required parameter %q requires a value; use --parameter %s=<value>", tvp.Name, tvp.Name)
+				}
+				// Non-required parameter with no default, skip prompting
+				continue
+			}
+
 			parameterValue, err := cliui.RichParameter(inv, tvp, pr.richParametersDefaults)
 			if err != nil {
 				return nil, err
