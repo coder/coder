@@ -39,17 +39,30 @@ const customisedDateLocale: Intl.DateTimeFormatOptions = {
 
 export const RequestLogsRowProviderIcon = ({
 	provider,
+	...props
 }: {
 	provider: string;
-}) => {
+} & React.ComponentProps<"svg">) => {
 	const iconClassName = "size-icon-sm flex-shrink-0";
 	switch (provider) {
 		case "openai":
-			return <OpenAiIcon className={iconClassName} />;
+			return (
+				<OpenAiIcon className={cn(iconClassName, props.className)} {...props} />
+			);
 		case "anthropic":
-			return <AnthropicIcon className={iconClassName} />;
+			return (
+				<AnthropicIcon
+					className={cn(iconClassName, props.className)}
+					{...props}
+				/>
+			);
 		default:
-			return <CircleQuestionMarkIcon className={iconClassName} />;
+			return (
+				<CircleQuestionMarkIcon
+					className={cn(iconClassName, props.className)}
+					{...props}
+				/>
+			);
 	}
 };
 
@@ -231,7 +244,19 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								</dd>
 
 								<dt>Model:</dt>
-								<dd data-chromatic="ignore">{interception.model}</dd>
+								<dd data-chromatic="ignore">
+									<Badge className="gap-0.5">
+										<div className="flex-shrink-0 flex items-center">
+											<RequestLogsRowProviderIcon
+												provider={interception.provider}
+												className="size-icon-xs"
+											/>
+										</div>
+										<span className="truncate min-w-0 w-full text-2xs">
+											{interception.model}
+										</span>
+									</Badge>
+								</dd>
 
 								<dt>Input Tokens:</dt>
 								<dd data-chromatic="ignore">{inputTokens}</dd>
