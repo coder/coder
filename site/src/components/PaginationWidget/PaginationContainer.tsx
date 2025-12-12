@@ -41,6 +41,16 @@ export const PaginationContainer: FC<PaginationProps> = ({
 			>
 				{children}
 
+				{paginationPosition === "bottom" && (
+					<PaginationHeader
+						limit={query.limit}
+						totalRecords={query.totalRecords}
+						currentOffsetStart={query.currentOffsetStart}
+						paginationUnitLabel={paginationUnitLabel}
+						className="pt-8 justify-end"
+					/>
+				)}
+
 				{query.isSuccess && (
 					<PaginationWidgetBase
 						totalRecords={query.totalRecords}
@@ -52,16 +62,6 @@ export const PaginationContainer: FC<PaginationProps> = ({
 					/>
 				)}
 			</div>
-
-			{paginationPosition === "bottom" && (
-				<PaginationHeader
-					limit={query.limit}
-					totalRecords={query.totalRecords}
-					currentOffsetStart={query.currentOffsetStart}
-					paginationUnitLabel={paginationUnitLabel}
-					className="pt-8 justify-end"
-				/>
-			)}
 		</>
 	);
 };
