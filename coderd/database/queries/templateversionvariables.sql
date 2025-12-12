@@ -23,4 +23,4 @@ VALUES
     ) RETURNING *;
 
 -- name: GetTemplateVersionVariables :many
-SELECT * FROM template_version_variables WHERE template_version_id = $1;
+SELECT * FROM template_version_variables WHERE template_version_id = $1 ORDER BY name;
