@@ -29,9 +29,16 @@ type RequestLogsRowProps = {
  * @returns The merged object.
  */
 function tokenUsageMetadataMerge(
-	...objects: Array<AIBridgeInterception["token_usages"][number]["metadata"]>
+	...objects: Array<
+		AIBridgeInterception["token_usages"][number]["metadata"] | null
+	>
 ): unknown {
-	const nonEmptyObjects = objects.filter((obj) => Object.keys(obj).length > 0);
+	const validObjects = objects.filter((obj) => obj !== null);
+
+	// Filter out empty objects
+	const nonEmptyObjects = validObjects.filter(
+		(obj) => Object.keys(obj).length > 0,
+	);
 	if (nonEmptyObjects.length === 0) {
 		return null;
 	}
