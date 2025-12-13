@@ -6,7 +6,8 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
-import { useProviderFilterMenu } from "./filter/filter";
+import { useModelFilterMenu } from "./RequestLogsFilter/ModelFilter";
+import { useProviderFilterMenu } from "./RequestLogsFilter/ProviderFilter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 const RequestLogsPage: FC = () => {
@@ -41,6 +42,15 @@ const RequestLogsPage: FC = () => {
 			}),
 	});
 
+	const modelMenu = useModelFilterMenu({
+		value: filter.values.model,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				model: option?.value,
+			}),
+	});
+
 	return (
 		<>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
@@ -56,6 +66,7 @@ const RequestLogsPage: FC = () => {
 					menus: {
 						user: userMenu,
 						provider: providerMenu,
+						model: modelMenu,
 					},
 				}}
 			/>
