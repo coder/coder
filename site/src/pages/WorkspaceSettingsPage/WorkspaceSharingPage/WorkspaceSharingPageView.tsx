@@ -7,6 +7,7 @@ import type {
 	WorkspaceRole,
 	WorkspaceUser,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
@@ -174,6 +175,7 @@ interface WorkspaceSharingPageViewProps {
 	workspace: Workspace;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
+	error: unknown;
 	onAddUser: (
 		user: WorkspaceUser,
 		role: WorkspaceRole,
@@ -194,6 +196,7 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 	workspace,
 	workspaceACL,
 	canUpdatePermissions,
+	error,
 	onAddUser,
 	isAddingUser,
 	updatingUserId,
@@ -213,6 +216,7 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-4">
+			{Boolean(error) && <ErrorAlert error={error} />}
 			{canUpdatePermissions && (
 				<AddWorkspaceUserOrGroup
 					organizationID={workspace.organization_id}

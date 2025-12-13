@@ -4,7 +4,6 @@ import {
 	setWorkspaceUserRole,
 	workspaceACL,
 } from "api/queries/workspaces";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
@@ -37,7 +36,9 @@ const WorkspaceSharingPage: FC = () => {
 
 	const canUpdatePermissions = Boolean(permissions?.updateWorkspace);
 
-	const mutationError =
+	const error =
+		workspaceACLQuery.error ??
+		permissionsQuery.error ??
 		addUserMutation.error ??
 		updateUserMutation.error ??
 		removeUserMutation.error ??
@@ -60,18 +61,11 @@ const WorkspaceSharingPage: FC = () => {
 				</div>
 			</header>
 
-			{workspaceACLQuery.isError && (
-				<ErrorAlert error={workspaceACLQuery.error} />
-			)}
-			{permissionsQuery.isError && (
-				<ErrorAlert error={permissionsQuery.error} />
-			)}
-			{Boolean(mutationError) && <ErrorAlert error={mutationError} />}
-
 			<WorkspaceSharingPageView
 				workspace={workspace}
 				workspaceACL={workspaceACLQuery.data}
 				canUpdatePermissions={canUpdatePermissions}
+				error={error}
 				onAddUser={async (user, role, reset) => {
 					await addUserMutation.mutateAsync({
 						workspaceId: workspace.id,
