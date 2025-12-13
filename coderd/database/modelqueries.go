@@ -768,6 +768,7 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 type aibridgeQuerier interface {
 	ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error)
 	CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) (int64, error)
+	ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error)
 }
 
 func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error) {
@@ -864,6 +865,35 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, a
 		return 0, err
 	}
 	return count, nil
+}
+
+func (q *sqlQuerier) ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.AIBridgeInterceptionConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+	filtered, err := insertAuthorizedFilter(listAIBridgeModels, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: ListAIBridgeModels :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var model string
+		if err := rows.Scan(&model); err != nil {
+			return nil, err
+		}
+		items = append(items, model)
+	}
+	return items, nil
 }
 
 func insertAuthorizedFilter(query string, replaceWith string) (string, error) {

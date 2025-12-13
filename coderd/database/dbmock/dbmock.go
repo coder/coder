@@ -6011,6 +6011,21 @@ func (mr *MockStoreMockRecorder) ListAIBridgeInterceptionsTelemetrySummaries(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeInterceptionsTelemetrySummaries", reflect.TypeOf((*MockStore)(nil).ListAIBridgeInterceptionsTelemetrySummaries), ctx, arg)
 }
 
+// ListAIBridgeModels mocks base method.
+func (m *MockStore) ListAIBridgeModels(ctx context.Context) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeModels", ctx)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeModels indicates an expected call of ListAIBridgeModels.
+func (mr *MockStoreMockRecorder) ListAIBridgeModels(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAIBridgeModels), ctx)
+}
+
 // ListAIBridgeTokenUsagesByInterceptionIDs mocks base method.
 func (m *MockStore) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	m.ctrl.T.Helper()
@@ -6069,6 +6084,21 @@ func (m *MockStore) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeInterceptions(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeInterceptions", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeInterceptions), ctx, arg, prepared)
+}
+
+// ListAuthorizedAIBridgeModels mocks base method.
+func (m *MockStore) ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAuthorizedAIBridgeModels", ctx, prepared)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAuthorizedAIBridgeModels indicates an expected call of ListAuthorizedAIBridgeModels.
+func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeModels(ctx, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeModels), ctx, prepared)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.

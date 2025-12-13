@@ -910,6 +910,42 @@ func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Con
 	return items, nil
 }
 
+const listAIBridgeModels = `-- name: ListAIBridgeModels :many
+SELECT
+	model
+FROM
+	aibridge_interceptions
+WHERE
+	ended_at IS NOT NULL
+	-- Authorize Filter clause will be injected below in ListAIBridgeModelsAuthorized
+	-- @authorize_filter
+GROUP BY
+	model
+`
+
+func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeModels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var model string
+		if err := rows.Scan(&model); err != nil {
+			return nil, err
+		}
+		items = append(items, model)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
 	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
