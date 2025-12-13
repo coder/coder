@@ -42,6 +42,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 		r.Group(func(r chi.Router) {
 			r.Use(middlewares...)
 			r.Get("/interceptions", api.aiBridgeListInterceptions)
+			r.Get("/models", api.aiBridgeListModels)
 		})
 
 		// Apply overload protection middleware to the aibridged handler.
@@ -229,4 +230,28 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 	}
 
 	return items, nil
+}
+
+// aiBridgeListModels returns all AI Bridge models a user can see.
+//
+// @Summary List AI Bridge models
+// @ID list-ai-bridge-models
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Bridge
+// @Success 200 {array} string
+// @Router /aibridge/models [get]
+func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	models, err := api.Database.ListAIBridgeModels(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting AI Bridge models.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, models)
 }

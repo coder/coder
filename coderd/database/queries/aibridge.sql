@@ -366,3 +366,16 @@ SELECT (
   (SELECT COUNT(*) FROM user_prompts) +
   (SELECT COUNT(*) FROM interceptions)
 )::bigint as total_deleted;
+
+-- name: ListAIBridgeModels :many
+SELECT
+	model
+FROM
+	aibridge_interceptions
+WHERE
+	ended_at IS NOT NULL
+	-- Authorize Filter clause will be injected below in ListAIBridgeModelsAuthorized
+	-- @authorize_filter
+GROUP BY
+	model
+;
