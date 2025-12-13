@@ -2,7 +2,7 @@ import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { AnthropicIcon } from "components/Icons/AnthropicIcon";
-import { OpenAiIcon } from "components/Icons/OpenAiIcon";
+import { OpenAIIcon } from "components/Icons/OpenAIIcon";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -47,7 +47,7 @@ const RequestLogsRowProviderIcon = ({
 	switch (provider) {
 		case "openai":
 			return (
-				<OpenAiIcon className={cn(iconClassName, props.className)} {...props} />
+				<OpenAIIcon className={cn(iconClassName, props.className)} {...props} />
 			);
 		case "anthropic":
 			return (

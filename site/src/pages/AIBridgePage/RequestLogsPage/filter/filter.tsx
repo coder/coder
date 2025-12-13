@@ -7,14 +7,14 @@ import {
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { AnthropicIcon } from "components/Icons/AnthropicIcon";
-import { OpenAiIcon } from "components/Icons/OpenAiIcon";
+import { OpenAIIcon } from "components/Icons/OpenAIIcon";
 import type { FC } from "react";
 
 const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 	{
 		label: "OpenAI",
 		value: "openai",
-		startIcon: <OpenAiIcon className="size-icon-md" />,
+		startIcon: <OpenAIIcon className="size-icon-md" />,
 	},
 	{
 		label: "Anthropic",
