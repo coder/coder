@@ -1,7 +1,7 @@
 import type React from "react";
 import type { JSX } from "react";
 
-export const OpenAiIcon = (
+export const OpenAIIcon = (
 	props: Omit<
 		React.ComponentProps<"svg">,
 		"viewBox" | "width" | "height" | "fill" | "xmlns"
