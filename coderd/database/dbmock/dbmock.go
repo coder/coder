@@ -6087,18 +6087,18 @@ func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeInterceptions(ctx, arg, p
 }
 
 // ListAuthorizedAIBridgeModels mocks base method.
-func (m *MockStore) ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error) {
+func (m *MockStore) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAuthorizedAIBridgeModels", ctx, prepared)
+	ret := m.ctrl.Call(m, "ListAuthorizedAIBridgeModels", ctx, arg, prepared)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAuthorizedAIBridgeModels indicates an expected call of ListAuthorizedAIBridgeModels.
-func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeModels(ctx, prepared any) *gomock.Call {
+func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeModels(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeModels), ctx, prepared)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeModels), ctx, arg, prepared)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.
