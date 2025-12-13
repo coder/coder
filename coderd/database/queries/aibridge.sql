@@ -374,8 +374,15 @@ FROM
 	aibridge_interceptions
 WHERE
 	ended_at IS NOT NULL
+	-- Filter model
+	AND CASE
+		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in ListAIBridgeModelsAuthorized
 	-- @authorize_filter
 GROUP BY
 	model
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+OFFSET @offset_
 ;

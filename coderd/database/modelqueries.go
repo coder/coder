@@ -766,7 +766,7 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 type aibridgeQuerier interface {
 	ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error)
 	CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) (int64, error)
-	ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error)
+	ListAuthorizedAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error)
 }
 
 func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error) {
@@ -865,7 +865,7 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, a
 	return count, nil
 }
 
-func (q *sqlQuerier) ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error) {
+func (q *sqlQuerier) ListAuthorizedAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.AIBridgeInterceptionConverter(),
 	})
@@ -878,7 +878,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeModels(ctx context.Context, prepared 
 	}
 
 	query := fmt.Sprintf("-- name: ListAIBridgeModels :many\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query)
+	rows, err := q.db.QueryContext(ctx, query, arg.Model, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
