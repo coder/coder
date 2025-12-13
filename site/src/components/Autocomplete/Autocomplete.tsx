@@ -165,7 +165,9 @@ export function Autocomplete<TOption>({
 						<span
 							className={cn(
 								"truncate text-left",
-								!displayValue && "text-content-secondary",
+								displayValue
+									? "text-content-primary"
+									: "text-content-secondary",
 							)}
 						>
 							{displayValue || placeholder}
