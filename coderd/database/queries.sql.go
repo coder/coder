@@ -917,14 +917,27 @@ FROM
 	aibridge_interceptions
 WHERE
 	ended_at IS NOT NULL
+	-- Filter model
+	AND CASE
+		WHEN $1::text != '' THEN aibridge_interceptions.model = $1::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in ListAIBridgeModelsAuthorized
 	-- @authorize_filter
 GROUP BY
 	model
+LIMIT COALESCE(NULLIF($3::integer, 0), 100)
+OFFSET $2
 `
 
-func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeModels)
+type ListAIBridgeModelsParams struct {
+	Model  string `db:"model" json:"model"`
+	Offset int32  `db:"offset_" json:"offset_"`
+	Limit  int32  `db:"limit_" json:"limit_"`
+}
+
+func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeModels, arg.Model, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

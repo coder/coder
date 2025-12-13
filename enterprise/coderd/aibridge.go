@@ -23,7 +23,9 @@ import (
 
 const (
 	maxListInterceptionsLimit     = 1000
+	maxListModelsLimit            = 1000
 	defaultListInterceptionsLimit = 100
+	defaultListModelsLimit        = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow = time.Second
@@ -244,7 +246,35 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	models, err := api.Database.ListAIBridgeModels(ctx)
+	page, ok := coderd.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	if page.Limit == 0 {
+		page.Limit = defaultListModelsLimit
+	}
+
+	if page.Limit > maxListModelsLimit || page.Limit < 1 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid pagination limit value.",
+			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListModelsLimit),
+		})
+		return
+	}
+
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := searchquery.AIBridgeModels(api.Database, queryStr, page)
+
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid AI Bridge models search query.",
+			Validations: errs,
+		})
+		return
+	}
+
+	models, err := api.Database.ListAIBridgeModels(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting AI Bridge models.",

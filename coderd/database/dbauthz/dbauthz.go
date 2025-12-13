@@ -4674,12 +4674,12 @@ func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Contex
 	return q.db.ListAIBridgeInterceptionsTelemetrySummaries(ctx, arg)
 }
 
-func (q *querier) ListAIBridgeModels(ctx context.Context) ([]string, error) {
+func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams) ([]string, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.db.ListAuthorizedAIBridgeModels(ctx, prep)
+	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
 }
 
 func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
@@ -6192,9 +6192,9 @@ func (q *querier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg 
 	return q.CountAIBridgeInterceptions(ctx, arg)
 }
 
-func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error) {
+func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	// TODO: Delete this function, all ListAIBridgeModels should be authorized. For now just call ListAIBridgeModels on the authz querier.
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
-	return q.db.ListAuthorizedAIBridgeModels(ctx, prepared)
+	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prepared)
 }

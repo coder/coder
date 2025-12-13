@@ -2811,9 +2811,9 @@ func (m queryMetricsStore) ListAIBridgeInterceptionsTelemetrySummaries(ctx conte
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListAIBridgeModels(ctx context.Context) ([]string, error) {
+func (m queryMetricsStore) ListAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams) ([]string, error) {
 	start := time.Now()
-	r0, r1 := m.s.ListAIBridgeModels(ctx)
+	r0, r1 := m.s.ListAIBridgeModels(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListAIBridgeModels").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
@@ -3875,9 +3875,9 @@ func (m queryMetricsStore) CountAuthorizedAIBridgeInterceptions(ctx context.Cont
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListAuthorizedAIBridgeModels(ctx context.Context, prepared rbac.PreparedAuthorized) ([]string, error) {
+func (m queryMetricsStore) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	start := time.Now()
-	r0, r1 := m.s.ListAuthorizedAIBridgeModels(ctx, prepared)
+	r0, r1 := m.s.ListAuthorizedAIBridgeModels(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeModels").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
