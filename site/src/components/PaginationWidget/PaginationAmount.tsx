@@ -13,7 +13,7 @@ type PaginationHeaderProps = {
 	className?: string;
 };
 
-export const PaginationHeader: FC<PaginationHeaderProps> = ({
+export const PaginationAmount: FC<PaginationHeaderProps> = ({
 	paginationUnitLabel,
 	limit,
 	totalRecords,
@@ -30,7 +30,6 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
 				alignItems: "center",
 				margin: 0,
 				fontSize: "13px",
-				paddingBottom: "8px",
 				color: theme.palette.text.secondary,
 				height: "36px", // The size of a small button
 				"& strong": {
