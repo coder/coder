@@ -101,7 +101,6 @@ type Options struct {
 	Clock                        quartz.Clock
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
-	BoundaryLogSocket            string // Path for the boundary audit log socket
 }
 
 type Client interface {
@@ -209,7 +208,6 @@ func New(options Options) Agent {
 		containerAPIOptions: options.DevcontainerAPIOptions,
 		socketPath:          options.SocketPath,
 		socketServerEnabled: options.SocketServerEnabled,
-		boundaryLogSocket:   options.BoundaryLogSocket,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -293,7 +291,6 @@ type agent struct {
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
-	boundaryLogSocket   string
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -400,15 +397,14 @@ func (a *agent) initSocketServer() {
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
-// startBoundaryLogProxyServer starts the boundary log proxy socket server if
-// configured via the --boundary-log-socket flag or CODER_AGENT_BOUNDARY_LOG_SOCKET
-// env var.
-func (a *agent) startBoundaryLogProxyServer() {
-	if a.boundaryLogSocket == "" {
-		return
-	}
+// boundaryAuditSocketPath is the well-known path for the boundary audit log socket.
+// Boundary connects to this socket to send audit logs to the agent.
+const boundaryAuditSocketPath = "/tmp/boundary-audit.sock"
 
-	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogSocket)
+// startBoundaryLogProxyServer starts the boundary log proxy socket server.
+// The socket is always created at the well-known path so boundary can connect.
+func (a *agent) startBoundaryLogProxyServer() {
+	proxy := boundarylogproxy.NewServer(a.logger, boundaryAuditSocketPath)
 	if err := proxy.Start(a.hardCtx); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
 		return
@@ -416,9 +412,8 @@ func (a *agent) startBoundaryLogProxyServer() {
 
 	a.boundaryLogProxy = proxy
 	a.logger.Info(a.hardCtx, "boundary log proxy server started",
-		slog.F("socket_path", a.boundaryLogSocket))
+		slog.F("socket_path", boundaryAuditSocketPath))
 }
-
 // forwardBoundaryLogs forwards buffered boundary audit logs to coderd.
 // This is called via startAgentAPI to ensure the API client is always current.
 func (a *agent) forwardBoundaryLogs(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
