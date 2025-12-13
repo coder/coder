@@ -1,6 +1,6 @@
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import type { FC, HTMLAttributes } from "react";
-import { PaginationAmount } from "./PaginationHeader";
+import { PaginationAmount } from "./PaginationAmount";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
 export type PaginationResult = PaginationResultInfo & {

@@ -12,7 +12,7 @@ import {
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { PaginationAmount } from "components/PaginationWidget/PaginationHeader";
+import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
