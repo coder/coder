@@ -270,15 +270,45 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 									</Badge>
 								</dd>
 
-								<dt>Input Tokens:</dt>
-								<dd data-chromatic="ignore">{inputTokens}</dd>
-
-								<dt>Output Tokens:</dt>
-								<dd data-chromatic="ignore">{outputTokens}</dd>
-
 								<dt>Tool Calls:</dt>
 								<dd data-chromatic="ignore">
 									{interception.tool_usages.length}
+								</dd>
+
+								<dt>Input/Output Tokens:</dt>
+								<dd data-chromatic="ignore">
+									<div className="flex items-center">
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Badge className="gap-0 rounded-e-none">
+														<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
+														<span className="truncate min-w-0 w-full">
+															{inputTokens}
+														</span>
+													</Badge>
+												</TooltipTrigger>
+												<TooltipContent>
+													{inputTokens} Input Tokens
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
+														<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
+														<span className="truncate min-w-0 w-full">
+															{outputTokens}
+														</span>
+													</Badge>
+												</TooltipTrigger>
+												<TooltipContent>
+													{outputTokens} Output Tokens
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									</div>
 								</dd>
 							</dl>
 
