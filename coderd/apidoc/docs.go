@@ -14178,6 +14178,9 @@ const docTemplate = `{
                 "agent_fallback_troubleshooting_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "agent_metadata_min_interval": {
+                    "type": "integer"
+                },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },

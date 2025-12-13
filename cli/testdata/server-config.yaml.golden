@@ -485,6 +485,11 @@ sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
 # (default: https://coder.com/docs/admin/templates/troubleshooting, type: url)
 agentFallbackTroubleshootingURL: https://coder.com/docs/admin/templates/troubleshooting
+# Minimum interval for agent metadata collection. Template-defined intervals below
+# this value will cause template import to fail. Existing workspaces with lower
+# intervals will be silently upgraded on restart. Set to 0 to disable enforcement.
+# (default: 0s, type: duration)
+agentMetadataMinInterval: 0s
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a

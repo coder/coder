@@ -476,6 +476,7 @@ type DeploymentValues struct {
 	MetricsCacheRefreshInterval     serpent.Duration                     `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
 	AgentStatRefreshInterval        serpent.Duration                     `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
+	AgentMetadataMinInterval        serpent.Duration                     `json:"agent_metadata_min_interval,omitempty" typescript:",notnull"`
 	BrowserOnly                     serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
 	ExternalTokenEncryptionKeys     serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
@@ -2682,6 +2683,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default:     "https://coder.com/docs/admin/templates/troubleshooting",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
+		},
+		{
+			Name:        "Agent Metadata Minimum Interval",
+			Description: `Minimum interval for agent metadata collection. Template-defined intervals below this value will cause template import to fail. Existing workspaces with lower intervals will be silently upgraded on restart. Set to 0 to disable enforcement.`,
+			Flag:        "agent-metadata-min-interval",
+			Env:         "CODER_AGENT_METADATA_MIN_INTERVAL",
+			YAML:        "agentMetadataMinInterval",
+			Hidden:      false,
+			Default:     (0 * time.Second).String(),
+			Value:       &c.AgentMetadataMinInterval,
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Browser Only",

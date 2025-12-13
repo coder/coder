@@ -1067,6 +1067,17 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
 
+### --agent-metadata-min-interval
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>duration</code>                           |
+| Environment | <code>$CODER_AGENT_METADATA_MIN_INTERVAL</code> |
+| YAML        | <code>agentMetadataMinInterval</code>           |
+| Default     | <code>0s</code>                                 |
+
+Minimum interval for agent metadata collection. Template-defined intervals below this value will cause template import to fail. Existing workspaces with lower intervals will be silently upgraded on restart. Set to 0 to disable enforcement.
+
 ### --browser-only
 
 |             |                                     |
