@@ -35,5 +35,5 @@ export const Loader: FC<LoaderProps> = ({
 const classNames = {
 	inline: "p-8 w-full flex items-center justify-center",
 	fullscreen:
-		"absolute inset-0 flex justify-center items-center bg-content-primary",
+		"absolute inset-0 flex justify-center items-center bg-surface-primary",
 };

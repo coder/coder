@@ -101,7 +101,7 @@ export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	...attrs
 }) => {
 	return (
-		<p className={classNames.text} {...attrs}>
+		<p {...attrs} className={cn(classNames.text, attrs.className)}>
 			{children}
 		</p>
 	);
