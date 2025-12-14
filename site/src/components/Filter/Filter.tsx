@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -261,7 +260,6 @@ const PresetMenu: FC<PresetMenuProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const anchorRef = useRef<HTMLButtonElement>(null);
-	const theme = useTheme();
 
 	return (
 		<>

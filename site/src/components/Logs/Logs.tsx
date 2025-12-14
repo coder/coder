@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import dayjs from "dayjs";
 import type { FC } from "react";
 import { cn } from "utils/cn";
