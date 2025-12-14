@@ -91,7 +91,7 @@ export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
 				className={cn(
 					classes.root,
 					"flex flex-col items-start gap-4 lg:gap-6",
-					direction === "horizontal" && "flex-row lg:gap-[120px]",
+					direction === "horizontal" && "flex-col lg:flex-row lg:gap-[120px]",
 				)}
 			>
 				<div
