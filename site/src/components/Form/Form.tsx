@@ -29,7 +29,7 @@ export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
 				className={cn(
 					"flex flex-col gap-16",
 					direction === "horizontal" && "md:gap-20",
-					direction !== "horizontal" && "md:gap-40",
+					direction !== "horizontal" && "md:gap-10",
 				)}
 			/>
 		</FormContext.Provider>
