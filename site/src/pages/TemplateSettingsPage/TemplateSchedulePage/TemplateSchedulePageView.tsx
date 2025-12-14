@@ -26,7 +26,7 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
 }) => {
 	return (
 		<>
-			<PageHeader css={{ paddingTop: 0 }}>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>Template schedule</PageHeaderTitle>
 			</PageHeader>
 
