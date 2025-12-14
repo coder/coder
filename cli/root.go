@@ -151,6 +151,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.rptyCommand(),
 		r.syncCommand(),
 		r.boundary(),
+		r.experimentalAcpCommand(),
 	}
 }
 
