@@ -76,7 +76,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 					spacing={8}
 					alignItems="self-end"
 					style={{
-						flex: 1,
+						flex: "1 1 0%",
 					}}
 				>
 					<Stack direction="column" spacing={0} alignItems="center">

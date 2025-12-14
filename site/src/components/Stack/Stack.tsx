@@ -38,6 +38,7 @@ export const Stack = forwardRef<HTMLDivElement, StackProps>((props, ref) => {
 				justifyContent: justifyContent,
 				flexWrap: wrap,
 				maxWidth: "100%",
+				...divProps.style,
 			}}
 		>
 			{children}
