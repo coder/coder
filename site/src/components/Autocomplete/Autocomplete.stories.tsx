@@ -3,6 +3,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Check } from "lucide-react";
 import { useState } from "react";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { Autocomplete } from "./Autocomplete";
 
 const meta: Meta<typeof Autocomplete> = {
@@ -46,6 +47,20 @@ export const Default: Story = {
 			</div>
 		);
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button");
+
+		expect(trigger).toHaveTextContent("Select a fruit");
+		await userEvent.click(trigger);
+
+		await waitFor(() =>
+			expect(screen.getByRole("option", { name: "Mango" })).toBeInTheDocument(),
+		);
+
+		await userEvent.click(screen.getByRole("option", { name: "Mango" }));
+		await waitFor(() => expect(trigger).toHaveTextContent("Mango"));
+	},
 };
 
 export const WithSelectedValue: Story = {
@@ -62,6 +77,26 @@ export const WithSelectedValue: Story = {
 					placeholder="Select a fruit"
 				/>
 			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", { name: /pineapple/i });
+		expect(trigger).toHaveTextContent("Pineapple");
+
+		await userEvent.click(trigger);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("option", { name: "Pineapple" }),
+			).toBeInTheDocument(),
+		);
+
+		await userEvent.click(screen.getByRole("option", { name: "Pineapple" }));
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", { name: /select a fruit/i }),
+			).toBeInTheDocument(),
 		);
 	},
 };
@@ -102,6 +137,14 @@ export const Loading: Story = {
 			</div>
 		);
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		await waitFor(() => {
+			const spinners = screen.getAllByTitle("Loading spinner");
+			expect(spinners.length).toBeGreaterThanOrEqual(1);
+		});
+	},
 };
 
 export const Disabled: Story = {
@@ -138,6 +181,85 @@ export const EmptyOptions: Story = {
 					noOptionsText="No fruits available"
 				/>
 			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		await waitFor(() =>
+			expect(screen.getByText("No fruits available")).toBeInTheDocument(),
+		);
+	},
+};
+
+export const SearchAndFilter: Story = {
+	render: function SearchAndFilterStory() {
+		const [value, setValue] = useState<SimpleOption | null>(null);
+		return (
+			<div className="w-80">
+				<Autocomplete
+					value={value}
+					onChange={setValue}
+					options={simpleOptions}
+					getOptionValue={(opt) => opt.id}
+					getOptionLabel={(opt) => opt.name}
+					placeholder="Select a fruit"
+				/>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		const searchInput = screen.getByRole("combobox");
+		await userEvent.type(searchInput, "an");
+
+		await waitFor(() => {
+			expect(screen.getByRole("option", { name: "Mango" })).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: "Banana" }),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("option", { name: "Pineapple" }),
+			).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(screen.getByRole("option", { name: "Banana" }));
+
+		await waitFor(() =>
+			expect(canvas.getByRole("button")).toHaveTextContent("Banana"),
+		);
+	},
+};
+
+export const ClearSelection: Story = {
+	render: function ClearSelectionStory() {
+		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
+		return (
+			<div className="w-80">
+				<Autocomplete
+					value={value}
+					onChange={setValue}
+					options={simpleOptions}
+					getOptionValue={(opt) => opt.id}
+					getOptionLabel={(opt) => opt.name}
+					placeholder="Select a fruit"
+				/>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", { name: /mango/i });
+		expect(trigger).toHaveTextContent("Mango");
+
+		const clearButton = canvas.getByRole("button", { name: "Clear selection" });
+		await userEvent.click(clearButton);
+
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", { name: /select a fruit/i }),
+			).toBeInTheDocument(),
 		);
 	},
 };
@@ -330,6 +452,20 @@ export const CountrySelector: Story = {
 					)}
 				/>
 			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", { name: /select a country/i });
+		await userEvent.click(trigger);
+
+		await waitFor(() => expect(screen.getByText(/Japan/)).toBeInTheDocument());
+		await userEvent.click(screen.getByText(/Japan/));
+
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", { name: /japan/i }),
+			).toBeInTheDocument(),
 		);
 	},
 };
