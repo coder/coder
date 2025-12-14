@@ -1,6 +1,6 @@
-import { type CSSObject, useTheme } from "@emotion/react";
 import { Avatar } from "components/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
+import { cn } from "utils/cn";
 
 type AvatarCardProps = {
 	header: string;
@@ -15,20 +15,16 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 	subtitle,
 	maxWidth = "none",
 }) => {
-	const theme = useTheme();
-
 	return (
 		<div
-			css={{
-				maxWidth: maxWidth === "none" ? undefined : `${maxWidth}px`,
-				display: "flex",
-				flexFlow: "row nowrap",
-				alignItems: "center",
-				border: `1px solid ${theme.palette.divider}`,
-				gap: "16px",
-				padding: "16px",
-				borderRadius: "8px",
-				cursor: "default",
+			className={cn(
+				"flex flex-row flex-nowrap items-center gap-4",
+				"p-4 rounded-lg cursor-default",
+				"border border-solid border-zinc-200 dark:border-zinc-700",
+			)}
+			// TODO: We don't actually use this prop, so we should remove it.
+			style={{
+				...(maxWidth !== "none" ? { maxWidth: `${maxWidth}px` } : {}),
 			}}
 		>
 			{/**
@@ -37,31 +33,17 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 			 *
 			 * @see {@link https://css-tricks.com/flexbox-truncated-text/}
 			 */}
-			<div css={{ marginRight: "auto", minWidth: 0 }}>
+			<div className="mr-auto min-w-0">
 				<h3
 					// Lets users hover over truncated text to see whole thing
 					title={header}
-					css={[
-						theme.typography.body1 as CSSObject,
-						{
-							lineHeight: 1.4,
-							margin: 0,
-							overflow: "hidden",
-							whiteSpace: "nowrap",
-							textOverflow: "ellipsis",
-						},
-					]}
+					className="leading-[1.4] m-0 overflow-hidden whitespace-nowrap text-ellipsis font-normal text-base"
 				>
 					{header}
 				</h3>
 
 				{subtitle && (
-					<div
-						css={[
-							theme.typography.body2 as CSSObject,
-							{ color: theme.palette.text.secondary },
-						]}
-					>
+					<div className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
 						{subtitle}
 					</div>
 				)}

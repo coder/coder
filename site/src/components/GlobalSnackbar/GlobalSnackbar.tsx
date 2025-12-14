@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { useCustomEvent } from "hooks/events";
 import { type FC, useState } from "react";
 import { ErrorIcon } from "../Icons/ErrorIcon";
@@ -46,13 +45,15 @@ export const GlobalSnackbar: FC = () => {
 			}
 			anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
 			message={
-				<div css={{ display: "flex" }}>
+				<div className="flex">
 					{notificationMsg.msgType === MsgType.Error && (
-						<ErrorIcon css={styles.errorIcon} />
+						<ErrorIcon className={classNames.errorIcon} />
 					)}
 
 					<div className="max-w-[670px] flex flex-col">
-						<span css={styles.messageTitle}>{notificationMsg.msg}</span>
+						<span className={classNames.messageTitle}>
+							{notificationMsg.msg}
+						</span>
 
 						{notificationMsg.additionalMsgs?.map((msg, index) => (
 							<AdditionalMessageDisplay key={index} message={msg} />
@@ -72,12 +73,12 @@ const AdditionalMessageDisplay: FC<AdditionalMessageDisplayProps> = ({
 	message,
 }) => {
 	if (isNotificationText(message)) {
-		return <span css={styles.messageSubtitle}>{message}</span>;
+		return <span className={classNames.messageSubtitle}>{message}</span>;
 	}
 
 	if (isNotificationTextPrefixed(message)) {
 		return (
-			<span css={styles.messageSubtitle}>
+			<span className={classNames.messageSubtitle}>
 				<strong>{message.prefix}:</strong> {message.text}
 			</span>
 		);
@@ -85,10 +86,10 @@ const AdditionalMessageDisplay: FC<AdditionalMessageDisplayProps> = ({
 
 	if (isNotificationList(message)) {
 		return (
-			<ul css={{ paddingLeft: 0 }}>
+			<ul className="pl-0">
 				{message.map((item, idx) => (
 					<li key={idx}>
-						<span css={styles.messageSubtitle}>{item}</span>
+						<span className={classNames.messageSubtitle}>{item}</span>
 					</li>
 				))}
 			</ul>
@@ -98,19 +99,8 @@ const AdditionalMessageDisplay: FC<AdditionalMessageDisplayProps> = ({
 	return null;
 };
 
-const styles = {
-	messageTitle: {
-		fontSize: 14,
-		fontWeight: 600,
-	},
-	messageSubtitle: {
-		marginTop: 4,
-		"&:first-letter": {
-			textTransform: "uppercase",
-		},
-	},
-	errorIcon: (theme) => ({
-		color: theme.palette.error.contrastText,
-		marginRight: 16,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	messageTitle: "text-sm font-semibold",
+	messageSubtitle: "mt-1 first-letter:uppercase",
+	errorIcon: "text-content-destructive mr-4",
+};

@@ -1,5 +1,6 @@
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "utils/cn";
 import { PaginationHeader } from "./PaginationHeader";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
@@ -28,12 +29,11 @@ export const PaginationContainer: FC<PaginationProps> = ({
 			/>
 
 			<div
-				css={{
-					display: "flex",
-					flexFlow: "column nowrap",
-					rowGap: "16px",
-				}}
 				{...delegatedProps}
+				className={cn(
+					"flex flex-col flex-nowrap gap-y-4",
+					delegatedProps.className,
+				)}
 			>
 				{children}
 

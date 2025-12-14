@@ -1,7 +1,6 @@
 import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { visuallyHidden } from "@mui/utils";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
@@ -48,18 +47,7 @@ export const IconField: FC<IconFieldProps> = ({
 					endAdornment: hasIcon ? (
 						<InputAdornment
 							position="end"
-							css={{
-								width: 24,
-								height: 24,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-
-								"& img": {
-									maxWidth: "100%",
-									objectFit: "contain",
-								},
-							}}
+							className="size-6 flex items-center justify-center [&_img]:max-w-full [&_img]:object-contain"
 						>
 							<ExternalImage
 								alt=""
@@ -108,15 +96,16 @@ export const IconField: FC<IconFieldProps> = ({
 			</Popover>
 
 			{/*
-      - This component takes a long time to load (easily several seconds), so we
-      don't want to wait until the user actually clicks the button to start loading.
-      Unfortunately, React doesn't provide an API to start warming a lazy component,
-      so we just have to sneak it into the DOM, which is kind of annoying, but means
-      that users shouldn't ever spend time waiting for it to load.
-      - Except we don't do it when running tests, because Jest doesn't define
-      `IntersectionObserver`, and it would make them slower anyway. */}
+				- This component takes a long time to load (easily several seconds), so we
+				don't want to wait until the user actually clicks the button to start loading.
+				Unfortunately, React doesn't provide an API to start warming a lazy component,
+				so we just have to sneak it into the DOM, which is kind of annoying, but means
+				that users shouldn't ever spend time waiting for it to load.
+				- Except we don't do it when running tests, because Jest doesn't define
+				`IntersectionObserver`, and it would make them slower anyway.
+			*/}
 			{process.env.NODE_ENV !== "test" && (
-				<div css={{ ...visuallyHidden }}>
+				<div className="sr-only">
 					<Suspense>
 						<EmojiPicker onEmojiSelect={() => {}} />
 					</Suspense>

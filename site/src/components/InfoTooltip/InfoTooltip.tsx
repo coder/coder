@@ -26,8 +26,14 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 
 	return (
 		<HelpTooltip>
-			<HelpTooltipIconTrigger size="small" css={styles.button}>
-				<HelpTooltipIcon css={{ color: iconColor }} />
+			<HelpTooltipIconTrigger
+				size="small"
+				className="opacity-100 hover:opacity-100"
+			>
+				<HelpTooltipIcon
+					style={{ "--icon-color": iconColor }}
+					className="text-[var(--icon-color)]"
+				/>
 			</HelpTooltipIconTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{title}</HelpTooltipTitle>
@@ -36,13 +42,3 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 		</HelpTooltip>
 	);
 };
-
-const styles = {
-	button: css`
-		opacity: 1;
-
-		&:hover {
-			opacity: 1;
-		}
-	`,
-} satisfies Record<string, Interpolation<Theme>>;

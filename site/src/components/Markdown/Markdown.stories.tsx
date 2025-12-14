@@ -12,6 +12,14 @@ type Story = StoryObj<typeof Markdown>;
 export const WithCode: Story = {
 	args: {
 		children: `
+		foobar
+		`,
+	},
+};
+
+export const WithCodeblock: Story = {
+	args: {
+		children: `
   ## Required permissions / policy
 
   The following sample policy allows Coder to create EC2 instances and modify instances provisioned by Coder:

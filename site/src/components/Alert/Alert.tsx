@@ -10,6 +10,7 @@ import {
 	type ReactNode,
 	useState,
 } from "react";
+import { cn } from "utils/cn";
 export type AlertColor = MuiAlertColor;
 
 export type AlertProps = MuiAlertProps & {
@@ -39,7 +40,7 @@ export const Alert: FC<AlertProps> = ({
 		<Collapse in>
 			<MuiAlert
 				{...alertProps}
-				css={{ textAlign: "left" }}
+				className={cn("text-left", alertProps.className)}
 				severity={severity}
 				action={
 					<>
@@ -72,7 +73,7 @@ export const Alert: FC<AlertProps> = ({
 export const AlertDetail: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<span
-			css={(theme) => ({ color: theme.palette.text.secondary, fontSize: 13 })}
+			className={"text-[13px] text-content-secondary"}
 			data-chromatic="ignore"
 		>
 			{children}

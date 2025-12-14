@@ -5,6 +5,7 @@ import { Stack } from "components/Stack/Stack";
 import { useClickable } from "hooks/useClickable";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
+import { cn } from "utils/cn";
 
 interface FileUploadProps {
 	isUploading: boolean;
@@ -36,7 +37,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 	if (!isUploading && file) {
 		return (
 			<Stack
-				css={styles.file}
+				className="rounded-lg p-4 border border-solid bg-surface-secondary"
 				direction="row"
 				justifyContent="space-between"
 				alignItems="center"
@@ -57,12 +58,19 @@ export const FileUpload: FC<FileUploadProps> = ({
 		<>
 			<div
 				data-testid="drop-zone"
-				css={[styles.root, isUploading && styles.disabled]}
+				className={cn(
+					"flex items-center justify-center rounded-lg p-12 cursor-pointer",
+					"border-2 border-dashed hover:bg-surface-secondary",
+					isUploading && "pointer-events-none opacity-75",
+				)}
 				{...clickable}
 				{...fileDrop}
 			>
 				<Stack alignItems="center" spacing={1}>
-					<div css={styles.iconWrapper}>
+					<div
+						// Used to maintain the size of icon and spinner
+						className="size-16 flex items-center justify-center"
+					>
 						{isUploading ? (
 							<CircularProgress size={32} />
 						) : (
@@ -71,8 +79,10 @@ export const FileUpload: FC<FileUploadProps> = ({
 					</div>
 
 					<Stack alignItems="center" spacing={0.5}>
-						<span css={styles.title}>{title}</span>
-						<span css={styles.description}>{description}</span>
+						<span className="text-base leading-none">{title}</span>
+						<span className="text-center text-content-secondary max-w-[400px] text-sm leading-normal mt-1">
+							{description}
+						</span>
 					</Stack>
 				</Stack>
 			</div>
@@ -81,7 +91,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 				type="file"
 				data-testid="file-upload"
 				ref={inputRef}
-				css={styles.input}
+				className="hidden"
 				accept={extensions?.map((ext) => `.${ext}`).join(",")}
 				onChange={(event) => {
 					const file = event.currentTarget.files?.[0];
@@ -134,58 +144,3 @@ const useFileDrop = (
 		onDrop,
 	};
 };
-
-const styles = {
-	root: (theme) => css`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    border: 2px dashed ${theme.palette.divider};
-    padding: 48px;
-    cursor: pointer;
-
-    &:hover {
-      background-color: ${theme.palette.background.paper};
-    }
-  `,
-
-	disabled: {
-		pointerEvents: "none",
-		opacity: 0.75,
-	},
-
-	// Used to maintain the size of icon and spinner
-	iconWrapper: {
-		width: 64,
-		height: 64,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-	},
-
-	title: {
-		fontSize: 16,
-		lineHeight: "1",
-	},
-
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		maxWidth: 400,
-		fontSize: 14,
-		lineHeight: "1.5",
-		marginTop: 4,
-	}),
-
-	input: {
-		display: "none",
-	},
-
-	file: (theme) => ({
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		padding: 16,
-		background: theme.palette.background.paper,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

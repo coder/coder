@@ -1,4 +1,3 @@
-import type { CSSObject } from "@emotion/react";
 import { forwardRef } from "react";
 
 /**
@@ -8,9 +7,9 @@ type StackProps = {
 	className?: string;
 	direction?: "column" | "row";
 	spacing?: number;
-	alignItems?: CSSObject["alignItems"];
-	justifyContent?: CSSObject["justifyContent"];
-	wrap?: CSSObject["flexWrap"];
+	alignItems?: React.CSSProperties["alignItems"];
+	justifyContent?: React.CSSProperties["justifyContent"];
+	wrap?: React.CSSProperties["flexWrap"];
 } & React.HTMLProps<HTMLDivElement>;
 
 /**
@@ -31,7 +30,7 @@ export const Stack = forwardRef<HTMLDivElement, StackProps>((props, ref) => {
 		<div
 			{...divProps}
 			ref={ref}
-			css={{
+			style={{
 				display: "flex",
 				flexDirection: direction,
 				gap: spacing * 8,
@@ -39,6 +38,7 @@ export const Stack = forwardRef<HTMLDivElement, StackProps>((props, ref) => {
 				justifyContent: justifyContent,
 				flexWrap: wrap,
 				maxWidth: "100%",
+				...divProps.style,
 			}}
 		>
 			{children}

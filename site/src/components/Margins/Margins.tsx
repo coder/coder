@@ -26,14 +26,11 @@ export const Margins: FC<MarginsProps> = ({
 	return (
 		<div
 			{...divProps}
-			css={{
-				marginLeft: "auto",
-				marginRight: "auto",
-				maxWidth: maxWidth,
-				paddingLeft: sidePadding,
-				paddingRight: sidePadding,
-				width: "100%",
+			style={{
+				"--max-width": `${maxWidth}px`,
+				"--padding": `${sidePadding}px`,
 			}}
+			className="mx-auto px-[var(--padding,_auto)] w-full max-w-[var(--max-width,_100%)]"
 		>
 			{children}
 		</div>
