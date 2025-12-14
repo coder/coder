@@ -89,23 +89,23 @@ export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
 			<section
 				ref={ref}
 				className={cn(
-					classes.root,
 					"flex flex-col items-start gap-4 lg:gap-6",
 					direction === "horizontal" && "flex-col lg:flex-row lg:gap-[120px]",
+					classes.root,
 				)}
 			>
 				<div
 					className={cn(
-						classes.sectionInfo,
 						"w-full position-[initial] top-6 flex-shrink-0",
 						direction === "horizontal" && "max-w-[312px] lg:sticky",
+						classes.sectionInfo,
 					)}
 				>
 					<h2
 						className={cn(
-							classes.infoTitle,
 							"text-xl text-content-primary font-medium m-0 mb-2",
 							"flex flex-row items-center gap-3",
+							classes.infoTitle,
 						)}
 					>
 						{title}

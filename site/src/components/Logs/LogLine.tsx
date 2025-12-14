@@ -44,6 +44,7 @@ export const LogLine: FC<LogLineProps> = ({ level, ...divProps }) => {
 					},
 				},
 			})}
+			{...divProps}
 			className={cn(
 				"m-0 break-all flex items-center text-[13px]",
 				"text-content-primary font-mono h-auto",
@@ -51,7 +52,6 @@ export const LogLine: FC<LogLineProps> = ({ level, ...divProps }) => {
 				divProps.className,
 				"logs-line",
 			)}
-			{...divProps}
 		/>
 	);
 };
@@ -59,8 +59,8 @@ export const LogLine: FC<LogLineProps> = ({ level, ...divProps }) => {
 export const LogLinePrefix: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	return (
 		<pre
-			className="select-none m-0 inline-block text-content-secondary mr-6"
 			{...props}
+			className="select-none m-0 inline-block text-content-secondary mr-6 w-8 text-right flex-shrink-0"
 		/>
 	);
 };

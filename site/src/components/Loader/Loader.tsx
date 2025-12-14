@@ -19,12 +19,13 @@ export const Loader: FC<LoaderProps> = ({
 }) => {
 	return (
 		<div
+			{...attrs}
 			className={cn(
 				fullscreen && classNames.fullscreen,
 				!fullscreen && classNames.inline,
+				attrs.className,
 			)}
 			data-testid="loader"
-			{...attrs}
 		>
 			<Spinner aria-label={label} size={size} loading={true} />
 		</div>

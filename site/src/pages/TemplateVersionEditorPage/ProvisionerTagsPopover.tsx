@@ -48,7 +48,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 				>
 					<FormSection
 						classes={{
-							root: "flex flex-col gap-4",
+							root: "flex flex-col lg:flex-col gap-4 lg:gap-4",
 						}}
 						title="Provisioner Tags"
 						description={
