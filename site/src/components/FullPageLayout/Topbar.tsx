@@ -18,7 +18,7 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
 		<header
 			{...props}
 			className={cn(
-				"min-h-12 flex items-center text-[13px] leading-tight",
+				"min-h-12 items-center text-[13px] leading-tight",
 				"border-0 border-b border-solid",
 				props.className,
 			)}
