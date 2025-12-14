@@ -28,7 +28,7 @@ export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
 				{...formProps}
 				className={cn(
 					"flex flex-col gap-16",
-					direction === "horizontal" && "md:gap-80",
+					direction === "horizontal" && "md:gap-20",
 					direction !== "horizontal" && "md:gap-40",
 				)}
 			/>
@@ -91,7 +91,7 @@ export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
 				className={cn(
 					classes.root,
 					"flex flex-col items-start gap-4 lg:gap-6",
-					direction === "horizontal" && "flex-row gap-30",
+					direction === "horizontal" && "flex-row lg:gap-[120px]",
 				)}
 			>
 				<div
@@ -104,7 +104,7 @@ export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
 					<h2
 						className={cn(
 							classes.infoTitle,
-							"text-2xl text-content-primary font-medium m-0 mb-2",
+							"text-xl text-content-primary font-medium m-0 mb-2",
 							"flex flex-row items-center gap-3",
 						)}
 					>
