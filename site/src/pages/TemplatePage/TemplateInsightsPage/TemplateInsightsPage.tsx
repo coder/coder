@@ -256,26 +256,23 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 							? entitlements?.features.user_limit.limit
 							: undefined
 					}
-					data={templateInsights?.data?.interval_reports}
-					error={templateInsights?.error}
+					data={templateInsights.data?.interval_reports}
+					error={templateInsights.error}
 				/>
-				<UsersLatencyPanel
-					data={userLatency?.data}
-					error={userLatency?.error}
-				/>
+				<UsersLatencyPanel data={userLatency.data} error={userLatency.error} />
 				<TemplateUsagePanel
 					css={{ gridColumn: "span 2" }}
-					data={templateInsights?.data?.report?.apps_usage}
-					error={templateInsights?.error}
+					data={templateInsights.data?.report?.apps_usage}
+					error={templateInsights.error}
 				/>
 				<UsersActivityPanel
-					data={userActivity?.data}
-					error={userActivity?.error}
+					data={userActivity.data}
+					error={userActivity.error}
 				/>
 				<TemplateParametersUsagePanel
 					css={{ gridColumn: "span 3" }}
-					data={templateInsights?.data?.report?.parameters_usage}
-					error={templateInsights?.error}
+					data={templateInsights.data?.report?.parameters_usage}
+					error={templateInsights.error}
 				/>
 			</div>
 		</>
