@@ -2,12 +2,11 @@ import { templaceACLAvailable } from "api/queries/templates";
 import type { Group, ReducedUser } from "api/typesGenerated";
 import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { isGroup } from "components/UserOrGroupAutocomplete/UserOrGroupOption";
 import { Check } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
-import { getGroupSubtitle } from "utils/groups";
+import { getGroupSubtitle, isGroup } from "utils/groups";
 
 export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
 type AutocompleteOption = Exclude<UserOrGroupAutocompleteValue, null>;
