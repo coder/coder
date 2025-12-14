@@ -16,14 +16,14 @@ export const PageHeader: FC<PageHeaderProps> = ({
 	return (
 		<header
 			className={cn(
-				"flex flex-col md:flex-row items-start md:items-center py-12 gap-8",
+				"flex flex-col lg:flex-row items-start lg:items-center py-12 gap-8",
 				className,
 			)}
 			data-testid="header"
 		>
 			<hgroup>{children}</hgroup>
 			{actions && (
-				<Stack direction="row" className="md:ml-auto">
+				<Stack direction="row" className="lg:ml-auto">
 					{actions}
 				</Stack>
 			)}
