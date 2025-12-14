@@ -84,7 +84,8 @@ const FeatureIcon: FC = () => {
 const classNames = {
 	root: [
 		"flex flex-row justify-center items-center min-h-[280px] p-6 rounded-lg gap-8",
-		"bg-gradient-to-b from-transparent to-violet-950",
+		"bg-[linear-gradient(160deg,_transparent,_rgb(46,_16,_101))]",
+		"border border-solid border-violet-400",
 	].join(" "),
 	feature: "flex items-center p-[3px] gap-2",
 };
