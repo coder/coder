@@ -21,12 +21,7 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 
-export interface AutocompleteOption {
-	value: string;
-	label: string;
-}
-
-export interface AutocompleteProps<TOption> {
+interface AutocompleteProps<TOption> {
 	value: TOption | null;
 	onChange: (value: TOption | null) => void;
 	options: readonly TOption[];
