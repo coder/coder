@@ -111,7 +111,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	);
 
 	return (
-		<Topbar css={{ gridArea: "topbar" }}>
+		<Topbar className="flex" style={{ gridArea: "topbar" }}>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<TopbarIconButton component={RouterLink} to="/workspaces">

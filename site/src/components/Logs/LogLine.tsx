@@ -60,7 +60,10 @@ export const LogLinePrefix: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	return (
 		<pre
 			{...props}
-			className="select-none m-0 inline-block text-content-secondary mr-6 w-8 text-right flex-shrink-0"
+			className={cn([
+				"select-none m-0 inline-block text-content-secondary mr-6 text-right flex-shrink-0",
+				props.className,
+			])}
 		/>
 	);
 };
