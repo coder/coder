@@ -1,9 +1,3 @@
-import {
-	type CSSObject,
-	css,
-	type Interpolation,
-	type Theme,
-} from "@emotion/react";
 import Link from "@mui/material/Link";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -107,7 +101,7 @@ export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	...attrs
 }) => {
 	return (
-		<p className={classNames.text} css={styles.text} {...attrs}>
+		<p className={classNames.text} {...attrs}>
 			{children}
 		</p>
 	);
@@ -125,7 +119,6 @@ export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
 			target="_blank"
 			rel="noreferrer"
 			className={classNames.link}
-			css={styles.link}
 		>
 			<ExternalLinkIcon className={classNames.linkIcon} />
 			{children}
@@ -151,7 +144,6 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 			type="button"
 			aria-label={ariaLabel ?? ""}
 			className={classNames.action}
-			css={styles.action}
 			onClick={onClick}
 		>
 			<Icon className={classNames.actionIcon} />
@@ -179,24 +171,11 @@ const getIconSpacingFromSize = (size?: Size): number => {
 
 const classNames = {
 	title: "mt-0 mb-2 text-content-primary text-sm leading-relaxed font-semibold",
-	text: "my-1",
-	link: "flex items-center",
+	text: "my-1 text-sm leading-relaxed",
+	link: "flex items-center text-sm text-content-link",
 	linkIcon: "size-icon-xs mr-2 text-inherit",
 	linksGroup: "mt-4",
 	action:
-		"flex items-center bg-transparent border-none p-0 cursor-pointer text-sm",
+		"flex items-center bg-transparent border-none p-0 cursor-pointer text-sm text-content-link",
 	actionIcon: "text-inherit size-3.5 mr-2",
 };
-
-const styles = {
-	text: (theme) => ({
-		...(theme.typography.body2 as CSSObject),
-	}),
-	link: (theme) => ({
-		...(theme.typography.body2 as CSSObject),
-		color: theme.roles.active.fill.outline,
-	}),
-	action: (theme) => ({
-		color: theme.palette.primary.light,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

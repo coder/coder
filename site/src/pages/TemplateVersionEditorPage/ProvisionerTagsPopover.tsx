@@ -1,5 +1,4 @@
 import Link from "@mui/material/Link";
-import useTheme from "@mui/system/useTheme";
 import type { ProvisionerDaemon } from "api/typesGenerated";
 import { FormSection } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
@@ -22,8 +21,6 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 	tags,
 	onTagsChange,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
@@ -36,13 +33,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 				align="end"
 				className="w-[300px] bg-surface-secondary border-surface-quaternary"
 			>
-				<div
-					css={{
-						color: theme.palette.text.secondary,
-						borderBottom: `1px solid ${theme.palette.divider}`,
-					}}
-					className="p-5"
-				>
+				<div className="text-content-secondary p-5 border-0 border-b border-solid border-border">
 					<FormSection
 						classes={{
 							root: "flex flex-col gap-4",
