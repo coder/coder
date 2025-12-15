@@ -1,8 +1,9 @@
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
-import { templaceACLAvailable } from "api/queries/templates";
-import type { Group, ReducedUser } from "api/typesGenerated";
+import { groupsByOrganization } from "api/queries/groups";
+import { users } from "api/queries/users";
+import type { Group, User } from "api/typesGenerated";
 import {
 	isGroup,
 	UserOrGroupOption,
@@ -12,45 +13,63 @@ import { type ChangeEvent, type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
 
-export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
-type AutocompleteOption = Exclude<UserOrGroupAutocompleteValue, null>;
+type AutocompleteOption = User | Group;
+export type UserOrGroupAutocompleteValue = AutocompleteOption | null;
+
+type ExcludableOption = { id?: string | null } | null;
 
 type UserOrGroupAutocompleteProps = {
 	value: UserOrGroupAutocompleteValue;
 	onChange: (value: UserOrGroupAutocompleteValue) => void;
-	templateID: string;
-	exclude: UserOrGroupAutocompleteValue[];
+	organizationId: string;
+	exclude: ExcludableOption[];
 };
 
 export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	value,
 	onChange,
-	templateID,
+	organizationId,
 	exclude,
 }) => {
 	const [autoComplete, setAutoComplete] = useState({
 		value: "",
 		open: false,
 	});
-	const aclAvailableQuery = useQuery({
-		...templaceACLAvailable(templateID, {
+
+	const usersQuery = useQuery({
+		...users({
 			q: prepareQuery(encodeURI(autoComplete.value)),
 			limit: 25,
 		}),
 		enabled: autoComplete.open,
 		placeholderData: keepPreviousData,
 	});
-	const options: AutocompleteOption[] = aclAvailableQuery.data
-		? [
-				...aclAvailableQuery.data.groups,
-				...aclAvailableQuery.data.users,
-			].filter((result) => {
-				const excludeIds = exclude.map(
-					(optionToExclude) => optionToExclude?.id,
-				);
-				return !excludeIds.includes(result.id);
+
+	const groupsQuery = useQuery({
+		...groupsByOrganization(organizationId),
+		enabled: autoComplete.open,
+		placeholderData: keepPreviousData,
+	});
+
+	const filterValue = autoComplete.value.trim().toLowerCase();
+	const groupOptions = groupsQuery.data
+		? groupsQuery.data.filter((group) => {
+				if (!filterValue) {
+					return true;
+				}
+				const haystack = `${group.display_name ?? ""} ${group.name}`.trim();
+				return haystack.toLowerCase().includes(filterValue);
 			})
 		: [];
+
+	const excludeIds = exclude
+		.map((optionToExclude) => optionToExclude?.id)
+		.filter((id): id is string => Boolean(id));
+
+	const options: AutocompleteOption[] = [
+		...groupOptions,
+		...(usersQuery.data?.users ?? []),
+	].filter((result) => !excludeIds.includes(result.id));
 
 	const { debounced: handleFilterChange } = useDebouncedFunction(
 		(event: ChangeEvent<HTMLInputElement>) => {
@@ -66,7 +85,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 		<Autocomplete
 			noOptionsText="No users or groups found"
 			value={value}
-			id="user-or-group-autocomplete"
+			id="workspace-user-or-group-autocomplete"
 			open={autoComplete.open}
 			onOpen={() => {
 				setAutoComplete((state) => ({
@@ -76,12 +95,14 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			}}
 			onClose={() => {
 				setAutoComplete({
-					value: isGroup(value) ? value.display_name : (value?.email ?? ""),
+					value: isGroup(value)
+						? value.display_name || value.name
+						: (value?.email ?? value?.username ?? ""),
 					open: false,
 				});
 			}}
 			onChange={(_, newValue) => {
-				onChange(newValue);
+				onChange(newValue ?? null);
 			}}
 			isOptionEqualToValue={(option, optionValue) =>
 				option.id === optionValue.id
@@ -93,7 +114,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 				<UserOrGroupOption key={key} htmlProps={props} option={option} />
 			)}
 			options={options}
-			loading={aclAvailableQuery.isFetching}
+			loading={usersQuery.isFetching || groupsQuery.isFetching}
 			className="w-[300px] [&_.MuiFormControl-root]:w-full [&_.MuiInputBase-root]:w-full"
 			renderInput={(params) => (
 				<TextField
@@ -106,9 +127,9 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 						onChange: handleFilterChange,
 						endAdornment: (
 							<>
-								{aclAvailableQuery.isFetching ? (
+								{(usersQuery.isFetching || groupsQuery.isFetching) && (
 									<CircularProgress size={16} />
-								) : null}
+								)}
 								{params.InputProps.endAdornment}
 							</>
 						),
