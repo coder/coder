@@ -169,6 +169,7 @@ type FakeIDP struct {
 	// clientID to be used by coderd
 	clientID     string
 	clientSecret string
+	pkce         bool // TODO(Emyrk): Implement for refresh token flow as well
 	// externalProviderID is optional to match the provider in coderd for
 	// redirectURLs.
 	externalProviderID string
@@ -181,6 +182,8 @@ type FakeIDP struct {
 	// These maps are used to control the state of the IDP.
 	// That is the various access tokens, refresh tokens, states, etc.
 	codeToStateMap *syncmap.Map[string, string]
+	// Code -> PKCE Challenge
+	codeToChallengeMap *syncmap.Map[string, string]
 	// Token -> Email
 	accessTokens *syncmap.Map[string, token]
 	// Refresh Token -> Email
@@ -238,6 +241,12 @@ func (s statusHookError) Error() string {
 }
 
 type FakeIDPOpt func(idp *FakeIDP)
+
+func WithPKCE() func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.pkce = true
+	}
+}
 
 func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
@@ -450,6 +459,7 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		clientSecret:         uuid.NewString(),
 		logger:               slog.Make(),
 		codeToStateMap:       syncmap.New[string, string](),
+		codeToChallengeMap:   syncmap.New[string, string](),
 		accessTokens:         syncmap.New[string, token](),
 		refreshTokens:        syncmap.New[string, string](),
 		refreshTokensUsed:    syncmap.New[string, bool](),
@@ -557,8 +567,16 @@ func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 func (f *FakeIDP) GenerateAuthenticatedToken(claims jwt.MapClaims) (*oauth2.Token, error) {
 	state := uuid.NewString()
 	f.stateToIDTokenClaims.Store(state, claims)
-	code := f.newCode(state)
-	return f.locked.Config().Exchange(oidc.ClientContext(context.Background(), f.HTTPClient(nil)), code)
+
+	exchangeOpts := []oauth2.AuthCodeOption{}
+	verifier := ""
+	if f.pkce {
+		verifier = oauth2.GenerateVerifier()
+		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifier))
+	}
+	code := f.newCode(state, oauth2.S256ChallengeFromVerifier(verifier))
+
+	return f.locked.Config().Exchange(oidc.ClientContext(context.Background(), f.HTTPClient(nil)), code, exchangeOpts...)
 }
 
 // Login does the full OIDC flow starting at the "LoginButton".
@@ -756,10 +774,16 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 		panic("cannot use OIDCCallback with WithServing. This is only for the in memory usage")
 	}
 
+	opts := []oauth2.AuthCodeOption{}
+	if f.pkce {
+		verifier := oauth2.GenerateVerifier()
+		opts = append(opts, oauth2.S256ChallengeOption(oauth2.S256ChallengeFromVerifier(verifier)))
+	}
+
 	f.stateToIDTokenClaims.Store(state, idTokenClaims)
 
 	cli := f.HTTPClient(nil)
-	u := f.locked.Config().AuthCodeURL(state)
+	u := f.locked.Config().AuthCodeURL(state, opts...)
 	req, err := http.NewRequest("GET", u, nil)
 	require.NoError(t, err)
 
@@ -790,9 +814,10 @@ type ProviderJSON struct {
 
 // newCode enforces the code exchanged is actually a valid code
 // created by the IDP.
-func (f *FakeIDP) newCode(state string) string {
+func (f *FakeIDP) newCode(state string, challenge string) string {
 	code := uuid.NewString()
 	f.codeToStateMap.Store(code, state)
+	f.codeToChallengeMap.Store(code, challenge)
 	return code
 }
 
@@ -918,6 +943,22 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	mux.Handle(authorizePath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		f.logger.Info(r.Context(), "http call authorize", slogRequestFields(r)...)
 
+		challenge := ""
+		if f.pkce {
+			method := r.URL.Query().Get("code_challenge_method")
+			challenge = r.URL.Query().Get("code_challenge")
+
+			if method == "" {
+				httpError(rw, http.StatusBadRequest, xerrors.New("missing code_challenge_method"))
+				return
+			}
+
+			if challenge == "" {
+				httpError(rw, http.StatusBadRequest, xerrors.New("missing code_challenge"))
+				return
+			}
+		}
+
 		clientID := r.URL.Query().Get("client_id")
 		if !assert.Equal(t, f.clientID, clientID, "unexpected client_id") {
 			httpError(rw, http.StatusBadRequest, xerrors.New("invalid client_id"))
@@ -959,7 +1000,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 		q := ru.Query()
 		q.Set("state", state)
-		q.Set("code", f.newCode(state))
+		q.Set("code", f.newCode(state, challenge))
 		ru.RawQuery = q.Encode()
 
 		http.Redirect(rw, r, ru.String(), http.StatusTemporaryRedirect)
@@ -1009,8 +1050,28 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				http.Error(rw, "invalid code", http.StatusBadRequest)
 				return
 			}
+
+			if f.pkce {
+				challenge, ok := f.codeToChallengeMap.Load(code)
+				if !ok {
+					httpError(rw, http.StatusBadRequest, xerrors.New("pkce: challenge not found for code"))
+					return
+				}
+				codeVerifier := values.Get("code_verifier")
+				if codeVerifier == "" {
+					httpError(rw, http.StatusBadRequest, xerrors.New("pkce: missing code_verifier"))
+					return
+				}
+				expecter := oauth2.S256ChallengeFromVerifier(codeVerifier)
+				if challenge != expecter {
+					httpError(rw, http.StatusBadRequest, xerrors.New("pkce: invalid code verifier"))
+					return
+				}
+			}
+
 			// Always invalidate the code after it is used.
 			f.codeToStateMap.Delete(code)
+			f.codeToChallengeMap.Delete(code)
 
 			idTokenClaims, ok := f.getClaims(f.stateToIDTokenClaims, stateStr)
 			if !ok {
