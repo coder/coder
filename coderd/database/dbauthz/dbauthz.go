@@ -3940,6 +3940,24 @@ func (q *querier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, 
 	return q.db.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAt)
 }
 
+// GetWorkspaceResourceWithJobByID is an optimized version that fetches both
+// the resource and job information in a single query. This is specifically
+// designed for system-restricted contexts (like agent authentication) where
+// we can bypass the authorization cascade that would normally call
+// GetWorkspaceBuildByJobID.
+func (q *querier) GetWorkspaceResourceWithJobByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceResourceWithJobByIDRow, error) {
+	// Authorize for system resource access. This will only succeed for
+	// system-restricted contexts, ensuring this optimized path is only used
+	// in appropriate scenarios.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetWorkspaceResourceWithJobByIDRow{}, err
+	}
+
+	// With system-restricted context, we can safely bypass the authorization
+	// cascade and call the database directly.
+	return q.db.GetWorkspaceResourceWithJobByID(ctx, id)
+}
+
 func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {

@@ -143,7 +143,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		return
 	}
 	//nolint:gocritic // needed for auth instance id
-	resource, err := api.Database.GetWorkspaceResourceByID(dbauthz.AsSystemRestricted(ctx), agent.ResourceID)
+	resourceWithJob, err := api.Database.GetWorkspaceResourceWithJobByID(dbauthz.AsSystemRestricted(ctx), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job resource.",
@@ -151,23 +151,14 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	//nolint:gocritic // needed for auth instance id
-	job, err := api.Database.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
+	if resourceWithJob.JobType != database.ProvisionerJobTypeWorkspaceBuild {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q jobs cannot be authenticated.", job.Type),
+			Message: fmt.Sprintf("%q jobs cannot be authenticated.", resourceWithJob.JobType),
 		})
 		return
 	}
 	var jobData provisionerdserver.WorkspaceProvisionJob
-	err = json.Unmarshal(job.Input, &jobData)
+	err = json.Unmarshal(resourceWithJob.JobInput, &jobData)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error extracting job data.",

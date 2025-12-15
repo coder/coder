@@ -4828,6 +4828,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceResourceMetadataCreatedAfter(ctx, c
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceResourceMetadataCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceResourceMetadataCreatedAfter), ctx, createdAt)
 }
 
+// GetWorkspaceResourceWithJobByID mocks base method.
+func (m *MockStore) GetWorkspaceResourceWithJobByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceResourceWithJobByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceResourceWithJobByID", ctx, id)
+	ret0, _ := ret[0].(database.GetWorkspaceResourceWithJobByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceResourceWithJobByID indicates an expected call of GetWorkspaceResourceWithJobByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceResourceWithJobByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceResourceWithJobByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceResourceWithJobByID), ctx, id)
+}
+
 // GetWorkspaceResourcesByJobID mocks base method.
 func (m *MockStore) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	m.ctrl.T.Helper()

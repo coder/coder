@@ -52,3 +52,25 @@ SELECT
 SELECT * FROM workspace_resource_metadata WHERE workspace_resource_id = ANY(
 	SELECT id FROM workspace_resources WHERE created_at > $1
 );
+
+-- name: GetWorkspaceResourceWithJobByID :one
+SELECT
+	wr.id,
+	wr.created_at,
+	wr.job_id,
+	wr.transition,
+	wr.type,
+	wr.name,
+	wr.hide,
+	wr.icon,
+	wr.instance_type,
+	wr.daily_cost,
+	wr.module_path,
+	pj.type AS job_type,
+	pj.input AS job_input
+FROM
+	workspace_resources wr
+JOIN
+	provisioner_jobs pj ON wr.job_id = pj.id
+WHERE
+	wr.id = $1;

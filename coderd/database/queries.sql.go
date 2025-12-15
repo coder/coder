@@ -21815,6 +21815,66 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Contex
 	return items, nil
 }
 
+const getWorkspaceResourceWithJobByID = `-- name: GetWorkspaceResourceWithJobByID :one
+SELECT
+	wr.id,
+	wr.created_at,
+	wr.job_id,
+	wr.transition,
+	wr.type,
+	wr.name,
+	wr.hide,
+	wr.icon,
+	wr.instance_type,
+	wr.daily_cost,
+	wr.module_path,
+	pj.type AS job_type,
+	pj.input AS job_input
+FROM
+	workspace_resources wr
+JOIN
+	provisioner_jobs pj ON wr.job_id = pj.id
+WHERE
+	wr.id = $1
+`
+
+type GetWorkspaceResourceWithJobByIDRow struct {
+	ID           uuid.UUID           `db:"id" json:"id"`
+	CreatedAt    time.Time           `db:"created_at" json:"created_at"`
+	JobID        uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition   WorkspaceTransition `db:"transition" json:"transition"`
+	Type         string              `db:"type" json:"type"`
+	Name         string              `db:"name" json:"name"`
+	Hide         bool                `db:"hide" json:"hide"`
+	Icon         string              `db:"icon" json:"icon"`
+	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
+	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
+	ModulePath   sql.NullString      `db:"module_path" json:"module_path"`
+	JobType      ProvisionerJobType  `db:"job_type" json:"job_type"`
+	JobInput     json.RawMessage     `db:"job_input" json:"job_input"`
+}
+
+func (q *sqlQuerier) GetWorkspaceResourceWithJobByID(ctx context.Context, id uuid.UUID) (GetWorkspaceResourceWithJobByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceResourceWithJobByID, id)
+	var i GetWorkspaceResourceWithJobByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.JobID,
+		&i.Transition,
+		&i.Type,
+		&i.Name,
+		&i.Hide,
+		&i.Icon,
+		&i.InstanceType,
+		&i.DailyCost,
+		&i.ModulePath,
+		&i.JobType,
+		&i.JobInput,
+	)
+	return i, err
+}
+
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path

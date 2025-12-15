@@ -2258,6 +2258,13 @@ func (m queryMetricsStore) GetWorkspaceResourceMetadataCreatedAfter(ctx context.
 	return metadata, err
 }
 
+func (m queryMetricsStore) GetWorkspaceResourceWithJobByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceResourceWithJobByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceResourceWithJobByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceResourceWithJobByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	start := time.Now()
 	resources, err := m.s.GetWorkspaceResourcesByJobID(ctx, jobID)
