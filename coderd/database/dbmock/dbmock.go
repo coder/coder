@@ -3133,21 +3133,6 @@ func (mr *MockStoreMockRecorder) GetQuotaConsumedForUser(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQuotaConsumedForUser", reflect.TypeOf((*MockStore)(nil).GetQuotaConsumedForUser), ctx, arg)
 }
 
-// GetRegularWorkspaceCreateMetrics mocks base method.
-func (m *MockStore) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRegularWorkspaceCreateMetrics", ctx)
-	ret0, _ := ret[0].([]database.GetRegularWorkspaceCreateMetricsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetRegularWorkspaceCreateMetrics indicates an expected call of GetRegularWorkspaceCreateMetrics.
-func (mr *MockStoreMockRecorder) GetRegularWorkspaceCreateMetrics(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRegularWorkspaceCreateMetrics", reflect.TypeOf((*MockStore)(nil).GetRegularWorkspaceCreateMetrics), ctx)
-}
-
 // GetReplicaByID mocks base method.
 func (m *MockStore) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	m.ctrl.T.Helper()

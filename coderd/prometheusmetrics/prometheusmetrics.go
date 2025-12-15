@@ -165,18 +165,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
-	workspaceCreationTotal := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "coderd",
-			Name:      "workspace_creation_total",
-			Help:      "Total regular (non-prebuilt) workspace creations by organization, template, and preset.",
-		},
-		[]string{"organization_name", "template_name", "preset_name"},
-	)
-	if err := registerer.Register(workspaceCreationTotal); err != nil {
-		return nil, err
-	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -209,27 +197,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				w.OwnerUsername,
 				string(w.LatestBuildTransition),
 			).Add(1)
-		}
-
-		// Update regular workspaces (without a prebuild transition) creation counter
-		regularWorkspaces, err := db.GetRegularWorkspaceCreateMetrics(ctx)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				workspaceCreationTotal.Reset()
-			} else {
-				logger.Warn(ctx, "failed to load regular workspaces for metrics", slog.Error(err))
-			}
-			return
-		}
-
-		workspaceCreationTotal.Reset()
-
-		for _, regularWorkspace := range regularWorkspaces {
-			workspaceCreationTotal.WithLabelValues(
-				regularWorkspace.OrganizationName,
-				regularWorkspace.TemplateName,
-				regularWorkspace.PresetName,
-			).Add(float64(regularWorkspace.CreatedCount))
 		}
 	}
 

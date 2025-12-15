@@ -2317,7 +2317,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		// Get preset name for labels.
 		presetName := ""
 		if workspaceBuild.TemplateVersionPresetID.Valid {
-			preset, err := s.Database.GetTemplateVersionPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+			preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
 			if err == nil {
 				presetName = preset.Name
 			}

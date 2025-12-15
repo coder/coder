@@ -947,39 +947,6 @@ SET
 WHERE
 	id = @id;
 
--- name: GetRegularWorkspaceCreateMetrics :many
--- Count regular workspaces: only those whose first successful 'start' build
--- was not initiated by the prebuild system user.
-WITH first_success_build AS (
-	-- Earliest successful 'start' build per workspace
-	SELECT DISTINCT ON (wb.workspace_id)
-		wb.workspace_id,
-		wb.template_version_preset_id,
-		wb.initiator_id
-	FROM workspace_builds wb
-	JOIN provisioner_jobs pj ON pj.id = wb.job_id
-	WHERE
-		wb.transition = 'start'::workspace_transition
-  		AND pj.job_status = 'succeeded'::provisioner_job_status
-	ORDER BY wb.workspace_id, wb.build_number, wb.id
-)
-SELECT
-	t.name AS template_name,
-	COALESCE(tvp.name, '') AS preset_name,
-	o.name AS organization_name,
-	COUNT(*) AS created_count
-FROM first_success_build fsb
-	JOIN workspaces w ON w.id = fsb.workspace_id
-	JOIN templates t ON t.id = w.template_id
-	LEFT JOIN template_version_presets tvp ON tvp.id = fsb.template_version_preset_id
-	JOIN organizations o ON o.id = w.organization_id
-WHERE
-	NOT t.deleted
-	-- Exclude workspaces whose first successful start was the prebuilds system user
-	AND fsb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-GROUP BY t.name, COALESCE(tvp.name, ''), o.name
-ORDER BY t.name, preset_name, o.name;
-
 -- name: GetWorkspacesForWorkspaceMetrics :many
 SELECT
     u.username as owner_username,

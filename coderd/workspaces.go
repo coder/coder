@@ -833,7 +833,7 @@ func createWorkspace(
 			// Get preset name for labels.
 			presetName := ""
 			if workspaceBuild.TemplateVersionPresetID.Valid {
-				preset, err := db.GetTemplateVersionPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+				preset, err := db.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
 				if err == nil {
 					presetName = preset.Name
 				}

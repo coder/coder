@@ -2956,13 +2956,6 @@ func (q *querier) GetQuotaConsumedForUser(ctx context.Context, params database.G
 	return q.db.GetQuotaConsumedForUser(ctx, params)
 }
 
-func (q *querier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetRegularWorkspaceCreateMetrics(ctx)
-}
-
 func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.Replica{}, err

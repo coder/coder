@@ -2293,10 +2293,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agt.ID).Return([]database.WorkspaceAgentDevcontainer{d}, nil).AnyTimes()
 		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns([]database.WorkspaceAgentDevcontainer{d})
 	}))
-	s.Run("GetRegularWorkspaceCreateMetrics", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
-	}))
 }
 
 func (s *MethodTestSuite) TestWorkspacePortSharing() {
