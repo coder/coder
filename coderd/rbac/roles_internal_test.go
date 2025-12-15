@@ -74,7 +74,7 @@ func TestRegoInputValue(t *testing.T) {
 	// Expand all roles and make sure we have a good copy.
 	// This is because these tests modify the roles, and we don't want to
 	// modify the original roles.
-	roles, err := RoleIdentifiers{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
+	roles, err := RoleIdentifiers{ScopedRoleOrgAuditor(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
 	require.NoError(t, err, "failed to expand roles")
 	for i := range roles {
 		// If all cached values are nil, then the role will not use
@@ -224,9 +224,9 @@ func TestRoleByName(t *testing.T) {
 			{Role: builtInRoles[orgAdmin](uuid.New())},
 			{Role: builtInRoles[orgAdmin](uuid.New())},
 
-			{Role: builtInRoles[orgMember](uuid.New())},
-			{Role: builtInRoles[orgMember](uuid.New())},
-			{Role: builtInRoles[orgMember](uuid.New())},
+			{Role: builtInRoles[orgAuditor](uuid.New())},
+			{Role: builtInRoles[orgAuditor](uuid.New())},
+			{Role: builtInRoles[orgAuditor](uuid.New())},
 		}
 
 		for _, c := range testCases {

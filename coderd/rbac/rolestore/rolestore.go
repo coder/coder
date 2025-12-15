@@ -83,9 +83,10 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 		// the expansion. These roles are no-ops. Should we raise some kind of
 		// warning when this happens?
 		dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
-			LookupRoles:     lookupArgs,
-			ExcludeOrgRoles: false,
-			OrganizationID:  uuid.Nil,
+			LookupRoles:        lookupArgs,
+			ExcludeOrgRoles:    false,
+			OrganizationID:     uuid.Nil,
+			IncludeSystemRoles: true,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("fetch custom roles: %w", err)
@@ -105,7 +106,8 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 	return roles, nil
 }
 
-func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permission {
+// ConvertDBPermissions converts database permissions to RBAC permissions.
+func ConvertDBPermissions(dbPerms []database.CustomRolePermission) []rbac.Permission {
 	n := make([]rbac.Permission, 0, len(dbPerms))
 	for _, dbPerm := range dbPerms {
 		n = append(n, rbac.Permission{
@@ -117,14 +119,30 @@ func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permissi
 	return n
 }
 
+// ConvertPermissionsToDB converts RBAC permissions to the database
+// format.
+//
+// TODO(geokat): does it belong in this package?
+func ConvertPermissionsToDB(perms []rbac.Permission) []database.CustomRolePermission {
+	dbPerms := make([]database.CustomRolePermission, 0, len(perms))
+	for _, perm := range perms {
+		dbPerms = append(dbPerms, database.CustomRolePermission{
+			Negate:       perm.Negate,
+			ResourceType: perm.ResourceType,
+			Action:       perm.Action,
+		})
+	}
+	return dbPerms
+}
+
 // ConvertDBRole should not be used by any human facing apis. It is used
 // for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	role := rbac.Role{
 		Identifier:  dbRole.RoleIdentifier(),
 		DisplayName: dbRole.DisplayName,
-		Site:        convertPermissions(dbRole.SitePermissions),
-		User:        convertPermissions(dbRole.UserPermissions),
+		Site:        ConvertDBPermissions(dbRole.SitePermissions),
+		User:        ConvertDBPermissions(dbRole.UserPermissions),
 	}
 
 	// Org permissions only make sense if an org id is specified.
@@ -135,7 +153,8 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	if dbRole.OrganizationID.UUID != uuid.Nil {
 		role.ByOrgID = map[string]rbac.OrgPermissions{
 			dbRole.OrganizationID.UUID.String(): {
-				Org: convertPermissions(dbRole.OrgPermissions),
+				Org:    ConvertDBPermissions(dbRole.OrgPermissions),
+				Member: ConvertDBPermissions(dbRole.MemberPermissions),
 			},
 		}
 	}

@@ -4110,6 +4110,8 @@ func (q *querier) InsertCustomRole(ctx context.Context, arg database.InsertCusto
 		return database.CustomRole{}, err
 	}
 
+	// TODO(geokat): should we add MemberPermissions validation too
+	// now that we have them in system roles?
 	if err := q.customRoleCheck(ctx, database.CustomRole{
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
@@ -4864,6 +4866,8 @@ func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCusto
 		return database.CustomRole{}, err
 	}
 
+	// TODO(geokat): should we add MemberPermissions validation too
+	// now that we have them in system roles?
 	if err := q.customRoleCheck(ctx, database.CustomRole{
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
