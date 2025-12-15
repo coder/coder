@@ -6165,7 +6165,7 @@ func (q *querier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg 
 	return q.CountAIBridgeInterceptions(ctx, arg)
 }
 
-func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
+func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, _ rbac.PreparedAuthorized) ([]string, error) {
 	// TODO: Delete this function, all ListAIBridgeModels should be authorized. For now just call ListAIBridgeModels on the authz querier.
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
