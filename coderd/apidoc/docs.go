@@ -17930,6 +17930,50 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SharedWorkspaceActor": {
+            "type": "object",
+            "properties": {
+                "actor_type": {
+                    "enum": [
+                        "group",
+                        "user"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
+                        }
+                    ]
+                },
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
+                }
+            }
+        },
+        "codersdk.SharedWorkspaceActorType": {
+            "type": "string",
+            "enum": [
+                "group",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "SharedWorkspaceActorTypeGroup",
+                "SharedWorkspaceActorTypeUser"
+            ]
+        },
         "codersdk.SlimRole": {
             "type": "object",
             "properties": {
@@ -20012,6 +20056,12 @@ const docTemplate = `{
                 "owner_name": {
                     "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
+                },
+                "shared_with": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SharedWorkspaceActor"
+                    }
                 },
                 "task_id": {
                     "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
