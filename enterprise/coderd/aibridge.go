@@ -264,7 +264,7 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AIBridgeModels(api.Database, queryStr, page)
+	filter, errs := searchquery.AIBridgeModels(queryStr, page)
 
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
