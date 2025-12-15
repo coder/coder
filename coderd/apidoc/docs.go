@@ -14632,7 +14632,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "code_challenge_methods_supported": {
-                    "description": "CodeChallengeMethodsSupported lists the PKCE code challenge methods\nThe only one supported by Coder is \"S256\"",
+                    "description": "CodeChallengeMethodsSupported lists the PKCE code challenge methods\nThe only one supported by Coder is \"S256\".",
                     "type": "array",
                     "items": {
                         "type": "string"
