@@ -379,6 +379,8 @@ WHERE
 		WHEN @model::text != '' THEN aibridge_interceptions.model ILIKE '%' || @model::text || '%'
 		ELSE true
 	END
+	-- We use an `@authorize_filter` as we are attempting to list models that are relevant
+	-- to the user and what they are allowed to see.
 	-- Authorize Filter clause will be injected below in ListAIBridgeModelsAuthorized
 	-- @authorize_filter
 GROUP BY
