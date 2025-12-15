@@ -33,6 +33,9 @@ type Config struct {
 	// If not set in direct mode, uses the client's token.
 	DirectToken string `json:"direct_token"`
 
+	// Provider is the API provider to use: "openai" or "anthropic".
+	Provider string `json:"provider"`
+
 	// RequestCount is the number of requests to make per runner.
 	RequestCount int `json:"request_count"`
 
@@ -41,6 +44,10 @@ type Config struct {
 
 	// Stream indicates whether to use streaming requests.
 	Stream bool `json:"stream"`
+
+	// RequestPayloadSize is the size in bytes of the request payload (user message content).
+	// If 0, uses default message content.
+	RequestPayloadSize int `json:"request_payload_size"`
 
 	Metrics *Metrics `json:"-"`
 }
@@ -60,6 +67,11 @@ func (c Config) Validate() error {
 	}
 	if c.Model == "" {
 		return xerrors.New("model must be set")
+	}
+
+	// Validate provider
+	if c.Provider != "openai" && c.Provider != "anthropic" {
+		return xerrors.New("provider must be either 'openai' or 'anthropic'")
 	}
 
 	if c.Mode == RequestModeDirect {

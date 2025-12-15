@@ -7,12 +7,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -21,6 +28,55 @@ import (
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/quartz"
 )
+
+type tracingContextKey struct{}
+type tracingContext struct {
+	provider   string
+	model      string
+	stream     bool
+	requestNum int
+	mode       RequestMode
+}
+
+type tracingTransport struct {
+	cfg        Config
+	underlying http.RoundTripper
+}
+
+func newTracingTransport(cfg Config, underlying http.RoundTripper) *tracingTransport {
+	if underlying == nil {
+		underlying = http.DefaultTransport
+	}
+	return &tracingTransport{
+		cfg:        cfg,
+		underlying: otelhttp.NewTransport(underlying),
+	}
+}
+
+func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	aibridgeCtx, hasAIBridgeCtx := req.Context().Value(tracingContextKey{}).(tracingContext)
+
+	resp, err := t.underlying.RoundTrip(req)
+
+	if hasAIBridgeCtx {
+		ctx := req.Context()
+		if resp != nil && resp.Request != nil {
+			ctx = resp.Request.Context()
+		}
+		span := trace.SpanFromContext(ctx)
+		if span.IsRecording() {
+			span.SetAttributes(
+				attribute.String("aibridge.provider", aibridgeCtx.provider),
+				attribute.String("aibridge.model", aibridgeCtx.model),
+				attribute.Bool("aibridge.stream", aibridgeCtx.stream),
+				attribute.Int("aibridge.request_num", aibridgeCtx.requestNum),
+				attribute.String("aibridge.mode", string(aibridgeCtx.mode)),
+			)
+		}
+	}
+
+	return resp, err
+}
 
 type Runner struct {
 	client *codersdk.Client
@@ -31,7 +87,6 @@ type Runner struct {
 	clock      quartz.Clock
 	httpClient *http.Client
 
-	// Metrics tracking
 	requestCount  int64
 	successCount  int64
 	failureCount  int64
@@ -41,10 +96,13 @@ type Runner struct {
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client:     client,
-		cfg:        cfg,
-		clock:      quartz.NewReal(),
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		client: client,
+		cfg:    cfg,
+		clock:  quartz.NewReal(),
+		httpClient: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: newTracingTransport(cfg, http.DefaultTransport),
+		},
 	}
 }
 
@@ -69,7 +127,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	var token string
 	var requestURL string
 
-	// Determine mode: direct or bridge
 	if r.cfg.Mode == RequestModeDirect {
 		// Direct mode: skip user creation, use upstream URL directly
 		requestURL = r.cfg.UpstreamURL
@@ -95,12 +152,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 		logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 
-		// Construct AI Bridge URL
-		requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/chat/completions", r.client.URL)
-		logger.Info(ctx, "bridge runner in bridge mode", slog.F("url", requestURL))
+		// Construct AI Bridge URL based on provider
+		if r.cfg.Provider == "anthropic" {
+			requestURL = fmt.Sprintf("%s/api/v2/aibridge/anthropic/v1/messages", r.client.URL)
+		} else {
+			requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/chat/completions", r.client.URL)
+		}
+		logger.Info(ctx, "bridge runner in bridge mode", slog.F("url", requestURL), slog.F("provider", r.cfg.Provider))
 	}
 
-	// Set defaults if not provided
 	requestCount := r.cfg.RequestCount
 	if requestCount <= 0 {
 		requestCount = 1
@@ -116,13 +176,17 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		slog.F("stream", r.cfg.Stream),
 	)
 
-	// Make requests
 	for i := 0; i < requestCount; i++ {
 		if err := r.makeRequest(ctx, logger, requestURL, token, model, i); err != nil {
-			logger.Warn(ctx, "request failed", slog.F("request_num", i+1), slog.Error(err))
+			logger.Warn(ctx, "bridge request failed",
+				slog.F("request_num", i+1),
+				slog.F("error_type", "request_failed"),
+				slog.Error(err),
+			)
 			r.cfg.Metrics.AddError("request")
-			r.failureCount++
 			r.cfg.Metrics.AddRequest("failure")
+			r.failureCount++
+
 			// Continue making requests even if one fails
 			continue
 		}
@@ -137,22 +201,67 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		slog.F("failure", r.failureCount),
 	)
 
+	// Fail the run if any request failed
+	if r.failureCount > 0 {
+		return xerrors.Errorf("bridge runner failed: %d out of %d requests failed", r.failureCount, requestCount)
+	}
+
 	return nil
 }
 
 func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token, model string, requestNum int) error {
 	start := r.clock.Now()
 
-	// Prepare request body
-	reqBody := map[string]interface{}{
-		"model": model,
-		"messages": []map[string]string{
-			{
-				"role":    "user",
-				"content": fmt.Sprintf("Hello, this is test request #%d from the bridge load generator.", requestNum+1),
-			},
-		},
-		"stream": r.cfg.Stream,
+	ctx = context.WithValue(ctx, tracingContextKey{}, tracingContext{
+		provider:   r.cfg.Provider,
+		model:      model,
+		stream:     r.cfg.Stream,
+		requestNum: requestNum + 1,
+		mode:       r.cfg.Mode,
+	})
+
+	var content string
+	if r.cfg.RequestPayloadSize > 0 {
+		pattern := "x"
+		repeated := strings.Repeat(pattern, r.cfg.RequestPayloadSize)
+		content = repeated[:r.cfg.RequestPayloadSize]
+	} else {
+		content = fmt.Sprintf("Hello, this is test request #%d from the bridge load generator.", requestNum+1)
+	}
+
+	newUserMessage := map[string]string{
+		"role":    "user",
+		"content": content,
+	}
+	messages := make([]map[string]string, 0)
+	messages = append(messages, newUserMessage)
+
+	var reqBody map[string]interface{}
+	if r.cfg.Provider == "anthropic" {
+		anthropicMessages := make([]map[string]interface{}, 0, len(messages))
+		for _, msg := range messages {
+			anthropicMessages = append(anthropicMessages, map[string]interface{}{
+				"role": msg["role"],
+				"content": []map[string]string{
+					{
+						"type": "text",
+						"text": msg["content"],
+					},
+				},
+			})
+		}
+		reqBody = map[string]interface{}{
+			"model":      model,
+			"messages":   anthropicMessages,
+			"max_tokens": 1024,
+			"stream":     r.cfg.Stream,
+		}
+	} else {
+		reqBody = map[string]interface{}{
+			"model":    model,
+			"messages": messages,
+			"stream":   r.cfg.Stream,
+		}
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -178,9 +287,23 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
+		span := trace.SpanFromContext(req.Context())
+		if span.IsRecording() {
+			span.RecordError(err)
+		}
+		logger.Warn(ctx, "request failed during execution",
+			slog.F("request_num", requestNum+1),
+			slog.Error(err),
+		)
 		return xerrors.Errorf("execute request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	span := trace.SpanFromContext(req.Context())
+	if span.IsRecording() {
+		span.SetAttributes(semconv.HTTPStatusCodeKey.Int(resp.StatusCode))
+		span.SetStatus(httpconv.ClientStatus(resp.StatusCode))
+	}
 
 	duration := r.clock.Since(start)
 	r.totalDuration += duration
@@ -188,18 +311,31 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return xerrors.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
+		err := xerrors.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
+		span.RecordError(err)
+		return err
 	}
 
-	// Handle response
 	if r.cfg.Stream {
-		return r.handleStreamingResponse(ctx, logger, resp)
+		err := r.handleStreamingResponse(ctx, logger, resp)
+		if err != nil {
+			span.RecordError(err)
+			return err
+		}
+		return nil
 	}
 
-	return r.handleNonStreamingResponse(ctx, logger, resp)
+	return r.handleNonStreamingResponse(ctx, logger, resp, requestNum)
 }
 
-func (r *Runner) handleNonStreamingResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
+func (r *Runner) handleNonStreamingResponse(ctx context.Context, logger slog.Logger, resp *http.Response, requestNum int) error {
+	if r.cfg.Provider == "anthropic" {
+		return r.handleAnthropicResponse(ctx, logger, resp, requestNum)
+	}
+	return r.handleOpenAIResponse(ctx, logger, resp, requestNum)
+}
+
+func (r *Runner) handleOpenAIResponse(ctx context.Context, logger slog.Logger, resp *http.Response, _ int) error {
 	var response struct {
 		ID      string `json:"id"`
 		Model   string `json:"model"`
@@ -219,14 +355,15 @@ func (r *Runner) handleNonStreamingResponse(ctx context.Context, logger slog.Log
 		return xerrors.Errorf("decode response: %w", err)
 	}
 
+	var assistantContent string
 	if len(response.Choices) > 0 {
+		assistantContent = response.Choices[0].Message.Content
 		logger.Debug(ctx, "received response",
 			slog.F("response_id", response.ID),
-			slog.F("content_length", len(response.Choices[0].Message.Content)),
+			slog.F("content_length", len(assistantContent)),
 		)
 	}
 
-	// Track token usage if available
 	if response.Usage.TotalTokens > 0 {
 		r.totalTokens += int64(response.Usage.TotalTokens)
 		r.cfg.Metrics.AddTokens("input", int64(response.Usage.PromptTokens))
@@ -236,12 +373,56 @@ func (r *Runner) handleNonStreamingResponse(ctx context.Context, logger slog.Log
 	return nil
 }
 
-func (r *Runner) handleStreamingResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
-	// For streaming, we just read until the stream ends
-	// The mock server sends a simple stream format
+func (r *Runner) handleAnthropicResponse(ctx context.Context, logger slog.Logger, resp *http.Response, _ int) error {
+	var response struct {
+		ID      string `json:"id"`
+		Model   string `json:"model"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return xerrors.Errorf("decode response: %w", err)
+	}
+
+	var assistantContent string
+	if len(response.Content) > 0 {
+		assistantContent = response.Content[0].Text
+		logger.Debug(ctx, "received response",
+			slog.F("response_id", response.ID),
+			slog.F("content_length", len(assistantContent)),
+		)
+	}
+
+	totalTokens := response.Usage.InputTokens + response.Usage.OutputTokens
+	if totalTokens > 0 {
+		r.totalTokens += int64(totalTokens)
+		r.cfg.Metrics.AddTokens("input", int64(response.Usage.InputTokens))
+		r.cfg.Metrics.AddTokens("output", int64(response.Usage.OutputTokens))
+	}
+
+	return nil
+}
+
+func (*Runner) handleStreamingResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
 	buf := make([]byte, 4096)
 	totalRead := 0
 	for {
+		// Check for context cancellation before each read
+		if ctx.Err() != nil {
+			logger.Warn(ctx, "streaming response canceled",
+				slog.F("bytes_read", totalRead),
+				slog.Error(ctx.Err()),
+			)
+			return xerrors.Errorf("stream canceled: %w", ctx.Err())
+		}
+
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
 			totalRead += n
@@ -250,6 +431,18 @@ func (r *Runner) handleStreamingResponse(ctx context.Context, logger slog.Logger
 			break
 		}
 		if err != nil {
+			// Check if error is due to context cancellation
+			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				logger.Warn(ctx, "streaming response read canceled",
+					slog.F("bytes_read", totalRead),
+					slog.Error(err),
+				)
+				return xerrors.Errorf("stream read canceled: %w", err)
+			}
+			logger.Warn(ctx, "streaming response read error",
+				slog.F("bytes_read", totalRead),
+				slog.Error(err),
+			)
 			return xerrors.Errorf("read stream: %w", err)
 		}
 	}
