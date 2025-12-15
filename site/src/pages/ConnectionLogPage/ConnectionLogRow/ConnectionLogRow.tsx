@@ -1,12 +1,16 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type { ConnectionLog } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
@@ -87,8 +91,15 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
 									/>
 								)}
-								<Tooltip
-									title={
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<InfoIcon
+											css={(theme) => ({
+												color: theme.palette.info.light,
+											})}
+										/>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">
 										<div css={styles.connectionLogInfoTooltip}>
 											{connectionLog.ip && (
 												<div>
@@ -133,13 +144,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 												</div>
 											)}
 										</div>
-									}
-								>
-									<InfoIcon
-										css={(theme) => ({
-											color: theme.palette.info.light,
-										})}
-									/>
+									</TooltipContent>
 								</Tooltip>
 							</Stack>
 						</Stack>
