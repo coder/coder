@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
@@ -614,6 +615,20 @@ func New(options *Options) *API {
 		),
 		dbRolluper: options.DatabaseRolluper,
 	}
+
+	// Initialize workspace creation metrics with the PrometheusRegistry.
+	if options.DeploymentValues.Prometheus.Enable && options.PrometheusRegistry != nil {
+		factory := promauto.With(options.PrometheusRegistry)
+		api.workspaceCreationAttemptsTotal = factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "coderd",
+				Name:      "workspace_creation_attempts_total",
+				Help:      "Total regular (non-prebuilt) workspace creation attempts by organization, template, and preset.",
+			},
+			[]string{"organization_name", "template_name", "preset_name"},
+		)
+	}
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -1841,11 +1856,13 @@ type API struct {
 	WebsocketWaitGroup sync.WaitGroup
 	derpCloseFunc      func()
 
-	metricsCache          *metricscache.Cache
-	updateChecker         *updatecheck.Checker
-	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
-	workspaceAppServer    *workspaceapps.Server
-	agentProvider         workspaceapps.AgentProvider
+	metricsCache                   *metricscache.Cache
+	workspaceCreationAttemptsTotal *prometheus.CounterVec
+	workspaceCreationOutcomesTotal *prometheus.CounterVec
+	updateChecker                  *updatecheck.Checker
+	WorkspaceAppsProvider          workspaceapps.SignedTokenProvider
+	workspaceAppServer             *workspaceapps.Server
+	agentProvider                  workspaceapps.AgentProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

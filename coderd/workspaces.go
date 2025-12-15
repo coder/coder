@@ -14,8 +14,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -56,23 +54,12 @@ var (
 	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
 	errDeadlineTooSoon     = xerrors.New("new deadline must be at least 30 minutes in the future")
 	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
-
-	// WorkspaceCreationAttemptsTotal tracks regular (non-prebuilt) workspace
-	// creation attempts by organization, template, and preset.
-	WorkspaceCreationAttemptsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "coderd",
-			Name:      "workspace_creation_attempts_total",
-			Help:      "Total regular (non-prebuilt) workspace creation attempts by organization, template, and preset.",
-		},
-		[]string{"organization_name", "template_name", "preset_name"},
-	)
 )
 
 // incrementWorkspaceCreationAttemptsMetric increments the workspace creation
 // attempts metric for first 'start' builds. This counts regular (non-prebuilt)
 // workspace creation attempts.
-func incrementWorkspaceCreationAttemptsMetric(ctx context.Context, db database.Store, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, initiatorID uuid.UUID) {
+func (api *API) incrementWorkspaceCreationAttemptsMetric(ctx context.Context, db database.Store, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, initiatorID uuid.UUID) {
 	if workspaceBuild.BuildNumber == 1 &&
 		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
 		initiatorID != database.PrebuildsSystemUserID {
@@ -85,11 +72,13 @@ func incrementWorkspaceCreationAttemptsMetric(ctx context.Context, db database.S
 			}
 		}
 
-		WorkspaceCreationAttemptsTotal.WithLabelValues(
-			workspace.OrganizationName,
-			workspace.TemplateName,
-			presetName,
-		).Inc()
+		if api.workspaceCreationAttemptsTotal != nil {
+			api.workspaceCreationAttemptsTotal.WithLabelValues(
+				workspace.OrganizationName,
+				workspace.TemplateName,
+				presetName,
+			).Inc()
+		}
 	}
 }
 
@@ -851,7 +840,7 @@ func createWorkspace(
 
 		// Increment workspace creation attempts metric for first 'start' builds.
 		// This counts regular (non-prebuilt) workspace creation attempts.
-		incrementWorkspaceCreationAttemptsMetric(ctx, db, workspace, *workspaceBuild, initiatorID)
+		api.incrementWorkspaceCreationAttemptsMetric(ctx, db, workspace, *workspaceBuild, initiatorID)
 
 		return nil
 	}, nil)

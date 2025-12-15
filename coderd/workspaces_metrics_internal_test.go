@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -118,17 +119,32 @@ func TestWorkspaceCreationAttemptsMetricLogic(t *testing.T) {
 			if tc.shouldIncrement && tc.hasPreset {
 				expectedPresetName = tc.presetName
 			}
-			initialValue := promtest.ToFloat64(WorkspaceCreationAttemptsTotal.WithLabelValues(
+
+			// Create a test metric for this test.
+			testMetric := prometheus.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: "coderd_test",
+					Name:      "workspace_creation_attempts_total_test",
+				},
+				[]string{"organization_name", "template_name", "preset_name"},
+			)
+
+			initialValue := promtest.ToFloat64(testMetric.WithLabelValues(
 				orgName,
 				templateName,
 				expectedPresetName,
 			))
 
+			// Create a test API instance with the metric.
+			api := &API{
+				workspaceCreationAttemptsTotal: testMetric,
+			}
+
 			// Call the actual metric increment function.
-			incrementWorkspaceCreationAttemptsMetric(ctx, db, workspace, workspaceBuild, tc.initiatorID)
+			api.incrementWorkspaceCreationAttemptsMetric(ctx, db, workspace, workspaceBuild, tc.initiatorID)
 
 			// Verify the metric.
-			newValue := promtest.ToFloat64(WorkspaceCreationAttemptsTotal.WithLabelValues(
+			newValue := promtest.ToFloat64(testMetric.WithLabelValues(
 				orgName,
 				templateName,
 				expectedPresetName,

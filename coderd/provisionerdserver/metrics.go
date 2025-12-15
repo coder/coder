@@ -10,9 +10,10 @@ import (
 )
 
 type Metrics struct {
-	logger                   slog.Logger
-	workspaceCreationTimings *prometheus.HistogramVec
-	workspaceClaimTimings    *prometheus.HistogramVec
+	logger                         slog.Logger
+	workspaceCreationTimings       *prometheus.HistogramVec
+	workspaceClaimTimings          *prometheus.HistogramVec
+	workspaceCreationOutcomesTotal *prometheus.CounterVec
 }
 
 type WorkspaceTimingType int
@@ -90,6 +91,15 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name"}),
+		workspaceCreationOutcomesTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "workspace_creation_outcomes_total",
+				Help:      "Outcomes of regular (non-prebuilt) workspace first builds by organization, template, preset, and status.",
+			},
+			[]string{"organization_name", "template_name", "preset_name", "status"},
+		),
 	}
 }
 
@@ -97,7 +107,10 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	if err := reg.Register(m.workspaceCreationTimings); err != nil {
 		return err
 	}
-	return reg.Register(m.workspaceClaimTimings)
+	if err := reg.Register(m.workspaceClaimTimings); err != nil {
+		return err
+	}
+	return reg.Register(m.workspaceCreationOutcomesTotal)
 }
 
 // IsTrackable returns true if the workspace build should be tracked in metrics.

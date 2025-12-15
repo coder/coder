@@ -78,6 +78,8 @@ const (
 
 // WorkspaceCreationOutcomesTotal tracks regular (non-prebuilt) workspace
 // first build outcomes by organization, template, preset, and status.
+// This is a package-level variable for backwards compatibility with tests,
+// but in production it should be accessed via server.workspaceCreationOutcomesTotal.
 var WorkspaceCreationOutcomesTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Namespace: "coderd",
@@ -91,7 +93,7 @@ var WorkspaceCreationOutcomesTotal = promauto.NewCounterVec(
 // incrementWorkspaceCreationOutcomesMetric increments the workspace creation
 // outcomes metric for first 'start' builds. This counts regular (non-prebuilt)
 // workspace creation outcomes (success/failure).
-func incrementWorkspaceCreationOutcomesMetric(ctx context.Context, db database.Store, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, job database.ProvisionerJob) {
+func (s *server) incrementWorkspaceCreationOutcomesMetric(ctx context.Context, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, job database.ProvisionerJob) {
 	if workspaceBuild.BuildNumber == 1 &&
 		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
 		workspaceBuild.InitiatorID != database.PrebuildsSystemUserID {
@@ -104,13 +106,19 @@ func incrementWorkspaceCreationOutcomesMetric(ctx context.Context, db database.S
 		// Get preset name for labels.
 		presetName := ""
 		if workspaceBuild.TemplateVersionPresetID.Valid {
-			preset, err := db.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+			preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
 			if err == nil {
 				presetName = preset.Name
 			}
 		}
 
-		WorkspaceCreationOutcomesTotal.WithLabelValues(
+		// Use the server's metric if available, otherwise fall back to global for tests.
+		metric := s.workspaceCreationOutcomesTotal
+		if metric == nil {
+			metric = WorkspaceCreationOutcomesTotal
+		}
+
+		metric.WithLabelValues(
 			workspace.OrganizationName,
 			workspace.TemplateName,
 			presetName,
@@ -167,6 +175,8 @@ type server struct {
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 	UsageInserter               *atomic.Pointer[usage.Inserter]
 	Experiments                 codersdk.Experiments
+
+	workspaceCreationOutcomesTotal *prometheus.CounterVec
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -301,6 +311,11 @@ func NewServer(
 		UsageInserter:               usageInserter,
 		metrics:                     metrics,
 		Experiments:                 experiments,
+	}
+
+	// Set workspace creation outcomes metric from metrics struct if available.
+	if metrics != nil {
+		s.workspaceCreationOutcomesTotal = metrics.workspaceCreationOutcomesTotal
 	}
 
 	if s.heartbeatFn == nil {
@@ -2336,7 +2351,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 	// Increment workspace creation outcomes metric for first 'start' builds.
 	// This counts regular (non-prebuilt) workspace creation outcomes (success/failure).
-	incrementWorkspaceCreationOutcomesMetric(ctx, s.Database, workspace, workspaceBuild, job)
+	s.incrementWorkspaceCreationOutcomesMetric(ctx, workspace, workspaceBuild, job)
 
 	// Post-transaction operations (operations that do not require transactions or
 	// are external to the database, like audit logging, notifications, etc.)
