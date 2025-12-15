@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -5594,5 +5596,148 @@ func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
 		require.NotNil(t, ws2.LatestBuild.TemplateVersionPresetID)
 		require.Equal(t, preset2ID, *ws2.LatestBuild.TemplateVersionPresetID)
+	})
+}
+
+func TestWorkspaceCreationAttemptsMetric(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IncrementOnRegularWorkspaceCreation", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Get organization name for the metric label
+		ctx := context.Background()
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
+		// Get initial metric value
+		initialValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+		))
+
+		// Create a workspace
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Check that the metric incremented
+		newValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+		))
+		require.Equal(t, initialValue+1, newValue, "workspace creation attempts metric should increment by 1")
+	})
+
+	t.Run("DoNotIncrementOnSubsequentBuilds", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Get organization name for the metric label
+		ctx := context.Background()
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
+		// Create a workspace
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Get metric value after first build
+		valueAfterFirst := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+		))
+
+		// Trigger a workspace restart (second build)
+		build := coderdtest.CreateWorkspaceBuild(t, client, ws, database.WorkspaceTransitionStart)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+		// Check that the metric did not increment for the second build
+		valueAfterSecond := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+		))
+		require.Equal(t, valueAfterFirst, valueAfterSecond, "workspace creation attempts metric should not increment on subsequent builds")
+	})
+
+	t.Run("TrackPresetInLabels", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with a preset
+		preset := &proto.Preset{
+			Name:        "test-preset",
+			Description: "Test preset",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{
+				{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
+							Presets: []*proto.Preset{preset},
+						},
+					},
+				},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Get organization name for the metric label
+		ctx := context.Background()
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
+		// Get preset ID
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+
+		// Get initial metric value
+		initialValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			preset.Name,
+		))
+
+		// Create workspace with preset
+		ws := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: "param1", Value: "value1"},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Check that the metric incremented with the preset label
+		newValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			preset.Name,
+		))
+		require.Equal(t, initialValue+1, newValue, "workspace creation attempts metric should increment with preset label")
 	})
 }

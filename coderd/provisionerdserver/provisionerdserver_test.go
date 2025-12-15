@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -4468,4 +4469,88 @@ func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db 
 		WorkspaceID:       w.ID,
 	})
 	return nil
+}
+
+func TestWorkspaceCreationOutcomesMetric(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IncrementOnSuccess", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Get organization name for the metric label
+		ctx := context.Background()
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
+		// Get initial metric value
+		initialValue := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+			"success",
+		))
+
+		// Create a workspace
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Check that the metric incremented for success
+		newValue := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+			"success",
+		))
+		require.Equal(t, initialValue+1, newValue, "workspace creation outcomes metric should increment by 1 for success")
+	})
+
+	t.Run("DoNotIncrementOnSubsequentBuilds", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Get organization name for the metric label
+		ctx := context.Background()
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
+		// Create a workspace
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Get metric value after first build
+		valueAfterFirst := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+			"success",
+		))
+
+		// Trigger a workspace restart (second build)
+		build := coderdtest.CreateWorkspaceBuild(t, client, ws, database.WorkspaceTransitionStart)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+		// Check that the metric did not increment for the second build
+		valueAfterSecond := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
+			org.Name,
+			template.Name,
+			"", // No preset
+			"success",
+		))
+		require.Equal(t, valueAfterFirst, valueAfterSecond, "workspace creation outcomes metric should not increment on subsequent builds")
+	})
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -54,6 +56,17 @@ var (
 	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
 	errDeadlineTooSoon     = xerrors.New("new deadline must be at least 30 minutes in the future")
 	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
+
+	// WorkspaceCreationAttemptsTotal tracks regular (non-prebuilt) workspace
+	// creation attempts by organization, template, and preset.
+	WorkspaceCreationAttemptsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "coderd",
+			Name:      "workspace_creation_attempts_total",
+			Help:      "Total regular (non-prebuilt) workspace creation attempts by organization, template, and preset.",
+		},
+		[]string{"organization_name", "template_name", "preset_name"},
+	)
 )
 
 // @Summary Get workspace metadata by ID
@@ -808,7 +821,32 @@ func createWorkspace(
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Increment workspace creation attempts metric for first 'start' builds.
+		// This counts regular (non-prebuilt) workspace creation attempts.
+		if workspaceBuild.BuildNumber == 1 &&
+			workspaceBuild.Transition == database.WorkspaceTransitionStart &&
+			initiatorID != database.PrebuildsSystemUserID {
+			// Get preset name for labels.
+			presetName := ""
+			if workspaceBuild.TemplateVersionPresetID.Valid {
+				preset, err := db.GetTemplateVersionPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+				if err == nil {
+					presetName = preset.Name
+				}
+			}
+
+			WorkspaceCreationAttemptsTotal.WithLabelValues(
+				workspace.OrganizationName,
+				workspace.TemplateName,
+				presetName,
+			).Inc()
+		}
+
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err

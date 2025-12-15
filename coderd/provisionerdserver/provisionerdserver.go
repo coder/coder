@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
@@ -72,6 +74,18 @@ const (
 	// StaleInterval is the amount of time after the last heartbeat for which
 	// the provisioner will be reported as 'stale'.
 	StaleInterval = 90 * time.Second
+)
+
+// WorkspaceCreationOutcomesTotal tracks regular (non-prebuilt) workspace
+// first build outcomes by organization, template, preset, and status.
+var WorkspaceCreationOutcomesTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "provisionerd",
+		Name:      "workspace_creation_outcomes_total",
+		Help:      "Outcomes of regular (non-prebuilt) workspace first builds by organization, template, preset, and status.",
+	},
+	[]string{"organization_name", "template_name", "preset_name", "status"},
 )
 
 type Options struct {
@@ -2287,6 +2301,34 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 	}, nil)
 	if err != nil {
 		return xerrors.Errorf("complete job: %w", err)
+	}
+
+	// Increment workspace creation outcomes metric for first 'start' builds.
+	// This counts regular (non-prebuilt) workspace creation outcomes (success/failure).
+	if workspaceBuild.BuildNumber == 1 &&
+		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
+		workspaceBuild.InitiatorID != database.PrebuildsSystemUserID {
+		// Determine status based on job completion.
+		status := "success"
+		if job.Error.Valid || job.ErrorCode.Valid {
+			status = "failure"
+		}
+
+		// Get preset name for labels.
+		presetName := ""
+		if workspaceBuild.TemplateVersionPresetID.Valid {
+			preset, err := s.Database.GetTemplateVersionPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+			if err == nil {
+				presetName = preset.Name
+			}
+		}
+
+		WorkspaceCreationOutcomesTotal.WithLabelValues(
+			workspace.OrganizationName,
+			workspace.TemplateName,
+			presetName,
+			status,
+		).Inc()
 	}
 
 	// Post-transaction operations (operations that do not require transactions or
