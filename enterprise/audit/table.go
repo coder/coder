@@ -62,12 +62,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"roles":           ActionTrack,
 	},
 	&database.CustomRole{}: {
-		"name":             ActionTrack,
-		"display_name":     ActionTrack,
-		"site_permissions": ActionTrack,
-		"org_permissions":  ActionTrack,
-		"user_permissions": ActionTrack,
-		"organization_id":  ActionIgnore, // Never changes.
+		"name":               ActionTrack,
+		"display_name":       ActionTrack,
+		"site_permissions":   ActionTrack,
+		"org_permissions":    ActionTrack,
+		"user_permissions":   ActionTrack,
+		"member_permissions": ActionTrack,
+		"organization_id":    ActionIgnore, // Never changes.
+		"is_system":          ActionIgnore, // Never changes.
 
 		"id":         ActionIgnore,
 		"created_at": ActionIgnore,
@@ -309,15 +311,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"secret_prefix":  ActionIgnore,
 	},
 	&database.Organization{}: {
-		"id":           ActionIgnore,
-		"name":         ActionTrack,
-		"description":  ActionTrack,
-		"deleted":      ActionTrack,
-		"created_at":   ActionIgnore,
-		"updated_at":   ActionTrack,
-		"is_default":   ActionTrack,
-		"display_name": ActionTrack,
-		"icon":         ActionTrack,
+		"id":                         ActionIgnore,
+		"name":                       ActionTrack,
+		"description":                ActionTrack,
+		"deleted":                    ActionTrack,
+		"created_at":                 ActionIgnore,
+		"updated_at":                 ActionTrack,
+		"is_default":                 ActionTrack,
+		"display_name":               ActionTrack,
+		"icon":                       ActionTrack,
+		"workspace_sharing_disabled": ActionTrack,
 	},
 	&database.NotificationTemplate{}: {
 		"id":                 ActionIgnore,

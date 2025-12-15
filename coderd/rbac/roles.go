@@ -431,39 +431,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-
-		// orgMember is an implied role to any member in an organization.
-		orgMember: func(organizationID uuid.UUID) Role {
-			return Role{
-				Identifier:  RoleIdentifier{Name: orgMember, OrganizationID: organizationID},
-				DisplayName: "",
-				Site:        []Permission{},
-				User:        []Permission{},
-				ByOrgID: map[string]OrgPermissions{
-					organizationID.String(): {
-						Org: Permissions(map[string][]policy.Action{
-							// All users can see the provisioner daemons for workspace
-							// creation.
-							ResourceProvisionerDaemon.Type: {policy.ActionRead},
-							// All org members can read the organization
-							ResourceOrganization.Type: {policy.ActionRead},
-							// Can read available roles.
-							ResourceAssignOrgRole.Type: {policy.ActionRead},
-						}),
-						Member: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
-							Permissions(map[string][]policy.Action{
-								// Reduced permission set on dormant workspaces. No build, ssh, or exec
-								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
-								// Can read their own organization member record
-								ResourceOrganizationMember.Type: {policy.ActionRead},
-								// Users can create provisioner daemons scoped to themselves.
-								ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-							})...,
-						),
-					},
-				},
-			}
-		},
 		orgAuditor: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgAuditor, OrganizationID: organizationID},
@@ -914,4 +881,107 @@ func DeduplicatePermissions(perms []Permission) []Permission {
 		deduped = append(deduped, perm)
 	}
 	return deduped
+}
+
+// PermissionsEqual compares two permission slices using set-based
+// comparison. Order does not matter; it only checks that both slices
+// contain the same permissions. This is used by the organization
+// member system role startup hook to detect when permissions need
+// updating.
+func PermissionsEqual(a, b []Permission) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	set := make(map[string]struct{}, len(a))
+	for _, p := range a {
+		key := p.ResourceType + "\x00" + string(p.Action) + "\x00" + strconv.FormatBool(p.Negate)
+		set[key] = struct{}{}
+	}
+
+	for _, p := range b {
+		key := p.ResourceType + "\x00" + string(p.Action) + "\x00" + strconv.FormatBool(p.Negate)
+		if _, ok := set[key]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+// OrgMemberPermissions returns the permissions for the organization-member
+// system role. The results are stored in the database and can vary per
+// organization based on the workspace_sharing_disabled setting.
+//
+// This is the source of truth for org-member permissions. The startup
+// hook uses this to populate and update org-member system roles in
+// the database when resources change. The org-wide workspace sharing
+// toggle uses it to update the roles to reflect the new setting.
+func OrgMemberPermissions(workspaceSharingDisabled bool) (
+	orgPerms, memberPerms []Permission,
+) {
+	// Organization-level permissions that all org members get.
+	orgPermMap := map[string][]policy.Action{
+		// All users can see provisioner daemons for workspace creation.
+		ResourceProvisionerDaemon.Type: {policy.ActionRead},
+		// All org members can read the organization.
+		ResourceOrganization.Type: {policy.ActionRead},
+		// Can read available roles.
+		ResourceAssignOrgRole.Type: {policy.ActionRead},
+	}
+
+	// When workspace sharing is enabled, members need to see other org members
+	// and groups to share workspaces with them.
+	if !workspaceSharingDisabled {
+		orgPermMap[ResourceOrganizationMember.Type] = []policy.Action{policy.ActionRead}
+		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
+	}
+
+	orgPerms = Permissions(orgPermMap)
+
+	// Member-scoped permissions (resources owned by the member).
+	// Uses allPermsExcept to automatically include permissions for new resources.
+	memberPerms = append(
+		allPermsExcept(
+			ResourceWorkspaceDormant,
+			ResourcePrebuiltWorkspace,
+			ResourceUser,
+			ResourceOrganizationMember,
+		),
+		Permissions(map[string][]policy.Action{
+			// Reduced permission set on dormant workspaces. No build,
+			// ssh, or exec.
+			ResourceWorkspaceDormant.Type: {
+				policy.ActionRead,
+				policy.ActionDelete,
+				policy.ActionCreate,
+				policy.ActionUpdate,
+				policy.ActionWorkspaceStop,
+				policy.ActionCreateAgent,
+				policy.ActionDeleteAgent,
+			},
+			// Can read their own organization member record.
+			ResourceOrganizationMember.Type: {
+				policy.ActionRead,
+			},
+			// Users can create provisioner daemons scoped to themselves.
+			ResourceProvisionerDaemon.Type: {
+				policy.ActionRead,
+				policy.ActionCreate,
+				policy.ActionUpdate,
+			},
+		})...,
+	)
+
+	if workspaceSharingDisabled {
+		// This negation overrides the wildcard permission from
+		// allPermsExcept.
+		memberPerms = append(memberPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+
+	return orgPerms, memberPerms
 }

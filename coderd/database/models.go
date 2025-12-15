@@ -3741,6 +3741,9 @@ type CustomRole struct {
 	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
 	// Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.
 	ID uuid.UUID `db:"id" json:"id"`
+	// System roles are managed by Coder and cannot be modified or deleted by users.
+	IsSystem          bool                  `db:"is_system" json:"is_system"`
+	MemberPermissions CustomRolePermissions `db:"member_permissions" json:"member_permissions"`
 }
 
 // A table used to store the keys used to encrypt the database.
@@ -4006,15 +4009,16 @@ type OAuth2ProviderAppToken struct {
 }
 
 type Organization struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	IsDefault   bool      `db:"is_default" json:"is_default"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Icon        string    `db:"icon" json:"icon"`
-	Deleted     bool      `db:"deleted" json:"deleted"`
+	ID                       uuid.UUID `db:"id" json:"id"`
+	Name                     string    `db:"name" json:"name"`
+	Description              string    `db:"description" json:"description"`
+	CreatedAt                time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
+	IsDefault                bool      `db:"is_default" json:"is_default"`
+	DisplayName              string    `db:"display_name" json:"display_name"`
+	Icon                     string    `db:"icon" json:"icon"`
+	Deleted                  bool      `db:"deleted" json:"deleted"`
+	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
 }
 
 type OrganizationMember struct {
