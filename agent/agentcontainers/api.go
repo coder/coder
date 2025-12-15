@@ -1269,7 +1269,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 	}
 
 	// NOTE(DanielleMaywood):
-	// We currently do not support cancelling the startup of a dev container.
+	// We currently do not support canceling the startup of a dev container.
 	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
 		api.mu.Unlock()
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
