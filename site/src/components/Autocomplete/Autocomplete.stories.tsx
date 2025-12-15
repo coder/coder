@@ -210,7 +210,7 @@ export const SearchAndFilter: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(canvas.getByRole("button", { name: /select a fruit/i }));
 		const searchInput = screen.getByRole("combobox");
 		await userEvent.type(searchInput, "an");
 
@@ -227,7 +227,9 @@ export const SearchAndFilter: Story = {
 		await userEvent.click(screen.getByRole("option", { name: "Banana" }));
 
 		await waitFor(() =>
-			expect(canvas.getByRole("button")).toHaveTextContent("Banana"),
+			expect(
+				canvas.getByRole("button", { name: /banana/i }),
+			).toBeInTheDocument(),
 		);
 	},
 };
