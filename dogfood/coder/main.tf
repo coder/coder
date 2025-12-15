@@ -445,7 +445,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.2"
+  version    = "1.1.3"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -870,7 +870,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.2.3"
+  version             = "4.2.6"
   enable_boundary     = true
   boundary_version    = "v0.2.1"
   agent_id            = coder_agent.dev.id
