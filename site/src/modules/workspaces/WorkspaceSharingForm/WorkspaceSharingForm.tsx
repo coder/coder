@@ -43,7 +43,7 @@ interface RoleSelectProps {
 	onValueChange: (value: WorkspaceRole) => void;
 }
 
-export const RoleSelect: FC<RoleSelectProps> = ({
+const RoleSelect: FC<RoleSelectProps> = ({
 	value,
 	disabled,
 	onValueChange,
@@ -142,7 +142,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 	);
 };
 
-export interface WorkspaceSharingFormProps {
+interface WorkspaceSharingFormProps {
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
 	error: unknown;
