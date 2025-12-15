@@ -162,11 +162,11 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/nexus-repository.svg", "blackWithColor"],
 	["/icon/okta.svg", "monochrome"],
 	["/icon/openai.svg", "monochrome"],
+	["/icon/openwebui.svg", "blackWithColor"],
 	["/icon/rust.svg", "monochrome"],
+	["/icon/tasks.svg", "monochrome"],
 	["/icon/terminal.svg", "monochrome"],
 	["/icon/widgets.svg", "monochrome"],
 	["/icon/windsurf.svg", "monochrome"],
 	["/icon/zed.svg", "monochrome"],
-	["/icon/tasks.svg", "monochrome"],
-	["/icon/openwebui.svg", "monochrome"],
 ]);
