@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import set from "lodash/set";
 import { EditIcon } from "lucide-react";
@@ -61,8 +61,8 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
 	return (
 		<div>
-			<div css={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
-				<div css={styles.sidebar}>
+			<div className="flex items-start gap-8">
+				<div className={classNames.sidebar}>
 					<TemplateFileTree
 						fileTree={fileTree}
 						onSelect={(path: string) => {
@@ -85,15 +85,19 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 					/>
 				</div>
 
-				<div css={styles.files} data-testid="template-files-content">
+				<div className={classNames.files} data-testid="template-files-content">
 					{Object.keys(currentFiles)
 						.sort((a, b) => a.localeCompare(b))
 						.map((filename) => {
 							const info = fileInfo(filename);
 
 							return (
-								<div key={filename} css={styles.filePanel} id={filename}>
-									<header css={styles.fileHeader}>
+								<div
+									key={filename}
+									className={classNames.filePanel}
+									id={filename}
+								>
+									<header className={classNames.fileHeader}>
 										<span
 											className={cn({
 												"text-content-warning": info.hasDiff,
@@ -102,21 +106,13 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 											{filename}
 										</span>
 
-										<div css={{ marginLeft: "auto" }}>
+										<div className="ml-auto">
 											<Link
 												to={`${versionLink}/edit?path=${filename}`}
-												css={{
-													display: "flex",
-													gap: 4,
-													alignItems: "center",
-													fontSize: 14,
-													color: theme.palette.text.secondary,
-													textDecoration: "none",
-
-													"&:hover": {
-														color: theme.palette.text.primary,
-													},
-												}}
+												className={cn([
+													"flex gap-1 items-center text-sm leading-none no-underline",
+													"text-content-secondary hover:text-content-primary",
+												])}
 											>
 												<EditIcon className="text-inherit size-icon-xs" />
 												Edit
@@ -171,38 +167,11 @@ const numberOfLines = (content: string) => {
 	return content.split("\n").length;
 };
 
-const styles = {
-	sidebar: (theme) => ({
-		width: 240,
-		flexShrink: 0,
-		borderRadius: 8,
-		overflow: "auto",
-		border: `1px solid ${theme.palette.divider}`,
-		padding: "4px 0",
-		position: "sticky",
-		top: 32,
-	}),
-
-	files: {
-		display: "flex",
-		flexDirection: "column",
-		gap: 16,
-		flex: 1,
-	},
-
-	filePanel: (theme) => ({
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		overflow: "hidden",
-	}),
-
-	fileHeader: (theme) => ({
-		padding: "8px 16px",
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		fontSize: 13,
-		fontWeight: 500,
-		display: "flex",
-		gap: 8,
-		alignItems: "center",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	sidebar:
+		"w-60 flex-shrink-0 rounded-lg overflow-auto border border-solid border-zinc-700 py-1 sticky top-8",
+	files: "flex flex-col gap-4 flex-1",
+	filePanel: "rounded-lg border border-solid border-zinc-700 overflow-hidden",
+	fileHeader:
+		"py-2 px-4 flex gap-2 items-center border-0 border-b border-solid border-zinc-700 text-[13px] font-medium",
+};

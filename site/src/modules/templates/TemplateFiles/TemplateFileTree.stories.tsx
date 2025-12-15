@@ -1,5 +1,4 @@
 import { chromatic } from "testHelpers/chromatic";
-import { useTheme } from "@emotion/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FileTree } from "utils/filetree";
 import { TemplateFileTree } from "./TemplateFileTree";
@@ -30,15 +29,8 @@ const meta: Meta<typeof TemplateFileTree> = {
 	},
 	decorators: [
 		(Story) => {
-			const theme = useTheme();
 			return (
-				<div
-					css={{
-						maxWidth: 260,
-						borderRadius: 8,
-						border: `1px solid ${theme.palette.divider}`,
-					}}
-				>
+				<div className="max-w-[260px] rounded-lg border border-solid border-border">
 					<Story />
 				</div>
 			);

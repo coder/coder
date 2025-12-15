@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
@@ -52,7 +52,7 @@ import {
 	Link as RouterLink,
 	unstable_usePrompt as usePrompt,
 } from "react-router";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { cn } from "utils/cn";
 import {
 	createFile,
 	existsFile,
@@ -212,14 +212,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
 	return (
 		<>
-			<div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-				<Topbar
-					css={{
-						display: "grid",
-						gridTemplateColumns: "1fr 2fr 1fr",
-					}}
-					data-testid="topbar"
-				>
+			<div className="h-full flex flex-col">
+				<Topbar className="grid grid-cols-[1fr_2fr_1fr]" data-testid="topbar">
 					<div>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -240,32 +234,17 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						/>
 						<RouterLink
 							to={templateLink}
-							css={{
-								color: theme.palette.text.primary,
-								textDecoration: "none",
-
-								"&:hover": {
-									textDecoration: "underline",
-								},
-							}}
+							className="text-content-primary no-underline hover:underline"
 						>
 							{template.display_name || template.name}
 						</RouterLink>
 						<TopbarDivider />
-						<span css={{ color: theme.palette.text.secondary }}>
+						<span className="text-content-secondary">
 							{templateVersion.name}
 						</span>
 					</TopbarData>
 
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "flex-end",
-							gap: 8,
-							paddingRight: 16,
-						}}
-					>
+					<div className="flex items-center justify-end gap-2 pr-4">
 						<span className="mr-2">
 							<Button asChild size="sm" variant="outline">
 								<a
@@ -309,28 +288,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					</div>
 				</Topbar>
 
-				<div
-					css={{
-						display: "flex",
-						flex: 1,
-						flexBasis: 0,
-						overflow: "hidden",
-						position: "relative",
-					}}
-				>
+				<div className="flex flex-1 flex-basis-0 overflow-hidden relative">
 					{publishedVersion && (
 						<div
 							// We need this to reset the dismissable state of the component
 							// when the published version changes
 							key={publishedVersion.id}
-							css={{
-								position: "absolute",
-								width: "100%",
-								display: "flex",
-								justifyContent: "center",
-								padding: 12,
-								zIndex: 10,
-							}}
+							className="absolute w-full flex justify-center p-3 z-10"
 						>
 							<Alert
 								severity="success"
@@ -351,31 +315,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					)}
 
 					<Sidebar>
-						<div
-							css={{
-								height: 42,
-								padding: "0 8px 0 16px",
-								display: "flex",
-								alignItems: "center",
-							}}
-						>
-							<span
-								css={{
-									color: theme.palette.text.primary,
-									fontSize: 13,
-								}}
-							>
-								Files
-							</span>
+						<div className="h-[42px] pr-2 pl-4 flex items-center">
+							<span className="text-content-primary text-[13px]">Files</span>
 
-							<div
-								css={{
-									marginLeft: "auto",
-									"& svg": {
-										fill: theme.palette.text.primary,
-									},
-								}}
-							>
+							<div className="ml-auto [&_svg]:text-content-primary">
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<IconButton
@@ -457,51 +400,22 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						/>
 					</Sidebar>
 
-					<div
-						css={{
-							display: "flex",
-							flexDirection: "column",
-							width: "100%",
-							minHeight: "100%",
-							overflow: "hidden",
-						}}
-					>
-						<div css={{ flex: 1, overflowY: "auto" }} data-chromatic="ignore">
+					<div className="flex flex-col w-full min-h-full overflow-hidden">
+						<div className="flex-1 overflow-y-auto" data-chromatic="ignore">
 							{activePath ? (
 								isEditorValueBinary ? (
 									<div
 										role="alert"
-										css={{
-											width: "100%",
-											height: "100%",
-											display: "flex",
-											alignItems: "center",
-											justifyContent: "center",
-											padding: 40,
-										}}
+										className="w-full h-full flex items-center justify-center p-10"
 									>
-										<div
-											css={{
-												display: "flex",
-												flexDirection: "column",
-												alignItems: "center",
-												maxWidth: 420,
-												textAlign: "center",
-											}}
-										>
+										<div className="flex flex-col items-center max-w-105 text-center">
 											<TriangleAlertIcon
 												css={{
 													color: theme.roles.warning.fill.outline,
 												}}
 												className="size-icon-lg"
 											/>
-											<p
-												css={{
-													margin: 0,
-													padding: 0,
-													marginTop: 24,
-												}}
-											>
+											<p className="m-0 p-0 mt-6">
 												The file is not displayed in the text editor because it
 												is either binary or uses an unsupported text encoding.
 											</p>
@@ -527,40 +441,28 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							)}
 						</div>
 
-						<div
-							css={{
-								borderTop: `1px solid ${theme.palette.divider}`,
-								overflow: "hidden",
-								display: "flex",
-								flexDirection: "column",
-							}}
-						>
+						<div className="overflow-hidden flex flex-col border-0 border-t border-solid border-border">
 							<div
-								css={{
-									display: "flex",
-									alignItems: "center",
-									borderBottom: selectedTab
-										? `1px solid ${theme.palette.divider}`
-										: 0,
-								}}
+								className={cn(
+									"flex items-center",
+									selectedTab && "border-0 border-b border-solid border-border",
+								)}
 							>
 								<div
-									css={{
-										display: "flex",
-
-										"& .MuiTab-root": {
-											padding: 0,
-											fontSize: 14,
-											textTransform: "none",
-											letterSpacing: "unset",
-										},
-									}}
+									className={cn(
+										"flex",
+										"[&_.MuiTab-root]:p-0 [&_.MuiTab-root]:text-[14px]",
+										"[&_.MuiTab-root]:[text-transform:none]",
+										"[&_.MuiTab-root]:tracking-[unset]",
+									)}
 								>
 									<button
 										type="button"
 										disabled={!buildLogs}
-										css={styles.tab}
-										className={selectedTab === "logs" ? "active" : ""}
+										className={cn(
+											classNames.tab,
+											selectedTab === "logs" && "active",
+										)}
 										onClick={() => {
 											setSelectedTab("logs");
 										}}
@@ -571,8 +473,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									<button
 										type="button"
 										disabled={!canPublish}
-										css={styles.tab}
-										className={selectedTab === "resources" ? "active" : ""}
+										className={cn(
+											classNames.tab,
+											selectedTab === "resources" && "active",
+										)}
 										onClick={() => {
 											setSelectedTab("resources");
 										}}
@@ -586,12 +490,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 										onClick={() => {
 											setSelectedTab(undefined);
 										}}
-										css={{
-											marginLeft: "auto",
-											width: 36,
-											height: 36,
-											borderRadius: 0,
-										}}
+										className="ml-auto size-9 rounded-none"
 									>
 										<XIcon className="size-icon-xs" />
 									</IconButton>
@@ -599,7 +498,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							</div>
 
 							{selectedTab === "logs" && (
-								<div css={[styles.logs, styles.tabContent]}>
+								<div className={cn(classNames.logs, classNames.tabContent)}>
 									{templateVersion.job.error ? (
 										<div>
 											<ProvisionerAlert
@@ -619,14 +518,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 													tags={templateVersion.job.tags}
 													variant={AlertVariant.Inline}
 												/>
-												<Loader css={{ height: "100%" }} />
+												<Loader className="h-full" />
 											</>
 										)
 									)}
 
 									{gotBuildLogs && (
 										<WorkspaceBuildLogs
-											css={styles.buildLogs}
+											className={classNames.buildLogs}
 											hideTimestamps
 											logs={buildLogs}
 										/>
@@ -639,7 +538,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							)}
 
 							{selectedTab === "resources" && (
-								<div css={[styles.resources, styles.tabContent]}>
+								<div
+									className={cn(classNames.resources, classNames.tabContent)}
+								>
 									{resources && (
 										<TemplateResourcesTable
 											resources={resources.filter(
@@ -653,6 +554,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					</div>
 				</div>
 			</div>
+
+			<div className={"duratio"}></div>
 
 			<PublishTemplateVersionDialog
 				key={templateVersion.name}
@@ -706,121 +609,41 @@ const useLeaveSiteWarning = (enabled: boolean) => {
 	});
 };
 
-const styles = {
-	tab: (theme) => ({
-		"&:not(:disabled)": {
-			cursor: "pointer",
-		},
-		padding: 12,
-		fontSize: 10,
-		textTransform: "uppercase",
-		letterSpacing: "0.5px",
-		fontWeight: 500,
-		background: "transparent",
-		fontFamily: "inherit",
-		border: 0,
-		color: theme.palette.text.secondary,
-		transition: "150ms ease all",
-		display: "flex",
-		gap: 8,
-		alignItems: "center",
-		justifyContent: "center",
-		position: "relative",
-
-		"& svg": {
-			maxWidth: 12,
-			maxHeight: 12,
-		},
-
-		"&.active": {
-			color: theme.palette.text.primary,
-			"&:after": {
-				content: '""',
-				display: "block",
-				width: "100%",
-				height: 1,
-				backgroundColor: theme.palette.primary.main,
-				bottom: -1,
-				position: "absolute",
-			},
-		},
-
-		"&:not(:disabled):hover": {
-			color: theme.palette.text.primary,
-		},
-
-		"&:disabled": {
-			color: theme.palette.text.disabled,
-		},
-	}),
-
-	tabBar: (theme) => ({
-		padding: "8px 16px",
-		position: "sticky",
-		top: 0,
-		background: theme.palette.background.default,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		color: theme.palette.text.primary,
-		textTransform: "uppercase",
-		fontSize: 12,
-
-		"&.top": {
-			borderTop: `1px solid ${theme.palette.divider}`,
-		},
-	}),
-
-	tabContent: {
-		height: 280,
-		overflowY: "auto",
-	},
-
-	logs: {
-		display: "flex",
-		height: "100%",
-		flexDirection: "column",
-	},
-
-	buildLogs: {
-		borderRadius: 0,
-		border: 0,
-
+const classNames = {
+	tab: cn(
+		"p-3 text-xs uppercase spacing-[0.5px]",
+		"text-regular bg-transparent font-[inherit] border-0",
+		"text-content-secondary transition-all duration-150",
+		"flex gap-2 items-center justify-center relative",
+		"[&:not(:disabled)]:cursor-pointer",
+		"[&_svg]:max-w-3 [&_svg]:max-h-3",
+		"[&.active]:text-content-primary [&.active]:after:content-[''] [&.active]:after:block",
+		"[&.active]:after:bg-surface-primary [&.active]:after:bottom-[-1px] [&.active]:after:absolute",
+		"[&.active]:after:w-full [&.active]:after:h-1",
+		"[&:not(:disabled):hover]:text-content-primary",
+		"[&:disabled]:text-content-disabled",
+	),
+	tabBar: cn(
+		"py-2 px-4 sticky top-0 bg-content-primary",
+		"border-0 border-b border-solid border-border",
+		"text-content-primary text-xs uppercase",
+		"[&.top]:border-0 [&.top]:border-t [&.top]:border-solid [&.top]:border-border",
+	),
+	tabContent: "h-70 overflow-y-auto",
+	logs: "flex flex-col h-full",
+	buildLogs: cn(
+		"border-0 rounded-[0px]",
 		// Hack to update logs header and lines
-		"& .logs-header": {
-			border: 0,
-			padding: "8px 16px",
-			fontFamily: MONOSPACE_FONT_FAMILY,
-
-			"&:first-of-type": {
-				paddingTop: 16,
-			},
-
-			"&:last-child": {
-				paddingBottom: 16,
-			},
-		},
-
-		"& .logs-line": {
-			paddingLeft: 16,
-		},
-
-		"& .logs-container": {
-			border: "0 !important",
-		},
-	},
-
-	resources: {
+		"[&_.logs-header]:border-0 [&_.logs-header]:py-2",
+		"[&_.logs-header]:px-4 [&_.logs-header]:font-mono",
+		// Hack to update logs header and lines
+		"[&_.logs-header]:first-of-type:pt-4 [&_.logs-header]:last-child:pb-4",
+		"[&_.logs-line]:pl-4 [&_.logs-container]:!border-0",
+	),
+	resources: cn(
 		// Hack to access customize resource-card from here
-		"& .resource-card": {
-			borderLeft: 0,
-			borderRight: 0,
-
-			"&:first-of-type": {
-				borderTop: 0,
-			},
-
-			"&:last-child": {
-				borderBottom: 0,
-			},
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+		"[&_.resource-card]:border-l-0 [&_.resource-card]:border-r-0",
+		"[&_.resource-card]:first-of-type:border-t-0",
+		"[&_.resource-card]:last-child:border-b-0",
+	),
+};

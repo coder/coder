@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
@@ -44,43 +43,29 @@ export const CreateTemplateGalleryPageView: FC<
 			</PageHeader>
 			<Stack spacing={8}>
 				<Stack direction="row" spacing={4}>
-					<div css={{ width: 202 }}>
-						<h2 css={styles.sectionTitle}>
+					<div className="w-[202px]">
+						<h2 className={classNames.sectionTitle}>
 							Choose a starting point for your new template
 						</h2>
 					</div>
-					<div
-						css={{
-							display: "flex",
-							flexWrap: "wrap",
-							gap: 32,
-							height: "max-content",
-						}}
-					>
-						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
+					<div className="flex flex-wrap gap-8 h-max">
+						<Card variant="outlined" className="w-[320px] rounded-md">
 							<CardActionArea
 								component={RouterLink}
 								to="/templates/new"
 								sx={{ height: 115, padding: 1 }}
 							>
 								<CardContent>
-									<Stack
-										direction="row"
-										spacing={3}
-										css={{ alignItems: "center" }}
-									>
-										<div css={styles.icon}>
+									<Stack direction="row" spacing={3} className="items-center">
+										<div className={classNames.icon}>
 											<ExternalImage
 												src="/emojis/1f4e1.png"
-												css={{
-													width: "100%",
-													height: "100%",
-												}}
+												className="w-full h-full"
 											/>
 										</div>
 										<div>
-											<h4 css={styles.cardTitle}>Upload Template</h4>
-											<span css={styles.cardDescription}>
+											<h4 className={classNames.cardTitle}>Upload Template</h4>
+											<span className={classNames.cardDescription}>
 												Get started by uploading an existing template
 											</span>
 										</div>
@@ -101,38 +86,10 @@ export const CreateTemplateGalleryPageView: FC<
 	);
 };
 
-const styles = {
-	sectionTitle: (theme) => ({
-		color: theme.palette.text.primary,
-		fontSize: 16,
-		fontWeight: 400,
-		margin: 0,
-	}),
-
-	cardTitle: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 14,
-		fontWeight: 600,
-		margin: 0,
-		marginBottom: 4,
-	}),
-
-	cardDescription: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "1.6",
-		display: "block",
-	}),
-
-	icon: {
-		flexShrink: 0,
-		width: 32,
-		height: 32,
-	},
-
-	menuItemIcon: (theme) => ({
-		color: theme.palette.text.secondary,
-		width: 20,
-		height: 20,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	sectionTitle: "text-content-primary text-base font-normal m-0",
+	cardTitle: "text-content-secondary text-sm font-medium m-0 mb-1",
+	cardDescription: "text-[13px] leading-relaxed block text-content-secondary",
+	icon: "flex-shrink-0 w-8 h-8",
+	menuItemIcon: "text-content-secondary size-5",
+};

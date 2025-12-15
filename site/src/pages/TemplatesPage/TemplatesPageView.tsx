@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
@@ -42,6 +41,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
+import { cn } from "utils/cn";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
@@ -111,7 +111,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 			key={template.id}
 			data-testid={`template-${template.id}`}
 			{...clickableRow}
-			css={styles.tableRow}
+			className={classNames.tableRow}
 		>
 			<TableCell>
 				<AvatarData
@@ -128,18 +128,13 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				/>
 			</TableCell>
 
-			<TableCell css={styles.secondary}>
+			<TableCell className={classNames.secondary}>
 				{showOrganizations ? (
-					<Stack
-						spacing={0}
-						css={{
-							width: "100%",
-						}}
-					>
-						<span css={styles.cellPrimaryLine}>
+					<Stack spacing={0} className="w-full">
+						<span className={classNames.cellPrimaryLine}>
 							{template.organization_display_name}
 						</span>
-						<span css={styles.cellSecondaryLine}>
+						<span className={classNames.cellSecondaryLine}>
 							Used by {Language.developerCount(template.active_user_count)}
 						</span>
 					</Stack>
@@ -148,15 +143,15 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				)}
 			</TableCell>
 
-			<TableCell css={styles.secondary}>
+			<TableCell className={classNames.secondary}>
 				{formatTemplateBuildTime(template.build_time_stats.start.P50)}
 			</TableCell>
 
-			<TableCell data-chromatic="ignore" css={styles.secondary}>
+			<TableCell data-chromatic="ignore" className={classNames.secondary}>
 				{createDayString(template.updated_at)}
 			</TableCell>
 
-			<TableCell css={styles.actionCell}>
+			<TableCell className={classNames.actionCell}>
 				{template.deprecated ? (
 					<DeprecatedBadge />
 				) : workspacePermissions?.[template.organization_id]
@@ -282,7 +277,7 @@ const TableLoader: FC = () => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+					<div className="flex items-center gap-2">
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>
@@ -303,40 +298,16 @@ const TableLoader: FC = () => {
 	);
 };
 
-const styles = {
-	templateIconWrapper: {
-		// Same size then the avatar component
-		width: 36,
-		height: 36,
-		padding: 2,
-
-		"& img": {
-			width: "100%",
-		},
-	},
-	actionCell: {
-		whiteSpace: "nowrap",
-	},
-	cellPrimaryLine: (theme) => ({
-		color: theme.palette.text.primary,
-		fontWeight: 600,
-	}),
-	cellSecondaryLine: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "150%",
-	}),
-	secondary: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-	tableRow: (theme) => ({
-		"&:hover .actionButton": {
-			color: theme.experimental.l2.hover.text,
-			borderColor: theme.experimental.l2.hover.outline,
-		},
-	}),
-	actionButton: (theme) => ({
-		transition: "none",
-		color: theme.palette.text.primary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	// `size-9` is the same size then the avatar component
+	templateIconWrapper: "size-9 p-0.5 [&_img]:w-full",
+	actionCell: "whitespace-nowrap",
+	cellPrimaryLine: "text-content-primary font-semibold",
+	cellSecondaryLine: "text-[13px] text-content-secondary leading-normal",
+	secondary: "text-content-secondary",
+	tableRow: cn([
+		"[&:hover_.actionButton]:text-content-link",
+		"[&:hover_.actionButton]:border-content-link",
+	]),
+	actionButton: "transition-none text-content-primary",
+};

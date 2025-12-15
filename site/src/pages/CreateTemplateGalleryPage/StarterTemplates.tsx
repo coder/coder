@@ -1,9 +1,9 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { TemplateExample } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
+import { cn } from "utils/cn";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
@@ -66,14 +66,17 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	return (
 		<Stack direction="row" spacing={4} alignItems="flex-start">
 			{starterTemplatesByTag && tags && (
-				<Stack css={{ width: 202, flexShrink: 0, position: "sticky" }}>
-					<h2 css={styles.sectionTitle}>Choose a starter template</h2>
-					<span css={styles.filterCaption}>Filter</span>
+				<Stack className="w-[202px] flex-shrink-0 sticky">
+					<h2 className={classNames.sectionTitle}>Choose a starter template</h2>
+					<span className={classNames.filterCaption}>Filter</span>
 					{tags.map((tag) => (
 						<Link
 							key={tag}
 							to={`?tag=${tag}`}
-							css={[styles.tagLink, tag === activeTag && styles.tagLinkActive]}
+							className={cn(
+								classNames.tagLink,
+								tag === activeTag && classNames.tagLinkActive,
+							)}
 						>
 							{getTagLabel(tag)} ({starterTemplatesByTag[tag].length})
 						</Link>
@@ -81,19 +84,10 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 				</Stack>
 			)}
 
-			<div
-				css={{
-					display: "flex",
-					flexWrap: "wrap",
-					gap: 32,
-					height: "max-content",
-				}}
-			>
+			<div className="flex flex-wrap gap-8 h-max">
 				{visibleTemplates?.map((example) => (
 					<TemplateExampleCard
-						css={(theme) => ({
-							backgroundColor: theme.palette.background.paper,
-						})}
+						className="bg-content-primary"
 						example={example}
 						key={example.id}
 						activeTag={activeTag}
@@ -104,35 +98,11 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	);
 };
 
-const styles = {
-	filterCaption: (theme) => ({
-		textTransform: "uppercase",
-		fontWeight: 600,
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		letterSpacing: "0.1em",
-	}),
-
-	tagLink: (theme) => ({
-		color: theme.palette.text.secondary,
-		textDecoration: "none",
-		fontSize: 14,
-		textTransform: "capitalize",
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-		},
-	}),
-
-	tagLinkActive: (theme) => ({
-		color: theme.palette.text.primary,
-		fontWeight: 600,
-	}),
-
-	sectionTitle: (theme) => ({
-		color: theme.palette.text.primary,
-		fontSize: 16,
-		fontWeight: 400,
-		margin: 0,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	filterCaption:
+		"uppercase font-semibold text-sm text-content-secondary tracking-[0.1em]",
+	tagLink:
+		"text-content-secondary no-underline text-sm uppercase hover:text-content-primary",
+	tagLinkActive: "text-content-primary font-semibold",
+	sectionTitle: "text-content-primary text-base font-normal m-0",
+};

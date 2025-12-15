@@ -1,10 +1,10 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import DialogActions from "@mui/material/DialogActions";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import type { ConfirmDialogProps } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 
 interface ScheduleDialogProps extends ConfirmDialogProps {
 	readonly inactiveWorkspacesToGoDormant: number;
@@ -55,18 +55,18 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 
 	return (
 		<Dialog
-			css={styles.dialogWrapper}
+			className={classNames.dialogWrapper}
 			onClose={onClose}
 			open={open}
 			data-testid="dialog"
 		>
-			<div css={styles.dialogContent}>
-				<h3 css={styles.dialogTitle}>{title}</h3>
+			<div className={classNames.dialogContent}>
+				<h3 className={classNames.dialogTitle}>{title}</h3>
 
 				{showDormancyWarning && (
 					<>
 						<h4>Dormancy Threshold</h4>
-						<p css={styles.dialogDescription}>
+						<p className={classNames.dialogDescription}>
 							This change will result in{" "}
 							<strong>{inactiveWorkspacesToGoDormant}</strong>{" "}
 							{inactiveWorkspacesToGoDormant === 1 ? "workspace" : "workspaces"}{" "}
@@ -79,7 +79,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							inactivity period for all template workspaces?
 						</p>
 						<FormControlLabel
-							css={{ marginTop: 16 }}
+							className="mt-4"
 							control={
 								<Checkbox
 									size="small"
@@ -96,7 +96,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 				{showDeletionWarning && (
 					<>
 						<h4>Dormancy Auto-Deletion</h4>
-						<p css={styles.dialogDescription}>
+						<p className={classNames.dialogDescription}>
 							This change will result in{" "}
 							<strong>{dormantWorkspacesToBeDeleted}</strong>{" "}
 							{dormantWorkspacesToBeDeleted === 1 ? "workspace" : "workspaces"}{" "}
@@ -109,7 +109,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							dormancy period for all template workspaces?
 						</p>
 						<FormControlLabel
-							css={{ marginTop: 16 }}
+							className="mt-4"
 							control={
 								<Checkbox
 									size="small"
@@ -139,42 +139,19 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 	);
 };
 
-const styles = {
-	dialogWrapper: (theme) => ({
-		"& .MuiPaper-root": {
-			background: theme.palette.background.paper,
-			border: `1px solid ${theme.palette.divider}`,
-		},
-		"& .MuiDialogActions-spacing": {
-			padding: "0 40px 40px",
-		},
-	}),
-	dialogContent: (theme) => ({
-		color: theme.palette.text.secondary,
-		padding: 40,
-	}),
-	dialogTitle: (theme) => ({
-		margin: 0,
-		marginBottom: 16,
-		color: theme.palette.text.primary,
-		fontWeight: 400,
-		fontSize: 20,
-	}),
-	dialogDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-		fontSize: 16,
-
-		"& strong": {
-			color: theme.palette.text.primary,
-		},
-
-		"& p:not(.MuiFormHelperText-root)": {
-			margin: 0,
-		},
-
-		"& > p": {
-			margin: "8px 0",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const classNames = {
+	dialogWrapper: cn(
+		"[&_.MuiPaper-root]:bg-surface-secondary [&_.MuiPaper-root]:border",
+		"[&_.MuiPaper-root]:border-solid [&_.MuiPaper-root]:border-zinc-700",
+		"[&_.MuiDialogActions-spacing]:pt-0 [&_.MuiDialogActions-spacing]:px-10",
+		"[&_.MuiDialogActions-spacing]:pb-10",
+	),
+	dialogContent: "text-content-secondary p-10",
+	dialogTitle: "m-0 mb-4 text-content-primary font-base text-xl",
+	dialogDescription: cn(
+		"text-content-secondary leading-relaxed text-base",
+		"[&_strong]:text-content-primary",
+		"[&_p:not(.MuiFormHelperText-root)]:m-0",
+		"[&_>p]:my-2",
+	),
+};

@@ -64,7 +64,7 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 
 					return (
 						<MenuItem
-							css={{ fontSize: 14, justifyContent: "space-between" }}
+							className="text-sm justify-between leading-relaxed"
 							key={option}
 							onClick={() => {
 								onChange(optionRange);
@@ -72,7 +72,7 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 							}}
 						>
 							Last {option} weeks
-							<div css={{ width: 16, height: 16 }}>
+							<div className="size-4">
 								{numberOfWeeks === option && (
 									<CheckIcon className="size-icon-xs" />
 								)}

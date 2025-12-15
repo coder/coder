@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import frontMatter from "front-matter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
@@ -7,7 +6,6 @@ import { pageTitle } from "utils/page";
 
 export default function TemplateDocsPage() {
 	const { template, activeVersion } = useTemplateLayoutContext();
-	const theme = useTheme();
 
 	const readme = frontMatter(activeVersion.readme);
 
@@ -16,30 +14,13 @@ export default function TemplateDocsPage() {
 			<title>{pageTitle(template.name, "Documentation")}</title>
 
 			<div
-				css={{
-					background: theme.palette.background.paper,
-					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: 8,
-				}}
+				className="rounded-lg bg-content-primary border border-solid border-zinc-700"
 				id="readme"
 			>
-				<div
-					css={{
-						color: theme.palette.text.secondary,
-						fontWeight: 600,
-						padding: "16px 24px",
-						borderBottom: `1px solid ${theme.palette.divider}`,
-					}}
-				>
+				<div className="font-semibold py-4 px-6 text-content-secondary border-0 border-b border-solid border-zinc-700">
 					README.md
 				</div>
-				<div
-					css={{
-						padding: "0 24px 40px",
-						maxWidth: 800,
-						margin: "auto",
-					}}
-				>
+				<div className="pt-0 px-6 pb-10 max-w-[800px] m-auto">
 					<MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
 				</div>
 			</div>

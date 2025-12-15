@@ -222,7 +222,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 											direction="row"
 											spacing={2}
 											alignItems="center"
-											css={{ marginTop: 16 }}
+											className="mt-4"
 										>
 											<PremiumBadge />
 											<span>Premium license required to be enabled.</span>
