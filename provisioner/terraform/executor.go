@@ -325,9 +325,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		<-doneErr
 	}()
 
-	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
@@ -390,7 +388,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
+		Timings:               graphTimings.aggregate(),
 		Presets:               state.Presets,
 		Plan:                  planJSON,
 		ResourceReplacements:  resReps,
@@ -599,9 +597,7 @@ func (e *executor) apply(
 	}()
 
 	// `terraform apply`
-	endStage := e.timings.startStage(database.ProvisionerJobTimingStageApply)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
@@ -617,13 +613,11 @@ func (e *executor) apply(
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 
-	agg := e.timings.aggregate()
 	return &proto.ApplyComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
-		Timings:               agg,
 		AiTasks:               state.AITasks,
 	}, nil
 }
