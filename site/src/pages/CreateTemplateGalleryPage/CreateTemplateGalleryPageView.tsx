@@ -87,8 +87,9 @@ export const CreateTemplateGalleryPageView: FC<
 };
 
 const classNames = {
-	sectionTitle: "text-content-primary text-base font-normal m-0",
-	cardTitle: "text-content-secondary text-sm font-medium m-0 mb-1",
+	sectionTitle:
+		"text-content-primary text-base font-normal m-0 leading-relaxed",
+	cardTitle: "text-content-secondary text-sm font-semibold m-0 mb-1",
 	cardDescription: "text-[13px] leading-relaxed block text-content-secondary",
 	icon: "flex-shrink-0 w-8 h-8",
 	menuItemIcon: "text-content-secondary size-5",

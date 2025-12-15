@@ -77,7 +77,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 					background: theme.palette.background.paper,
 					border: `1px solid ${theme.palette.divider}`,
 				}}
-				className="bg-content-primary border border-solid border-zinc-700 rounded-lg"
+				className="bg-surface-secondary border border-solid border-border dark:border-zinc-700 rounded-lg"
 				id="readme"
 			>
 				<div className="pt-10 px-10 pb-16 max-w-[800px] m-auto">

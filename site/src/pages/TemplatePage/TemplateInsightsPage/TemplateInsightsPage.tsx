@@ -55,6 +55,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 import {
 	addTime,
@@ -339,7 +340,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 						.map((row) => (
 							<div
 								key={row.user_id}
-								className="flex justify-between items-center font-sm leading-none py-2"
+								className="flex justify-between items-center text-sm leading-none py-2"
 							>
 								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
@@ -400,7 +401,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 						.map((row) => (
 							<div
 								key={row.user_id}
-								className="flex justify-between items-center font-sm py-2"
+								className="flex justify-between items-center text-sm py-2"
 							>
 								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
@@ -444,7 +445,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.colors(validUsage?.length ?? 0);
 
 	return (
-		<Panel {...panelProps} className="overflow-y-auto">
+		<Panel {...panelProps} className="col-span-2 overflow-y-auto">
 			<PanelHeader>
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
@@ -726,8 +727,8 @@ const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
 				border: `1px solid ${theme.palette.divider}`,
 				backgroundColor: theme.palette.background.paper,
 			}}
-			className="rounded-lg flex flex-col"
 			{...attrs}
+			className={cn("rounded-lg flex flex-col", attrs.className)}
 		>
 			{children}
 		</div>
@@ -750,7 +751,10 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	...attrs
 }) => {
 	return (
-		<div className="text-sm font-medium leading-none" {...attrs}>
+		<div
+			{...attrs}
+			className={cn("text-sm font-medium leading-none", attrs.className)}
+		>
 			{children}
 		</div>
 	);
@@ -761,7 +765,7 @@ const PanelContent: FC<HTMLAttributes<HTMLDivElement>> = ({
 	...attrs
 }) => {
 	return (
-		<div className="pt-0 px-6 pb-6 flex-1" {...attrs}>
+		<div className="pt-0 px-6 pb-6 flex-[1_1_0%]" {...attrs}>
 			{children}
 		</div>
 	);

@@ -611,17 +611,17 @@ const useLeaveSiteWarning = (enabled: boolean) => {
 
 const classNames = {
 	tab: cn(
-		"p-3 text-xs uppercase spacing-[0.5px]",
+		"p-3 text-[10px] uppercase tracking-[0.5px]",
 		"text-regular bg-transparent font-[inherit] border-0",
 		"text-content-secondary transition-all duration-150",
 		"flex gap-2 items-center justify-center relative",
 		"[&:not(:disabled)]:cursor-pointer",
 		"[&_svg]:max-w-3 [&_svg]:max-h-3",
 		"[&.active]:text-content-primary [&.active]:after:content-[''] [&.active]:after:block",
-		"[&.active]:after:bg-surface-primary [&.active]:after:bottom-[-1px] [&.active]:after:absolute",
-		"[&.active]:after:w-full [&.active]:after:h-1",
+		"[&.active]:after:bg-sky-500 [&.active]:after:bottom-[-1px] [&.active]:after:absolute",
+		"[&.active]:after:w-full [&.active]:after:h-[1px]",
 		"[&:not(:disabled):hover]:text-content-primary",
-		"[&:disabled]:text-content-disabled",
+		"disabled:text-content-quaternary",
 	),
 	tabBar: cn(
 		"py-2 px-4 sticky top-0 bg-content-primary",
@@ -643,7 +643,7 @@ const classNames = {
 	resources: cn(
 		// Hack to access customize resource-card from here
 		"[&_.resource-card]:border-l-0 [&_.resource-card]:border-r-0",
-		"[&_.resource-card]:first-of-type:border-t-0",
-		"[&_.resource-card]:last-child:border-b-0",
+		"[&_.resource-card:first-of-type]:rounded-t-0",
+		"[&_.resource-card:last-child]:border-b-0",
 	),
 };

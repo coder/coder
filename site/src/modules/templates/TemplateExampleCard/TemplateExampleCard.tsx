@@ -18,7 +18,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	...divProps
 }) => {
 	return (
-		<div className={classNames.card} {...divProps}>
+		<div {...divProps} className={cn(classNames.card, divProps.className)}>
 			<div className={classNames.header}>
 				<div className={classNames.icon}>
 					<ExternalImage

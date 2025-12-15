@@ -87,7 +87,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 			<div className="flex flex-wrap gap-8 h-max">
 				{visibleTemplates?.map((example) => (
 					<TemplateExampleCard
-						className="bg-content-primary"
+						className="bg-surface-secondary leading-"
 						example={example}
 						key={example.id}
 						activeTag={activeTag}
@@ -100,9 +100,9 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 
 const classNames = {
 	filterCaption:
-		"uppercase font-semibold text-sm text-content-secondary tracking-[0.1em]",
+		"uppercase font-semibold text-xs text-content-secondary tracking-[0.1em] leading-loose",
 	tagLink:
-		"text-content-secondary no-underline text-sm uppercase hover:text-content-primary",
+		"text-content-secondary no-underline text-sm capitalize hover:text-content-primary",
 	tagLinkActive: "text-content-primary font-semibold",
 	sectionTitle: "text-content-primary text-base font-normal m-0",
 };

@@ -171,7 +171,7 @@ const getIconSpacingFromSize = (size?: Size): number => {
 
 const classNames = {
 	title: "mt-0 mb-2 text-content-primary text-sm leading-relaxed font-semibold",
-	text: "my-1 text-sm leading-relaxed",
+	text: "my-1 text-sm leading-relaxed font-normal",
 	link: "flex items-center text-sm text-content-link",
 	linkIcon: "size-icon-xs mr-2 text-inherit",
 	linksGroup: "mt-4",
