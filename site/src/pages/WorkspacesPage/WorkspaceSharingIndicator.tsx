@@ -62,6 +62,7 @@ export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
 						href={settingsPath}
 						className="text-sm text-content-link font-medium"
 						onClick={(e) => e.stopPropagation()}
+						showExternalIcon={false}
 					>
 						Change permissions
 					</Link>
