@@ -112,8 +112,6 @@ func (t WorkspaceACL) Value() (driver.Value, error) {
 
 type WorkspaceACLEntry struct {
 	Permissions []policy.Action `json:"permissions"`
-	Name        string          `json:"name"`
-	AvatarURL   string          `json:"avatar_url"`
 }
 
 // WorkspaceACLDisplayInfo supplements workspace ACLs with the actors'
