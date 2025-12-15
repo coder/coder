@@ -221,7 +221,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 									<>
 										<dt>End Time:</dt>
 										<dd data-chromatic="ignore">
-											{new Date(interception.started_at).toLocaleString(
+											{new Date(interception.ended_at).toLocaleString(
 												undefined,
 												customisedDateLocale,
 											)}
