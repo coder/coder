@@ -391,7 +391,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	return filter, parser.Errors
 }
 
-func AIBridgeModels(db database.Store, query string, page codersdk.Pagination) (database.ListAIBridgeModelsParams, []codersdk.ValidationError) {
+func AIBridgeModels(query string, page codersdk.Pagination) (database.ListAIBridgeModelsParams, []codersdk.ValidationError) {
 	// nolint:exhaustruct // Empty values just means "don't filter by that field".
 	filter := database.ListAIBridgeModelsParams{
 		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
