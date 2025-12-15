@@ -1289,14 +1289,13 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 	}
 
 	var (
-		workspaceFolder = dc.WorkspaceFolder
-		containerID     string
-		subAgentID      uuid.UUID
+		containerID string
+		subAgentID  uuid.UUID
 	)
 	if dc.Container != nil {
 		containerID = dc.Container.ID
 	}
-	if proc, hasSubAgent := api.injectedSubAgentProcs[workspaceFolder]; hasSubAgent && proc.agent.ID != uuid.Nil {
+	if proc, hasSubAgent := api.injectedSubAgentProcs[dc.WorkspaceFolder]; hasSubAgent && proc.agent.ID != uuid.Nil {
 		subAgentID = proc.agent.ID
 		proc.stop()
 	}
@@ -1379,12 +1378,12 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 
 	api.mu.Lock()
 	delete(api.devcontainerNames, dc.Name)
-	delete(api.knownDevcontainers, workspaceFolder)
-	delete(api.devcontainerLogSourceIDs, workspaceFolder)
-	delete(api.recreateSuccessTimes, workspaceFolder)
-	delete(api.recreateErrorTimes, workspaceFolder)
-	delete(api.usingWorkspaceFolderName, workspaceFolder)
-	delete(api.injectedSubAgentProcs, workspaceFolder)
+	delete(api.knownDevcontainers, dc.WorkspaceFolder)
+	delete(api.devcontainerLogSourceIDs, dc.WorkspaceFolder)
+	delete(api.recreateSuccessTimes, dc.WorkspaceFolder)
+	delete(api.recreateErrorTimes, dc.WorkspaceFolder)
+	delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
+	delete(api.injectedSubAgentProcs, dc.WorkspaceFolder)
 	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
 
