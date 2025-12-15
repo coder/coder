@@ -4545,7 +4545,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 
 		sharedWith := workspaces.Workspaces[0].SharedWith
 
-		// Find user actor in response
+		// Find actors in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
 		for i := range sharedWith {
 			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
@@ -4632,7 +4632,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 
 		sharedWith := ws.SharedWith
 
-		// Find user actor in response
+		// Find actors in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
 		for i := range sharedWith {
 			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {

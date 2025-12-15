@@ -115,7 +115,8 @@ type WorkspaceACLEntry struct {
 }
 
 // WorkspaceACLDisplayInfo supplements workspace ACLs with the actors'
-// display info.
+// display info.  Key is string rather than uuid.UUID as this aligns
+// with how RBAC represents actor IDs.
 type WorkspaceACLDisplayInfo map[string]struct {
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatar_url"`
