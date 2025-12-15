@@ -4,6 +4,7 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"os/signal"
 	"time"
 
@@ -17,26 +18,40 @@ import (
 
 func (*RootCmd) scaletestLLMMock() *serpent.Command {
 	var (
-		hostAddress  string
-		apiPort      int64
-		purgeAtCount int64
+		address             string
+		artificialLatency   time.Duration
+		responsePayloadSize int64
+
+		pprofEnable  bool
+		pprofAddress string
+
+		traceEnable bool
 	)
 	cmd := &serpent.Command{
 		Use:   "llm-mock",
 		Short: "Start a mock LLM API server for testing",
-		Long: `Start a mock LLM API server that simulates OpenAI and Anthropic APIs with an HTTP API
-server that can be used to query intercepted requests and purge stored data.`,
+		Long:  `Start a mock LLM API server that simulates OpenAI and Anthropic APIs`,
 		Handler: func(inv *serpent.Invocation) error {
-			ctx := inv.Context()
-			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...)
+			ctx, stop := signal.NotifyContext(inv.Context(), StopSignals...)
 			defer stop()
-			ctx = notifyCtx
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
+
+			if pprofEnable {
+				_ = http.DefaultServeMux
+				closePprof := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
+				defer closePprof()
+				logger.Info(ctx, "pprof server started", slog.F("address", pprofAddress))
+			}
+
 			config := llmmock.Config{
-				HostAddress: hostAddress,
-				APIPort:     int(apiPort),
-				Logger:      logger,
+				Address:             address,
+				Logger:              logger,
+				ArtificialLatency:   artificialLatency,
+				ResponsePayloadSize: int(responsePayloadSize),
+				PprofEnable:         pprofEnable,
+				PprofAddress:        pprofAddress,
+				TraceEnable:         traceEnable,
 			}
 			srv := new(llmmock.Server)
 
@@ -50,55 +65,54 @@ server that can be used to query intercepted requests and purge stored data.`,
 			_, _ = fmt.Fprintf(inv.Stdout, "Mock LLM API server started on %s\n", srv.APIAddress())
 			_, _ = fmt.Fprintf(inv.Stdout, "  OpenAI endpoint: %s/v1/chat/completions\n", srv.APIAddress())
 			_, _ = fmt.Fprintf(inv.Stdout, "  Anthropic endpoint: %s/v1/messages\n", srv.APIAddress())
-			_, _ = fmt.Fprintf(inv.Stdout, "  Query API: %s/api/requests\n", srv.APIAddress())
-			if purgeAtCount > 0 {
-				_, _ = fmt.Fprintf(inv.Stdout, "  Auto-purge when request count reaches %d\n", purgeAtCount)
-			}
 
-			ticker := time.NewTicker(10 * time.Second)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ctx.Done():
-					_, _ = fmt.Fprintf(inv.Stdout, "\nTotal requests received since last purge: %d\n", srv.RequestCount())
-					return nil
-				case <-ticker.C:
-					count := srv.RequestCount()
-					if count > 0 {
-						_, _ = fmt.Fprintf(inv.Stdout, "Requests received: %d\n", count)
-					}
-
-					if purgeAtCount > 0 && int64(count) >= purgeAtCount {
-						_, _ = fmt.Fprintf(inv.Stdout, "Request count (%d) reached threshold (%d). Purging...\n", count, purgeAtCount)
-						srv.Purge()
-						continue
-					}
-				}
-			}
+			<-ctx.Done()
+			return nil
 		},
 	}
 
 	cmd.Options = []serpent.Option{
 		{
-			Flag:        "host-address",
-			Env:         "CODER_SCALETEST_LLM_MOCK_HOST_ADDRESS",
+			Flag:        "address",
+			Env:         "CODER_SCALETEST_LLM_MOCK_ADDRESS",
 			Default:     "localhost",
-			Description: "Host address to bind the mock LLM API server.",
-			Value:       serpent.StringOf(&hostAddress),
+			Description: "Address to bind the mock LLM API server. Can include a port (e.g., 'localhost:8080' or ':8080'). Uses a random port if no port is specified.",
+			Value:       serpent.StringOf(&address),
 		},
 		{
-			Flag:        "api-port",
-			Env:         "CODER_SCALETEST_LLM_MOCK_API_PORT",
-			Description: "Port for the HTTP API server. Uses a random port if not specified.",
-			Value:       serpent.Int64Of(&apiPort),
+			Flag:        "artificial-latency",
+			Env:         "CODER_SCALETEST_LLM_MOCK_ARTIFICIAL_LATENCY",
+			Default:     "0s",
+			Description: "Artificial latency to add to each response (e.g., 100ms, 1s). Simulates slow upstream processing.",
+			Value:       serpent.DurationOf(&artificialLatency),
 		},
 		{
-			Flag:        "purge-at-count",
-			Env:         "CODER_SCALETEST_LLM_MOCK_PURGE_AT_COUNT",
-			Default:     "100000",
-			Description: "Maximum number of requests to keep before auto-purging. Set to 0 to disable.",
-			Value:       serpent.Int64Of(&purgeAtCount),
+			Flag:        "response-payload-size",
+			Env:         "CODER_SCALETEST_LLM_MOCK_RESPONSE_PAYLOAD_SIZE",
+			Default:     "0",
+			Description: "Size in bytes of the response payload. If 0, uses default context-aware responses.",
+			Value:       serpent.Int64Of(&responsePayloadSize),
+		},
+		{
+			Flag:        "pprof-enable",
+			Env:         "CODER_SCALETEST_LLM_MOCK_PPROF_ENABLE",
+			Default:     "false",
+			Description: "Serve pprof metrics on the address defined by pprof-address.",
+			Value:       serpent.BoolOf(&pprofEnable),
+		},
+		{
+			Flag:        "pprof-address",
+			Env:         "CODER_SCALETEST_LLM_MOCK_PPROF_ADDRESS",
+			Default:     "127.0.0.1:6060",
+			Description: "The bind address to serve pprof.",
+			Value:       serpent.StringOf(&pprofAddress),
+		},
+		{
+			Flag:        "trace-enable",
+			Env:         "CODER_SCALETEST_LLM_MOCK_TRACE_ENABLE",
+			Default:     "false",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
+			Value:       serpent.BoolOf(&traceEnable),
 		},
 	}
 

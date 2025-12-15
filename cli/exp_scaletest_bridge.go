@@ -7,10 +7,8 @@ import (
 	"net/http"
 	"os/signal"
 	"strconv"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -22,26 +20,39 @@ import (
 
 func (r *RootCmd) scaletestBridge() *serpent.Command {
 	var (
-		userCount    int64
-		noCleanup    bool
-		mode         string
-		upstreamURL  string
-		directToken  string
-		requestCount int64
-		model        string
-		stream       bool
-		tracingFlags = &scaletestTracingFlags{}
+		userCount          int64
+		noCleanup          bool
+		mode               string
+		upstreamURL        string
+		directToken        string
+		provider           string
+		requestCount       int64
+		model              string
+		stream             bool
+		requestPayloadSize int64
 
-		// This test requires unlimited concurrency.
 		timeoutStrategy = &timeoutFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
 		output          = &scaletestOutputFlags{}
-		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
 	cmd := &serpent.Command{
 		Use:   "bridge",
 		Short: "Generate load on the AI Bridge service.",
+		Long: `Generate load on the AI Bridge service by making requests to OpenAI or Anthropic APIs.
+
+Examples:
+  # Test OpenAI API through bridge
+  coder scaletest bridge --mode bridge --provider openai --user-count 10 --request-count 5
+
+  # Test Anthropic API through bridge
+  coder scaletest bridge --mode bridge --provider anthropic --user-count 10 --request-count 5
+
+  # Test directly against mock server
+  coder scaletest bridge --mode direct --provider openai --upstream-url http://localhost:8080/v1/chat/completions
+
+The load generator builds conversation history over time, with each request including
+all previous messages in the conversation.`,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			client, err := r.InitClient(inv)
@@ -53,21 +64,18 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			// Validate mode
 			if mode != "bridge" && mode != "direct" {
 				return xerrors.Errorf("--mode must be either 'bridge' or 'direct', got %q", mode)
 			}
 
 			var me codersdk.User
 			if mode == "bridge" {
-				// Bridge mode requires admin access to create users
 				var err error
 				me, err = requireAdmin(ctx, client)
 				if err != nil {
 					return err
 				}
 			} else if upstreamURL == "" {
-				// Direct mode requires upstream URL
 				return xerrors.Errorf("--upstream-url must be set when using --mode direct")
 			}
 
@@ -80,21 +88,24 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 				},
 			}
 
-			// Validate: user count is always required (controls concurrency)
 			if userCount <= 0 {
 				return xerrors.Errorf("--user-count must be greater than 0")
 			}
 
-			// Set defaults
 			if requestCount <= 0 {
 				requestCount = 1
 			}
+			if provider == "" {
+				provider = "openai"
+			}
 			if model == "" {
-				model = "gpt-4"
+				if provider == "anthropic" {
+					model = "claude-3-opus-20240229"
+				} else {
+					model = "gpt-4"
+				}
 			}
 
-			// userCount always controls the number of runners (concurrency)
-			// Each runner makes requestCount requests
 			runnerCount := userCount
 
 			outputs, err := output.parse()
@@ -102,28 +113,8 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 				return xerrors.Errorf("could not parse --output flags")
 			}
 
-			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
-			if err != nil {
-				return xerrors.Errorf("create tracer provider: %w", err)
-			}
-			tracer := tracerProvider.Tracer(scaletestTracerName)
-
 			reg := prometheus.NewRegistry()
 			metrics := bridge.NewMetrics(reg)
-
-			logger := inv.Logger
-			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
-			defer prometheusSrvClose()
-
-			defer func() {
-				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
-				if err := closeTracing(ctx); err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
-				}
-				// Wait for prometheus metrics to be scraped
-				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
-				<-time.After(prometheusFlags.Wait)
-			}()
 
 			if mode == "bridge" {
 				_, _ = fmt.Fprintln(inv.Stderr, "Bridge mode: creating users and making requests through AI Bridge...")
@@ -134,19 +125,19 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			configs := make([]bridge.Config, 0, runnerCount)
 			for range runnerCount {
 				config := bridge.Config{
-					Mode:         bridge.RequestMode(mode),
-					Metrics:      metrics,
-					RequestCount: int(requestCount),
-					Model:        model,
-					Stream:       stream,
+					Mode:               bridge.RequestMode(mode),
+					Metrics:            metrics,
+					Provider:           provider,
+					RequestCount:       int(requestCount),
+					Model:              model,
+					Stream:             stream,
+					RequestPayloadSize: int(requestPayloadSize),
 				}
 
 				if mode == "direct" {
-					// Direct mode
 					config.UpstreamURL = upstreamURL
 					config.DirectToken = directToken
 				} else {
-					// Bridge mode
 					if len(me.OrganizationIDs) == 0 {
 						return xerrors.Errorf("admin user must have at least one organization")
 					}
@@ -167,14 +158,6 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 				id := strconv.Itoa(i)
 				name := fmt.Sprintf("bridge-%s", id)
 				var runner harness.Runnable = bridge.NewRunner(client, config)
-				if tracingEnabled {
-					runner = &runnableTraceWrapper{
-						tracer:   tracer,
-						spanName: name,
-						runner:   runner,
-					}
-				}
-
 				th.AddRun(name, id, runner)
 			}
 
@@ -223,7 +206,7 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			Flag:          "user-count",
 			FlagShorthand: "c",
 			Env:           "CODER_SCALETEST_BRIDGE_USER_COUNT",
-			Description:   "Required: Number of concurrent runners (in bridge mode, each creates a user).",
+			Description:   "Required: Number of concurrent runners (in bridge mode, each creates a coder user).",
 			Value:         serpent.Int64Of(&userCount),
 			Required:      true,
 		},
@@ -247,10 +230,17 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			Value:       serpent.StringOf(&directToken),
 		},
 		{
+			Flag:        "provider",
+			Env:         "CODER_SCALETEST_BRIDGE_PROVIDER",
+			Default:     "openai",
+			Description: "API provider to use: 'openai' or 'anthropic'.",
+			Value:       serpent.StringOf(&provider),
+		},
+		{
 			Flag:        "request-count",
 			Env:         "CODER_SCALETEST_BRIDGE_REQUEST_COUNT",
 			Default:     "1",
-			Description: "Number of requests to make per runner.",
+			Description: "Number of sequential requests to make per runner.",
 			Value:       serpent.Int64Of(&requestCount),
 		},
 		{
@@ -267,6 +257,13 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 			Value:       serpent.BoolOf(&stream),
 		},
 		{
+			Flag:        "request-payload-size",
+			Env:         "CODER_SCALETEST_BRIDGE_REQUEST_PAYLOAD_SIZE",
+			Default:     "0",
+			Description: "Size in bytes of the request payload (user message content). If 0, uses default message content.",
+			Value:       serpent.Int64Of(&requestPayloadSize),
+		},
+		{
 			Flag:        "no-cleanup",
 			Env:         "CODER_SCALETEST_NO_CLEANUP",
 			Description: "Do not clean up resources after the test completes.",
@@ -274,10 +271,8 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 		},
 	}
 
-	tracingFlags.attach(&cmd.Options)
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	output.attach(&cmd.Options)
-	prometheusFlags.attach(&cmd.Options)
 	return cmd
 }
