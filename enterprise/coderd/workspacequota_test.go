@@ -121,9 +121,16 @@ func TestWorkspaceQuota(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						DailyCost: 1,
+					},
+				},
+			}},
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
@@ -216,14 +223,17 @@ func TestWorkspaceQuota(t *testing.T) {
 		verifyQuota(ctx, t, client, user.OrganizationID.String(), 0, 4)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 			ProvisionPlanMap: map[proto.WorkspaceTransition][]*proto.Response{
 				proto.WorkspaceTransition_START: planWithCost(2),
 				proto.WorkspaceTransition_STOP:  planWithCost(1),
 			},
-			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
-				proto.WorkspaceTransition_START: applyWithCost(2),
-				proto.WorkspaceTransition_STOP:  applyWithCost(1),
+			ProvisionGraphMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: graphWithCost(2),
+				proto.WorkspaceTransition_STOP:  graphWithCost(1),
 			},
 		})
 
@@ -422,10 +432,19 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Create a template with a workspace that costs 1 credit
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			Parse:         echo.ParseComplete,
+			ProvisionInit: echo.InitComplete,
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						DailyCost: 1,
+					},
+				},
+			}},
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
@@ -458,10 +477,19 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Test with a template that has zero cost - should pass
 		versionZeroCost := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			Parse:         echo.ParseComplete,
+			ProvisionInit: echo.InitComplete,
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						DailyCost: 0,
+					},
+				},
+			}},
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
@@ -542,10 +570,19 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Create templates for both organizations
 		authToken := uuid.NewString()
 		version1 := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			Parse:         echo.ParseComplete,
+			ProvisionInit: echo.InitComplete,
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						DailyCost: 1,
+					},
+				},
+			}},
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
@@ -566,10 +603,19 @@ func TestWorkspaceQuota(t *testing.T) {
 		template1 := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version1.ID)
 
 		version2 := coderdtest.CreateTemplateVersion(t, owner, second.ID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			Parse:         echo.ParseComplete,
+			ProvisionInit: echo.InitComplete,
+			ProvisionPlan: []*proto.Response{{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						DailyCost: 1,
+					},
+				},
+			}},
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
@@ -1156,20 +1202,16 @@ func planWithCost(cost int32) []*proto.Response {
 	return []*proto.Response{{
 		Type: &proto.Response_Plan{
 			Plan: &proto.PlanComplete{
-				Resources: []*proto.Resource{{
-					Name:      "example",
-					Type:      "aws_instance",
-					DailyCost: cost,
-				}},
+				DailyCost: cost,
 			},
 		},
 	}}
 }
 
-func applyWithCost(cost int32) []*proto.Response {
+func graphWithCost(cost int32) []*proto.Response {
 	return []*proto.Response{{
-		Type: &proto.Response_Apply{
-			Apply: &proto.ApplyComplete{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
 				Resources: []*proto.Resource{{
 					Name:      "example",
 					Type:      "aws_instance",
