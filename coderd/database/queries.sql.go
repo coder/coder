@@ -919,7 +919,7 @@ WHERE
 	ended_at IS NOT NULL
 	-- Filter model
 	AND CASE
-		WHEN $1::text != '' THEN aibridge_interceptions.model = $1::text
+		WHEN $1::text != '' THEN aibridge_interceptions.model ILIKE '%' || $1::text || '%'
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAIBridgeModelsAuthorized
