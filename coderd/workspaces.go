@@ -69,6 +69,30 @@ var (
 	)
 )
 
+// incrementWorkspaceCreationAttemptsMetric increments the workspace creation
+// attempts metric for first 'start' builds. This counts regular (non-prebuilt)
+// workspace creation attempts.
+func incrementWorkspaceCreationAttemptsMetric(ctx context.Context, db database.Store, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, initiatorID uuid.UUID) {
+	if workspaceBuild.BuildNumber == 1 &&
+		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
+		initiatorID != database.PrebuildsSystemUserID {
+		// Get preset name for labels.
+		presetName := ""
+		if workspaceBuild.TemplateVersionPresetID.Valid {
+			preset, err := db.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+			if err == nil {
+				presetName = preset.Name
+			}
+		}
+
+		WorkspaceCreationAttemptsTotal.WithLabelValues(
+			workspace.OrganizationName,
+			workspace.TemplateName,
+			presetName,
+		).Inc()
+	}
+}
+
 // @Summary Get workspace metadata by ID
 // @ID get-workspace-metadata-by-id
 // @Security CoderSessionToken
@@ -827,24 +851,7 @@ func createWorkspace(
 
 		// Increment workspace creation attempts metric for first 'start' builds.
 		// This counts regular (non-prebuilt) workspace creation attempts.
-		if workspaceBuild.BuildNumber == 1 &&
-			workspaceBuild.Transition == database.WorkspaceTransitionStart &&
-			initiatorID != database.PrebuildsSystemUserID {
-			// Get preset name for labels.
-			presetName := ""
-			if workspaceBuild.TemplateVersionPresetID.Valid {
-				preset, err := db.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
-				if err == nil {
-					presetName = preset.Name
-				}
-			}
-
-			WorkspaceCreationAttemptsTotal.WithLabelValues(
-				workspace.OrganizationName,
-				workspace.TemplateName,
-				presetName,
-			).Inc()
-		}
+		incrementWorkspaceCreationAttemptsMetric(ctx, db, workspace, *workspaceBuild, initiatorID)
 
 		return nil
 	}, nil)

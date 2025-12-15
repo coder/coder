@@ -124,25 +124,8 @@ func TestWorkspaceCreationAttemptsMetricLogic(t *testing.T) {
 				expectedPresetName,
 			))
 
-			// Simulate the metric increment logic.
-			if workspaceBuild.BuildNumber == 1 &&
-				workspaceBuild.Transition == database.WorkspaceTransitionStart &&
-				tc.initiatorID != database.PrebuildsSystemUserID {
-				// Get preset name for labels.
-				presetName := ""
-				if workspaceBuild.TemplateVersionPresetID.Valid {
-					preset, err := db.GetPresetByID(ctx, presetID)
-					if err == nil {
-						presetName = preset.Name
-					}
-				}
-
-				WorkspaceCreationAttemptsTotal.WithLabelValues(
-					workspace.OrganizationName,
-					workspace.TemplateName,
-					presetName,
-				).Inc()
-			}
+			// Call the actual metric increment function.
+			incrementWorkspaceCreationAttemptsMetric(ctx, db, workspace, workspaceBuild, tc.initiatorID)
 
 			// Verify the metric.
 			newValue := promtest.ToFloat64(WorkspaceCreationAttemptsTotal.WithLabelValues(
