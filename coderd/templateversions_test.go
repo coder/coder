@@ -760,7 +760,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
+			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
@@ -793,7 +793,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
+			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
@@ -857,9 +857,9 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github", Optional: true}},
 					},
 				},
@@ -912,9 +912,9 @@ func TestTemplateVersionResources(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
@@ -953,7 +953,7 @@ func TestTemplateVersionLogs(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.PlanComplete,
-		ProvisionApply: []*proto.Response{{
+		ProvisionGraph: []*proto.Response{{
 			Type: &proto.Response_Log{
 				Log: &proto.Log{
 					Level:  proto.LogLevel_INFO,
@@ -961,8 +961,8 @@ func TestTemplateVersionLogs(t *testing.T) {
 				},
 			},
 		}, {
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "some",
 						Type: "example",
@@ -1211,15 +1211,15 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{
+			ProvisionGraph: []*proto.Response{
 				{
 					Type: &proto.Response_Log{
 						Log: &proto.Log{},
 					},
 				},
 				{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{resource},
 						},
 					},
@@ -2060,10 +2060,10 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name: firstParameterName,
@@ -2133,6 +2133,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanFailed,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionInit:  echo.InitComplete,
 		}, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
@@ -2228,10 +2229,10 @@ func TestTemplateVersionHasExternalAgent(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Name: "example",

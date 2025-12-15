@@ -384,10 +384,10 @@ func TestClaimPrebuild(t *testing.T) {
 func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "compute",
@@ -435,27 +435,6 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 								},
 								Prebuild: &proto.Prebuild{
 									Instances: desiredInstances,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-									},
 								},
 							},
 						},

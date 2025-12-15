@@ -78,7 +78,7 @@ func TestDeploymentInsights(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
@@ -168,7 +168,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
@@ -266,7 +266,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
@@ -641,22 +641,16 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			// Create the template version and template.
 			version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionPlan: []*proto.Response{
+				ProvisionGraph: []*proto.Response{
 					{
-						Type: &proto.Response_Plan{
-							Plan: &proto.PlanComplete{
+						Type: &proto.Response_Graph{
+							Graph: &proto.GraphComplete{
 								Parameters: parameters,
+								Resources:  resources,
 							},
 						},
 					},
 				},
-				ProvisionApply: []*proto.Response{{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
-							Resources: resources,
-						},
-					},
-				}},
 			})
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
@@ -1561,9 +1555,9 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
 				Parse:         echo.ParseComplete,
 				ProvisionPlan: echo.PlanComplete,
-				ProvisionApply: []*proto.Response{{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+				ProvisionGraph: []*proto.Response{{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: resources,
 						},
 					},
