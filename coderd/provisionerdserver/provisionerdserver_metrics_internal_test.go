@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 )
@@ -169,34 +170,27 @@ func TestWorkspaceCreationOutcomesMetricLogic(t *testing.T) {
 				expectedPresetName = tc.presetName
 			}
 
-			// Create a test metric for this test.
-			testMetric := prometheus.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: "coderd_test",
-					Subsystem: "provisionerd_test",
-					Name:      "workspace_creation_outcomes_total_test",
-				},
-				[]string{"organization_name", "template_name", "preset_name", "status"},
-			)
+			// Create a test metrics object.
+			testMetrics := NewMetrics(slogtest.Make(t, nil), prometheus.NewRegistry())
 
-			initialValue := promtest.ToFloat64(testMetric.WithLabelValues(
+			initialValue := promtest.ToFloat64(testMetrics.workspaceCreationOutcomesTotal.WithLabelValues(
 				orgName,
 				templateName,
 				expectedPresetName,
 				tc.expectedStatus,
 			))
 
-			// Create a test server instance with the test metric.
+			// Create a test server instance with the test metrics.
 			testServer := &server{
 				Database:                       db,
-				workspaceCreationOutcomesTotal: testMetric,
+				workspaceCreationOutcomesTotal: testMetrics.workspaceCreationOutcomesTotal,
 			}
 
 			// Call the actual metric increment function.
 			testServer.incrementWorkspaceCreationOutcomesMetric(ctx, workspace, workspaceBuild, job)
 
 			// Verify the metric.
-			newValue := promtest.ToFloat64(testMetric.WithLabelValues(
+			newValue := promtest.ToFloat64(testMetrics.workspaceCreationOutcomesTotal.WithLabelValues(
 				orgName,
 				templateName,
 				expectedPresetName,

@@ -628,10 +628,7 @@ func New(options *Options) *API {
 	)
 
 	// Initialize provisionerdserver metrics.
-	api.ProvisionerdServerMetrics = provisionerdserver.NewMetrics(options.Logger.Named("provisionerd_metrics"))
-	if err := api.ProvisionerdServerMetrics.Register(options.PrometheusRegistry); err != nil {
-		options.Logger.Error(ctx, "failed to register provisionerdserver metrics", slog.Error(err))
-	}
+	api.ProvisionerdServerMetrics = provisionerdserver.NewMetrics(options.Logger.Named("provisionerd_metrics"), options.PrometheusRegistry)
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,

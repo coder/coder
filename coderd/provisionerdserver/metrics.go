@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"cdr.dev/slog"
 )
@@ -36,12 +37,13 @@ type WorkspaceTimingFlags struct {
 	IsFirstBuild bool
 }
 
-func NewMetrics(logger slog.Logger) *Metrics {
+func NewMetrics(logger slog.Logger, reg prometheus.Registerer) *Metrics {
 	log := logger.Named("provisionerd_server_metrics")
+	factory := promauto.With(reg)
 
 	return &Metrics{
 		logger: log,
-		workspaceCreationTimings: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		workspaceCreationTimings: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Name:      "workspace_creation_duration_seconds",
 			Help:      "Time to create a workspace by organization, template, preset, and type (regular or prebuild).",
@@ -64,7 +66,7 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name", "type"}),
-		workspaceClaimTimings: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		workspaceClaimTimings: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Name:      "prebuilt_workspace_claim_duration_seconds",
 			Help:      "Time to claim a prebuilt workspace by organization, template, and preset.",
@@ -91,7 +93,7 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name"}),
-		workspaceCreationOutcomesTotal: prometheus.NewCounterVec(
+		workspaceCreationOutcomesTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
@@ -101,16 +103,6 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			[]string{"organization_name", "template_name", "preset_name", "status"},
 		),
 	}
-}
-
-func (m *Metrics) Register(reg prometheus.Registerer) error {
-	if err := reg.Register(m.workspaceCreationTimings); err != nil {
-		return err
-	}
-	if err := reg.Register(m.workspaceClaimTimings); err != nil {
-		return err
-	}
-	return reg.Register(m.workspaceCreationOutcomesTotal)
 }
 
 // IsTrackable returns true if the workspace build should be tracked in metrics.
