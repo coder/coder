@@ -1270,20 +1270,12 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 
 	// NOTE(DanielleMaywood):
 	// We currently do not support canceling the startup of a dev container.
-	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+	if dc.Status.IsTransitional() {
 		api.mu.Unlock()
-		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Devcontainer is starting",
-			Detail:  fmt.Sprintf("Devcontainer %q is currently starting and cannot be deleted.", dc.Name),
-		})
-		return
-	}
 
-	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusDeleting {
-		api.mu.Unlock()
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Devcontainer is already being deleted",
-			Detail:  fmt.Sprintf("Devcontainer %q is already being deleted.", dc.Name),
+			Message: "Unable to delete transitioning Devcontainer",
+			Detail:  fmt.Sprintf("Devcontainer %q is currently %s and cannot be deleted.", dc.Name, dc.Status),
 		})
 		return
 	}
@@ -1412,12 +1404,12 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 		httperror.WriteResponseError(ctx, w, err)
 		return
 	}
-	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+	if dc.Status.IsTransitional() {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Devcontainer recreation already in progress",
-			Detail:  fmt.Sprintf("Recreation for devcontainer %q is already underway.", dc.Name),
+			Message: "Unable to recreate transitioning Devcontainer",
+			Detail:  fmt.Sprintf("Devcontainer %q is currently %s and cannot be restarted.", dc.Name, dc.Status),
 		})
 		return
 	}

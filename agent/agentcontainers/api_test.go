@@ -902,7 +902,7 @@ func TestAPI(t *testing.T) {
 					upErr: xerrors.New("devcontainer CLI error"),
 				},
 				wantStatus: []int{http.StatusAccepted, http.StatusConflict},
-				wantBody:   []string{"Devcontainer recreation initiated", "Devcontainer recreation already in progress"},
+				wantBody:   []string{"Devcontainer recreation initiated", "is currently starting and cannot be restarted"},
 			},
 			{
 				name:           "OK",
@@ -925,7 +925,7 @@ func TestAPI(t *testing.T) {
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      []int{http.StatusAccepted, http.StatusConflict},
-				wantBody:        []string{"Devcontainer recreation initiated", "Devcontainer recreation already in progress"},
+				wantBody:        []string{"Devcontainer recreation initiated", "is currently starting and cannot be restarted"},
 			},
 		}
 
@@ -1131,7 +1131,7 @@ func TestAPI(t *testing.T) {
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      http.StatusConflict,
-				wantBody:        "Devcontainer is starting",
+				wantBody:        "is currently starting and cannot be deleted",
 			},
 			{
 				name:           "Devcontainer is stopping",
@@ -1154,7 +1154,7 @@ func TestAPI(t *testing.T) {
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      http.StatusConflict,
-				wantBody:        "Devcontainer is already being deleted",
+				wantBody:        "is currently deleting and cannot be deleted.",
 			},
 			{
 				name:           "Container stop fails",

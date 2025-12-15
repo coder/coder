@@ -406,6 +406,17 @@ const (
 	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
 )
 
+func (s WorkspaceAgentDevcontainerStatus) IsTransitional() bool {
+	switch s {
+	case WorkspaceAgentDevcontainerStatusStarting,
+		WorkspaceAgentDevcontainerStatusStopping,
+		WorkspaceAgentDevcontainerStatusDeleting:
+		return true
+	default:
+		return false
+	}
+}
+
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
