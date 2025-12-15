@@ -88,6 +88,37 @@ var WorkspaceCreationOutcomesTotal = promauto.NewCounterVec(
 	[]string{"organization_name", "template_name", "preset_name", "status"},
 )
 
+// incrementWorkspaceCreationOutcomesMetric increments the workspace creation
+// outcomes metric for first 'start' builds. This counts regular (non-prebuilt)
+// workspace creation outcomes (success/failure).
+func incrementWorkspaceCreationOutcomesMetric(ctx context.Context, db database.Store, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, job database.ProvisionerJob) {
+	if workspaceBuild.BuildNumber == 1 &&
+		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
+		workspaceBuild.InitiatorID != database.PrebuildsSystemUserID {
+		// Determine status based on job completion.
+		status := "success"
+		if job.Error.Valid || job.ErrorCode.Valid {
+			status = "failure"
+		}
+
+		// Get preset name for labels.
+		presetName := ""
+		if workspaceBuild.TemplateVersionPresetID.Valid {
+			preset, err := db.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+			if err == nil {
+				presetName = preset.Name
+			}
+		}
+
+		WorkspaceCreationOutcomesTotal.WithLabelValues(
+			workspace.OrganizationName,
+			workspace.TemplateName,
+			presetName,
+			status,
+		).Inc()
+	}
+}
+
 type Options struct {
 	OIDCConfig          promoauth.OAuth2Config
 	ExternalAuthConfigs []*externalauth.Config
@@ -2305,31 +2336,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 	// Increment workspace creation outcomes metric for first 'start' builds.
 	// This counts regular (non-prebuilt) workspace creation outcomes (success/failure).
-	if workspaceBuild.BuildNumber == 1 &&
-		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
-		workspaceBuild.InitiatorID != database.PrebuildsSystemUserID {
-		// Determine status based on job completion.
-		status := "success"
-		if job.Error.Valid || job.ErrorCode.Valid {
-			status = "failure"
-		}
-
-		// Get preset name for labels.
-		presetName := ""
-		if workspaceBuild.TemplateVersionPresetID.Valid {
-			preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
-			if err == nil {
-				presetName = preset.Name
-			}
-		}
-
-		WorkspaceCreationOutcomesTotal.WithLabelValues(
-			workspace.OrganizationName,
-			workspace.TemplateName,
-			presetName,
-			status,
-		).Inc()
-	}
+	incrementWorkspaceCreationOutcomesMetric(ctx, s.Database, workspace, workspaceBuild, job)
 
 	// Post-transaction operations (operations that do not require transactions or
 	// are external to the database, like audit logging, notifications, etc.)

@@ -174,32 +174,8 @@ func TestWorkspaceCreationOutcomesMetricLogic(t *testing.T) {
 				tc.expectedStatus,
 			))
 
-			// Simulate the metric increment logic.
-			if workspaceBuild.BuildNumber == 1 &&
-				workspaceBuild.Transition == database.WorkspaceTransitionStart &&
-				workspaceBuild.InitiatorID != database.PrebuildsSystemUserID {
-				// Determine status based on job completion.
-				status := "success"
-				if job.Error.Valid || job.ErrorCode.Valid {
-					status = "failure"
-				}
-
-				// Get preset name for labels.
-				presetName := ""
-				if workspaceBuild.TemplateVersionPresetID.Valid {
-					preset, err := db.GetPresetByID(ctx, presetID)
-					if err == nil {
-						presetName = preset.Name
-					}
-				}
-
-				WorkspaceCreationOutcomesTotal.WithLabelValues(
-					workspace.OrganizationName,
-					workspace.TemplateName,
-					presetName,
-					status,
-				).Inc()
-			}
+			// Call the actual metric increment function.
+			incrementWorkspaceCreationOutcomesMetric(ctx, db, workspace, workspaceBuild, job)
 
 			// Verify the metric.
 			newValue := promtest.ToFloat64(WorkspaceCreationOutcomesTotal.WithLabelValues(
