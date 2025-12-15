@@ -573,6 +573,17 @@ func New(options *Options) *API {
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
+	// Ensure system role permissions are current for all organizations.
+	// This backfills permissions for roles created by migration and
+	// updates permissions when new RBAC resources are added, while
+	// using advisory lock for multi-replica safety.
+	err = ReconcileOrgMemberRoles(ctx, options.Logger, options.Database)
+	if err != nil {
+		// TODO:(geokat) Not using fatal here and just continuing after
+		// logging the error would be a potential security hole, right?
+		options.Logger.Fatal(ctx, "failed to reconcile orgMember role permissions", slog.Error(err))
+	}
+
 	// AGPL uses a no-op build usage checker as there are no license
 	// entitlements to enforce. This is swapped out in
 	// enterprise/coderd/coderd.go.

@@ -53,6 +53,9 @@ sql:
           - column: "custom_roles.user_permissions"
             go_type:
               type: "CustomRolePermissions"
+          - column: "custom_roles.member_permissions"
+            go_type:
+              type: "CustomRolePermissions"
           - column: "provisioner_daemons.tags"
             go_type:
               type: "StringMap"
