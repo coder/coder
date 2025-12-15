@@ -750,6 +750,8 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
+// broadcastUpdatesLocked sends the current state to any listening clients.
+// This method assumes that api.mu is held.
 func (api *API) broadcastUpdatesLocked() {
 	// Broadcast state changes to WebSocket listeners.
 	for _, ch := range api.updateChans {
@@ -1232,6 +1234,8 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 	}, nil
 }
 
+// devcontainerByIDLocked attempts to find a devcontainer by its ID.
+// This method assumes that api.mu is held.
 func (api *API) devcontainerByIDLocked(devcontainerID string) (codersdk.WorkspaceAgentDevcontainer, error) {
 	for _, knownDC := range api.knownDevcontainers {
 		if knownDC.ID.String() == devcontainerID {
