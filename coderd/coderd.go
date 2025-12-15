@@ -627,8 +627,11 @@ func New(options *Options) *API {
 		[]string{"organization_name", "template_name", "preset_name"},
 	)
 
-	// Initialize provisionerdserver metrics.
-	api.ProvisionerdServerMetrics = provisionerdserver.NewMetrics(options.Logger.Named("provisionerd_metrics"), options.PrometheusRegistry)
+	// Initialize provisionerdserver metrics if not already provided.
+	if options.ProvisionerdServerMetrics == nil {
+		options.ProvisionerdServerMetrics = provisionerdserver.NewMetrics(options.Logger.Named("provisionerd_metrics"), options.PrometheusRegistry)
+	}
+	api.ProvisionerdServerMetrics = options.ProvisionerdServerMetrics
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
