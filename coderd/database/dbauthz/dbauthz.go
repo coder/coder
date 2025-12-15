@@ -6196,5 +6196,5 @@ func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database
 	// TODO: Delete this function, all ListAIBridgeModels should be authorized. For now just call ListAIBridgeModels on the authz querier.
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
-	return q.db.ListAIBridgeModels(ctx, arg)
+	return q.ListAIBridgeModels(ctx, arg)
 }
