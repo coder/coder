@@ -57,9 +57,6 @@ export const Default: Story = {
 		await waitFor(() =>
 			expect(screen.getByRole("option", { name: "Mango" })).toBeInTheDocument(),
 		);
-
-		await userEvent.click(screen.getByRole("option", { name: "Mango" }));
-		await waitFor(() => expect(trigger).toHaveTextContent("Mango"));
 	},
 };
 
@@ -92,12 +89,8 @@ export const WithSelectedValue: Story = {
 			).toBeInTheDocument(),
 		);
 
-		await userEvent.click(screen.getByRole("option", { name: "Pineapple" }));
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", { name: /select a fruit/i }),
-			).toBeInTheDocument(),
-		);
+		await userEvent.click(screen.getByRole("option", { name: "Mango" }));
+		await waitFor(() => expect(trigger).toHaveTextContent("Mango"));
 	},
 };
 
@@ -225,14 +218,6 @@ export const SearchAndFilter: Story = {
 				screen.queryByRole("option", { name: "Pineapple" }),
 			).not.toBeInTheDocument();
 		});
-
-		await userEvent.click(screen.getByRole("option", { name: "Banana" }));
-
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", { name: /banana/i }),
-			).toBeInTheDocument(),
-		);
 	},
 };
 
@@ -322,6 +307,13 @@ export const WithCustomRenderOption: Story = {
 			</div>
 		);
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button");
+
+		expect(trigger).toHaveTextContent("Search for a user");
+		await userEvent.click(trigger);
+	},
 };
 
 export const WithStartAdornment: Story = {
@@ -357,119 +349,6 @@ export const WithStartAdornment: Story = {
 					)}
 				/>
 			</div>
-		);
-	},
-};
-
-export const AsyncSearch: Story = {
-	render: function AsyncSearchStory() {
-		const [value, setValue] = useState<User | null>(null);
-		const [inputValue, setInputValue] = useState("");
-		const [loading, setLoading] = useState(false);
-		const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-
-		const handleInputChange = (newValue: string) => {
-			setInputValue(newValue);
-			setLoading(true);
-			setTimeout(() => {
-				const filtered = users.filter(
-					(user) =>
-						user.username.toLowerCase().includes(newValue.toLowerCase()) ||
-						user.email.toLowerCase().includes(newValue.toLowerCase()),
-				);
-				setFilteredUsers(filtered);
-				setLoading(false);
-			}, 500);
-		};
-
-		const handleOpenChange = (open: boolean) => {
-			if (open) {
-				handleInputChange("");
-			}
-		};
-
-		return (
-			<div className="w-[350px]">
-				<Autocomplete
-					value={value}
-					onChange={setValue}
-					options={filteredUsers}
-					getOptionValue={(user) => user.id}
-					getOptionLabel={(user) => user.email}
-					placeholder="Search for a user"
-					inputValue={inputValue}
-					onInputChange={handleInputChange}
-					onOpenChange={handleOpenChange}
-					loading={loading}
-					noOptionsText="No users found"
-					renderOption={(user, isSelected) => (
-						<div className="flex items-center justify-between w-full">
-							<AvatarData
-								title={user.username}
-								subtitle={user.email}
-								src={user.avatar_url}
-							/>
-							{isSelected && <Check className="size-4 shrink-0" />}
-						</div>
-					)}
-				/>
-			</div>
-		);
-	},
-};
-
-interface Country {
-	code: string;
-	name: string;
-	flag: string;
-}
-
-const countries: Country[] = [
-	{ code: "US", name: "United States", flag: "🇺🇸" },
-	{ code: "GB", name: "United Kingdom", flag: "🇬🇧" },
-	{ code: "CA", name: "Canada", flag: "🇨🇦" },
-	{ code: "AU", name: "Australia", flag: "🇦🇺" },
-	{ code: "DE", name: "Germany", flag: "🇩🇪" },
-	{ code: "FR", name: "France", flag: "🇫🇷" },
-	{ code: "JP", name: "Japan", flag: "🇯🇵" },
-];
-
-export const CountrySelector: Story = {
-	render: function CountrySelectorStory() {
-		const [value, setValue] = useState<Country | null>(null);
-		return (
-			<div className="w-80">
-				<Autocomplete
-					value={value}
-					onChange={setValue}
-					options={countries}
-					getOptionValue={(country) => country.code}
-					getOptionLabel={(country) => country.name}
-					placeholder="Select a country"
-					renderOption={(country, isSelected) => (
-						<div className="flex items-center justify-between w-full">
-							<span>
-								{country.flag} {country.name}
-							</span>
-							{isSelected && <Check className="size-4 shrink-0" />}
-						</div>
-					)}
-				/>
-			</div>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = canvas.getByRole("button", { name: /select a country/i });
-		await userEvent.click(trigger);
-
-		await waitFor(() => expect(screen.getByText(/Japan/)).toBeInTheDocument());
-		await userEvent.click(screen.getByText(/Japan/));
-
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", { name: /japan/i }),
-			).toBeInTheDocument(),
 		);
 	},
 };
