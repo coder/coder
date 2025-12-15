@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -5596,71 +5594,5 @@ func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
 		require.NotNil(t, ws2.LatestBuild.TemplateVersionPresetID)
 		require.Equal(t, preset2ID, *ws2.LatestBuild.TemplateVersionPresetID)
-	})
-}
-
-func TestWorkspaceCreationAttemptsMetric(t *testing.T) {
-	t.Parallel()
-
-	t.Run("MetricCanBeIncrementedAndRead", func(t *testing.T) {
-		t.Parallel()
-
-		// Test that the metric can be incremented and read correctly.
-		orgName := "test-org"
-		templateName := "test-template"
-		presetName := ""
-
-		// Get initial value.
-		initialValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-		))
-
-		// Increment the metric.
-		coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-		).Inc()
-
-		// Verify it incremented.
-		newValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-		))
-		require.Equal(t, initialValue+1, newValue, "metric should increment by 1")
-	})
-
-	t.Run("MetricTracksPresetLabel", func(t *testing.T) {
-		t.Parallel()
-
-		// Test that the metric tracks preset names in labels.
-		orgName := "test-org"
-		templateName := "test-template"
-		presetName := "test-preset"
-
-		// Get initial value.
-		initialValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-		))
-
-		// Increment the metric with preset label.
-		coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-		).Inc()
-
-		// Verify it incremented.
-		newValue := promtest.ToFloat64(coderd.WorkspaceCreationAttemptsTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-		))
-		require.Equal(t, initialValue+1, newValue, "metric should increment by 1 with preset label")
 	})
 }

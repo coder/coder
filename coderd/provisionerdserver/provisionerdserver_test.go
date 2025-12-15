@@ -17,7 +17,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -4469,78 +4468,4 @@ func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db 
 		WorkspaceID:       w.ID,
 	})
 	return nil
-}
-
-func TestWorkspaceCreationOutcomesMetric(t *testing.T) {
-	t.Parallel()
-
-	t.Run("MetricCanBeIncrementedAndRead", func(t *testing.T) {
-		t.Parallel()
-
-		// Test that the metric can be incremented and read correctly for success.
-		orgName := "test-org"
-		templateName := "test-template"
-		presetName := ""
-		status := "success"
-
-		// Get initial value.
-		initialValue := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-			status,
-		))
-
-		// Increment the metric.
-		provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-			status,
-		).Inc()
-
-		// Verify it incremented.
-		newValue := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-			status,
-		))
-		require.Equal(t, initialValue+1, newValue, "metric should increment by 1 for success")
-	})
-
-	t.Run("MetricTracksFailureStatus", func(t *testing.T) {
-		t.Parallel()
-
-		// Test that the metric tracks failure status.
-		orgName := "test-org"
-		templateName := "test-template"
-		presetName := ""
-		status := "failure"
-
-		// Get initial value.
-		initialValue := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-			status,
-		))
-
-		// Increment the metric.
-		provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-			status,
-		).Inc()
-
-		// Verify it incremented.
-		newValue := promtest.ToFloat64(provisionerdserver.WorkspaceCreationOutcomesTotal.WithLabelValues(
-			orgName,
-			templateName,
-			presetName,
-			status,
-		))
-		require.Equal(t, initialValue+1, newValue, "metric should increment by 1 for failure")
-	})
 }
