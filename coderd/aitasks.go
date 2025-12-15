@@ -2,6 +2,8 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -469,7 +471,10 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 		return nil, xerrors.Errorf("fetch workspaces: %w", err)
 	}
 
-	workspaces := database.ConvertWorkspaceRows(workspaceRows)
+	workspaces, err := database.ConvertWorkspaceRows(workspaceRows)
+	if err != nil {
+		return nil, xerrors.Errorf("convert workspace rows: %w", err)
+	}
 
 	// Gather associated data and convert to API workspaces.
 	data, err := api.workspaceData(ctx, workspaces)
@@ -477,7 +482,14 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 		return nil, xerrors.Errorf("fetch workspace data: %w", err)
 	}
 
-	apiWorkspaces, err := convertWorkspaces(requesterID, workspaces, data)
+	apiWorkspaces, err := convertWorkspaces(
+		ctx,
+		api.Experiments,
+		api.Logger,
+		requesterID,
+		workspaces,
+		data,
+	)
 	if err != nil {
 		return nil, xerrors.Errorf("convert workspaces: %w", err)
 	}
@@ -551,6 +563,9 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ws, err := convertWorkspace(
+		ctx,
+		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -622,11 +637,15 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// As an implementation detail of the workspace build transition, we also delete
+	// the associated task. This means that we have a race between provisionerdserver
+	// and here with deleting the task. In a real world scenario we'll never lose the
+	// race but we should still handle it anyways.
 	_, err := api.Database.DeleteTask(ctx, database.DeleteTaskParams{
 		ID:        task.ID,
 		DeletedAt: dbtime.Time(now),
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete task",
 			Detail:  err.Error(),

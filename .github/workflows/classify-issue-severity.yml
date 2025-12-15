@@ -1,0 +1,258 @@
+# This workflow assists in evaluating the severity of incoming issues to help
+# with triaging tickets. It uses AI analysis to classify issues into severity levels
+# (s0-s4) when the 'triage-check' label is applied.
+
+name: Classify Issue Severity
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_url:
+        description: "Issue URL to classify"
+        required: true
+        type: string
+      template_preset:
+        description: "Template preset to use"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  classify-severity:
+    name: AI Severity Classification
+    runs-on: ubuntu-latest
+    if: |
+      (github.event.label.name == 'triage-check' || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 30
+    env:
+      CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+
+    steps:
+      - name: Determine Issue Context
+        id: determine-context
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ISSUE_HTML_URL: ${{ github.event.issue.html_url }}
+          GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GITHUB_EVENT_SENDER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_SENDER_LOGIN: ${{ github.event.sender.login }}
+          INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
+          echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
+
+          # For workflow_dispatch, use the provided issue URL
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
+              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+              exit 1
+            fi
+            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using issue URL: ${INPUTS_ISSUE_URL}"
+            echo "issue_url=${INPUTS_ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+
+            # Extract issue number from URL for later use
+            ISSUE_NUMBER=$(echo "${INPUTS_ISSUE_URL}" | grep -oP '(?<=issues/)\d+')
+            echo "issue_number=${ISSUE_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
+            GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
+            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using issue URL: ${GITHUB_EVENT_ISSUE_HTML_URL}"
+            echo "issue_url=${GITHUB_EVENT_ISSUE_HTML_URL}" >> "${GITHUB_OUTPUT}"
+            echo "issue_number=${GITHUB_EVENT_ISSUE_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+      - name: Build Classification Prompt
+        id: build-prompt
+        env:
+          ISSUE_URL: ${{ steps.determine-context.outputs.issue_url }}
+          ISSUE_NUMBER: ${{ steps.determine-context.outputs.issue_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Analyzing issue #${ISSUE_NUMBER}"
+
+          # Build task prompt - using unquoted heredoc so variables expand
+          TASK_PROMPT=$(cat <<EOF
+          You are an expert software engineer triaging customer-reported issues for Coder, a cloud development environment platform.
+
+          Your task is to carefully analyze issue #${ISSUE_NUMBER} and classify it into one of the following severity levels. **This requires deep reasoning and thoughtful analysis** - not just keyword matching.
+
+          Issue URL: ${ISSUE_URL}
+
+          WORKFLOW:
+            1. Use GitHub MCP tools to fetch the full issue details
+               Get the title, description, labels, and any comments that provide context
+
+            2. Read and understand the issue
+               What is the user reporting?
+               What are the symptoms?
+               What is the expected vs actual behavior?
+
+            3. Analyze using the framework below
+               Think deeply about each of the 5 analysis points
+               Don't just match keywords - reason about the actual impact
+
+            4. Classify the severity OR decline if insufficient information
+
+            5. Comment on the issue with your analysis
+
+          ## Severity Level Definitions
+
+          - **s0**: Entire product and/or major feature (Tasks, Bridge, Boundaries, etc.) is broken in a way that makes it unusable for majority to all customers
+
+          - **s1**: Core feature is broken without a workaround for limited number of customers
+
+          - **s2**: Broken use cases or features with a workaround
+
+          - **s3**: Issues that impair usability, cause incorrect behavior in non-critical areas, or degrade the experience, but do not block core workflows
+
+          - **s4**: Bugs that confuse or annoy or are purely cosmetic, e.g. we don't plan on addressing them
+
+          ## Analysis Framework
+
+          Customers often overstate the severity of issues. You need to read between the lines and assess the **actual impact** by reasoning through:
+
+          1. **What is actually broken?**
+             - Distinguish between what the customer *says* is broken vs. what is *actually* broken
+             - Is this a complete failure or a partial degradation?
+             - Does the error message or symptom indicate a critical vs. minor issue?
+
+          2. **How many users are affected?**
+             - Is this affecting all customers, many customers, or a specific edge case?
+             - Does the issue description suggest widespread impact or isolated incident?
+             - Are there environmental factors that limit the scope?
+
+          3. **Are there workarounds?**
+             - Can users accomplish their goal through an alternative path?
+             - Is there a manual process or configuration change that resolves it?
+             - Even if not mentioned, do you suspect a workaround exists?
+
+          4. **Does it block critical workflows?**
+             - Can users still perform their core job functions?
+             - Is this interrupting active development work or just an inconvenience?
+             - What is the business impact if this remains unresolved?
+
+          5. **What is the realistic urgency?**
+             - Does this need immediate attention or can it wait?
+             - Is this a regression or long-standing issue?
+             - What's the actual business risk?
+
+          ## Insufficient Information Fail-Safe
+
+          **It is completely acceptable to not classify an issue if you lack sufficient information.**
+
+          If the issue description is too vague, missing critical details, or doesn't provide enough context to make a confident assessment, DO NOT force a classification.
+
+          Common scenarios where you should decline to classify:
+          - Issue has no description or minimal details
+          - Unclear what feature/component is affected
+          - No reproduction steps or error messages provided
+          - Ambiguous whether it's a bug, feature request, or question
+          - Missing information about user impact or frequency
+
+          ## Comment Format
+
+          Use ONE of these two formats when commenting on the issue:
+
+          ### Format 1: Confident Classification
+
+          ## 🤖 Automated Severity Classification
+
+          **Recommended Severity:** \`S0\` | \`S1\` | \`S2\` | \`S3\` | \`S4\`
+
+          **Analysis:**
+          [2-3 sentences explaining your reasoning - focus on the actual impact, not just symptoms. Explain why you chose this severity level over others.]
+
+          ---
+          *This classification was performed by AI analysis. Please review and adjust if needed.*
+
+          ### Format 2: Insufficient Information
+
+          ## 🤖 Automated Severity Classification
+
+          **Status:** Unable to classify - insufficient information
+
+          **Reasoning:**
+          [2-3 sentences explaining what critical information is missing and why it's needed to determine severity.]
+
+          **Suggested next steps:**
+          - [Specific information point 1]
+          - [Specific information point 2]
+          - [Specific information point 3]
+
+          ---
+          *This classification was performed by AI analysis. Please provide the requested information for proper severity assessment.*
+
+          EOF
+          )
+
+          # Output the prompt
+          {
+            echo "task_prompt<<EOFOUTPUT"
+            echo "${TASK_PROMPT}"
+            echo "EOFOUTPUT"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout create-task-action
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 1
+          path: ./.github/actions/create-task-action
+          persist-credentials: false
+          ref: main
+          repository: coder/create-task-action
+
+      - name: Create Coder Task for Severity Classification
+        id: create_task
+        uses: ./.github/actions/create-task-action
+        with:
+          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          coder-organization: "default"
+          coder-template-name: coder
+          coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
+          coder-task-name-prefix: severity-classification
+          coder-task-prompt: ${{ steps.build-prompt.outputs.task_prompt }}
+          github-user-id: ${{ steps.determine-context.outputs.github_user_id }}
+          github-token: ${{ github.token }}
+          github-issue-url: ${{ steps.determine-context.outputs.issue_url }}
+          comment-on-issue: true
+
+      - name: Write outputs
+        env:
+          TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_URL: ${{ steps.create_task.outputs.task-url }}
+          ISSUE_URL: ${{ steps.determine-context.outputs.issue_url }}
+        run: |
+          {
+            echo "## Severity Classification Task"
+            echo ""
+            echo "**Issue:** ${ISSUE_URL}"
+            echo "**Task created:** ${TASK_CREATED}"
+            echo "**Task name:** ${TASK_NAME}"
+            echo "**Task URL:** ${TASK_URL}"
+            echo ""
+            echo "The Coder task is analyzing the issue and will comment with severity classification."
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -1925,6 +1925,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceACL = async (
+		workspaceId: string,
+	): Promise<TypesGen.WorkspaceACL> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaces/${workspaceId}/acl`,
+		);
+
+		return response.data;
+	};
+
 	updateWorkspaceACL = async (
 		workspaceId: string,
 		data: TypesGen.UpdateWorkspaceACL,
@@ -2714,6 +2724,16 @@ class ApiMethods {
 
 	deleteTask = async (user: string, id: string): Promise<void> => {
 		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
+	};
+
+	updateTaskInput = async (
+		user: string,
+		id: string,
+		input: string,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/tasks/${user}/${id}/input`, {
+			input,
+		} satisfies TypesGen.UpdateTaskInputRequest);
 	};
 
 	createTaskFeedback = async (

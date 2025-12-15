@@ -176,10 +176,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         },
         "enabled": true,
         "inject_coder_mcp_tools": true,
+        "max_concurrency": 0,
         "openai": {
           "base_url": "string",
           "key": "string"
         },
+        "rate_limit": 0,
         "retention": 0
       }
     },
@@ -518,6 +520,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "scheme": "string",
         "user": {}
       }
+    },
+    "template_insights": {
+      "enable": true
     },
     "terms_of_service_url": "string",
     "tls": {

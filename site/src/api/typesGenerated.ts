@@ -33,6 +33,8 @@ export interface AIBridgeConfig {
 	readonly bedrock: AIBridgeBedrockConfig;
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
+	readonly max_concurrency: number;
+	readonly rate_limit: number;
 }
 
 // From codersdk/aibridge.go
@@ -1788,6 +1790,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
+	readonly template_insights?: TemplateInsightsConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -2183,7 +2186,11 @@ export interface GetInboxNotificationResponse {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
-	readonly offset: string;
+	/**
+	 * Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
+	 * for the local timezone.
+	 */
+	readonly offset: number;
 }
 
 // From codersdk/insights.go
@@ -4542,6 +4549,23 @@ export interface SessionLifetime {
  */
 export const SessionTokenHeader = "Coder-Session-Token";
 
+// From codersdk/workspaces.go
+export interface SharedWorkspaceActor {
+	readonly id: string;
+	readonly actor_type: SharedWorkspaceActorType;
+	readonly name: string;
+	readonly avatar_url?: string;
+	readonly roles: readonly WorkspaceRole[];
+}
+
+// From codersdk/workspaces.go
+export type SharedWorkspaceActorType = "group" | "user";
+
+export const SharedWorkspaceActorTypes: SharedWorkspaceActorType[] = [
+	"group",
+	"user",
+];
+
 // From codersdk/client.go
 /**
  * SignedAppTokenCookie is the name of the cookie that stores a temporary
@@ -5086,6 +5110,11 @@ export interface TemplateFilter {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
 	readonly role: TemplateRole;
+}
+
+// From codersdk/deployment.go
+export interface TemplateInsightsConfig {
+	readonly enable: boolean;
 }
 
 // From codersdk/insights.go
@@ -5954,6 +5983,7 @@ export interface Workspace {
 	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	 */
 	readonly task_id?: string;
+	readonly shared_with?: readonly SharedWorkspaceActor[];
 }
 
 // From codersdk/workspaces.go

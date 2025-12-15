@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/sessionstore"
+	"github.com/coder/coder/v2/cli/sessionstore/testhelpers"
 )
 
 func readRawKeychainCredential(t *testing.T, serviceName string) []byte {
@@ -31,7 +32,7 @@ func TestWindowsKeyring_WriteReadDelete(t *testing.T) {
 	srvURL, err := url.Parse(testURL)
 	require.NoError(t, err)
 
-	serviceName := keyringTestServiceName(t)
+	serviceName := testhelpers.KeyringServiceName(t)
 	backend := sessionstore.NewKeyringWithService(serviceName)
 	t.Cleanup(func() { _ = backend.Delete(srvURL) })
 

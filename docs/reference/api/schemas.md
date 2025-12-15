@@ -390,10 +390,12 @@
   },
   "enabled": true,
   "inject_coder_mcp_tools": true,
+  "max_concurrency": 0,
   "openai": {
     "base_url": "string",
     "key": "string"
   },
+  "rate_limit": 0,
   "retention": 0
 }
 ```
@@ -406,7 +408,9 @@
 | `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
 | `enabled`                | boolean                                                              | false    |              |             |
 | `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
+| `max_concurrency`        | integer                                                              | false    |              |             |
 | `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| `rate_limit`             | integer                                                              | false    |              |             |
 | `retention`              | integer                                                              | false    |              |             |
 
 ## codersdk.AIBridgeInterception
@@ -700,10 +704,12 @@
     },
     "enabled": true,
     "inject_coder_mcp_tools": true,
+    "max_concurrency": 0,
     "openai": {
       "base_url": "string",
       "key": "string"
     },
+    "rate_limit": 0,
     "retention": 0
   }
 }
@@ -2860,10 +2866,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "enabled": true,
         "inject_coder_mcp_tools": true,
+        "max_concurrency": 0,
         "openai": {
           "base_url": "string",
           "key": "string"
         },
+        "rate_limit": 0,
         "retention": 0
       }
     },
@@ -3203,6 +3211,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "user": {}
       }
     },
+    "template_insights": {
+      "enable": true
+    },
     "terms_of_service_url": "string",
     "tls": {
       "address": {
@@ -3386,10 +3397,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "enabled": true,
       "inject_coder_mcp_tools": true,
+      "max_concurrency": 0,
       "openai": {
         "base_url": "string",
         "key": "string"
       },
+      "rate_limit": 0,
       "retention": 0
     }
   },
@@ -3729,6 +3742,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     }
   },
+  "template_insights": {
+    "enable": true
+  },
   "terms_of_service_url": "string",
   "tls": {
     "address": {
@@ -3838,6 +3854,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
+| `template_insights`                  | [codersdk.TemplateInsightsConfig](#codersdktemplateinsightsconfig)                                   | false    |              |                                                                    |
 | `terms_of_service_url`               | string                                                                                               | false    |              |                                                                    |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
@@ -7742,6 +7759,52 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
 | `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
 
+## codersdk.SharedWorkspaceActor
+
+```json
+{
+  "actor_type": "group",
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "roles": [
+    "admin"
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                   | Required | Restrictions | Description |
+|--------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `actor_type` | [codersdk.SharedWorkspaceActorType](#codersdksharedworkspaceactortype) | false    |              |             |
+| `avatar_url` | string                                                                 | false    |              |             |
+| `id`         | string                                                                 | false    |              |             |
+| `name`       | string                                                                 | false    |              |             |
+| `roles`      | array of [codersdk.WorkspaceRole](#codersdkworkspacerole)              | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value   |
+|--------------|---------|
+| `actor_type` | `group` |
+| `actor_type` | `user`  |
+
+## codersdk.SharedWorkspaceActorType
+
+```json
+"group"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+|---------|
+| `group` |
+| `user`  |
+
 ## codersdk.SlimRole
 
 ```json
@@ -8516,6 +8579,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------|---------|
 | `role`   | `admin` |
 | `role`   | `use`   |
+
+## codersdk.TemplateInsightsConfig
+
+```json
+{
+  "enable": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `enable` | boolean | false    |              |             |
 
 ## codersdk.TemplateInsightsIntervalReport
 
@@ -10333,6 +10410,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "shared_with": [
+    {
+      "actor_type": "group",
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "roles": [
+        "admin"
+      ]
+    }
+  ],
   "task_id": {
     "uuid": "string",
     "valid": true
@@ -10352,40 +10440,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                                        | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                 |
-|---------------------------------------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_renames`                             | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `automatic_updates`                         | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `autostart_schedule`                        | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `created_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `deleting_at`                               | string                                                     | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template.                                                                                       |
-| `dormant_at`                                | string                                                     | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time_til_ field on its template.                                                                                                                |
-| `favorite`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)       | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                                                                                                         |
-| `id`                                        | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `is_prebuild`                               | boolean                                                    | false    |              | Is prebuild indicates whether the workspace is a prebuilt workspace. Prebuilt workspaces are owned by the prebuilds system user and have specific behavior, such as being managed differently from regular workspaces. Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace, and IsPrebuild returns false. |
-| `last_used_at`                              | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `latest_app_status`                         | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus) | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)         | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `name`                                      | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `next_start_at`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `organization_id`                           | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `organization_name`                         | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `outdated`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `owner_avatar_url`                          | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `owner_id`                                  | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `owner_name`                                | string                                                     | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                                                                                                                   |
-| `task_id`                                   | [uuid.NullUUID](#uuidnulluuid)                             | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
-| `template_active_version_id`                | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `template_display_name`                     | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `template_icon`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `template_id`                               | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `template_name`                             | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `template_require_active_version`           | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `template_use_classic_parameter_flow`       | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `ttl_ms`                                    | integer                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `updated_at`                                | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| Name                                        | Type                                                                    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                 |
+|---------------------------------------------|-------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_renames`                             | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `automatic_updates`                         | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `autostart_schedule`                        | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `created_at`                                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `deleting_at`                               | string                                                                  | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template.                                                                                       |
+| `dormant_at`                                | string                                                                  | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time_til_ field on its template.                                                                                                                |
+| `favorite`                                  | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)                    | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                                                                                                         |
+| `id`                                        | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `is_prebuild`                               | boolean                                                                 | false    |              | Is prebuild indicates whether the workspace is a prebuilt workspace. Prebuilt workspaces are owned by the prebuilds system user and have specific behavior, such as being managed differently from regular workspaces. Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace, and IsPrebuild returns false. |
+| `last_used_at`                              | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `latest_app_status`                         | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)              | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)                      | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `name`                                      | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `next_start_at`                             | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `organization_id`                           | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `organization_name`                         | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `outdated`                                  | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `owner_avatar_url`                          | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `owner_id`                                  | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `owner_name`                                | string                                                                  | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                                                                                                                   |
+| `shared_with`                               | array of [codersdk.SharedWorkspaceActor](#codersdksharedworkspaceactor) | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `task_id`                                   | [uuid.NullUUID](#uuidnulluuid)                                          | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
+| `template_active_version_id`                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_display_name`                     | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_icon`                             | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_id`                               | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_name`                             | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_require_active_version`           | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `template_use_classic_parameter_flow`       | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `ttl_ms`                                    | integer                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
+| `updated_at`                                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 
 #### Enumerated Values
 
@@ -12326,6 +12415,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "shared_with": [
+        {
+          "actor_type": "group",
+          "avatar_url": "http://example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "roles": [
+            "admin"
+          ]
+        }
+      ],
       "task_id": {
         "uuid": "string",
         "valid": true
