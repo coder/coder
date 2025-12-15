@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -167,24 +168,35 @@ func TestWorkspaceCreationOutcomesMetricLogic(t *testing.T) {
 			if tc.shouldIncrement && tc.hasPreset {
 				expectedPresetName = tc.presetName
 			}
-			initialValue := promtest.ToFloat64(WorkspaceCreationOutcomesTotal.WithLabelValues(
+
+			// Create a test metric for this test.
+			testMetric := prometheus.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: "coderd_test",
+					Subsystem: "provisionerd_test",
+					Name:      "workspace_creation_outcomes_total_test",
+				},
+				[]string{"organization_name", "template_name", "preset_name", "status"},
+			)
+
+			initialValue := promtest.ToFloat64(testMetric.WithLabelValues(
 				orgName,
 				templateName,
 				expectedPresetName,
 				tc.expectedStatus,
 			))
 
-			// Create a test server instance with the global metric for testing.
+			// Create a test server instance with the test metric.
 			testServer := &server{
 				Database:                       db,
-				workspaceCreationOutcomesTotal: WorkspaceCreationOutcomesTotal,
+				workspaceCreationOutcomesTotal: testMetric,
 			}
 
 			// Call the actual metric increment function.
 			testServer.incrementWorkspaceCreationOutcomesMetric(ctx, workspace, workspaceBuild, job)
 
 			// Verify the metric.
-			newValue := promtest.ToFloat64(WorkspaceCreationOutcomesTotal.WithLabelValues(
+			newValue := promtest.ToFloat64(testMetric.WithLabelValues(
 				orgName,
 				templateName,
 				expectedPresetName,

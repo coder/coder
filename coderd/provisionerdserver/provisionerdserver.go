@@ -20,7 +20,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
@@ -76,20 +75,6 @@ const (
 	StaleInterval = 90 * time.Second
 )
 
-// WorkspaceCreationOutcomesTotal tracks regular (non-prebuilt) workspace
-// first build outcomes by organization, template, preset, and status.
-// This is a package-level variable for backwards compatibility with tests,
-// but in production it should be accessed via server.workspaceCreationOutcomesTotal.
-var WorkspaceCreationOutcomesTotal = promauto.NewCounterVec(
-	prometheus.CounterOpts{
-		Namespace: "coderd",
-		Subsystem: "provisionerd",
-		Name:      "workspace_creation_outcomes_total",
-		Help:      "Outcomes of regular (non-prebuilt) workspace first builds by organization, template, preset, and status.",
-	},
-	[]string{"organization_name", "template_name", "preset_name", "status"},
-)
-
 // incrementWorkspaceCreationOutcomesMetric increments the workspace creation
 // outcomes metric for first 'start' builds. This counts regular (non-prebuilt)
 // workspace creation outcomes (success/failure).
@@ -112,18 +97,14 @@ func (s *server) incrementWorkspaceCreationOutcomesMetric(ctx context.Context, w
 			}
 		}
 
-		// Use the server's metric if available, otherwise fall back to global for tests.
-		metric := s.workspaceCreationOutcomesTotal
-		if metric == nil {
-			metric = WorkspaceCreationOutcomesTotal
+		if s.workspaceCreationOutcomesTotal != nil {
+			s.workspaceCreationOutcomesTotal.WithLabelValues(
+				workspace.OrganizationName,
+				workspace.TemplateName,
+				presetName,
+				status,
+			).Inc()
 		}
-
-		metric.WithLabelValues(
-			workspace.OrganizationName,
-			workspace.TemplateName,
-			presetName,
-			status,
-		).Inc()
 	}
 }
 

@@ -617,16 +617,20 @@ func New(options *Options) *API {
 	}
 
 	// Initialize workspace creation metrics with the PrometheusRegistry.
-	if options.DeploymentValues.Prometheus.Enable && options.PrometheusRegistry != nil {
-		factory := promauto.With(options.PrometheusRegistry)
-		api.workspaceCreationAttemptsTotal = factory.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: "coderd",
-				Name:      "workspace_creation_attempts_total",
-				Help:      "Total regular (non-prebuilt) workspace creation attempts by organization, template, and preset.",
-			},
-			[]string{"organization_name", "template_name", "preset_name"},
-		)
+	factory := promauto.With(options.PrometheusRegistry)
+	api.workspaceCreationAttemptsTotal = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "coderd",
+			Name:      "workspace_creation_attempts_total",
+			Help:      "Total regular (non-prebuilt) workspace creation attempts by organization, template, and preset.",
+		},
+		[]string{"organization_name", "template_name", "preset_name"},
+	)
+
+	// Initialize provisionerdserver metrics.
+	api.ProvisionerdServerMetrics = provisionerdserver.NewMetrics(options.Logger.Named("provisionerd_metrics"))
+	if err := api.ProvisionerdServerMetrics.Register(options.PrometheusRegistry); err != nil {
+		options.Logger.Error(ctx, "failed to register provisionerdserver metrics", slog.Error(err))
 	}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
