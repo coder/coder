@@ -2472,7 +2472,8 @@ CREATE TABLE workspace_agent_devcontainers (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_folder text NOT NULL,
     config_path text NOT NULL,
-    name text NOT NULL
+    name text NOT NULL,
+    build_cache_from text[] NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
@@ -2488,6 +2489,8 @@ COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace f
 COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
 
 COMMENT ON COLUMN workspace_agent_devcontainers.name IS 'The name of the Dev Container.';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.build_cache_from IS 'External images to use as potential layer cache during devcontainer builds';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
