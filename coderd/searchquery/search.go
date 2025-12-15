@@ -405,7 +405,7 @@ func AIBridgeModels(query string, page codersdk.Pagination) (database.ListAIBrid
 	}
 
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the model
+		// Defaults to the `model` if no `key:value` pair is provided.
 		values.Add("model", term)
 		return nil
 	})
