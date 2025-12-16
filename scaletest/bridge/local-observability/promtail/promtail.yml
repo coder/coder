@@ -1,0 +1,36 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: coder-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: coder-logs
+          __path__: /var/log/coder/*
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+Z|\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})'
+      - labels:
+          filename:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+          fallback_formats:
+            - "2006-01-02 15:04:05"
+      - output:
+          source: message
+    relabel_configs:
+      - source_labels:
+          - __path__
+        target_label: filename
+        regex: '.*/([^/]+)$'
+        replacement: '${1}'
