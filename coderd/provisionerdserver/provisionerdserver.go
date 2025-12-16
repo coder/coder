@@ -74,37 +74,6 @@ const (
 	StaleInterval = 90 * time.Second
 )
 
-// incrementWorkspaceCreationOutcomesMetric increments the workspace creation
-// outcomes metric for first 'start' builds. This counts regular (non-prebuilt)
-// workspace creation outcomes (success/failure).
-func (s *server) incrementWorkspaceCreationOutcomesMetric(ctx context.Context, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, job database.ProvisionerJob) {
-	if workspaceBuild.BuildNumber == 1 &&
-		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
-		workspaceBuild.InitiatorID != database.PrebuildsSystemUserID {
-		// Determine status based on job completion.
-		status := "success"
-		if job.Error.Valid || job.ErrorCode.Valid {
-			status = "failure"
-		}
-
-		// Get preset name for labels.
-		presetName := ""
-		if workspaceBuild.TemplateVersionPresetID.Valid {
-			preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
-			if err == nil {
-				presetName = preset.Name
-			}
-		}
-
-		s.metrics.workspaceCreationOutcomesTotal.WithLabelValues(
-			workspace.OrganizationName,
-			workspace.TemplateName,
-			presetName,
-			status,
-		).Inc()
-	}
-}
-
 type Options struct {
 	OIDCConfig          promoauth.OAuth2Config
 	ExternalAuthConfigs []*externalauth.Config
@@ -2320,12 +2289,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("complete job: %w", err)
 	}
 
-	// Increment workspace creation outcomes metric for first 'start' builds.
-	// This counts regular (non-prebuilt) workspace creation outcomes (success/failure).
-	if s.metrics != nil {
-		s.incrementWorkspaceCreationOutcomesMetric(ctx, workspace, workspaceBuild, job)
-	}
-
 	// Post-transaction operations (operations that do not require transactions or
 	// are external to the database, like audit logging, notifications, etc.)
 
@@ -2388,29 +2351,27 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 	}
 
-	// Update workspace (regular and prebuild) timing metrics
-	// Only consider 'start' workspace builds
+	// Update workspace (regular and prebuild) timing and outcome metrics.
+	// Only consider 'start' workspace builds.
 	if s.metrics != nil && workspaceBuild.Transition == database.WorkspaceTransitionStart {
-		// Get the updated job to report the metrics with correct data
+		// Get the updated job to report the metrics with correct data.
 		updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
 		if err != nil {
 			s.Logger.Error(ctx, "get updated job from database", slog.Error(err))
-		} else
-		// Only consider 'succeeded' provisioner jobs
-		if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
+		} else {
+			// Get preset name for metrics labels.
 			presetName := ""
 			if workspaceBuild.TemplateVersionPresetID.Valid {
 				preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
 				if err != nil {
 					if !errors.Is(err, sql.ErrNoRows) {
-						s.Logger.Error(ctx, "get preset by ID for workspace timing metrics", slog.Error(err))
+						s.Logger.Error(ctx, "get preset by ID for workspace metrics", slog.Error(err))
 					}
 				} else {
 					presetName = preset.Name
 				}
 			}
 
-			buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
 			flags := WorkspaceTimingFlags{
 				// Is a prebuilt workspace creation build
 				IsPrebuild: input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
@@ -2420,15 +2381,32 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// Only consider the first build number for regular workspaces
 				IsFirstBuild: workspaceBuild.BuildNumber == 1,
 			}
-			// Only track metrics for prebuild creation, prebuild claims and workspace creation
+
+			// Only track metrics for prebuild creation, prebuild claims and workspace creation.
 			if flags.IsTrackable() {
-				s.metrics.UpdateWorkspaceTimingsMetrics(
+				jobSucceeded := updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded
+
+				// Update timing metrics only for succeeded jobs.
+				if jobSucceeded {
+					buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
+					s.metrics.UpdateWorkspaceTimingsMetrics(
+						ctx,
+						flags,
+						workspace.OrganizationName,
+						workspace.TemplateName,
+						presetName,
+						buildTime,
+					)
+				}
+
+				// Update outcomes metric for both succeeded and failed jobs.
+				s.metrics.UpdateWorkspaceCreationOutcomesMetric(
 					ctx,
 					flags,
 					workspace.OrganizationName,
 					workspace.TemplateName,
 					presetName,
-					buildTime,
+					jobSucceeded,
 				)
 			}
 		}

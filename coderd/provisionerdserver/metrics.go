@@ -167,3 +167,37 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 		// Not a trackable build type (e.g. restart, stop, subsequent builds)
 	}
 }
+
+// UpdateWorkspaceCreationOutcomesMetric increments the workspace creation
+// outcomes counter for regular (non-prebuilt) workspace first builds.
+func (m *Metrics) UpdateWorkspaceCreationOutcomesMetric(
+	ctx context.Context,
+	flags WorkspaceTimingFlags,
+	organizationName string,
+	templateName string,
+	presetName string,
+	jobSucceeded bool,
+) {
+	// Only track regular workspace creation (not prebuilds or claims)
+	if getWorkspaceTimingType(flags) != WorkspaceCreation {
+		return
+	}
+
+	status := "success"
+	if !jobSucceeded {
+		status = "failure"
+	}
+
+	m.logger.Debug(ctx, "update workspace creation outcomes metric",
+		"organizationName", organizationName,
+		"templateName", templateName,
+		"presetName", presetName,
+		"status", status)
+
+	m.workspaceCreationOutcomesTotal.WithLabelValues(
+		organizationName,
+		templateName,
+		presetName,
+		status,
+	).Inc()
+}
