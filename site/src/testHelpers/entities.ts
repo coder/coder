@@ -1451,6 +1451,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 	dormant_at: null,
 	next_start_at: null,
 	is_prebuild: false,
+	shared_with: [],
 };
 
 export const MockPrebuiltWorkspace = {
@@ -4502,6 +4503,7 @@ export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
 	allow_refresh: true,
 	allow_validate: true,
 	supports_revocation: false,
+	code_challenge_methods_supported: ["S256"],
 };
 
 export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {

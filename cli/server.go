@@ -186,6 +186,14 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		secondaryClaimsSrc = coderd.MergedClaimsSourceAccessToken
 	}
 
+	var pkceSupport struct {
+		CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod `json:"code_challenge_methods_supported"`
+	}
+	err = oidcProvider.Claims(&pkceSupport)
+	if err != nil {
+		return nil, xerrors.Errorf("pkce detect in claims: %w", err)
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -206,6 +214,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
+		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
 	}, nil
 }
 
@@ -2761,6 +2770,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.MCPToolAllowRegex = v.Value
 		case "MCP_TOOL_DENY_REGEX":
 			provider.MCPToolDenyRegex = v.Value
+		case "PKCE_METHODS":
+			provider.CodeChallengeMethodsSupported = strings.Split(v.Value, " ")
 		}
 		providers[providerNum] = provider
 	}

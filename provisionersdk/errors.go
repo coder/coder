@@ -10,10 +10,18 @@ func ParseErrorf(format string, args ...any) *proto.ParseComplete {
 	return &proto.ParseComplete{Error: fmt.Sprintf(format, args...)}
 }
 
+func InitErrorf(format string, args ...any) *proto.InitComplete {
+	return &proto.InitComplete{Error: fmt.Sprintf(format, args...)}
+}
+
 func PlanErrorf(format string, args ...any) *proto.PlanComplete {
 	return &proto.PlanComplete{Error: fmt.Sprintf(format, args...)}
 }
 
 func ApplyErrorf(format string, args ...any) *proto.ApplyComplete {
 	return &proto.ApplyComplete{Error: fmt.Sprintf(format, args...)}
+}
+
+func GraphError(format string, args ...any) *proto.GraphComplete {
+	return &proto.GraphComplete{Error: fmt.Sprintf(format, args...)}
 }

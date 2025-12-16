@@ -91,6 +91,12 @@ sql:
           - column: "workspaces_expanded.group_acl"
             go_type:
               type: "WorkspaceACL"
+          - column: "workspaces_expanded.user_acl_display_info"
+            go_type:
+              type: "WorkspaceACLDisplayInfo"
+          - column: "workspaces_expanded.group_acl_display_info"
+            go_type:
+              type: "WorkspaceACLDisplayInfo"
           - column: "notification_templates.actions"
             go_type:
               type: "[]byte"
@@ -159,6 +165,8 @@ sql:
           jwt: JWT
           user_acl: UserACL
           group_acl: GroupACL
+          user_acl_display_info: UserACLDisplayInfo
+          group_acl_display_info: GroupACLDisplayInfo
           troubleshooting_url: TroubleshootingURL
           default_ttl: DefaultTTL
           motd_file: MOTDFile
