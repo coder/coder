@@ -120,7 +120,7 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 		stream.messages <- up
 
 		err := server.UploadFile(stream)
-		require.ErrorContains(t, err, "unexpected file upload while waiting for file completion")
+		require.ErrorContains(t, err, "unexpected file download while waiting for file completion")
 		require.True(t, stream.isDone(), "stream should be done after error")
 	})
 

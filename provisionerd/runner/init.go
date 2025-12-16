@@ -12,16 +12,58 @@ import (
 )
 
 //nolint:revive
-func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []byte) (*sdkproto.InitComplete, *proto.FailedJob) {
+func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []byte, moduleTar []byte) (*sdkproto.InitComplete, *proto.FailedJob) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
+
+	// If `moduleTar` is populated, `init` will send it over in multiple parts. This
+	// It must be called before the initial request to populate the correct hash if
+	// there is data to send. This is safe to call on nil or empty slices.
+	data, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleTar)
+
+	hash := []byte{}
+	if len(moduleTar) > 0 {
+		hash = data.DataHash
+	}
 
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Init{Init: &sdkproto.InitRequest{
 		TemplateSourceArchive: templateArchive,
 		OmitModuleFiles:       omitModules,
+		InitialModuleTarHash:  hash,
 	}}})
 	if err != nil {
 		return nil, r.failedJobf("send init request: %v", err)
+	}
+
+	// If the module tar exists, send over the data.
+	if len(moduleTar) > 0 {
+		err = r.session.Send(&sdkproto.Request{
+			Type: &sdkproto.Request_File{
+				File: &sdkproto.FileUpload{
+					Type: &sdkproto.FileUpload_DataUpload{
+						DataUpload: data,
+					},
+				},
+			},
+		})
+		if err != nil {
+			return nil, r.failedJobf("send module files data upload: %v", err)
+		}
+
+		for _, c := range chunks {
+			err = r.session.Send(&sdkproto.Request{
+				Type: &sdkproto.Request_File{
+					File: &sdkproto.FileUpload{
+						Type: &sdkproto.FileUpload_ChunkPiece{
+							ChunkPiece: c,
+						},
+					},
+				},
+			})
+			if err != nil {
+				return nil, r.failedJobf("send module files chunk: %v", err)
+			}
+		}
 	}
 
 	nevermind := make(chan struct{})
