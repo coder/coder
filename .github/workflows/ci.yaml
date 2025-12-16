@@ -207,6 +207,22 @@ jobs:
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: v3.9.2
+        continue-on-error: true
+        id: setup-helm
+
+      - name: Install helm (fallback)
+        if: steps.setup-helm.outcome == 'failure'
+        # Fallback to Buildkite's apt repository if get.helm.sh is down.
+        # See: https://github.com/coder/internal/issues/1109
+        run: |
+          set -euo pipefail
+          curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+          sudo apt-get update
+          sudo apt-get install -y helm=3.9.2-1
+
+      - name: Verify helm version
+        run: helm version --short
 
       - name: make lint
         run: |
