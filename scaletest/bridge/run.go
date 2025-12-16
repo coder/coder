@@ -29,14 +29,16 @@ import (
 	"github.com/coder/quartz"
 )
 
-type tracingContextKey struct{}
-type tracingContext struct {
-	provider   string
-	model      string
-	stream     bool
-	requestNum int
-	mode       RequestMode
-}
+type (
+	tracingContextKey struct{}
+	tracingContext    struct {
+		provider   string
+		model      string
+		stream     bool
+		requestNum int
+		mode       RequestMode
+	}
+)
 
 type tracingTransport struct {
 	cfg        Config
