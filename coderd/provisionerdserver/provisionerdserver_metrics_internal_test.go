@@ -181,16 +181,17 @@ func TestWorkspaceCreationOutcomesMetricLogic(t *testing.T) {
 			))
 
 			// Create a test server instance with the test metrics.
+
 			testServer := &server{
-				Database:                       db,
-				workspaceCreationOutcomesTotal: testMetrics.workspaceCreationOutcomesTotal,
+				Database: db,
+				metrics:  testMetrics,
 			}
 
 			// Call the actual metric increment function.
 			testServer.incrementWorkspaceCreationOutcomesMetric(ctx, workspace, workspaceBuild, job)
 
 			// Verify the metric.
-			newValue := promtest.ToFloat64(testMetrics.workspaceCreationOutcomesTotal.WithLabelValues(
+			newValue := promtest.ToFloat64(testServer.metrics.workspaceCreationOutcomesTotal.WithLabelValues(
 				orgName,
 				templateName,
 				expectedPresetName,

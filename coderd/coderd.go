@@ -1862,7 +1862,6 @@ type API struct {
 
 	metricsCache                   *metricscache.Cache
 	workspaceCreationAttemptsTotal *prometheus.CounterVec
-	workspaceCreationOutcomesTotal *prometheus.CounterVec
 	updateChecker                  *updatecheck.Checker
 	WorkspaceAppsProvider          workspaceapps.SignedTokenProvider
 	workspaceAppServer             *workspaceapps.Server

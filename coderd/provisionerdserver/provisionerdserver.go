@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
@@ -97,14 +96,12 @@ func (s *server) incrementWorkspaceCreationOutcomesMetric(ctx context.Context, w
 			}
 		}
 
-		if s.workspaceCreationOutcomesTotal != nil {
-			s.workspaceCreationOutcomesTotal.WithLabelValues(
-				workspace.OrganizationName,
-				workspace.TemplateName,
-				presetName,
-				status,
-			).Inc()
-		}
+		s.metrics.workspaceCreationOutcomesTotal.WithLabelValues(
+			workspace.OrganizationName,
+			workspace.TemplateName,
+			presetName,
+			status,
+		).Inc()
 	}
 }
 
@@ -156,8 +153,6 @@ type server struct {
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 	UsageInserter               *atomic.Pointer[usage.Inserter]
 	Experiments                 codersdk.Experiments
-
-	workspaceCreationOutcomesTotal *prometheus.CounterVec
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -292,11 +287,6 @@ func NewServer(
 		UsageInserter:               usageInserter,
 		metrics:                     metrics,
 		Experiments:                 experiments,
-	}
-
-	// Set workspace creation outcomes metric from metrics struct if available.
-	if metrics != nil {
-		s.workspaceCreationOutcomesTotal = metrics.workspaceCreationOutcomesTotal
 	}
 
 	if s.heartbeatFn == nil {
@@ -2332,7 +2322,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 	// Increment workspace creation outcomes metric for first 'start' builds.
 	// This counts regular (non-prebuilt) workspace creation outcomes (success/failure).
-	s.incrementWorkspaceCreationOutcomesMetric(ctx, workspace, workspaceBuild, job)
+	if s.metrics != nil {
+		s.incrementWorkspaceCreationOutcomesMetric(ctx, workspace, workspaceBuild, job)
+	}
 
 	// Post-transaction operations (operations that do not require transactions or
 	// are external to the database, like audit logging, notifications, etc.)

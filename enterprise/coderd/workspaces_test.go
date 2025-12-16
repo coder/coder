@@ -2940,9 +2940,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := testutil.Logger(t)
 	reg := prometheus.NewRegistry()
-	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger)
-	err := provisionerdserverMetrics.Register(reg)
-	require.NoError(t, err)
+	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger, reg)
 	client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Database:                  db,
