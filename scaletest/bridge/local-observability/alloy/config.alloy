@@ -10,7 +10,7 @@ pyroscope.scrape "coderd" {
   ]
 
 	authorization {
-		credentials = "OUEi29lgBh-ovSmaMtFxosBF9Hicg7z4N"
+		credentials = ""
 		type = "Bearer"
 	}
 
