@@ -1,0 +1,31 @@
+# Pyroscope server configuration
+# This configures Pyroscope to collect profiling data from Go processes
+
+# Storage configuration
+storage:
+  # Path where Pyroscope will store data
+  path: /var/lib/pyroscope
+  # Retention period (30 days = 720 hours)
+  retention: 720h
+
+# Server configuration
+server:
+  # HTTP API address
+  api-bind-address: :4040
+  # Base URL for the UI (adjust if behind a proxy)
+  base-url: http://localhost:4040
+
+# Ingest configuration
+# Pyroscope can ingest from:
+# 1. HTTP endpoint (pprof format) - configure scrape targets below
+# 2. Direct push from Go applications using pyroscope client
+ingestion:
+  # Maximum number of samples per second
+  max_ingestion_rate: 10000
+
+# Logging
+log-level: info
+
+# Note: Pyroscope server mode doesn't natively support scraping pprof endpoints.
+# Grafana Alloy is used to scrape pprof endpoints and forward to Pyroscope.
+# See README.md for configuration details.

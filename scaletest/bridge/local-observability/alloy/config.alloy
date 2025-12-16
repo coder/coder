@@ -1,0 +1,91 @@
+// Grafana Alloy configuration to scrape pprof from develop.sh and forward to Pyroscope
+// The develop.sh server exposes pprof at /api/v2/debug/pprof/ instead of /debug/pprof/
+
+pyroscope.scrape "coderd" {
+  targets = [
+    {
+      "__address__" = "host.docker.internal:3000",
+      "service_name" = "coderd",
+    },
+  ]
+
+	authorization {
+		credentials = "OUEi29lgBh-ovSmaMtFxosBF9Hicg7z4N"
+		type = "Bearer"
+	}
+
+  forward_to = [pyroscope.write.local.receiver]
+
+  profiling_config {
+    profile.process_cpu {
+      enabled = true
+      delta = true
+      path = "/api/v2/debug/pprof/profile"
+    }
+    profile.memory {
+      enabled = true
+      path = "/api/v2/debug/pprof/allocs"
+    }
+    profile.goroutine {
+      enabled = true
+      path = "/api/v2/debug/pprof/goroutine"
+    }
+    profile.block {
+      enabled = false
+      path = "/api/v2/debug/pprof/block"
+    }
+    profile.mutex {
+      enabled = false
+      path = "/api/v2/debug/pprof/mutex"
+    }
+  }
+
+  delta_profiling_duration="2s"
+  scrape_interval = "3s"
+  scrape_timeout = "10s"
+}
+
+pyroscope.scrape "llmmock" {
+  targets = [
+		{
+      "__address__" = "host.docker.internal:6061",
+      "service_name" = "llmmock",
+		},
+  ]
+
+	forward_to = [pyroscope.write.local.receiver]
+
+  profiling_config {
+    profile.process_cpu {
+      enabled = true
+      delta = true
+      path = "/debug/pprof/profile"
+    }
+    profile.memory {
+      enabled = true
+      path = "/debug/pprof/allocs"
+    }
+    profile.goroutine {
+      enabled = true
+      path = "/debug/pprof/goroutine"
+    }
+    profile.block {
+      enabled = false
+      path = "/debug/pprof/block"
+    }
+    profile.mutex {
+      enabled = false
+      path = "/debug/pprof/mutex"
+    }
+  }
+
+  delta_profiling_duration="2s"
+  scrape_interval = "3s"
+  scrape_timeout = "10s"
+}
+
+pyroscope.write "local" {
+  endpoint {
+    url = "http://pyroscope:4040/"
+  }
+}
