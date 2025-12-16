@@ -221,6 +221,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y helm=3.9.2-1
 
+      - name: Verify helm version
+        run: helm version --short
+
       - name: make lint
         run: |
           # zizmor isn't included in the lint target because it takes a while,
