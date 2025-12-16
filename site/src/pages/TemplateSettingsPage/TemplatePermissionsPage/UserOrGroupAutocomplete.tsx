@@ -1,17 +1,19 @@
-import { css } from "@emotion/react";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { templaceACLAvailable } from "api/queries/templates";
 import type { Group, ReducedUser } from "api/typesGenerated";
-import { AvatarData } from "components/Avatar/AvatarData";
+import {
+	isGroup,
+	UserOrGroupOption,
+} from "components/UserOrGroupAutocomplete/UserOrGroupOption";
 import { useDebouncedFunction } from "hooks/debounce";
 import { type ChangeEvent, type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
-import { getGroupSubtitle } from "utils/groups";
 
 export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
+type AutocompleteOption = Exclude<UserOrGroupAutocompleteValue, null>;
 
 type UserOrGroupAutocompleteProps = {
 	value: UserOrGroupAutocompleteValue;
@@ -38,7 +40,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 		enabled: autoComplete.open,
 		placeholderData: keepPreviousData,
 	});
-	const options = aclAvailableQuery.data
+	const options: AutocompleteOption[] = aclAvailableQuery.data
 		? [
 				...aclAvailableQuery.data.groups,
 				...aclAvailableQuery.data.users,
@@ -81,68 +83,38 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			onChange={(_, newValue) => {
 				onChange(newValue);
 			}}
-			isOptionEqualToValue={(option, value) => option.id === value.id}
+			isOptionEqualToValue={(option, optionValue) =>
+				option.id === optionValue.id
+			}
 			getOptionLabel={(option) =>
 				isGroup(option) ? option.display_name || option.name : option.email
 			}
-			renderOption={(props, option) => {
-				const isOptionGroup = isGroup(option);
-
-				return (
-					<li {...props}>
-						<AvatarData
-							title={
-								isOptionGroup
-									? option.display_name || option.name
-									: option.username
-							}
-							subtitle={isOptionGroup ? getGroupSubtitle(option) : option.email}
-							src={option.avatar_url}
-						/>
-					</li>
-				);
-			}}
+			renderOption={({ key, ...props }, option) => (
+				<UserOrGroupOption key={key} htmlProps={props} option={option} />
+			)}
 			options={options}
 			loading={aclAvailableQuery.isFetching}
-			css={autoCompleteStyles}
+			className="w-[300px] [&_.MuiFormControl-root]:w-full [&_.MuiInputBase-root]:w-full"
 			renderInput={(params) => (
-				<>
-					<TextField
-						{...params}
-						margin="none"
-						size="small"
-						placeholder="Search for user or group"
-						InputProps={{
-							...params.InputProps,
-							onChange: handleFilterChange,
-							endAdornment: (
-								<>
-									{aclAvailableQuery.isFetching ? (
-										<CircularProgress size={16} />
-									) : null}
-									{params.InputProps.endAdornment}
-								</>
-							),
-						}}
-					/>
-				</>
+				<TextField
+					{...params}
+					margin="none"
+					size="small"
+					placeholder="Search for user or group"
+					InputProps={{
+						...params.InputProps,
+						onChange: handleFilterChange,
+						endAdornment: (
+							<>
+								{aclAvailableQuery.isFetching ? (
+									<CircularProgress size={16} />
+								) : null}
+								{params.InputProps.endAdornment}
+							</>
+						),
+					}}
+				/>
 			)}
 		/>
 	);
 };
-
-const isGroup = (value: UserOrGroupAutocompleteValue): value is Group => {
-	return value !== null && "members" in value;
-};
-
-const autoCompleteStyles = css`
-  width: 300px;
-
-  & .MuiFormControl-root {
-    width: 100%;
-  }
-
-  & .MuiInputBase-root {
-    width: 100%;
-  }
-`;

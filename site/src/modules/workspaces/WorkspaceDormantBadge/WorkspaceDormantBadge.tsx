@@ -1,6 +1,10 @@
-import Tooltip from "@mui/material/Tooltip";
 import type { Workspace } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import {
 	DATE_FORMAT,
@@ -16,34 +20,32 @@ export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
 	workspace,
 }) => {
 	return workspace.deleting_at ? (
-		<Tooltip
-			title={
-				<>
-					This workspace has not been used for{" "}
-					{relativeTimeWithoutSuffix(workspace.last_used_at)} and has been
-					marked dormant. It is scheduled to be deleted on{" "}
-					{formatDateTime(workspace.deleting_at, DATE_FORMAT.FULL_DATETIME)}.
-				</>
-			}
-		>
-			<Badge role="status" variant="destructive" size="xs">
-				Deletion Pending
-			</Badge>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Badge role="status" variant="destructive" size="xs">
+					Deletion Pending
+				</Badge>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-xs">
+				This workspace has not been used for{" "}
+				{relativeTimeWithoutSuffix(workspace.last_used_at)} and has been marked
+				dormant. It is scheduled to be deleted on{" "}
+				{formatDateTime(workspace.deleting_at, DATE_FORMAT.FULL_DATETIME)}.
+			</TooltipContent>
 		</Tooltip>
 	) : (
-		<Tooltip
-			title={
-				<>
-					This workspace has not been used for{" "}
-					{relativeTimeWithoutSuffix(workspace.last_used_at)} and has been
-					marked dormant. It is not scheduled for auto-deletion but will become
-					a candidate if auto-deletion is enabled on this template.
-				</>
-			}
-		>
-			<Badge role="status" variant="warning" size="xs">
-				Dormant
-			</Badge>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Badge role="status" variant="warning" size="xs">
+					Dormant
+				</Badge>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-xs">
+				This workspace has not been used for{" "}
+				{relativeTimeWithoutSuffix(workspace.last_used_at)} and has been marked
+				dormant. It is not scheduled for auto-deletion but will become a
+				candidate if auto-deletion is enabled on this template.
+			</TooltipContent>
 		</Tooltip>
 	);
 };

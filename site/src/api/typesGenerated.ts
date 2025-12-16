@@ -1790,6 +1790,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
+	readonly template_insights?: TemplateInsightsConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -2003,6 +2004,11 @@ export interface ExternalAuthConfig {
 	 * DisplayIcon is a URL to an icon to display in the UI.
 	 */
 	readonly display_icon: string;
+	/**
+	 * CodeChallengeMethodsSupported lists the PKCE code challenge methods
+	 * The only one supported by Coder is "S256".
+	 */
+	readonly code_challenge_methods_supported: readonly string[];
 }
 
 // From codersdk/externalauth.go
@@ -2052,6 +2058,7 @@ export interface ExternalAuthLinkProvider {
 	readonly allow_refresh: boolean;
 	readonly allow_validate: boolean;
 	readonly supports_revocation: boolean;
+	readonly code_challenge_methods_supported: readonly string[];
 }
 
 // From codersdk/externalauth.go
@@ -2179,7 +2186,11 @@ export interface GetInboxNotificationResponse {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
-	readonly offset: string;
+	/**
+	 * Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
+	 * for the local timezone.
+	 */
+	readonly offset: number;
 }
 
 // From codersdk/insights.go
@@ -3044,6 +3055,14 @@ export interface OAuth2GithubConfig {
 	readonly allow_everyone: boolean;
 	readonly enterprise_base_url: string;
 }
+
+// From codersdk/client.go
+/**
+ * OAuth2PKCEVerifier is the name of the cookie that stores the oauth2 PKCE
+ * verifier. This is the raw verifier that when hashed, will match the challenge
+ * sent in the initial oauth2 request.
+ */
+export const OAuth2PKCEVerifier = "oauth_pkce_verifier";
 
 // From codersdk/oauth2.go
 /**
@@ -4530,6 +4549,23 @@ export interface SessionLifetime {
  */
 export const SessionTokenHeader = "Coder-Session-Token";
 
+// From codersdk/workspaces.go
+export interface SharedWorkspaceActor {
+	readonly id: string;
+	readonly actor_type: SharedWorkspaceActorType;
+	readonly name: string;
+	readonly avatar_url?: string;
+	readonly roles: readonly WorkspaceRole[];
+}
+
+// From codersdk/workspaces.go
+export type SharedWorkspaceActorType = "group" | "user";
+
+export const SharedWorkspaceActorTypes: SharedWorkspaceActorType[] = [
+	"group",
+	"user",
+];
+
 // From codersdk/client.go
 /**
  * SignedAppTokenCookie is the name of the cookie that stores a temporary
@@ -5074,6 +5110,11 @@ export interface TemplateFilter {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
 	readonly role: TemplateRole;
+}
+
+// From codersdk/deployment.go
+export interface TemplateInsightsConfig {
+	readonly enable: boolean;
 }
 
 // From codersdk/insights.go
@@ -5942,6 +5983,7 @@ export interface Workspace {
 	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	 */
 	readonly task_id?: string;
+	readonly shared_with?: readonly SharedWorkspaceActor[];
 }
 
 // From codersdk/workspaces.go
