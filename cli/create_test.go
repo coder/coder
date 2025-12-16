@@ -297,6 +297,87 @@ func TestCreate(t *testing.T) {
 			assert.Nil(t, ws.AutostartSchedule, "expected workspace autostart schedule to be nil")
 		}
 	})
+
+	t.Run("NoWait", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "-y", "--no-wait")
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		err := inv.Run()
+		require.NoError(t, err)
+
+		pty.ExpectMatch("Building in the background")
+
+		// Workspace should exist even though we didn't wait
+		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, template.Name, ws.TemplateName)
+	})
+
+	t.Run("NoPrompt/MissingWorkspaceName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Don't provide workspace name and use --no-prompt
+		inv, root := clitest.New(t, "create", "--no-prompt", "-y")
+		clitest.SetupConfig(t, member, root)
+
+		err := inv.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "workspace name is required")
+	})
+
+	t.Run("NoPrompt/MissingTemplateName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Don't provide template name and use --no-prompt
+		inv, root := clitest.New(t, "create", "my-workspace", "--no-prompt", "-y")
+		clitest.SetupConfig(t, member, root)
+
+		err := inv.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "template name is required")
+	})
+
+	t.Run("NoPrompt/Success", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Provide all required values so no prompts are needed
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--no-prompt", "-y")
+		clitest.SetupConfig(t, member, root)
+
+		err := inv.Run()
+		require.NoError(t, err)
+
+		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, template.Name, ws.TemplateName)
+	})
 }
 
 func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.Preset) *echo.Responses {
