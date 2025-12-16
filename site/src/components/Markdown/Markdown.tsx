@@ -86,7 +86,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 						<code
 							{...props}
 							className={cn([
-								"py-[1px] px-1 rounded-sm text-sm leading-none",
+								"py-px px-1 rounded-sm text-sm leading-none",
 								"bg-surface-tertiary dark:bg-surface-quaternary",
 								"text-content-primary",
 								props.className,
