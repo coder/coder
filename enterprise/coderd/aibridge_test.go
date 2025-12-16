@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"database/sql"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -636,6 +637,66 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestAIBridgeRouting(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	// Register a simple test handler that echoes back the request path.
+	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write([]byte(r.URL.Path))
+	})
+	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+
+	cases := []struct {
+		name         string
+		path         string
+		expectedPath string
+	}{
+		{
+			name:         "StablePrefix",
+			path:         "/api/v2/aibridge/openai/v1/chat/completions",
+			expectedPath: "/openai/v1/chat/completions",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+tc.path, nil)
+			require.NoError(t, err)
+			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+			httpClient := &http.Client{}
+			resp, err := httpClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// Verify that the prefix was stripped correctly and the path was forwarded.
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedPath, string(body))
+		})
+	}
 }
 
 func TestAIBridgeRateLimiting(t *testing.T) {
