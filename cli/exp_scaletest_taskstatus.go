@@ -14,6 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/serpent"
@@ -143,7 +145,13 @@ After all runners connect, it waits for the baseline duration before triggering 
 					return xerrors.Errorf("validate config for runner %d: %w", i, err)
 				}
 
-				var runner harness.Runnable = taskstatus.NewRunner(client, cfg)
+				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
+				// requests being unbalanced among Coder instances.
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				if err != nil {
+					return xerrors.Errorf("create runner client: %w", err)
+				}
+				var runner harness.Runnable = taskstatus.NewRunner(runnerClient, cfg)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
