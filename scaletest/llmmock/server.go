@@ -165,7 +165,7 @@ func (s *Server) startAPIServer(ctx context.Context) error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(s.address))
+	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return xerrors.Errorf("listen on %s: %w", s.address, err)
 	}
