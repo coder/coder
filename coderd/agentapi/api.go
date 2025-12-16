@@ -174,6 +174,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.MetadataAPI = &MetadataAPI{
+		AgentID:   opts.AgentID,
 		AgentFn:   api.agent,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,

@@ -18,6 +18,7 @@ import (
 )
 
 type MetadataAPI struct {
+	AgentID   uuid.UUID
 	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
 	Workspace *CachedWorkspaceFields
 	Database  database.Store
@@ -51,25 +52,39 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	// call GetWorkspaceByAgentID on every metadata update.
 	var err error
 	rbacCtx := ctx
+	hasRBACObject := false
 	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
 		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
 		if err != nil {
 			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
 			//nolint:gocritic
 			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
+		} else {
+			hasRBACObject = true
 		}
 	}
 
-	workspaceAgent, err := a.AgentFn(rbacCtx)
-	if err != nil {
-		return nil, err
+	// Fast path: If we have the RBAC object in context, we can skip fetching
+	// the agent from the database since we only need the agent ID, which we
+	// already have. The RBAC object will be used for authorization in the
+	// UpdateWorkspaceAgentMetadata call.
+	var agentID uuid.UUID
+	if hasRBACObject {
+		agentID = a.AgentID
+	} else {
+		// Slow path: Fetch the agent from the database for authorization.
+		workspaceAgent, err := a.AgentFn(rbacCtx)
+		if err != nil {
+			return nil, err
+		}
+		agentID = workspaceAgent.ID
 	}
 
 	var (
 		collectedAt = a.now()
 		allKeysLen  = 0
 		dbUpdate    = database.UpdateWorkspaceAgentMetadataParams{
-			WorkspaceAgentID: workspaceAgent.ID,
+			WorkspaceAgentID: agentID,
 			// These need to be `make(x, 0, len(req.Metadata))` instead of
 			// `make(x, len(req.Metadata))` because we may not insert all
 			// metadata if the keys are large.
@@ -134,7 +149,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	if err != nil {
 		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
 	}
-	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
+	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(agentID), payload)
 	if err != nil {
 		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
 	}
