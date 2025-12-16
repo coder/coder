@@ -205,7 +205,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 				code: ({ node, className, children, style, ...props }) => (
 					<code
 						className={cn(
-							"py-[1px] px-1 rounded-sm text-sm leading-none text-content-primary",
+							"py-px px-1 rounded-sm text-sm leading-none text-content-primary",
 							"bg-surface-tertiary dark:bg-surface-quaternary",
 						)}
 						{...props}
