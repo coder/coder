@@ -947,7 +947,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		t.Skip("unix domain sockets are not fully supported on Windows")
 	}
 	ctx := testutil.Context(t, testutil.WaitLong)
-	tmpdir := tempDirUnixSocket(t)
+	tmpdir := testutil.TempDirUnixSocket(t)
 	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
 
 	l, err := net.Listen("unix", remoteSocketPath)
@@ -975,7 +975,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		t.Skip("unix domain sockets are not fully supported on Windows")
 	}
 
-	tmpdir := tempDirUnixSocket(t)
+	tmpdir := testutil.TempDirUnixSocket(t)
 	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -3464,29 +3464,6 @@ func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected 
 	if expectedRe != nil {
 		require.Regexp(t, expectedRe, stdout.String())
 	}
-}
-
-// tempDirUnixSocket returns a temporary directory that can safely hold unix
-// sockets (probably).
-//
-// During tests on darwin we hit the max path length limit for unix sockets
-// pretty easily in the default location, so this function uses /tmp instead to
-// get shorter paths.
-func tempDirUnixSocket(t *testing.T) string {
-	t.Helper()
-	if runtime.GOOS == "darwin" {
-		testName := strings.ReplaceAll(t.Name(), "/", "_")
-		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
-		require.NoError(t, err, "create temp dir for gpg test")
-
-		t.Cleanup(func() {
-			err := os.RemoveAll(dir)
-			assert.NoError(t, err, "remove temp dir", dir)
-		})
-		return dir
-	}
-
-	return t.TempDir()
 }
 
 func TestAgent_Metrics_SSH(t *testing.T) {
