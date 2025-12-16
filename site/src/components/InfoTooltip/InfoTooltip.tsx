@@ -31,8 +31,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 				className="opacity-100 hover:opacity-100"
 			>
 				<HelpTooltipIcon
-					style={{ "--icon-color": iconColor }}
-					className="text-[var(--icon-color)]"
+					style={{ color: iconColor }}
 				/>
 			</HelpTooltipIconTrigger>
 			<HelpTooltipContent>
