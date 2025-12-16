@@ -130,7 +130,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell className="min-w-0">
 					{/*
-						This looks scary, but essentially what we're doing is ensuring that the
+						This is ensuring that the
 						prompt is truncated and won't escape its bounding container with an `absolute`.
 
 						Alternatively we could use a `table-fixed` table, but that would break worse
