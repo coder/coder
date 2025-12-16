@@ -127,6 +127,6 @@ cumbersome, especially if you want to "seed" organizations with provisioners and
 starter templates.
 
 Support for managing Organizations via the coderd Terrafom provider was introduced
-with the v0.0.8 release. Additional organization management functionality has been 
+with the v0.0.8 release. Additional organization management functionality has been
 added with subsequent releases, see [https://github.com/coder/terraform-provider-coderd/releases](https://github.com/coder/terraform-provider-coderd/releases)
 for release information.
