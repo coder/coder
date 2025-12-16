@@ -34,8 +34,8 @@ import {
 } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { getGroupSubtitle } from "modules/groups";
 import type { FC, ReactNode } from "react";
-import { getGroupSubtitle } from "utils/groups";
 
 interface RoleSelectProps {
 	value: WorkspaceRole;
@@ -95,12 +95,7 @@ export const AddWorkspaceMemberForm: FC<AddWorkspaceMemberFormProps> = ({
 	children,
 }) => {
 	return (
-		<form
-			onSubmit={(event) => {
-				event.preventDefault();
-				onSubmit();
-			}}
-		>
+		<form action={onSubmit}>
 			<div className="flex flex-row items-center gap-2">
 				{children}
 				<Button disabled={disabled || isLoading} type="submit">
