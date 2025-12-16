@@ -129,11 +129,13 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell className="min-w-0">
 					{/*
-						This is ensuring that the
-						prompt is truncated and won't escape its bounding container with an `absolute`.
+						This is ensuring that the prompt is truncated and won't escape its bounding
+						container with an `absolute`.
 
 						Alternatively we could use a `table-fixed` table, but that would break worse
-						on mobile with the `min-w-0`. This is a bit of a hack, but it works.
+						on mobile with the `min-w-0` column required.
+
+						This is a bit of a hack, but it works.
 					*/}
 					<div className="w-full h-4 min-w-48 relative">
 						<div className="absolute inset-0 leading-none overflow-hidden truncate">
