@@ -642,6 +642,7 @@ AIBRIDGED_MOCKS := \
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
+	agent/proto/boundary_logs/logs.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
@@ -695,6 +696,7 @@ gen/mark-fresh:
 	files="\
 		tailnet/proto/tailnet.pb.go \
 		agent/proto/agent.pb.go \
+		agent/proto/boundary_logs/logs.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		agent/agentsocket/proto/agentsocket.pb.go \
@@ -801,6 +803,13 @@ agent/proto/agent.pb.go: agent/proto/agent.proto
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./agent/proto/agent.proto
+
+agent/proto/boundary_logs/logs.pb.go: agent/proto/boundary_logs/logs.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		./agent/proto/boundary_logs/logs.proto
+
 
 agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto
 	protoc \

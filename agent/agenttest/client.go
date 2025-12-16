@@ -23,6 +23,7 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/proto/boundary_logs"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -405,8 +406,8 @@ func (f *FakeAgentAPI) ReportConnection(_ context.Context, req *agentproto.Repor
 	return &emptypb.Empty{}, nil
 }
 
-func (*FakeAgentAPI) ReportBoundaryLogs(_ context.Context, _ *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
-	return &agentproto.ReportBoundaryLogsResponse{}, nil
+func (*FakeAgentAPI) ReportBoundaryLogs(_ context.Context, _ *boundary_logs.ReportResourceAccessLogsRequest) (*boundary_logs.ReportResourceAccessLogsResponse, error) {
+	return &boundary_logs.ReportResourceAccessLogsResponse{}, nil
 }
 
 func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequest {

@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+option go_package = "github.com/coder/coder/v2/agent/proto/boundary_logs";
+
+package coder.boundary.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ResourceAccessLog represents a log for a single resource access processed by boundary.
+message ResourceAccessLog {
+  message HttpRequest {
+    string method = 1;
+    string url = 2;
+    // The rule that resulted in this HTTP request not being allowed.
+    // Only populated when allowed = false.
+    string matched_rule = 3;
+  }
+
+  // Whether boundary allowed this resource access.
+  bool allowed = 1;
+
+  // The timestamp when boundary processed this resource access.
+  google.protobuf.Timestamp time = 2;
+
+  // The resource being accessed by boundary.
+  oneof resource {
+    HttpRequest http_request = 3;
+  }
+}
+
+// ReportResourceAccessLogsRequest is a request to re-emit the given ResourceAccessLogs.
+message ReportResourceAccessLogsRequest {
+  repeated ResourceAccessLog logs = 1;
+}
+
+message ReportResourceAccessLogsResponse {}

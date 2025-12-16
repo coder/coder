@@ -5,11 +5,11 @@ import (
 
 	"golang.org/x/xerrors"
 
-	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/proto/boundary_logs"
 )
 
 type BoundaryLogsAPI struct{}
 
-func (*BoundaryLogsAPI) ReportBoundaryLogs(context.Context, *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
+func (*BoundaryLogsAPI) ReportBoundaryLogs(context.Context, *boundary_logs.ReportResourceAccessLogsRequest) (*boundary_logs.ReportResourceAccessLogsResponse, error) {
 	return nil, xerrors.New("not implemented")
 }

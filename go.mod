@@ -72,6 +72,11 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202508072
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
+// This is a standalone Go module so the proto file and generated code can be imported
+// by boundary, which lives in a separate repository.
+require github.com/coder/coder/v2/agent/proto/boundary_logs v0.0.0-incompatible
+replace github.com/coder/coder/v2/agent/proto/boundary_logs => ./agent/proto/boundary_logs
+
 require (
 	cdr.dev/slog v1.6.2-0.20251120224544-40ff19937ff2
 	cloud.google.com/go/compute/metadata v0.9.0

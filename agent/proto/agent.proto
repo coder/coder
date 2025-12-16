@@ -3,6 +3,7 @@ option go_package = "github.com/coder/coder/v2/agent/proto";
 
 package coder.agent.v2;
 
+import "agent/proto/boundary_logs/logs.proto";
 import "tailnet/proto/tailnet.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
@@ -460,40 +461,6 @@ message ListSubAgentsResponse {
 	repeated SubAgent agents = 1;
 }
 
-// BoundaryLog represents a log for a single resource access processed
-// by boundary.
-message BoundaryLog {
-	message HttpRequest {
-		string method = 1;
-		string url = 2;
-		// The rule that resulted in this HTTP request not being allowed.
-		// Only populated when allowed = false.
-		string matched_rule = 3;
-	}
-
-	// Whether boundary allowed this resource access.
-	bool allowed = 1;
-
-	// The timestamp when boundary processed this resource access.
-	google.protobuf.Timestamp time = 2;
-
-	// The resource being accessed by boundary.
-	oneof resource {
-		HttpRequest http_request = 3;
-	}
-}
-
-// ReportBoundaryLogsRequest is a request to re-emit the given BoundaryLogs.
-//
-// NOTE: BoundaryLog and ReportBoundaryLogsRequest must stay wire-compatible with
-// github.com/coder/boundary/proto/logs.proto which boundary uses to send logs
-// over the Unix socket to the agent. This compatibility is hand-maintained for
-// simplicity while boundary lives in a separate repository.
-message ReportBoundaryLogsRequest {
-	repeated BoundaryLog logs = 1;
-}
-
-message ReportBoundaryLogsResponse {}
 
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
@@ -512,5 +479,5 @@ service Agent {
 	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
-	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
+	rpc ReportBoundaryLogs(boundary.v1.ReportResourceAccessLogsRequest) returns (boundary.v1.ReportResourceAccessLogsResponse);
 }

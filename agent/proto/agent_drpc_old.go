@@ -5,6 +5,8 @@ import (
 
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc"
+
+	"github.com/coder/coder/v2/agent/proto/boundary_logs"
 )
 
 // DRPCAgentClient20 is the Agent API at v2.0.  Notably, it is missing GetAnnouncementBanners, but
@@ -70,5 +72,5 @@ type DRPCAgentClient26 interface {
 // RPC for forwarding boundary audit logs to coderd. Compatible with Coder v2.30+
 type DRPCAgentClient27 interface {
 	DRPCAgentClient26
-	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
+	ReportBoundaryLogs(ctx context.Context, in *boundary_logs.ReportResourceAccessLogsRequest) (*boundary_logs.ReportResourceAccessLogsResponse, error)
 }

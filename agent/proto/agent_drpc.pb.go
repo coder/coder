@@ -7,6 +7,7 @@ package proto
 import (
 	context "context"
 	errors "errors"
+	boundary_logs "github.com/coder/coder/v2/agent/proto/boundary_logs"
 	protojson "google.golang.org/protobuf/encoding/protojson"
 	proto "google.golang.org/protobuf/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -55,7 +56,7 @@ type DRPCAgentClient interface {
 	CreateSubAgent(ctx context.Context, in *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(ctx context.Context, in *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
-	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
+	ReportBoundaryLogs(ctx context.Context, in *boundary_logs.ReportResourceAccessLogsRequest) (*boundary_logs.ReportResourceAccessLogsResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -212,8 +213,8 @@ func (c *drpcAgentClient) ListSubAgents(ctx context.Context, in *ListSubAgentsRe
 	return out, nil
 }
 
-func (c *drpcAgentClient) ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error) {
-	out := new(ReportBoundaryLogsResponse)
+func (c *drpcAgentClient) ReportBoundaryLogs(ctx context.Context, in *boundary_logs.ReportResourceAccessLogsRequest) (*boundary_logs.ReportResourceAccessLogsResponse, error) {
+	out := new(boundary_logs.ReportResourceAccessLogsResponse)
 	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReportBoundaryLogs", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
 	if err != nil {
 		return nil, err
@@ -238,7 +239,7 @@ type DRPCAgentServer interface {
 	CreateSubAgent(context.Context, *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(context.Context, *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(context.Context, *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
-	ReportBoundaryLogs(context.Context, *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
+	ReportBoundaryLogs(context.Context, *boundary_logs.ReportResourceAccessLogsRequest) (*boundary_logs.ReportResourceAccessLogsResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -307,7 +308,7 @@ func (s *DRPCAgentUnimplementedServer) ListSubAgents(context.Context, *ListSubAg
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCAgentUnimplementedServer) ReportBoundaryLogs(context.Context, *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error) {
+func (s *DRPCAgentUnimplementedServer) ReportBoundaryLogs(context.Context, *boundary_logs.ReportResourceAccessLogsRequest) (*boundary_logs.ReportResourceAccessLogsResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -467,7 +468,7 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 				return srv.(DRPCAgentServer).
 					ReportBoundaryLogs(
 						ctx,
-						in1.(*ReportBoundaryLogsRequest),
+						in1.(*boundary_logs.ReportResourceAccessLogsRequest),
 					)
 			}, DRPCAgentServer.ReportBoundaryLogs, true
 	default:
@@ -737,14 +738,14 @@ func (x *drpcAgent_ListSubAgentsStream) SendAndClose(m *ListSubAgentsResponse) e
 
 type DRPCAgent_ReportBoundaryLogsStream interface {
 	drpc.Stream
-	SendAndClose(*ReportBoundaryLogsResponse) error
+	SendAndClose(*boundary_logs.ReportResourceAccessLogsResponse) error
 }
 
 type drpcAgent_ReportBoundaryLogsStream struct {
 	drpc.Stream
 }
 
-func (x *drpcAgent_ReportBoundaryLogsStream) SendAndClose(m *ReportBoundaryLogsResponse) error {
+func (x *drpcAgent_ReportBoundaryLogsStream) SendAndClose(m *boundary_logs.ReportResourceAccessLogsResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}
