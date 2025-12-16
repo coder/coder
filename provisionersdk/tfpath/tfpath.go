@@ -72,92 +72,18 @@ func (l Layout) ModulesFilePath() string {
 	return filepath.Join(l.ModulesDirectory(), "modules.json")
 }
 
-func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive []byte) error {
-	logger.Info(ctx, "unpacking template source archive",
-		slog.F("size_bytes", len(templateSourceArchive)),
-	)
-
-	err := fs.MkdirAll(l.WorkDirectory(), 0o700)
+func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive, modulesArchive []byte) error {
+	err := extractArchive(ctx, logger, fs, l.WorkDirectory(), templateSourceArchive)
 	if err != nil {
-		return xerrors.Errorf("create work directory %q: %w", l.WorkDirectory(), err)
+		return xerrors.Errorf("extract template source archive: %w", err)
 	}
 
-	reader := tar.NewReader(bytes.NewBuffer(templateSourceArchive))
-	for {
-		header, err := reader.Next()
+	if len(modulesArchive) > 0 {
+		err = extractArchive(ctx, logger, fs, l.ModulesDirectory(), modulesArchive)
 		if err != nil {
-			if xerrors.Is(err, io.EOF) {
-				break
-			}
-			return xerrors.Errorf("read template source archive: %w", err)
-		}
-		logger.Debug(context.Background(), "read archive entry",
-			slog.F("name", header.Name),
-			slog.F("mod_time", header.ModTime),
-			slog.F("size", header.Size))
-
-		// Security: don't untar absolute or relative paths, as this can allow a malicious tar to overwrite
-		// files outside the workdir.
-		if !filepath.IsLocal(header.Name) {
-			return xerrors.Errorf("refusing to extract to non-local path")
-		}
-
-		// nolint: gosec // Safe to no-lint because the filepath.IsLocal check above.
-		headerPath := filepath.Join(l.WorkDirectory(), header.Name)
-		if !strings.HasPrefix(headerPath, filepath.Clean(l.WorkDirectory())) {
-			return xerrors.New("tar attempts to target relative upper directory")
-		}
-		mode := header.FileInfo().Mode()
-		if mode == 0 {
-			mode = 0o600
-		}
-
-		// Always check for context cancellation before reading the next header.
-		// This is mainly important for unit tests, since a canceled context means
-		// the underlying directory is going to be deleted. There still exists
-		// the small race condition that the context is canceled after this, and
-		// before the disk write.
-		if ctx.Err() != nil {
-			return xerrors.Errorf("context canceled: %w", ctx.Err())
-		}
-		switch header.Typeflag {
-		case tar.TypeDir:
-			err = fs.MkdirAll(headerPath, mode)
-			if err != nil {
-				return xerrors.Errorf("mkdir %q: %w", headerPath, err)
-			}
-			logger.Debug(context.Background(), "extracted directory",
-				slog.F("path", headerPath),
-				slog.F("mode", fmt.Sprintf("%O", mode)))
-		case tar.TypeReg:
-			file, err := fs.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
-			if err != nil {
-				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
-			}
-
-			hash := crc32.NewIEEE()
-			hashReader := io.TeeReader(reader, hash)
-			// Max file size of 10MiB.
-			size, err := io.CopyN(file, hashReader, 10<<20)
-			if xerrors.Is(err, io.EOF) {
-				err = nil
-			}
-			if err != nil {
-				_ = file.Close()
-				return xerrors.Errorf("copy file %q: %w", headerPath, err)
-			}
-			err = file.Close()
-			if err != nil {
-				return xerrors.Errorf("close file %q: %s", headerPath, err)
-			}
-			logger.Debug(context.Background(), "extracted file",
-				slog.F("size_bytes", size),
-				slog.F("path", headerPath),
-				slog.F("mode", mode),
-				slog.F("checksum", fmt.Sprintf("%x", hash.Sum(nil))))
+			return xerrors.Errorf("extract modules archive: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -224,4 +150,93 @@ func (l Layout) CleanStaleSessions(ctx context.Context, logger slog.Logger, fs a
 func isValidSessionDir(dirName string) bool {
 	match, err := filepath.Match(sessionDirPrefix+"*", dirName)
 	return err == nil && match
+}
+
+func extractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, directory string, archive []byte) error {
+	logger.Info(ctx, "unpacking source archive",
+		slog.F("size_bytes", len(archive)),
+	)
+
+	err := fs.MkdirAll(directory, 0o700)
+	if err != nil {
+		return xerrors.Errorf("create work directory %q: %w", directory, err)
+	}
+
+	reader := tar.NewReader(bytes.NewBuffer(archive))
+	for {
+		header, err := reader.Next()
+		if err != nil {
+			if xerrors.Is(err, io.EOF) {
+				break
+			}
+			return xerrors.Errorf("read template source archive: %w", err)
+		}
+		logger.Debug(context.Background(), "read archive entry",
+			slog.F("name", header.Name),
+			slog.F("mod_time", header.ModTime),
+			slog.F("size", header.Size))
+
+		// Security: don't untar absolute or relative paths, as this can allow a malicious tar to overwrite
+		// files outside the workdir.
+		if !filepath.IsLocal(header.Name) {
+			return xerrors.Errorf("refusing to extract to non-local path")
+		}
+
+		// nolint: gosec // Safe to no-lint because the filepath.IsLocal check above.
+		headerPath := filepath.Join(directory, header.Name)
+		if !strings.HasPrefix(headerPath, filepath.Clean(directory)) {
+			return xerrors.New("tar attempts to target relative upper directory")
+		}
+		mode := header.FileInfo().Mode()
+		if mode == 0 {
+			mode = 0o600
+		}
+
+		// Always check for context cancellation before reading the next header.
+		// This is mainly important for unit tests, since a canceled context means
+		// the underlying directory is going to be deleted. There still exists
+		// the small race condition that the context is canceled after this, and
+		// before the disk write.
+		if ctx.Err() != nil {
+			return xerrors.Errorf("context canceled: %w", ctx.Err())
+		}
+		switch header.Typeflag {
+		case tar.TypeDir:
+			err = fs.MkdirAll(headerPath, mode)
+			if err != nil {
+				return xerrors.Errorf("mkdir %q: %w", headerPath, err)
+			}
+			logger.Debug(context.Background(), "extracted directory",
+				slog.F("path", headerPath),
+				slog.F("mode", fmt.Sprintf("%O", mode)))
+		case tar.TypeReg:
+			file, err := fs.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
+			if err != nil {
+				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
+			}
+
+			hash := crc32.NewIEEE()
+			hashReader := io.TeeReader(reader, hash)
+			// Max file size of 10MiB.
+			size, err := io.CopyN(file, hashReader, 10<<20)
+			if xerrors.Is(err, io.EOF) {
+				err = nil
+			}
+			if err != nil {
+				_ = file.Close()
+				return xerrors.Errorf("copy file %q: %w", headerPath, err)
+			}
+			err = file.Close()
+			if err != nil {
+				return xerrors.Errorf("close file %q: %s", headerPath, err)
+			}
+			logger.Debug(context.Background(), "extracted file",
+				slog.F("size_bytes", size),
+				slog.F("path", headerPath),
+				slog.F("mode", mode),
+				slog.F("checksum", fmt.Sprintf("%x", hash.Sum(nil))))
+		}
+	}
+
+	return nil
 }

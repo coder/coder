@@ -522,7 +522,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	// Initialize the Terraform working directory
-	initResp, failedInit := r.init(ctx, false, r.job.GetTemplateSourceArchive())
+	initResp, failedInit := r.init(ctx, false, r.job.GetTemplateSourceArchive(), nil)
 	if failedInit != nil {
 		return nil, failedInit
 	}
@@ -788,7 +788,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	// Initialize the Terraform working directory
-	initResp, failedJob := r.init(ctx, false, r.job.GetTemplateSourceArchive())
+	initResp, failedJob := r.init(ctx, false, r.job.GetTemplateSourceArchive(), nil)
 	if failedJob != nil {
 		return nil, failedJob
 	}
@@ -903,7 +903,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	timings := make([]*sdkproto.Timing, 0)
 
 	// Initialize the Terraform working directory
-	initComplete, failedJob := r.init(ctx, true, r.job.GetTemplateSourceArchive())
+	initComplete, failedJob := r.init(ctx, true, r.job.GetTemplateSourceArchive(), r.job.GetWorkspaceBuild().InitialModulesTar)
 	if failedJob != nil {
 		return nil, failedJob
 	}

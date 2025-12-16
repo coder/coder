@@ -453,6 +453,8 @@ export interface InitRequest {
    * this is costly, the zero value omitting the module files is preferred.
    */
   omitModuleFiles: boolean;
+  /** initial_module_tar is a tar of the terraform module files located in .terraform/modules */
+  initialModuleTar: Uint8Array;
 }
 
 export interface InitComplete {
@@ -1396,6 +1398,9 @@ export const InitRequest = {
     }
     if (message.omitModuleFiles !== false) {
       writer.uint32(24).bool(message.omitModuleFiles);
+    }
+    if (message.initialModuleTar.length !== 0) {
+      writer.uint32(34).bytes(message.initialModuleTar);
     }
     return writer;
   },
