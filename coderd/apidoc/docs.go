@@ -12110,6 +12110,26 @@ const docTemplate = `{
             "properties": {
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
+                },
+                "proxy": {
+                    "$ref": "#/definitions/codersdk.AIProxyConfig"
+                }
+            }
+        },
+        "codersdk.AIProxyConfig": {
+            "type": "object",
+            "properties": {
+                "cert_file": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "key_file": {
+                    "type": "string"
+                },
+                "listen_addr": {
+                    "type": "string"
                 }
             }
         },

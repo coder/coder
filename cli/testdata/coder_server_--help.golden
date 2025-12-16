@@ -139,6 +139,20 @@ AI BRIDGE OPTIONS:
           Maximum number of AI Bridge requests per second per replica. Set to 0
           to disable (unlimited).
 
+AI PROXY OPTIONS: 
+      --aiproxy-cert-file string, $CODER_AIPROXY_CERT_FILE
+          Path to the CA certificate file for MITM.
+
+      --aiproxy-enabled bool, $CODER_AIPROXY_ENABLED (default: false)
+          Enable the AI MITM proxy for intercepting and decrypting AI provider
+          requests.
+
+      --aiproxy-key-file string, $CODER_AIPROXY_KEY_FILE
+          Path to the CA private key file for MITM.
+
+      --aiproxy-listen-addr string, $CODER_AIPROXY_LISTEN_ADDR (default: :8888)
+          The address the AI proxy will listen on.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

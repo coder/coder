@@ -765,6 +765,19 @@ aibridge:
   # (unlimited).
   # (default: 0, type: int)
   rateLimit: 0
+aiproxy:
+  # Enable the AI MITM proxy for intercepting and decrypting AI provider requests.
+  # (default: false, type: bool)
+  enabled: false
+  # The address the AI proxy will listen on.
+  # (default: :8888, type: string)
+  listen_addr: :8888
+  # Path to the CA certificate file for MITM.
+  # (default: <unset>, type: string)
+  cert_file: ""
+  # Path to the CA private key file for MITM.
+  # (default: <unset>, type: string)
+  key_file: ""
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

@@ -1814,6 +1814,48 @@ Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
 
 Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
 
+### --aiproxy-enabled
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_AIPROXY_ENABLED</code> |
+| YAML        | <code>aiproxy.enabled</code>        |
+| Default     | <code>false</code>                  |
+
+Enable the AI MITM proxy for intercepting and decrypting AI provider requests.
+
+### --aiproxy-listen-addr
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_AIPROXY_LISTEN_ADDR</code> |
+| YAML        | <code>aiproxy.listen_addr</code>        |
+| Default     | <code>:8888</code>                      |
+
+The address the AI proxy will listen on.
+
+### --aiproxy-cert-file
+
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>string</code>                   |
+| Environment | <code>$CODER_AIPROXY_CERT_FILE</code> |
+| YAML        | <code>aiproxy.cert_file</code>        |
+
+Path to the CA certificate file for MITM.
+
+### --aiproxy-key-file
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_AIPROXY_KEY_FILE</code> |
+| YAML        | <code>aiproxy.key_file</code>        |
+
+Path to the CA private key file for MITM.
+
 ### --audit-logs-retention
 
 |             |                                          |
