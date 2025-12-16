@@ -58,6 +58,16 @@ type StoreReconciler struct {
 	metrics *MetricsCollector
 	// Operational metrics
 	reconciliationDuration prometheus.Histogram
+
+	// Per-preset creation failure tracking for incremental backoff
+	creationFailures      map[uuid.UUID]*presetCreationFailure
+	creationFailuresMutex sync.RWMutex
+}
+
+// presetCreationFailure tracks recent creation failures for a preset to implement incremental backoff.
+type presetCreationFailure struct {
+	consecutiveFailures int
+	lastFailureAt       time.Time
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -102,6 +112,7 @@ func NewStoreReconciler(store database.Store,
 		buildUsageChecker: buildUsageChecker,
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
+		creationFailures:  make(map[uuid.UUID]*presetCreationFailure),
 	}
 
 	if registerer != nil {
@@ -122,6 +133,68 @@ func NewStoreReconciler(store database.Store,
 	}
 
 	return reconciler
+}
+
+// RecordCreationFailure records a prebuild creation failure for a preset and increments the consecutive failure count.
+func (c *StoreReconciler) RecordCreationFailure(presetID uuid.UUID) {
+	c.recordCreationFailure(presetID)
+}
+
+// RecordCreationSuccess clears the failure tracking for a preset after a successful creation.
+func (c *StoreReconciler) RecordCreationSuccess(presetID uuid.UUID) {
+	c.recordCreationSuccess(presetID)
+}
+
+// ShouldBackoffCreation checks if we should delay creation attempts for a preset based on recent failures.
+// It returns true and the backoff time if we should delay, false and zero time otherwise.
+func (c *StoreReconciler) ShouldBackoffCreation(presetID uuid.UUID) (bool, time.Time) {
+	return c.shouldBackoffCreation(presetID)
+}
+
+// recordCreationFailure records a prebuild creation failure for a preset and increments the consecutive failure count.
+func (c *StoreReconciler) recordCreationFailure(presetID uuid.UUID) {
+	c.creationFailuresMutex.Lock()
+	defer c.creationFailuresMutex.Unlock()
+
+	failure, exists := c.creationFailures[presetID]
+	if !exists {
+		failure = &presetCreationFailure{}
+		c.creationFailures[presetID] = failure
+	}
+
+	failure.consecutiveFailures++
+	failure.lastFailureAt = c.clock.Now()
+}
+
+// recordCreationSuccess clears the failure tracking for a preset after a successful creation.
+func (c *StoreReconciler) recordCreationSuccess(presetID uuid.UUID) {
+	c.creationFailuresMutex.Lock()
+	defer c.creationFailuresMutex.Unlock()
+
+	delete(c.creationFailures, presetID)
+}
+
+// shouldBackoffCreation checks if we should delay creation attempts for a preset based on recent failures.
+// It returns true and the backoff time if we should delay, false and zero time otherwise.
+func (c *StoreReconciler) shouldBackoffCreation(presetID uuid.UUID) (bool, time.Time) {
+	c.creationFailuresMutex.RLock()
+	defer c.creationFailuresMutex.RUnlock()
+
+	failure, exists := c.creationFailures[presetID]
+	if !exists || failure.consecutiveFailures == 0 {
+		return false, time.Time{}
+	}
+
+	// Calculate exponential backoff: backoffInterval * consecutiveFailures
+	// This gives us a linear backoff that increases with each consecutive failure.
+	backoffDuration := c.cfg.ReconciliationBackoffInterval.Value() * time.Duration(failure.consecutiveFailures)
+	backoffUntil := failure.lastFailureAt.Add(backoffDuration)
+
+	if c.clock.Now().Before(backoffUntil) {
+		return true, backoffUntil
+	}
+
+	return false, time.Time{}
 }
 
 func (c *StoreReconciler) Run(ctx context.Context) {
@@ -643,6 +716,16 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		return nil
 
 	case prebuilds.ActionTypeCreate:
+		// Check if we should backoff on this preset due to recent creation failures
+		if shouldBackoff, backoffUntil := c.shouldBackoffCreation(ps.Preset.ID); shouldBackoff {
+			logger.Warn(ctx, "backing off prebuild creation due to recent failures",
+				slog.F("preset_id", ps.Preset.ID.String()),
+				slog.F("backoff_until", backoffUntil.Format(time.RFC3339)),
+				slog.F("backoff_secs", math.Round(backoffUntil.Sub(c.clock.Now()).Seconds())),
+			)
+			return nil
+		}
+
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
 		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
@@ -666,7 +749,11 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		for range action.Create {
 			if err := c.createPrebuiltWorkspace(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
+				c.recordCreationFailure(ps.Preset.ID)
 				multiErr.Errors = append(multiErr.Errors, err)
+			} else {
+				// Only clear failure tracking if we successfully created at least one prebuild
+				c.recordCreationSuccess(ps.Preset.ID)
 			}
 		}
 

@@ -2972,3 +2972,87 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
 }
+
+
+func TestIncrementalBackoffOnCreationFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clock := quartz.NewMock(t)
+	db, ps := dbtestutil.NewDB(t)
+	backoffInterval := 1 * time.Minute
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval:        serpent.Duration(testutil.WaitLong),
+		ReconciliationBackoffInterval: serpent.Duration(backoffInterval),
+	}
+	logger := slogtest.Make(t, nil)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+
+	// Setup a template with a preset
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, user.ID, template.ID)
+	presetID := setupTestDBPreset(t, db, templateVersionID, 1, "test").ID
+
+	// Test the backoff mechanism directly by simulating failures
+	// First failure
+	reconciler.RecordCreationFailure(presetID)
+
+	// Check that backoff is active
+	shouldBackoff, backoffUntil := reconciler.ShouldBackoffCreation(presetID)
+	require.True(t, shouldBackoff, "should be in backoff after first failure")
+	expectedBackoff := clock.Now().Add(backoffInterval)
+	require.Equal(t, expectedBackoff, backoffUntil, "backoff should be 1x interval after first failure")
+
+	// Advance clock past first backoff
+	clock.Advance(backoffInterval + time.Second)
+
+	// Should no longer be in backoff
+	shouldBackoff, _ = reconciler.ShouldBackoffCreation(presetID)
+	require.False(t, shouldBackoff, "should not be in backoff after period expires")
+
+	// Second consecutive failure
+	reconciler.RecordCreationFailure(presetID)
+
+	// Check that backoff is longer now (2 * interval)
+	shouldBackoff, backoffUntil = reconciler.ShouldBackoffCreation(presetID)
+	require.True(t, shouldBackoff, "should be in backoff after second failure")
+	expectedBackoff = clock.Now().Add(2 * backoffInterval)
+	require.Equal(t, expectedBackoff, backoffUntil, "backoff should be 2x interval after second failure")
+
+	// Advance clock by only 1 interval - should still be in backoff
+	clock.Advance(backoffInterval)
+	shouldBackoff, _ = reconciler.ShouldBackoffCreation(presetID)
+	require.True(t, shouldBackoff, "should still be in backoff after 1 interval with 2 failures")
+
+	// Advance clock by another interval - backoff should expire
+	clock.Advance(backoffInterval + time.Second)
+	shouldBackoff, _ = reconciler.ShouldBackoffCreation(presetID)
+	require.False(t, shouldBackoff, "should not be in backoff after 2 intervals expire")
+
+	// Third consecutive failure
+	reconciler.RecordCreationFailure(presetID)
+
+	// Check that backoff is even longer now (3 * interval)
+	shouldBackoff, backoffUntil = reconciler.ShouldBackoffCreation(presetID)
+	require.True(t, shouldBackoff, "should be in backoff after third failure")
+	expectedBackoff = clock.Now().Add(3 * backoffInterval)
+	require.Equal(t, expectedBackoff, backoffUntil, "backoff should be 3x interval after third failure")
+
+	// Successful creation should clear the backoff
+	reconciler.RecordCreationSuccess(presetID)
+	shouldBackoff, _ = reconciler.ShouldBackoffCreation(presetID)
+	require.False(t, shouldBackoff, "should not be in backoff after successful creation")
+
+	// New failure after success should start backoff from 1x interval again
+	reconciler.RecordCreationFailure(presetID)
+	shouldBackoff, backoffUntil = reconciler.ShouldBackoffCreation(presetID)
+	require.True(t, shouldBackoff, "should be in backoff after failure following success")
+	expectedBackoff = clock.Now().Add(backoffInterval)
+	require.Equal(t, expectedBackoff, backoffUntil, "backoff should reset to 1x interval after success")
+}
