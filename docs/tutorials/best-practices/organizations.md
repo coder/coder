@@ -126,9 +126,7 @@ Using ClickOps to onboard new organizations, set quotas, and SSO sync can be
 cumbersome, especially if you want to "seed" organizations with provisioners and
 starter templates.
 
-Support for managing Organizations via the coderd Terrafom provider is planned
-so that this can be done declaratively and bulk updates to things like templates
-and quotas can be performed easily:
-
-- Issue
-  [coder/terraform-provider-coderd#39](https://github.com/coder/terraform-provider-coderd/issues/39)
+Support for managing Organizations via the coderd Terrafom provider was introduced
+with the v0.0.8 release. Additional organization management functionality has been 
+added with subsequent releases, see [https://github.com/coder/terraform-provider-coderd/releases](https://github.com/coder/terraform-provider-coderd/releases)
+for release information.
