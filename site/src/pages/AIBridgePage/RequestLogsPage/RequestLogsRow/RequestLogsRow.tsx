@@ -26,15 +26,14 @@ type RequestLogsRowProps = {
 };
 
 const customisedDateLocale: Intl.DateTimeFormatOptions = {
-	// Hide the year from the date
-	year: undefined,
+	second: "2-digit",
+	minute: "2-digit",
+	hour: "2-digit",
+	hour12: true,
+	day: "numeric",
 	// Show the month as a short name
 	month: "short",
-	day: "numeric",
-	hour: "2-digit",
-	minute: "2-digit",
-	second: "2-digit",
-	hour12: true,
+	year: "numeric",
 };
 
 const RequestLogsRowProviderIcon = ({
