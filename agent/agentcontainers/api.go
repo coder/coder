@@ -1278,7 +1278,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Unable to delete transitioning Devcontainer",
+			Message: "Unable to delete transitioning devcontainer",
 			Detail:  fmt.Sprintf("Devcontainer %q is currently %s and cannot be deleted.", dc.Name, dc.Status),
 		})
 		return
@@ -1318,7 +1318,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 			api.mu.Unlock()
 
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-				Message: "An internal error occurred stopping the container",
+				Message: "An error occurred stopping the container",
 				Detail:  err.Error(),
 			})
 			return
@@ -1344,7 +1344,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 			api.mu.Unlock()
 
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-				Message: "An internal error occurred removing the container",
+				Message: "An error occurred removing the container",
 				Detail:  err.Error(),
 			})
 			return
@@ -1365,7 +1365,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 			api.mu.Unlock()
 
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-				Message: "An internal error occurred deleting the agent",
+				Message: "An error occurred deleting the agent",
 				Detail:  err.Error(),
 			})
 			return
@@ -1412,7 +1412,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Unable to recreate transitioning Devcontainer",
+			Message: "Unable to recreate transitioning devcontainer",
 			Detail:  fmt.Sprintf("Devcontainer %q is currently %s and cannot be restarted.", dc.Name, dc.Status),
 		})
 		return

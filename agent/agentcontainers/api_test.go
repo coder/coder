@@ -1178,7 +1178,7 @@ func TestAPI(t *testing.T) {
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      http.StatusInternalServerError,
-				wantBody:        "An internal error occurred stopping the container",
+				wantBody:        "An error occurred stopping the container",
 			},
 			{
 				name:           "Container remove fails",
@@ -1202,7 +1202,7 @@ func TestAPI(t *testing.T) {
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      http.StatusInternalServerError,
-				wantBody:        "An internal error occurred removing the container",
+				wantBody:        "An error occurred removing the container",
 			},
 			{
 				name:           "OK with container",
