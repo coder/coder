@@ -1,8 +1,7 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
-import { AnthropicIcon } from "components/Icons/AnthropicIcon";
-import { OpenAIIcon } from "components/Icons/OpenAIIcon";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -42,18 +41,13 @@ const RequestLogsRowProviderIcon = ({
 }: {
 	provider: string;
 } & React.ComponentProps<"svg">) => {
-	const iconClassName = "size-icon-sm flex-shrink-0";
+	const iconClassName = "size-icon-xs flex-shrink-0";
 	switch (provider) {
 		case "openai":
-			return (
-				<OpenAIIcon className={cn(iconClassName, props.className)} {...props} />
-			);
+			return <ExternalImage src="/icon/openai.svg" className={iconClassName} />;
 		case "anthropic":
 			return (
-				<AnthropicIcon
-					className={cn(iconClassName, props.className)}
-					{...props}
-				/>
+				<ExternalImage src="/icon/anthropic.svg" className={iconClassName} />
 			);
 		default:
 			return (
@@ -178,7 +172,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="w-full min-w-0 overflow-hidden">
-									<Badge className="gap-0.5 w-full">
+									<Badge className="gap-1.5 w-full">
 										<div className="flex-shrink-0 flex items-center">
 											<RequestLogsRowProviderIcon
 												provider={interception.provider}
@@ -258,7 +252,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Model:</dt>
 								<dd data-chromatic="ignore">
-									<Badge className="gap-0.5">
+									<Badge className="gap-2">
 										<div className="flex-shrink-0 flex items-center">
 											<RequestLogsRowProviderIcon
 												provider={interception.provider}
