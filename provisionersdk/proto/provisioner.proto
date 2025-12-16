@@ -398,6 +398,9 @@ message InitRequest {
   // Ideally this boolean would be flipped in its truthy value, however since
   // this is costly, the zero value omitting the module files is preferred.
   bool omit_module_files = 3;
+
+  // initial_module_tar is a tar of the terraform module files located in .terraform/modules
+  bytes initial_module_tar = 4;
 }
 
 message InitComplete {

@@ -84,7 +84,7 @@ func (s *server) Init(
 	logTerraformEnvVars(sess)
 
 	// TODO: These logs should probably be streamed back to the provisioner runner.
-	err := sess.Files.ExtractArchive(ctx, s.logger, afero.NewOsFs(), request.GetTemplateSourceArchive())
+	err := sess.Files.ExtractArchive(ctx, s.logger, afero.NewOsFs(), request.GetTemplateSourceArchive(), request.GetInitialModuleTar())
 	if err != nil {
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}

@@ -12,13 +12,14 @@ import (
 )
 
 //nolint:revive
-func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []byte) (*sdkproto.InitComplete, *proto.FailedJob) {
+func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []byte, moduleTar []byte) (*sdkproto.InitComplete, *proto.FailedJob) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Init{Init: &sdkproto.InitRequest{
 		TemplateSourceArchive: templateArchive,
 		OmitModuleFiles:       omitModules,
+		InitialModuleTar:      moduleTar,
 	}}})
 	if err != nil {
 		return nil, r.failedJobf("send init request: %v", err)

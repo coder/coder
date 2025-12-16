@@ -27,6 +27,7 @@ message AcquiredJob {
     // for the first time.
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
     optional bool exp_reuse_terraform_workspace = 11;
+    bytes initial_modules_tar = 12;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;

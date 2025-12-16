@@ -140,7 +140,7 @@ func (td Layout) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
 		slog.F("path", path), slog.Error(err))
 }
 
-func (td Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, archive []byte) error {
+func (td Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, archive, _ []byte) error {
 	logger.Info(ctx, "unpacking template source archive",
 		slog.F("size_bytes", len(archive)),
 	)
