@@ -1274,7 +1274,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 
 	// NOTE(DanielleMaywood):
 	// We currently do not support canceling the startup of a dev container.
-	if dc.Status.IsTransitional() {
+	if dc.Status.Transitioning() {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
@@ -1408,7 +1408,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 		httperror.WriteResponseError(ctx, w, err)
 		return
 	}
-	if dc.Status.IsTransitional() {
+	if dc.Status.Transitioning() {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{

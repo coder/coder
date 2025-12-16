@@ -406,7 +406,7 @@ const (
 	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
 )
 
-func (s WorkspaceAgentDevcontainerStatus) IsTransitional() bool {
+func (s WorkspaceAgentDevcontainerStatus) Transitioning() bool {
 	switch s {
 	case WorkspaceAgentDevcontainerStatusStarting,
 		WorkspaceAgentDevcontainerStatusStopping,
