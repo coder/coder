@@ -994,42 +994,77 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 func TestAgent_SFTP(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	u, err := user.Current()
-	require.NoError(t, err, "get current user")
-	home := u.HomeDir
-	if runtime.GOOS == "windows" {
-		home = "/" + strings.ReplaceAll(home, "\\", "/")
-	}
-	//nolint:dogsled
-	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-	sshClient, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	defer sshClient.Close()
-	client, err := sftp.NewClient(sshClient)
-	require.NoError(t, err)
-	defer client.Close()
-	wd, err := client.Getwd()
-	require.NoError(t, err, "get working directory")
-	require.Equal(t, home, wd, "working directory should be home user home")
-	tempFile := filepath.Join(t.TempDir(), "sftp")
-	// SFTP only accepts unix-y paths.
-	remoteFile := filepath.ToSlash(tempFile)
-	if !path.IsAbs(remoteFile) {
-		// On Windows, e.g. "/C:/Users/...".
-		remoteFile = path.Join("/", remoteFile)
-	}
-	file, err := client.Create(remoteFile)
-	require.NoError(t, err)
-	err = file.Close()
-	require.NoError(t, err)
-	_, err = os.Stat(tempFile)
-	require.NoError(t, err)
 
-	// Close the client to trigger disconnect event.
-	_ = client.Close()
-	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	t.Run("DefaultWorkingDirectory", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		u, err := user.Current()
+		require.NoError(t, err, "get current user")
+		home := u.HomeDir
+		if runtime.GOOS == "windows" {
+			home = "/" + strings.ReplaceAll(home, "\\", "/")
+		}
+		//nolint:dogsled
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		defer client.Close()
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, home, wd, "working directory should be user home")
+		tempFile := filepath.Join(t.TempDir(), "sftp")
+		// SFTP only accepts unix-y paths.
+		remoteFile := filepath.ToSlash(tempFile)
+		if !path.IsAbs(remoteFile) {
+			// On Windows, e.g. "/C:/Users/...".
+			remoteFile = path.Join("/", remoteFile)
+		}
+		file, err := client.Create(remoteFile)
+		require.NoError(t, err)
+		err = file.Close()
+		require.NoError(t, err)
+		_, err = os.Stat(tempFile)
+		require.NoError(t, err)
+
+		// Close the client to trigger disconnect event.
+		_ = client.Close()
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	})
+
+	t.Run("CustomWorkingDirectory", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create a custom directory for the agent to use.
+		customDir := t.TempDir()
+		expectedDir := customDir
+		if runtime.GOOS == "windows" {
+			expectedDir = "/" + strings.ReplaceAll(customDir, "\\", "/")
+		}
+
+		//nolint:dogsled
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Directory: customDir,
+		}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		defer client.Close()
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, expectedDir, wd, "working directory should be custom directory")
+
+		// Close the client to trigger disconnect event.
+		_ = client.Close()
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	})
 }
 
 func TestAgent_SCP(t *testing.T) {
