@@ -106,6 +106,15 @@ export interface AIBridgeUserPrompt {
 // From codersdk/deployment.go
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
+	readonly proxy?: AIProxyConfig;
+}
+
+// From codersdk/deployment.go
+export interface AIProxyConfig {
+	readonly enabled: boolean;
+	readonly listen_addr: string;
+	readonly cert_file: string;
+	readonly key_file: string;
 }
 
 // From codersdk/allowlist.go

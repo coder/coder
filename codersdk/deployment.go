@@ -1217,6 +1217,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "AI Bridge",
 			YAML: "aibridge",
 		}
+		deploymentGroupAIProxy = serpent.Group{
+			Name: "AI Proxy",
+			YAML: "aiproxy",
+		}
 		deploymentGroupRetention = serpent.Group{
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
@@ -3443,6 +3447,49 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rateLimit",
 		},
+
+		// AI Proxy Options
+		{
+			Name:        "AI Proxy Enabled",
+			Description: "Enable the AI MITM proxy for intercepting and decrypting AI provider requests.",
+			Flag:        "aiproxy-enabled",
+			Env:         "CODER_AIPROXY_ENABLED",
+			Value:       &c.AI.ProxyConfig.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIProxy,
+			YAML:        "enabled",
+		},
+		{
+			Name:        "AI Proxy Listen Address",
+			Description: "The address the AI proxy will listen on.",
+			Flag:        "aiproxy-listen-addr",
+			Env:         "CODER_AIPROXY_LISTEN_ADDR",
+			Value:       &c.AI.ProxyConfig.ListenAddr,
+			Default:     ":8888",
+			Group:       &deploymentGroupAIProxy,
+			YAML:        "listen_addr",
+		},
+		{
+			Name:        "AI Proxy Certificate File",
+			Description: "Path to the CA certificate file for MITM.",
+			Flag:        "aiproxy-cert-file",
+			Env:         "CODER_AIPROXY_CERT_FILE",
+			Value:       &c.AI.ProxyConfig.CertFile,
+			Default:     "",
+			Group:       &deploymentGroupAIProxy,
+			YAML:        "cert_file",
+		},
+		{
+			Name:        "AI Proxy Key File",
+			Description: "Path to the CA private key file for MITM.",
+			Flag:        "aiproxy-key-file",
+			Env:         "CODER_AIPROXY_KEY_FILE",
+			Value:       &c.AI.ProxyConfig.KeyFile,
+			Default:     "",
+			Group:       &deploymentGroupAIProxy,
+			YAML:        "key_file",
+		},
+
 		// Retention settings
 		{
 			Name:        "Audit Logs Retention",
@@ -3535,8 +3582,16 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
+type AIProxyConfig struct {
+	Enabled    serpent.Bool   `json:"enabled" typescript:",notnull"`
+	ListenAddr serpent.String `json:"listen_addr" typescript:",notnull"`
+	CertFile   serpent.String `json:"cert_file" typescript:",notnull"`
+	KeyFile    serpent.String `json:"key_file" typescript:",notnull"`
+}
+
 type AIConfig struct {
 	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
+	ProxyConfig  AIProxyConfig  `json:"proxy,omitempty"`
 }
 
 type SupportConfig struct {

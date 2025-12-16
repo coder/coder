@@ -482,6 +482,7 @@ require (
 	github.com/coder/preview v1.0.4
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.3.0
+	github.com/elazarl/goproxy v1.7.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/icholy/replace v0.6.0
