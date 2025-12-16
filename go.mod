@@ -75,6 +75,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // This is a standalone Go module so the proto file and generated code can be imported
 // by boundary, which lives in a separate repository.
 require github.com/coder/coder/v2/agent/proto/boundary_logs v0.0.0-incompatible
+
 replace github.com/coder/coder/v2/agent/proto/boundary_logs => ./agent/proto/boundary_logs
 
 require (
