@@ -1,3 +1,4 @@
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -6,8 +7,6 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import { AnthropicIcon } from "components/Icons/AnthropicIcon";
-import { OpenAIIcon } from "components/Icons/OpenAIIcon";
 import type { FC } from "react";
 import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 

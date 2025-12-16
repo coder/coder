@@ -1,8 +1,7 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
-import { AnthropicIcon } from "components/Icons/AnthropicIcon";
-import { OpenAIIcon } from "components/Icons/OpenAIIcon";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
