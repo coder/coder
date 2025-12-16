@@ -24,7 +24,7 @@ export const CustomLogo: FC<{ css?: Interpolation<Theme> }> = (props) => {
 			onLoad={(e) => {
 				e.currentTarget.style.display = "inline";
 			}}
-			className="application-logo max-w-50"
+			className="application-logo max-w-[200px]"
 		/>
 	) : (
 		<CoderIcon {...props} className="w-12 h-12" />

@@ -21,8 +21,7 @@ export const Loader: FC<LoaderProps> = ({
 		<div
 			{...attrs}
 			className={cn(
-				fullscreen && classNames.fullscreen,
-				!fullscreen && classNames.inline,
+				fullscreen ? classNames.fullscreen : classNames.inline,
 				attrs.className,
 			)}
 			data-testid="loader"

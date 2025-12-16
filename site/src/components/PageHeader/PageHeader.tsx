@@ -52,8 +52,7 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 		<h2
 			className={cn(
 				"text-base font-normal block mb-0 text-content-secondary leading-[1.4]",
-				condensed && "mt-1",
-				!condensed && "mt-2",
+				condensed ? "mt-1" : "mt-2",
 			)}
 		>
 			{children}

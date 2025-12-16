@@ -30,15 +30,10 @@ export const OverflowY: FC<OverflowYProps> = ({
 		<div
 			{...attrs}
 			style={{
-				"--computed-height": computedHeight,
-				"--computed-max-height": computedMaxHeight,
+				height: computedHeight,
+				maxHeight: computedMaxHeight,
 			}}
-			className={cn(
-				"w-full overflow-y-auto flex-shrink-1",
-				"h-[var(--computed-height)]",
-				"max-h-[var(--computed-max-height)]",
-				attrs.className,
-			)}
+			className={cn("w-full overflow-y-auto flex-shrink-1", attrs.className)}
 		>
 			{children}
 		</div>

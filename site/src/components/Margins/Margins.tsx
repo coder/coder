@@ -27,10 +27,10 @@ export const Margins: FC<MarginsProps> = ({
 		<div
 			{...divProps}
 			style={{
-				"--max-width": `${maxWidth}px`,
-				"--padding": `${sidePadding}px`,
+				...(maxWidth ? { maxWidth: `${maxWidth}px` } : {}),
+				...(sidePadding ? { padding: `${sidePadding}px` } : {}),
 			}}
-			className="mx-auto px-[var(--padding,_auto)] w-full max-w-[var(--max-width,_100%)]"
+			className="mx-auto w-full"
 		>
 			{children}
 		</div>
