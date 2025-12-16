@@ -33,7 +33,7 @@ type TokenUsageMetadataMerged =
  * @param objects - The objects to merge.
  * @returns The merged object.
  */
-function tokenUsageMetadataMerge(
+export function tokenUsageMetadataMerge(
 	...objects: Array<
 		AIBridgeInterception["token_usages"][number]["metadata"] | null
 	>
@@ -53,7 +53,7 @@ function tokenUsageMetadataMerge(
 		nonEmptyObjects.every((obj) => key in obj),
 	);
 	if (commonKeys.length === 0) {
-		return null;
+		return nonEmptyObjects;
 	}
 
 	// Check for unresolvable conflicts: values that aren't all numeric or all
