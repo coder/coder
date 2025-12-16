@@ -1296,17 +1296,14 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		proc.stop()
 	}
 
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopping
+	dc.Error = ""
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
 
 	// Stop and remove the container if it exists.
 	if containerID != "" {
-		api.mu.Lock()
-		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopping
-		dc.Error = ""
-		api.knownDevcontainers[dc.WorkspaceFolder] = dc
-		api.broadcastUpdatesLocked()
-		api.mu.Unlock()
-
 		if err := api.ccli.Stop(ctx, containerID); err != nil {
 			api.logger.Error(ctx, "unable to stop container", slog.Error(err))
 
