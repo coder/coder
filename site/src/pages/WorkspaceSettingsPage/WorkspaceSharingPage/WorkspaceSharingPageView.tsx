@@ -1,6 +1,5 @@
 import type {
 	Group,
-	User,
 	Workspace,
 	WorkspaceACL,
 	WorkspaceGroup,
@@ -8,80 +7,9 @@ import type {
 	WorkspaceUser,
 } from "api/typesGenerated";
 import { isGroup } from "modules/groups";
-import {
-	AddWorkspaceMemberForm,
-	RoleSelectField,
-	WorkspaceSharingForm,
-} from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
-import { type FC, useState } from "react";
-import {
-	UserOrGroupAutocomplete,
-	type UserOrGroupAutocompleteValue,
-} from "./UserOrGroupAutocomplete";
-
-type AddWorkspaceUserOrGroupProps = {
-	organizationID: string;
-	isLoading: boolean;
-	workspaceACL: WorkspaceACL | undefined;
-	onSubmit: (
-		value: WorkspaceUser | Group | ({ role: WorkspaceRole } & User),
-		role: WorkspaceRole,
-		reset: () => void,
-	) => void;
-};
-
-const AddWorkspaceUserOrGroup: FC<AddWorkspaceUserOrGroupProps> = ({
-	organizationID,
-	isLoading,
-	workspaceACL,
-	onSubmit,
-}) => {
-	const [selectedOption, setSelectedOption] =
-		useState<UserOrGroupAutocompleteValue>(null);
-	const [selectedRole, setSelectedRole] = useState<WorkspaceRole>("use");
-	const excludeFromAutocomplete = workspaceACL
-		? [...workspaceACL.group, ...workspaceACL.users]
-		: [];
-
-	const resetValues = () => {
-		setSelectedOption(null);
-		setSelectedRole("use");
-	};
-
-	return (
-		<AddWorkspaceMemberForm
-			isLoading={isLoading}
-			disabled={!selectedRole || !selectedOption}
-			onSubmit={() => {
-				if (selectedOption && selectedRole) {
-					onSubmit(
-						{
-							...selectedOption,
-							role: selectedRole,
-						},
-						selectedRole,
-						resetValues,
-					);
-				}
-			}}
-		>
-			<UserOrGroupAutocomplete
-				organizationId={organizationID}
-				value={selectedOption}
-				exclude={excludeFromAutocomplete}
-				onChange={(newValue) => {
-					setSelectedOption(newValue);
-				}}
-			/>
-
-			<RoleSelectField
-				value={selectedRole}
-				onChange={setSelectedRole}
-				disabled={isLoading}
-			/>
-		</AddWorkspaceMemberForm>
-	);
-};
+import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
+import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
+import type { FC } from "react";
 
 interface WorkspaceSharingPageViewProps {
 	workspace: Workspace;
