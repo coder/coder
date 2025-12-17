@@ -47,11 +47,11 @@ export const GlobalSnackbar: FC = () => {
 			message={
 				<div className="flex">
 					{notificationMsg.msgType === MsgType.Error && (
-						<ErrorIcon className={classNames.errorIcon} />
+						<ErrorIcon className={"text-content-destructive mr-4"} />
 					)}
 
 					<div className="max-w-[670px] flex flex-col">
-						<span className={classNames.messageTitle}>
+						<span className={"text-sm font-semibold"}>
 							{notificationMsg.msg}
 						</span>
 
@@ -100,7 +100,5 @@ const AdditionalMessageDisplay: FC<AdditionalMessageDisplayProps> = ({
 };
 
 const classNames = {
-	messageTitle: "text-sm font-semibold",
 	messageSubtitle: "mt-1 first-letter:uppercase",
-	errorIcon: "text-content-destructive mr-4",
 };

@@ -72,7 +72,9 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 	deviceExchangeError,
 }) => {
 	let status = (
-		<p className={classNames.status}>
+		<p
+			className={"flex items-center justify-center gap-2 text-content-disabled"}
+		>
 			<CircularProgress size={16} color="secondary" data-chromatic="ignore" />
 			Checking for authentication...
 		</p>
@@ -129,10 +131,14 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 
 	return (
 		<div>
-			<p className={classNames.text}>
+			<p
+				className={
+					"text-base text-content-secondary text-center leading-relaxed m-0"
+				}
+			>
 				Copy your one-time code:&nbsp;
-				<div className={classNames.copyCode}>
-					<span className={classNames.code}>
+				<div className={"inline-flex items-center"}>
+					<span className={"font-bold text-content-primary"}>
 						{externalAuthDevice.user_code}
 					</span>
 					&nbsp;{" "}
@@ -144,9 +150,9 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				<br />
 				Then open the link below and paste it:
 			</p>
-			<div className={classNames.links}>
+			<div className={"flex flex-col gap-1 m-4"}>
 				<Link
-					className={classNames.link}
+					className={"flex items-center justify-center font-base gap-2"}
 					href={externalAuthDevice.verification_uri}
 					target="_blank"
 					rel="noreferrer"
@@ -159,13 +165,4 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 			{status}
 		</div>
 	);
-};
-
-const classNames = {
-	text: "text-base text-content-secondary text-center leading-relaxed m-0",
-	copyCode: "inline-flex items-center",
-	code: "font-bold text-content-primary",
-	links: "flex flex-col gap-1 m-4",
-	link: "flex items-center justify-center font-base gap-2",
-	status: "flex items-center justify-center gap-2 text-content-disabled",
 };

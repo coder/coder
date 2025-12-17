@@ -69,8 +69,9 @@ export const SidebarIconButton: FC<SidebarIconButton> = ({
 			{...buttonProps}
 			className={cn(
 				"border-0 border-x-2 border-x-transparent border-solid",
-				!isActive && "opacity-75 hover:opacity-100",
-				isActive && "opacity-100 relative border-l-sky-400",
+				isActive
+					? "opacity-100 relative border-l-sky-400"
+					: "opacity-75 hover:opacity-100",
 				className,
 			)}
 		/>

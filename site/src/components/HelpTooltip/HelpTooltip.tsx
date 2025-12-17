@@ -90,7 +90,12 @@ export const HelpTooltipTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	...attrs
 }) => {
 	return (
-		<h4 className={classNames.title} {...attrs}>
+		<h4
+			className={
+				"mt-0 mb-2 text-content-primary text-sm leading-relaxed font-semibold"
+			}
+			{...attrs}
+		>
 			{children}
 		</h4>
 	);
@@ -101,7 +106,10 @@ export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	...attrs
 }) => {
 	return (
-		<p {...attrs} className={cn(classNames.text, attrs.className)}>
+		<p
+			{...attrs}
+			className={cn("my-1 text-sm leading-relaxed", attrs.className)}
+		>
 			{children}
 		</p>
 	);
@@ -118,9 +126,9 @@ export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
 			href={href}
 			target="_blank"
 			rel="noreferrer"
-			className={classNames.link}
+			className={"flex items-center text-sm text-content-link"}
 		>
-			<ExternalLinkIcon className={classNames.linkIcon} />
+			<ExternalLinkIcon className={"size-icon-xs mr-2 text-inherit"} />
 			{children}
 		</Link>
 	);
@@ -143,10 +151,12 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 		<button
 			type="button"
 			aria-label={ariaLabel ?? ""}
-			className={classNames.action}
+			className={
+				"flex items-center bg-transparent border-none p-0 cursor-pointer text-sm text-content-link"
+			}
 			onClick={onClick}
 		>
-			<Icon className={classNames.actionIcon} />
+			<Icon className={"text-inherit size-3.5 mr-2"} />
 			{children}
 		</button>
 	);
@@ -154,7 +164,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 
 export const HelpTooltipLinksGroup: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack spacing={1} className={classNames.linksGroup}>
+		<Stack spacing={1} className={"mt-4"}>
 			{children}
 		</Stack>
 	);
@@ -167,15 +177,4 @@ const getIconSpacingFromSize = (size?: Size): number => {
 		default:
 			return 16;
 	}
-};
-
-const classNames = {
-	title: "mt-0 mb-2 text-content-primary text-sm leading-relaxed font-semibold",
-	text: "my-1 text-sm leading-relaxed",
-	link: "flex items-center text-sm text-content-link",
-	linkIcon: "size-icon-xs mr-2 text-inherit",
-	linksGroup: "mt-4",
-	action:
-		"flex items-center bg-transparent border-none p-0 cursor-pointer text-sm text-content-link",
-	actionIcon: "text-inherit size-3.5 mr-2",
 };
