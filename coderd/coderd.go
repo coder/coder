@@ -1431,6 +1431,7 @@ func New(options *Options) *API {
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
 				r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWS)
+				r.Get("/watch-metadata-polling-ws", api.watchWorkspaceAgentMetadataPollingWS)
 				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)

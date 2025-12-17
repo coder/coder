@@ -1646,6 +1646,177 @@ func (api *API) watchWorkspaceAgentMetadataWS(rw http.ResponseWriter, r *http.Re
 	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender)
 }
 
+// @Summary Watch for workspace agent metadata updates via WebSockets (polling-based)
+// @ID watch-for-workspace-agent-metadata-updates-via-websockets-polling
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} codersdk.ServerSentEvent
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Router /workspaceagents/{workspaceagent}/watch-metadata-polling-ws [get]
+// @x-apidocgen {"skip": true}
+func (api *API) watchWorkspaceAgentMetadataPollingWS(rw http.ResponseWriter, r *http.Request) {
+	api.watchWorkspaceAgentMetadataPolling(rw, r, httpapi.OneWayWebSocketEventSender)
+}
+
+func (api *API) watchWorkspaceAgentMetadataPolling(
+	rw http.ResponseWriter,
+	r *http.Request,
+	connect httpapi.EventSender,
+) {
+	// Allow us to interrupt watch via cancel.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for cancellation.
+
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	log := api.Logger.Named("workspace_metadata_watcher_polling").With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+	)
+
+	// We always use the original Request context because it contains
+	// the RBAC actor.
+	initialMD, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: workspaceAgent.ID,
+		Keys:             nil,
+	})
+	if err != nil {
+		// If we can't successfully pull the initial metadata, polling
+		// updates will be no-op so we may as well terminate the
+		// connection early.
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	log.Debug(ctx, "got initial metadata", "num", len(initialMD))
+
+	metadataMap := make(map[string]database.WorkspaceAgentMetadatum, len(initialMD))
+	for _, datum := range initialMD {
+		metadataMap[datum.Key] = datum
+	}
+	//nolint:ineffassign // Release memory.
+	initialMD = nil
+
+	sendEvent, senderClosed, err := connect(rw, r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		cancel()
+		<-senderClosed
+	}()
+	// Synchronize cancellation from WebSocket -> context, this lets us simplify the
+	// cancellation logic.
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-senderClosed:
+			cancel()
+		}
+	}()
+
+	var lastSend time.Time
+	sendMetadata := func() {
+		lastSend = time.Now()
+		values := maps.Values(metadataMap)
+
+		log.Debug(ctx, "sending metadata", "num", len(values))
+
+		_ = sendEvent(codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: convertWorkspaceAgentMetadata(values),
+		})
+	}
+
+	// We send updates exactly every second.
+	const sendInterval = time.Second * 1
+	sendTicker := time.NewTicker(sendInterval)
+	defer sendTicker.Stop()
+
+	// Log the request immediately instead of after it completes.
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
+
+	// Send initial metadata.
+	sendMetadata()
+
+	// Poll for metadata updates every 15 seconds.
+	fetchedMetadata := make(chan []database.WorkspaceAgentMetadatum)
+	go func() {
+		defer close(fetchedMetadata)
+		defer cancel()
+
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+					WorkspaceAgentID: workspaceAgent.ID,
+					Keys:             nil, // Get all metadata
+				})
+				if err != nil {
+					if !database.IsQueryCanceledError(err) {
+						log.Error(ctx, "failed to get metadata", slog.Error(err))
+						_ = sendEvent(codersdk.ServerSentEvent{
+							Type: codersdk.ServerSentEventTypeError,
+							Data: codersdk.Response{
+								Message: "Failed to get metadata.",
+								Detail:  err.Error(),
+							},
+						})
+					}
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case fetchedMetadata <- md:
+					log.Debug(ctx, "fetched metadata from poll", "num", len(md))
+				}
+			}
+		}
+	}()
+	defer func() {
+		<-fetchedMetadata
+	}()
+
+	pendingChanges := true
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case md, ok := <-fetchedMetadata:
+			if !ok {
+				return
+			}
+			for _, datum := range md {
+				metadataMap[datum.Key] = datum
+			}
+			pendingChanges = true
+			continue
+		case <-sendTicker.C:
+			// We send an update even if there's no change every 5 seconds
+			// to ensure that the frontend always has an accurate "Result.Age".
+			if !pendingChanges && time.Since(lastSend) < 5*time.Second {
+				continue
+			}
+			pendingChanges = false
+		}
+
+		sendMetadata()
+	}
+}
+
 func (api *API) watchWorkspaceAgentMetadata(
 	rw http.ResponseWriter,
 	r *http.Request,

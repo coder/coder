@@ -127,6 +127,14 @@ export const watchAgentMetadata = (
 	});
 };
 
+export const watchAgentMetadataPolling = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/watch-metadata-polling-ws`,
+	});
+};
+
 /**
  * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
