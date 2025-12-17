@@ -47,7 +47,10 @@ const RequestLogsRowProviderIcon = ({
 			return <ExternalImage src="/icon/openai.svg" className={iconClassName} />;
 		case "anthropic":
 			return (
-				<ExternalImage src="/icon/anthropic.svg" className={iconClassName} />
+				<ExternalImage
+					src="/icon/claude-device.svg"
+					className={iconClassName}
+				/>
 			);
 		default:
 			return (

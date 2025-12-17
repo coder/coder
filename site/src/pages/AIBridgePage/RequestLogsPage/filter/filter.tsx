@@ -21,7 +21,7 @@ const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 		label: "Anthropic",
 		value: "anthropic",
 		startIcon: (
-			<ExternalImage src="/icon/anthropic.svg" className="size-icon-sm" />
+			<ExternalImage src="/icon/claude-device.svg" className="size-icon-sm" />
 		),
 	},
 ];
