@@ -134,10 +134,10 @@ func TestReinitializeAgent(t *testing.T) {
 			agentToken := uuid.UUID{3}
 			version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionPlan: []*proto.Response{
+				ProvisionGraph: []*proto.Response{
 					{
-						Type: &proto.Response_Plan{
-							Plan: &proto.PlanComplete{
+						Type: &proto.Response_Graph{
+							Graph: &proto.GraphComplete{
 								Presets: []*proto.Preset{
 									{
 										Name: "test-preset",
@@ -146,25 +146,6 @@ func TestReinitializeAgent(t *testing.T) {
 										},
 									},
 								},
-								Resources: []*proto.Resource{
-									{
-										Agents: []*proto.Agent{
-											{
-												Name:            "smith",
-												OperatingSystem: "linux",
-												Architecture:    "i386",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-				ProvisionApply: []*proto.Response{
-					{
-						Type: &proto.Response_Apply{
-							Apply: &proto.ApplyComplete{
 								Resources: []*proto.Resource{
 									{
 										Type: "compute",
@@ -188,6 +169,13 @@ func TestReinitializeAgent(t *testing.T) {
 									},
 								},
 							},
+						},
+					},
+				},
+				ProvisionApply: []*proto.Response{
+					{
+						Type: &proto.Response_Apply{
+							Apply: &proto.ApplyComplete{},
 						},
 					},
 				},
@@ -273,9 +261,9 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionApply: []*proto.Response{{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",

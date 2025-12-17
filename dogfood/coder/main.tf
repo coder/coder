@@ -39,6 +39,24 @@ locals {
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
+data "coder_workspace_preset" "pittsburgh" {
+  name        = "Pittsburgh"
+  default     = true
+  description = "Development workspace hosted in United States with 2 prebuild instances"
+  icon        = "/emojis/1f1fa-1f1f8.png"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 2
+  }
+}
+
 data "coder_workspace_preset" "cpt" {
   name        = "Cape Town"
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
@@ -53,23 +71,6 @@ data "coder_workspace_preset" "cpt" {
   }
   prebuilds {
     instances = 1
-  }
-}
-
-data "coder_workspace_preset" "pittsburgh" {
-  name        = "Pittsburgh"
-  description = "Development workspace hosted in United States with 2 prebuild instances"
-  icon        = "/emojis/1f1fa-1f1f8.png"
-  parameters = {
-    (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
-  }
-  prebuilds {
-    instances = 2
   }
 }
 
