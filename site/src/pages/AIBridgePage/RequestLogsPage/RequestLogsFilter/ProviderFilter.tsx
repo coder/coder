@@ -1,4 +1,3 @@
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,

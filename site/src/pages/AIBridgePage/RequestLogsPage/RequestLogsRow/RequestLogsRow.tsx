@@ -1,7 +1,6 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -14,7 +13,6 @@ import {
 	ArrowUpIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
-	CircleQuestionMarkIcon,
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
