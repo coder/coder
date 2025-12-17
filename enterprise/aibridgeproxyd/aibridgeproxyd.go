@@ -56,7 +56,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Decrypt all HTTPS requests via MITM. Requests are forwarded to
 	// the original destination without modification for now.
 	// TODO(ssncferreira): Route requests to aibridged
-	//   See https://github.com/coder/internal/issues/1181
+	//   will be implemented upstack.
+	//   Related to https://github.com/coder/internal/issues/1181
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
 	srv := &Server{
