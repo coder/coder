@@ -765,7 +765,7 @@ aibridge:
   # (unlimited).
   # (default: 0, type: int)
   rateLimit: 0
-aiproxy:
+aibridgeproxy:
   # Enable the AI MITM proxy for intercepting and decrypting AI provider requests.
   # (default: false, type: bool)
   enabled: false

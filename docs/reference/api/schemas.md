@@ -592,6 +592,26 @@
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
 
+## codersdk.AIBridgeProxyConfig
+
+```json
+{
+  "cert_file": "string",
+  "enabled": true,
+  "key_file": "string",
+  "listen_addr": "string"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `cert_file`   | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `key_file`    | string  | false    |              |             |
+| `listen_addr` | string  | false    |              |             |
+
 ## codersdk.AIBridgeTokenUsage
 
 ```json
@@ -690,6 +710,12 @@
 
 ```json
 {
+  "aibridge_proxy": {
+    "cert_file": "string",
+    "enabled": true,
+    "key_file": "string",
+    "listen_addr": "string"
+  },
   "bridge": {
     "anthropic": {
       "base_url": "string",
@@ -711,42 +737,16 @@
     },
     "rate_limit": 0,
     "retention": 0
-  },
-  "proxy": {
-    "cert_file": "string",
-    "enabled": true,
-    "key_file": "string",
-    "listen_addr": "string"
   }
 }
 ```
 
 ### Properties
 
-| Name     | Type                                               | Required | Restrictions | Description |
-|----------|----------------------------------------------------|----------|--------------|-------------|
-| `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
-| `proxy`  | [codersdk.AIProxyConfig](#codersdkaiproxyconfig)   | false    |              |             |
-
-## codersdk.AIProxyConfig
-
-```json
-{
-  "cert_file": "string",
-  "enabled": true,
-  "key_file": "string",
-  "listen_addr": "string"
-}
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `cert_file`   | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `key_file`    | string  | false    |              |             |
-| `listen_addr` | string  | false    |              |             |
+| Name             | Type                                                         | Required | Restrictions | Description |
+|------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
+| `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 
 ## codersdk.APIAllowListTarget
 
@@ -2622,6 +2622,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "agent_stat_refresh_interval": 0,
     "ai": {
+      "aibridge_proxy": {
+        "cert_file": "string",
+        "enabled": true,
+        "key_file": "string",
+        "listen_addr": "string"
+      },
       "bridge": {
         "anthropic": {
           "base_url": "string",
@@ -2643,12 +2649,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "rate_limit": 0,
         "retention": 0
-      },
-      "proxy": {
-        "cert_file": "string",
-        "enabled": true,
-        "key_file": "string",
-        "listen_addr": "string"
       }
     },
     "allow_workspace_renames": true,
@@ -3159,6 +3159,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "agent_stat_refresh_interval": 0,
   "ai": {
+    "aibridge_proxy": {
+      "cert_file": "string",
+      "enabled": true,
+      "key_file": "string",
+      "listen_addr": "string"
+    },
     "bridge": {
       "anthropic": {
         "base_url": "string",
@@ -3180,12 +3186,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "rate_limit": 0,
       "retention": 0
-    },
-    "proxy": {
-      "cert_file": "string",
-      "enabled": true,
-      "key_file": "string",
-      "listen_addr": "string"
     }
   },
   "allow_workspace_renames": true,
