@@ -25,7 +25,7 @@ type Server struct {
 	httpServer *http.Server
 }
 
-// Options configures the AI proxy server.
+// Options configures the AI Bridge Proxy server.
 type Options struct {
 	// ListenAddr is the address the proxy server will listen on.
 	ListenAddr string
@@ -36,7 +36,7 @@ type Options struct {
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
-	logger.Info(ctx, "initializing AI proxy server")
+	logger.Info(ctx, "initializing AI Bridge Proxy server")
 
 	if opts.ListenAddr == "" {
 		return nil, xerrors.New("listen address is required")
@@ -72,7 +72,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	go func() {
-		logger.Info(ctx, "starting AI proxy", slog.F("addr", opts.ListenAddr))
+		logger.Info(ctx, "starting AI Bridge Proxy", slog.F("addr", opts.ListenAddr))
 		if err := srv.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error(ctx, "aibridgeproxyd server error", slog.Error(err))
 		}
