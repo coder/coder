@@ -2973,7 +2973,6 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
 }
 
-
 func TestIncrementalBackoffOnCreationFailure(t *testing.T) {
 	t.Parallel()
 
