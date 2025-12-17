@@ -256,8 +256,9 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 			newUser, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 				ID: dbUser.ID,
 				// The user will get transitioned to Active after logging in.
-				Status:    database.UserStatusDormant,
-				UpdatedAt: dbtime.Now(),
+				Status:     database.UserStatusDormant,
+				UpdatedAt:  dbtime.Now(),
+				UserIsSeen: false,
 			})
 			if err != nil {
 				_ = handlerutil.WriteError(rw, err) // internal error
@@ -395,9 +396,10 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	if dbUser.Status != newStatus {
 		//nolint:gocritic // needed for SCIM
 		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
-			ID:        dbUser.ID,
-			Status:    newStatus,
-			UpdatedAt: dbtime.Now(),
+			ID:         dbUser.ID,
+			Status:     newStatus,
+			UpdatedAt:  dbtime.Now(),
+			UserIsSeen: false,
 		})
 		if err != nil {
 			_ = handlerutil.WriteError(rw, err) // internal error
@@ -490,9 +492,10 @@ func (api *API) scimPutUser(rw http.ResponseWriter, r *http.Request) {
 	if dbUser.Status != newStatus {
 		//nolint:gocritic // needed for SCIM
 		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
-			ID:        dbUser.ID,
-			Status:    newStatus,
-			UpdatedAt: dbtime.Now(),
+			ID:         dbUser.ID,
+			Status:     newStatus,
+			UpdatedAt:  dbtime.Now(),
+			UserIsSeen: false,
 		})
 		if err != nil {
 			_ = handlerutil.WriteError(rw, err) // internal error
