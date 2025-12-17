@@ -146,6 +146,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 			<TableRow
 				className="select-none cursor-pointer"
 				onClick={() => setIsOpen(!isOpen)}
+				hover
 			>
 				<TableCell className="w-48 whitespace-nowrap">
 					<div
