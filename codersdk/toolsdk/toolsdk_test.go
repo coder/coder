@@ -1017,7 +1017,6 @@ func TestTools(t *testing.T) {
 			ProvisionApply: echo.ApplyComplete,
 			ProvisionGraph: []*proto.Response{
 				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-					Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
 					HasAiTasks: true,
 				}}},
 			},

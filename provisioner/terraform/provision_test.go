@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/terraform-provider-coder/v2/provider"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -941,18 +939,15 @@ func TestProvision(t *testing.T) {
 		{
 			Name: "ai-task-multiple-allowed-in-plan",
 			Files: map[string]string{
-				"main.tf": fmt.Sprintf(`terraform {
+				"main.tf": `terraform {
 					required_providers {
 					  coder = {
 						source  = "coder/coder"
-						version = ">= 2.7.0"
+						version = ">= 2.13.0"
 					  }
 					}
 				}
-				data "coder_parameter" "prompt" {
-					name = "%s"
-					type = "string"
-				}
+				data "coder_task" "me" {}
 				resource "coder_ai_task" "a" {
 				  sidebar_app {
 					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
@@ -963,7 +958,7 @@ func TestProvision(t *testing.T) {
 					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
 				  }
 				}
-				`, provider.TaskPromptParameterName),
+				`,
 			},
 			Request: &proto.PlanRequest{},
 			Response: &proto.GraphComplete{
@@ -975,14 +970,6 @@ func TestProvision(t *testing.T) {
 					{
 						Name: "b",
 						Type: "coder_ai_task",
-					},
-				},
-				Parameters: []*proto.RichParameter{
-					{
-						Name:     provider.TaskPromptParameterName,
-						Type:     "string",
-						Required: true,
-						FormType: proto.ParameterFormType_INPUT,
 					},
 				},
 				AiTasks: []*proto.AITask{
