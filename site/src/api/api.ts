@@ -1916,7 +1916,7 @@ class ApiMethods {
 
 	getDeploymentDAUs = async (
 		// Default to user's local timezone.
-		// As ${API_PREFIX}/insights/daus only accepts whole-number values for tz_offset
+		// As /api/v2/insights/daus only accepts whole-number values for tz_offset
 		// we truncate the tz offset down to the closest hour.
 		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 	): Promise<TypesGen.DAUsResponse> => {
