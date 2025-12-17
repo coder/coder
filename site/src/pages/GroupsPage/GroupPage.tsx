@@ -53,10 +53,10 @@ import {
 	TrashIcon,
 	UserPlusIcon,
 } from "lucide-react";
+import { isEveryoneGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
-import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
 const GroupPage: FC = () => {

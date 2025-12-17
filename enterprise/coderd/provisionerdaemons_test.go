@@ -256,21 +256,16 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*sdkproto.Response{{
-				Type: &sdkproto.Response_Plan{
-					Plan: &sdkproto.PlanComplete{
-						Resources: []*sdkproto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*sdkproto.Agent{{
-								Id:   uuid.NewString(),
-								Name: "example",
-							}},
-						}},
-					},
-				},
-			}},
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken, func(g *sdkproto.GraphComplete) {
+				g.Resources = []*sdkproto.Resource{{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   uuid.NewString(),
+						Name: "example",
+					}},
+				}}
+			}),
 		})
 		require.NoError(t, err)
 		//nolint:gocritic // Not testing file upload in this test.
@@ -446,9 +441,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*sdkproto.Response{{
-				Type: &sdkproto.Response_Apply{
-					Apply: &sdkproto.ApplyComplete{
+			ProvisionGraph: []*sdkproto.Response{{
+				Type: &sdkproto.Response_Graph{
+					Graph: &sdkproto.GraphComplete{
 						Resources: []*sdkproto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",

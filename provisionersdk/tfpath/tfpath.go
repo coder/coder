@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 type Layouter interface {
@@ -28,7 +27,7 @@ type Layouter interface {
 	TerraformMetadataDir() string
 	ModulesDirectory() string
 	ModulesFilePath() string
-	ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, cfg *proto.Config) error
+	ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive []byte) error
 	Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs)
 	CleanStaleSessions(ctx context.Context, logger slog.Logger, fs afero.Fs, now time.Time) error
 }
@@ -93,9 +92,9 @@ func (l Layout) ModulesFilePath() string {
 	return filepath.Join(l.ModulesDirectory(), "modules.json")
 }
 
-func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, cfg *proto.Config) error {
+func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive []byte) error {
 	logger.Info(ctx, "unpacking template source archive",
-		slog.F("size_bytes", len(cfg.TemplateSourceArchive)),
+		slog.F("size_bytes", len(templateSourceArchive)),
 	)
 
 	err := fs.MkdirAll(l.WorkDirectory(), 0o700)
@@ -103,11 +102,7 @@ func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero
 		return xerrors.Errorf("create work directory %q: %w", l.WorkDirectory(), err)
 	}
 
-	// TODO: Pass in cfg.TemplateSourceArchive, not the full config.
-	//  niling out the config field is a bit hacky.
-	reader := tar.NewReader(bytes.NewBuffer(cfg.TemplateSourceArchive))
-	// for safety, nil out the reference on Config, since the reader now owns it.
-	cfg.TemplateSourceArchive = nil
+	reader := tar.NewReader(bytes.NewBuffer(templateSourceArchive))
 	for {
 		header, err := reader.Next()
 		if err != nil {

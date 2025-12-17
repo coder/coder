@@ -1,14 +1,10 @@
-import Autocomplete from "@mui/material/Autocomplete";
-import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
 import { templaceACLAvailable } from "api/queries/templates";
 import type { Group, ReducedUser } from "api/typesGenerated";
-import {
-	isGroup,
-	UserOrGroupOption,
-} from "components/UserOrGroupAutocomplete/UserOrGroupOption";
-import { useDebouncedFunction } from "hooks/debounce";
-import { type ChangeEvent, type FC, useState } from "react";
+import { Autocomplete } from "components/Autocomplete/Autocomplete";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { Check } from "lucide-react";
+import { getGroupSubtitle, isGroup } from "modules/groups";
+import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
 
@@ -28,18 +24,25 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	templateID,
 	exclude,
 }) => {
-	const [autoComplete, setAutoComplete] = useState({
-		value: "",
-		open: false,
-	});
+	const [inputValue, setInputValue] = useState("");
+	const [open, setOpen] = useState(false);
+
+	const handleOpenChange = (newOpen: boolean) => {
+		setOpen(newOpen);
+		if (!newOpen) {
+			setInputValue("");
+		}
+	};
+
 	const aclAvailableQuery = useQuery({
 		...templaceACLAvailable(templateID, {
-			q: prepareQuery(encodeURI(autoComplete.value)),
+			q: prepareQuery(encodeURI(inputValue)),
 			limit: 25,
 		}),
-		enabled: autoComplete.open,
+		enabled: open,
 		placeholderData: keepPreviousData,
 	});
+
 	const options: AutocompleteOption[] = aclAvailableQuery.data
 		? [
 				...aclAvailableQuery.data.groups,
@@ -52,69 +55,41 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			})
 		: [];
 
-	const { debounced: handleFilterChange } = useDebouncedFunction(
-		(event: ChangeEvent<HTMLInputElement>) => {
-			setAutoComplete((state) => ({
-				...state,
-				value: event.target.value,
-			}));
-		},
-		500,
-	);
-
 	return (
 		<Autocomplete
-			noOptionsText="No users or groups found"
 			value={value}
-			id="user-or-group-autocomplete"
-			open={autoComplete.open}
-			onOpen={() => {
-				setAutoComplete((state) => ({
-					...state,
-					open: true,
-				}));
-			}}
-			onClose={() => {
-				setAutoComplete({
-					value: isGroup(value) ? value.display_name : (value?.email ?? ""),
-					open: false,
-				});
-			}}
-			onChange={(_, newValue) => {
-				onChange(newValue);
-			}}
-			isOptionEqualToValue={(option, optionValue) =>
-				option.id === optionValue.id
-			}
+			onChange={onChange}
+			options={options}
+			getOptionValue={(option) => option.id}
 			getOptionLabel={(option) =>
 				isGroup(option) ? option.display_name || option.name : option.email
 			}
-			renderOption={({ key, ...props }, option) => (
-				<UserOrGroupOption key={key} htmlProps={props} option={option} />
+			isOptionEqualToValue={(option, optionValue) =>
+				option.id === optionValue.id
+			}
+			renderOption={(option, isSelected) => (
+				<div className="flex items-center justify-between w-full">
+					<AvatarData
+						title={
+							isGroup(option)
+								? option.display_name || option.name
+								: option.username
+						}
+						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
+						src={option.avatar_url}
+					/>
+					{isSelected && <Check className="size-4 shrink-0" />}
+				</div>
 			)}
-			options={options}
+			open={open}
+			onOpenChange={handleOpenChange}
+			inputValue={inputValue}
+			onInputChange={setInputValue}
 			loading={aclAvailableQuery.isFetching}
-			className="w-[300px] [&_.MuiFormControl-root]:w-full [&_.MuiInputBase-root]:w-full"
-			renderInput={(params) => (
-				<TextField
-					{...params}
-					margin="none"
-					size="small"
-					placeholder="Search for user or group"
-					InputProps={{
-						...params.InputProps,
-						onChange: handleFilterChange,
-						endAdornment: (
-							<>
-								{aclAvailableQuery.isFetching ? (
-									<CircularProgress size={16} />
-								) : null}
-								{params.InputProps.endAdornment}
-							</>
-						),
-					}}
-				/>
-			)}
+			placeholder="Search for user or group"
+			noOptionsText="No users or groups found"
+			className="w-[300px]"
+			id="user-or-group-autocomplete"
 		/>
 	);
 };

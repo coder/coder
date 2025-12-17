@@ -23,14 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - uses: tj-actions/changed-files@abdd2f68ea150cee8f236d4a9fb4e0f2491abf1b # v45.0.7
+      - uses: tj-actions/changed-files@e0021407031f5be11a464abee9a0776171c79891 # v45.0.7
         id: changed-files
         with:
           files: |
