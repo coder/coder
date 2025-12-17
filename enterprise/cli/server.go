@@ -165,14 +165,14 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			closers.Add(aibridgeDaemon)
 		}
 
-		// In-memory AI proxy daemon
+		// In-memory AI Bridge Proxy daemon
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			aiProxyServer, err := newAIBridgeProxyDaemon(api)
+			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api)
 			if err != nil {
 				_ = closers.Close()
 				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
 			}
-			closers.Add(aiProxyServer)
+			closers.Add(aiBridgeProxyServer)
 		}
 
 		return api.AGPL, closers, nil

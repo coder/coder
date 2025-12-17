@@ -1823,7 +1823,7 @@ Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
 | YAML        | <code>aibridgeproxy.enabled</code>         |
 | Default     | <code>false</code>                         |
 
-Enable the AI MITM proxy for intercepting and decrypting AI provider requests.
+Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.
 
 ### --aibridge-proxy-listen-addr
 
@@ -1834,7 +1834,7 @@ Enable the AI MITM proxy for intercepting and decrypting AI provider requests.
 | YAML        | <code>aibridgeproxy.listen_addr</code>         |
 | Default     | <code>:8888</code>                             |
 
-The address the AI proxy will listen on.
+The address the AI Bridge Proxy will listen on.
 
 ### --aibridge-proxy-cert-file
 
@@ -1844,7 +1844,7 @@ The address the AI proxy will listen on.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
 | YAML        | <code>aibridgeproxy.cert_file</code>         |
 
-Path to the CA certificate file for MITM.
+Path to the CA certificate file for AI Bridge Proxy.
 
 ### --aibridge-proxy-key-file
 
@@ -1854,7 +1854,7 @@ Path to the CA certificate file for MITM.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
 | YAML        | <code>aibridgeproxy.key_file</code>         |
 
-Path to the CA private key file for MITM.
+Path to the CA private key file for AI Bridge Proxy.
 
 ### --audit-logs-retention
 
