@@ -1019,6 +1019,8 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
+		api.ExperimentalHandler = r
+
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
 			// Specific routes can specify different limits, but every rate
@@ -1826,6 +1828,8 @@ type API struct {
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
+	// ExperimentalHandler serves "/api/experimental"
+	ExperimentalHandler chi.Router
 	// RootHandler serves "/"
 	RootHandler chi.Router
 

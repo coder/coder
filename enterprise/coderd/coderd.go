@@ -226,6 +226,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
+	api.AGPL.ExperimentalHandler.Group(func(_ chi.Router) {
+		// Add enterprise-only experimental routes here
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
 	})
