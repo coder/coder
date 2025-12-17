@@ -400,9 +400,8 @@ func (api *API) postWorkspaceBuildsInternal(
 				Message: "Internal error unsetting workspace dormant status",
 				Detail:  err.Error(),
 			})
-		} else {
-			api.Logger.Info(ctx, "unset dormant status for workspace due to start", slog.F("workspace_id", workspace.ID))
 		}
+		api.Logger.Info(ctx, "unset dormant status for workspace due to start", slog.F("workspace_id", workspace.ID))
 	}
 
 	var (
