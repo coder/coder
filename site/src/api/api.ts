@@ -32,6 +32,8 @@ import type {
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
+const API_PREFIX = "/api/v2";
+
 const getMissingParameters = (
 	oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
 	newBuildParameters: TypesGen.WorkspaceBuildParameter[],
@@ -123,7 +125,7 @@ export const watchAgentMetadata = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
-		apiRoute: `/api/v2/workspaceagents/${agentId}/watch-metadata-ws`,
+		apiRoute: `${API_PREFIX}/workspaceagents/${agentId}/watch-metadata-ws`,
 	});
 };
 
@@ -134,7 +136,7 @@ export const watchWorkspace = (
 	workspaceId: string,
 ): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
-		apiRoute: `/api/v2/workspaces/${workspaceId}/watch-ws`,
+		apiRoute: `${API_PREFIX}/workspaces/${workspaceId}/watch-ws`,
 	});
 };
 
@@ -142,7 +144,7 @@ export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
 	return new OneWayWebSocket({
-		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch`,
+		apiRoute: `${API_PREFIX}/workspaceagents/${agentId}/containers/watch`,
 	});
 };
 
@@ -154,7 +156,7 @@ export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
 ): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
 	return new OneWayWebSocket({
-		apiRoute: "/api/v2/notifications/inbox/watch",
+		apiRoute: `${API_PREFIX}/notifications/inbox/watch`,
 		searchParams: params,
 	});
 }
@@ -220,7 +222,7 @@ export const watchBuildLogsByTemplateVersionId = (
 	}
 
 	const socket = createWebSocket(
-		`/api/v2/templateversions/${versionId}/logs`,
+		`${API_PREFIX}/templateversions/${versionId}/logs`,
 		searchParams,
 	);
 
@@ -260,7 +262,7 @@ export const watchWorkspaceAgentLogs = (
 	}
 
 	return new OneWayWebSocket<TypesGen.WorkspaceAgentLog[]>({
-		apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
+		apiRoute: `${API_PREFIX}/workspaceagents/${agentId}/logs`,
 		searchParams,
 	});
 };
@@ -285,7 +287,7 @@ export const watchBuildLogsByBuildId = (
 	}
 
 	const socket = createWebSocket(
-		`/api/v2/workspacebuilds/${buildId}/logs`,
+		`${API_PREFIX}/workspacebuilds/${buildId}/logs`,
 		searchParams,
 	);
 
@@ -453,7 +455,7 @@ class ApiMethods {
 	): Promise<TypesGen.LoginWithPasswordResponse> => {
 		const payload = JSON.stringify({ email, password });
 		const response = await this.axios.post<TypesGen.LoginWithPasswordResponse>(
-			"/api/v2/users/login",
+			`${API_PREFIX}/users/login`,
 			payload,
 			{ headers: { ...BASE_CONTENT_TYPE_JSON } },
 		);
@@ -463,7 +465,7 @@ class ApiMethods {
 
 	convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
 		const response = await this.axios.post<TypesGen.OAuthConversionResponse>(
-			"/api/v2/users/me/convert-login",
+			`${API_PREFIX}/users/me/convert-login`,
 			request,
 		);
 
@@ -471,17 +473,19 @@ class ApiMethods {
 	};
 
 	logout = async (): Promise<void> => {
-		return this.axios.post("/api/v2/users/logout");
+		return this.axios.post(`${API_PREFIX}/users/logout`);
 	};
 
 	getAuthenticatedUser = async () => {
-		const response = await this.axios.get<TypesGen.User>("/api/v2/users/me");
+		const response = await this.axios.get<TypesGen.User>(
+			`${API_PREFIX}/users/me`,
+		);
 		return response.data;
 	};
 
 	getUserParameters = async (templateID: string) => {
 		const response = await this.axios.get<TypesGen.UserParameter[]>(
-			`/api/v2/users/me/autofill-parameters?template_id=${templateID}`,
+			`${API_PREFIX}/users/me/autofill-parameters?template_id=${templateID}`,
 		);
 
 		return response.data;
@@ -489,7 +493,7 @@ class ApiMethods {
 
 	getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
 		const response = await this.axios.get<TypesGen.AuthMethods>(
-			"/api/v2/users/authmethods",
+			`${API_PREFIX}/users/authmethods`,
 		);
 
 		return response.data;
@@ -497,7 +501,7 @@ class ApiMethods {
 
 	getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
 		const response = await this.axios.get<TypesGen.UserLoginType>(
-			"/api/v2/users/me/login-type",
+			`${API_PREFIX}/users/me/login-type`,
 		);
 
 		return response.data;
@@ -507,7 +511,7 @@ class ApiMethods {
 		params: TypesGen.AuthorizationRequest,
 	) => {
 		const response = await this.axios.post<TResponse>(
-			"/api/v2/authcheck",
+			`${API_PREFIX}/authcheck`,
 			params,
 		);
 
@@ -516,7 +520,7 @@ class ApiMethods {
 
 	getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 		const response = await this.axios.post<TypesGen.GenerateAPIKeyResponse>(
-			"/api/v2/users/me/keys",
+			`${API_PREFIX}/users/me/keys`,
 		);
 
 		return response.data;
@@ -526,7 +530,7 @@ class ApiMethods {
 		params: TypesGen.TokensFilter,
 	): Promise<TypesGen.APIKeyWithOwner[]> => {
 		const response = await this.axios.get<TypesGen.APIKeyWithOwner[]>(
-			"/api/v2/users/me/keys/tokens",
+			`${API_PREFIX}/users/me/keys/tokens`,
 			{ params },
 		);
 
@@ -534,14 +538,14 @@ class ApiMethods {
 	};
 
 	deleteToken = async (keyId: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/users/me/keys/${keyId}`);
+		await this.axios.delete(`${API_PREFIX}/users/me/keys/${keyId}`);
 	};
 
 	createToken = async (
 		params: TypesGen.CreateTokenRequest,
 	): Promise<TypesGen.GenerateAPIKeyResponse> => {
 		const response = await this.axios.post(
-			"/api/v2/users/me/keys/tokens",
+			`${API_PREFIX}/users/me/keys/tokens`,
 			params,
 		);
 
@@ -550,7 +554,7 @@ class ApiMethods {
 
 	getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
 		const response = await this.axios.get(
-			"/api/v2/users/me/keys/tokens/tokenconfig",
+			`${API_PREFIX}/users/me/keys/tokens/tokenconfig`,
 		);
 
 		return response.data;
@@ -560,7 +564,7 @@ class ApiMethods {
 		options: TypesGen.UsersRequest,
 		signal?: AbortSignal,
 	): Promise<TypesGen.GetUsersResponse> => {
-		const url = getURLWithSearchParams("/api/v2/users", options);
+		const url = getURLWithSearchParams(`${API_PREFIX}/users`, options);
 		const response = await this.axios.get<TypesGen.GetUsersResponse>(
 			url.toString(),
 			{ signal },
@@ -571,7 +575,7 @@ class ApiMethods {
 
 	createOrganization = async (params: TypesGen.CreateOrganizationRequest) => {
 		const response = await this.axios.post<TypesGen.Organization>(
-			"/api/v2/organizations",
+			`${API_PREFIX}/organizations`,
 			params,
 		);
 		return response.data;
@@ -585,7 +589,7 @@ class ApiMethods {
 		params: TypesGen.UpdateOrganizationRequest,
 	) => {
 		const response = await this.axios.patch<TypesGen.Organization>(
-			`/api/v2/organizations/${organization}`,
+			`${API_PREFIX}/organizations/${organization}`,
 			params,
 		);
 		return response.data;
@@ -596,7 +600,7 @@ class ApiMethods {
 	 */
 	deleteOrganization = async (organization: string) => {
 		await this.axios.delete<TypesGen.Organization>(
-			`/api/v2/organizations/${organization}`,
+			`${API_PREFIX}/organizations/${organization}`,
 		);
 	};
 
@@ -607,7 +611,7 @@ class ApiMethods {
 		organization: string,
 	): Promise<TypesGen.Organization> => {
 		const response = await this.axios.get<TypesGen.Organization>(
-			`/api/v2/organizations/${organization}`,
+			`${API_PREFIX}/organizations/${organization}`,
 		);
 
 		return response.data;
@@ -619,7 +623,7 @@ class ApiMethods {
 	getOrganizationMembers = async (organization: string) => {
 		const response = await this.axios.get<
 			TypesGen.OrganizationMemberWithUserData[]
-		>(`/api/v2/organizations/${organization}/members`);
+		>(`${API_PREFIX}/organizations/${organization}/members`);
 
 		return response.data;
 	};
@@ -633,7 +637,7 @@ class ApiMethods {
 		options?: TypesGen.Pagination,
 	) => {
 		const url = getURLWithSearchParams(
-			`/api/v2/organizations/${organization}/paginated-members`,
+			`${API_PREFIX}/organizations/${organization}/paginated-members`,
 			options,
 		);
 		const response =
@@ -647,7 +651,7 @@ class ApiMethods {
 	 */
 	getOrganizationRoles = async (organization: string) => {
 		const response = await this.axios.get<TypesGen.AssignableRoles[]>(
-			`/api/v2/organizations/${organization}/members/roles`,
+			`${API_PREFIX}/organizations/${organization}/members/roles`,
 		);
 
 		return response.data;
@@ -662,7 +666,7 @@ class ApiMethods {
 		roles: TypesGen.SlimRole["name"][],
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.put<TypesGen.User>(
-			`/api/v2/organizations/${organization}/members/${userId}/roles`,
+			`${API_PREFIX}/organizations/${organization}/members/${userId}/roles`,
 			{ roles },
 		);
 
@@ -677,7 +681,7 @@ class ApiMethods {
 		role: TypesGen.Role,
 	): Promise<TypesGen.Role> => {
 		const response = await this.axios.post<TypesGen.Role>(
-			`/api/v2/organizations/${organization}/members/roles`,
+			`${API_PREFIX}/organizations/${organization}/members/roles`,
 			role,
 		);
 
@@ -692,7 +696,7 @@ class ApiMethods {
 		role: TypesGen.Role,
 	): Promise<TypesGen.Role> => {
 		const response = await this.axios.put<TypesGen.Role>(
-			`/api/v2/organizations/${organization}/members/roles`,
+			`${API_PREFIX}/organizations/${organization}/members/roles`,
 			role,
 		);
 
@@ -704,7 +708,7 @@ class ApiMethods {
 	 */
 	deleteOrganizationRole = async (organization: string, roleName: string) => {
 		await this.axios.delete(
-			`/api/v2/organizations/${organization}/members/roles/${roleName}`,
+			`${API_PREFIX}/organizations/${organization}/members/roles/${roleName}`,
 		);
 	};
 
@@ -713,7 +717,7 @@ class ApiMethods {
 	 */
 	addOrganizationMember = async (organization: string, userId: string) => {
 		const response = await this.axios.post<TypesGen.OrganizationMember>(
-			`/api/v2/organizations/${organization}/members/${userId}`,
+			`${API_PREFIX}/organizations/${organization}/members/${userId}`,
 		);
 
 		return response.data;
@@ -724,20 +728,20 @@ class ApiMethods {
 	 */
 	removeOrganizationMember = async (organization: string, userId: string) => {
 		await this.axios.delete(
-			`/api/v2/organizations/${organization}/members/${userId}`,
+			`${API_PREFIX}/organizations/${organization}/members/${userId}`,
 		);
 	};
 
 	getOrganizations = async (): Promise<TypesGen.Organization[]> => {
 		const response = await this.axios.get<TypesGen.Organization[]>(
-			"/api/v2/organizations",
+			`${API_PREFIX}/organizations`,
 		);
 		return response.data;
 	};
 
 	getMyOrganizations = async (): Promise<TypesGen.Organization[]> => {
 		const response = await this.axios.get<TypesGen.Organization[]>(
-			"/api/v2/users/me/organizations",
+			`${API_PREFIX}/users/me/organizations`,
 		);
 		return response.data;
 	};
@@ -747,7 +751,7 @@ class ApiMethods {
 		params?: GetProvisionerDaemonsParams,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons`,
+			`${API_PREFIX}/organizations/${organization}/provisionerdaemons`,
 			{ params },
 		);
 		return response.data;
@@ -760,7 +764,7 @@ class ApiMethods {
 		organization: string,
 	): Promise<TypesGen.ProvisionerKeyDaemons[]> => {
 		const response = await this.axios.get<TypesGen.ProvisionerKeyDaemons[]>(
-			`/api/v2/organizations/${organization}/provisionerkeys/daemons`,
+			`${API_PREFIX}/organizations/${organization}/provisionerkeys/daemons`,
 		);
 		return response.data;
 	};
@@ -768,7 +772,7 @@ class ApiMethods {
 	getOrganizationIdpSyncSettings =
 		async (): Promise<TypesGen.OrganizationSyncSettings> => {
 			const response = await this.axios.get<TypesGen.OrganizationSyncSettings>(
-				"/api/v2/settings/idpsync/organization",
+				`${API_PREFIX}/settings/idpsync/organization`,
 			);
 			return response.data;
 		};
@@ -777,7 +781,7 @@ class ApiMethods {
 		data: TypesGen.OrganizationSyncSettings,
 	) => {
 		const response = await this.axios.patch<TypesGen.Response>(
-			"/api/v2/settings/idpsync/organization",
+			`${API_PREFIX}/settings/idpsync/organization`,
 			data,
 		);
 		return response.data;
@@ -792,7 +796,7 @@ class ApiMethods {
 		organization: string,
 	) => {
 		const response = await this.axios.patch<TypesGen.Response>(
-			`/api/v2/organizations/${organization}/settings/idpsync/groups`,
+			`${API_PREFIX}/organizations/${organization}/settings/idpsync/groups`,
 			data,
 		);
 		return response.data;
@@ -807,7 +811,7 @@ class ApiMethods {
 		organization: string,
 	) => {
 		const response = await this.axios.patch<TypesGen.Response>(
-			`/api/v2/organizations/${organization}/settings/idpsync/roles`,
+			`${API_PREFIX}/organizations/${organization}/settings/idpsync/roles`,
 			data,
 		);
 		return response.data;
@@ -820,7 +824,7 @@ class ApiMethods {
 		organization: string,
 	): Promise<TypesGen.GroupSyncSettings> => {
 		const response = await this.axios.get<TypesGen.GroupSyncSettings>(
-			`/api/v2/organizations/${organization}/settings/idpsync/groups`,
+			`${API_PREFIX}/organizations/${organization}/settings/idpsync/groups`,
 		);
 		return response.data;
 	};
@@ -832,7 +836,7 @@ class ApiMethods {
 		organization: string,
 	): Promise<TypesGen.RoleSyncSettings> => {
 		const response = await this.axios.get<TypesGen.RoleSyncSettings>(
-			`/api/v2/organizations/${organization}/settings/idpsync/roles`,
+			`${API_PREFIX}/organizations/${organization}/settings/idpsync/roles`,
 		);
 		return response.data;
 	};
@@ -843,7 +847,7 @@ class ApiMethods {
 		const params = new URLSearchParams();
 		params.set("claimField", field);
 		const response = await this.axios.get<readonly string[]>(
-			`/api/v2/settings/idpsync/field-values?${params}`,
+			`${API_PREFIX}/settings/idpsync/field-values?${params}`,
 		);
 		return response.data;
 	};
@@ -855,14 +859,14 @@ class ApiMethods {
 		const params = new URLSearchParams();
 		params.set("claimField", field);
 		const response = await this.axios.get<readonly string[]>(
-			`/api/v2/organizations/${organization}/settings/idpsync/field-values?${params}`,
+			`${API_PREFIX}/organizations/${organization}/settings/idpsync/field-values?${params}`,
 		);
 		return response.data;
 	};
 
 	getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
 		const response = await this.axios.get<TypesGen.Template>(
-			`/api/v2/templates/${templateId}`,
+			`${API_PREFIX}/templates/${templateId}`,
 		);
 
 		return response.data;
@@ -873,7 +877,7 @@ class ApiMethods {
 	): Promise<TypesGen.Template[]> => {
 		const params = normalizeGetTemplatesOptions(options);
 		const response = await this.axios.get<TypesGen.Template[]>(
-			"/api/v2/templates",
+			`${API_PREFIX}/templates`,
 			{ params },
 		);
 
@@ -889,7 +893,7 @@ class ApiMethods {
 	): Promise<TypesGen.Template[]> => {
 		const params = normalizeGetTemplatesOptions(options);
 		const response = await this.axios.get<TypesGen.Template[]>(
-			`/api/v2/organizations/${organization}/templates`,
+			`${API_PREFIX}/organizations/${organization}/templates`,
 			{ params },
 		);
 
@@ -904,7 +908,7 @@ class ApiMethods {
 		name: string,
 	): Promise<TypesGen.Template> => {
 		const response = await this.axios.get<TypesGen.Template>(
-			`/api/v2/organizations/${organization}/templates/${name}`,
+			`${API_PREFIX}/organizations/${organization}/templates/${name}`,
 		);
 
 		return response.data;
@@ -914,7 +918,7 @@ class ApiMethods {
 		versionId: string,
 	): Promise<TypesGen.TemplateVersion> => {
 		const response = await this.axios.get<TypesGen.TemplateVersion>(
-			`/api/v2/templateversions/${versionId}`,
+			`${API_PREFIX}/templateversions/${versionId}`,
 		);
 
 		return response.data;
@@ -924,7 +928,7 @@ class ApiMethods {
 		versionId: string,
 	): Promise<TypesGen.WorkspaceResource[]> => {
 		const response = await this.axios.get<TypesGen.WorkspaceResource[]>(
-			`/api/v2/templateversions/${versionId}/resources`,
+			`${API_PREFIX}/templateversions/${versionId}/resources`,
 		);
 
 		return response.data;
@@ -938,7 +942,7 @@ class ApiMethods {
 		type VerArray = TypesGen.TemplateVersionVariable[];
 
 		const response = await this.axios.get<VerArray>(
-			`/api/v2/templateversions/${versionId}/variables`,
+			`${API_PREFIX}/templateversions/${versionId}/variables`,
 		);
 
 		return response.data;
@@ -948,7 +952,7 @@ class ApiMethods {
 		templateId: string,
 	): Promise<TypesGen.TemplateVersion[]> => {
 		const response = await this.axios.get<TypesGen.TemplateVersion[]>(
-			`/api/v2/templates/${templateId}/versions`,
+			`${API_PREFIX}/templates/${templateId}/versions`,
 		);
 		return response.data;
 	};
@@ -962,7 +966,7 @@ class ApiMethods {
 		versionName: string,
 	): Promise<TypesGen.TemplateVersion> => {
 		const response = await this.axios.get<TypesGen.TemplateVersion>(
-			`/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}`,
+			`${API_PREFIX}/organizations/${organization}/templates/${templateName}/versions/${versionName}`,
 		);
 
 		return response.data;
@@ -978,7 +982,7 @@ class ApiMethods {
 	) => {
 		try {
 			const response = await this.axios.get<TypesGen.TemplateVersion>(
-				`/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}/previous`,
+				`${API_PREFIX}/organizations/${organization}/templates/${templateName}/versions/${versionName}/previous`,
 			);
 
 			return response.data;
@@ -1005,7 +1009,7 @@ class ApiMethods {
 		data: TypesGen.CreateTemplateVersionRequest,
 	): Promise<TypesGen.TemplateVersion> => {
 		const response = await this.axios.post<TypesGen.TemplateVersion>(
-			`/api/v2/organizations/${organization}/templateversions`,
+			`${API_PREFIX}/organizations/${organization}/templateversions`,
 			data,
 		);
 
@@ -1016,7 +1020,7 @@ class ApiMethods {
 		versionId: string,
 	): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
 		const response = await this.axios.get(
-			`/api/v2/templateversions/${versionId}/external-auth`,
+			`${API_PREFIX}/templateversions/${versionId}/external-auth`,
 		);
 
 		return response.data;
@@ -1027,7 +1031,7 @@ class ApiMethods {
 		data: TypesGen.DynamicParametersRequest,
 	): Promise<TypesGen.DynamicParametersResponse> => {
 		const response = await this.axios.post(
-			`/api/v2/templateversions/${versionId}/dynamic-parameters/evaluate`,
+			`${API_PREFIX}/templateversions/${versionId}/dynamic-parameters/evaluate`,
 			data,
 		);
 		return response.data;
@@ -1037,7 +1041,7 @@ class ApiMethods {
 		versionId: string,
 	): Promise<TypesGen.TemplateVersionParameter[]> => {
 		const response = await this.axios.get(
-			`/api/v2/templateversions/${versionId}/rich-parameters`,
+			`${API_PREFIX}/templateversions/${versionId}/rich-parameters`,
 		);
 		return response.data;
 	};
@@ -1056,7 +1060,7 @@ class ApiMethods {
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
-			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
+			`${API_PREFIX}/templateversions/${versionId}/dynamic-parameters`,
 			new URLSearchParams({ user_id: userId }),
 		);
 
@@ -1084,7 +1088,7 @@ class ApiMethods {
 		data: TypesGen.CreateTemplateRequest,
 	): Promise<TypesGen.Template> => {
 		const response = await this.axios.post(
-			`/api/v2/organizations/${organization}/templates`,
+			`${API_PREFIX}/organizations/${organization}/templates`,
 			data,
 		);
 
@@ -1096,7 +1100,7 @@ class ApiMethods {
 		data: TypesGen.UpdateActiveTemplateVersion,
 	) => {
 		const response = await this.axios.patch<TypesGen.Response>(
-			`/api/v2/templates/${templateId}/versions`,
+			`${API_PREFIX}/templates/${templateId}/versions`,
 			data,
 		);
 		return response.data;
@@ -1107,7 +1111,7 @@ class ApiMethods {
 		data: TypesGen.PatchTemplateVersionRequest,
 	) => {
 		const response = await this.axios.patch<TypesGen.TemplateVersion>(
-			`/api/v2/templateversions/${templateVersionId}`,
+			`${API_PREFIX}/templateversions/${templateVersionId}`,
 			data,
 		);
 
@@ -1116,7 +1120,7 @@ class ApiMethods {
 
 	archiveTemplateVersion = async (templateVersionId: string) => {
 		const response = await this.axios.post<TypesGen.TemplateVersion>(
-			`/api/v2/templateversions/${templateVersionId}/archive`,
+			`${API_PREFIX}/templateversions/${templateVersionId}/archive`,
 		);
 
 		return response.data;
@@ -1124,7 +1128,7 @@ class ApiMethods {
 
 	unarchiveTemplateVersion = async (templateVersionId: string) => {
 		const response = await this.axios.post<TypesGen.TemplateVersion>(
-			`/api/v2/templateversions/${templateVersionId}/unarchive`,
+			`${API_PREFIX}/templateversions/${templateVersionId}/unarchive`,
 		);
 		return response.data;
 	};
@@ -1145,7 +1149,7 @@ class ApiMethods {
 		}
 
 		const response = await this.axios.get(
-			`/api/v2/files/${fileId}?${params.toString()}`,
+			`${API_PREFIX}/files/${fileId}?${params.toString()}`,
 			{
 				responseType: "blob",
 			},
@@ -1159,7 +1163,7 @@ class ApiMethods {
 		data: TypesGen.UpdateTemplateMeta,
 	): Promise<TypesGen.Template | null> => {
 		const response = await this.axios.patch<TypesGen.Template>(
-			`/api/v2/templates/${templateId}`,
+			`${API_PREFIX}/templates/${templateId}`,
 			data,
 		);
 
@@ -1173,7 +1177,7 @@ class ApiMethods {
 
 	deleteTemplate = async (templateId: string): Promise<TypesGen.Template> => {
 		const response = await this.axios.delete<TypesGen.Template>(
-			`/api/v2/templates/${templateId}`,
+			`${API_PREFIX}/templates/${templateId}`,
 		);
 
 		return response.data;
@@ -1183,7 +1187,7 @@ class ApiMethods {
 		templateId: string,
 	): Promise<TypesGen.InvalidatePresetsResponse> => {
 		const response = await this.axios.post<TypesGen.InvalidatePresetsResponse>(
-			`/api/v2/templates/${templateId}/prebuilds/invalidate`,
+			`${API_PREFIX}/templates/${templateId}/prebuilds/invalidate`,
 		);
 		return response.data;
 	};
@@ -1193,7 +1197,7 @@ class ApiMethods {
 		params?: TypesGen.WorkspaceOptions,
 	): Promise<TypesGen.Workspace> => {
 		const response = await this.axios.get<TypesGen.Workspace>(
-			`/api/v2/workspaces/${workspaceId}`,
+			`${API_PREFIX}/workspaces/${workspaceId}`,
 			{ params },
 		);
 
@@ -1203,7 +1207,7 @@ class ApiMethods {
 	getWorkspaces = async (
 		req: TypesGen.WorkspacesRequest,
 	): Promise<TypesGen.WorkspacesResponse> => {
-		const url = getURLWithSearchParams("/api/v2/workspaces", req);
+		const url = getURLWithSearchParams(`${API_PREFIX}/workspaces`, req);
 		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
 		return response.data;
 	};
@@ -1214,7 +1218,7 @@ class ApiMethods {
 		params?: TypesGen.WorkspaceOptions,
 	): Promise<TypesGen.Workspace> => {
 		const response = await this.axios.get<TypesGen.Workspace>(
-			`/api/v2/users/${username}/workspace/${workspaceName}`,
+			`${API_PREFIX}/users/${username}/workspace/${workspaceName}`,
 			{ params },
 		);
 
@@ -1227,7 +1231,7 @@ class ApiMethods {
 		buildNumber: number,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
-			`/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
+			`${API_PREFIX}/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
 		);
 
 		return response.data;
@@ -1267,7 +1271,7 @@ class ApiMethods {
 		data: TypesGen.CreateWorkspaceBuildRequest,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const response = await this.axios.post(
-			`/api/v2/workspaces/${workspaceId}/builds`,
+			`${API_PREFIX}/workspaces/${workspaceId}/builds`,
 			data,
 		);
 		return response.data;
@@ -1277,7 +1281,7 @@ class ApiMethods {
 		templateVersionId: string,
 	): Promise<TypesGen.Preset[] | null> => {
 		const response = await this.axios.get<TypesGen.Preset[]>(
-			`/api/v2/templateversions/${templateVersionId}/presets`,
+			`${API_PREFIX}/templateversions/${templateVersionId}/presets`,
 		);
 		return response.data;
 	};
@@ -1319,7 +1323,7 @@ class ApiMethods {
 		params?: TypesGen.CancelWorkspaceBuildParams,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
-			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+			`${API_PREFIX}/workspacebuilds/${workspaceBuildId}/cancel`,
 			null,
 			{ params },
 		);
@@ -1333,7 +1337,7 @@ class ApiMethods {
 	): Promise<TypesGen.Workspace> => {
 		const data: TypesGen.UpdateWorkspaceDormancy = { dormant };
 		const response = await this.axios.put(
-			`/api/v2/workspaces/${workspaceId}/dormant`,
+			`${API_PREFIX}/workspaces/${workspaceId}/dormant`,
 			data,
 		);
 
@@ -1349,7 +1353,7 @@ class ApiMethods {
 		};
 
 		const response = await this.axios.put(
-			`/api/v2/workspaces/${workspaceId}/autoupdates`,
+			`${API_PREFIX}/workspaces/${workspaceId}/autoupdates`,
 			req,
 		);
 
@@ -1382,7 +1386,7 @@ class ApiMethods {
 		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
-			`/api/v2/templateversions/${templateVersionId}/cancel`,
+			`${API_PREFIX}/templateversions/${templateVersionId}/cancel`,
 		);
 
 		return response.data;
@@ -1393,7 +1397,7 @@ class ApiMethods {
 		jobId: string,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
-			`/api/v2/templateversions/${templateVersionId}/dry-run/${jobId}/cancel`,
+			`${API_PREFIX}/templateversions/${templateVersionId}/dry-run/${jobId}/cancel`,
 		);
 
 		return response.data;
@@ -1403,7 +1407,7 @@ class ApiMethods {
 		user: TypesGen.CreateUserRequestWithOrgs,
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.post<TypesGen.User>(
-			"/api/v2/users",
+			`${API_PREFIX}/users`,
 			user,
 		);
 
@@ -1415,7 +1419,7 @@ class ApiMethods {
 		workspace: TypesGen.CreateWorkspaceRequest,
 	): Promise<TypesGen.Workspace> => {
 		const response = await this.axios.post<TypesGen.Workspace>(
-			`/api/v2/users/${userId}/workspaces`,
+			`${API_PREFIX}/users/${userId}/workspaces`,
 			workspace,
 		);
 
@@ -1426,16 +1430,16 @@ class ApiMethods {
 		workspaceId: string,
 		data: TypesGen.UpdateWorkspaceRequest,
 	): Promise<void> => {
-		await this.axios.patch(`/api/v2/workspaces/${workspaceId}`, data);
+		await this.axios.patch(`${API_PREFIX}/workspaces/${workspaceId}`, data);
 	};
 
 	getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
-		const response = await this.axios.get("/api/v2/buildinfo");
+		const response = await this.axios.get(`${API_PREFIX}/buildinfo`);
 		return response.data;
 	};
 
 	getUpdateCheck = async (): Promise<TypesGen.UpdateCheckResponse> => {
-		const response = await this.axios.get("/api/v2/updatecheck");
+		const response = await this.axios.get(`${API_PREFIX}/updatecheck`);
 		return response.data;
 	};
 
@@ -1445,7 +1449,7 @@ class ApiMethods {
 	): Promise<void> => {
 		const payload = JSON.stringify(autostart);
 		await this.axios.put(
-			`/api/v2/workspaces/${workspaceID}/autostart`,
+			`${API_PREFIX}/workspaces/${workspaceID}/autostart`,
 			payload,
 			{ headers: { ...BASE_CONTENT_TYPE_JSON } },
 		);
@@ -1456,9 +1460,13 @@ class ApiMethods {
 		ttl: TypesGen.UpdateWorkspaceTTLRequest,
 	): Promise<void> => {
 		const payload = JSON.stringify(ttl);
-		await this.axios.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
-			headers: { ...BASE_CONTENT_TYPE_JSON },
-		});
+		await this.axios.put(
+			`${API_PREFIX}/workspaces/${workspaceID}/ttl`,
+			payload,
+			{
+				headers: { ...BASE_CONTENT_TYPE_JSON },
+			},
+		);
 	};
 
 	updateProfile = async (
@@ -1466,7 +1474,7 @@ class ApiMethods {
 		data: TypesGen.UpdateUserProfileRequest,
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.put(
-			`/api/v2/users/${userId}/profile`,
+			`${API_PREFIX}/users/${userId}/profile`,
 			data,
 		);
 		return response.data;
@@ -1474,27 +1482,37 @@ class ApiMethods {
 
 	getAppearanceSettings =
 		async (): Promise<TypesGen.UserAppearanceSettings> => {
-			const response = await this.axios.get("/api/v2/users/me/appearance");
+			const response = await this.axios.get(
+				`${API_PREFIX}/users/me/appearance`,
+			);
 			return response.data;
 		};
 
 	updateAppearanceSettings = async (
 		data: TypesGen.UpdateUserAppearanceSettingsRequest,
 	): Promise<TypesGen.UserAppearanceSettings> => {
-		const response = await this.axios.put("/api/v2/users/me/appearance", data);
+		const response = await this.axios.put(
+			`${API_PREFIX}/users/me/appearance`,
+			data,
+		);
 		return response.data;
 	};
 
 	getUserPreferenceSettings =
 		async (): Promise<TypesGen.UserPreferenceSettings> => {
-			const response = await this.axios.get("/api/v2/users/me/preferences");
+			const response = await this.axios.get(
+				`${API_PREFIX}/users/me/preferences`,
+			);
 			return response.data;
 		};
 
 	updateUserPreferenceSettings = async (
 		req: TypesGen.UpdateUserPreferenceSettingsRequest,
 	): Promise<TypesGen.UserPreferenceSettings> => {
-		const response = await this.axios.put("/api/v2/users/me/preferences", req);
+		const response = await this.axios.put(
+			`${API_PREFIX}/users/me/preferences`,
+			req,
+		);
 		return response.data;
 	};
 
@@ -1502,7 +1520,7 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
 		const response = await this.axios.get(
-			`/api/v2/users/${userId}/quiet-hours`,
+			`${API_PREFIX}/users/${userId}/quiet-hours`,
 		);
 		return response.data;
 	};
@@ -1512,7 +1530,7 @@ class ApiMethods {
 		data: TypesGen.UpdateUserQuietHoursScheduleRequest,
 	): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
 		const response = await this.axios.put(
-			`/api/v2/users/${userId}/quiet-hours`,
+			`${API_PREFIX}/users/${userId}/quiet-hours`,
 			data,
 		);
 
@@ -1523,21 +1541,21 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.put<TypesGen.User>(
-			`/api/v2/users/${userId}/status/activate`,
+			`${API_PREFIX}/users/${userId}/status/activate`,
 		);
 		return response.data;
 	};
 
 	suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
 		const response = await this.axios.put<TypesGen.User>(
-			`/api/v2/users/${userId}/status/suspend`,
+			`${API_PREFIX}/users/${userId}/status/suspend`,
 		);
 
 		return response.data;
 	};
 
 	deleteUser = async (userId: TypesGen.User["id"]): Promise<void> => {
-		await this.axios.delete(`/api/v2/users/${userId}`);
+		await this.axios.delete(`${API_PREFIX}/users/${userId}`);
 	};
 
 	// API definition:
@@ -1545,7 +1563,7 @@ class ApiMethods {
 	hasFirstUser = async (): Promise<boolean> => {
 		try {
 			// If it is success, it is true
-			await this.axios.get("/api/v2/users/first");
+			await this.axios.get(`${API_PREFIX}/users/first`);
 			return true;
 		} catch (error) {
 			// If it returns a 404, it is false
@@ -1560,7 +1578,7 @@ class ApiMethods {
 	createFirstUser = async (
 		req: TypesGen.CreateFirstUserRequest,
 	): Promise<TypesGen.CreateFirstUserResponse> => {
-		const response = await this.axios.post("/api/v2/users/first", req);
+		const response = await this.axios.post(`${API_PREFIX}/users/first`, req);
 		return response.data;
 	};
 
@@ -1568,21 +1586,27 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 		updatePassword: TypesGen.UpdateUserPasswordRequest,
 	): Promise<void> => {
-		await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
+		await this.axios.put(
+			`${API_PREFIX}/users/${userId}/password`,
+			updatePassword,
+		);
 	};
 
 	validateUserPassword = async (
 		password: string,
 	): Promise<TypesGen.ValidateUserPasswordResponse> => {
-		const response = await this.axios.post("/api/v2/users/validate-password", {
-			password,
-		});
+		const response = await this.axios.post(
+			`${API_PREFIX}/users/validate-password`,
+			{
+				password,
+			},
+		);
 		return response.data;
 	};
 
 	getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
 		const response = await this.axios.get<TypesGen.AssignableRoles[]>(
-			"/api/v2/users/roles",
+			`${API_PREFIX}/users/roles`,
 		);
 
 		return response.data;
@@ -1593,7 +1617,7 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.put<TypesGen.User>(
-			`/api/v2/users/${userId}/roles`,
+			`${API_PREFIX}/users/${userId}/roles`,
 			{ roles },
 		);
 
@@ -1602,7 +1626,7 @@ class ApiMethods {
 
 	getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
 		const response = await this.axios.get<TypesGen.GitSSHKey>(
-			`/api/v2/users/${userId}/gitsshkey`,
+			`${API_PREFIX}/users/${userId}/gitsshkey`,
 		);
 
 		return response.data;
@@ -1610,7 +1634,7 @@ class ApiMethods {
 
 	regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
 		const response = await this.axios.put<TypesGen.GitSSHKey>(
-			`/api/v2/users/${userId}/gitsshkey`,
+			`${API_PREFIX}/users/${userId}/gitsshkey`,
 		);
 
 		return response.data;
@@ -1621,7 +1645,10 @@ class ApiMethods {
 		req?: TypesGen.WorkspaceBuildsRequest,
 	) => {
 		const response = await this.axios.get<TypesGen.WorkspaceBuild[]>(
-			getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
+			getURLWithSearchParams(
+				`${API_PREFIX}/workspaces/${workspaceId}/builds`,
+				req,
+			),
 		);
 
 		return response.data;
@@ -1631,7 +1658,7 @@ class ApiMethods {
 		buildId: string,
 	): Promise<TypesGen.ProvisionerJobLog[]> => {
 		const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
-			`/api/v2/workspacebuilds/${buildId}/logs`,
+			`${API_PREFIX}/workspacebuilds/${buildId}/logs`,
 		);
 
 		return response.data;
@@ -1641,7 +1668,7 @@ class ApiMethods {
 		agentID: string,
 	): Promise<TypesGen.WorkspaceAgentLog[]> => {
 		const response = await this.axios.get<TypesGen.WorkspaceAgentLog[]>(
-			`/api/v2/workspaceagents/${agentID}/logs`,
+			`${API_PREFIX}/workspaceagents/${agentID}/logs`,
 		);
 
 		return response.data;
@@ -1651,19 +1678,19 @@ class ApiMethods {
 		workspaceId: string,
 		newDeadline: dayjs.Dayjs,
 	): Promise<void> => {
-		await this.axios.put(`/api/v2/workspaces/${workspaceId}/extend`, {
+		await this.axios.put(`${API_PREFIX}/workspaces/${workspaceId}/extend`, {
 			deadline: newDeadline,
 		});
 	};
 
 	refreshEntitlements = async (): Promise<void> => {
-		await this.axios.post("/api/v2/licenses/refresh-entitlements");
+		await this.axios.post(`${API_PREFIX}/licenses/refresh-entitlements`);
 	};
 
 	getEntitlements = async (): Promise<TypesGen.Entitlements> => {
 		try {
 			const response = await this.axios.get<TypesGen.Entitlements>(
-				"/api/v2/entitlements",
+				`${API_PREFIX}/entitlements`,
 			);
 
 			return response.data;
@@ -1686,7 +1713,7 @@ class ApiMethods {
 	getExperiments = async (): Promise<TypesGen.Experiment[]> => {
 		try {
 			const response = await this.axios.get<TypesGen.Experiment[]>(
-				"/api/v2/experiments",
+				`${API_PREFIX}/experiments`,
 			);
 
 			return response.data;
@@ -1702,7 +1729,9 @@ class ApiMethods {
 	getAvailableExperiments =
 		async (): Promise<TypesGen.AvailableExperiments> => {
 			try {
-				const response = await this.axios.get("/api/v2/experiments/available");
+				const response = await this.axios.get(
+					`${API_PREFIX}/experiments/available`,
+				);
 
 				return response.data;
 			} catch (error) {
@@ -1716,7 +1745,7 @@ class ApiMethods {
 	getExternalAuthProvider = async (
 		provider: string,
 	): Promise<TypesGen.ExternalAuth> => {
-		const res = await this.axios.get(`/api/v2/external-auth/${provider}`);
+		const res = await this.axios.get(`${API_PREFIX}/external-auth/${provider}`);
 		return res.data;
 	};
 
@@ -1724,7 +1753,7 @@ class ApiMethods {
 		provider: string,
 	): Promise<TypesGen.ExternalAuthDevice> => {
 		const resp = await this.axios.get(
-			`/api/v2/external-auth/${provider}/device`,
+			`${API_PREFIX}/external-auth/${provider}/device`,
 		);
 		return resp.data;
 	};
@@ -1734,7 +1763,7 @@ class ApiMethods {
 		req: TypesGen.ExternalAuthDeviceExchange,
 	): Promise<void> => {
 		const resp = await this.axios.post(
-			`/api/v2/external-auth/${provider}/device`,
+			`${API_PREFIX}/external-auth/${provider}/device`,
 			req,
 		);
 
@@ -1743,14 +1772,16 @@ class ApiMethods {
 
 	getUserExternalAuthProviders =
 		async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
-			const resp = await this.axios.get("/api/v2/external-auth");
+			const resp = await this.axios.get(`${API_PREFIX}/external-auth`);
 			return resp.data;
 		};
 
 	unlinkExternalAuthProvider = async (
 		provider: string,
 	): Promise<DeleteExternalAuthByIDResponse> => {
-		const resp = await this.axios.delete(`/api/v2/external-auth/${provider}`);
+		const resp = await this.axios.delete(
+			`${API_PREFIX}/external-auth/${provider}`,
+		);
 		return resp.data;
 	};
 
@@ -1759,7 +1790,7 @@ class ApiMethods {
 		state: string,
 	): Promise<TypesGen.OAuth2DeviceFlowCallbackResponse> => {
 		const resp = await this.axios.get(
-			`/api/v2/users/oauth2/github/callback?code=${code}&state=${state}`,
+			`${API_PREFIX}/users/oauth2/github/callback?code=${code}&state=${state}`,
 		);
 		// sanity check
 		if (
@@ -1773,7 +1804,9 @@ class ApiMethods {
 	};
 
 	getOAuth2GitHubDevice = async (): Promise<TypesGen.ExternalAuthDevice> => {
-		const resp = await this.axios.get("/api/v2/users/oauth2/github/device");
+		const resp = await this.axios.get(
+			`${API_PREFIX}/users/oauth2/github/device`,
+		);
 		return resp.data;
 	};
 
@@ -1784,14 +1817,18 @@ class ApiMethods {
 			? new URLSearchParams({ user_id: filter.user_id }).toString()
 			: "";
 
-		const resp = await this.axios.get(`/api/v2/oauth2-provider/apps?${params}`);
+		const resp = await this.axios.get(
+			`${API_PREFIX}/oauth2-provider/apps?${params}`,
+		);
 		return resp.data;
 	};
 
 	getOAuth2ProviderApp = async (
 		id: string,
 	): Promise<TypesGen.OAuth2ProviderApp> => {
-		const resp = await this.axios.get(`/api/v2/oauth2-provider/apps/${id}`);
+		const resp = await this.axios.get(
+			`${API_PREFIX}/oauth2-provider/apps/${id}`,
+		);
 		return resp.data;
 	};
 
@@ -1799,7 +1836,7 @@ class ApiMethods {
 		data: TypesGen.PostOAuth2ProviderAppRequest,
 	): Promise<TypesGen.OAuth2ProviderApp> => {
 		const response = await this.axios.post(
-			"/api/v2/oauth2-provider/apps",
+			`${API_PREFIX}/oauth2-provider/apps`,
 			data,
 		);
 		return response.data;
@@ -1810,21 +1847,21 @@ class ApiMethods {
 		data: TypesGen.PutOAuth2ProviderAppRequest,
 	): Promise<TypesGen.OAuth2ProviderApp> => {
 		const response = await this.axios.put(
-			`/api/v2/oauth2-provider/apps/${id}`,
+			`${API_PREFIX}/oauth2-provider/apps/${id}`,
 			data,
 		);
 		return response.data;
 	};
 
 	deleteOAuth2ProviderApp = async (id: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/oauth2-provider/apps/${id}`);
+		await this.axios.delete(`${API_PREFIX}/oauth2-provider/apps/${id}`);
 	};
 
 	getOAuth2ProviderAppSecrets = async (
 		id: string,
 	): Promise<TypesGen.OAuth2ProviderAppSecret[]> => {
 		const resp = await this.axios.get(
-			`/api/v2/oauth2-provider/apps/${id}/secrets`,
+			`${API_PREFIX}/oauth2-provider/apps/${id}/secrets`,
 		);
 		return resp.data;
 	};
@@ -1833,7 +1870,7 @@ class ApiMethods {
 		id: string,
 	): Promise<TypesGen.OAuth2ProviderAppSecretFull> => {
 		const resp = await this.axios.post(
-			`/api/v2/oauth2-provider/apps/${id}/secrets`,
+			`${API_PREFIX}/oauth2-provider/apps/${id}/secrets`,
 		);
 		return resp.data;
 	};
@@ -1843,7 +1880,7 @@ class ApiMethods {
 		secretId: string,
 	): Promise<void> => {
 		await this.axios.delete(
-			`/api/v2/oauth2-provider/apps/${appId}/secrets/${secretId}`,
+			`${API_PREFIX}/oauth2-provider/apps/${appId}/secrets/${secretId}`,
 		);
 	};
 
@@ -1854,7 +1891,7 @@ class ApiMethods {
 	getAuditLogs = async (
 		options: TypesGen.AuditLogsRequest,
 	): Promise<TypesGen.AuditLogResponse> => {
-		const url = getURLWithSearchParams("/api/v2/audit", options);
+		const url = getURLWithSearchParams(`${API_PREFIX}/audit`, options);
 		const response = await this.axios.get(url);
 		return response.data;
 	};
@@ -1862,7 +1899,7 @@ class ApiMethods {
 	getConnectionLogs = async (
 		options: TypesGen.ConnectionLogsRequest,
 	): Promise<TypesGen.ConnectionLogResponse> => {
-		const url = getURLWithSearchParams("/api/v2/connectionlog", options);
+		const url = getURLWithSearchParams(`${API_PREFIX}/connectionlog`, options);
 		const response = await this.axios.get(url);
 		return response.data;
 	};
@@ -1871,7 +1908,7 @@ class ApiMethods {
 		templateId: string,
 	): Promise<TypesGen.DAUsResponse> => {
 		const response = await this.axios.get(
-			`/api/v2/templates/${templateId}/daus`,
+			`${API_PREFIX}/templates/${templateId}/daus`,
 		);
 
 		return response.data;
@@ -1884,7 +1921,7 @@ class ApiMethods {
 		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 	): Promise<TypesGen.DAUsResponse> => {
 		const response = await this.axios.get(
-			`/api/v2/insights/daus?tz_offset=${offset}`,
+			`${API_PREFIX}/insights/daus?tz_offset=${offset}`,
 		);
 
 		return response.data;
@@ -1895,7 +1932,7 @@ class ApiMethods {
 		options: TypesGen.UsersRequest,
 	): Promise<TypesGen.ACLAvailable> => {
 		const url = getURLWithSearchParams(
-			`/api/v2/templates/${templateId}/acl/available`,
+			`${API_PREFIX}/templates/${templateId}/acl/available`,
 			options,
 		).toString();
 
@@ -1907,7 +1944,7 @@ class ApiMethods {
 		templateId: string,
 	): Promise<TypesGen.TemplateACL> => {
 		const response = await this.axios.get(
-			`/api/v2/templates/${templateId}/acl`,
+			`${API_PREFIX}/templates/${templateId}/acl`,
 		);
 
 		return response.data;
@@ -1918,7 +1955,7 @@ class ApiMethods {
 		data: TypesGen.UpdateTemplateACL,
 	): Promise<{ message: string }> => {
 		const response = await this.axios.patch(
-			`/api/v2/templates/${templateId}/acl`,
+			`${API_PREFIX}/templates/${templateId}/acl`,
 			data,
 		);
 
@@ -1929,7 +1966,7 @@ class ApiMethods {
 		workspaceId: string,
 	): Promise<TypesGen.WorkspaceACL> => {
 		const response = await this.axios.get(
-			`/api/v2/workspaces/${workspaceId}/acl`,
+			`${API_PREFIX}/workspaces/${workspaceId}/acl`,
 		);
 
 		return response.data;
@@ -1939,11 +1976,11 @@ class ApiMethods {
 		workspaceId: string,
 		data: TypesGen.UpdateWorkspaceACL,
 	): Promise<void> => {
-		await this.axios.patch(`/api/v2/workspaces/${workspaceId}/acl`, data);
+		await this.axios.patch(`${API_PREFIX}/workspaces/${workspaceId}/acl`, data);
 	};
 
 	getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
-		const response = await this.axios.get("/api/v2/applications/host");
+		const response = await this.axios.get(`${API_PREFIX}/applications/host`);
 		return response.data;
 	};
 
@@ -1955,7 +1992,7 @@ class ApiMethods {
 			params.has_member = options.userId;
 		}
 
-		const response = await this.axios.get("/api/v2/groups", { params });
+		const response = await this.axios.get(`${API_PREFIX}/groups`, { params });
 		return response.data;
 	};
 
@@ -1966,7 +2003,7 @@ class ApiMethods {
 		organization: string,
 	): Promise<TypesGen.Group[]> => {
 		const response = await this.axios.get(
-			`/api/v2/organizations/${organization}/groups`,
+			`${API_PREFIX}/organizations/${organization}/groups`,
 		);
 		return response.data;
 	};
@@ -1979,7 +2016,7 @@ class ApiMethods {
 		data: TypesGen.CreateGroupRequest,
 	): Promise<TypesGen.Group> => {
 		const response = await this.axios.post(
-			`/api/v2/organizations/${organization}/groups`,
+			`${API_PREFIX}/organizations/${organization}/groups`,
 			data,
 		);
 		return response.data;
@@ -1993,7 +2030,7 @@ class ApiMethods {
 		groupName: string,
 	): Promise<TypesGen.Group> => {
 		const response = await this.axios.get(
-			`/api/v2/organizations/${organization}/groups/${groupName}`,
+			`${API_PREFIX}/organizations/${organization}/groups/${groupName}`,
 		);
 		return response.data;
 	};
@@ -2002,7 +2039,10 @@ class ApiMethods {
 		groupId: string,
 		data: TypesGen.PatchGroupRequest,
 	): Promise<TypesGen.Group> => {
-		const response = await this.axios.patch(`/api/v2/groups/${groupId}`, data);
+		const response = await this.axios.patch(
+			`${API_PREFIX}/groups/${groupId}`,
+			data,
+		);
 		return response.data;
 	};
 
@@ -2029,7 +2069,7 @@ class ApiMethods {
 	};
 
 	deleteGroup = async (groupId: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/groups/${groupId}`);
+		await this.axios.delete(`${API_PREFIX}/groups/${groupId}`);
 	};
 
 	getWorkspaceQuota = async (
@@ -2037,7 +2077,7 @@ class ApiMethods {
 		username: string,
 	): Promise<TypesGen.WorkspaceQuota> => {
 		const response = await this.axios.get(
-			`/api/v2/organizations/${encodeURIComponent(organizationName)}/members/${encodeURIComponent(username)}/workspace-quota`,
+			`${API_PREFIX}/organizations/${encodeURIComponent(organizationName)}/members/${encodeURIComponent(username)}/workspace-quota`,
 		);
 
 		return response.data;
@@ -2047,7 +2087,7 @@ class ApiMethods {
 		agentID: string,
 	): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
 		const response = await this.axios.get(
-			`/api/v2/workspaceagents/${agentID}/listening-ports`,
+			`${API_PREFIX}/workspaceagents/${agentID}/listening-ports`,
 		);
 		return response.data;
 	};
@@ -2056,7 +2096,7 @@ class ApiMethods {
 		workspaceID: string,
 	): Promise<TypesGen.WorkspaceAgentPortShares> => {
 		const response = await this.axios.get(
-			`/api/v2/workspaces/${workspaceID}/port-share`,
+			`${API_PREFIX}/workspaces/${workspaceID}/port-share`,
 		);
 		return response.data;
 	};
@@ -2066,7 +2106,7 @@ class ApiMethods {
 		agentName: string,
 	): Promise<TypesGen.ExternalAgentCredentials> => {
 		const response = await this.axios.get(
-			`/api/v2/workspaces/${workspaceID}/external-agent/${agentName}/credentials`,
+			`${API_PREFIX}/workspaces/${workspaceID}/external-agent/${agentName}/credentials`,
 		);
 		return response.data;
 	};
@@ -2076,7 +2116,7 @@ class ApiMethods {
 		req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
 	): Promise<TypesGen.WorkspaceAgentPortShares> => {
 		const response = await this.axios.post(
-			`/api/v2/workspaces/${workspaceID}/port-share`,
+			`${API_PREFIX}/workspaces/${workspaceID}/port-share`,
 			req,
 		);
 		return response.data;
@@ -2087,7 +2127,7 @@ class ApiMethods {
 		req: TypesGen.DeleteWorkspaceAgentPortShareRequest,
 	): Promise<TypesGen.WorkspaceAgentPortShares> => {
 		const response = await this.axios.delete(
-			`/api/v2/workspaces/${workspaceID}/port-share`,
+			`${API_PREFIX}/workspaces/${workspaceID}/port-share`,
 			{ data: req },
 		);
 
@@ -2096,28 +2136,28 @@ class ApiMethods {
 
 	// getDeploymentSSHConfig is used by the VSCode-Extension.
 	getDeploymentSSHConfig = async (): Promise<TypesGen.SSHConfigResponse> => {
-		const response = await this.axios.get("/api/v2/deployment/ssh");
+		const response = await this.axios.get(`${API_PREFIX}/deployment/ssh`);
 		return response.data;
 	};
 
 	getDeploymentConfig = async (): Promise<DeploymentConfig> => {
-		const response = await this.axios.get("/api/v2/deployment/config");
+		const response = await this.axios.get(`${API_PREFIX}/deployment/config`);
 		return response.data;
 	};
 
 	getDeploymentStats = async (): Promise<TypesGen.DeploymentStats> => {
-		const response = await this.axios.get("/api/v2/deployment/stats");
+		const response = await this.axios.get(`${API_PREFIX}/deployment/stats`);
 		return response.data;
 	};
 
 	getReplicas = async (): Promise<TypesGen.Replica[]> => {
-		const response = await this.axios.get("/api/v2/replicas");
+		const response = await this.axios.get(`${API_PREFIX}/replicas`);
 		return response.data;
 	};
 
 	getFile = async (fileId: string): Promise<ArrayBuffer> => {
 		const response = await this.axios.get<ArrayBuffer>(
-			`/api/v2/files/${fileId}`,
+			`${API_PREFIX}/files/${fileId}`,
 			{ responseType: "arraybuffer" },
 		);
 
@@ -2127,10 +2167,9 @@ class ApiMethods {
 	getWorkspaceProxyRegions = async (): Promise<
 		TypesGen.RegionsResponse<TypesGen.Region>
 	> => {
-		const response =
-			await this.axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
-				"/api/v2/regions",
-			);
+		const response = await this.axios.get<
+			TypesGen.RegionsResponse<TypesGen.Region>
+		>(`${API_PREFIX}/regions`);
 
 		return response.data;
 	};
@@ -2140,7 +2179,7 @@ class ApiMethods {
 	> => {
 		const response = await this.axios.get<
 			TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
-		>("/api/v2/workspaceproxies");
+		>(`${API_PREFIX}/workspaceproxies`);
 
 		return response.data;
 	};
@@ -2148,13 +2187,13 @@ class ApiMethods {
 	createWorkspaceProxy = async (
 		b: TypesGen.CreateWorkspaceProxyRequest,
 	): Promise<TypesGen.UpdateWorkspaceProxyResponse> => {
-		const response = await this.axios.post("/api/v2/workspaceproxies", b);
+		const response = await this.axios.post(`${API_PREFIX}/workspaceproxies`, b);
 		return response.data;
 	};
 
 	getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
 		try {
-			const response = await this.axios.get("/api/v2/appearance");
+			const response = await this.axios.get(`${API_PREFIX}/appearance`);
 			return response.data || {};
 		} catch (ex) {
 			if (isAxiosError(ex) && ex.response?.status === 404) {
@@ -2176,7 +2215,7 @@ class ApiMethods {
 	updateAppearance = async (
 		b: TypesGen.AppearanceConfig,
 	): Promise<TypesGen.AppearanceConfig> => {
-		const response = await this.axios.put("/api/v2/appearance", b);
+		const response = await this.axios.put(`${API_PREFIX}/appearance`, b);
 		return response.data;
 	};
 
@@ -2184,13 +2223,13 @@ class ApiMethods {
 	 * @param organization Can be the organization's ID or name
 	 */
 	getTemplateExamples = async (): Promise<TypesGen.TemplateExample[]> => {
-		const response = await this.axios.get("/api/v2/templates/examples");
+		const response = await this.axios.get(`${API_PREFIX}/templates/examples`);
 
 		return response.data;
 	};
 
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
-		const response = await this.axios.post("/api/v2/files", file, {
+		const response = await this.axios.post(`${API_PREFIX}/files`, file, {
 			headers: { "Content-Type": file.type },
 		});
 
@@ -2201,7 +2240,7 @@ class ApiMethods {
 		versionId: string,
 	): Promise<TypesGen.ProvisionerJobLog[]> => {
 		const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
-			`/api/v2/templateversions/${versionId}/logs`,
+			`${API_PREFIX}/templateversions/${versionId}/logs`,
 		);
 		return response.data;
 	};
@@ -2217,26 +2256,26 @@ class ApiMethods {
 		workspaceBuildId: TypesGen.WorkspaceBuild["id"],
 	): Promise<TypesGen.WorkspaceBuildParameter[]> => {
 		const response = await this.axios.get<TypesGen.WorkspaceBuildParameter[]>(
-			`/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
+			`${API_PREFIX}/workspacebuilds/${workspaceBuildId}/parameters`,
 		);
 
 		return response.data;
 	};
 
 	getLicenses = async (): Promise<GetLicensesResponse[]> => {
-		const response = await this.axios.get("/api/v2/licenses");
+		const response = await this.axios.get(`${API_PREFIX}/licenses`);
 		return response.data;
 	};
 
 	createLicense = async (
 		data: TypesGen.AddLicenseRequest,
 	): Promise<TypesGen.AddLicenseRequest> => {
-		const response = await this.axios.post("/api/v2/licenses", data);
+		const response = await this.axios.post(`${API_PREFIX}/licenses`, data);
 		return response.data;
 	};
 
 	removeLicense = async (licenseId: number): Promise<void> => {
-		await this.axios.delete(`/api/v2/licenses/${licenseId}`);
+		await this.axios.delete(`${API_PREFIX}/licenses/${licenseId}`);
 	};
 
 	getDynamicParameters = async (
@@ -2403,7 +2442,7 @@ class ApiMethods {
 		workspaceId: string,
 	): Promise<TypesGen.ResolveAutostartResponse> => {
 		const response = await this.axios.get(
-			`/api/v2/workspaces/${workspaceId}/resolve-autostart`,
+			`${API_PREFIX}/workspaces/${workspaceId}/resolve-autostart`,
 		);
 		return response.data;
 	};
@@ -2412,7 +2451,7 @@ class ApiMethods {
 		params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
 	): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
 		const response = await this.axios.post(
-			"/api/v2/applications/reconnecting-pty-signed-token",
+			`${API_PREFIX}/applications/reconnecting-pty-signed-token`,
 			params,
 		);
 
@@ -2424,7 +2463,7 @@ class ApiMethods {
 	): Promise<TypesGen.UserLatencyInsightsResponse> => {
 		const params = new URLSearchParams(filters);
 		const response = await this.axios.get(
-			`/api/v2/insights/user-latency?${params}`,
+			`${API_PREFIX}/insights/user-latency?${params}`,
 		);
 
 		return response.data;
@@ -2435,7 +2474,7 @@ class ApiMethods {
 	): Promise<TypesGen.UserActivityInsightsResponse> => {
 		const params = new URLSearchParams(filters);
 		const response = await this.axios.get(
-			`/api/v2/insights/user-activity?${params}`,
+			`${API_PREFIX}/insights/user-activity?${params}`,
 		);
 
 		return response.data;
@@ -2448,7 +2487,7 @@ class ApiMethods {
 			tz_offset: offset.toString(),
 		});
 		const response = await this.axios.get(
-			`/api/v2/insights/user-status-counts?${searchParams}`,
+			`${API_PREFIX}/insights/user-status-counts?${searchParams}`,
 		);
 
 		return response.data;
@@ -2459,7 +2498,7 @@ class ApiMethods {
 	): Promise<TypesGen.TemplateInsightsResponse> => {
 		const searchParams = new URLSearchParams(params);
 		const response = await this.axios.get(
-			`/api/v2/insights/templates?${searchParams}`,
+			`${API_PREFIX}/insights/templates?${searchParams}`,
 		);
 
 		return response.data;
@@ -2468,14 +2507,14 @@ class ApiMethods {
 	getHealth = async (force = false) => {
 		const params = new URLSearchParams({ force: force.toString() });
 		const response = await this.axios.get<TypesGen.HealthcheckReport>(
-			`/api/v2/debug/health?${params}`,
+			`${API_PREFIX}/debug/health?${params}`,
 		);
 		return response.data;
 	};
 
 	getHealthSettings = async (): Promise<TypesGen.HealthSettings> => {
 		const res = await this.axios.get<TypesGen.HealthSettings>(
-			"/api/v2/debug/health/settings",
+			`${API_PREFIX}/debug/health/settings`,
 		);
 
 		return res.data;
@@ -2483,7 +2522,7 @@ class ApiMethods {
 
 	updateHealthSettings = async (data: TypesGen.UpdateHealthSettings) => {
 		const response = await this.axios.put<TypesGen.HealthSettings>(
-			"/api/v2/debug/health/settings",
+			`${API_PREFIX}/debug/health/settings`,
 			data,
 		);
 
@@ -2491,11 +2530,11 @@ class ApiMethods {
 	};
 
 	putFavoriteWorkspace = async (workspaceID: string) => {
-		await this.axios.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+		await this.axios.put(`${API_PREFIX}/workspaces/${workspaceID}/favorite`);
 	};
 
 	deleteFavoriteWorkspace = async (workspaceID: string) => {
-		await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
+		await this.axios.delete(`${API_PREFIX}/workspaces/${workspaceID}/favorite`);
 	};
 
 	postWorkspaceUsage = async (
@@ -2503,7 +2542,7 @@ class ApiMethods {
 		options: PostWorkspaceUsageRequest,
 	) => {
 		const response = await this.axios.post(
-			`/api/v2/workspaces/${workspaceID}/usage`,
+			`${API_PREFIX}/workspaces/${workspaceID}/usage`,
 			options,
 		);
 
@@ -2512,7 +2551,7 @@ class ApiMethods {
 
 	getUserNotificationPreferences = async (userId: string) => {
 		const res = await this.axios.get<TypesGen.NotificationPreference[] | null>(
-			`/api/v2/users/${userId}/notifications/preferences`,
+			`${API_PREFIX}/users/${userId}/notifications/preferences`,
 		);
 		return res.data ?? [];
 	};
@@ -2522,7 +2561,7 @@ class ApiMethods {
 		req: TypesGen.UpdateUserNotificationPreferences,
 	) => {
 		const res = await this.axios.put<TypesGen.NotificationPreference[]>(
-			`/api/v2/users/${userId}/notifications/preferences`,
+			`${API_PREFIX}/users/${userId}/notifications/preferences`,
 			req,
 		);
 		return res.data;
@@ -2530,21 +2569,21 @@ class ApiMethods {
 
 	getSystemNotificationTemplates = async () => {
 		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
-			"/api/v2/notifications/templates/system",
+			`${API_PREFIX}/notifications/templates/system`,
 		);
 		return res.data;
 	};
 
 	getCustomNotificationTemplates = async () => {
 		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
-			"/api/v2/notifications/templates/custom",
+			`${API_PREFIX}/notifications/templates/custom`,
 		);
 		return res.data;
 	};
 
 	getNotificationDispatchMethods = async () => {
 		const res = await this.axios.get<TypesGen.NotificationMethodsResponse>(
-			"/api/v2/notifications/dispatch-methods",
+			`${API_PREFIX}/notifications/dispatch-methods`,
 		);
 		return res.data;
 	};
@@ -2554,14 +2593,14 @@ class ApiMethods {
 		req: TypesGen.UpdateNotificationTemplateMethod,
 	) => {
 		const res = await this.axios.put<void>(
-			`/api/v2/notifications/templates/${templateId}/method`,
+			`${API_PREFIX}/notifications/templates/${templateId}/method`,
 			req,
 		);
 		return res.data;
 	};
 
 	postTestNotification = async () => {
-		await this.axios.post<void>("/api/v2/notifications/test");
+		await this.axios.post<void>(`${API_PREFIX}/notifications/test`);
 	};
 
 	createWebPushSubscription = async (
@@ -2569,7 +2608,7 @@ class ApiMethods {
 		req: TypesGen.WebpushSubscription,
 	) => {
 		await this.axios.post<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
+			`${API_PREFIX}/users/${userId}/webpush/subscription`,
 			req,
 		);
 	};
@@ -2579,7 +2618,7 @@ class ApiMethods {
 		req: TypesGen.DeleteWebpushSubscription,
 	) => {
 		await this.axios.delete<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
+			`${API_PREFIX}/users/${userId}/webpush/subscription`,
 			{
 				data: req,
 			},
@@ -2589,18 +2628,18 @@ class ApiMethods {
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/request", req);
+		await this.axios.post<void>(`${API_PREFIX}/users/otp/request`, req);
 	};
 
 	changePasswordWithOTP = async (
 		req: TypesGen.ChangePasswordWithOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
+		await this.axios.post<void>(`${API_PREFIX}/users/otp/change-password`, req);
 	};
 
 	workspaceBuildTimings = async (workspaceBuildId: string) => {
 		const res = await this.axios.get<TypesGen.WorkspaceBuildTimings>(
-			`/api/v2/workspacebuilds/${workspaceBuildId}/timings`,
+			`${API_PREFIX}/workspacebuilds/${workspaceBuildId}/timings`,
 		);
 		return res.data;
 	};
@@ -2610,7 +2649,7 @@ class ApiMethods {
 		params: GetProvisionerJobsParams = {},
 	) => {
 		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
-			`/api/v2/organizations/${orgId}/provisionerjobs`,
+			`${API_PREFIX}/organizations/${orgId}/provisionerjobs`,
 			{ params },
 		);
 		return res.data;
@@ -2647,7 +2686,7 @@ class ApiMethods {
 		);
 		const res =
 			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
-				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
+				`${API_PREFIX}/workspaceagents/${agentId}/containers?${params.toString()}`,
 			);
 		return res.data;
 	};
@@ -2658,7 +2697,7 @@ class ApiMethods {
 			params.append("starting_before", startingBeforeId);
 		}
 		const res = await this.axios.get<TypesGen.ListInboxNotificationsResponse>(
-			`/api/v2/notifications/inbox?${params.toString()}`,
+			`${API_PREFIX}/notifications/inbox?${params.toString()}`,
 		);
 		return res.data;
 	};
@@ -2669,14 +2708,16 @@ class ApiMethods {
 	) => {
 		const res =
 			await this.axios.put<TypesGen.UpdateInboxNotificationReadStatusResponse>(
-				`/api/v2/notifications/inbox/${notificationId}/read-status`,
+				`${API_PREFIX}/notifications/inbox/${notificationId}/read-status`,
 				req,
 			);
 		return res.data;
 	};
 
 	markAllInboxNotificationsAsRead = async () => {
-		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+		await this.axios.put<void>(
+			`${API_PREFIX}/notifications/inbox/mark-all-as-read`,
+		);
 	};
 
 	createTask = async (
@@ -2684,7 +2725,7 @@ class ApiMethods {
 		req: TypesGen.CreateTaskRequest,
 	): Promise<TypesGen.Task> => {
 		const response = await this.axios.post<TypesGen.Task>(
-			`/api/v2/tasks/${user}`,
+			`${API_PREFIX}/tasks/${user}`,
 			req,
 		);
 
@@ -2703,7 +2744,7 @@ class ApiMethods {
 		}
 
 		const res = await this.axios.get<TypesGen.TasksListResponse>(
-			"/api/v2/tasks",
+			`${API_PREFIX}/tasks`,
 			{
 				params: {
 					q: query.join(", "),
@@ -2716,14 +2757,14 @@ class ApiMethods {
 
 	getTask = async (user: string, id: string): Promise<TypesGen.Task> => {
 		const response = await this.axios.get<TypesGen.Task>(
-			`/api/v2/tasks/${user}/${id}`,
+			`${API_PREFIX}/tasks/${user}/${id}`,
 		);
 
 		return response.data;
 	};
 
 	deleteTask = async (user: string, id: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
+		await this.axios.delete(`${API_PREFIX}/tasks/${user}/${id}`);
 	};
 
 	updateTaskInput = async (
@@ -2731,7 +2772,7 @@ class ApiMethods {
 		id: string,
 		input: string,
 	): Promise<void> => {
-		await this.axios.patch(`/api/v2/tasks/${user}/${id}/input`, {
+		await this.axios.patch(`${API_PREFIX}/tasks/${user}/${id}/input`, {
 			input,
 		} satisfies TypesGen.UpdateTaskInputRequest);
 	};
@@ -2743,6 +2784,26 @@ class ApiMethods {
 		return new Promise<void>((res) => {
 			setTimeout(() => res(), 500);
 		});
+	};
+
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			`${API_PREFIX}/aibridge/interceptions`,
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
+	};
+
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			`${API_PREFIX}/aibridge/models`,
+			options,
+		);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
 	};
 }
 
@@ -2760,26 +2821,6 @@ export type CreateTaskFeedbackRequest = {
 // above the ApiMethods class for a full explanation.
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
-
-	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/aibridge/interceptions",
-			options,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
-		return response.data;
-	};
-
-	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/aibridge/models",
-			options,
-		);
-
-		const response = await this.axios.get<string[]>(url);
-		return response.data;
-	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
