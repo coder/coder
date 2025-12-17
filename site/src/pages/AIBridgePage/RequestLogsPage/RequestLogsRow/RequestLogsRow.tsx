@@ -235,7 +235,10 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="w-full min-w-0 overflow-hidden">
 									<Badge className="gap-1.5 w-full">
 										<div className="flex-shrink-0 flex items-center">
-											<AIBridgeProviderIcon provider={interception.provider} />
+											<AIBridgeProviderIcon
+												provider={interception.provider}
+												className="size-icon-xs"
+											/>
 										</div>
 										<span className="truncate min-w-0 w-full">
 											{interception.model}
