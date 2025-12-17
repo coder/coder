@@ -99,7 +99,7 @@ func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero
 	}
 
 	if len(modulesArchive) > 0 {
-		err = extractArchive(ctx, logger, fs, l.ModulesDirectory(), modulesArchive)
+		err = extractArchive(ctx, logger, fs, l.WorkDirectory(), modulesArchive)
 		if err != nil {
 			return xerrors.Errorf("extract modules archive: %w", err)
 		}
