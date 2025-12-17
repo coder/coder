@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,7 @@ import (
 	provProto "github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
@@ -387,6 +389,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 type setupDynamicParamsTestParams struct {
 	db                       database.Store
 	ps                       pubsub.Pubsub
+	clock                    quartz.Clock
 	provisionerDaemonVersion string
 	mainTF                   []byte
 	modulesArchive           []byte
@@ -408,6 +411,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Database:                 args.db,
 		Pubsub:                   args.ps,
+		Clock:                    args.clock,
 		IncludeProvisionerDaemon: true,
 		ProvisionerDaemonVersion: args.provisionerDaemonVersion,
 	})
@@ -447,6 +451,121 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 		stream:   stream,
 		template: tpl,
 	}
+}
+
+func TestDynamicParametersWebsocketActivityTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ClosesAfterInactivityTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			clock:                    mClock,
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Receive the initial response.
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		// Advance the clock past the inactivity timeout.
+		// The websocket should close due to inactivity.
+		_, waiter := mClock.AdvanceNext()
+		waiter.MustWait(ctx)
+
+		// The channel should be closed indicating the websocket was closed.
+		// We need to wait for the close to propagate.
+		select {
+		case _, ok := <-previews:
+			require.False(t, ok, "expected channel to be closed after timeout")
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("timed out waiting for websocket to close")
+		}
+	})
+
+	t.Run("ActivityResetsTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			clock:                    mClock,
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Receive the initial response.
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		// Advance time to just before the timeout (2.5 minutes of the 3 minute timeout).
+		dur, waiter := mClock.AdvanceNext()
+		require.Equal(t, coderd.DynamicParameterWebsocketInactivityTimeout, dur)
+		// Don't wait for the timer to fire, just advance it partway.
+		mClock.Set(mClock.Now().Add(coderd.DynamicParameterWebsocketInactivityTimeout - 30*time.Second))
+		// The waiter should not complete as the timer hasn't fired.
+		select {
+		case <-waiter.Done():
+			t.Fatal("timer should not have fired yet")
+		default:
+		}
+
+		// Send a message to reset the timer.
+		err = stream.Send(codersdk.DynamicParametersRequest{
+			ID: 1,
+			Inputs: map[string]string{
+				"jetbrains_ide": "GO",
+			},
+		})
+		require.NoError(t, err)
+
+		// We should receive a response indicating the connection is still alive.
+		preview = testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, 1, preview.ID)
+
+		// Now advance time past what would have been the original timeout.
+		// The connection should still be alive because the timer was reset.
+		mClock.Advance(1 * time.Minute)
+
+		// Send another message to verify connection is still alive.
+		err = stream.Send(codersdk.DynamicParametersRequest{
+			ID: 2,
+			Inputs: map[string]string{
+				"jetbrains_ide": "CL",
+			},
+		})
+		require.NoError(t, err)
+
+		preview = testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, 2, preview.ID)
+	})
 }
 
 // dbRejectGitSSHKey is a cheeky way to force an error to occur in a place

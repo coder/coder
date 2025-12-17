@@ -17,6 +17,11 @@ import (
 	"github.com/coder/websocket"
 )
 
+// DynamicParameterWebsocketInactivityTimeout is the duration of inactivity
+// after which the websocket connection for dynamic parameters will be closed.
+// The timeout is reset each time the client sends a message.
+const DynamicParameterWebsocketInactivityTimeout = 3 * time.Minute
+
 // @Summary Evaluate dynamic parameters for template version
 // @ID evaluate-dynamic-parameters-for-template-version
 // @Security CoderSessionToken
@@ -128,8 +133,24 @@ func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, ini
 }
 
 func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render dynamicparameters.Renderer) {
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	// Use a context that we cancel based on our activity timer, not a fixed timeout.
+	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+
+	// Set up an activity timer using quartz.Clock for testability. The timer
+	// is reset each time the client sends a message. If the timer fires, the
+	// connection is closed due to inactivity.
+	activityTimer := api.Clock.NewTimer(DynamicParameterWebsocketInactivityTimeout)
+	defer activityTimer.Stop()
+
+	go func() {
+		select {
+		case <-activityTimer.C:
+			cancel()
+		case <-ctx.Done():
+			return
+		}
+	}()
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -177,6 +198,9 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 				// The connection has been closed, so there is no one to write to
 				return
 			}
+
+			// Reset the activity timer since we received a message from the client.
+			activityTimer.Reset(DynamicParameterWebsocketInactivityTimeout)
 
 			// Take a nil uuid to mean the previous owner ID.
 			// This just removes the need to constantly send who you are.
