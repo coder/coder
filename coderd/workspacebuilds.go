@@ -401,7 +401,23 @@ func (api *API) postWorkspaceBuildsInternal(
 				Detail:  err.Error(),
 			})
 		}
-		api.Logger.Info(ctx, "unset dormant status for workspace due to start", slog.F("workspace_id", workspace.ID))
+		// We need to audit this change separately.
+		updatedWorkspace := workspace.WorkspaceTable()
+		updatedWorkspace.DormantAt = sql.NullTime{Valid: false}
+		auditor := api.Auditor.Load()
+		bag := audit.BaggageFromContext(ctx)
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
+			Audit:          *auditor,
+			Old:            workspace.WorkspaceTable(),
+			New:            updatedWorkspace,
+			Log:            api.Logger,
+			UserID:         apiKey.UserID,
+			OrganizationID: workspace.OrganizationID,
+			RequestID:      workspace.ID,
+			IP:             bag.IP,
+			Action:         database.AuditActionWrite,
+			Status:         http.StatusOK,
+		})
 	}
 
 	var (

@@ -4252,7 +4252,8 @@ func TestWorkspaceDormant(t *testing.T) {
 	t.Run("StartWakesUpDormantWorkspace", func(t *testing.T) {
 		t.Parallel()
 		var (
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			auditor   = audit.NewMock()
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -4272,17 +4273,37 @@ func TestWorkspaceDormant(t *testing.T) {
 		// Should be able to stop a workspace while it is dormant.
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
+		// Reset the auditor
+		auditor.ResetLogs()
+		// Assert test invariant: workspace is dormant.
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch dormant workspace")
+		if assert.NotNil(t, workspace.DormantAt, "workspace must be dormant") {
+			require.WithinDuration(t, *workspace.DormantAt, time.Now(), 10*time.Second)
+		}
 		// Starting a dormant workspace should 'wake' it.
-		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		wb, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Transition:        codersdk.WorkspaceTransition(database.WorkspaceTransitionStart),
 		})
 		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wb.ID)
 
 		// After starting, the workspace should no longer be dormant.
 		updatedWs, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
 		require.Nil(t, updatedWs.DormantAt)
+
+		// There should be an audit log for both the dormancy update and the start.
+		require.Len(t, auditor.AuditLogs(), 2)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:       database.AuditActionWrite,
+			ResourceType: database.ResourceTypeWorkspace,
+		}))
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:       database.AuditActionStart,
+			ResourceType: database.ResourceTypeWorkspaceBuild,
+		}))
 	})
 }
 
