@@ -2,15 +2,11 @@ package cli_test
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/binary"
-	"fmt"
 	"net/url"
 	"os"
 	"path"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,22 +15,11 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/sessionstore"
+	"github.com/coder/coder/v2/cli/sessionstore/testhelpers"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/serpent"
 )
-
-// keyringTestServiceName generates a unique service name for keyring tests
-// using the test name and a nanosecond timestamp to prevent collisions.
-func keyringTestServiceName(t *testing.T) string {
-	t.Helper()
-	var n uint32
-	err := binary.Read(rand.Reader, binary.BigEndian, &n)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return fmt.Sprintf("%s_%v_%d", t.Name(), time.Now().UnixNano(), n)
-}
 
 type keyringTestEnv struct {
 	serviceName string
@@ -52,7 +37,7 @@ func setupKeyringTestEnv(t *testing.T, clientURL string, args ...string) keyring
 	cmd, err := root.Command(root.AGPL())
 	require.NoError(t, err)
 
-	serviceName := keyringTestServiceName(t)
+	serviceName := testhelpers.KeyringServiceName(t)
 	root.WithKeyringServiceName(serviceName)
 	root.UseKeyringWithGlobalConfig()
 

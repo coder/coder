@@ -39,6 +39,24 @@ locals {
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
+data "coder_workspace_preset" "pittsburgh" {
+  name        = "Pittsburgh"
+  default     = true
+  description = "Development workspace hosted in United States with 2 prebuild instances"
+  icon        = "/emojis/1f1fa-1f1f8.png"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 2
+  }
+}
+
 data "coder_workspace_preset" "cpt" {
   name        = "Cape Town"
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
@@ -53,23 +71,6 @@ data "coder_workspace_preset" "cpt" {
   }
   prebuilds {
     instances = 1
-  }
-}
-
-data "coder_workspace_preset" "pittsburgh" {
-  name        = "Pittsburgh"
-  description = "Development workspace hosted in United States with 2 prebuild instances"
-  icon        = "/emojis/1f1fa-1f1f8.png"
-  parameters = {
-    (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
-  }
-  prebuilds {
-    instances = 2
   }
 }
 
@@ -445,7 +446,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.2"
+  version    = "1.1.3"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -870,7 +871,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.2.3"
+  version             = "4.2.6"
   enable_boundary     = true
   boundary_version    = "v0.2.1"
   agent_id            = coder_agent.dev.id

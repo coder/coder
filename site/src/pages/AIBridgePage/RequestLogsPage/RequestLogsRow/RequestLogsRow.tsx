@@ -21,6 +21,87 @@ type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
 };
 
+type TokenUsageMetadataMerged =
+	| null
+	| Record<string, unknown>
+	| Array<Record<string, unknown>>;
+
+/**
+ * This function merges multiple objects with the same keys into a single object.
+ * It's super unconventional, but it's only a temporary workaround until we
+ * structure our metadata field for rendering in the UI.
+ * @param objects - The objects to merge.
+ * @returns The merged object.
+ */
+export function tokenUsageMetadataMerge(
+	...objects: Array<
+		AIBridgeInterception["token_usages"][number]["metadata"] | null
+	>
+): TokenUsageMetadataMerged {
+	const validObjects = objects.filter((obj) => obj !== null);
+
+	// Filter out empty objects
+	const nonEmptyObjects = validObjects.filter(
+		(obj) => Object.keys(obj).length > 0,
+	);
+	if (nonEmptyObjects.length === 0) {
+		return null;
+	}
+
+	const allKeys = new Set(nonEmptyObjects.flatMap((obj) => Object.keys(obj)));
+	const commonKeys = Array.from(allKeys).filter((key) =>
+		nonEmptyObjects.every((obj) => key in obj),
+	);
+	if (commonKeys.length === 0) {
+		return nonEmptyObjects;
+	}
+
+	// Check for unresolvable conflicts: values that aren't all numeric or all
+	// the same.
+	for (const key of allKeys) {
+		const objectsWithKey = nonEmptyObjects.filter((obj) => key in obj);
+		if (objectsWithKey.length > 1) {
+			const values = objectsWithKey.map((obj) => obj[key]);
+			const allNumeric = values.every((v: unknown) => typeof v === "number");
+			const allSame = new Set(values).size === 1;
+			if (!allNumeric && !allSame) {
+				return nonEmptyObjects;
+			}
+		}
+	}
+
+	// Merge common keys: sum numeric values, preserve identical values, mark
+	// conflicts as null.
+	const result: Record<string, unknown> = {};
+	for (const key of commonKeys) {
+		const values = nonEmptyObjects.map((obj) => obj[key]);
+		const allNumeric = values.every((v: unknown) => typeof v === "number");
+		const allSame = new Set(values).size === 1;
+
+		if (allNumeric) {
+			result[key] = values.reduce((acc, v) => acc + (v as number), 0);
+		} else if (allSame) {
+			result[key] = values[0];
+		} else {
+			result[key] = null;
+		}
+	}
+
+	// Add non-common keys from the first object that has them.
+	for (const obj of nonEmptyObjects) {
+		for (const key of Object.keys(obj)) {
+			if (!commonKeys.includes(key) && !(key in result)) {
+				result[key] = obj[key];
+			}
+		}
+	}
+
+	// If any conflicts were marked, return original objects.
+	return Object.values(result).some((v: unknown) => v === null)
+		? nonEmptyObjects
+		: result;
+}
+
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -34,6 +115,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 		(acc, tokenUsage) => acc + tokenUsage.output_tokens,
 		0,
 	);
+
+	const tokenUsagesMetadata = tokenUsageMetadataMerge(
+		...interception.token_usages.map((tokenUsage) => tokenUsage.metadata),
+	);
+
 	const toolCalls = interception.tool_usages.length;
 	const duration =
 		interception.ended_at &&
@@ -205,6 +291,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 												</dl>
 											);
 										})}
+									</div>
+								</div>
+							)}
+
+							{tokenUsagesMetadata !== null && (
+								<div className="flex flex-col gap-2">
+									<div>Token Usage Metadata</div>
+									<div className="bg-surface-secondary rounded-md p-4">
+										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
 									</div>
 								</div>
 							)}

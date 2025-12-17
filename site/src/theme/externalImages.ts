@@ -169,4 +169,5 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/zed.svg", "monochrome"],
 	["/icon/tasks.svg", "monochrome"],
 	["/icon/openwebui.svg", "monochrome"],
+	["/icon/perplexica.svg", "monochrome"],
 ]);

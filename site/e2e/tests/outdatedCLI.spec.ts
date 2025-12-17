@@ -23,9 +23,9 @@ test.beforeEach(async ({ page }) => {
 test(`ssh with client ${clientVersion}`, async ({ page }) => {
 	const token = randomUUID();
 	const template = await createTemplate(page, {
-		apply: [
+		graph: [
 			{
-				apply: {
+				graph: {
 					resources: [
 						{
 							agents: [
