@@ -27,7 +27,6 @@ const customisedDateLocale: Intl.DateTimeFormatOptions = {
 	second: "2-digit",
 	minute: "2-digit",
 	hour: "2-digit",
-	hour12: true,
 	day: "numeric",
 	// Show the month as a short name
 	month: "short",
