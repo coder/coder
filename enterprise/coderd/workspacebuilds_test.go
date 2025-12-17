@@ -117,13 +117,33 @@ func TestWorkspaceBuild(t *testing.T) {
 		},
 	}
 
+	// Create pre-existing workspaces for each of the test cases.
+	var extantWorkspaces []codersdk.Workspace
+	for _, c := range cases {
+		extantWs, err := c.Client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateVersionID: tplB.ActiveVersionID,
+			Name:              testutil.GetRandomNameHyphenated(t),
+			AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
+		})
+		require.NoError(t, err, "setup workspace for case %q", c.Name)
+		extantWorkspaces = append(extantWorkspaces, extantWs)
+	}
+
+	// Create a new version of template B and promote it to be the active version.
+	tplBv2 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+		ctvr.TemplateID = tplB.ID
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, tplBv2.ID)
+	coderdtest.UpdateActiveTemplateVersion(t, ownerClient, tplB.ID, tplBv2.ID)
+
 	t.Run("NewWorkspace", func(t *testing.T) {
 		t.Parallel()
 
 		for _, c := range cases {
 			t.Run(c.Name, func(t *testing.T) {
 				t.Parallel()
-				ws, err := c.Client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				tCtx := testutil.Context(t, testutil.WaitMedium)
+				ws, err := c.Client.CreateUserWorkspace(tCtx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 					TemplateVersionID: tplAv1.ID,
 					Name:              testutil.GetRandomNameHyphenated(t),
 					AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
@@ -144,37 +164,19 @@ func TestWorkspaceBuild(t *testing.T) {
 	t.Run("ExistingWorkspace", func(t *testing.T) {
 		t.Parallel()
 
-		// Setup: create workspaces for each of the test cases.
-		var extantWorkspaces []codersdk.Workspace
-		for _, c := range cases {
-			extantWs, err := c.Client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
-				TemplateVersionID: tplB.ActiveVersionID,
-				Name:              testutil.GetRandomNameHyphenated(t),
-				AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
-			})
-			require.NoError(t, err, "setup workspace for case %q", c.Name)
-			extantWorkspaces = append(extantWorkspaces, extantWs)
-		}
-
-		// Setup: Create a new version of template B and promote it to be the active version.
-		tplBv2 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
-			ctvr.TemplateID = tplB.ID
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, tplBv2.ID)
-		coderdtest.UpdateActiveTemplateVersion(t, ownerClient, tplB.ID, tplBv2.ID)
-
 		for idx, c := range cases {
 			t.Run(c.Name, func(t *testing.T) {
 				t.Parallel()
+				tCtx := testutil.Context(t, testutil.WaitMedium)
 				// Stopping the workspace must always succeed.
-				wb, err := c.Client.CreateWorkspaceBuild(ctx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
+				wb, err := c.Client.CreateWorkspaceBuild(tCtx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
 					Transition: codersdk.WorkspaceTransitionStop,
 				})
 				require.NoError(t, err, "stopping workspace for case %q", c.Name)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, c.Client, wb.ID)
 
 				// Attempt to start the workspace with the given version.
-				wb, err = c.Client.CreateWorkspaceBuild(ctx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
+				wb, err = c.Client.CreateWorkspaceBuild(tCtx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
 					Transition:        codersdk.WorkspaceTransitionStart,
 					TemplateVersionID: tplBv1.ID,
 				})
