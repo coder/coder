@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 
-# See: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details?tabs=certificate-authority-chains
+# Add the cross-sign issuing certificates from the subordinate certificate
+# authorities.
+# See: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
 declare -a CERTIFICATES=(
-	"Microsoft RSA TLS CA 01=https://crt.sh/?d=3124375355"
-	"Microsoft RSA TLS CA 02=https://crt.sh/?d=3124375356"
+	"Microsoft Azure ECC TLS Issuing CA 03=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20ECC%20TLS%20Issuing%20CA%2003%20-%20xsign.crt"
+	"Microsoft Azure ECC TLS Issuing CA 04=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20ECC%20TLS%20Issuing%20CA%2004%20-%20xsign.crt"
+	"Microsoft Azure ECC TLS Issuing CA 07=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20ECC%20TLS%20Issuing%20CA%2007%20-%20xsign.crt"
+	"Microsoft Azure ECC TLS Issuing CA 08=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20ECC%20TLS%20Issuing%20CA%2008%20-%20xsign.crt"
 	"Microsoft Azure RSA TLS Issuing CA 03=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20RSA%20TLS%20Issuing%20CA%2003%20-%20xsign.crt"
 	"Microsoft Azure RSA TLS Issuing CA 04=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20RSA%20TLS%20Issuing%20CA%2004%20-%20xsign.crt"
 	"Microsoft Azure RSA TLS Issuing CA 07=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20RSA%20TLS%20Issuing%20CA%2007%20-%20xsign.crt"
 	"Microsoft Azure RSA TLS Issuing CA 08=https://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20RSA%20TLS%20Issuing%20CA%2008%20-%20xsign.crt"
+
+	# These have expired, but leaving them in for now.
+	"Microsoft RSA TLS CA 01=https://crt.sh/?d=3124375355"
+	"Microsoft RSA TLS CA 02=https://crt.sh/?d=3124375356"
 	"Microsoft Azure TLS Issuing CA 01=https://www.microsoft.com/pki/certs/Microsoft%20Azure%20TLS%20Issuing%20CA%2001.cer"
 	"Microsoft Azure TLS Issuing CA 02=https://www.microsoft.com/pki/certs/Microsoft%20Azure%20TLS%20Issuing%20CA%2002.cer"
 	"Microsoft Azure TLS Issuing CA 05=https://www.microsoft.com/pki/certs/Microsoft%20Azure%20TLS%20Issuing%20CA%2005.cer"

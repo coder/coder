@@ -1925,6 +1925,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceACL = async (
+		workspaceId: string,
+	): Promise<TypesGen.WorkspaceACL> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaces/${workspaceId}/acl`,
+		);
+
+		return response.data;
+	};
+
 	updateWorkspaceACL = async (
 		workspaceId: string,
 		data: TypesGen.UpdateWorkspaceACL,

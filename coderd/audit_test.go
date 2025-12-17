@@ -476,37 +476,10 @@ func TestAuditLogsFilter(t *testing.T) {
 func completeWithAgentAndApp() *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-										Apps: []*proto.App{
-											{
-												Slug:        "app",
-												DisplayName: "App",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "compute",
