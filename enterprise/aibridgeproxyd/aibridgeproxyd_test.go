@@ -1,4 +1,4 @@
-package aiproxyd_test
+package aibridgeproxyd_test
 
 import (
 	"crypto/rand"
@@ -22,7 +22,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/v2/enterprise/aiproxyd"
+	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -72,7 +72,7 @@ func TestNew(t *testing.T) {
 		certFile, keyFile := generateTestCA(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr: "",
 			CertFile:   certFile,
 			KeyFile:    keyFile,
@@ -86,7 +86,7 @@ func TestNew(t *testing.T) {
 
 		logger := slogtest.Make(t, nil)
 
-		_, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr: ":0",
 			KeyFile:    "key.pem",
 		})
@@ -99,7 +99,7 @@ func TestNew(t *testing.T) {
 
 		logger := slogtest.Make(t, nil)
 
-		_, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr: ":0",
 			CertFile:   "cert.pem",
 		})
@@ -112,7 +112,7 @@ func TestNew(t *testing.T) {
 
 		logger := slogtest.Make(t, nil)
 
-		_, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr: ":0",
 			CertFile:   "/nonexistent/cert.pem",
 			KeyFile:    "/nonexistent/key.pem",
@@ -127,7 +127,7 @@ func TestNew(t *testing.T) {
 		certFile, keyFile := generateTestCA(t)
 		logger := slogtest.Make(t, nil)
 
-		srv, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr: "127.0.0.1:0",
 			CertFile:   certFile,
 			KeyFile:    keyFile,
@@ -146,7 +146,7 @@ func TestClose(t *testing.T) {
 	certFile, keyFile := generateTestCA(t)
 	logger := slogtest.Make(t, nil)
 
-	srv, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 		ListenAddr: "127.0.0.1:0",
 		CertFile:   certFile,
 		KeyFile:    keyFile,
@@ -175,7 +175,7 @@ func TestProxy_MITM(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 
 	// Start the proxy server.
-	srv, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 		ListenAddr: "127.0.0.1:8888",
 		CertFile:   certFile,
 		KeyFile:    keyFile,

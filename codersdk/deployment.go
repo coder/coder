@@ -1217,9 +1217,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "AI Bridge",
 			YAML: "aibridge",
 		}
-		deploymentGroupAIProxy = serpent.Group{
-			Name: "AI Proxy",
-			YAML: "aiproxy",
+		deploymentGroupAIBridgeProxy = serpent.Group{
+			Name: "AI Bridge Proxy",
+			YAML: "aibridgeproxy",
 		}
 		deploymentGroupRetention = serpent.Group{
 			Name:        "Retention",
@@ -3448,45 +3448,45 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "rateLimit",
 		},
 
-		// AI Proxy Options
+		// AI Bridge Proxy Options
 		{
-			Name:        "AI Proxy Enabled",
+			Name:        "AI Bridge Proxy Enabled",
 			Description: "Enable the AI MITM proxy for intercepting and decrypting AI provider requests.",
-			Flag:        "aiproxy-enabled",
-			Env:         "CODER_AIPROXY_ENABLED",
-			Value:       &c.AI.ProxyConfig.Enabled,
+			Flag:        "aibridge-proxy-enabled",
+			Env:         "CODER_AIBRIDGE_PROXY_ENABLED",
+			Value:       &c.AI.BridgeProxyConfig.Enabled,
 			Default:     "false",
-			Group:       &deploymentGroupAIProxy,
+			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "enabled",
 		},
 		{
-			Name:        "AI Proxy Listen Address",
+			Name:        "AI Bridge Proxy Listen Address",
 			Description: "The address the AI proxy will listen on.",
-			Flag:        "aiproxy-listen-addr",
-			Env:         "CODER_AIPROXY_LISTEN_ADDR",
-			Value:       &c.AI.ProxyConfig.ListenAddr,
+			Flag:        "aibridge-proxy-listen-addr",
+			Env:         "CODER_AIBRIDGE_PROXY_LISTEN_ADDR",
+			Value:       &c.AI.BridgeProxyConfig.ListenAddr,
 			Default:     ":8888",
-			Group:       &deploymentGroupAIProxy,
+			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "listen_addr",
 		},
 		{
-			Name:        "AI Proxy Certificate File",
+			Name:        "AI Bridge Proxy Certificate File",
 			Description: "Path to the CA certificate file for MITM.",
-			Flag:        "aiproxy-cert-file",
-			Env:         "CODER_AIPROXY_CERT_FILE",
-			Value:       &c.AI.ProxyConfig.CertFile,
+			Flag:        "aibridge-proxy-cert-file",
+			Env:         "CODER_AIBRIDGE_PROXY_CERT_FILE",
+			Value:       &c.AI.BridgeProxyConfig.CertFile,
 			Default:     "",
-			Group:       &deploymentGroupAIProxy,
+			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "cert_file",
 		},
 		{
-			Name:        "AI Proxy Key File",
+			Name:        "AI Bridge Proxy Key File",
 			Description: "Path to the CA private key file for MITM.",
-			Flag:        "aiproxy-key-file",
-			Env:         "CODER_AIPROXY_KEY_FILE",
-			Value:       &c.AI.ProxyConfig.KeyFile,
+			Flag:        "aibridge-proxy-key-file",
+			Env:         "CODER_AIBRIDGE_PROXY_KEY_FILE",
+			Value:       &c.AI.BridgeProxyConfig.KeyFile,
 			Default:     "",
-			Group:       &deploymentGroupAIProxy,
+			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "key_file",
 		},
 
@@ -3582,7 +3582,7 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
-type AIProxyConfig struct {
+type AIBridgeProxyConfig struct {
 	Enabled    serpent.Bool   `json:"enabled" typescript:",notnull"`
 	ListenAddr serpent.String `json:"listen_addr" typescript:",notnull"`
 	CertFile   serpent.String `json:"cert_file" typescript:",notnull"`
@@ -3590,8 +3590,8 @@ type AIProxyConfig struct {
 }
 
 type AIConfig struct {
-	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
-	ProxyConfig  AIProxyConfig  `json:"proxy,omitempty"`
+	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
+	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 }
 
 type SupportConfig struct {

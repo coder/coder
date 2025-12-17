@@ -162,6 +162,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "agent_stat_refresh_interval": 0,
     "ai": {
+      "aibridge_proxy": {
+        "cert_file": "string",
+        "enabled": true,
+        "key_file": "string",
+        "listen_addr": "string"
+      },
       "bridge": {
         "anthropic": {
           "base_url": "string",
@@ -183,12 +189,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         },
         "rate_limit": 0,
         "retention": 0
-      },
-      "proxy": {
-        "cert_file": "string",
-        "enabled": true,
-        "key_file": "string",
-        "listen_addr": "string"
       }
     },
     "allow_workspace_renames": true,
