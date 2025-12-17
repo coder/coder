@@ -4244,7 +4244,12 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
 	})
 
-	t.Run("CannotStart", func(t *testing.T) {
+	// #20925: this test originally validated that you could **not** start a dormant workspace.
+	// The client was required to explicitly update the dormancy status before starting.
+	// This led to a 'whack-a-mole' situation where various code paths that create a workspace build
+	// would need to special case dormant workspaces.
+	// Now, a dormant workspace will automatically 'wake up' on start.
+	t.Run("StartWakesUpDormantWorkspace", func(t *testing.T) {
 		t.Parallel()
 		var (
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -4267,18 +4272,17 @@ func TestWorkspaceDormant(t *testing.T) {
 		// Should be able to stop a workspace while it is dormant.
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
-		// Should not be able to start a workspace while it is dormant.
+		// Starting a dormant workspace should 'wake' it.
 		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Transition:        codersdk.WorkspaceTransition(database.WorkspaceTransitionStart),
 		})
-		require.Error(t, err)
-
-		err = client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
-			Dormant: false,
-		})
 		require.NoError(t, err)
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
+
+		// After starting, the workspace should no longer be dormant.
+		updatedWs, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch updated workspace")
+		require.Nil(t, updatedWs.DormantAt)
 	})
 }
 

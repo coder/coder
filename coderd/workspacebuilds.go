@@ -389,6 +389,22 @@ func (api *API) postWorkspaceBuildsInternal(
 		builder = builder.Reason(database.BuildReason(createBuild.Reason))
 	}
 
+	// #20925: if the workspace is dormant and we are starting the workspace,
+	// we need to unset that status before inserting a new build.
+	if workspace.DormantAt.Valid && transition == database.WorkspaceTransitionStart {
+		if _, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+			ID:        workspace.ID,
+			DormantAt: sql.NullTime{Valid: false},
+		}); err != nil {
+			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error unsetting workspace dormant status",
+				Detail:  err.Error(),
+			})
+		} else {
+			api.Logger.Info(ctx, "unset dormant status for workspace due to start", slog.F("workspace_id", workspace.ID))
+		}
+	}
+
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild
 		workspaceBuild         *database.WorkspaceBuild
