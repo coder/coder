@@ -1,4 +1,4 @@
-package aiproxyd
+package aibridgeproxyd
 
 import (
 	"context"
@@ -74,7 +74,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	go func() {
 		logger.Info(ctx, "starting AI proxy", slog.F("addr", opts.ListenAddr))
 		if err := srv.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error(ctx, "aiproxyd server error", slog.Error(err))
+			logger.Error(ctx, "aibridgeproxyd server error", slog.Error(err))
 		}
 	}()
 

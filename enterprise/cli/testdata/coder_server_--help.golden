@@ -140,18 +140,18 @@ AI BRIDGE OPTIONS:
           Maximum number of AI Bridge requests per second per replica. Set to 0
           to disable (unlimited).
 
-AI PROXY OPTIONS: 
-      --aiproxy-cert-file string, $CODER_AIPROXY_CERT_FILE
+AI BRIDGE PROXY OPTIONS: 
+      --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
           Path to the CA certificate file for MITM.
 
-      --aiproxy-enabled bool, $CODER_AIPROXY_ENABLED (default: false)
+      --aibridge-proxy-enabled bool, $CODER_AIBRIDGE_PROXY_ENABLED (default: false)
           Enable the AI MITM proxy for intercepting and decrypting AI provider
           requests.
 
-      --aiproxy-key-file string, $CODER_AIPROXY_KEY_FILE
+      --aibridge-proxy-key-file string, $CODER_AIBRIDGE_PROXY_KEY_FILE
           Path to the CA private key file for MITM.
 
-      --aiproxy-listen-addr string, $CODER_AIPROXY_LISTEN_ADDR (default: :8888)
+      --aibridge-proxy-listen-addr string, $CODER_AIBRIDGE_PROXY_LISTEN_ADDR (default: :8888)
           The address the AI proxy will listen on.
 
 CLIENT OPTIONS: 
