@@ -3,10 +3,16 @@ package aiproxyd_test
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"io"
 	"math/big"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +23,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/enterprise/aiproxyd"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // generateTestCA creates a temporary CA certificate and key for testing.
@@ -76,6 +83,7 @@ func TestNew(t *testing.T) {
 
 	t.Run("MissingCertFile", func(t *testing.T) {
 		t.Parallel()
+
 		logger := slogtest.Make(t, nil)
 
 		_, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
@@ -88,6 +96,7 @@ func TestNew(t *testing.T) {
 
 	t.Run("MissingKeyFile", func(t *testing.T) {
 		t.Parallel()
+
 		logger := slogtest.Make(t, nil)
 
 		_, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
@@ -100,6 +109,7 @@ func TestNew(t *testing.T) {
 
 	t.Run("InvalidCertFile", func(t *testing.T) {
 		t.Parallel()
+
 		logger := slogtest.Make(t, nil)
 
 		_, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
@@ -149,4 +159,70 @@ func TestClose(t *testing.T) {
 	// Calling Close again should not error
 	err = srv.Close()
 	require.NoError(t, err)
+}
+
+func TestProxy_MITM(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock HTTPS server that will be the target of our proxied request.
+	targetServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("hello from target"))
+	}))
+	defer targetServer.Close()
+
+	certFile, keyFile := generateTestCA(t)
+	logger := slogtest.Make(t, nil)
+
+	// Start the proxy server.
+	srv, err := aiproxyd.New(t.Context(), logger, aiproxyd.Options{
+		ListenAddr: "127.0.0.1:8888",
+		CertFile:   certFile,
+		KeyFile:    keyFile,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	// Wait for the proxy server to be ready.
+	require.Eventually(t, func() bool {
+		conn, err := net.Dial("tcp", "127.0.0.1:8888")
+		if err != nil {
+			return false
+		}
+		_ = conn.Close()
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Load the CA certificate so the client trusts the proxy's MITM certificate.
+	certPEM, err := os.ReadFile(certFile)
+	require.NoError(t, err)
+	certPool := x509.NewCertPool()
+	certPool.AppendCertsFromPEM(certPEM)
+
+	// Create an HTTP client configured to use the proxy.
+	proxyURL, err := url.Parse("http://127.0.0.1:8888")
+	require.NoError(t, err)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    certPool,
+			},
+		},
+	}
+
+	// Make a request through the proxy to the target server.
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetServer.URL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Verify the response was successfully proxied.
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "hello from target", string(body))
 }

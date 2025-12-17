@@ -5,6 +5,8 @@ package cli
 import (
 	"context"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/enterprise/aiproxyd"
 	"github.com/coder/coder/v2/enterprise/coderd"
 )
@@ -21,7 +23,7 @@ func newAIProxyDaemon(coderAPI *coderd.API) (*aiproxyd.Server, error) {
 		KeyFile:    coderAPI.DeploymentValues.AI.ProxyConfig.KeyFile.String(),
 	})
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to start in-memory aiproxy daemon: %w", err)
 	}
 
 	return srv, nil
