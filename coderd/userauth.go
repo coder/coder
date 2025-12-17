@@ -648,9 +648,10 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 
 		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 		newUser, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        user.ID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+			ID:         user.ID,
+			Status:     database.UserStatusActive,
+			UpdatedAt:  dbtime.Now(),
+			UserIsSeen: true,
 		})
 		if err != nil {
 			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
@@ -1799,9 +1800,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			dormantConvertAudit.Old = user
 			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-				ID:        user.ID,
-				Status:    database.UserStatusActive,
-				UpdatedAt: dbtime.Now(),
+				ID:         user.ID,
+				Status:     database.UserStatusActive,
+				UpdatedAt:  dbtime.Now(),
+				UserIsSeen: true,
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to update user status to active", slog.Error(err))

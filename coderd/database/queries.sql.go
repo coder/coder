@@ -17141,19 +17141,27 @@ UPDATE
 	users
 SET
 	status = $2,
-	updated_at = $3
+	updated_at = $3,
+	-- If the user is logging in, set last_seen_at to updated_at.
+	last_seen_at = CASE WHEN $4 :: boolean THEN $3 :: timestamptz ELSE last_seen_at END
 WHERE
 	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserStatusParams struct {
-	ID        uuid.UUID  `db:"id" json:"id"`
-	Status    UserStatus `db:"status" json:"status"`
-	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
+	ID         uuid.UUID  `db:"id" json:"id"`
+	Status     UserStatus `db:"status" json:"status"`
+	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`
+	UserIsSeen bool       `db:"user_is_seen" json:"user_is_seen"`
 }
 
 func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUserStatus, arg.ID, arg.Status, arg.UpdatedAt)
+	row := q.db.QueryRowContext(ctx, updateUserStatus,
+		arg.ID,
+		arg.Status,
+		arg.UpdatedAt,
+		arg.UserIsSeen,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
