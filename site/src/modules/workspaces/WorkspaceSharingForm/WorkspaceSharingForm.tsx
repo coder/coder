@@ -148,6 +148,7 @@ interface WorkspaceSharingFormProps {
 	updatingGroupId?: WorkspaceGroup["id"] | undefined;
 	onRemoveGroup: (group: Group) => void;
 	addMemberForm?: ReactNode;
+	isCompact?: boolean;
 }
 
 export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
@@ -161,6 +162,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	onUpdateGroup,
 	onRemoveGroup,
 	addMemberForm,
+	isCompact,
 }) => {
 	const isEmpty = Boolean(
 		workspaceACL &&
@@ -168,136 +170,160 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 			workspaceACL.group.length === 0,
 	);
 
+	const tableHeader = (
+		<TableHeader>
+			<TableRow>
+				<TableHead className="w-[50%] py-2">Member</TableHead>
+				<TableHead className="w-[40%] py-2">Role</TableHead>
+				<TableHead className="w-[10%] py-2" />
+			</TableRow>
+		</TableHeader>
+	);
+
+	const tableBody = (
+		<TableBody>
+			{!workspaceACL ? (
+				<TableLoader />
+			) : isEmpty ? (
+				<TableRow>
+					<TableCell colSpan={999}>
+						<EmptyState
+							message="No shared members or groups yet"
+							description="Add a member or group using the controls above"
+							isCompact={isCompact}
+						/>
+					</TableCell>
+				</TableRow>
+			) : (
+				<>
+					{workspaceACL.group.map((group) => (
+						<TableRow key={group.id}>
+							<TableCell className="py-2 w-[50%]">
+								<AvatarData
+									avatar={
+										<Avatar
+											size="lg"
+											fallback={group.display_name || group.name}
+											src={group.avatar_url}
+										/>
+									}
+									title={group.display_name || group.name}
+									subtitle={getGroupSubtitle(group)}
+								/>
+							</TableCell>
+							<TableCell className="py-2 w-[40%]">
+								{canUpdatePermissions ? (
+									<RoleSelect
+										value={group.role}
+										disabled={updatingGroupId === group.id}
+										onValueChange={(value) => onUpdateGroup(group, value)}
+									/>
+								) : (
+									<div className="capitalize">{group.role}</div>
+								)}
+							</TableCell>
+
+							<TableCell className="py-2 w-[10%]">
+								{canUpdatePermissions && (
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon-lg"
+												variant="subtle"
+												aria-label="Open menu"
+											>
+												<EllipsisVertical aria-hidden="true" />
+												<span className="sr-only">Open menu</span>
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												onClick={() => onRemoveGroup(group)}
+											>
+												Remove
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								)}
+							</TableCell>
+						</TableRow>
+					))}
+
+					{workspaceACL.users.map((user) => (
+						<TableRow key={user.id}>
+							<TableCell className="py-2 w-[50%]">
+								<AvatarData
+									title={user.username}
+									subtitle={user.name}
+									src={user.avatar_url}
+								/>
+							</TableCell>
+							<TableCell className="py-2 w-[40%]">
+								{canUpdatePermissions ? (
+									<RoleSelect
+										value={user.role}
+										disabled={updatingUserId === user.id}
+										onValueChange={(value) => onUpdateUser(user, value)}
+									/>
+								) : (
+									<div className="capitalize">{user.role}</div>
+								)}
+							</TableCell>
+
+							<TableCell className="py-2 w-[10%]">
+								{canUpdatePermissions && (
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon-lg"
+												variant="subtle"
+												aria-label="Open menu"
+											>
+												<EllipsisVertical aria-hidden="true" />
+												<span className="sr-only">Open menu</span>
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												onClick={() => onRemoveUser(user)}
+											>
+												Remove
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								)}
+							</TableCell>
+						</TableRow>
+					))}
+				</>
+			)}
+		</TableBody>
+	);
+
+	if (isCompact) {
+		return (
+			<div className="flex flex-col gap-4">
+				{Boolean(error) && <ErrorAlert error={error} />}
+				{canUpdatePermissions && addMemberForm}
+				<div>
+					<Table>{tableHeader}</Table>
+					<div className="max-h-60 overflow-y-auto">
+						<Table>{tableBody}</Table>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
 			{canUpdatePermissions && addMemberForm}
 			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead className="w-[60%] py-2">Member</TableHead>
-						<TableHead className="w-[40%] py-2">Role</TableHead>
-						<TableHead className="w-[1%] py-2" />
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{!workspaceACL ? (
-						<TableLoader />
-					) : isEmpty ? (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<EmptyState
-									message="No shared members or groups yet"
-									description="Add a member or group using the controls above"
-								/>
-							</TableCell>
-						</TableRow>
-					) : (
-						<>
-							{workspaceACL.group.map((group) => (
-								<TableRow key={group.id}>
-									<TableCell className="py-2">
-										<AvatarData
-											avatar={
-												<Avatar
-													size="lg"
-													fallback={group.display_name || group.name}
-													src={group.avatar_url}
-												/>
-											}
-											title={group.display_name || group.name}
-											subtitle={getGroupSubtitle(group)}
-										/>
-									</TableCell>
-									<TableCell className="py-2">
-										{canUpdatePermissions ? (
-											<RoleSelect
-												value={group.role}
-												disabled={updatingGroupId === group.id}
-												onValueChange={(value) => onUpdateGroup(group, value)}
-											/>
-										) : (
-											<div className="capitalize">{group.role}</div>
-										)}
-									</TableCell>
-
-									<TableCell className="py-2">
-										{canUpdatePermissions && (
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button
-														size="icon-lg"
-														variant="subtle"
-														aria-label="Open menu"
-													>
-														<EllipsisVertical aria-hidden="true" />
-														<span className="sr-only">Open menu</span>
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuItem
-														className="text-content-destructive focus:text-content-destructive"
-														onClick={() => onRemoveGroup(group)}
-													>
-														Remove
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										)}
-									</TableCell>
-								</TableRow>
-							))}
-
-							{workspaceACL.users.map((user) => (
-								<TableRow key={user.id}>
-									<TableCell className="py-2">
-										<AvatarData
-											title={user.username}
-											subtitle={user.name}
-											src={user.avatar_url}
-										/>
-									</TableCell>
-									<TableCell className="py-2">
-										{canUpdatePermissions ? (
-											<RoleSelect
-												value={user.role}
-												disabled={updatingUserId === user.id}
-												onValueChange={(value) => onUpdateUser(user, value)}
-											/>
-										) : (
-											<div className="capitalize">{user.role}</div>
-										)}
-									</TableCell>
-
-									<TableCell className="py-2">
-										{canUpdatePermissions && (
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button
-														size="icon-lg"
-														variant="subtle"
-														aria-label="Open menu"
-													>
-														<EllipsisVertical aria-hidden="true" />
-														<span className="sr-only">Open menu</span>
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuItem
-														className="text-content-destructive focus:text-content-destructive"
-														onClick={() => onRemoveUser(user)}
-													>
-														Remove
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										)}
-									</TableCell>
-								</TableRow>
-							))}
-						</>
-					)}
-				</TableBody>
+				{tableHeader}
+				{tableBody}
 			</Table>
 		</div>
 	);
