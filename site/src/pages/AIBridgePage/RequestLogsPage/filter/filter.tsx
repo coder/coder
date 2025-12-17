@@ -1,4 +1,3 @@
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -8,20 +7,21 @@ import {
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import type { FC } from "react";
+import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 	{
 		label: "OpenAI",
 		value: "openai",
 		startIcon: (
-			<ExternalImage src="/icon/openai.svg" className="size-icon-sm" />
+			<AIBridgeProviderIcon provider="openai" className="size-icon-sm" />
 		),
 	},
 	{
 		label: "Anthropic",
 		value: "anthropic",
 		startIcon: (
-			<ExternalImage src="/icon/claude-device.svg" className="size-icon-sm" />
+			<AIBridgeProviderIcon provider="anthropic" className="size-icon-sm" />
 		),
 	},
 ];

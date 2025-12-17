@@ -1,7 +1,6 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -14,11 +13,11 @@ import {
 	ArrowUpIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
-	CircleQuestionMarkIcon,
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { humanDuration } from "utils/time";
+import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
@@ -33,33 +32,6 @@ const customisedDateLocale: Intl.DateTimeFormatOptions = {
 	// Show the month as a short name
 	month: "short",
 	year: "numeric",
-};
-
-const RequestLogsRowProviderIcon = ({
-	provider,
-	...props
-}: {
-	provider: string;
-} & React.ComponentProps<"svg">) => {
-	const iconClassName = "size-icon-xs flex-shrink-0";
-	switch (provider) {
-		case "openai":
-			return <ExternalImage src="/icon/openai.svg" className={iconClassName} />;
-		case "anthropic":
-			return (
-				<ExternalImage
-					src="/icon/claude-device.svg"
-					className={iconClassName}
-				/>
-			);
-		default:
-			return (
-				<CircleQuestionMarkIcon
-					className={cn(iconClassName, props.className)}
-					{...props}
-				/>
-			);
-	}
 };
 
 type TokenUsageMetadataMerged =
@@ -263,9 +235,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="w-full min-w-0 overflow-hidden">
 									<Badge className="gap-1.5 w-full">
 										<div className="flex-shrink-0 flex items-center">
-											<RequestLogsRowProviderIcon
-												provider={interception.provider}
-											/>
+											<AIBridgeProviderIcon provider={interception.provider} />
 										</div>
 										<span className="truncate min-w-0 w-full">
 											{interception.model}
@@ -343,7 +313,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<dd data-chromatic="ignore">
 									<Badge className="gap-2">
 										<div className="flex-shrink-0 flex items-center">
-											<RequestLogsRowProviderIcon
+											<AIBridgeProviderIcon
 												provider={interception.provider}
 												className="size-icon-xs"
 											/>
