@@ -79,69 +79,9 @@ func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero
 	}
 
 	if len(modulesArchive) > 0 {
-		err = extractArchive(ctx, logger, fs, l.ModulesDirectory(), modulesArchive)
+		err = extractArchive(ctx, logger, fs, l.WorkDirectory(), modulesArchive)
 		if err != nil {
 			return xerrors.Errorf("extract modules archive: %w", err)
-		}
-	}
-	return nil
-}
-
-// Cleanup removes the work directory and all of its contents.
-func (l Layout) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
-	var err error
-	path := l.WorkDirectory()
-
-	for attempt := 0; attempt < 5; attempt++ {
-		err := fs.RemoveAll(path)
-		if err != nil {
-			// On Windows, open files cannot be removed.
-			// When the provisioner daemon is shutting down,
-			// it may take a few milliseconds for processes to exit.
-			// See: https://github.com/golang/go/issues/50510
-			logger.Debug(ctx, "failed to clean work directory; trying again", slog.Error(err))
-			// TODO: Should we abort earlier if the context is done?
-			time.Sleep(250 * time.Millisecond)
-			continue
-		}
-		logger.Debug(ctx, "cleaned up work directory")
-		return
-	}
-
-	// Returning an error at this point cannot do any good. The caller cannot resolve
-	// this. There is a routine cleanup task that will remove old work directories
-	// when this fails.
-	logger.Error(ctx, "failed to clean up work directory after multiple attempts",
-		slog.F("path", path), slog.Error(err))
-}
-
-// CleanStaleSessions browses the work directory searching for stale session
-// directories. Coder provisioner is supposed to remove them once after finishing the provisioning,
-// but there is a risk of keeping them in case of a failure.
-func (l Layout) CleanStaleSessions(ctx context.Context, logger slog.Logger, fs afero.Fs, now time.Time) error {
-	parent := filepath.Dir(l.WorkDirectory())
-	entries, err := afero.ReadDir(fs, filepath.Dir(l.WorkDirectory()))
-	if err != nil {
-		return xerrors.Errorf("can't read %q directory", parent)
-	}
-
-	for _, fi := range entries {
-		dirName := fi.Name()
-
-		if fi.IsDir() && isValidSessionDir(dirName) {
-			sessionDirPath := filepath.Join(parent, dirName)
-
-			modTime := fi.ModTime() // fallback to modTime if modTime is not available (afero)
-
-			if modTime.Add(staleSessionRetention).After(now) {
-				continue
-			}
-
-			logger.Info(ctx, "remove stale session directory", slog.F("session_path", sessionDirPath))
-			err = fs.RemoveAll(sessionDirPath)
-			if err != nil {
-				return xerrors.Errorf("can't remove %q directory: %w", sessionDirPath, err)
-			}
 		}
 	}
 	return nil
@@ -238,5 +178,65 @@ func extractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, direct
 		}
 	}
 
+	return nil
+}
+
+// Cleanup removes the work directory and all of its contents.
+func (l Layout) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
+	var err error
+	path := l.WorkDirectory()
+
+	for attempt := 0; attempt < 5; attempt++ {
+		err := fs.RemoveAll(path)
+		if err != nil {
+			// On Windows, open files cannot be removed.
+			// When the provisioner daemon is shutting down,
+			// it may take a few milliseconds for processes to exit.
+			// See: https://github.com/golang/go/issues/50510
+			logger.Debug(ctx, "failed to clean work directory; trying again", slog.Error(err))
+			// TODO: Should we abort earlier if the context is done?
+			time.Sleep(250 * time.Millisecond)
+			continue
+		}
+		logger.Debug(ctx, "cleaned up work directory")
+		return
+	}
+
+	// Returning an error at this point cannot do any good. The caller cannot resolve
+	// this. There is a routine cleanup task that will remove old work directories
+	// when this fails.
+	logger.Error(ctx, "failed to clean up work directory after multiple attempts",
+		slog.F("path", path), slog.Error(err))
+}
+
+// CleanStaleSessions browses the work directory searching for stale session
+// directories. Coder provisioner is supposed to remove them once after finishing the provisioning,
+// but there is a risk of keeping them in case of a failure.
+func (l Layout) CleanStaleSessions(ctx context.Context, logger slog.Logger, fs afero.Fs, now time.Time) error {
+	parent := filepath.Dir(l.WorkDirectory())
+	entries, err := afero.ReadDir(fs, filepath.Dir(l.WorkDirectory()))
+	if err != nil {
+		return xerrors.Errorf("can't read %q directory", parent)
+	}
+
+	for _, fi := range entries {
+		dirName := fi.Name()
+
+		if fi.IsDir() && isValidSessionDir(dirName) {
+			sessionDirPath := filepath.Join(parent, dirName)
+
+			modTime := fi.ModTime() // fallback to modTime if modTime is not available (afero)
+
+			if modTime.Add(staleSessionRetention).After(now) {
+				continue
+			}
+
+			logger.Info(ctx, "remove stale session directory", slog.F("session_path", sessionDirPath))
+			err = fs.RemoveAll(sessionDirPath)
+			if err != nil {
+				return xerrors.Errorf("can't remove %q directory: %w", sessionDirPath, err)
+			}
+		}
+	}
 	return nil
 }
