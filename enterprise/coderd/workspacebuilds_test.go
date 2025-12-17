@@ -17,7 +17,8 @@ import (
 func TestWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
+	// Only use this context for setup. Use a separate context for subtests!
+	setupCtx := testutil.Context(t, testutil.WaitMedium)
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
@@ -72,7 +73,7 @@ func TestWorkspaceBuild(t *testing.T) {
 	// Update the template for both users and groups.
 	//nolint:gocritic // test setup
 	for _, tpl := range []codersdk.Template{tplA, tplB} {
-		err := ownerClient.UpdateTemplateACL(ctx, tpl.ID, codersdk.UpdateTemplateACL{
+		err := ownerClient.UpdateTemplateACL(setupCtx, tpl.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
 				templateACLAdmin.ID.String(): codersdk.TemplateRoleAdmin,
 			},
@@ -120,12 +121,13 @@ func TestWorkspaceBuild(t *testing.T) {
 	// Create pre-existing workspaces for each of the test cases.
 	var extantWorkspaces []codersdk.Workspace
 	for _, c := range cases {
-		extantWs, err := c.Client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		extantWs, err := c.Client.CreateUserWorkspace(setupCtx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateVersionID: tplB.ActiveVersionID,
 			Name:              testutil.GetRandomNameHyphenated(t),
 			AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 		})
 		require.NoError(t, err, "setup workspace for case %q", c.Name)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, c.Client, extantWs.LatestBuild.ID)
 		extantWorkspaces = append(extantWorkspaces, extantWs)
 	}
 
@@ -142,8 +144,8 @@ func TestWorkspaceBuild(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.Name, func(t *testing.T) {
 				t.Parallel()
-				tCtx := testutil.Context(t, testutil.WaitMedium)
-				ws, err := c.Client.CreateUserWorkspace(tCtx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				ws, err := c.Client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 					TemplateVersionID: tplAv1.ID,
 					Name:              testutil.GetRandomNameHyphenated(t),
 					AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
@@ -167,16 +169,16 @@ func TestWorkspaceBuild(t *testing.T) {
 		for idx, c := range cases {
 			t.Run(c.Name, func(t *testing.T) {
 				t.Parallel()
-				tCtx := testutil.Context(t, testutil.WaitMedium)
+				ctx := testutil.Context(t, testutil.WaitMedium)
 				// Stopping the workspace must always succeed.
-				wb, err := c.Client.CreateWorkspaceBuild(tCtx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
+				wb, err := c.Client.CreateWorkspaceBuild(ctx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
 					Transition: codersdk.WorkspaceTransitionStop,
 				})
 				require.NoError(t, err, "stopping workspace for case %q", c.Name)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, c.Client, wb.ID)
 
 				// Attempt to start the workspace with the given version.
-				wb, err = c.Client.CreateWorkspaceBuild(tCtx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
+				wb, err = c.Client.CreateWorkspaceBuild(ctx, extantWorkspaces[idx].ID, codersdk.CreateWorkspaceBuildRequest{
 					Transition:        codersdk.WorkspaceTransitionStart,
 					TemplateVersionID: tplBv1.ID,
 				})
