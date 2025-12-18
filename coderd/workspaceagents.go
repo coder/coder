@@ -1729,7 +1729,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 	// initial metadata to guarantee that events in-between are not missed.
 	update := make(chan agentapi.WorkspaceAgentMetadataChannelPayload, 1)
 
-	// Subscribe to per-agent channel for backwards compatibility.
+	// Subscribe to per-agent channel for non-batched updates (when batcher is nil).
 	cancelSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
 			return
@@ -1759,6 +1759,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 	defer cancelSub()
 
 	// Also subscribe to the global batched metadata channel.
+	// The batcher publishes only to this channel to achieve O(1) NOTIFY scaling.
 	cancelBatchSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataBatchChannel(), func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
 			return
