@@ -1684,15 +1684,27 @@ func (api *API) watchWorkspaceAgentMetadata(
 	// Send initial metadata.
 	sendMetadata(initialMD)
 
+	// If no metadata exists, don't start the poll loop.
+	if len(initialMD) == 0 {
+		log.Debug(ctx, "no metadata to poll, skipping poll loop")
+		<-ctx.Done()
+		return
+	}
+
 	// Calculate poll interval as the minimum interval from all metadata items.
-	// This ensures we poll frequently enough to catch all metadata updates.
-	// Default to 1 second if no metadata items exist or all have zero intervals.
-	pollInterval := time.Second
+	var pollInterval time.Duration
 	for _, md := range initialMD {
 		interval := time.Duration(md.Interval)
-		if interval > 0 && (pollInterval == time.Second || interval < pollInterval) {
+		if interval > 0 && (pollInterval == 0 || interval < pollInterval) {
 			pollInterval = interval
 		}
+	}
+
+	// If all metadata items have zero intervals, log an error and don't start the loop.
+	if pollInterval == 0 {
+		log.Error(ctx, "all metadata items have zero intervals, skipping poll loop")
+		<-ctx.Done()
+		return
 	}
 
 	log.Debug(ctx, "starting metadata poll loop", slog.F("poll_interval", pollInterval))
