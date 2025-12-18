@@ -172,7 +172,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		WorkspaceID:              opts.WorkspaceID,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
-		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdateLegacy,
 	}
 
 	api.AppsAPI = &AppsAPI{
@@ -196,7 +196,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		AgentFn:                           api.agent,
 		Database:                          opts.Database,
 		Log:                               opts.Log,
-		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
+		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdateLegacy,
 		PublishWorkspaceAgentLogsUpdateFn: opts.PublishWorkspaceAgentLogsUpdateFn,
 	}
 
@@ -347,4 +347,12 @@ func (a *API) publishWorkspaceUpdate(ctx context.Context, agentCache *CachedAgen
 		AgentID:     agentID,
 	})
 	return nil
+}
+
+// publishWorkspaceUpdateLegacy is for APIs that don't have cached agent fields.
+// It creates a temporary CachedAgentFields from the agent and calls publishWorkspaceUpdate.
+func (a *API) publishWorkspaceUpdateLegacy(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+	agentCache := &CachedAgentFields{}
+	agentCache.UpdateValues(agent.ID, agent.Name)
+	return a.publishWorkspaceUpdate(ctx, agentCache, kind)
 }

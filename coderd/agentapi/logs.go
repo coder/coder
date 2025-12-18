@@ -19,7 +19,7 @@ type LogsAPI struct {
 	AgentFn                           func(context.Context) (database.WorkspaceAgent, error)
 	Database                          database.Store
 	Log                               slog.Logger
-	PublishWorkspaceUpdateFn          func(context.Context, *CachedAgentFields, wspubsub.WorkspaceEventKind) error
+	PublishWorkspaceUpdateFn          func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
@@ -125,10 +125,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 		}
 
 		if a.PublishWorkspaceUpdateFn != nil {
-			// Create a cached agent fields from the retrieved agent for publishing.
-			agentCache := &CachedAgentFields{}
-			agentCache.UpdateValues(workspaceAgent.ID, workspaceAgent.Name)
-			err = a.PublishWorkspaceUpdateFn(ctx, agentCache, wspubsub.WorkspaceEventKindAgentLogsOverflow)
+			err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLogsOverflow)
 			if err != nil {
 				return nil, xerrors.Errorf("publish workspace update: %w", err)
 			}
@@ -148,9 +145,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	if workspaceAgent.LogsLength == 0 && a.PublishWorkspaceUpdateFn != nil {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
-		agentCache := &CachedAgentFields{}
-		agentCache.UpdateValues(workspaceAgent.ID, workspaceAgent.Name)
-		err = a.PublishWorkspaceUpdateFn(ctx, agentCache, wspubsub.WorkspaceEventKindAgentFirstLogs)
+		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentFirstLogs)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}

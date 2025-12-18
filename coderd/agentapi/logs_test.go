@@ -51,7 +51,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agentCache *agentapi.CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -155,7 +155,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agentCache *agentapi.CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -203,7 +203,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agentCache *agentapi.CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -296,7 +296,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				},
 				Database: dbM,
 				Log:      testutil.Logger(t),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, agentCache *agentapi.CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
+				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
 				},
@@ -340,7 +340,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				},
 				Database: dbM,
 				Log:      testutil.Logger(t),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, agentCache *agentapi.CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
+				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
 				},
@@ -387,7 +387,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agentCache *agentapi.CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
