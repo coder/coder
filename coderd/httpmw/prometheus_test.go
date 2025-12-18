@@ -2,11 +2,13 @@ package httpmw_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	cm "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -163,6 +165,42 @@ func TestPrometheus(t *testing.T) {
 		require.True(t, ok, "coderd_api_requests_processed_total metric not found")
 		require.Equal(t, "UNKNOWN", reqProcessed["path"])
 		require.Equal(t, "GET", reqProcessed["method"])
+	})
+
+	t.Run("Subrouter", func(t *testing.T) {
+		t.Parallel()
+		reg := prometheus.NewRegistry()
+		promMW := httpmw.Prometheus(reg)
+
+		r := chi.NewRouter()
+		r.Use(promMW)
+		r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", func(w http.ResponseWriter, r *http.Request) {})
+
+		// Mount under a root router like wsproxy does.
+		rootRouter := chi.NewRouter()
+		rootRouter.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {})
+		rootRouter.Mount("/", r)
+
+		agentID := uuid.UUID{1}
+		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID.String()), nil)
+
+		sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+		rootRouter.ServeHTTP(sw, req)
+
+		metrics, err := reg.Gather()
+		require.NoError(t, err)
+		require.Greater(t, len(metrics), 0)
+		metricLabels := getMetricLabels(metrics)
+
+		reqProcessed, ok := metricLabels["coderd_api_requests_processed_total"]
+		require.True(t, ok, "coderd_api_requests_processed_total metric not found")
+		require.Equal(t, "/api/v2/workspaceagents/{workspaceagent}/pty", reqProcessed["path"])
+		require.Equal(t, "GET", reqProcessed["method"])
+
+		concurrentRequests, ok := metricLabels["coderd_api_concurrent_requests"]
+		require.True(t, ok, "coderd_api_concurrent_requests metric not found")
+		require.Equal(t, "/api/v2/workspaceagents/{workspaceagent}/pty", concurrentRequests["path"])
+		require.Equal(t, "GET", concurrentRequests["method"])
 	})
 }
 
