@@ -54,6 +54,7 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 		"--output", "json:"+outputFile,
 		"--parameter", "foo=baz",
 		"--rich-parameter-file", "/path/to/some/parameter/file.ext",
+		"--max-failures", "1",
 	)
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
