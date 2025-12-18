@@ -152,7 +152,6 @@ export const CreateUserForm: FC<
 					{showOrganizations && (
 						<OrganizationAutocomplete
 							{...getFieldHelpers("organization")}
-							required
 							label="Organization"
 							onChange={(newValue) => {
 								void form.setFieldValue("organization", newValue?.id ?? "");

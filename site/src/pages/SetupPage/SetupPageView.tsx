@@ -1,4 +1,4 @@
-import Autocomplete from "@mui/material/Autocomplete";
+import AlertTitle from "@mui/material/AlertTitle";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -6,7 +6,8 @@ import TextField from "@mui/material/TextField";
 import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FormFields, VerticalForm } from "components/Form/Form";
@@ -16,7 +17,7 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
-import type { ChangeEvent, FC } from "react";
+import { type ChangeEvent, type FC, useState } from "react";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -110,6 +111,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	isLoading,
 	authMethods,
 }) => {
+	const [selectedCountry, setSelectedCountry] = useState<{
+		name: string;
+		flag: string;
+	} | null>(null);
+
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
 			initialValues: {
@@ -283,36 +289,33 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								fullWidth
 								label={Language.phoneNumberLabel}
 							/>
-							<Autocomplete
-								autoHighlight
-								options={countries}
-								renderOption={(props, country) => (
-									<li {...props}>{`${country.flag} ${country.name}`}</li>
-								)}
-								getOptionLabel={(option) => option.name}
-								onChange={(_, newValue) =>
-									form.setFieldValue("trial_info.country", newValue?.name)
-								}
-								css={{
-									"&:not(:has(label))": {
-										margin: 0,
-									},
-								}}
-								renderInput={(params) => (
-									<TextField
-										{...params}
-										{...getFieldHelpers("trial_info.country")}
-										id="trial_info.country"
-										name="trial_info.country"
-										label={Language.countryLabel}
-										fullWidth
-										inputProps={{
-											...params.inputProps,
-										}}
-										InputLabelProps={{ shrink: true }}
-									/>
-								)}
-							/>
+							<div className="flex flex-col gap-1">
+								<Autocomplete
+									value={selectedCountry}
+									onChange={(newValue) => {
+										setSelectedCountry(newValue);
+										form.setFieldValue(
+											"trial_info.country",
+											newValue?.name ?? "",
+										);
+									}}
+									options={countries}
+									getOptionValue={(option) => option.name}
+									getOptionLabel={(option) => option.name}
+									renderOption={(option) => (
+										<span className="flex-1">{`${option.flag} ${option.name}`}</span>
+									)}
+									placeholder={Language.countryLabel}
+									id="trial_info.country"
+									data-testid="trial_info.country"
+								/>
+								{form.touched.trial_info?.country &&
+									form.errors.trial_info?.country && (
+										<p className="text-xs text-content-danger">
+											{form.errors.trial_info.country}
+										</p>
+									)}
+							</div>
 							<TextField
 								{...getFieldHelpers("trial_info.developers")}
 								id="trial_info.developers"

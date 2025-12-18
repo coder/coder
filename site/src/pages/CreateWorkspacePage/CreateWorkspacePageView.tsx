@@ -500,7 +500,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											onChange={(user) => {
 												handleOwnerChange(user ?? defaultOwner);
 											}}
-											size="medium"
 										/>
 									</div>
 								)}
