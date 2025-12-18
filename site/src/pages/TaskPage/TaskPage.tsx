@@ -4,7 +4,6 @@ import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import {
 	startWorkspace,
-	updateWorkspace,
 	workspaceByOwnerAndName,
 } from "api/queries/workspaces";
 import type {
@@ -27,6 +26,7 @@ import { getAllAppsWithAgent } from "modules/tasks/apps";
 import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -237,31 +237,16 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 		},
 	});
 
-	const mutateUpdateWorkspace = useMutation({
-		...updateWorkspace(workspace, queryClient),
-		onError: (error: unknown) => {
-			if (!isApiError(error)) {
-				displayError(getErrorMessage(error, "Failed to update workspace."));
-			}
-		},
-	});
-
 	// After requesting a workspace start, it may take a while to become ready.
 	// Show a loading state in the meantime.
 	const isWaitingForStart =
-		mutateStartWorkspace.isPending ||
-		mutateStartWorkspace.isSuccess ||
-		mutateUpdateWorkspace.isPending ||
-		mutateUpdateWorkspace.isSuccess;
+		mutateStartWorkspace.isPending || mutateStartWorkspace.isSuccess;
 
-	const mutationError =
-		mutateStartWorkspace.error || mutateUpdateWorkspace.error;
-	const apiError = isApiError(mutationError) ? mutationError : undefined;
+	const apiError = isApiError(mutateStartWorkspace.error)
+		? mutateStartWorkspace.error
+		: undefined;
 
 	const deleted = workspace.latest_build?.transition === ("delete" as const);
-	const startOrUpdate = workspace.outdated ? "Update and start" : "Start";
-	const isDynamicParametersEnabled =
-		!workspace.template_use_classic_parameter_flow;
 
 	return deleted ? (
 		<Margins>
@@ -292,9 +277,16 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 						Apps and previous statuses are not available
 					</span>
 					{workspace.outdated && (
-						<span className="text-content-secondary text-sm">
-							Starting the workspace will update it to the latest version.
-						</span>
+						<div
+							data-testid="workspace-outdated-tooltip"
+							className="flex items-center gap-1.5 mt-1 text-content-secondary text-sm"
+						>
+							<WorkspaceOutdatedTooltip workspace={workspace}>
+								<span>
+									You can update your task workspace to a newer version
+								</span>
+							</WorkspaceOutdatedTooltip>
+						</div>
 					)}
 					<div className="flex flex-row mt-4 gap-4">
 						<Button
@@ -302,20 +294,13 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 							data-testid="task-start-workspace"
 							disabled={isWaitingForStart}
 							onClick={() => {
-								if (workspace.outdated) {
-									mutateUpdateWorkspace.mutate({
-										buildParameters,
-										isDynamicParametersEnabled,
-									});
-								} else {
-									mutateStartWorkspace.mutate({
-										buildParameters,
-									});
-								}
+								mutateStartWorkspace.mutate({
+									buildParameters,
+								});
 							}}
 						>
 							<Spinner loading={isWaitingForStart} />
-							{`${startOrUpdate} workspace`}
+							Start Workspace
 						</Button>
 						<Button size="sm" onClick={onEditPrompt} variant="outline">
 							Edit Prompt

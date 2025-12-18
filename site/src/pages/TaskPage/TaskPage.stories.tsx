@@ -30,6 +30,7 @@ import type { Task, Workspace, WorkspaceApp } from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage from "./TaskPage";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const MockClaudeCodeApp: WorkspaceApp = {
 	...MockWorkspaceApp,
@@ -66,7 +67,7 @@ const MockVSCodeApp: WorkspaceApp = {
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
-	decorators: [withProxyProvider(), withAuthProvider],
+	decorators: [withProxyProvider(), withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
@@ -417,30 +418,14 @@ export const OutdatedWorkspace: Story = {
 		});
 		spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
 		spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
-		spyOn(API, "postWorkspaceBuild").mockResolvedValue(
-			MockStoppedWorkspace.latest_build,
-		);
 	},
-	// When: the user clicks the "start workspace" button
+	// Then: a tooltip should be displayed prompting the user to update the workspace.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const startWorkspaceButton = await canvas.findByTestId(
-			"task-start-workspace",
+		const outdatedTooltip = await canvas.findByTestId(
+			"workspace-outdated-tooltip",
 		);
-		await userEvent.click(startWorkspaceButton);
-
-		await waitFor(() => {
-			// Then: we should have fetched the template to determine the active version.
-			expect(API.getTemplate).toHaveBeenCalledWith(MockTemplate.id);
-			// Then: the workspace should be started with the active version of the template.
-			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(
-				MockStoppedWorkspace.id,
-				expect.objectContaining({
-					transition: "start",
-					template_version_id: "some-other-version-id",
-				}),
-			);
-		});
+		expect(outdatedTooltip).toBeVisible();
 	},
 };
 
