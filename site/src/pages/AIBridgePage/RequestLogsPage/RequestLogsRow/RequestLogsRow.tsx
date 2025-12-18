@@ -4,6 +4,7 @@ import type {
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
+import { Codeblock } from "components/Codeblock/Codeblock";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -19,8 +20,6 @@ import {
 	ChevronUpIcon,
 } from "lucide-react";
 import { type FC, useLayoutEffect, useRef, useState } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { cn } from "utils/cn";
 import { humanDuration } from "utils/time";
 import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
@@ -180,7 +179,6 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	const [firstPrompt] = interception.user_prompts;
-
 	const inputTokens = interception.token_usages.reduce(
 		(acc, tokenUsage) => acc + tokenUsage.input_tokens,
 		0,
@@ -479,16 +477,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Token Usage Metadata</div>
 									<div className="bg-surface-secondary rounded-md p-4">
-										<SyntaxHighlighter
-											language="json"
-											style={dracula}
-											customStyle={{
-												padding: 0,
-												background: "transparent",
-											}}
-										>
+										<Codeblock>
 											{JSON.stringify(tokenUsagesMetadata, null, 2)}
-										</SyntaxHighlighter>
+										</Codeblock>
 									</div>
 								</div>
 							)}
