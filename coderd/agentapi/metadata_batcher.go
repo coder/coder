@@ -33,6 +33,7 @@ const (
 // agentMetadataUpdate holds metadata updates for a single agent that are
 // pending flush.
 type agentMetadataUpdate struct {
+	agentID     uuid.UUID
 	keys        []string
 	values      []string
 	errors      []string
@@ -48,8 +49,9 @@ type MetadataBatcher struct {
 	log    slog.Logger
 
 	mu sync.Mutex
-	// buf maps agent ID to their pending metadata updates.
-	buf       map[uuid.UUID]*agentMetadataUpdate
+	// buf holds pending metadata updates up to batchSize capacity.
+	// When full, new updates are dropped.
+	buf       []agentMetadataUpdate
 	batchSize int
 
 	// tickCh is used to periodically flush the buffer.
@@ -144,7 +146,7 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 		b.tickCh = b.ticker.C
 	}
 
-	b.buf = make(map[uuid.UUID]*agentMetadataUpdate)
+	b.buf = make([]agentMetadataUpdate, 0, b.batchSize)
 
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -165,24 +167,31 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 }
 
 // Add adds metadata updates for an agent to the batcher.
+// If the buffer is full, the update is dropped.
 func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// Replace any existing pending update for this agent with the new one.
-	// This is fine because we only care about the most recent values.
-	b.buf[agentID] = &agentMetadataUpdate{
+	// If buffer is full, drop this update.
+	if len(b.buf) >= b.batchSize {
+		b.log.Warn(context.Background(), "metadata buffer full, dropping update",
+			slog.F("agent_id", agentID),
+			slog.F("batch_size", b.batchSize),
+		)
+		return
+	}
+
+	// Append to buffer.
+	b.buf = append(b.buf, agentMetadataUpdate{
+		agentID:     agentID,
 		keys:        keys,
 		values:      values,
 		errors:      errors,
 		collectedAt: collectedAt,
-	}
+	})
 
-	// If the buffer is over 80% full, signal the flusher to flush immediately.
-	// We want to trigger flushes early to reduce the likelihood of
-	// accidentally growing the buffer over batchSize.
-	filled := float64(len(b.buf)) / float64(b.batchSize)
-	if filled >= 0.8 && !b.flushForced.Load() {
+	// If the buffer is now full, signal immediate flush.
+	if len(b.buf) >= b.batchSize && !b.flushForced.Load() {
 		b.flushLever <- struct{}{}
 		b.flushForced.Store(true)
 	}
@@ -255,9 +264,9 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 		collectedAt = make([]time.Time, 0, len(b.buf)*15)
 	)
 
-	for agentID, update := range b.buf {
+	for _, update := range b.buf {
 		for i := range update.keys {
-			agentIDs = append(agentIDs, agentID)
+			agentIDs = append(agentIDs, update.agentID)
 			keys = append(keys, update.keys[i])
 			values = append(values, update.values[i])
 			errors = append(errors, update.errors[i])
@@ -286,28 +295,28 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 	// Publish pubsub notifications for each agent.
 	// We publish one notification per agent to maintain compatibility with
 	// existing listeners.
-	for agentID, update := range b.buf {
+	for _, update := range b.buf {
 		payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
 			CollectedAt: update.collectedAt[0], // Use first collected timestamp
 			Keys:        update.keys,
 		})
 		if err != nil {
 			b.log.Error(ctx, "failed to marshal workspace agent metadata channel payload",
-				slog.F("agent_id", agentID),
+				slog.F("agent_id", update.agentID),
 				slog.Error(err),
 			)
 			continue
 		}
 
-		err = b.pubsub.Publish(WatchWorkspaceAgentMetadataChannel(agentID), payload)
+		err = b.pubsub.Publish(WatchWorkspaceAgentMetadataChannel(update.agentID), payload)
 		if err != nil {
 			b.log.Error(ctx, "failed to publish workspace agent metadata",
-				slog.F("agent_id", agentID),
+				slog.F("agent_id", update.agentID),
 				slog.Error(err),
 			)
 		}
 	}
 
-	// Clear the buffer.
-	b.buf = make(map[uuid.UUID]*agentMetadataUpdate)
+	// Clear the buffer by resetting to empty slice with same capacity.
+	b.buf = b.buf[:0]
 }
