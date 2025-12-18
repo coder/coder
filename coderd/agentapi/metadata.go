@@ -166,6 +166,26 @@ type WorkspaceAgentMetadataChannelPayload struct {
 	Keys        []string  `json:"keys"`
 }
 
+// WorkspaceAgentMetadataBatchUpdate represents a single agent's metadata
+// update within a batch.
+type WorkspaceAgentMetadataBatchUpdate struct {
+	AgentID     uuid.UUID `json:"agent_id"`
+	CollectedAt time.Time `json:"collected_at"`
+	Keys        []string  `json:"keys"`
+}
+
+// WorkspaceAgentMetadataBatchPayload is published to the batched metadata
+// channel with updates for multiple agents.
+type WorkspaceAgentMetadataBatchPayload struct {
+	Updates []WorkspaceAgentMetadataBatchUpdate `json:"updates"`
+}
+
 func WatchWorkspaceAgentMetadataChannel(id uuid.UUID) string {
 	return "workspace_agent_metadata:" + id.String()
+}
+
+// WatchWorkspaceAgentMetadataBatchChannel returns the global channel name for
+// batched metadata updates across all agents.
+func WatchWorkspaceAgentMetadataBatchChannel() string {
+	return "workspace_agent_metadata_batch"
 }

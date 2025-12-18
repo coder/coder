@@ -1728,6 +1728,8 @@ func (api *API) watchWorkspaceAgentMetadata(
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
 	update := make(chan agentapi.WorkspaceAgentMetadataChannelPayload, 1)
+
+	// Subscribe to per-agent channel for backwards compatibility.
 	cancelSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
 			return
@@ -1755,6 +1757,47 @@ func (api *API) watchWorkspaceAgentMetadata(
 		return
 	}
 	defer cancelSub()
+
+	// Also subscribe to the global batched metadata channel.
+	cancelBatchSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataBatchChannel(), func(_ context.Context, byt []byte) {
+		if ctx.Err() != nil {
+			return
+		}
+
+		var batchPayload agentapi.WorkspaceAgentMetadataBatchPayload
+		err := json.Unmarshal(byt, &batchPayload)
+		if err != nil {
+			log.Error(ctx, "failed to unmarshal batched pubsub message", slog.Error(err))
+			return
+		}
+
+		// Filter for updates relevant to this agent.
+		for _, upd := range batchPayload.Updates {
+			if upd.AgentID != workspaceAgent.ID {
+				continue
+			}
+
+			log.Debug(ctx, "received batched metadata update", "agent_id", upd.AgentID, "keys", upd.Keys)
+
+			payload := agentapi.WorkspaceAgentMetadataChannelPayload{
+				CollectedAt: upd.CollectedAt,
+				Keys:        upd.Keys,
+			}
+
+			select {
+			case prev := <-update:
+				payload.Keys = appendUnique(prev.Keys, payload.Keys)
+			default:
+			}
+			// This can never block since we pop and merge beforehand.
+			update <- payload
+		}
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	defer cancelBatchSub()
 
 	// We always use the original Request context because it contains
 	// the RBAC actor.
