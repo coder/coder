@@ -282,9 +282,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 							className="flex items-center gap-1.5 mt-1 text-content-secondary text-sm"
 						>
 							<WorkspaceOutdatedTooltip workspace={workspace}>
-								<span>
-									You can update your task workspace to a newer version
-								</span>
+								You can update your task workspace to a newer version
 							</WorkspaceOutdatedTooltip>
 						</div>
 					)}
