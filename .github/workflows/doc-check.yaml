@@ -412,21 +412,21 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Streaming AI task output..."
-          echo "╔════════════════════════════════════════════════════════════════╗"
-          echo "║  Task: ${TASK_NAME}"
-          echo "║  Streaming AgentAPI events from http://localhost:3284/events"
-          echo "╚════════════════════════════════════════════════════════════════╝"
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          printf "║  Task: %-53s ║\n" "${TASK_NAME}"
+          echo "║  Streaming AgentAPI events from http://localhost:3284/events ║"
+          echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
 
           # Stream events from AgentAPI via SSH
           # The AgentAPI sends Server-Sent Events (SSE) with:
-          #   - event: message_update (new message content)
+          #   - event: message_update (contains full terminal output including tool calls)
           #   - event: status_change (status transitions)
           #   - data: JSON payload
           CURRENT_STATUS="running"
           coder ssh "${TASK_NAME}" -- timeout 600 curl -sN http://localhost:3284/events 2>/dev/null | \
             while IFS= read -r line; do
-              # Skip empty lines and comments
+              # Skip empty lines and SSE comments
               [[ -z "$line" || "$line" == :* ]] && continue
 
               # Track event type
@@ -443,23 +443,11 @@ jobs:
 
                 case "$EVENT_TYPE" in
                   message_update)
-                    # Extract and display message content
-                    # Try different JSON structures the API might use
-                    CONTENT=$(echo "$DATA" | jq -r '
-                      .content //
-                      .message.content //
-                      .message //
-                      .text //
-                      empty
-                    ' 2>/dev/null)
-
+                    # The API returns: {"id":N,"role":"agent|user","message":"..."}
+                    # The message field contains formatted terminal output with tool calls
+                    CONTENT=$(echo "$DATA" | jq -r '.message // empty' 2>/dev/null)
                     if [[ -n "$CONTENT" && "$CONTENT" != "null" ]]; then
-                      ROLE=$(echo "$DATA" | jq -r '.role // .message.role // "assistant"' 2>/dev/null)
-                      if [[ "$ROLE" == "assistant" ]]; then
-                        echo "$CONTENT"
-                      elif [[ "$ROLE" == "user" ]]; then
-                        echo "[User]: $CONTENT"
-                      fi
+                      echo "$CONTENT"
                     fi
                     ;;
 
@@ -472,13 +460,14 @@ jobs:
 
                       if [[ "$NEW_STATUS" == "stable" ]]; then
                         echo ""
-                        echo "╔════════════════════════════════════════════════════════════════╗"
-                        echo "║  Task completed successfully"
-                        echo "╚════════════════════════════════════════════════════════════════╝"
+                        echo "╔══════════════════════════════════╗"
+                        echo "║  Task completed successfully     ║"
+                        echo "╚══════════════════════════════════╝"
                         break
                       fi
                     fi
                     ;;
+
                 esac
 
                 # Reset event type for next event
@@ -490,23 +479,22 @@ jobs:
           echo "Stream ended."
           echo "::endgroup::"
 
-      # TEMPORARILY DISABLED FOR DEBUGGING - uncomment when done
-      # - name: Cleanup Task and Workspace
-      #   if: always()
-      #   env:
-      #     TASK_NAME: ${{ steps.create_task.outputs.task-name }}
-      #   run: |
-      #     echo "::group::Cleaning up task and workspace..."
-      #
-      #     if [[ -n "${TASK_NAME}" ]]; then
-      #       echo "Deleting task: ${TASK_NAME}"
-      #       coder task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
-      #       echo "Cleanup complete"
-      #     else
-      #       echo "No task name found, skipping cleanup"
-      #     fi
-      #
-      #     echo "::endgroup::"
+      - name: Cleanup Task and Workspace
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::Cleaning up task and workspace..."
+
+          if [[ -n "${TASK_NAME}" ]]; then
+            echo "Deleting task: ${TASK_NAME}"
+            coder task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
+            echo "Cleanup complete"
+          else
+            echo "No task name found, skipping cleanup"
+          fi
+
+          echo "::endgroup::"
 
       - name: Write Final Summary
         if: always()
