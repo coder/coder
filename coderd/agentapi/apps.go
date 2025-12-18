@@ -22,8 +22,8 @@ type AppsAPI struct {
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
 	// Use cached agent ID if available to avoid database query.
-	agentID := a.Agent.ID()
-	if agentID == uuid.Nil {
+	agentID, ok := a.Agent.AsAgentID()
+	if !ok {
 		// Fallback to querying the agent if cache is not populated.
 		workspaceAgent, err := a.AgentFn(ctx)
 		if err != nil {

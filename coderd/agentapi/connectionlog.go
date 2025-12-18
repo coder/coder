@@ -69,9 +69,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	}
 
 	// Use cached agent fields if available to avoid database query.
-	agentID := a.Agent.ID()
-	agentName := a.Agent.Name()
-	if agentID == uuid.Nil {
+	agentID, agentName, ok := a.Agent.AsAgentFields()
+	if !ok {
 		// Fallback to querying the agent if cache is not populated.
 		workspaceAgent, err := a.AgentFn(rbacCtx)
 		if err != nil {

@@ -1,8 +1,6 @@
 package agentapi
 
 import (
-	"sync"
-
 	"github.com/google/uuid"
 )
 
@@ -13,9 +11,10 @@ import (
 // IMPORTANT: Only static fields that never change during an agent's lifetime should be cached here.
 // Dynamic fields (like StartedAt, ReadyAt, LogsOverflowed) should NOT be cached as they can be
 // modified by API calls or external processes.
+//
+// Unlike CachedWorkspaceFields, this struct does not need a mutex because the values are set once
+// at initialization and never modified after that.
 type CachedAgentFields struct {
-	lock sync.RWMutex
-
 	// Static fields that never change during agent connection
 	id   uuid.UUID
 	name string
@@ -24,31 +23,13 @@ type CachedAgentFields struct {
 // UpdateValues sets the cached agent fields. This should only be called once
 // at agent connection initialization.
 func (caf *CachedAgentFields) UpdateValues(id uuid.UUID, name string) {
-	caf.lock.Lock()
-	defer caf.lock.Unlock()
 	caf.id = id
 	caf.name = name
-}
-
-// ID returns the cached agent ID.
-func (caf *CachedAgentFields) ID() uuid.UUID {
-	caf.lock.RLock()
-	defer caf.lock.RUnlock()
-	return caf.id
-}
-
-// Name returns the cached agent name.
-func (caf *CachedAgentFields) Name() string {
-	caf.lock.RLock()
-	defer caf.lock.RUnlock()
-	return caf.name
 }
 
 // AsAgentID returns the agent ID and true if the cache is populated, or uuid.Nil and false if empty.
 // This follows the same pattern as CachedWorkspaceFields.AsWorkspaceIdentity().
 func (caf *CachedAgentFields) AsAgentID() (uuid.UUID, bool) {
-	caf.lock.RLock()
-	defer caf.lock.RUnlock()
 	if caf.id == uuid.Nil {
 		return uuid.Nil, false
 	}
@@ -57,8 +38,6 @@ func (caf *CachedAgentFields) AsAgentID() (uuid.UUID, bool) {
 
 // AsAgentFields returns both ID and Name, along with a boolean indicating if the cache is populated.
 func (caf *CachedAgentFields) AsAgentFields() (id uuid.UUID, name string, ok bool) {
-	caf.lock.RLock()
-	defer caf.lock.RUnlock()
 	if caf.id == uuid.Nil {
 		return uuid.Nil, "", false
 	}

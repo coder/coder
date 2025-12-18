@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -61,9 +60,8 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	}
 
 	// Use cached agent ID and name if available to avoid database query.
-	agentID := a.Agent.ID()
-	agentName := a.Agent.Name()
-	if agentID == uuid.Nil {
+	agentID, agentName, ok := a.Agent.AsAgentFields()
+	if !ok {
 		// Fallback to querying the agent if cache is not populated.
 		workspaceAgent, err := a.AgentFn(rbacCtx)
 		if err != nil {
@@ -75,7 +73,6 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 
 	// If cache is empty (prebuild or invalid), fall back to DB
 	var ws database.WorkspaceIdentity
-	var ok bool
 	if ws, ok = a.Workspace.AsWorkspaceIdentity(); !ok {
 		w, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
 		if err != nil {
