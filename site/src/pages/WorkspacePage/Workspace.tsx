@@ -192,7 +192,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{workspace.latest_build.job.error && (
-							<Alert severity="error">
+							<Alert severity="error" prominent>
 								<AlertTitle>Workspace build failed</AlertTitle>
 								<AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
 							</Alert>

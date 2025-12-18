@@ -30,7 +30,7 @@ const ProvisionerDaemonsPage: FC = () => {
 			</Header>
 
 			<Main>
-				{daemons.error && <Alert severity="error">{daemons.error}</Alert>}
+				{daemons.error && <Alert severity="error" prominent>{daemons.error}</Alert>}
 				{daemons.warnings.map((warning) => {
 					return (
 						<Alert

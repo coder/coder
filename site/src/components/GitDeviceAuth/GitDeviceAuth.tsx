@@ -101,7 +101,9 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				break;
 			case DeviceExchangeError.AccessDenied:
 				status = (
-					<Alert severity="error">Access to the Git provider was denied.</Alert>
+					<Alert severity="error" prominent>
+						Access to the Git provider was denied.
+					</Alert>
 				);
 				break;
 			default:

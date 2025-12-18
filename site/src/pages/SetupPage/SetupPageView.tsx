@@ -351,7 +351,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					)}
 
 					{isAxiosError(error) && error.response?.data?.message && (
-						<Alert severity="error">
+						<Alert severity="error" prominent>
 							<AlertTitle>{error.response.data.message}</AlertTitle>
 							{error.response.data.detail && (
 								<AlertDetail>
