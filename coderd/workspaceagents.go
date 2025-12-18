@@ -1682,17 +1682,19 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		// Filter for updates relevant to this agent.
-		for _, upd := range batchPayload.Updates {
-			if upd.AgentID != workspaceAgent.ID {
+		// Check if this agent is in the batch update.
+		for _, agentID := range batchPayload.AgentIDs {
+			if agentID != workspaceAgent.ID {
 				continue
 			}
 
-			log.Debug(ctx, "received batched metadata update", "agent_id", upd.AgentID, "keys", upd.Keys)
+			log.Debug(ctx, "received batched metadata update", "agent_id", agentID)
 
+			// Signal to re-fetch all metadata for this agent.
+			// We pass nil for Keys to indicate all keys should be fetched.
 			payload := agentapi.WorkspaceAgentMetadataChannelPayload{
-				CollectedAt: upd.CollectedAt,
-				Keys:        upd.Keys,
+				CollectedAt: time.Now(),
+				Keys:        nil,
 			}
 
 			select {
@@ -1702,6 +1704,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 			}
 			// This can never block since we pop and merge beforehand.
 			update <- payload
+			break
 		}
 	})
 	if err != nil {

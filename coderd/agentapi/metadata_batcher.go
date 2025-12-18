@@ -292,26 +292,25 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 		return
 	}
 
-	// Publish single batched notification with all updates.
+	// Publish single batched notification with all agent IDs that have updates.
+	// Listeners will re-fetch metadata for these agents from the database.
 	// This scales to O(1) NOTIFY calls per flush rather than O(N) where N = agent count.
-	batchUpdates := make([]WorkspaceAgentMetadataBatchUpdate, 0, len(b.buf))
+
+	// Build list of unique agent IDs.
+	agentIDs = agentIDs[:0] // Reuse slice, clear it first
 	for _, update := range b.buf {
-		batchUpdates = append(batchUpdates, WorkspaceAgentMetadataBatchUpdate{
-			AgentID:     update.agentID,
-			CollectedAt: update.collectedAt[0],
-			Keys:        update.keys,
-		})
+		agentIDs = append(agentIDs, update.agentID)
 	}
 
-	batchPayload, err := json.Marshal(WorkspaceAgentMetadataBatchPayload{
-		Updates: batchUpdates,
+	batchPayload, err2 := json.Marshal(WorkspaceAgentMetadataBatchPayload{
+		AgentIDs: agentIDs,
 	})
-	if err != nil {
-		b.log.Error(ctx, "failed to marshal batched workspace agent metadata payload", slog.Error(err))
+	if err2 != nil {
+		b.log.Error(ctx, "failed to marshal batched workspace agent metadata payload", slog.Error(err2))
 	} else {
-		err = b.pubsub.Publish(WatchWorkspaceAgentMetadataBatchChannel(), batchPayload)
-		if err != nil {
-			b.log.Error(ctx, "failed to publish batched workspace agent metadata", slog.Error(err))
+		err2 = b.pubsub.Publish(WatchWorkspaceAgentMetadataBatchChannel(), batchPayload)
+		if err2 != nil {
+			b.log.Error(ctx, "failed to publish batched workspace agent metadata", slog.Error(err2))
 		}
 	}
 
