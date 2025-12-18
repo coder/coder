@@ -9,6 +9,7 @@ import {
 	HelpTooltip,
 	HelpTooltipAction,
 	HelpTooltipContent,
+	HelpTooltipTrigger,
 	HelpTooltipIconTrigger,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
@@ -16,7 +17,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { type FC, useState } from "react";
+import { type FC, type PropsWithChildren, useState } from "react";
 import { useQuery } from "react-query";
 import {
 	useWorkspaceUpdate,
@@ -27,18 +28,27 @@ interface WorkspaceOutdatedTooltipProps {
 	workspace: Workspace;
 }
 
-export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = (
-	props,
-) => {
+export const WorkspaceOutdatedTooltip: FC<
+	PropsWithChildren<WorkspaceOutdatedTooltipProps>
+> = ({ workspace, children }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
 		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
-			<HelpTooltipIconTrigger size="small" hoverEffect={false}>
-				<InfoIcon css={styles.icon} />
-				<span className="sr-only">Outdated info</span>
-			</HelpTooltipIconTrigger>
-			<WorkspaceOutdatedTooltipContent isOpen={isOpen} {...props} />
+			{children ? (
+				<HelpTooltipTrigger asChild>
+					<span className="flex items-center gap-1.5 cursor-help">
+						<InfoIcon css={styles.icon} size={14} />
+						<span>{children}</span>
+					</span>
+				</HelpTooltipTrigger>
+			) : (
+				<HelpTooltipIconTrigger size="small" hoverEffect={false}>
+					<InfoIcon css={styles.icon} />
+					<span className="sr-only">Outdated info</span>
+				</HelpTooltipIconTrigger>
+			)}
+			<WorkspaceOutdatedTooltipContent isOpen={isOpen} workspace={workspace} />
 		</HelpTooltip>
 	);
 };
