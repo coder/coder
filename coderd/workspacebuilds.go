@@ -405,7 +405,7 @@ func (api *API) postWorkspaceBuildsInternal(
 		// done outside the transaction so that an attempt to start a workspace will
 		// also unset dormancy.
 		if workspace.DormantAt.Valid && transition == database.WorkspaceTransitionStart {
-			if _, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+			if _, err := tx.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 				ID:        workspace.ID,
 				DormantAt: sql.NullTime{Valid: false},
 			}); err != nil {
