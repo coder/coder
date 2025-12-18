@@ -36,9 +36,15 @@ func TestConnectionLog(t *testing.T) {
 			Name:           "cool-workspace",
 		}
 		agent = database.WorkspaceAgent{
-			ID: uuid.New(),
+			ID:   uuid.New(),
+			Name: "test-agent",
 		}
+		agentAsCacheFields     = agentapi.CachedAgentFields{}
+		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
 	)
+
+	agentAsCacheFields.UpdateValues(agent.ID, agent.Name)
+	workspaceAsCacheFields.UpdateValues(workspace)
 
 	tests := []struct {
 		name   string
@@ -109,7 +115,7 @@ func TestConnectionLog(t *testing.T) {
 			connLogger := connectionlog.NewFake()
 
 			mDB := dbmock.NewMockStore(gomock.NewController(t))
-			mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
+			// With agent/workspace caching, GetWorkspaceByAgentID is not called
 
 			api := &agentapi.ConnLogAPI{
 				ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
@@ -117,7 +123,8 @@ func TestConnectionLog(t *testing.T) {
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
 				},
-				Workspace: &agentapi.CachedWorkspaceFields{},
+				Agent:     &agentAsCacheFields,
+				Workspace: &workspaceAsCacheFields,
 			}
 			api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{

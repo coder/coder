@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -18,6 +19,7 @@ import (
 
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
+	Agent                     *CachedAgentFields
 	Workspace                 *CachedWorkspaceFields
 	Database                  database.Store
 	Log                       slog.Logger
@@ -58,18 +60,26 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		}
 	}
 
-	workspaceAgent, err := a.AgentFn(rbacCtx)
-	if err != nil {
-		return nil, err
+	// Use cached agent ID and name if available to avoid database query.
+	agentID := a.Agent.ID()
+	agentName := a.Agent.Name()
+	if agentID == uuid.Nil {
+		// Fallback to querying the agent if cache is not populated.
+		workspaceAgent, err := a.AgentFn(rbacCtx)
+		if err != nil {
+			return nil, err
+		}
+		agentID = workspaceAgent.ID
+		agentName = workspaceAgent.Name
 	}
 
 	// If cache is empty (prebuild or invalid), fall back to DB
 	var ws database.WorkspaceIdentity
 	var ok bool
 	if ws, ok = a.Workspace.AsWorkspaceIdentity(); !ok {
-		w, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		w, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
 		if err != nil {
-			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
+			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", agentID, err)
 		}
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
@@ -90,11 +100,18 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		req.Stats.SessionCountReconnectingPty = 0
 	}
 
-	err = a.StatsReporter.ReportAgentStats(
+	// Create minimal agent record with cached fields for stats reporting.
+	// ReportAgentStats only needs ID and Name from the agent.
+	minimalAgent := database.WorkspaceAgent{
+		ID:   agentID,
+		Name: agentName,
+	}
+
+	err := a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
 		ws,
-		workspaceAgent,
+		minimalAgent,
 		req.Stats,
 		false,
 	)

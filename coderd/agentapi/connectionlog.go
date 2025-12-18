@@ -19,6 +19,7 @@ import (
 
 type ConnLogAPI struct {
 	AgentFn          func(context.Context) (database.WorkspaceAgent, error)
+	Agent            *CachedAgentFields
 	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
 	Workspace        *CachedWorkspaceFields
 	Database         database.Store
@@ -67,13 +68,20 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 	}
 
-	// Fetch contextual data for this connection log event.
-	workspaceAgent, err := a.AgentFn(rbacCtx)
-	if err != nil {
-		return nil, xerrors.Errorf("get agent: %w", err)
+	// Use cached agent fields if available to avoid database query.
+	agentID := a.Agent.ID()
+	agentName := a.Agent.Name()
+	if agentID == uuid.Nil {
+		// Fallback to querying the agent if cache is not populated.
+		workspaceAgent, err := a.AgentFn(rbacCtx)
+		if err != nil {
+			return nil, xerrors.Errorf("get agent: %w", err)
+		}
+		agentID = workspaceAgent.ID
+		agentName = workspaceAgent.Name
 	}
 	if ws.Equal(database.WorkspaceIdentity{}) {
-		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace by agent id: %w", err)
 		}
@@ -97,7 +105,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceOwnerID: ws.OwnerID,
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
-		AgentName:        workspaceAgent.Name,
+		AgentName:        agentName,
 		Type:             connectionType,
 		Code:             code,
 		Ip:               logIP,

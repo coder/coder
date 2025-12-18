@@ -19,6 +19,7 @@ import (
 
 type MetadataAPI struct {
 	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	Agent     *CachedAgentFields
 	Workspace *CachedWorkspaceFields
 	Database  database.Store
 	Pubsub    pubsub.Pubsub
@@ -60,16 +61,23 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		}
 	}
 
-	workspaceAgent, err := a.AgentFn(rbacCtx)
-	if err != nil {
-		return nil, err
+	// Use cached agent ID if available to avoid database query.
+	// The agent ID never changes during the connection lifetime, so it's safe to cache.
+	agentID := a.Agent.ID()
+	if agentID == uuid.Nil {
+		// Fallback to querying the agent if cache is not populated (shouldn't happen in normal operation).
+		workspaceAgent, err := a.AgentFn(rbacCtx)
+		if err != nil {
+			return nil, err
+		}
+		agentID = workspaceAgent.ID
 	}
 
 	var (
 		collectedAt = a.now()
 		allKeysLen  = 0
 		dbUpdate    = database.UpdateWorkspaceAgentMetadataParams{
-			WorkspaceAgentID: workspaceAgent.ID,
+			WorkspaceAgentID: agentID,
 			// These need to be `make(x, 0, len(req.Metadata))` instead of
 			// `make(x, len(req.Metadata))` because we may not insert all
 			// metadata if the keys are large.
@@ -134,7 +142,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	if err != nil {
 		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
 	}
-	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
+	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(agentID), payload)
 	if err != nil {
 		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
 	}

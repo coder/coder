@@ -21,9 +21,11 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 	var (
 		agent = database.WorkspaceAgent{
-			ID: uuid.New(),
+			ID:   uuid.New(),
+			Name: "test-agent",
 		}
-		app1 = database.WorkspaceApp{
+		agentAsCacheFields = agentapi.CachedAgentFields{}
+		app1               = database.WorkspaceApp{
 			ID:             uuid.New(),
 			AgentID:        agent.ID,
 			Slug:           "code-server-1",
@@ -42,6 +44,8 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			OpenIn:         database.WorkspaceAppOpenInSlimWindow,
 		}
 	)
+
+	agentAsCacheFields.UpdateValues(agent.ID, agent.Name)
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -62,6 +66,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
@@ -100,6 +105,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
@@ -139,6 +145,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
@@ -175,6 +182,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
@@ -204,6 +212,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
@@ -234,6 +243,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,

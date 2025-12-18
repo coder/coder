@@ -57,6 +57,7 @@ type API struct {
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
+	cachedAgentFields     *CachedAgentFields
 
 	mu sync.Mutex
 }
@@ -96,7 +97,7 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options, workspace database.Workspace) *API {
+func New(opts Options, workspace database.Workspace, agent database.WorkspaceAgent) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
@@ -125,6 +126,11 @@ func New(opts Options, workspace database.Workspace) *API {
 		api.cachedWorkspaceFields.UpdateValues(workspace)
 	}
 
+	// Initialize agent cache with static fields.
+	// These fields never change during an agent connection lifetime.
+	api.cachedAgentFields = &CachedAgentFields{}
+	api.cachedAgentFields.UpdateValues(agent.ID, agent.Name)
+
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
 	}
@@ -150,6 +156,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
+		Agent:                     api.cachedAgentFields,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -168,6 +175,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.AppsAPI = &AppsAPI{
 		AgentFn:                  api.agent,
+		Agent:                    api.cachedAgentFields,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
@@ -175,6 +183,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.MetadataAPI = &MetadataAPI{
 		AgentFn:   api.agent,
+		Agent:     api.cachedAgentFields,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
 		Pubsub:    opts.Pubsub,
@@ -195,6 +204,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.ConnLogAPI = &ConnLogAPI{
 		AgentFn:          api.agent,
+		Agent:            api.cachedAgentFields,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,
