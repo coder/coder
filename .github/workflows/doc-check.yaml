@@ -65,25 +65,7 @@ jobs:
           echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
           echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
 
-          # Determine if this is a new PR or an update
-          # - opened: New PR was just created
-          # - synchronize: New commits pushed to existing PR
-          # - workflow_dispatch: Manual trigger
-          if [[ "${GITHUB_EVENT_ACTION}" == "opened" ]]; then
-            echo "Trigger type: NEW PR (opened)"
-            echo "is_new_pr=true" >> "${GITHUB_OUTPUT}"
-            echo "trigger_type=new" >> "${GITHUB_OUTPUT}"
-          elif [[ "${GITHUB_EVENT_ACTION}" == "synchronize" ]]; then
-            echo "Trigger type: PR UPDATE (new commits)"
-            echo "is_new_pr=false" >> "${GITHUB_OUTPUT}"
-            echo "trigger_type=update" >> "${GITHUB_OUTPUT}"
-          else
-            echo "Trigger type: MANUAL (workflow_dispatch)"
-            echo "is_new_pr=false" >> "${GITHUB_OUTPUT}"
-            echo "trigger_type=manual" >> "${GITHUB_OUTPUT}"
-          fi
-
-          # For workflow_dispatch, use the provided PR URL
+          # First, determine PR context based on event type
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
               echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
@@ -94,30 +76,48 @@ jobs:
             echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
 
             echo "Using PR URL: ${INPUTS_PR_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
 
-            # Extract PR number from URL for later use
             PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
-            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "Using PR sender: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
             echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
             echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
 
             echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
-            echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            PR_NUMBER="${GITHUB_EVENT_PR_NUMBER}"
+            echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           else
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
             exit 1
           fi
+
+          # Check if bot has already analyzed this PR by looking for our marker comment
+          # This determines whether to use full analysis or brief update prompt
+          echo "Checking for existing doc-check analysis on PR #${PR_NUMBER}..."
+
+          EXISTING_ANALYSIS=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- doc-check-analysis -->")) | .id' | head -1 || echo "")
+
+          if [[ -n "${EXISTING_ANALYSIS}" ]]; then
+            echo "Found existing analysis (comment ID: ${EXISTING_ANALYSIS})"
+            echo "Will use UPDATE prompt (brief)"
+            echo "is_new_pr=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "No existing analysis found"
+            echo "Will use NEW PR prompt (full analysis)"
+            echo "is_new_pr=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+          echo "trigger_type=${GITHUB_EVENT_ACTION:-manual}" >> "${GITHUB_OUTPUT}"
 
       - name: Extract changed files and build prompt
         id: extract-context
@@ -367,39 +367,82 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Streaming AI task output..."
-          echo "================================================"
-          echo "Task: ${TASK_NAME}"
-          echo "================================================"
+          echo "╔════════════════════════════════════════════════════════════════╗"
+          echo "║  Task: ${TASK_NAME}"
+          echo "║  Streaming AgentAPI events from http://localhost:3284/events"
+          echo "╚════════════════════════════════════════════════════════════════╝"
           echo ""
 
           # Stream events from AgentAPI via SSH
-          # This shows real-time AI conversation output
+          # The AgentAPI sends Server-Sent Events (SSE) with:
+          #   - event: message_update (new message content)
+          #   - event: status_change (status transitions)
+          #   - data: JSON payload
+          CURRENT_STATUS="running"
           coder ssh "${TASK_NAME}" -- timeout 600 curl -sN http://localhost:3284/events 2>/dev/null | \
             while IFS= read -r line; do
-              # Parse SSE events
+              # Skip empty lines and comments
+              [[ -z "$line" || "$line" == :* ]] && continue
+
+              # Track event type
+              if [[ "$line" == event:* ]]; then
+                EVENT_TYPE="${line#event:}"
+                EVENT_TYPE="${EVENT_TYPE// /}"  # trim whitespace
+                continue
+              fi
+
+              # Parse data payload
               if [[ "$line" == data:* ]]; then
                 DATA="${line#data:}"
+                DATA="${DATA# }"  # trim leading space
 
-                # Extract message content if it's a message_update
-                MESSAGE=$(echo "$DATA" | jq -r '.message // empty' 2>/dev/null)
-                if [[ -n "$MESSAGE" ]]; then
-                  # Print message (could be multi-line)
-                  echo "$MESSAGE"
-                  echo "---"
-                fi
+                case "$EVENT_TYPE" in
+                  message_update)
+                    # Extract and display message content
+                    # Try different JSON structures the API might use
+                    CONTENT=$(echo "$DATA" | jq -r '
+                      .content //
+                      .message.content //
+                      .message //
+                      .text //
+                      empty
+                    ' 2>/dev/null)
 
-                # Check for status change to stable (task complete)
-                STATUS=$(echo "$DATA" | jq -r '.status // empty' 2>/dev/null)
-                if [[ "$STATUS" == "stable" ]]; then
-                  echo ""
-                  echo "================================================"
-                  echo "Task completed (status: stable)"
-                  echo "================================================"
-                  break
-                fi
+                    if [[ -n "$CONTENT" && "$CONTENT" != "null" ]]; then
+                      ROLE=$(echo "$DATA" | jq -r '.role // .message.role // "assistant"' 2>/dev/null)
+                      if [[ "$ROLE" == "assistant" ]]; then
+                        echo "$CONTENT"
+                      elif [[ "$ROLE" == "user" ]]; then
+                        echo "[User]: $CONTENT"
+                      fi
+                    fi
+                    ;;
+
+                  status_change)
+                    NEW_STATUS=$(echo "$DATA" | jq -r '.status // empty' 2>/dev/null)
+                    if [[ -n "$NEW_STATUS" && "$NEW_STATUS" != "$CURRENT_STATUS" ]]; then
+                      echo ""
+                      echo "── Status: ${NEW_STATUS} ──"
+                      CURRENT_STATUS="$NEW_STATUS"
+
+                      if [[ "$NEW_STATUS" == "stable" ]]; then
+                        echo ""
+                        echo "╔════════════════════════════════════════════════════════════════╗"
+                        echo "║  Task completed successfully"
+                        echo "╚════════════════════════════════════════════════════════════════╝"
+                        break
+                      fi
+                    fi
+                    ;;
+                esac
+
+                # Reset event type for next event
+                EVENT_TYPE=""
               fi
-            done || true  # Don't fail if stream ends
+            done || true  # Don't fail if stream ends unexpectedly
 
+          echo ""
+          echo "Stream ended."
           echo "::endgroup::"
 
       - name: Cleanup Task and Workspace
@@ -411,7 +454,7 @@ jobs:
 
           if [[ -n "${TASK_NAME}" ]]; then
             echo "Deleting task: ${TASK_NAME}"
-            coder exp task delete -y "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
+            coder exp task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
             echo "Cleanup complete"
           else
             echo "No task name found, skipping cleanup"
