@@ -33,13 +33,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	return (
 		<Stack direction="row" spacing={1} className="mb-4">
 			{avatar}
-			<div
-				css={{
-					overflow: "hidden",
-					display: "flex",
-					flexDirection: "column",
-				}}
-			>
+			<div className="overflow-hidden flex flex-col">
 				{linkTo ? (
 					<Link className={cn(titleStyles.normal, "no-underline")} to={linkTo}>
 						{title}

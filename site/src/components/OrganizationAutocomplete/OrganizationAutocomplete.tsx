@@ -111,11 +111,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					size={size}
 					label={label}
 					placeholder="Organization name"
-					css={{
-						"&:not(:has(label))": {
-							margin: 0,
-						},
-					}}
+					className="[&:not(:has(label))]:m-0"
 					InputProps={{
 						...params.InputProps,
 						startAdornment: selected && (

@@ -1,4 +1,4 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -26,8 +26,13 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 
 	return (
 		<HelpTooltip>
-			<HelpTooltipIconTrigger size="small" css={styles.button}>
-				<HelpTooltipIcon css={{ color: iconColor }} />
+			<HelpTooltipIconTrigger
+				size="small"
+				className="opacity-100 hover:opacity-100"
+			>
+				<HelpTooltipIcon
+					style={{ color: iconColor }}
+				/>
 			</HelpTooltipIconTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{title}</HelpTooltipTitle>
@@ -36,13 +41,3 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 		</HelpTooltip>
 	);
 };
-
-const styles = {
-	button: css`
-		opacity: 1;
-
-		&:hover {
-			opacity: 1;
-		}
-	`,
-} satisfies Record<string, Interpolation<Theme>>;

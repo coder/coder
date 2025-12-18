@@ -44,7 +44,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 
 	return (
 		<>
-			<PageHeader css={{ paddingTop: 0 }}>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>Template variables</PageHeaderTitle>
 			</PageHeader>
 			{hasError && (

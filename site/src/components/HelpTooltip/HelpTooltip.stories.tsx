@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { InfoIcon } from "lucide-react";
 import {
 	HelpTooltip,
+	HelpTooltipAction,
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
@@ -35,4 +37,20 @@ type Story = StoryObj<typeof HelpTooltip>;
 
 const Example: Story = {};
 
-export { Example as HelpTooltip };
+const Actionable: Story = {
+	args: {
+		children: (
+			<>
+				<HelpTooltipTitle>What is a template?</HelpTooltipTitle>
+				<HelpTooltipText>
+					A template is a common configuration for your team&apos;s workspaces.
+				</HelpTooltipText>
+				<HelpTooltipAction icon={InfoIcon} onClick={() => {}}>
+					Learn more
+				</HelpTooltipAction>
+			</>
+		),
+	},
+};
+
+export { Example, Actionable };

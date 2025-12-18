@@ -66,12 +66,14 @@ export const SidebarIconButton: FC<SidebarIconButton> = ({
 }) => {
 	return (
 		<TopbarIconButton
+			{...buttonProps}
 			className={cn(
-				"opacity-75 hover:opacity-100 border-0 border-x-2 border-x-transparent border-solid",
-				isActive && "opacity-100 relative border-l-sky-400",
+				"border-0 border-x-2 border-x-transparent border-solid",
+				isActive
+					? "opacity-100 relative border-l-sky-400"
+					: "opacity-75 hover:opacity-100",
 				className,
 			)}
-			{...buttonProps}
 		/>
 	);
 };

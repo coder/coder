@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { Stack } from "../../Stack/Stack";
@@ -67,7 +66,11 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
 
-						{Boolean(info) && <div css={styles.callout}>{info}</div>}
+						{Boolean(info) && (
+							<div className="border border-solid border-orange-500 bg-orange-950 text-orange-50 rounded-lg py-2 px-4">
+								{info}
+							</div>
+						)}
 
 						<p>
 							Type <strong>{name}</strong> below to confirm.
@@ -78,7 +81,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 						<TextField
 							fullWidth
 							autoFocus
-							css={{ marginTop: 24 }}
+							className="mt-6"
 							name="confirmation"
 							autoComplete="off"
 							id={`${hookId}-confirm`}
@@ -105,13 +108,3 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	callout: (theme) => ({
-		backgroundColor: theme.roles.danger.background,
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: theme.shape.borderRadius,
-		color: theme.roles.danger.text,
-		padding: "8px 16px",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -1,5 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -11,49 +9,44 @@ import {
 	type HTMLAttributes,
 	type PropsWithChildren,
 } from "react";
+import { cn } from "utils/cn";
 
-const styles = {
-	badge: {
-		fontSize: 10,
-		height: 24,
-		fontWeight: 600,
-		textTransform: "uppercase",
-		letterSpacing: "0.085em",
-		padding: "0 12px",
-		borderRadius: 9999,
-		display: "flex",
-		alignItems: "center",
-		width: "fit-content",
-		whiteSpace: "nowrap",
-	},
-
-	enabledBadge: (theme) => ({
-		border: `1px solid ${theme.roles.success.outline}`,
-		backgroundColor: theme.roles.success.background,
-		color: theme.roles.success.text,
-	}),
-	errorBadge: (theme) => ({
-		border: `1px solid ${theme.roles.error.outline}`,
-		backgroundColor: theme.roles.error.background,
-		color: theme.roles.error.text,
-	}),
-	warnBadge: (theme) => ({
-		border: `1px solid ${theme.roles.warning.outline}`,
-		backgroundColor: theme.roles.warning.background,
-		color: theme.roles.warning.text,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const badgeClasses = {
+	root: [
+		"text-[10px] h-6 font-semibold uppercase tracking-[0.085em]",
+		"px-3 rounded-full flex items-center w-fit whitespace-nowrap",
+		"border border-solid leading-none",
+	],
+	enabled: ["border-green-500 bg-green-950 text-green-50"],
+	error: ["border-red-600 bg-red-950 text-red-50"],
+	warn: ["border-amber-300 bg-amber-950 text-amber-50"],
+	enterprise: ["border-blue-400 bg-blue-950 text-blue-50"],
+	disabled: ["border-zinc-700 bg-zinc-900 text-white"],
+	premium: ["border-violet-400 bg-violet-950 text-violet-50"],
+	preview: ["border-violet-500 bg-violet-950 text-violet-50"],
+	deprecated: ["border-orange-500 bg-orange-950 text-orange-50"],
+} as const;
 
 export const EnabledBadge: FC = () => {
 	return (
-		<span css={[styles.badge, styles.enabledBadge]} className="option-enabled">
+		<span
+			className={cn([
+				"option-enabled",
+				badgeClasses.root,
+				badgeClasses.enabled,
+			])}
+		>
 			Enabled
 		</span>
 	);
 };
 
 export const EntitledBadge: FC = () => {
-	return <span css={[styles.badge, styles.enabledBadge]}>Entitled</span>;
+	return (
+		<span className={cn(badgeClasses.root, badgeClasses.enabled)}>
+			Entitled
+		</span>
+	);
 };
 
 interface HealthyBadge {
@@ -61,21 +54,25 @@ interface HealthyBadge {
 }
 export const HealthyBadge: FC<HealthyBadge> = ({ derpOnly }) => {
 	return (
-		<span css={[styles.badge, styles.enabledBadge]}>
+		<span className={cn(badgeClasses.root, badgeClasses.enabled)}>
 			{derpOnly ? "Healthy (DERP only)" : "Healthy"}
 		</span>
 	);
 };
 
 export const NotHealthyBadge: FC = () => {
-	return <span css={[styles.badge, styles.errorBadge]}>Unhealthy</span>;
+	return (
+		<span className={cn(badgeClasses.root, badgeClasses.error)}>Unhealthy</span>
+	);
 };
 
 export const NotRegisteredBadge: FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
+				<span className={cn(badgeClasses.root, badgeClasses.warn)}>
+					Never seen
+				</span>
 			</TooltipTrigger>
 			<TooltipContent side="bottom" className="max-w-xs">
 				Workspace Proxy has never come online and needs to be started.
@@ -88,7 +85,9 @@ export const NotReachableBadge: FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
+				<span className={cn(badgeClasses.root, badgeClasses.warn)}>
+					Not reachable
+				</span>
 			</TooltipTrigger>
 			<TooltipContent side="bottom" className="max-w-xs">
 				Workspace Proxy not responding to http(s) requests.
@@ -105,15 +104,11 @@ export const DisabledBadge: FC = forwardRef<
 		<span
 			{...props}
 			ref={ref}
-			css={[
-				styles.badge,
-				(theme) => ({
-					border: `1px solid ${theme.experimental.l1.outline}`,
-					backgroundColor: theme.experimental.l1.background,
-					color: theme.experimental.l1.text,
-				}),
-			]}
-			className="option-disabled"
+			className={cn([
+				"option-disabled",
+				badgeClasses.root,
+				badgeClasses.disabled,
+			])}
 		>
 			Disabled
 		</span>
@@ -122,16 +117,7 @@ export const DisabledBadge: FC = forwardRef<
 
 export const EnterpriseBadge: FC = () => {
 	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					backgroundColor: theme.branding.enterprise.background,
-					border: `1px solid ${theme.branding.enterprise.border}`,
-					color: theme.branding.enterprise.text,
-				}),
-			]}
-		>
+		<span className={cn(badgeClasses.root, badgeClasses.enterprise)}>
 			Enterprise
 		</span>
 	);
@@ -139,67 +125,25 @@ export const EnterpriseBadge: FC = () => {
 
 export const PremiumBadge: FC = () => {
 	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					backgroundColor: theme.branding.premium.background,
-					border: `1px solid ${theme.branding.premium.border}`,
-					color: theme.branding.premium.text,
-				}),
-			]}
-		>
-			Premium
-		</span>
+		<span className={cn(badgeClasses.root, badgeClasses.premium)}>Premium</span>
 	);
 };
 
 export const PreviewBadge: FC = () => {
 	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					border: `1px solid ${theme.roles.preview.outline}`,
-					backgroundColor: theme.roles.preview.background,
-					color: theme.roles.preview.text,
-				}),
-			]}
-		>
-			Preview
-		</span>
+		<span className={cn(badgeClasses.root, badgeClasses.preview)}>Preview</span>
 	);
 };
 
 export const AlphaBadge: FC = () => {
 	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					border: `1px solid ${theme.roles.preview.outline}`,
-					backgroundColor: theme.roles.preview.background,
-					color: theme.roles.preview.text,
-				}),
-			]}
-		>
-			Alpha
-		</span>
+		<span className={cn(badgeClasses.root, badgeClasses.preview)}>Alpha</span>
 	);
 };
 
 export const DeprecatedBadge: FC = () => {
 	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					border: `1px solid ${theme.roles.danger.outline}`,
-					backgroundColor: theme.roles.danger.background,
-					color: theme.roles.danger.text,
-				}),
-			]}
-		>
+		<span className={cn(badgeClasses.root, badgeClasses.deprecated)}>
 			Deprecated
 		</span>
 	);
@@ -207,13 +151,6 @@ export const DeprecatedBadge: FC = () => {
 
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack
-			css={{ margin: "0 0 16px" }}
-			direction="row"
-			alignItems="center"
-			spacing={1}
-		>
-			{children}
-		</Stack>
+		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
 	);
 };
