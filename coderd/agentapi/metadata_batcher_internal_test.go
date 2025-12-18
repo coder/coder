@@ -66,13 +66,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// Given: a single metadata update is added for agent1
 	t2 := t1.Add(time.Second)
 	t.Log("adding metadata for 1 agent")
-	b.Add(
-		agent1.ID,
-		[]string{"key1", "key2"},
-		[]string{"value1", "value2"},
-		[]string{"", ""},
-		[]time.Time{t2, t2},
-	)
+	b.Add(agent1.ID, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t2, t2})
 
 	// When: it becomes time to flush
 	tick <- t2
@@ -94,20 +88,8 @@ func TestMetadataBatcher(t *testing.T) {
 	// Given: metadata updates are added for multiple agents
 	t3 := t2.Add(time.Second)
 	t.Log("adding metadata for 2 agents")
-	b.Add(
-		agent1.ID,
-		[]string{"key1", "key2", "key3"},
-		[]string{"new_value1", "new_value2", "new_value3"},
-		[]string{"", "", ""},
-		[]time.Time{t3, t3, t3},
-	)
-	b.Add(
-		agent2.ID,
-		[]string{"key1", "key2"},
-		[]string{"agent2_value1", "agent2_value2"},
-		[]string{"", ""},
-		[]time.Time{t3, t3},
-	)
+	b.Add(agent1.ID, []string{"key1", "key2", "key3"}, []string{"new_value1", "new_value2", "new_value3"}, []string{"", "", ""}, []time.Time{t3, t3, t3})
+	b.Add(agent2.ID, []string{"key1", "key2"}, []string{"agent2_value1", "agent2_value2"}, []string{"", ""}, []time.Time{t3, t3})
 
 	// When: it becomes time to flush
 	tick <- t3
@@ -148,13 +130,7 @@ func TestMetadataBatcher(t *testing.T) {
 		for i := 0; i < numAgents; i++ {
 			// Create agent with metadata first
 			agent := setupAgentWithMetadata(t, store)
-			b.Add(
-				agent.ID,
-				[]string{"key1"},
-				[]string{"bulk_value"},
-				[]string{""},
-				[]time.Time{t4},
-			)
+			b.Add(agent.ID, []string{"key1"}, []string{"bulk_value"}, []string{""}, []time.Time{t4})
 		}
 	}()
 
@@ -212,23 +188,11 @@ func TestMetadataBatcher_ReplacesPendingUpdates(t *testing.T) {
 	t1 := dbtime.Now()
 
 	// Add first update
-	b.Add(
-		agent.ID,
-		[]string{"key1"},
-		[]string{"first_value"},
-		[]string{""},
-		[]time.Time{t1},
-	)
+	b.Add(agent.ID, []string{"key1"}, []string{"first_value"}, []string{""}, []time.Time{t1})
 
 	// Add second update for same agent (should replace first)
 	t2 := t1.Add(time.Millisecond)
-	b.Add(
-		agent.ID,
-		[]string{"key1"},
-		[]string{"second_value"},
-		[]string{""},
-		[]time.Time{t2},
-	)
+	b.Add(agent.ID, []string{"key1"}, []string{"second_value"}, []string{""}, []time.Time{t2})
 
 	// Flush
 	tick <- t2

@@ -125,13 +125,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 
 	// Use batcher if available, otherwise fall back to direct database write.
 	if a.Batcher != nil {
-		a.Batcher.Add(
-			workspaceAgent.ID,
-			dbUpdate.Key,
-			dbUpdate.Value,
-			dbUpdate.Error,
-			dbUpdate.CollectedAt,
-		)
+		a.Batcher.Add(workspaceAgent.ID, dbUpdate.Key, dbUpdate.Value, dbUpdate.Error, dbUpdate.CollectedAt)
 	} else {
 		err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
 		if err != nil {
