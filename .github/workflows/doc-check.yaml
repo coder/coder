@@ -2,14 +2,15 @@
 # It creates a Coder Task that uses AI to analyze the PR changes,
 # search existing docs, and comment with recommendations.
 #
-# Triggered by: Adding the "doc-check" label to a PR, or manual dispatch.
+# Triggered by: PR opened, PR updated (new commits), or manual dispatch.
 
 name: AI Documentation Check
 
 on:
   pull_request:
     types:
-      - labeled
+      - opened       # New PR - full analysis
+      - synchronize  # PR updated with new commits - brief update
   workflow_dispatch:
     inputs:
       pr_url:
@@ -27,8 +28,7 @@ jobs:
     name: Analyze PR for Documentation Updates Needed
     runs-on: ubuntu-latest
     if: |
-      (github.event.label.name == 'doc-check' || github.event_name == 'workflow_dispatch') &&
-      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
+      github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -68,7 +68,6 @@ jobs:
           # Determine if this is a new PR or an update
           # - opened: New PR was just created
           # - synchronize: New commits pushed to existing PR
-          # - labeled: Label was added (could be new or existing PR)
           # - workflow_dispatch: Manual trigger
           if [[ "${GITHUB_EVENT_ACTION}" == "opened" ]]; then
             echo "Trigger type: NEW PR (opened)"
@@ -78,10 +77,6 @@ jobs:
             echo "Trigger type: PR UPDATE (new commits)"
             echo "is_new_pr=false" >> "${GITHUB_OUTPUT}"
             echo "trigger_type=update" >> "${GITHUB_OUTPUT}"
-          elif [[ "${GITHUB_EVENT_ACTION}" == "labeled" ]]; then
-            echo "Trigger type: LABEL ADDED (manual request)"
-            echo "is_new_pr=false" >> "${GITHUB_OUTPUT}"
-            echo "trigger_type=labeled" >> "${GITHUB_OUTPUT}"
           else
             echo "Trigger type: MANUAL (workflow_dispatch)"
             echo "is_new_pr=false" >> "${GITHUB_OUTPUT}"
