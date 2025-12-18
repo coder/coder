@@ -1684,10 +1684,19 @@ func (api *API) watchWorkspaceAgentMetadata(
 	// Send initial metadata.
 	sendMetadata(initialMD)
 
-	// Poll for metadata updates every 15 seconds instead of using pubsub.
-	// This reduces database load from pubsub NOTIFY calls while still
-	// providing reasonable update frequency for the UI.
-	const pollInterval = 15 * time.Second
+	// Calculate poll interval as the minimum interval from all metadata items.
+	// This ensures we poll frequently enough to catch all metadata updates.
+	// Default to 1 second if no metadata items exist or all have zero intervals.
+	pollInterval := time.Second
+	for _, md := range initialMD {
+		interval := time.Duration(md.Interval)
+		if interval > 0 && (pollInterval == time.Second || interval < pollInterval) {
+			pollInterval = interval
+		}
+	}
+
+	log.Debug(ctx, "starting metadata poll loop", slog.F("poll_interval", pollInterval))
+
 	pollTicker := time.NewTicker(pollInterval)
 	defer pollTicker.Stop()
 
