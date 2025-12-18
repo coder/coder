@@ -210,10 +210,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 											: "1 agent is unhealthy"}
 										.{" "}
 										{troubleshootingURL && (
-											<Link
-												href={troubleshootingURL}
-												target="_blank"
-											>
+											<Link href={troubleshootingURL} target="_blank">
 												View docs to troubleshoot
 											</Link>
 										)}
