@@ -27,19 +27,12 @@ func (caf *CachedAgentFields) UpdateValues(id uuid.UUID, name string) {
 	caf.name = name
 }
 
-// AsAgentID returns the agent ID and true if the cache is populated, or uuid.Nil and false if empty.
-// This follows the same pattern as CachedWorkspaceFields.AsWorkspaceIdentity().
-func (caf *CachedAgentFields) AsAgentID() (uuid.UUID, bool) {
-	if caf.id == uuid.Nil {
-		return uuid.Nil, false
-	}
-	return caf.id, true
+// ID returns the agent ID.
+func (caf *CachedAgentFields) ID() uuid.UUID {
+	return caf.id
 }
 
-// AsAgentFields returns both ID and Name, along with a boolean indicating if the cache is populated.
-func (caf *CachedAgentFields) AsAgentFields() (id uuid.UUID, name string, ok bool) {
-	if caf.id == uuid.Nil {
-		return uuid.Nil, "", false
-	}
-	return caf.id, caf.name, true
+// Name returns the agent name.
+func (caf *CachedAgentFields) Name() string {
+	return caf.name
 }

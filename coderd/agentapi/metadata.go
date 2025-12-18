@@ -61,17 +61,8 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		}
 	}
 
-	// Use cached agent ID if available to avoid database query.
-	// The agent ID never changes during the connection lifetime, so it's safe to cache.
-	agentID, ok := a.Agent.AsAgentID()
-	if !ok {
-		// Fallback to querying the agent if cache is not populated (shouldn't happen in normal operation).
-		workspaceAgent, err := a.AgentFn(rbacCtx)
-		if err != nil {
-			return nil, err
-		}
-		agentID = workspaceAgent.ID
-	}
+	// Use cached agent ID.
+	agentID := a.Agent.ID()
 
 	var (
 		collectedAt = a.now()

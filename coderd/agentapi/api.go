@@ -57,7 +57,7 @@ type API struct {
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
-	cachedAgentFields     *CachedAgentFields
+	cachedAgentFields     CachedAgentFields
 
 	mu sync.Mutex
 }
@@ -130,7 +130,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	// These fields never change during an agent connection lifetime.
 	// Unlike workspaces, agents don't need prebuild checking because agent ID
 	// and Name are immutable - they never change regardless of prebuild status.
-	api.cachedAgentFields = &CachedAgentFields{}
 	api.cachedAgentFields.UpdateValues(agent.ID, agent.Name)
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
@@ -158,7 +157,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
-		Agent:                     api.cachedAgentFields,
+		Agent:                     &api.cachedAgentFields,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -179,7 +178,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 
 	api.AppsAPI = &AppsAPI{
 		AgentFn:                  api.agent,
-		Agent:                    api.cachedAgentFields,
+		Agent:                    &api.cachedAgentFields,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
@@ -187,7 +186,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 
 	api.MetadataAPI = &MetadataAPI{
 		AgentFn:   api.agent,
-		Agent:     api.cachedAgentFields,
+		Agent:     &api.cachedAgentFields,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
 		Pubsub:    opts.Pubsub,
@@ -210,7 +209,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 
 	api.ConnLogAPI = &ConnLogAPI{
 		AgentFn:          api.agent,
-		Agent:            api.cachedAgentFields,
+		Agent:            &api.cachedAgentFields,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,

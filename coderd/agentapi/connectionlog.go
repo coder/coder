@@ -56,11 +56,10 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 
 	// Inject RBAC object into context for dbauthz fast path, avoid having to
 	// call GetWorkspaceByAgentID on every metadata update.
-	rbacCtx := ctx
 	var ws database.WorkspaceIdentity
 	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
 		ws = dbws
-		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
+		ctx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
 		if err != nil {
 			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
 			//nolint:gocritic
@@ -68,17 +67,9 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 	}
 
-	// Use cached agent fields if available to avoid database query.
-	agentID, agentName, ok := a.Agent.AsAgentFields()
-	if !ok {
-		// Fallback to querying the agent if cache is not populated.
-		workspaceAgent, err := a.AgentFn(rbacCtx)
-		if err != nil {
-			return nil, xerrors.Errorf("get agent: %w", err)
-		}
-		agentID = workspaceAgent.ID
-		agentName = workspaceAgent.Name
-	}
+	// Use cached agent fields.
+	agentID := a.Agent.ID()
+	agentName := a.Agent.Name()
 	if ws.Equal(database.WorkspaceIdentity{}) {
 		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
 		if err != nil {

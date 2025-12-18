@@ -47,11 +47,9 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 
 	// Inject RBAC object into context for dbauthz fast path, avoid having to
 	// call GetWorkspaceAgentByID on every stats update.
-
-	rbacCtx := ctx
 	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
 		var err error
-		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
+		ctx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
 		if err != nil {
 			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
 			//nolint:gocritic
@@ -59,21 +57,13 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		}
 	}
 
-	// Use cached agent ID and name if available to avoid database query.
-	agentID, agentName, ok := a.Agent.AsAgentFields()
-	if !ok {
-		// Fallback to querying the agent if cache is not populated.
-		workspaceAgent, err := a.AgentFn(rbacCtx)
-		if err != nil {
-			return nil, err
-		}
-		agentID = workspaceAgent.ID
-		agentName = workspaceAgent.Name
-	}
+	// Use cached agent ID and name.
+	agentID := a.Agent.ID()
+	agentName := a.Agent.Name()
 
 	// If cache is empty (prebuild or invalid), fall back to DB
-	var ws database.WorkspaceIdentity
-	if ws, ok = a.Workspace.AsWorkspaceIdentity(); !ok {
+	ws, ok := a.Workspace.AsWorkspaceIdentity()
+	if !ok {
 		w, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", agentID, err)
