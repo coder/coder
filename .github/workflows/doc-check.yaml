@@ -445,22 +445,23 @@ jobs:
           echo "Stream ended."
           echo "::endgroup::"
 
-      - name: Cleanup Task and Workspace
-        if: always()
-        env:
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
-        run: |
-          echo "::group::Cleaning up task and workspace..."
-
-          if [[ -n "${TASK_NAME}" ]]; then
-            echo "Deleting task: ${TASK_NAME}"
-            coder task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
-            echo "Cleanup complete"
-          else
-            echo "No task name found, skipping cleanup"
-          fi
-
-          echo "::endgroup::"
+      # TEMPORARILY DISABLED FOR DEBUGGING - uncomment when done
+      # - name: Cleanup Task and Workspace
+      #   if: always()
+      #   env:
+      #     TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+      #   run: |
+      #     echo "::group::Cleaning up task and workspace..."
+      #
+      #     if [[ -n "${TASK_NAME}" ]]; then
+      #       echo "Deleting task: ${TASK_NAME}"
+      #       coder task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
+      #       echo "Cleanup complete"
+      #     else
+      #       echo "No task name found, skipping cleanup"
+      #     fi
+      #
+      #     echo "::endgroup::"
 
       - name: Write Final Summary
         if: always()
