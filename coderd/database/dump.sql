@@ -746,6 +746,37 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION insert_org_member_system_role() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO custom_roles (
+        name,
+        display_name,
+        organization_id,
+        site_permissions,
+        org_permissions,
+        user_permissions,
+        member_permissions,
+        is_system,
+        created_at,
+        updated_at
+    ) VALUES (
+        'organization-member',
+        '',
+        NEW.id,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        true,
+        NOW(),
+        NOW()
+    );
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION insert_user_links_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -3553,6 +3584,8 @@ CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE O
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_insert_org_member_system_role AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_org_member_system_role();
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 
