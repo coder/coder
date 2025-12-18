@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 type ConnLogAPI struct {
@@ -53,22 +52,17 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 	}
 
-	// Inject RBAC object into context for dbauthz fast path, avoid having to
-	// call GetWorkspaceByAgentID on every metadata update.
-	var ws database.WorkspaceIdentity
-	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
-		ws = dbws
-		ctx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
-		if err != nil {
-			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
-			//nolint:gocritic
-			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
-		}
-	}
-
 	// Use cached agent fields.
 	agentID := a.Agent.ID()
 	agentName := a.Agent.Name()
+
+	// Try to get workspace from cache
+	var ws database.WorkspaceIdentity
+	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		ws = dbws
+	}
+
+	// If cache miss, fall back to DB
 	if ws.Equal(database.WorkspaceIdentity{}) {
 		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
 		if err != nil {

@@ -10,7 +10,6 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -42,18 +41,6 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	// An empty stat means it's just looking for the report interval.
 	if req.Stats == nil {
 		return res, nil
-	}
-
-	// Inject RBAC object into context for dbauthz fast path, avoid having to
-	// call GetWorkspaceAgentByID on every stats update.
-	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
-		var err error
-		ctx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
-		if err != nil {
-			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
-			//nolint:gocritic
-			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
-		}
 	}
 
 	// Use cached agent ID and name.
