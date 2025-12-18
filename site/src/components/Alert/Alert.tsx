@@ -104,7 +104,7 @@ export const Alert: FC<AlertProps> = ({
 		>
 			<div className="flex items-start justify-between gap-4 text-sm">
 				<div className="flex flex-row items-start gap-3">
-					<Icon className={cn("size-icon-sm mt-1", iconClassName)} />
+					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
 					<div className="flex-1">{children}</div>
 				</div>
 				<div className="flex items-center gap-2">
