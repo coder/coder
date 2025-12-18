@@ -35,7 +35,7 @@ export const RequestLogsFilter: FC<RequestLogsFilterProps> = ({
 			error={error}
 			options={
 				<>
-					<UserMenu menu={menus.user} />
+					<UserMenu menu={menus.user} placeholder="All initiators" />
 					<ProviderFilter menu={menus.provider} />
 				</>
 			}

@@ -7,15 +7,22 @@ import {
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import type { FC } from "react";
+import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 	{
 		label: "OpenAI",
 		value: "openai",
+		startIcon: (
+			<AIBridgeProviderIcon provider="openai" className="size-icon-sm" />
+		),
 	},
 	{
 		label: "Anthropic",
 		value: "anthropic",
+		startIcon: (
+			<AIBridgeProviderIcon provider="anthropic" className="size-icon-sm" />
+		),
 	},
 ];
 

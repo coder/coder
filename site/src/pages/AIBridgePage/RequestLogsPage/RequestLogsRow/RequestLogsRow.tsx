@@ -1,5 +1,6 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -16,9 +17,20 @@ import {
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { humanDuration } from "utils/time";
+import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
+};
+
+const customisedDateLocale: Intl.DateTimeFormatOptions = {
+	second: "2-digit",
+	minute: "2-digit",
+	hour: "2-digit",
+	day: "numeric",
+	// Show the month as a short name
+	month: "short",
+	year: "numeric",
 };
 
 type TokenUsageMetadataMerged =
@@ -132,10 +144,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	return (
 		<>
 			<TableRow
-				className="select-none cursor-pointer hover:bg-surface-secondary"
+				className="select-none cursor-pointer"
 				onClick={() => setIsOpen(!isOpen)}
+				hover
 			>
-				<TableCell>
+				<TableCell className="w-48 whitespace-nowrap">
 					<div
 						className={cn([
 							"flex items-center gap-2",
@@ -148,55 +161,105 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<ChevronRightIcon className="size-icon-xs" />
 						)}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
-						{new Date(interception.started_at).toLocaleString()}
+						{new Date(interception.started_at).toLocaleString(
+							undefined,
+							customisedDateLocale,
+						)}
 					</div>
 				</TableCell>
-				<TableCell>
-					<div className="flex items-center gap-3">
-						<Avatar
-							fallback={interception.initiator.username}
-							src={interception.initiator.avatar_url}
-						/>
-						<div className="font-medium">{interception.initiator.username}</div>
+				<TableCell className="w-48 max-w-48">
+					<div className="w-full min-w-0 overflow-hidden">
+						<div className="flex items-center gap-3 min-w-0">
+							<Avatar
+								fallback={interception.initiator.username}
+								src={interception.initiator.avatar_url}
+								size={"lg"}
+								className="flex-shrink-0"
+							/>
+							<div className="font-medium truncate min-w-0 flex-1 overflow-hidden">
+								{interception.initiator.name ?? interception.initiator.username}
+							</div>
+						</div>
 					</div>
 				</TableCell>
-				<TableCell>{firstPrompt?.prompt}</TableCell>
-				<TableCell>
-					<div className="flex items-center gap-4">
-						<TooltipProvider delayDuration={100}>
+				<TableCell className="min-w-0">
+					{/*
+						This is ensuring that the prompt is truncated and won't escape its bounding
+						container with an `absolute`.
+
+						Alternatively we could use a `table-fixed` table, but that would break worse
+						on mobile with the `min-w-0` column required.
+
+						This is a bit of a hack, but it works.
+					*/}
+					<div className="w-full h-4 min-w-48 relative">
+						<div className="absolute inset-0 leading-none overflow-hidden truncate">
+							{firstPrompt?.prompt}
+						</div>
+					</div>
+				</TableCell>
+				<TableCell className="w-32">
+					<div className="flex items-center">
+						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<div className="flex items-center gap-1">
-										<ArrowDownIcon className="size-icon-xs" />
-										<div>{inputTokens}</div>
-									</div>
+									<Badge className="gap-0 rounded-e-none">
+										<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
+										<span className="truncate min-w-0 w-full">
+											{inputTokens}
+										</span>
+									</Badge>
 								</TooltipTrigger>
-								<TooltipContent>Input Tokens</TooltipContent>
+								<TooltipContent>{inputTokens} Input Tokens</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
-						<TooltipProvider delayDuration={100}>
+						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<div className="flex items-center gap-1">
-										<ArrowUpIcon className="size-icon-xs" />
-										<div>{outputTokens}</div>
-									</div>
+									<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
+										<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
+										<span className="truncate min-w-0 w-full">
+											{outputTokens}
+										</span>
+									</Badge>
 								</TooltipTrigger>
-								<TooltipContent>Output Tokens</TooltipContent>
+								<TooltipContent>{outputTokens} Output Tokens</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
 					</div>
 				</TableCell>
-				<TableCell>{toolCalls}</TableCell>
+				<TableCell className="w-40 max-w-40">
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="w-full min-w-0 overflow-hidden">
+									<Badge className="gap-1.5 w-full">
+										<div className="flex-shrink-0 flex items-center">
+											<AIBridgeProviderIcon
+												provider={interception.provider}
+												className="size-icon-xs"
+											/>
+										</div>
+										<span className="truncate min-w-0 w-full">
+											{interception.model}
+										</span>
+									</Badge>
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>{interception.model}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</TableCell>
+				<TableCell className="w-32 text-center">{toolCalls}</TableCell>
 			</TableRow>
 			{isOpen && (
 				<TableRow>
 					<TableCell colSpan={999} className="p-4 border-t-0">
-						<div className="flex flex-col gap-4">
+						<div className="flex flex-col gap-6">
 							<dl
 								className={cn([
 									"text-xs text-content-secondary",
-									"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
+									"m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 items-center",
 									"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
 								])}
 							>
@@ -205,14 +268,20 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Start Time:</dt>
 								<dd data-chromatic="ignore">
-									{new Date(interception.started_at).toLocaleString()}
+									{new Date(interception.started_at).toLocaleString(
+										undefined,
+										customisedDateLocale,
+									)}
 								</dd>
 
 								{interception.ended_at && (
 									<>
 										<dt>End Time:</dt>
 										<dd data-chromatic="ignore">
-											{new Date(interception.ended_at).toLocaleString()}
+											{new Date(interception.ended_at).toLocaleString(
+												undefined,
+												customisedDateLocale,
+											)}
 										</dd>
 									</>
 								)}
@@ -227,22 +296,76 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								)}
 
 								<dt>Initiator:</dt>
-								<dd data-chromatic="ignore">
-									{interception.initiator.username}
+								<dd
+									data-chromatic="ignore"
+									className="flex items-center gap-1.5"
+								>
+									<Avatar
+										fallback={interception.initiator.username}
+										src={interception.initiator.avatar_url}
+										size={"sm"}
+										className="flex-shrink-0"
+									/>
+									<span className="truncate min-w-0 w-full">
+										{interception.initiator.name ??
+											interception.initiator.username}
+									</span>
 								</dd>
 
 								<dt>Model:</dt>
-								<dd data-chromatic="ignore">{interception.model}</dd>
-
-								<dt>Input Tokens:</dt>
-								<dd data-chromatic="ignore">{inputTokens}</dd>
-
-								<dt>Output Tokens:</dt>
-								<dd data-chromatic="ignore">{outputTokens}</dd>
+								<dd data-chromatic="ignore">
+									<Badge className="gap-2">
+										<div className="flex-shrink-0 flex items-center">
+											<AIBridgeProviderIcon
+												provider={interception.provider}
+												className="size-icon-xs"
+											/>
+										</div>
+										<span className="truncate min-w-0 w-full text-2xs">
+											{interception.model}
+										</span>
+									</Badge>
+								</dd>
 
 								<dt>Tool Calls:</dt>
 								<dd data-chromatic="ignore">
 									{interception.tool_usages.length}
+								</dd>
+
+								<dt>Input/Output Tokens:</dt>
+								<dd data-chromatic="ignore">
+									<div className="flex items-center">
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Badge className="gap-0 rounded-e-none">
+														<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
+														<span className="truncate min-w-0 w-full">
+															{inputTokens}
+														</span>
+													</Badge>
+												</TooltipTrigger>
+												<TooltipContent>
+													{inputTokens} Input Tokens
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
+														<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
+														<span className="truncate min-w-0 w-full">
+															{outputTokens}
+														</span>
+													</Badge>
+												</TooltipTrigger>
+												<TooltipContent>
+													{outputTokens} Output Tokens
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									</div>
 								</dd>
 							</dl>
 
@@ -250,7 +373,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="flex flex-col gap-2">
 									<div>Prompts</div>
 									<div
-										className="bg-surface-secondary rounded-md p-4"
+										className="bg-surface-secondary rounded-md p-4 text-xs leading-4"
 										data-chromatic="ignore"
 									>
 										{interception.user_prompts.map((prompt) => (

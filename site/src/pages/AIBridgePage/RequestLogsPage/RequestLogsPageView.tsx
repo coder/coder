@@ -51,13 +51,14 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 				query={interceptionsQuery}
 				paginationUnitLabel="interceptions"
 			>
-				<Table>
+				<Table className="text-sm">
 					<TableHeader>
-						<TableRow>
+						<TableRow className="text-xs">
 							<TableHead>Timestamp</TableHead>
-							<TableHead>User</TableHead>
+							<TableHead>Initiator</TableHead>
 							<TableHead>Prompt</TableHead>
 							<TableHead>Tokens</TableHead>
+							<TableHead>Model</TableHead>
 							<TableHead>Tool Calls</TableHead>
 						</TableRow>
 					</TableHeader>
