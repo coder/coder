@@ -43,16 +43,12 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		return res, nil
 	}
 
-	// Use cached agent ID and name.
-	agentID := a.Agent.ID
-	agentName := a.Agent.Name
-
 	// If cache is empty (prebuild or invalid), fall back to DB
 	ws, ok := a.Workspace.AsWorkspaceIdentity()
 	if !ok {
-		w, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
+		w, err := a.Database.GetWorkspaceByAgentID(ctx, a.Agent.ID)
 		if err != nil {
-			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", agentID, err)
+			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", a.Agent.ID, err)
 		}
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
@@ -76,8 +72,8 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	// Create minimal agent record with cached fields for stats reporting.
 	// ReportAgentStats only needs ID and Name from the agent.
 	minimalAgent := database.WorkspaceAgent{
-		ID:   agentID,
-		Name: agentName,
+		ID:   a.Agent.ID,
+		Name: a.Agent.Name,
 	}
 
 	err := a.StatsReporter.ReportAgentStats(

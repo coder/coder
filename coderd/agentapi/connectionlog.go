@@ -52,10 +52,6 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 	}
 
-	// Use cached agent fields.
-	agentID := a.Agent.ID
-	agentName := a.Agent.Name
-
 	// Try to get workspace from cache
 	var ws database.WorkspaceIdentity
 	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
@@ -64,7 +60,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 
 	// If cache miss, fall back to DB
 	if ws.Equal(database.WorkspaceIdentity{}) {
-		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, agentID)
+		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, a.Agent.ID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace by agent id: %w", err)
 		}
@@ -88,7 +84,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceOwnerID: ws.OwnerID,
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
-		AgentName:        agentName,
+		AgentName:        a.Agent.Name,
 		Type:             connectionType,
 		Code:             code,
 		Ip:               logIP,

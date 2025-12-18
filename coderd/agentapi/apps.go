@@ -20,10 +20,8 @@ type AppsAPI struct {
 }
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
-	agentID := a.Agent.ID
-
 	a.Log.Debug(ctx, "got batch app health update",
-		slog.F("agent_id", agentID.String()),
+		slog.F("agent_id", a.Agent.ID.String()),
 		slog.F("updates", req.Updates),
 	)
 
@@ -31,9 +29,9 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}
 
-	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, agentID)
+	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, a.Agent.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", agentID, err)
+		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", a.Agent.ID, err)
 	}
 
 	var newApps []database.WorkspaceApp
@@ -94,7 +92,7 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
-		err = a.PublishWorkspaceUpdateFn(ctx, agentID, wspubsub.WorkspaceEventKindAppHealthUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, a.Agent.ID, wspubsub.WorkspaceEventKindAppHealthUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
