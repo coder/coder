@@ -13,16 +13,13 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 )
 
-// ReconcileOrgMemberRoles ensures all org-member system roles have
-// current permissions based on each organization's workspace_sharing_disabled
-// setting:
+// ReconcileOrgMemberRoles ensures all orgs have an org-member system
+// role stored in the DB with permissions reflecting current RBAC
+// resources and the org's workspace_sharing_disabled setting.
 //
-//  1. Backfill permissions for roles created by migration (initially empty)
-//
+//  1. Create org-member system roles for orgs that lack one
 //  2. Update permissions when new RBAC resources are added to the codebase
-//
-//  3. Ensure permissions match each organization's workspace sharing
-//     setting (this one is a safety net; the toggle takes care of that)
+//  3. Ensure permissions match each org's workspace sharing setting
 //
 // Uses PostgreSQL advisory lock (LockIDReconcileOrgMemberRoles) to
 // safely handle multi-instance deployments. Other coderd instances
