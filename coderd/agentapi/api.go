@@ -168,11 +168,13 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
-		AgentFn:                  api.agent,
-		WorkspaceID:              opts.WorkspaceID,
-		Database:                 opts.Database,
-		Log:                      opts.Log,
-		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdateLegacy,
+		AgentFn:     api.agent,
+		WorkspaceID: opts.WorkspaceID,
+		Database:    opts.Database,
+		Log:         opts.Log,
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			return api.publishWorkspaceUpdate(ctx, agent.ID, kind)
+		},
 	}
 
 	api.AppsAPI = &AppsAPI{
@@ -193,10 +195,12 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.LogsAPI = &LogsAPI{
-		AgentFn:                           api.agent,
-		Database:                          opts.Database,
-		Log:                               opts.Log,
-		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdateLegacy,
+		AgentFn:  api.agent,
+		Database: opts.Database,
+		Log:      opts.Log,
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			return api.publishWorkspaceUpdate(ctx, agent.ID, kind)
+		},
 		PublishWorkspaceAgentLogsUpdateFn: opts.PublishWorkspaceAgentLogsUpdateFn,
 	}
 
@@ -334,25 +338,11 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	a.cachedWorkspaceFields.Clear()
 }
 
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agentCache *CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
-	// Get agent ID from cache if available, otherwise nil
-	var agentID *uuid.UUID
-	if id, ok := agentCache.AsAgentID(); ok {
-		agentID = &id
-	}
-
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        kind,
 		WorkspaceID: a.opts.WorkspaceID,
-		AgentID:     agentID,
+		AgentID:     &agentID,
 	})
 	return nil
-}
-
-// publishWorkspaceUpdateLegacy is for APIs that don't have cached agent fields.
-// It creates a temporary CachedAgentFields from the agent and calls publishWorkspaceUpdate.
-func (a *API) publishWorkspaceUpdateLegacy(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
-	agentCache := &CachedAgentFields{}
-	agentCache.UpdateValues(agent.ID, agent.Name)
-	return a.publishWorkspaceUpdate(ctx, agentCache, kind)
 }
