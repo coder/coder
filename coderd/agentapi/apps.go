@@ -23,6 +23,7 @@ type AppsAPI struct {
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
 	// Use cached agent ID if available to avoid database query.
 	agentID, ok := a.Agent.AsAgentID()
+	var agentCache *CachedAgentFields
 	if !ok {
 		// Fallback to querying the agent if cache is not populated.
 		workspaceAgent, err := a.AgentFn(ctx)
@@ -30,6 +31,12 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 			return nil, err
 		}
 		agentID = workspaceAgent.ID
+		// Create a cache from the fallback agent for publishing.
+		agentCache = &CachedAgentFields{}
+		agentCache.UpdateValues(workspaceAgent.ID, workspaceAgent.Name)
+	} else {
+		// Use the existing cache.
+		agentCache = a.Agent
 	}
 
 	a.Log.Debug(ctx, "got batch app health update",
@@ -104,8 +111,8 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
-		// Pass the cached agent fields directly instead of creating a minimal agent.
-		err = a.PublishWorkspaceUpdateFn(ctx, a.Agent, wspubsub.WorkspaceEventKindAppHealthUpdate)
+		// Use the agent cache (either from the API struct or created from fallback).
+		err = a.PublishWorkspaceUpdateFn(ctx, agentCache, wspubsub.WorkspaceEventKindAppHealthUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
