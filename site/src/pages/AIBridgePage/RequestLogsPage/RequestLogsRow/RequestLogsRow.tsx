@@ -142,17 +142,15 @@ const RequestLogsPrompt: FC<{ prompt: AIBridgeUserPrompt }> = ({ prompt }) => {
 	}, [isOpen]);
 
 	return (
-		<>
-			<div className="p-4 bg-surface-secondary rounded-md">
-				<div
-					className={cn("text-xs leading-5", !isOpen && "line-clamp-4")}
-					ref={promptRef}
-				>
-					{prompt.prompt}
-				</div>
+		<div className="p-4 bg-surface-secondary rounded-md flex flex-col gap-2">
+			<div
+				className={cn("text-xs leading-5", !isOpen && "line-clamp-[10]")}
+				ref={promptRef}
+			>
+				{prompt.prompt}
 			</div>
 			{canCollapse && (
-				<div className="flex items-start px-2">
+				<div className="flex items-center justify-end">
 					<button
 						type="button"
 						className={cn(
@@ -163,16 +161,16 @@ const RequestLogsPrompt: FC<{ prompt: AIBridgeUserPrompt }> = ({ prompt }) => {
 						)}
 						onClick={() => setIsOpen(!isOpen)}
 					>
-						<span>{isOpen ? "Show less" : "Show more"}</span>
 						{isOpen ? (
 							<ChevronUpIcon className="size-icon-xs" />
 						) : (
 							<ChevronDownIcon className="size-icon-xs" />
 						)}
+						<span>{isOpen ? "Show less" : "Show more"}</span>
 					</button>
 				</div>
 			)}
-		</>
+		</div>
 	);
 };
 
