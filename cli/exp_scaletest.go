@@ -640,9 +640,10 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 
 func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 	var (
-		count    int64
-		retry    int64
-		template string
+		count       int64
+		retry       int64
+		maxFailures int64
+		template    string
 
 		noCleanup bool
 		// TODO: implement this flag
@@ -847,8 +848,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 				return xerrors.Errorf("cleanup tests: %w", err)
 			}
 
-			if res.TotalFail > 0 {
-				return xerrors.New("load test failed, see above for more details")
+			if res.TotalFail > int(maxFailures) {
+				return xerrors.Errorf("load test failed, %d runs failed (max allowed: %d)", res.TotalFail, maxFailures)
 			}
 
 			return nil
@@ -962,6 +963,13 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 			Default:     "false",
 			Description: "Use the user logged in on the host machine, instead of creating users.",
 			Value:       serpent.BoolOf(&useHostUser),
+		},
+		{
+			Flag:        "max-failures",
+			Env:         "CODER_SCALETEST_MAX_FAILURES",
+			Default:     "0",
+			Description: "Maximum number of runs that are allowed to fail before the entire test is considered failed. 0 means any failure will cause the test to fail.",
+			Value:       serpent.Int64Of(&maxFailures),
 		},
 	}
 
