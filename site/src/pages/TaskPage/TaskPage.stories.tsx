@@ -6,7 +6,6 @@ import {
 	MockStoppedWorkspace,
 	MockTask,
 	MockTasks,
-	MockTemplate,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -406,18 +405,37 @@ export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
 
 export const OutdatedWorkspace: Story = {
 	// Given: an 'outdated' workspace (that is, the latest build does not use template's active version)
-	beforeEach: () => {
-		spyOn(API, "getTask").mockResolvedValue(MockTask);
-		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
-			...MockStoppedWorkspace,
-			outdated: true,
-		});
-		spyOn(API, "getTemplate").mockResolvedValue({
-			...MockTemplate,
-			active_version_id: "some-other-version-id",
-		});
-		spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
-		spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockTask.owner_name }],
+				data: [MockTask],
+			},
+			{
+				key: ["tasks", MockTask.owner_name, MockTask.id],
+				data: MockTask,
+			},
+			{
+				key: [
+					"workspace",
+					MockTask.owner_name,
+					MockTask.workspace_name,
+					"settings",
+				],
+				data: {
+					...MockStoppedWorkspace,
+					outdated: true,
+				},
+			},
+			{
+				key: [
+					"workspaceBuilds",
+					MockStoppedWorkspace.latest_build.id,
+					"parameters",
+				],
+				data: [],
+			},
+		],
 	},
 	// Then: a tooltip should be displayed prompting the user to update the workspace.
 	play: async ({ canvasElement }) => {
