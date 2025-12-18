@@ -389,37 +389,6 @@ func (api *API) postWorkspaceBuildsInternal(
 		builder = builder.Reason(database.BuildReason(createBuild.Reason))
 	}
 
-	// #20925: if the workspace is dormant and we are starting the workspace,
-	// we need to unset that status before inserting a new build.
-	if workspace.DormantAt.Valid && transition == database.WorkspaceTransitionStart {
-		if _, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
-			ID:        workspace.ID,
-			DormantAt: sql.NullTime{Valid: false},
-		}); err != nil {
-			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error unsetting workspace dormant status",
-				Detail:  err.Error(),
-			})
-		}
-		// We need to audit this change separately.
-		updatedWorkspace := workspace.WorkspaceTable()
-		updatedWorkspace.DormantAt = sql.NullTime{Valid: false}
-		auditor := api.Auditor.Load()
-		bag := audit.BaggageFromContext(ctx)
-		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
-			Audit:          *auditor,
-			Old:            workspace.WorkspaceTable(),
-			New:            updatedWorkspace,
-			Log:            api.Logger,
-			UserID:         apiKey.UserID,
-			OrganizationID: workspace.OrganizationID,
-			RequestID:      workspace.ID,
-			IP:             bag.IP,
-			Action:         database.AuditActionWrite,
-			Status:         http.StatusOK,
-		})
-	}
-
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild
 		workspaceBuild         *database.WorkspaceBuild
@@ -429,6 +398,40 @@ func (api *API) postWorkspaceBuildsInternal(
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
+
+		// #20925: if the workspace is dormant and we are starting the workspace,
+		// we need to unset that status before inserting a new build.
+		// This is done inside the transaction for consistency, but it could also be
+		// done outside the transaction so that an attempt to start a workspace will
+		// also unset dormancy.
+		if workspace.DormantAt.Valid && transition == database.WorkspaceTransitionStart {
+			if _, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+				ID:        workspace.ID,
+				DormantAt: sql.NullTime{Valid: false},
+			}); err != nil {
+				return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error unsetting workspace dormant status",
+					Detail:  err.Error(),
+				})
+			}
+			// We need to audit this change separately.
+			updatedWorkspace := workspace.WorkspaceTable()
+			updatedWorkspace.DormantAt = sql.NullTime{Valid: false}
+			auditor := api.Auditor.Load()
+			bag := audit.BaggageFromContext(ctx)
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
+				Audit:          *auditor,
+				Old:            workspace.WorkspaceTable(),
+				New:            updatedWorkspace,
+				Log:            api.Logger,
+				UserID:         apiKey.UserID,
+				OrganizationID: workspace.OrganizationID,
+				RequestID:      workspace.ID,
+				IP:             bag.IP,
+				Action:         database.AuditActionWrite,
+				Status:         http.StatusOK,
+			})
+		}
 
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
