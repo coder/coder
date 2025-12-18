@@ -165,13 +165,7 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 }
 
 // Add adds metadata updates for an agent to the batcher.
-func (b *MetadataBatcher) Add(
-	agentID uuid.UUID,
-	keys []string,
-	values []string,
-	errors []string,
-	collectedAt []time.Time,
-) {
+func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
