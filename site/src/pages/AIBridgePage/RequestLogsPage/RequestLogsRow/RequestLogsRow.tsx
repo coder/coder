@@ -430,7 +430,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							</dl>
 
 							{interception.user_prompts.length > 0 && (
-								<div className="flex flex-col gap-2">
+								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Prompts</div>
 									{interception.user_prompts.map((prompt) => (
 										<RequestLogsPrompt key={prompt.id} prompt={prompt} />
@@ -439,7 +439,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							)}
 
 							{interception.tool_usages.length > 0 && (
-								<div className="flex flex-col gap-2">
+								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Tool Usages</div>
 									<div
 										className="bg-surface-secondary rounded-md p-4"
@@ -474,7 +474,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							)}
 
 							{tokenUsagesMetadata !== null && (
-								<div className="flex flex-col gap-2">
+								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Token Usage Metadata</div>
 									<div className="bg-surface-secondary rounded-md p-4">
 										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
