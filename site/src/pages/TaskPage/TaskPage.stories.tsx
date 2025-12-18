@@ -6,6 +6,7 @@ import {
 	MockStoppedWorkspace,
 	MockTask,
 	MockTasks,
+	MockTemplate,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -401,6 +402,47 @@ const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
 export const MainAppHealthy: Story = mainAppHealthStory("healthy");
 export const MainAppInitializing: Story = mainAppHealthStory("initializing");
 export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
+
+export const OutdatedWorkspace: Story = {
+	// Given: an 'outdated' workspace (that is, the latest build does not use template's active version)
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockStoppedWorkspace,
+			outdated: true,
+		});
+		spyOn(API, "getTemplate").mockResolvedValue({
+			...MockTemplate,
+			active_version_id: "some-other-version-id",
+		});
+		spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
+		spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
+		spyOn(API, "postWorkspaceBuild").mockResolvedValue(
+			MockStoppedWorkspace.latest_build,
+		);
+	},
+	// When: the user clicks the "start workspace" button
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const startWorkspaceButton = await canvas.findByTestId(
+			"task-start-workspace",
+		);
+		await userEvent.click(startWorkspaceButton);
+
+		await waitFor(() => {
+			// Then: we should have fetched the template to determine the active version.
+			expect(API.getTemplate).toHaveBeenCalledWith(MockTemplate.id);
+			// Then: the workspace should be started with the active version of the template.
+			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(
+				MockStoppedWorkspace.id,
+				expect.objectContaining({
+					transition: "start",
+					template_version_id: "some-other-version-id",
+				}),
+			);
+		});
+	},
+};
 
 export const Active: Story = {
 	decorators: [withProxyProvider()],

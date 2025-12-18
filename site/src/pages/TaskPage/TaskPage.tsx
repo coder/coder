@@ -4,6 +4,7 @@ import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import {
 	startWorkspace,
+	updateWorkspace,
 	workspaceByOwnerAndName,
 } from "api/queries/workspaces";
 import type {
@@ -236,16 +237,31 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 		},
 	});
 
+	const mutateUpdateWorkspace = useMutation({
+		...updateWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			if (!isApiError(error)) {
+				displayError(getErrorMessage(error, "Failed to update workspace."));
+			}
+		},
+	});
+
 	// After requesting a workspace start, it may take a while to become ready.
 	// Show a loading state in the meantime.
 	const isWaitingForStart =
-		mutateStartWorkspace.isPending || mutateStartWorkspace.isSuccess;
+		mutateStartWorkspace.isPending ||
+		mutateStartWorkspace.isSuccess ||
+		mutateUpdateWorkspace.isPending ||
+		mutateUpdateWorkspace.isSuccess;
 
-	const apiError = isApiError(mutateStartWorkspace.error)
-		? mutateStartWorkspace.error
-		: undefined;
+	const mutationError =
+		mutateStartWorkspace.error || mutateUpdateWorkspace.error;
+	const apiError = isApiError(mutationError) ? mutationError : undefined;
 
 	const deleted = workspace.latest_build?.transition === ("delete" as const);
+	const startOrUpdate = workspace.outdated ? "Update and start" : "Start";
+	const isDynamicParametersEnabled =
+		!workspace.template_use_classic_parameter_flow;
 
 	return deleted ? (
 		<Margins>
@@ -275,18 +291,31 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 					<span className="text-content-secondary text-sm">
 						Apps and previous statuses are not available
 					</span>
+					{workspace.outdated && (
+						<span className="text-content-secondary text-sm">
+							Starting the workspace will update it to the latest version.
+						</span>
+					)}
 					<div className="flex flex-row mt-4 gap-4">
 						<Button
 							size="sm"
+							data-testid="task-start-workspace"
 							disabled={isWaitingForStart}
 							onClick={() => {
-								mutateStartWorkspace.mutate({
-									buildParameters,
-								});
+								if (workspace.outdated) {
+									mutateUpdateWorkspace.mutate({
+										buildParameters,
+										isDynamicParametersEnabled,
+									});
+								} else {
+									mutateStartWorkspace.mutate({
+										buildParameters,
+									});
+								}
 							}}
 						>
 							<Spinner loading={isWaitingForStart} />
-							Start workspace
+							{`${startOrUpdate} workspace`}
 						</Button>
 						<Button size="sm" onClick={onEditPrompt} variant="outline">
 							Edit Prompt
