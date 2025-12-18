@@ -16,23 +16,13 @@ import (
 // at initialization and never modified after that.
 type CachedAgentFields struct {
 	// Static fields that never change during agent connection
-	id   uuid.UUID
-	name string
+	ID   uuid.UUID
+	Name string
 }
 
 // UpdateValues sets the cached agent fields. This should only be called once
 // at agent connection initialization.
 func (caf *CachedAgentFields) UpdateValues(id uuid.UUID, name string) {
-	caf.id = id
-	caf.name = name
-}
-
-// ID returns the agent ID.
-func (caf *CachedAgentFields) ID() uuid.UUID {
-	return caf.id
-}
-
-// Name returns the agent name.
-func (caf *CachedAgentFields) Name() string {
-	return caf.name
+	caf.ID = id
+	caf.Name = name
 }

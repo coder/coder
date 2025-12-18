@@ -61,7 +61,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	}
 
 	// Use cached agent ID.
-	agentID := a.Agent.ID()
+	agentID := a.Agent.ID
 
 	var (
 		collectedAt = a.now()

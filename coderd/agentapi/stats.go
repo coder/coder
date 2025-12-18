@@ -44,8 +44,8 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	}
 
 	// Use cached agent ID and name.
-	agentID := a.Agent.ID()
-	agentName := a.Agent.Name()
+	agentID := a.Agent.ID
+	agentName := a.Agent.Name
 
 	// If cache is empty (prebuild or invalid), fall back to DB
 	ws, ok := a.Workspace.AsWorkspaceIdentity()

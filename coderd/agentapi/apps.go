@@ -20,7 +20,7 @@ type AppsAPI struct {
 }
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
-	agentID := a.Agent.ID()
+	agentID := a.Agent.ID
 
 	a.Log.Debug(ctx, "got batch app health update",
 		slog.F("agent_id", agentID.String()),

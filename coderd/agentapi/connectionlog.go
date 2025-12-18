@@ -53,8 +53,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	}
 
 	// Use cached agent fields.
-	agentID := a.Agent.ID()
-	agentName := a.Agent.Name()
+	agentID := a.Agent.ID
+	agentName := a.Agent.Name
 
 	// Try to get workspace from cache
 	var ws database.WorkspaceIdentity
