@@ -23,6 +23,7 @@ type MetadataAPI struct {
 	Database  database.Store
 	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
+	Batcher   *MetadataBatcher
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -122,21 +123,32 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		)
 	}
 
-	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
-	if err != nil {
-		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
-	}
+	// Use batcher if available, otherwise fall back to direct database write.
+	if a.Batcher != nil {
+		a.Batcher.Add(
+			workspaceAgent.ID,
+			dbUpdate.Key,
+			dbUpdate.Value,
+			dbUpdate.Error,
+			dbUpdate.CollectedAt,
+		)
+	} else {
+		err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
+		}
 
-	payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
-		CollectedAt: collectedAt,
-		Keys:        dbUpdate.Key,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
-	}
-	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
-	if err != nil {
-		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
+		payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
+			CollectedAt: collectedAt,
+			Keys:        dbUpdate.Key,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
+		}
+		err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
+		if err != nil {
+			return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
+		}
 	}
 
 	// If the metadata keys were too large, we return an error so the agent can
