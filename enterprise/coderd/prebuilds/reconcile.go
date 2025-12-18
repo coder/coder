@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -762,7 +763,14 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		for range action.Create {
 			if err := c.createPrebuiltWorkspace(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
-				c.failureTracker.RecordFailure(ps.Preset.ID)
+
+				// Only apply backoff for transient errors (500-level).
+				// Config errors (400-level) should fail immediately and count toward the hard limit.
+				var buildErr wsbuilder.BuildError
+				if errors.As(err, &buildErr) && buildErr.Status == http.StatusInternalServerError {
+					c.failureTracker.RecordFailure(ps.Preset.ID)
+				}
+
 				multiErr.Errors = append(multiErr.Errors, err)
 			} else {
 				// Only clear failure tracking if we successfully created at least one prebuild
