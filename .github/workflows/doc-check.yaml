@@ -177,35 +177,68 @@ jobs:
 
           ${SETUP_INSTRUCTIONS}
 
-          WORKFLOW:
-            1. Get PR info
-               Use GitHub MCP tools to get PR title, body, and diff
-               Or use: git diff main...pr-${PR_NUMBER}
+          ⚠️ CRITICAL: You MUST complete each step below and SHOW YOUR WORK.
+          DO NOT skip steps. DO NOT make assumptions. DO NOT comment until Step 5.
+          The chat log is being monitored - show evidence for every decision.
 
-            2. Understand ALL Changes
-               Read the entire diff and identify what changed
-               Ask: Is this user-facing? Does it change behavior? Is it a new feature?
+          ═══════════════════════════════════════════════════════════════════
+          STEP 1: Fetch and display PR info
+          ═══════════════════════════════════════════════════════════════════
+          Run these commands and SHOW THE OUTPUT:
+            git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+            git checkout pr-${PR_NUMBER}
+            git log -1 --format="PR Title: %s%nAuthor: %an%nDate: %ad"
 
-            3. Search for Related Docs
-               cat ~/coder/docs/manifest.json | jq '.routes[] | {title, path}' | head -50
-               grep -ri "relevant_term" ~/coder/docs/ --include="*.md"
+          CHECKPOINT: State the PR title and what it claims to do.
 
-            4. Decide
-               NEEDS DOCS if: New feature, API change, CLI change, behavior change, user-visible
-               NO DOCS if: Internal refactor, test-only, already documented, non-user-facing, dependency updates
-               FIRST check: Did this PR already update docs? If yes and complete, say "No Changes Needed"
+          ═══════════════════════════════════════════════════════════════════
+          STEP 2: Review the actual diff
+          ═══════════════════════════════════════════════════════════════════
+          Run and SHOW KEY PORTIONS:
+            git diff main...pr-${PR_NUMBER} --stat
+            git diff main...pr-${PR_NUMBER} -- "*.go" "*.ts" "*.md" | head -200
 
-            5. Comment on the PR
-               - This is a new PR, so CREATE a new comment with the marker
-               - Use the format below
-               - Keep headings clean (no emojis in headings)
-               - Use status indicators sparingly (✓ ⚠ ✗)
+          CHECKPOINT: List the files changed and summarize what ACTUALLY changed.
+          Include specific line references (e.g., "+// NewFunction added at line 45")
+
+          ═══════════════════════════════════════════════════════════════════
+          STEP 3: Search existing documentation
+          ═══════════════════════════════════════════════════════════════════
+          Based on what you found in Step 2, search for related docs:
+            grep -ri "relevant_term" ~/coder/docs/ --include="*.md" -l
+            cat ~/coder/docs/manifest.json | jq '.routes[] | {title, path}' | head -30
+
+          CHECKPOINT: List which docs you searched and what you found (or didn't find).
+
+          ═══════════════════════════════════════════════════════════════════
+          STEP 4: Make your determination WITH EVIDENCE
+          ═══════════════════════════════════════════════════════════════════
+          Answer these questions explicitly:
+            1. What files were modified? (list them from Step 2)
+            2. Is this user-facing? Why or why not?
+            3. Does this change any: CLI commands? API endpoints? UI behavior? Configuration?
+            4. Did the PR already include doc updates? Are they complete?
+            5. What existing docs (from Step 3) might need updates?
+
+          Decision criteria:
+            NEEDS DOCS: New feature, API change, CLI change, behavior change, user-visible change
+            NO DOCS: Internal refactor, test-only, already documented in PR, non-user-facing
+
+          CHECKPOINT: State your decision and the SPECIFIC EVIDENCE from the diff that supports it.
+
+          ═══════════════════════════════════════════════════════════════════
+          STEP 5: Post your comment (FINAL STEP - only after completing 1-4)
+          ═══════════════════════════════════════════════════════════════════
+          Now and ONLY now, post a comment on the PR using this format:
 
           ${COMMENT_FORMAT}
 
-          DOCS STRUCTURE:
-            Read ~/coder/docs/manifest.json for the complete documentation structure.
-            Common areas include: reference/, admin/, user-guides/, ai-coder/, install/, tutorials/
+          Include references to specific files/lines that informed your decision.
+          Keep headings clean (no emojis in headings). Use ✓ ⚠ ✗ sparingly for status only.
+
+          DOCS STRUCTURE (for reference):
+            ~/coder/docs/manifest.json contains the full structure
+            Common areas: reference/, admin/, user-guides/, ai-coder/, install/, tutorials/
 
           EOF
           )
@@ -229,21 +262,32 @@ jobs:
             - New commits have been pushed since then
             - Your job is to provide a BRIEF update, not repeat the full analysis
 
-          WORKFLOW:
-            1. Check recent commits
-               git log --oneline -5
-               See what was added/changed recently
+          ⚠️ CRITICAL: You MUST show your work before commenting. DO NOT skip steps.
 
-            2. Quick assessment
-               - Do the new changes affect documentation needs?
-               - Were docs added/updated in the new commits?
-               - Is this a significant change or minor fix?
+          ═══════════════════════════════════════════════════════════════════
+          STEP 1: Check what changed since last analysis
+          ═══════════════════════════════════════════════════════════════════
+          Run and SHOW OUTPUT:
+            git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+            git checkout pr-${PR_NUMBER}
+            git log --oneline -5
 
-            3. Post a SHORT update comment
-               - DO NOT update or edit previous comments
-               - Create a NEW, BRIEF comment (see format below)
-               - Keep it conversational and minimal
-               - Only do a full re-analysis if changes are substantial
+          CHECKPOINT: List the recent commits and what they claim to do.
+
+          ═══════════════════════════════════════════════════════════════════
+          STEP 2: Quick diff review
+          ═══════════════════════════════════════════════════════════════════
+          Run and SHOW KEY CHANGES:
+            git diff HEAD~3..HEAD --stat
+            git diff HEAD~3..HEAD -- "*.md" | head -50  # Check if docs were updated
+
+          CHECKPOINT: Summarize what actually changed in the recent commits.
+          Note any doc file changes.
+
+          ═══════════════════════════════════════════════════════════════════
+          STEP 3: Make determination and post comment (FINAL STEP)
+          ═══════════════════════════════════════════════════════════════════
+          Based on Steps 1-2, post a BRIEF update comment:
 
           UPDATE COMMENT FORMAT (keep it SHORT!):
           <!-- doc-check-update -->
@@ -251,7 +295,7 @@ jobs:
 
           **Commits reviewed:** [X new commits]
 
-          [Pick ONE status line based on situation:]
+          [Pick ONE status line based on what you found:]
 
           ✓ **No changes needed** - [brief reason: minor fix / internal change / etc.]
 
@@ -267,13 +311,10 @@ jobs:
           *[Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
 
           GUIDELINES:
-            - Be concise! 2-4 lines is ideal
+            - Be concise! 2-4 lines max
+            - Reference specific commits/files from your analysis
             - Don't repeat previous analysis
-            - Focus only on what CHANGED
-            - Use emojis sparingly (only ✓ ⚠ ✗ for status)
-            - No emojis in headings
-            - If nothing documentation-relevant changed, just say so briefly
-            - Only do full analysis if the PR direction changed significantly
+            - Only do full re-analysis if the PR direction changed significantly
 
           EOF
           )
