@@ -32,21 +32,14 @@ const alertVariants = cva(
 			},
 		},
 		compoundVariants: [
-			// Non-prominent: all severities use neutral border and background
 			{
 				prominent: false,
 				className: "border-border-default bg-surface-secondary",
 			},
-			// Prominent: colored border and tinted background based on severity
-			{
-				severity: "info",
-				prominent: true,
-				className: "border-border-pending bg-surface-secondary",
-			},
 			{
 				severity: "success",
 				prominent: true,
-				className: "border-border-green bg-surface-green",
+				className: "border-border-success bg-surface-green",
 			},
 			{
 				severity: "warning",
@@ -114,14 +107,14 @@ export const Alert: FC<AlertProps> = ({
 					<Icon className={cn("size-icon-sm mt-1", iconClassName)} />
 					<div className="flex-1">{children}</div>
 				</div>
-				<div className="flex items-start gap-2">
+				<div className="flex items-center gap-2">
 					{actions}
 
 					{dismissible && (
 						<Button
 							variant="subtle"
 							size="icon"
-							className="mt-px !size-auto !min-w-0 !p-0"
+							className="!size-auto !min-w-0 !p-0"
 							onClick={() => {
 								setOpen(false);
 								onDismiss?.();
