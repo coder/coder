@@ -166,6 +166,8 @@ jobs:
             echo "Building NEW PR prompt (full analysis)"
 
             TASK_PROMPT=$(cat <<EOF
+          Doc Check: PR #${PR_NUMBER} - Full Analysis
+
           ═══════════════════════════════════════════════════════════════
           NEW PR DOCUMENTATION CHECK - Full Analysis Required
           ═══════════════════════════════════════════════════════════════
@@ -247,6 +249,8 @@ jobs:
             echo "Building PR UPDATE prompt (incremental analysis)"
 
             TASK_PROMPT=$(cat <<EOF
+          Doc Check: PR #${PR_NUMBER} - Update
+
           ═══════════════════════════════════════════════════════════════
           PR UPDATE - Quick Documentation Re-check
           ═══════════════════════════════════════════════════════════════
