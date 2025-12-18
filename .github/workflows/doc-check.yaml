@@ -419,12 +419,9 @@ jobs:
           echo ""
 
           # Stream events from AgentAPI via SSH
-          # The AgentAPI sends Server-Sent Events (SSE) with:
-          #   - event: message_update (contains full terminal output including tool calls)
-          #   - event: status_change (status transitions)
-          #   - data: JSON payload
+          # Parse SSE events and display message content
           CURRENT_STATUS="running"
-          coder ssh "${TASK_NAME}" -- timeout 600 curl -sN http://localhost:3284/events 2>/dev/null | \
+          coder ssh "${TASK_NAME}" -- curl -sN http://localhost:3284/events 2>&1 | \
             while IFS= read -r line; do
               # Skip empty lines and SSE comments
               [[ -z "$line" || "$line" == :* ]] && continue
@@ -438,13 +435,11 @@ jobs:
 
               # Parse data payload
               if [[ "$line" == data:* ]]; then
-                DATA="${line#data:}"
-                DATA="${DATA# }"  # trim leading space
+                DATA="${line#data: }"
 
                 case "$EVENT_TYPE" in
                   message_update)
                     # The API returns: {"id":N,"role":"agent|user","message":"..."}
-                    # The message field contains formatted terminal output with tool calls
                     CONTENT=$(echo "$DATA" | jq -r '.message // empty' 2>/dev/null)
                     if [[ -n "$CONTENT" && "$CONTENT" != "null" ]]; then
                       echo "$CONTENT"
