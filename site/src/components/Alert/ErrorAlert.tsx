@@ -17,7 +17,7 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 	const shouldDisplayDetail = message !== detail;
 
 	return (
-		<Alert severity="error" {...alertProps}>
+		<Alert severity="error" prominent {...alertProps}>
 			{
 				// When the error is a Forbidden response we include a link for the user to
 				// go back to a known viewable page.
