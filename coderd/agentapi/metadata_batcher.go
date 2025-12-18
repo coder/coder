@@ -292,9 +292,11 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 		return
 	}
 
-	// Publish pubsub notifications for each agent.
-	// We publish one notification per agent to maintain compatibility with
-	// existing listeners.
+	// Publish pubsub notifications.
+	// We publish to both the per-agent channels (for backwards compatibility)
+	// and the global batch channel (for reduced NOTIFY load).
+	// TODO: Once all clients are updated to use the batch channel, we can
+	// remove the per-agent channel publishes.
 	for _, update := range b.buf {
 		payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
 			CollectedAt: update.collectedAt[0], // Use first collected timestamp
@@ -314,6 +316,30 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 				slog.F("agent_id", update.agentID),
 				slog.Error(err),
 			)
+		}
+	}
+
+	// Publish single batched notification with all updates.
+	// This is the primary notification mechanism going forward as it scales
+	// to O(1) NOTIFY calls per flush rather than O(N) where N = agent count.
+	batchUpdates := make([]WorkspaceAgentMetadataBatchUpdate, 0, len(b.buf))
+	for _, update := range b.buf {
+		batchUpdates = append(batchUpdates, WorkspaceAgentMetadataBatchUpdate{
+			AgentID:     update.agentID,
+			CollectedAt: update.collectedAt[0],
+			Keys:        update.keys,
+		})
+	}
+
+	batchPayload, err := json.Marshal(WorkspaceAgentMetadataBatchPayload{
+		Updates: batchUpdates,
+	})
+	if err != nil {
+		b.log.Error(ctx, "failed to marshal batched workspace agent metadata payload", slog.Error(err))
+	} else {
+		err = b.pubsub.Publish(WatchWorkspaceAgentMetadataBatchChannel(), batchPayload)
+		if err != nil {
+			b.log.Error(ctx, "failed to publish batched workspace agent metadata", slog.Error(err))
 		}
 	}
 
