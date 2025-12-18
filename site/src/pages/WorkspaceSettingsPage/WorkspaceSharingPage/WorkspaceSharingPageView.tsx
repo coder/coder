@@ -35,8 +35,8 @@ import {
 } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { getGroupSubtitle } from "modules/groups";
 import { type FC, useState } from "react";
-import { getGroupSubtitle } from "utils/groups";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,

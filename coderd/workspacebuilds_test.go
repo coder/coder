@@ -556,13 +556,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying since there is no complete message
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -603,13 +606,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Logger: &logger})
 		owner := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
@@ -694,13 +700,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -791,13 +800,16 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			// Echo will never applying
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -825,9 +837,9 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "first_resource",
 							Type: "example",
@@ -1032,7 +1044,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionApply: []*proto.Response{{
+		ProvisionGraph: []*proto.Response{{
 			Type: &proto.Response_Log{
 				Log: &proto.Log{
 					Level:  proto.LogLevel_INFO,
@@ -1040,8 +1052,8 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 				},
 			},
 		}, {
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "some",
 						Type: "example",
@@ -1208,9 +1220,9 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionApply: echo.ApplyComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Error:      "",
 					Resources:  nil,
 					Parameters: nil,
@@ -1488,10 +1500,18 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			ProvisionApply: []*proto.Response{{}},
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Error: "failed to plan",
+						},
+					},
+				},
+			},
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1642,9 +1662,9 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Presets: []*proto.Preset{
 							{
 								Name: "autodetected",

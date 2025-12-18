@@ -32,6 +32,8 @@ import {
 	type ApplyComplete,
 	AppSharingLevel,
 	type ExternalAuthProviderResource,
+	type GraphComplete,
+	type InitComplete,
 	type ParseComplete,
 	type PlanComplete,
 	type Resource,
@@ -540,12 +542,14 @@ type RecursivePartial<T> = {
 };
 
 interface EchoProvisionerResponses {
+	init?: RecursivePartial<Response>[];
 	// parse is for observing any Terraform variables
 	parse?: RecursivePartial<Response>[];
 	// plan occurs when the template is imported
 	plan?: RecursivePartial<Response>[];
 	// apply occurs when the workspace is built
 	apply?: RecursivePartial<Response>[];
+	graph?: RecursivePartial<Response>[];
 	// extraFiles allows the bundling of terraform files in echo provisioner tars
 	// in order to support dynamic parameters
 	extraFiles?: Map<string, string>;
@@ -560,6 +564,40 @@ const emptyPlan = new TextEncoder().encode("{}");
 const createTemplateVersionTar = async (
 	responses: EchoProvisionerResponses = {},
 ): Promise<Buffer> => {
+	if (responses.graph) {
+		if (!responses.apply) {
+			responses.apply = responses.graph.map((response) => {
+				if (response.log) {
+					return response;
+				}
+				return {
+					apply: {
+						error: response.graph?.error ?? "",
+					},
+				};
+			});
+		}
+		if (!responses.plan) {
+			responses.plan = responses.graph.map((response) => {
+				if (response.log) {
+					return response;
+				}
+				return {
+					plan: {
+						error: response.graph?.error ?? "",
+					},
+				};
+			});
+		}
+	}
+
+	if (!responses.init) {
+		responses.init = [
+			{
+				init: {},
+			},
+		];
+	}
 	if (!responses.parse) {
 		responses.parse = [
 			{
@@ -575,25 +613,18 @@ const createTemplateVersionTar = async (
 		];
 	}
 	if (!responses.plan) {
-		responses.plan = responses.apply.map((response) => {
-			if (response.log) {
-				return response;
-			}
-			return {
-				plan: {
-					error: response.apply?.error ?? "",
-					resources: response.apply?.resources ?? [],
-					parameters: response.apply?.parameters ?? [],
-					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
-					timings: response.apply?.timings ?? [],
-					presets: [],
-					resourceReplacements: [],
-					plan: emptyPlan,
-					moduleFiles: new Uint8Array(),
-					moduleFilesHash: new Uint8Array(),
-				},
-			};
-		});
+		responses.plan = [
+			{
+				plan: {},
+			},
+		];
+	}
+	if (!responses.graph) {
+		responses.graph = [
+			{
+				graph: {},
+			},
+		];
 	}
 
 	const tar = new TarWriter();
@@ -614,6 +645,33 @@ const createTemplateVersionTar = async (
 		} as ParseComplete;
 		tar.addFile(
 			`${index}.parse.protobuf`,
+			Response.encode(response as Response).finish(),
+		);
+	});
+	responses.init.forEach((response, index) => {
+		response.init = {
+			error: "",
+			timings: [],
+			modules: [],
+			moduleFiles: new Uint8Array(),
+			moduleFilesHash: new Uint8Array(),
+			...response.init,
+		} as InitComplete;
+		tar.addFile(
+			`${index}.init.protobuf`,
+			Response.encode(response as Response).finish(),
+		);
+	});
+	responses.plan.forEach((response, index) => {
+		response.plan = {
+			error: "",
+			timings: [],
+			plan: emptyPlan,
+			resourceReplacements: [],
+			...response.plan,
+		} as PlanComplete;
+		tar.addFile(
+			`${index}.plan.protobuf`,
 			Response.encode(response as Response).finish(),
 		);
 	});
@@ -701,40 +759,31 @@ const createTemplateVersionTar = async (
 		response.apply = {
 			error: "",
 			state: new Uint8Array(),
-			resources: [],
-			parameters: [],
-			externalAuthProviders: [],
 			timings: [],
-			aiTasks: [],
 			...response.apply,
 		} as ApplyComplete;
-		response.apply.resources = response.apply.resources?.map(fillResource);
 
 		tar.addFile(
 			`${index}.apply.protobuf`,
 			Response.encode(response as Response).finish(),
 		);
 	});
-	responses.plan.forEach((response, index) => {
-		response.plan = {
+	responses.graph.forEach((response, index) => {
+		response.graph = {
 			error: "",
 			resources: [],
 			parameters: [],
 			externalAuthProviders: [],
 			timings: [],
-			modules: [],
 			presets: [],
 			resourceReplacements: [],
-			plan: emptyPlan,
-			moduleFiles: new Uint8Array(),
-			moduleFilesHash: new Uint8Array(),
 			aiTasks: [],
-			...response.plan,
-		} as PlanComplete;
-		response.plan.resources = response.plan.resources?.map(fillResource);
+			...response.graph,
+		} as GraphComplete;
+		response.graph.resources = response.graph.resources?.map(fillResource);
 
 		tar.addFile(
-			`${index}.plan.protobuf`,
+			`${index}.graph.protobuf`,
 			Response.encode(response as Response).finish(),
 		);
 	});
@@ -889,22 +938,31 @@ ${options}}
 				parse: {},
 			},
 		],
-		plan: [
+		init: [
 			{
-				plan: {
-					parameters: richParameters,
-				},
+				init: {},
 			},
 		],
-		apply: [
+		plan: [
 			{
-				apply: {
+				plan: {},
+			},
+		],
+		graph: [
+			{
+				graph: {
+					parameters: richParameters,
 					resources: [
 						{
 							name: "example",
 						},
 					],
 				},
+			},
+		],
+		apply: [
+			{
+				apply: {},
 			},
 		],
 		extraFiles: new Map([["main.tf", tf]]),
@@ -915,21 +973,19 @@ export const echoResponsesWithExternalAuth = (
 	providers: ExternalAuthProviderResource[],
 ): EchoProvisionerResponses => {
 	return {
+		init: [
+			{
+				init: {},
+			},
+		],
 		parse: [
 			{
 				parse: {},
 			},
 		],
-		plan: [
+		graph: [
 			{
-				plan: {
-					externalAuthProviders: providers,
-				},
-			},
-		],
-		apply: [
-			{
-				apply: {
+				graph: {
 					externalAuthProviders: providers,
 					resources: [
 						{
@@ -937,6 +993,11 @@ export const echoResponsesWithExternalAuth = (
 						},
 					],
 				},
+			},
+		],
+		apply: [
+			{
+				apply: {},
 			},
 		],
 	};

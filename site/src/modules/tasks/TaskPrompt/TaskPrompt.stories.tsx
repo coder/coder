@@ -1,7 +1,7 @@
 import {
-	MockAIPromptPresets,
 	MockPresets,
 	MockTask,
+	MockTaskPresets,
 	MockTasks,
 	MockTemplate,
 	MockTemplateVersion,
@@ -72,11 +72,9 @@ export const WithPresets: Story = {
 	},
 };
 
-export const ReadOnlyPresetPrompt: Story = {
+export const WithAIPresets: Story = {
 	beforeEach: () => {
-		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(
-			MockAIPromptPresets,
-		);
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(MockTaskPresets);
 	},
 };
 

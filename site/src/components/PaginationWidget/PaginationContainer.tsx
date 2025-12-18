@@ -19,14 +19,7 @@ export const PaginationContainer: FC<PaginationProps> = ({
 	...delegatedProps
 }) => {
 	return (
-		<div
-			css={{
-				display: "flex",
-				flexFlow: "column nowrap",
-				rowGap: "16px",
-			}}
-			{...delegatedProps}
-		>
+		<div className="flex flex-col gap-y-4" {...delegatedProps}>
 			{children}
 
 			<PaginationAmount

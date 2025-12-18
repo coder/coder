@@ -1,8 +1,6 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
-import { AnthropicIcon } from "components/Icons/AnthropicIcon";
-import { OpenAIIcon } from "components/Icons/OpenAIIcon";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -15,56 +13,106 @@ import {
 	ArrowUpIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
-	CircleQuestionMarkIcon,
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { humanDuration } from "utils/time";
+import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
 };
 
 const customisedDateLocale: Intl.DateTimeFormatOptions = {
-	// Hide the year from the date
-	year: undefined,
+	second: "2-digit",
+	minute: "2-digit",
+	hour: "2-digit",
+	day: "numeric",
 	// Show the month as a short name
 	month: "short",
-	day: "numeric",
-	hour: "2-digit",
-	minute: "2-digit",
-	second: "2-digit",
-	hour12: true,
+	year: "numeric",
 };
 
-const RequestLogsRowProviderIcon = ({
-	provider,
-	...props
-}: {
-	provider: string;
-} & React.ComponentProps<"svg">) => {
-	const iconClassName = "size-icon-sm flex-shrink-0";
-	switch (provider) {
-		case "openai":
-			return (
-				<OpenAIIcon className={cn(iconClassName, props.className)} {...props} />
-			);
-		case "anthropic":
-			return (
-				<AnthropicIcon
-					className={cn(iconClassName, props.className)}
-					{...props}
-				/>
-			);
-		default:
-			return (
-				<CircleQuestionMarkIcon
-					className={cn(iconClassName, props.className)}
-					{...props}
-				/>
-			);
+type TokenUsageMetadataMerged =
+	| null
+	| Record<string, unknown>
+	| Array<Record<string, unknown>>;
+
+/**
+ * This function merges multiple objects with the same keys into a single object.
+ * It's super unconventional, but it's only a temporary workaround until we
+ * structure our metadata field for rendering in the UI.
+ * @param objects - The objects to merge.
+ * @returns The merged object.
+ */
+export function tokenUsageMetadataMerge(
+	...objects: Array<
+		AIBridgeInterception["token_usages"][number]["metadata"] | null
+	>
+): TokenUsageMetadataMerged {
+	const validObjects = objects.filter((obj) => obj !== null);
+
+	// Filter out empty objects
+	const nonEmptyObjects = validObjects.filter(
+		(obj) => Object.keys(obj).length > 0,
+	);
+	if (nonEmptyObjects.length === 0) {
+		return null;
 	}
-};
+
+	const allKeys = new Set(nonEmptyObjects.flatMap((obj) => Object.keys(obj)));
+	const commonKeys = Array.from(allKeys).filter((key) =>
+		nonEmptyObjects.every((obj) => key in obj),
+	);
+	if (commonKeys.length === 0) {
+		return nonEmptyObjects;
+	}
+
+	// Check for unresolvable conflicts: values that aren't all numeric or all
+	// the same.
+	for (const key of allKeys) {
+		const objectsWithKey = nonEmptyObjects.filter((obj) => key in obj);
+		if (objectsWithKey.length > 1) {
+			const values = objectsWithKey.map((obj) => obj[key]);
+			const allNumeric = values.every((v: unknown) => typeof v === "number");
+			const allSame = new Set(values).size === 1;
+			if (!allNumeric && !allSame) {
+				return nonEmptyObjects;
+			}
+		}
+	}
+
+	// Merge common keys: sum numeric values, preserve identical values, mark
+	// conflicts as null.
+	const result: Record<string, unknown> = {};
+	for (const key of commonKeys) {
+		const values = nonEmptyObjects.map((obj) => obj[key]);
+		const allNumeric = values.every((v: unknown) => typeof v === "number");
+		const allSame = new Set(values).size === 1;
+
+		if (allNumeric) {
+			result[key] = values.reduce((acc, v) => acc + (v as number), 0);
+		} else if (allSame) {
+			result[key] = values[0];
+		} else {
+			result[key] = null;
+		}
+	}
+
+	// Add non-common keys from the first object that has them.
+	for (const obj of nonEmptyObjects) {
+		for (const key of Object.keys(obj)) {
+			if (!commonKeys.includes(key) && !(key in result)) {
+				result[key] = obj[key];
+			}
+		}
+	}
+
+	// If any conflicts were marked, return original objects.
+	return Object.values(result).some((v: unknown) => v === null)
+		? nonEmptyObjects
+		: result;
+}
 
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
@@ -79,6 +127,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 		(acc, tokenUsage) => acc + tokenUsage.output_tokens,
 		0,
 	);
+
+	const tokenUsagesMetadata = tokenUsageMetadataMerge(
+		...interception.token_usages.map((tokenUsage) => tokenUsage.metadata),
+	);
+
 	const toolCalls = interception.tool_usages.length;
 	const duration =
 		interception.ended_at &&
@@ -93,6 +146,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 			<TableRow
 				className="select-none cursor-pointer"
 				onClick={() => setIsOpen(!isOpen)}
+				hover
 			>
 				<TableCell className="w-48 whitespace-nowrap">
 					<div
@@ -130,11 +184,13 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell className="min-w-0">
 					{/*
-						This looks scary, but essentially what we're doing is ensuring that the
-						prompt is truncated and won't escape its bounding container with an `absolute`.
+						This is ensuring that the prompt is truncated and won't escape its bounding
+						container with an `absolute`.
 
 						Alternatively we could use a `table-fixed` table, but that would break worse
-						on mobile with the `min-w-0`. This is a bit of a hack, but it works.
+						on mobile with the `min-w-0` column required.
+
+						This is a bit of a hack, but it works.
 					*/}
 					<div className="w-full h-4 min-w-48 relative">
 						<div className="absolute inset-0 leading-none overflow-hidden truncate">
@@ -177,10 +233,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="w-full min-w-0 overflow-hidden">
-									<Badge className="gap-0.5 w-full">
+									<Badge className="gap-1.5 w-full">
 										<div className="flex-shrink-0 flex items-center">
-											<RequestLogsRowProviderIcon
+											<AIBridgeProviderIcon
 												provider={interception.provider}
+												className="size-icon-xs"
 											/>
 										</div>
 										<span className="truncate min-w-0 w-full">
@@ -257,9 +314,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Model:</dt>
 								<dd data-chromatic="ignore">
-									<Badge className="gap-0.5">
+									<Badge className="gap-2">
 										<div className="flex-shrink-0 flex items-center">
-											<RequestLogsRowProviderIcon
+											<AIBridgeProviderIcon
 												provider={interception.provider}
 												className="size-icon-xs"
 											/>
@@ -357,6 +414,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 												</dl>
 											);
 										})}
+									</div>
+								</div>
+							)}
+
+							{tokenUsagesMetadata !== null && (
+								<div className="flex flex-col gap-2">
+									<div>Token Usage Metadata</div>
+									<div className="bg-surface-secondary rounded-md p-4">
+										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
 									</div>
 								</div>
 							)}
