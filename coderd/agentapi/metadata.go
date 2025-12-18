@@ -18,7 +18,6 @@ import (
 )
 
 type MetadataAPI struct {
-	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
 	Agent     *CachedAgentFields
 	Workspace *CachedWorkspaceFields
 	Database  database.Store

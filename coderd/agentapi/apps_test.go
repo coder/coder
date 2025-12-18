@@ -63,9 +63,6 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
@@ -102,9 +99,6 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
@@ -142,9 +136,6 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
@@ -179,9 +170,6 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app3}, nil)
 
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
@@ -209,9 +197,6 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app1, app2}, nil)
 
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
@@ -240,9 +225,6 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app1, app2}, nil)
 
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),

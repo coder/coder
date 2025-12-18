@@ -120,11 +120,8 @@ func TestConnectionLog(t *testing.T) {
 			api := &agentapi.ConnLogAPI{
 				ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
 				Database:         mDB,
-				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-					return agent, nil
-				},
-				Agent:     &agentAsCacheFields,
-				Workspace: &workspaceAsCacheFields,
+				Agent:            &agentAsCacheFields,
+				Workspace:        &workspaceAsCacheFields,
 			}
 			api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{

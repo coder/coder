@@ -13,7 +13,6 @@ import (
 )
 
 type AppsAPI struct {
-	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	Agent                    *CachedAgentFields
 	Database                 database.Store
 	Log                      slog.Logger

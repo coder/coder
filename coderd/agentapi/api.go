@@ -156,7 +156,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.StatsAPI = &StatsAPI{
-		AgentFn:                   api.agent,
 		Agent:                     &api.cachedAgentFields,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
@@ -177,7 +176,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.AppsAPI = &AppsAPI{
-		AgentFn:                  api.agent,
 		Agent:                    &api.cachedAgentFields,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
@@ -185,7 +183,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:   api.agent,
 		Agent:     &api.cachedAgentFields,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
@@ -208,7 +205,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.ConnLogAPI = &ConnLogAPI{
-		AgentFn:          api.agent,
 		Agent:            &api.cachedAgentFields,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,

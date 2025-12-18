@@ -18,7 +18,6 @@ import (
 )
 
 type ConnLogAPI struct {
-	AgentFn          func(context.Context) (database.WorkspaceAgent, error)
 	Agent            *CachedAgentFields
 	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
 	Workspace        *CachedWorkspaceFields

@@ -122,9 +122,6 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
@@ -233,9 +230,6 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
@@ -269,9 +263,6 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
@@ -353,9 +344,6 @@ func TestUpdateStats(t *testing.T) {
 		// ws.AutostartSchedule = workspace.AutostartSchedule
 
 		api := agentapi.StatsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &ws,
 			Database:  dbM,
@@ -466,9 +454,6 @@ func TestUpdateStats(t *testing.T) {
 		)
 		defer wut.Close()
 		api := agentapi.StatsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
@@ -604,9 +589,6 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,

@@ -90,9 +90,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		}).Return(nil)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
@@ -177,9 +174,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		}).Return(nil)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
@@ -248,9 +242,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		}).Return(nil)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentAsCacheFields,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
@@ -350,9 +341,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentCache,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
@@ -479,9 +467,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent: &agentCache,
 
 			Workspace: &agentapi.CachedWorkspaceFields{},
@@ -612,9 +597,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
 			Agent:     &agentCache,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
