@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -842,7 +843,22 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 			slog.F("workspace_id", prebuiltWorkspaceID.String()), slog.F("preset_id", presetID.String()))
 
 		provisionerJob, err = c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionStart, workspace, DeprovisionModeNormal)
-		return err
+		if err != nil {
+			// Check if this is a config error (non-transient) from wsbuilder.
+			// If so, create a failed build record so it counts toward the hard limit.
+			var buildErr wsbuilder.BuildError
+			if errors.As(err, &buildErr) && buildErr.Status != http.StatusInternalServerError {
+				// This is a config error (400-level). Create a failed build record
+				// so it counts toward the hard failure limit.
+				if failErr := c.createFailedBuildRecord(ctx, db, workspace, template, presetID, now, buildErr); failErr != nil {
+					c.logger.Warn(ctx, "failed to create failed build record for config error",
+						slog.Error(failErr),
+						slog.F("original_error", err.Error()))
+				}
+			}
+			return err
+		}
+		return nil
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  false,
@@ -853,6 +869,105 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 
 	// Publish provisioner job event to notify the acquirer that a new job was posted
 	c.publishProvisionerJob(ctx, provisionerJob, prebuiltWorkspaceID)
+
+	return nil
+}
+
+// createFailedBuildRecord creates a workspace build and provisioner job record marked as failed.
+// This allows config errors that fail at wsbuilder.Build() time to count toward the hard failure limit.
+// The hard limit query checks workspace_latest_builds.job_status, which is derived from the provisioner job.
+//
+// IMPORTANT: This function must be called within a database transaction.
+func (c *StoreReconciler) createFailedBuildRecord(
+	ctx context.Context,
+	db database.Store,
+	workspace database.Workspace,
+	template database.Template,
+	presetID uuid.UUID,
+	now time.Time,
+	buildErr wsbuilder.BuildError,
+) error {
+	// Get template version job to populate provisioner job fields
+	templateVersion, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID)
+	if err != nil {
+		return xerrors.Errorf("get template version: %w", err)
+	}
+
+	templateVersionJob, err := db.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		return xerrors.Errorf("get template version job: %w", err)
+	}
+
+	// Create a provisioner job marked as failed
+	provisionerJobID := uuid.New()
+	_, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+		ID:             provisionerJobID,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		OrganizationID: template.OrganizationID,
+		Provisioner:    template.Provisioner,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StorageMethod:  templateVersionJob.StorageMethod,
+		FileID:         templateVersionJob.FileID,
+		Input:          []byte("{}"), // Empty input since we never got to build
+		Tags:           database.StringMap{},
+		TraceMetadata:  pqtype.NullRawMessage{Valid: false},
+		LogsOverflowed: false,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert provisioner job: %w", err)
+	}
+
+	// Mark the job as failed immediately
+	// nolint: gocritic // At this moment, we are pretending to be provisionerd.
+	err = db.UpdateProvisionerJobWithCompleteWithStartedAtByID(dbauthz.AsProvisionerd(ctx), database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
+		ID:          provisionerJobID,
+		UpdatedAt:   now,
+		CompletedAt: sql.NullTime{Valid: true, Time: now},
+		StartedAt:   sql.NullTime{Valid: true, Time: now},
+		Error:       sql.NullString{Valid: true, String: buildErr.Message},
+		ErrorCode:   sql.NullString{Valid: false},
+	})
+	if err != nil {
+		return xerrors.Errorf("mark provisioner job as failed: %w", err)
+	}
+
+	// Create workspace build linking to the failed job
+	workspaceBuildID := uuid.New()
+	buildNumber := int32(1) // This will be the first build for this workspace
+	if latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID); err == nil {
+		buildNumber = latestBuild.BuildNumber + 1
+	}
+
+	err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		ID:                workspaceBuildID,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: template.ActiveVersionID,
+		BuildNumber:       buildNumber,
+		ProvisionerState:  []byte("[]"), // Empty state since we never provisioned
+		InitiatorID:       database.PrebuildsSystemUserID,
+		Transition:        database.WorkspaceTransitionStart,
+		JobID:             provisionerJobID,
+		Reason:            database.BuildReasonInitiator,
+		Deadline:          time.Time{},
+		MaxDeadline:       time.Time{},
+		TemplateVersionPresetID: uuid.NullUUID{
+			UUID:  presetID,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert workspace build: %w", err)
+	}
+
+	c.logger.Info(ctx, "created failed build record for config error",
+		slog.F("workspace_id", workspace.ID.String()),
+		slog.F("build_id", workspaceBuildID.String()),
+		slog.F("preset_id", presetID.String()),
+		slog.F("error", buildErr.Message))
 
 	return nil
 }
