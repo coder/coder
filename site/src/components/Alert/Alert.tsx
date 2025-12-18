@@ -1,4 +1,4 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import {
 	CircleAlertIcon,
@@ -20,29 +20,53 @@ const alertVariants = cva(
 	"relative w-full rounded-lg border border-solid p-4 text-left",
 	{
 		variants: {
-			variant: {
-				default: "border-border-default bg-surface-secondary",
-				info: "border-border-pending bg-surface-secondary",
-				success: "border-border-green bg-surface-green",
-				warning: "border-border-warning bg-surface-orange",
-				error: "border-border-destructive bg-surface-red",
+			severity: {
+				info: "",
+				success: "",
+				warning: "",
+				error: "",
+			},
+			prominent: {
+				true: "",
+				false: "",
 			},
 		},
+		compoundVariants: [
+			// Non-prominent: all severities use neutral border and background
+			{
+				prominent: false,
+				className: "border-border-default bg-surface-secondary",
+			},
+			// Prominent: colored border and tinted background based on severity
+			{
+				severity: "info",
+				prominent: true,
+				className: "border-border-pending bg-surface-secondary",
+			},
+			{
+				severity: "success",
+				prominent: true,
+				className: "border-border-green bg-surface-green",
+			},
+			{
+				severity: "warning",
+				prominent: true,
+				className: "border-border-warning bg-surface-orange",
+			},
+			{
+				severity: "error",
+				prominent: true,
+				className: "border-border-destructive bg-surface-red",
+			},
+		],
 		defaultVariants: {
-			variant: "default",
+			severity: "info",
+			prominent: false,
 		},
 	},
 );
 
-const severityToVariant = {
-	info: "info",
-	success: "success",
-	warning: "warning",
-	error: "error",
-} as const;
-
-const variantIcons = {
-	default: { icon: InfoIcon, className: "text-content-secondary" },
+const severityIcons = {
 	info: { icon: InfoIcon, className: "text-highlight-sky" },
 	success: { icon: CircleCheckIcon, className: "text-content-success" },
 	warning: { icon: TriangleAlertIcon, className: "text-content-warning" },
@@ -56,18 +80,19 @@ export type AlertProps = {
 	dismissible?: boolean;
 	onDismiss?: () => void;
 	severity?: AlertColor;
+	prominent?: boolean;
 	children?: ReactNode;
 	className?: string;
-} & VariantProps<typeof alertVariants>;
+};
 
 export const Alert: FC<AlertProps> = ({
 	children,
 	actions,
 	dismissible,
 	severity = "info",
+	prominent = false,
 	onDismiss,
 	className,
-	variant,
 	...props
 }) => {
 	const [open, setOpen] = useState(true);
@@ -76,17 +101,12 @@ export const Alert: FC<AlertProps> = ({
 		return null;
 	}
 
-	// Use severity to determine variant if variant is not explicitly provided
-	const finalVariant =
-		variant ||
-		(severity in severityToVariant ? severityToVariant[severity] : "default");
-
-	const { icon: Icon, className: iconClassName } = variantIcons[finalVariant];
+	const { icon: Icon, className: iconClassName } = severityIcons[severity];
 
 	return (
 		<div
 			role="alert"
-			className={cn(alertVariants({ variant: finalVariant }), className)}
+			className={cn(alertVariants({ severity, prominent }), className)}
 			{...props}
 		>
 			<div className="flex items-start justify-between gap-4 text-sm">

@@ -199,7 +199,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{!workspace.health.healthy && (
-							<Alert severity="warning">
+							<Alert severity="warning" prominent>
 								<AlertTitle>Workspace is unhealthy</AlertTitle>
 								<AlertDetail>
 									<p>
