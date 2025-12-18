@@ -99,8 +99,8 @@ export const MembersError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const combobox = await canvas.findByRole("combobox");
-		await userEvent.click(combobox);
+		const autocomplete = await canvas.findByTestId("user-autocomplete");
+		await userEvent.click(autocomplete);
 	},
 };
 
@@ -117,8 +117,8 @@ export const NoMembers: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const combobox = await canvas.findByRole("combobox");
-		await userEvent.click(combobox);
+		const autocomplete = await canvas.findByTestId("user-autocomplete");
+		await userEvent.click(autocomplete);
 	},
 };
 
@@ -132,6 +132,7 @@ export const FiltersByMembers: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+		const autocomplete = await canvas.findByTestId("user-autocomplete");
+		await userEvent.click(autocomplete);
 	},
 };
