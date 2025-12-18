@@ -340,7 +340,7 @@ jobs:
           MAX_WAIT=300  # 5 minutes max wait for workspace
           WAITED=0
           while [[ $WAITED -lt $MAX_WAIT ]]; do
-            STATUS=$(coder exp task status "${TASK_NAME}" --output json 2>/dev/null || echo '{}')
+            STATUS=$(coder task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
             WORKSPACE_STATUS=$(echo "$STATUS" | jq -r '.workspace_status // "unknown"')
             AGENT_LIFECYCLE=$(echo "$STATUS" | jq -r '.workspace_agent_lifecycle // "unknown"')
 
@@ -454,7 +454,7 @@ jobs:
 
           if [[ -n "${TASK_NAME}" ]]; then
             echo "Deleting task: ${TASK_NAME}"
-            coder exp task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
+            coder task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
             echo "Cleanup complete"
           else
             echo "No task name found, skipping cleanup"
