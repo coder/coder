@@ -9,11 +9,11 @@ import {
 	HelpTooltip,
 	HelpTooltipAction,
 	HelpTooltipContent,
-	HelpTooltipTrigger,
 	HelpTooltipIconTrigger,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
+	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";

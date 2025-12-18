@@ -20,6 +20,7 @@ import {
 } from "testHelpers/entities";
 import {
 	withAuthProvider,
+	withDashboardProvider,
 	withGlobalSnackbar,
 	withProxyProvider,
 	withWebSocket,
@@ -30,7 +31,6 @@ import type { Task, Workspace, WorkspaceApp } from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage from "./TaskPage";
-import { withDashboardProvider } from "testHelpers/storybook";
 
 const MockClaudeCodeApp: WorkspaceApp = {
 	...MockWorkspaceApp,
