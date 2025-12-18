@@ -106,11 +106,6 @@ func getRoutePattern(r *http.Request) string {
 		return ""
 	}
 
-	if pattern := rctx.RoutePattern(); pattern != "" {
-		// Pattern is already available
-		return pattern
-	}
-
 	routePath := r.URL.Path
 	if r.URL.RawPath != "" {
 		routePath = r.URL.RawPath

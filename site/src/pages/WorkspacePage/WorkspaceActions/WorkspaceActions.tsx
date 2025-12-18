@@ -22,6 +22,7 @@ import {
 } from "./Buttons";
 import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
+import { ShareButton } from "./ShareButton";
 
 interface WorkspaceActionsProps {
 	workspace: Workspace;
@@ -186,6 +187,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				workspaceID={workspace.id}
 				isFavorite={workspace.favorite}
 				onToggle={handleToggleFavorite}
+			/>
+
+			<ShareButton
+				workspace={workspace}
+				canUpdatePermissions={permissions.updateWorkspace}
 			/>
 
 			<WorkspaceMoreActions workspace={workspace} disabled={!canAcceptJobs} />
