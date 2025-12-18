@@ -130,7 +130,10 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	// These fields never change during an agent connection lifetime.
 	// Unlike workspaces, agents don't need prebuild checking because agent ID
 	// and Name are immutable - they never change regardless of prebuild status.
-	api.cachedAgentFields.UpdateValues(agent.ID, agent.Name)
+	api.cachedAgentFields = CachedAgentFields{
+		ID:   agent.ID,
+		Name: agent.Name,
+	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,

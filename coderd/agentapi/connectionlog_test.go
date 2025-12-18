@@ -39,11 +39,13 @@ func TestConnectionLog(t *testing.T) {
 			ID:   uuid.New(),
 			Name: "test-agent",
 		}
-		agentAsCacheFields     = agentapi.CachedAgentFields{}
+		agentAsCacheFields = agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
+		}
 		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
 	)
 
-	agentAsCacheFields.UpdateValues(agent.ID, agent.Name)
 	workspaceAsCacheFields.UpdateValues(workspace)
 
 	tests := []struct {

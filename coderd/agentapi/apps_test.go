@@ -24,8 +24,11 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			ID:   uuid.New(),
 			Name: "test-agent",
 		}
-		agentAsCacheFields = agentapi.CachedAgentFields{}
-		app1               = database.WorkspaceApp{
+		agentAsCacheFields = agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
+		}
+		app1 = database.WorkspaceApp{
 			ID:             uuid.New(),
 			AgentID:        agent.ID,
 			Slug:           "code-server-1",
@@ -44,8 +47,6 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			OpenIn:         database.WorkspaceAppOpenInSlimWindow,
 		}
 	)
-
-	agentAsCacheFields.UpdateValues(agent.ID, agent.Name)
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()

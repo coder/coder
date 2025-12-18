@@ -19,10 +19,3 @@ type CachedAgentFields struct {
 	ID   uuid.UUID
 	Name string
 }
-
-// UpdateValues sets the cached agent fields. This should only be called once
-// at agent connection initialization.
-func (caf *CachedAgentFields) UpdateValues(id uuid.UUID, name string) {
-	caf.ID = id
-	caf.Name = name
-}

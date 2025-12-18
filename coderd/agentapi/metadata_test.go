@@ -47,8 +47,10 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		ID:   uuid.New(),
 		Name: "test-agent",
 	}
-	agentAsCacheFields := agentapi.CachedAgentFields{}
-	agentAsCacheFields.UpdateValues(agent.ID, agent.Name)
+	agentAsCacheFields := agentapi.CachedAgentFields{
+		ID:   agent.ID,
+		Name: agent.Name,
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -303,8 +305,10 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			Name: "test-agent",
 			// In a real scenario, this agent would belong to a resource in the workspace above
 		}
-		agentCache := agentapi.CachedAgentFields{}
-		agentCache.UpdateValues(agent.ID, agent.Name)
+		agentCache := agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
+		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
 			Metadata: []*agentproto.Metadata{
@@ -425,8 +429,10 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			ID:   agentID,
 			Name: "test-agent",
 		}
-		agentCache := agentapi.CachedAgentFields{}
-		agentCache.UpdateValues(agent.ID, agent.Name)
+		agentCache := agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
+		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
 			Metadata: []*agentproto.Metadata{
@@ -555,8 +561,10 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			ID:   agentID,
 			Name: "test-agent",
 		}
-		agentCache := agentapi.CachedAgentFields{}
-		agentCache.UpdateValues(agent.ID, agent.Name)
+		agentCache := agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
+		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
 			Metadata: []*agentproto.Metadata{
@@ -679,8 +687,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			ID:   agentID,
 			Name: "test-agent",
 		}
-		agentCache := agentapi.CachedAgentFields{}
-		agentCache.UpdateValues(agent.ID, agent.Name)
 
 		// Initial workspace - has Monday-Friday 9am autostart
 		initialWorkspace := database.Workspace{

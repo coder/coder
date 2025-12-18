@@ -53,7 +53,10 @@ func TestUpdateStats(t *testing.T) {
 			Name: "abc",
 		}
 		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
-		agentAsCacheFields     = agentapi.CachedAgentFields{}
+		agentAsCacheFields     = agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
+		}
 	)
 
 	workspaceAsCacheFields.UpdateValues(database.Workspace{
@@ -65,8 +68,6 @@ func TestUpdateStats(t *testing.T) {
 		TemplateName:      workspace.TemplateName,
 		AutostartSchedule: workspace.AutostartSchedule,
 	})
-
-	agentAsCacheFields.UpdateValues(agent.ID, agent.Name)
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
