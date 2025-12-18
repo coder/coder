@@ -137,12 +137,12 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 	buildTime float64,
 ) {
 	m.logger.Debug(ctx, "update workspace timings metrics",
-		"organizationName", organizationName,
-		"templateName", templateName,
-		"presetName", presetName,
-		"isPrebuild", flags.IsPrebuild,
-		"isClaim", flags.IsClaim,
-		"isWorkspaceFirstBuild", flags.IsFirstBuild)
+		slog.F("organizationName", organizationName),
+		slog.F("templateName", templateName),
+		slog.F("presetName", presetName),
+		slog.F("isPrebuild", flags.IsPrebuild),
+		slog.F("isClaim", flags.IsClaim),
+		slog.F("isWorkspaceFirstBuild", flags.IsFirstBuild))
 
 	workspaceTimingType := getWorkspaceTimingType(flags)
 	switch workspaceTimingType {

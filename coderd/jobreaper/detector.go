@@ -261,8 +261,8 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 
 		log.Warn(
 			ctx, "forcefully terminating provisioner job",
-			"type", jobToReap.Type,
-			"threshold", jobToReap.Threshold,
+			slog.F("type", jobToReap.Type),
+			slog.F("threshold", jobToReap.Threshold),
 		)
 
 		// First, get the latest logs from the build so we can make sure

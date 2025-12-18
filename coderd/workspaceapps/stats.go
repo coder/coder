@@ -169,7 +169,7 @@ func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
 	for g, group := range sc.groupedStats {
 		if len(group) == 0 {
 			// Safety check, this should not happen.
-			sc.opts.Logger.Error(sc.ctx, "empty stats group", "group", g)
+			sc.opts.Logger.Error(sc.ctx, "empty stats group", slog.F("group", g))
 			delete(sc.groupedStats, g)
 			continue
 		}
@@ -244,7 +244,7 @@ func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 	sc.opts.Logger.Debug(ctx, "flushing workspace app stats")
 	defer func() {
 		if err != nil {
-			sc.opts.Logger.Error(ctx, "failed to flush workspace app stats", "error", err)
+			sc.opts.Logger.Error(ctx, "failed to flush workspace app stats", slog.Error(err))
 		} else {
 			sc.opts.Logger.Debug(ctx, "flushed workspace app stats")
 		}

@@ -255,7 +255,7 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 	}
 
 	// Copy the request body so we can log it.
-	var reqLogFields []any
+	var reqLogFields []slog.Field
 	c.mu.RLock()
 	logBodies := c.logBodies
 	c.mu.RUnlock()
@@ -329,7 +329,7 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 	span.SetStatus(httpconv.ClientStatus(resp.StatusCode))
 
 	// Copy the response body so we can log it if it's a loggable mime type.
-	var respLogFields []any
+	var respLogFields []slog.Field
 	if resp.Body != nil && logBodies {
 		mimeType := parseMimeType(resp.Header.Get("Content-Type"))
 		if _, ok := loggableMimeTypes[mimeType]; ok {
