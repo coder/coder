@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
@@ -121,8 +122,6 @@ func ConvertDBPermissions(dbPerms []database.CustomRolePermission) []rbac.Permis
 
 // ConvertPermissionsToDB converts RBAC permissions to the database
 // format.
-//
-// TODO(geokat): does it belong in this package?
 func ConvertPermissionsToDB(perms []rbac.Permission) []database.CustomRolePermission {
 	dbPerms := make([]database.CustomRolePermission, 0, len(perms))
 	for _, perm := range perms {
@@ -160,4 +159,111 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	}
 
 	return role, nil
+}
+
+// ReconcileOrgMemberRoles ensures all orgs have an org-member system
+// role stored in the DB with permissions reflecting current RBAC
+// resources and the org's workspace_sharing_disabled setting.
+//
+//  1. Create org-member system roles for orgs that lack one
+//  2. Update permissions when new RBAC resources are added to the codebase
+//  3. Ensure permissions match each org's workspace sharing setting
+//
+// Uses PostgreSQL advisory lock (LockIDReconcileOrgMemberRoles) to
+// safely handle multi-instance deployments.
+//
+// Uses set-based comparison to avoid unnecessary database writes when
+// permissions haven't changed.
+func ReconcileOrgMemberRoles(ctx context.Context, logger slog.Logger, db database.Store) error {
+	return db.InTx(func(tx database.Store) error {
+		// Acquire advisory lock to prevent concurrent updates from
+		// multiple coderd instances. Other instances will block here
+		// until we release the lock (when this transaction commits).
+		err := tx.AcquireLock(ctx, database.LockIDReconcileOrgMemberRoles)
+		if err != nil {
+			return xerrors.Errorf("acquire reconcile org-member roles lock: %w", err)
+		}
+
+		orgs, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{})
+		if err != nil {
+			return xerrors.Errorf("fetch organizations: %w", err)
+		}
+
+		customRoles, err := tx.CustomRoles(ctx, database.CustomRolesParams{
+			IncludeSystemRoles: true,
+		})
+		if err != nil {
+			return xerrors.Errorf("fetch custom roles: %w", err)
+		}
+
+		// Find org-member roles and index by organization ID for quick lookup.
+		rolesByOrg := make(map[uuid.UUID]database.CustomRole)
+		for _, role := range customRoles {
+			if role.IsSystem && role.Name == rbac.RoleOrgMember() && role.OrganizationID.Valid {
+				rolesByOrg[role.OrganizationID.UUID] = role
+			}
+		}
+
+		for _, org := range orgs {
+			role, exists := rolesByOrg[org.ID]
+			if !exists {
+				if err := CreateOrgMemberRole(ctx, tx, org); err != nil {
+					return xerrors.Errorf("create org-member role for organization %s: %w", org.ID, err)
+				}
+				// Nothing more to do; the new role's perms are up-to-date.
+				continue
+			}
+
+			// Generate expected perms based on org's workspace sharing setting.
+			expectedOrgPerms, expectedMemberPerms := rbac.OrgMemberPermissions(org.WorkspaceSharingDisabled)
+
+			storedOrgPerms := ConvertDBPermissions(role.OrgPermissions)
+			storedMemberPerms := ConvertDBPermissions(role.MemberPermissions)
+
+			// Compare using set-based comparison (order doesn't matter).
+			orgPermsMatch := rbac.PermissionsEqual(expectedOrgPerms, storedOrgPerms)
+			memberPermsMatch := rbac.PermissionsEqual(expectedMemberPerms, storedMemberPerms)
+
+			if !orgPermsMatch || !memberPermsMatch {
+				_, err = tx.UpdateCustomRole(ctx, database.UpdateCustomRoleParams{
+					Name:              role.Name,
+					OrganizationID:    role.OrganizationID,
+					DisplayName:       role.DisplayName,
+					SitePermissions:   role.SitePermissions,
+					OrgPermissions:    ConvertPermissionsToDB(expectedOrgPerms),
+					UserPermissions:   role.UserPermissions,
+					MemberPermissions: ConvertPermissionsToDB(expectedMemberPerms),
+				})
+				if err != nil {
+					return xerrors.Errorf("update org-member role for organization %s: %w", org.ID, err)
+				}
+			}
+		}
+
+		return nil
+	}, nil)
+}
+
+// CreateOrgMemberRole creates the org-member system role for an organization.
+// The role can be missing in two cases:
+//   - We're creating a new organization, or
+//   - We're deploying to a site that used the old built-in org-member role
+func CreateOrgMemberRole(ctx context.Context, tx database.Store, org database.Organization) error {
+	orgPerms, memberPerms := rbac.OrgMemberPermissions(org.WorkspaceSharingDisabled)
+
+	_, err := tx.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:              rbac.RoleOrgMember(),
+		DisplayName:       "",
+		OrganizationID:    uuid.NullUUID{UUID: org.ID, Valid: true},
+		SitePermissions:   database.CustomRolePermissions{},
+		OrgPermissions:    ConvertPermissionsToDB(orgPerms),
+		UserPermissions:   database.CustomRolePermissions{},
+		MemberPermissions: ConvertPermissionsToDB(memberPerms),
+		IsSystem:          true,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert org-member role: %w", err)
+	}
+
+	return nil
 }
