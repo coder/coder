@@ -59,7 +59,8 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 
 	return (
 		<Pill css={styles.permissionPill}>
-			<b>{resource}</b>: {actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
+			<b>{resource}</b>:{" "}
+			{actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
 		</Pill>
 	);
 };
