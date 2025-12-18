@@ -128,6 +128,8 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 
 	// Initialize agent cache with static fields.
 	// These fields never change during an agent connection lifetime.
+	// Unlike workspaces, agents don't need prebuild checking because agent ID
+	// and Name are immutable - they never change regardless of prebuild status.
 	api.cachedAgentFields = &CachedAgentFields{}
 	api.cachedAgentFields.UpdateValues(agent.ID, agent.Name)
 
@@ -332,11 +334,17 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	a.cachedWorkspaceFields.Clear()
 }
 
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agentCache *CachedAgentFields, kind wspubsub.WorkspaceEventKind) error {
+	// Get agent ID from cache if available, otherwise nil
+	var agentID *uuid.UUID
+	if id, ok := agentCache.AsAgentID(); ok {
+		agentID = &id
+	}
+
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        kind,
 		WorkspaceID: a.opts.WorkspaceID,
-		AgentID:     &agent.ID,
+		AgentID:     agentID,
 	})
 	return nil
 }

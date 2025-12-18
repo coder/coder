@@ -44,9 +44,23 @@ func (caf *CachedAgentFields) Name() string {
 	return caf.name
 }
 
-// IsPopulated returns true if the cache has been initialized with values.
-func (caf *CachedAgentFields) IsPopulated() bool {
+// AsAgentID returns the agent ID and true if the cache is populated, or uuid.Nil and false if empty.
+// This follows the same pattern as CachedWorkspaceFields.AsWorkspaceIdentity().
+func (caf *CachedAgentFields) AsAgentID() (uuid.UUID, bool) {
 	caf.lock.RLock()
 	defer caf.lock.RUnlock()
-	return caf.id != uuid.Nil
+	if caf.id == uuid.Nil {
+		return uuid.Nil, false
+	}
+	return caf.id, true
+}
+
+// AsAgentFields returns both ID and Name, along with a boolean indicating if the cache is populated.
+func (caf *CachedAgentFields) AsAgentFields() (id uuid.UUID, name string, ok bool) {
+	caf.lock.RLock()
+	defer caf.lock.RUnlock()
+	if caf.id == uuid.Nil {
+		return uuid.Nil, "", false
+	}
+	return caf.id, caf.name, true
 }

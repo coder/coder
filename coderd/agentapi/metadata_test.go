@@ -482,7 +482,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Agent:     &agentCache,
+			Agent: &agentCache,
 
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),

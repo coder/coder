@@ -17,7 +17,7 @@ type AppsAPI struct {
 	Agent                    *CachedAgentFields
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
+	PublishWorkspaceUpdateFn func(context.Context, *CachedAgentFields, wspubsub.WorkspaceEventKind) error
 }
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
@@ -104,12 +104,8 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
-		// Create minimal agent record with cached ID for publishing.
-		// PublishWorkspaceUpdateFn only needs ID from the agent.
-		minimalAgent := database.WorkspaceAgent{
-			ID: agentID,
-		}
-		err = a.PublishWorkspaceUpdateFn(ctx, &minimalAgent, wspubsub.WorkspaceEventKindAppHealthUpdate)
+		// Pass the cached agent fields directly instead of creating a minimal agent.
+		err = a.PublishWorkspaceUpdateFn(ctx, a.Agent, wspubsub.WorkspaceEventKindAppHealthUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
