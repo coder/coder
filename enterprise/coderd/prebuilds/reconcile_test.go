@@ -3,6 +3,7 @@ package prebuilds_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -3054,4 +3056,254 @@ func TestIncrementalBackoffOnCreationFailure(t *testing.T) {
 	require.True(t, shouldBackoff, "should be in backoff after failure following success")
 	expectedBackoff = clock.Now().Add(backoffInterval)
 	require.Equal(t, expectedBackoff, backoffUntil, "backoff should reset to 1x interval after success")
+}
+
+func TestHardFailureLimitTracking(t *testing.T) {
+	// This test verifies that failed prebuild attempts are correctly tracked
+	// in the database and counted by GetPresetsAtFailureLimit.
+	// Similar to TestIncrementalBackoffOnCreationFailure, this test manually
+	// creates the database state rather than running the full reconciliation.
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	clock := quartz.NewMock(t)
+	db, ps := dbtestutil.NewDB(t)
+
+	// Setup template with preset
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, user.ID, template.ID)
+	preset := setupTestDBPreset(t, db, templateVersionID, 3, "test-preset")
+
+	// Get the template version for provisioner job setup
+	templateVersion, err := db.GetTemplateVersionByID(ctx, templateVersionID)
+	require.NoError(t, err)
+	templateVersionJob, err := db.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	require.NoError(t, err)
+
+	// Helper to create a failed prebuild workspace build
+	createFailedPrebuild := func(buildNum int) {
+		// Create workspace for this prebuild
+		workspace := dbgen.Workspace(t, db, database.Workspace{
+			TemplateID:     template.ID,
+			OrganizationID: org.ID,
+			OwnerID:        database.PrebuildsSystemUserID,
+			Name:           fmt.Sprintf("prebuild-%d-%d", preset.ID, buildNum),
+		})
+
+		// Create failed provisioner job
+		now := clock.Now()
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             uuid.New(),
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			InitiatorID:    database.PrebuildsSystemUserID,
+			OrganizationID: org.ID,
+			Provisioner:    template.Provisioner,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod:  templateVersionJob.StorageMethod,
+			FileID:         templateVersionJob.FileID,
+			Input:          []byte("{}"),
+			Tags:           database.StringMap{},
+		})
+		require.NoError(t, err)
+
+		// Mark job as failed - this sets job_status to 'failed' via generated column
+		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:          job.ID,
+			UpdatedAt:   now,
+			CompletedAt: sql.NullTime{Valid: true, Time: now},
+			Error:       sql.NullString{Valid: true, String: fmt.Sprintf("config error: missing required param (build %d)", buildNum)},
+		})
+		require.NoError(t, err)
+
+		// Create workspace build linking to failed job
+		workspaceBuildID := uuid.New()
+		err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+			ID:                workspaceBuildID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersionID,
+			BuildNumber:       int32(buildNum),
+			ProvisionerState:  []byte("[]"),
+			InitiatorID:       database.PrebuildsSystemUserID,
+			Transition:        database.WorkspaceTransitionStart,
+			JobID:             job.ID,
+			Reason:            database.BuildReasonInitiator,
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  preset.ID,
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Verify the job has failed status
+		verifyJob, err := db.GetProvisionerJobByID(ctx, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ProvisionerJobStatusFailed, verifyJob.JobStatus, "job_status should be failed")
+	}
+
+	// Test 1: Create one failed build, should NOT hit hard limit
+	createFailedPrebuild(1)
+
+	presetsAtLimit, err := db.GetPresetsAtFailureLimit(ctx, 3)
+	require.NoError(t, err)
+	require.Empty(t, presetsAtLimit, "preset should not hit hard limit after 1 failure (limit is 3)")
+
+	// Test 2: Create second failed build, still should NOT hit limit
+	createFailedPrebuild(2)
+
+	presetsAtLimit, err = db.GetPresetsAtFailureLimit(ctx, 3)
+	require.NoError(t, err)
+	require.Empty(t, presetsAtLimit, "preset should not hit hard limit after 2 failures (limit is 3)")
+
+	// Test 3: Create third failed build, should NOW hit hard limit
+	createFailedPrebuild(3)
+
+	presetsAtLimit, err = db.GetPresetsAtFailureLimit(ctx, 3)
+	require.NoError(t, err)
+	require.Len(t, presetsAtLimit, 1, "preset should hit hard limit after 3 consecutive failures")
+	require.Equal(t, preset.ID, presetsAtLimit[0].PresetID, "correct preset should be at failure limit")
+
+	// Test 4: Verify lower limit also catches it
+	presetsAtLimit, err = db.GetPresetsAtFailureLimit(ctx, 2)
+	require.NoError(t, err)
+	require.Len(t, presetsAtLimit, 1, "preset should also hit limit=2 with 3 failures")
+
+	// This test validates that our database schema correctly tracks failed
+	// builds and the GetPresetsAtFailureLimit query accurately identifies
+	// presets that have hit the failure threshold.
+}
+
+func TestConfigErrorCreatesFailedBuildRecord(t *testing.T) {
+	// This test verifies that when createPrebuiltWorkspace encounters a config error
+	// (HTTP 400-level error from wsbuilder.Build), it creates a failed build record
+	// in the database so the error counts toward the hard failure limit.
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx = dbauthz.AsPrebuildsOrchestrator(ctx)
+	clock := quartz.NewMock(t)
+	db, ps := dbtestutil.NewDB(t)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval:        serpent.Duration(testutil.WaitLong),
+		ReconciliationBackoffInterval: serpent.Duration(1 * time.Minute),
+	}
+	logger := slogtest.Make(t, nil)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+
+	// Setup template with a preset that has required mutable parameters.
+	// This will cause wsbuilder.Build to fail with a BadRequest error when
+	// the preset doesn't provide values for required mutable parameters.
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+
+	// Create a template version with a required mutable parameter
+	templateVersionJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		CreatedAt:      clock.Now().Add(muchEarlier),
+		CompletedAt:    sql.NullTime{Time: clock.Now().Add(earlier), Valid: true},
+		OrganizationID: org.ID,
+		InitiatorID:    user.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          templateVersionJob.ID,
+		CreatedAt:      clock.Now().Add(muchEarlier),
+	})
+	require.NoError(t, db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+		ID:              template.ID,
+		ActiveVersionID: templateVersion.ID,
+	}))
+
+	// Add a required mutable parameter - this will cause validation to fail
+	// when the preset doesn't provide a value
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: templateVersion.ID,
+		Name:              "required_param",
+		Type:              "string",
+		Required:          true,
+		Mutable:           true,
+		DefaultValue:      "",
+	})
+
+	// Create preset without providing the required parameter
+	preset := setupTestDBPreset(t, db, templateVersion.ID, 1, "test-preset")
+
+	// Get initial workspace count
+	workspacesBefore, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	initialWorkspaceCount := len(workspacesBefore)
+
+	// Run reconciliation - this should attempt to create a prebuild, fail with config error,
+	// and create a failed build record
+	_, err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err, "reconciliation should complete even if prebuild creation fails")
+
+	// Verify a workspace was created (even though build failed)
+	workspacesAfter, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, initialWorkspaceCount+1, len(workspacesAfter), "should have created one workspace")
+
+	// Find the new workspace
+	var newWorkspaceID uuid.UUID
+	for _, ws := range workspacesAfter {
+		found := false
+		for _, oldWs := range workspacesBefore {
+			if ws.ID == oldWs.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			newWorkspaceID = ws.ID
+			break
+		}
+	}
+	require.NotEqual(t, uuid.Nil, newWorkspaceID, "should have found new workspace")
+
+	// Verify a failed build record was created
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, newWorkspaceID)
+	require.NoError(t, err)
+	require.Equal(t, database.WorkspaceTransitionStart, build.Transition, "build should be start transition")
+	require.Equal(t, preset.ID, build.TemplateVersionPresetID.UUID, "build should reference preset")
+
+	// Verify the provisioner job exists and is marked as failed
+	job, err := db.GetProvisionerJobByID(ctx, build.JobID)
+	require.NoError(t, err)
+	require.True(t, job.CompletedAt.Valid, "job should be completed")
+	require.True(t, job.Error.Valid, "job should have error set")
+	require.NotEmpty(t, job.Error.String, "job error message should not be empty")
+	require.Contains(t, job.Error.String, "required_param", "error should mention the missing parameter")
+
+	// Most importantly: verify job_status is 'failed' (this is what counts toward hard limit)
+	// job_status is a generated column that becomes 'failed' when completed_at is set and error is non-empty
+	require.Equal(t, database.ProvisionerJobStatusFailed, job.JobStatus, "job status should be failed")
+
+	// Verify this failure would be counted by GetPresetsAtFailureLimit query
+	// The query looks at workspace_latest_builds view which includes prebuilds with failed job_status
+	presetsAtLimit, err := db.GetPresetsAtFailureLimit(ctx, 1)
+	require.NoError(t, err)
+
+	// Check if our preset appears in the list (it should after 1 failure)
+	foundPreset := false
+	for _, p := range presetsAtLimit {
+		if p.PresetID == preset.ID {
+			foundPreset = true
+			break
+		}
+	}
+	require.True(t, foundPreset, "preset should appear in failure limit list after config error")
 }
