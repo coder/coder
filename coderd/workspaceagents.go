@@ -18,7 +18,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -26,7 +25,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/websocket"
 
-	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -1635,59 +1633,17 @@ func (api *API) watchWorkspaceAgentMetadata(
 		slog.F("workspace_agent_id", workspaceAgent.ID),
 	)
 
-	// Send metadata on updates, we must ensure subscription before sending
-	// initial metadata to guarantee that events in-between are not missed.
-	update := make(chan agentapi.WorkspaceAgentMetadataChannelPayload, 1)
-	cancelSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, byt []byte) {
-		if ctx.Err() != nil {
-			return
-		}
-
-		var payload agentapi.WorkspaceAgentMetadataChannelPayload
-		err := json.Unmarshal(byt, &payload)
-		if err != nil {
-			log.Error(ctx, "failed to unmarshal pubsub message", slog.Error(err))
-			return
-		}
-
-		log.Debug(ctx, "received metadata update", "payload", payload)
-
-		select {
-		case prev := <-update:
-			payload.Keys = appendUnique(prev.Keys, payload.Keys)
-		default:
-		}
-		// This can never block since we pop and merge beforehand.
-		update <- payload
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	defer cancelSub()
-
-	// We always use the original Request context because it contains
-	// the RBAC actor.
+	// Fetch initial metadata.
 	initialMD, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: workspaceAgent.ID,
 		Keys:             nil,
 	})
 	if err != nil {
-		// If we can't successfully pull the initial metadata, pubsub
-		// updates will be no-op so we may as well terminate the
-		// connection early.
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
 	log.Debug(ctx, "got initial metadata", "num", len(initialMD))
-
-	metadataMap := make(map[string]database.WorkspaceAgentMetadatum, len(initialMD))
-	for _, datum := range initialMD {
-		metadataMap[datum.Key] = datum
-	}
-	//nolint:ineffassign // Release memory.
-	initialMD = nil
 
 	sendEvent, senderClosed, err := connect(rw, r)
 	if err != nil {
@@ -1712,23 +1668,13 @@ func (api *API) watchWorkspaceAgentMetadata(
 		}
 	}()
 
-	var lastSend time.Time
-	sendMetadata := func() {
-		lastSend = time.Now()
-		values := maps.Values(metadataMap)
-
-		log.Debug(ctx, "sending metadata", "num", len(values))
-
+	sendMetadata := func(md []database.WorkspaceAgentMetadatum) {
+		log.Debug(ctx, "sending metadata", "num", len(md))
 		_ = sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: convertWorkspaceAgentMetadata(values),
+			Data: convertWorkspaceAgentMetadata(md),
 		})
 	}
-
-	// We send updates exactly every second.
-	const sendInterval = time.Second * 1
-	sendTicker := time.NewTicker(sendInterval)
-	defer sendTicker.Stop()
 
 	// Log the request immediately instead of after it completes.
 	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
@@ -1736,91 +1682,41 @@ func (api *API) watchWorkspaceAgentMetadata(
 	}
 
 	// Send initial metadata.
-	sendMetadata()
+	sendMetadata(initialMD)
 
-	// Fetch updated metadata keys as they come in.
-	fetchedMetadata := make(chan []database.WorkspaceAgentMetadatum)
-	go func() {
-		defer close(fetchedMetadata)
-		defer cancel()
+	// Poll for metadata updates every 15 seconds instead of using pubsub.
+	// This reduces database load from pubsub NOTIFY calls while still
+	// providing reasonable update frequency for the UI.
+	const pollInterval = 15 * time.Second
+	pollTicker := time.NewTicker(pollInterval)
+	defer pollTicker.Stop()
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case payload := <-update:
-				md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
-					WorkspaceAgentID: workspaceAgent.ID,
-					Keys:             payload.Keys,
-				})
-				if err != nil {
-					if !database.IsQueryCanceledError(err) {
-						log.Error(ctx, "failed to get metadata", slog.Error(err))
-						_ = sendEvent(codersdk.ServerSentEvent{
-							Type: codersdk.ServerSentEventTypeError,
-							Data: codersdk.Response{
-								Message: "Failed to get metadata.",
-								Detail:  err.Error(),
-							},
-						})
-					}
-					return
-				}
-				select {
-				case <-ctx.Done():
-					return
-				// We want to block here to avoid constantly pinging the
-				// database when the metadata isn't being processed.
-				case fetchedMetadata <- md:
-					log.Debug(ctx, "fetched metadata update for keys", "keys", payload.Keys, "num", len(md))
-				}
-			}
-		}
-	}()
-	defer func() {
-		<-fetchedMetadata
-	}()
-
-	pendingChanges := true
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case md, ok := <-fetchedMetadata:
-			if !ok {
+		case <-pollTicker.C:
+			md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: workspaceAgent.ID,
+				Keys:             nil,
+			})
+			if err != nil {
+				if database.IsQueryCanceledError(err) {
+					return
+				}
+				log.Error(ctx, "failed to get metadata", slog.Error(err))
+				_ = sendEvent(codersdk.ServerSentEvent{
+					Type: codersdk.ServerSentEventTypeError,
+					Data: codersdk.Response{
+						Message: "Failed to get metadata.",
+						Detail:  err.Error(),
+					},
+				})
 				return
 			}
-			for _, datum := range md {
-				metadataMap[datum.Key] = datum
-			}
-			pendingChanges = true
-			continue
-		case <-sendTicker.C:
-			// We send an update even if there's no change every 5 seconds
-			// to ensure that the frontend always has an accurate "Result.Age".
-			if !pendingChanges && time.Since(lastSend) < 5*time.Second {
-				continue
-			}
-			pendingChanges = false
-		}
-
-		sendMetadata()
-	}
-}
-
-// appendUnique is like append and adds elements from src to dst,
-// skipping any elements that already exist in dst.
-func appendUnique[T comparable](dst, src []T) []T {
-	exists := make(map[T]struct{}, len(dst))
-	for _, key := range dst {
-		exists[key] = struct{}{}
-	}
-	for _, key := range src {
-		if _, ok := exists[key]; !ok {
-			dst = append(dst, key)
+			sendMetadata(md)
 		}
 	}
-	return dst
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {

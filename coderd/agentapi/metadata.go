@@ -2,7 +2,6 @@ package agentapi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -14,14 +13,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 type MetadataAPI struct {
 	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
 	Workspace *CachedWorkspaceFields
 	Database  database.Store
-	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
@@ -125,18 +122,6 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
-	}
-
-	payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
-		CollectedAt: collectedAt,
-		Keys:        dbUpdate.Key,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
-	}
-	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
-	if err != nil {
-		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
 	}
 
 	// If the metadata keys were too large, we return an error so the agent can
