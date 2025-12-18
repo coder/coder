@@ -69,18 +69,12 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		req.Stats.SessionCountReconnectingPty = 0
 	}
 
-	// Create minimal agent record with cached fields for stats reporting.
-	// ReportAgentStats only needs ID and Name from the agent.
-	minimalAgent := database.WorkspaceAgent{
-		ID:   a.Agent.ID,
-		Name: a.Agent.Name,
-	}
-
 	err := a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
 		ws,
-		minimalAgent,
+		a.Agent.ID,
+		a.Agent.Name,
 		req.Stats,
 		false,
 	)
