@@ -168,9 +168,9 @@ jobs:
             TASK_PROMPT=$(cat <<EOF
           Doc Check: PR #${PR_NUMBER} - Full Analysis
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           NEW PR DOCUMENTATION CHECK - Full Analysis Required
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
 
           Review PR #${PR_NUMBER} and determine if documentation needs updating or creating.
           This is a NEW PR - perform a complete analysis from scratch.
@@ -182,17 +182,23 @@ jobs:
           ⚠️ CRITICAL REQUIREMENTS:
           1. You MUST complete each step below and SHOW YOUR WORK.
           2. DO NOT skip steps. DO NOT make assumptions. DO NOT comment until Step 5.
-          3. You MUST use coder_report_task MCP tool to report progress:
-             - After each STEP completion, call coder_report_task with state="working" and a summary
-             - After posting your comment, call coder_report_task with state="idle" to signal completion
-             Example: coder_report_task(state="working", summary="Step 1 complete - fetched PR info")
-             Example: coder_report_task(state="idle", summary="Analysis complete - posted comment")
+          3. You MUST use the coder_report_task tool to report your progress:
 
-          The CI is monitoring your status - you MUST report "idle" when done or it will timeout!
+             Tool: coder_report_task
+             Parameters:
+               - state: "working" | "idle"
+               - summary: string (max 160 chars, no newlines)
+               - link: optional URL (e.g., PR URL)
 
-          ═══════════════════════════════════════════════════════════════
+             REQUIRED CALLS:
+             - After each STEP: coder_report_task(state="working", summary="Step N: <brief desc>")
+             - FINAL STEP (after posting comment): coder_report_task(state="idle", summary="Complete", link="${PR_URL}")
+
+          ⚠️ The CI monitors your state. You MUST call coder_report_task(state="idle") when finished or it will timeout!
+
+          ═══════════════════════════════════════════════════════════
           STEP 1: Fetch and display PR info
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Run these commands and SHOW THE OUTPUT:
             git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
             git checkout pr-${PR_NUMBER}
@@ -200,9 +206,9 @@ jobs:
 
           CHECKPOINT: State the PR title and what it claims to do.
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           STEP 2: Review the actual diff
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Run and SHOW KEY PORTIONS:
             git diff main...pr-${PR_NUMBER} --stat
             git diff main...pr-${PR_NUMBER} -- "*.go" "*.ts" "*.md" | head -200
@@ -210,18 +216,18 @@ jobs:
           CHECKPOINT: List the files changed and summarize what ACTUALLY changed.
           Include specific line references (e.g., "+// NewFunction added at line 45")
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           STEP 3: Search existing documentation
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Based on what you found in Step 2, search for related docs:
             grep -ri "relevant_term" ~/coder/docs/ --include="*.md" -l
             cat ~/coder/docs/manifest.json | jq '.routes[] | {title, path}' | head -30
 
           CHECKPOINT: List which docs you searched and what you found (or didn't find).
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           STEP 4: Make your determination WITH EVIDENCE
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Answer these questions explicitly:
             1. What files were modified? (list them from Step 2)
             2. Is this user-facing? Why or why not?
@@ -235,9 +241,9 @@ jobs:
 
           CHECKPOINT: State your decision and the SPECIFIC EVIDENCE from the diff that supports it.
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           STEP 5: Post your comment (FINAL STEP - only after completing 1-4)
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Now and ONLY now, post a comment on the PR using this format:
 
           ${COMMENT_FORMAT}
@@ -258,9 +264,9 @@ jobs:
             TASK_PROMPT=$(cat <<EOF
           Doc Check: PR #${PR_NUMBER} - Update
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           PR UPDATE - Quick Documentation Re-check
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
 
           PR #${PR_NUMBER} has been UPDATED with new commits (trigger: ${TRIGGER_TYPE}).
 
@@ -275,16 +281,23 @@ jobs:
 
           ⚠️ CRITICAL REQUIREMENTS:
           1. You MUST show your work before commenting. DO NOT skip steps.
-          2. You MUST use coder_report_task MCP tool to report progress:
-             - After each STEP, call coder_report_task with state="working" and a summary
-             - After posting your comment, call coder_report_task with state="idle" to signal completion
-             Example: coder_report_task(state="idle", summary="Posted update - no docs needed")
+          2. You MUST use the coder_report_task tool to report your progress:
 
-          The CI is monitoring your status - you MUST report "idle" when done or it will timeout!
+             Tool: coder_report_task
+             Parameters:
+               - state: "working" | "idle"
+               - summary: string (max 160 chars, no newlines)
+               - link: optional URL
 
-          ═══════════════════════════════════════════════════════════════
+             REQUIRED CALLS:
+             - After each STEP: coder_report_task(state="working", summary="Step N: <brief desc>")
+             - FINAL STEP (after posting comment): coder_report_task(state="idle", summary="Update complete", link="${PR_URL}")
+
+          ⚠️ The CI monitors your state. You MUST call coder_report_task(state="idle") when finished or it will timeout!
+
+          ═══════════════════════════════════════════════════════════
           STEP 1: Check what changed since last analysis
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Run and SHOW OUTPUT:
             git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
             git checkout pr-${PR_NUMBER}
@@ -292,9 +305,9 @@ jobs:
 
           CHECKPOINT: List the recent commits and what they claim to do.
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           STEP 2: Quick diff review
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Run and SHOW KEY CHANGES:
             git diff HEAD~3..HEAD --stat
             git diff HEAD~3..HEAD -- "*.md" | head -50  # Check if docs were updated
@@ -302,9 +315,9 @@ jobs:
           CHECKPOINT: Summarize what actually changed in the recent commits.
           Note any doc file changes.
 
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           STEP 3: Make determination and post comment (FINAL STEP)
-          ═══════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════════
           Based on Steps 1-2, post a BRIEF update comment:
 
           UPDATE COMMENT FORMAT (keep it SHORT!):
@@ -498,7 +511,7 @@ jobs:
             MSG_COUNT=$(echo "$MESSAGES" | jq '.messages | length')
             echo "Retrieved ${MSG_COUNT} messages from task conversation"
             echo ""
-            echo "$MESSAGES" | jq -r '.messages[] | "═══════════════════════════════════════════════════════════════\n[\(.role | ascii_upcase)]\n═══════════════════════════════════════════════════════════════\n\(.content)\n"' 2>/dev/null || echo "Failed to parse messages"
+            echo "$MESSAGES" | jq -r '.messages[] | "═══════════════════════════════════════════════════════════\n[\(.role | ascii_upcase)]\n═══════════════════════════════════════════════════════════════\n\(.content)\n"' 2>/dev/null || echo "Failed to parse messages"
           else
             echo "No messages retrieved or task not accessible"
           fi
