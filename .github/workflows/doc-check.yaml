@@ -179,9 +179,16 @@ jobs:
 
           ${SETUP_INSTRUCTIONS}
 
-          ⚠️ CRITICAL: You MUST complete each step below and SHOW YOUR WORK.
-          DO NOT skip steps. DO NOT make assumptions. DO NOT comment until Step 5.
-          The chat log is being monitored - show evidence for every decision.
+          ⚠️ CRITICAL REQUIREMENTS:
+          1. You MUST complete each step below and SHOW YOUR WORK.
+          2. DO NOT skip steps. DO NOT make assumptions. DO NOT comment until Step 5.
+          3. You MUST use coder_report_task MCP tool to report progress:
+             - After each STEP completion, call coder_report_task with state="working" and a summary
+             - After posting your comment, call coder_report_task with state="idle" to signal completion
+             Example: coder_report_task(state="working", summary="Step 1 complete - fetched PR info")
+             Example: coder_report_task(state="idle", summary="Analysis complete - posted comment")
+
+          The CI is monitoring your status - you MUST report "idle" when done or it will timeout!
 
           ═══════════════════════════════════════════════════════════════
           STEP 1: Fetch and display PR info
@@ -266,7 +273,14 @@ jobs:
             - New commits have been pushed since then
             - Your job is to provide a BRIEF update, not repeat the full analysis
 
-          ⚠️ CRITICAL: You MUST show your work before commenting. DO NOT skip steps.
+          ⚠️ CRITICAL REQUIREMENTS:
+          1. You MUST show your work before commenting. DO NOT skip steps.
+          2. You MUST use coder_report_task MCP tool to report progress:
+             - After each STEP, call coder_report_task with state="working" and a summary
+             - After posting your comment, call coder_report_task with state="idle" to signal completion
+             Example: coder_report_task(state="idle", summary="Posted update - no docs needed")
+
+          The CI is monitoring your status - you MUST report "idle" when done or it will timeout!
 
           ═══════════════════════════════════════════════════════════════
           STEP 1: Check what changed since last analysis
@@ -371,11 +385,10 @@ jobs:
             echo "**Task name:** ${TASK_NAME}"
             echo "**Task URL:** ${TASK_URL}"
             echo ""
-            echo "Streaming task output below..."
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Stream Task Output
-        id: stream_task
+      - name: Monitor Task Status
+        id: monitor_task
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
@@ -418,50 +431,73 @@ jobs:
           echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
 
-          # Poll task status until it goes stable (idle)
+          # Poll task status until it goes idle (agent reports completion)
           MAX_WAIT=600  # 10 minutes max
           WAITED=0
+          LAST_MSG=""
           while [[ $WAITED -lt $MAX_WAIT ]]; do
             STATUS_JSON=$(coder task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
             TASK_STATUS=$(echo "$STATUS_JSON" | jq -r '.status // "unknown"')
             CURRENT_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
             STATE_MSG=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
 
-            echo "[${WAITED}s] Status: ${TASK_STATUS}, State: ${CURRENT_STATE}"
-            if [[ -n "$STATE_MSG" ]]; then
-              echo "       Message: ${STATE_MSG:0:60}..."
+            # Only print when message changes to reduce noise
+            if [[ "$STATE_MSG" != "$LAST_MSG" ]]; then
+              echo "[${WAITED}s] ${CURRENT_STATE}: ${STATE_MSG:-no message}"
+              LAST_MSG="$STATE_MSG"
+            else
+              # Print a dot to show we're still polling
+              echo -n "."
             fi
 
-            # Check if task is done (stable = idle)
-            if [[ "$TASK_STATUS" == "active" && "$CURRENT_STATE" == "idle" ]]; then
+            # Check if task is done (agent reported idle state)
+            if [[ "$CURRENT_STATE" == "idle" ]]; then
               echo ""
-              echo "Task completed!"
+              echo ""
+              echo "=== Task completed (state: idle) ==="
               break
             fi
 
             # Also check for paused status (task finished)
             if [[ "$TASK_STATUS" == "paused" ]]; then
               echo ""
-              echo "Task paused/completed!"
+              echo ""
+              echo "╔══════════════════════════════════════════════════════════════╗"
+              echo "║  Task paused/completed (state: paused)                       ║"
+              echo "╚══════════════════════════════════════════════════════════════╝"
               break
             fi
 
-            sleep 10
-            WAITED=$((WAITED + 10))
+            sleep 5
+            WAITED=$((WAITED + 5))
           done
 
           if [[ $WAITED -ge $MAX_WAIT ]]; then
-            echo "::warning::Task monitoring timed out after ${MAX_WAIT}s"
+            echo ""
+            echo "::warning::Task monitoring timed out after ${MAX_WAIT}s - agent may not have reported completion"
           fi
           echo "::endgroup::"
 
-          # Fetch and display the full conversation
-          echo "::group::AI Conversation Output"
+      - name: Fetch Task Messages Log
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::AI Conversation Log"
           echo ""
+
+          if [[ -z "${TASK_NAME}" ]]; then
+            echo "No task name found, skipping message fetch"
+            echo "::endgroup::"
+            exit 0
+          fi
 
           MESSAGES=$(coder ssh "${TASK_NAME}" -- curl -s http://localhost:3284/messages 2>/dev/null || echo '{}')
 
           if echo "$MESSAGES" | jq -e '.messages' >/dev/null 2>&1; then
+            MSG_COUNT=$(echo "$MESSAGES" | jq '.messages | length')
+            echo "Retrieved ${MSG_COUNT} messages from task conversation"
+            echo ""
             echo "$MESSAGES" | jq -r '.messages[] | "═══════════════════════════════════════════════════════════════\n[\(.role | ascii_upcase)]\n═══════════════════════════════════════════════════════════════\n\(.content)\n"' 2>/dev/null || echo "Failed to parse messages"
           else
             echo "No messages retrieved or task not accessible"
