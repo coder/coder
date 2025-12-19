@@ -444,11 +444,13 @@ jobs:
           echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
 
-          # Poll AgentAPI status until it goes stable (agent done)
-          # Note: coder task status doesn't reflect idle state properly, so we check AgentAPI directly
+          # Poll AgentAPI status: wait for running first, then stable
+          # AgentAPI: stable (idle) -> running (processing) -> stable (done)
           MAX_WAIT=600  # 10 minutes max
           WAITED=0
           LAST_MSG=""
+          STARTED_RUNNING=false
+
           while [[ $WAITED -lt $MAX_WAIT ]]; do
             # Get task status for the message display
             STATUS_JSON=$(coder task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
@@ -459,6 +461,11 @@ jobs:
             # Check AgentAPI directly for actual completion status
             AGENT_STATUS=$(coder ssh "${TASK_NAME}" -- curl -s http://localhost:3284/status 2>/dev/null | jq -r '.status // "unknown"')
 
+            # Track when we first see running
+            if [[ "$AGENT_STATUS" == "running" ]]; then
+              STARTED_RUNNING=true
+            fi
+
             # Only print when message changes to reduce noise
             if [[ "$STATE_MSG" != "$LAST_MSG" ]]; then
               echo "[${WAITED}s] ${CURRENT_STATE}: ${STATE_MSG:-no message}"
@@ -468,8 +475,8 @@ jobs:
               echo -n "."
             fi
 
-            # Check if agent is done (AgentAPI returns "stable" when complete)
-            if [[ "$AGENT_STATUS" == "stable" ]]; then
+            # Check if agent is done (must have been running first, then stable)
+            if [[ "$STARTED_RUNNING" == "true" && "$AGENT_STATUS" == "stable" ]]; then
               echo ""
               echo ""
               echo "╔══════════════════════════════════════════════════════════════╗"
