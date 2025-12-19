@@ -39,14 +39,11 @@ jobs:
       actions: write
 
     steps:
-      - name: Install Coder CLI
-        run: |
-          curl -fsSL "${{ secrets.DOC_CHECK_CODER_URL }}/install.sh" | sh
-          coder version
-
-      - name: Authenticate Coder CLI
-        run: |
-          coder login --token "${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}" "${{ secrets.DOC_CHECK_CODER_URL }}"
+      - name: Setup Coder CLI
+        uses: coder/setup-action@v1
+        with:
+          access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
 
       - name: Determine PR Context
         id: determine-context
@@ -133,9 +130,9 @@ jobs:
           # Common setup instructions (unquoted heredoc so PR_NUMBER expands)
           SETUP_INSTRUCTIONS=$(cat <<SETUPEOF
           SETUP (repo is pre-cloned at ~/coder):
-            cd ~/coder
-            git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
-            git checkout pr-${PR_NUMBER}
+               cd ~/coder
+               git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+               git checkout pr-${PR_NUMBER}
           SETUPEOF
           )
 
@@ -255,6 +252,13 @@ jobs:
             ~/coder/docs/manifest.json contains the full structure
             Common areas: reference/, admin/, user-guides/, ai-coder/, install/, tutorials/
 
+          ⛔ STOP AFTER COMMENTING:
+          - Post EXACTLY ONE comment
+          - Call coder_report_task(state="idle") immediately after
+          - DO NOT loop, retry, or post additional comments
+          - DO NOT continue working after reporting idle
+          - Your task is COMPLETE once you post the comment and report idle
+
           EOF
           )
 
@@ -346,6 +350,13 @@ jobs:
             - Reference specific commits/files from your analysis
             - Don't repeat previous analysis
             - Only do full re-analysis if the PR direction changed significantly
+
+          ⛔ STOP AFTER COMMENTING:
+          - Post EXACTLY ONE comment
+          - Call coder_report_task(state="idle") immediately after
+          - DO NOT loop, retry, or post additional comments
+          - DO NOT continue working after reporting idle
+          - Your task is COMPLETE once you post the comment and report idle
 
           EOF
           )
