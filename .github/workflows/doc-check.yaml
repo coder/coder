@@ -40,7 +40,7 @@ jobs:
 
     steps:
       - name: Setup Coder CLI
-        uses: coder/setup-action@v1
+        uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1.1.0
         with:
           access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
