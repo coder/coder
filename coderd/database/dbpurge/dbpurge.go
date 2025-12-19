@@ -66,7 +66,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
-	iterationDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	iterationDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "dbpurge",
 		Name:      "iteration_duration_seconds",
@@ -75,7 +75,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"success"})
 	reg.MustRegister(iterationDuration)
 
-	recordsPurged := prometheus.NewCounterVec(prometheus.CounterOpts{
+	recordsPurged = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: "dbpurge",
 		Name:      "records_purged_total",
