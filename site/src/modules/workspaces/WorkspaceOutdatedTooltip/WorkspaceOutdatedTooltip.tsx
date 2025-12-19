@@ -17,7 +17,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { type FC, type PropsWithChildren, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
 import {
 	useWorkspaceUpdate,
@@ -26,11 +26,13 @@ import {
 
 interface WorkspaceOutdatedTooltipProps {
 	workspace: Workspace;
+	children?: ReactNode;
 }
 
-export const WorkspaceOutdatedTooltip: FC<
-	PropsWithChildren<WorkspaceOutdatedTooltipProps>
-> = ({ workspace, children }) => {
+export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
+	workspace,
+	children,
+}) => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
