@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -282,15 +281,6 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
 		}
-
-		// Create the org-member system role for this organization.
-		// New organizations have workspace sharing enabled by default.
-		err = rolestore.CreateOrgMemberRole(ctx, tx, organization)
-		if err != nil {
-			return xerrors.Errorf("create org-member role for organization %s: %w",
-				organization.ID, err)
-		}
-
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         apiKey.UserID,
