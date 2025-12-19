@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,9 +31,11 @@ var loadMitmOnce sync.Once
 //   - decrypting requests using the configured CA certificate
 //   - forwarding requests to aibridged for processing
 type Server struct {
+	ctx        context.Context
 	logger     slog.Logger
 	proxy      *goproxy.ProxyHttpServer
 	httpServer *http.Server
+	listener   net.Listener
 }
 
 // Options configures the AI Bridge Proxy server.
@@ -61,32 +66,50 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	proxy := goproxy.NewProxyHttpServer()
 
-	// Decrypt all HTTPS requests via MITM. Requests are forwarded to
-	// the original destination without modification for now.
-	// TODO(ssncferreira): Route requests to aibridged will be implemented upstack.
-	//   Related to https://github.com/coder/internal/issues/1181
-	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
-
 	srv := &Server{
+		ctx:    ctx,
 		logger: logger,
 		proxy:  proxy,
 	}
 
+	// Extract Coder session token from proxy authentication to forward to aibridged.
+	// Decrypt all HTTPS requests via MITM. Requests are forwarded to
+	// the original destination without modification for now.
+	// TODO(ssncferreira): Route requests to aibridged will be implemented upstack.
+	//   Related to https://github.com/coder/internal/issues/1181
+	proxy.OnRequest().HandleConnect(goproxy.FuncHttpsHandler(srv.handleConnect))
+
+	// Create listener first so we can get the actual address.
+	// This is useful in tests where port 0 is used to avoid conflicts.
+	listener, err := net.Listen("tcp", opts.ListenAddr)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to listen on %s: %w", opts.ListenAddr, err)
+	}
+	srv.listener = listener
+
 	// Start HTTP server in background
 	srv.httpServer = &http.Server{
-		Addr:              opts.ListenAddr,
 		Handler:           proxy,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
-		logger.Info(ctx, "starting AI Bridge Proxy", slog.F("addr", opts.ListenAddr))
-		if err := srv.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Info(ctx, "starting AI Bridge Proxy", slog.F("addr", listener.Addr().String()))
+		if err := srv.httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error(ctx, "aibridgeproxyd server error", slog.Error(err))
 		}
 	}()
 
 	return srv, nil
+}
+
+// Addr returns the address the server is listening on.
+// This is useful when the server was started with port 0.
+func (s *Server) Addr() string {
+	if s.listener == nil {
+		return ""
+	}
+	return s.listener.Addr().String()
 }
 
 // Close gracefully shuts down the proxy server.
@@ -123,4 +146,88 @@ func loadMitmCertificate(certFile, keyFile string) error {
 	})
 
 	return nil
+}
+
+// extractPort extracts the port from a host:port string.
+// Returns "443" as the default if no port is specified (standard HTTPS).
+func extractPort(host string) string {
+	if i := strings.LastIndex(host, ":"); i != -1 {
+		return host[i+1:]
+	}
+	return "443"
+}
+
+// handleConnect handles CONNECT requests for HTTPS proxying.
+// It extracts the Coder session token from the Proxy-Authorization header
+// and stores it in ctx.UserData for use by downstream request handlers.
+// Requests without valid credentials are rejected.
+//
+// Clients provide credentials by setting their HTTP Proxy as:
+//
+//	HTTPS_PROXY=http://ignored:<coder-token>@host:port
+//
+// The token is extracted from the password field of basic auth.
+func (s *Server) handleConnect(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	// Restrict CONNECT to standard HTTP/HTTPS ports to prevent request smuggling.
+	// Attackers could use non-standard ports to bypass security controls.
+	port := extractPort(host)
+	if port != "443" && port != "80" {
+		s.logger.Warn(s.ctx, "connect to non-standard port",
+			slog.F("host", host),
+			slog.F("port", port),
+		)
+		// return goproxy.RejectConnect, host
+	}
+
+	proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
+	coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
+
+	// Reject requests without valid credentials.
+	if coderToken == "" {
+		hasAuth := proxyAuth != ""
+		s.logger.Warn(s.ctx, "rejecting CONNECT request",
+			slog.F("host", host),
+			slog.F("reason", map[bool]string{true: "invalid_credentials", false: "missing_credentials"}[hasAuth]),
+		)
+		return goproxy.RejectConnect, host
+	}
+
+	// Store the token in UserData for downstream handlers.
+	// goproxy propagates UserData to subsequent request contexts
+	// for decrypted requests within this MITM session.
+	ctx.UserData = coderToken
+
+	return goproxy.MitmConnect, host
+}
+
+// extractCoderTokenFromProxyAuth extracts the Coder session token from the
+// Proxy-Authorization header. The token is expected to be in the password
+// field of basic auth: "Basic base64(username:token)".
+//
+// Returns empty string if no valid token is found.
+func extractCoderTokenFromProxyAuth(proxyAuth string) string {
+	if proxyAuth == "" {
+		return ""
+	}
+
+	// Expected format: "Basic base64(username:password)"
+	// Auth scheme is case-insensitive per RFC 7235.
+	parts := strings.Fields(proxyAuth)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Basic") {
+		return ""
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+
+	// Format: "username:password", password is the Coder token.
+	// Username is ignored and can be any value.
+	credentials := strings.SplitN(string(decoded), ":", 2)
+	if len(credentials) != 2 {
+		return ""
+	}
+
+	return credentials[1]
 }
