@@ -161,20 +161,14 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	return role, nil
 }
 
-// ReconcileOrgMemberRoles ensures all orgs have an org-member system
-// role stored in the DB with permissions reflecting current RBAC
-// resources and the org's workspace_sharing_disabled setting.
-//
-//  1. Create org-member system roles for orgs that lack one
-//  2. Update permissions when new RBAC resources are added to the codebase
-//  3. Ensure permissions match each org's workspace sharing setting
-//
-// Uses PostgreSQL advisory lock (LockIDReconcileOrgMemberRoles) to
-// safely handle multi-instance deployments.
-//
-// Uses set-based comparison to avoid unnecessary database writes when
-// permissions haven't changed.
-func ReconcileOrgMemberRoles(ctx context.Context, logger slog.Logger, db database.Store) error {
+// ReconcileOrgMemberRoles ensures that every organization's
+// org-member system role in the DB is up-to-date with permissions
+// reflecting current RBAC resources and the organization's
+// workspace_sharing_disabled setting. Uses PostgreSQL advisory lock
+// (LockIDReconcileOrgMemberRoles) to safely handle multi-instance
+// deployments. Uses set-based comparison to avoid unnecessary
+// database writes when permissions haven't changed.
+func ReconcileOrgMemberRoles(ctx context.Context, log slog.Logger, db database.Store) error {
 	return db.InTx(func(tx database.Store) error {
 		// Acquire advisory lock to prevent concurrent updates from
 		// multiple coderd instances. Other instances will block here
@@ -207,10 +201,18 @@ func ReconcileOrgMemberRoles(ctx context.Context, logger slog.Logger, db databas
 		for _, org := range orgs {
 			role, exists := rolesByOrg[org.ID]
 			if !exists {
+				// Something is very wrong: the role should have been created by the
+				// database trigger or migration. Log loudly and try creating it as
+				// a last-ditch effort before giving up.
+				log.Critical(ctx, "missing organization-member system role; trying to re-create",
+					slog.F("organization_id", org.ID))
+
 				if err := CreateOrgMemberRole(ctx, tx, org); err != nil {
-					return xerrors.Errorf("create org-member role for organization %s: %w", org.ID, err)
+					return xerrors.Errorf("create missing org-member role for organization %s: %w",
+						org.ID, err)
 				}
-				// Nothing more to do; the new role's perms are up-to-date.
+
+				// Nothing more to do; the new role's permissions are up-to-date.
 				continue
 			}
 
@@ -235,7 +237,8 @@ func ReconcileOrgMemberRoles(ctx context.Context, logger slog.Logger, db databas
 					MemberPermissions: ConvertPermissionsToDB(expectedMemberPerms),
 				})
 				if err != nil {
-					return xerrors.Errorf("update org-member role for organization %s: %w", org.ID, err)
+					return xerrors.Errorf("update org-member role for organization %s: %w",
+						org.ID, err)
 				}
 			}
 		}
@@ -245,9 +248,6 @@ func ReconcileOrgMemberRoles(ctx context.Context, logger slog.Logger, db databas
 }
 
 // CreateOrgMemberRole creates the org-member system role for an organization.
-// The role can be missing in two cases:
-//   - We're creating a new organization, or
-//   - We're deploying to a site that used the old built-in org-member role
 func CreateOrgMemberRole(ctx context.Context, tx database.Store, org database.Organization) error {
 	orgPerms, memberPerms := rbac.OrgMemberPermissions(org.WorkspaceSharingDisabled)
 
