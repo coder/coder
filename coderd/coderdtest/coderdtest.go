@@ -50,9 +50,10 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/types/nettype"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"

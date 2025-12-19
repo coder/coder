@@ -19,8 +19,9 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
 )
@@ -129,7 +130,7 @@ func main() {
 		if errors.Is(err, cliui.ErrCanceled) {
 			os.Exit(1)
 		}
-		r.logger.Error(context.Background(), "release command failed", "err", err)
+		r.logger.Error(context.Background(), "release command failed", slog.Error(err))
 		os.Exit(1)
 	}
 }
@@ -250,9 +251,9 @@ func (r *releaseCommand) promoteVersionToStable(ctx context.Context, inv *serpen
 		if err != nil {
 			return xerrors.Errorf("edit release failed: %w", err)
 		}
-		logger.Info(ctx, "selected version promoted to stable", "url", newStable.GetHTMLURL())
+		logger.Info(ctx, "selected version promoted to stable", slog.F("url", newStable.GetHTMLURL()))
 	} else {
-		logger.Info(ctx, "dry-run: release not updated", "uncommitted_changes", cmp.Diff(newStable, updatedNewStable))
+		logger.Info(ctx, "dry-run: release not updated", slog.F("uncommitted_changes", cmp.Diff(newStable, updatedNewStable)))
 	}
 
 	return nil
@@ -367,7 +368,8 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 			matchChannel := matches[1]
 			match := matches[2]
 
-			logger := logger.With(slog.F("line_number", i+1), slog.F("match_channel", matchChannel), slog.F("match", match))
+			logger := logger.With(slog.F("line_number", i+1),
+				slog.F("match_channel", matchChannel), slog.F("match", match))
 
 			logger.Debug(ctx, "autoversion pragma detected")
 
@@ -379,7 +381,7 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 			logger.Info(ctx, "autoversion pragma found with channel match")
 
 			match = strings.Replace(match, "[version]", `(?P<version>[0-9]+\.[0-9]+\.[0-9]+)`, 1)
-			logger.Debug(ctx, "compiling match regexp", "match", match)
+			logger.Debug(ctx, "compiling match regexp", slog.F("match", match))
 			matchRe, err = regexp.Compile(match)
 			if err != nil {
 				return xerrors.Errorf("regexp compile failed: %w", err)
@@ -391,12 +393,15 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 			if match := matchRe.FindStringSubmatchIndex(line); match != nil {
 				vg := matchRe.SubexpIndex("version")
 				if vg == -1 {
-					logger.Error(ctx, "version group not found in match", "num_subexp", matchRe.NumSubexp(), "subexp_names", matchRe.SubexpNames(), "match", match)
+					logger.Error(ctx, "version group not found in match",
+						slog.F("num_subexp", matchRe.NumSubexp()),
+						slog.F("subexp_names", matchRe.SubexpNames()),
+						slog.F("match", match))
 					return xerrors.Errorf("bug: version group not found in match")
 				}
 				start := match[vg*2]
 				end := match[vg*2+1]
-				logger.Info(ctx, "updating version number", "line_number", i+1, "match_start", start, "match_end", end, "old_version", line[start:end])
+				logger.Info(ctx, "updating version number", slog.F("line_number", i+1), slog.F("match_start", start), slog.F("match_end", end), slog.F("old_version", line[start:end]))
 				lines[i] = line[:start] + version + line[end:]
 				matchRe = nil
 				break
@@ -421,7 +426,7 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 		}
 		logger.Info(ctx, "file autoversioned")
 	} else {
-		logger.Info(ctx, "dry-run: file not updated", "uncommitted_changes", diff)
+		logger.Info(ctx, "dry-run: file not updated", slog.F("uncommitted_changes", diff))
 	}
 
 	return nil

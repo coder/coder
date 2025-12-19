@@ -18,7 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/aibridge"
 )

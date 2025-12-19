@@ -18,7 +18,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/tailscale/wireguard-go/tun"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"

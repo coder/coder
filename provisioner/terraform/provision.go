@@ -17,7 +17,8 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/coderd/database"

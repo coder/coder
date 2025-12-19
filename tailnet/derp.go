@@ -13,7 +13,7 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/websocket"
 )

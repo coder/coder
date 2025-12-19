@@ -41,7 +41,8 @@ import (
 	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
 )

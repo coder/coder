@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"

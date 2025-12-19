@@ -18,7 +18,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/quartz"
 	"github.com/coder/websocket"

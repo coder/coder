@@ -10,7 +10,7 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // localForwardChannelData is copied from the ssh package.

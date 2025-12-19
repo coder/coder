@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/agent/agenttest"

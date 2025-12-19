@@ -9,7 +9,8 @@ import (
 	prompb "github.com/prometheus/client_model/go"
 	"tailscale.com/util/clientmetric"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/agent/proto"
 )
 

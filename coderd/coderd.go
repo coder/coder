@@ -48,7 +48,8 @@ import (
 
 	"github.com/coder/coder/v2/provisionerd/proto"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 

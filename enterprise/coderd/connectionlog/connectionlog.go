@@ -5,7 +5,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	agpl "github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"

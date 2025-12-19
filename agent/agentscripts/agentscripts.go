@@ -20,7 +20,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"

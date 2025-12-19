@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/websocket"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // These cookies are Coder-specific. If a new one is added or changed, the name

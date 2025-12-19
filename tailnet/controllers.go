@@ -21,7 +21,8 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/util/dnsname"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 

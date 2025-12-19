@@ -15,7 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/cryptorand"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // Action is just a function that does something.

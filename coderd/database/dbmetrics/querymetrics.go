@@ -11,8 +11,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"cdr.dev/slog"
-
+	// the redundant alias `slog` works around the fact that github.com/dave/dst is bugged and doesn't correctly resolve
+	// the package name. We use github.com/dave/dst in scripts/dbgen/ to generate new stubs for database.Store methods.
+	// Without this workaround, dbgen will drop and re-add slog, possibly resolving to a different version (e.g. v1).
+	// It can also result in the imports being sorted incorrectly.
+	slog "cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"

@@ -25,7 +25,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/quartz"

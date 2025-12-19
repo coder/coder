@@ -12,7 +12,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/terraform-provider-coder/v2/provider"
 

@@ -7,7 +7,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 type cspViolation struct {
