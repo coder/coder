@@ -18,7 +18,7 @@ import (
 // It is responsible for:
 //   - intercepting HTTPS requests to AI providers
 //   - decrypting requests using the configured CA certificate
-//   - forwarding requests to aibridge for processing
+//   - forwarding requests to aibridged for processing
 type Server struct {
 	logger     slog.Logger
 	proxy      *goproxy.ProxyHttpServer
@@ -55,8 +55,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	// Decrypt all HTTPS requests via MITM. Requests are forwarded to
 	// the original destination without modification for now.
-	// TODO(ssncferreira): Route requests to aibridged
-	//   will be implemented upstack.
+	// TODO(ssncferreira): Route requests to aibridged will be implemented upstack.
 	//   Related to https://github.com/coder/internal/issues/1181
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
@@ -82,6 +81,16 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	return srv, nil
 }
 
+// Close gracefully shuts down the proxy server.
+func (s *Server) Close() error {
+	if s.httpServer == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return s.httpServer.Shutdown(ctx)
+}
+
 // loadMitmCertificate loads the CA certificate and key for MITM into goproxy.
 func loadMitmCertificate(certFile, keyFile string) error {
 	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -101,14 +110,4 @@ func loadMitmCertificate(certFile, keyFile string) error {
 	}
 
 	return nil
-}
-
-// Close gracefully shuts down the proxy server.
-func (s *Server) Close() error {
-	if s.httpServer == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return s.httpServer.Shutdown(ctx)
 }
