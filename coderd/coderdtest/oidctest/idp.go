@@ -1651,8 +1651,8 @@ func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (
 	return v, true
 }
 
-func slogRequestFields(r *http.Request) []any {
-	return []any{
+func slogRequestFields(r *http.Request) []slog.Field {
+	return []slog.Field{
 		slog.F("url", r.URL.String()),
 		slog.F("host", r.Host),
 		slog.F("method", r.Method),
