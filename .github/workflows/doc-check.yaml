@@ -418,8 +418,15 @@ jobs:
           echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
 
+          # Start step summary section for streaming output
+          {
+            echo "## AI Task Output"
+            echo ""
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
           # Stream events from AgentAPI via SSH
-          # Parse SSE events and display message content
+          # Write to both stdout and step summary
           CURRENT_STATUS="running"
           coder ssh "${TASK_NAME}" -- curl -sN http://localhost:3284/events 2>&1 | \
             while IFS= read -r line; do
@@ -442,7 +449,9 @@ jobs:
                     # The API returns: {"id":N,"role":"agent|user","message":"..."}
                     CONTENT=$(echo "$DATA" | jq -r '.message // empty' 2>/dev/null)
                     if [[ -n "$CONTENT" && "$CONTENT" != "null" ]]; then
+                      # Output to both stdout and step summary
                       echo "$CONTENT"
+                      echo "$CONTENT" >> "${GITHUB_STEP_SUMMARY}"
                     fi
                     ;;
 
@@ -451,6 +460,8 @@ jobs:
                     if [[ -n "$NEW_STATUS" && "$NEW_STATUS" != "$CURRENT_STATUS" ]]; then
                       echo ""
                       echo "── Status: ${NEW_STATUS} ──"
+                      echo "" >> "${GITHUB_STEP_SUMMARY}"
+                      echo "── Status: ${NEW_STATUS} ──" >> "${GITHUB_STEP_SUMMARY}"
                       CURRENT_STATUS="$NEW_STATUS"
 
                       if [[ "$NEW_STATUS" == "stable" ]]; then
@@ -469,6 +480,9 @@ jobs:
                 EVENT_TYPE=""
               fi
             done || true  # Don't fail if stream ends unexpectedly
+
+          # Close step summary code block
+          echo '```' >> "${GITHUB_STEP_SUMMARY}"
 
           echo ""
           echo "Stream ended."
