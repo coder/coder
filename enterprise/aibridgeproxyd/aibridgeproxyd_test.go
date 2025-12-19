@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,12 +113,44 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr: "",
+			ListenAddr:     "",
+			CoderAccessURL: "http://localhost:3000",
+			CertFile:       certFile,
+			KeyFile:        keyFile,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "listen address is required")
+	})
+
+	t.Run("MissingCoderAccessURL", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := generateTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr: "127.0.0.1:0",
 			CertFile:   certFile,
 			KeyFile:    keyFile,
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "listen address is required")
+		require.Contains(t, err.Error(), "coder access URL is required")
+	})
+
+	t.Run("InvalidCoderAccessURL", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := generateTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:     "127.0.0.1:0",
+			CoderAccessURL: "://invalid",
+			CertFile:       certFile,
+			KeyFile:        keyFile,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid coder access URL")
 	})
 
 	t.Run("MissingCertFile", func(t *testing.T) {
@@ -126,8 +159,9 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr: ":0",
-			KeyFile:    "key.pem",
+			ListenAddr:     ":0",
+			CoderAccessURL: "http://localhost:3000",
+			KeyFile:        "key.pem",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cert file and key file are required")
@@ -139,8 +173,9 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr: ":0",
-			CertFile:   "cert.pem",
+			ListenAddr:     ":0",
+			CoderAccessURL: "http://localhost:3000",
+			CertFile:       "cert.pem",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cert file and key file are required")
@@ -152,9 +187,10 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr: ":0",
-			CertFile:   "/nonexistent/cert.pem",
-			KeyFile:    "/nonexistent/key.pem",
+			ListenAddr:     ":0",
+			CoderAccessURL: "http://localhost:3000",
+			CertFile:       "/nonexistent/cert.pem",
+			KeyFile:        "/nonexistent/key.pem",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to load MITM certificate")
@@ -167,9 +203,10 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr: "127.0.0.1:0",
-			CertFile:   certFile,
-			KeyFile:    keyFile,
+			ListenAddr:     "127.0.0.1:0",
+			CoderAccessURL: "http://localhost:3000",
+			CertFile:       certFile,
+			KeyFile:        keyFile,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -186,9 +223,10 @@ func TestClose(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 
 	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-		ListenAddr: "127.0.0.1:0",
-		CertFile:   certFile,
-		KeyFile:    keyFile,
+		ListenAddr:     "127.0.0.1:0",
+		CoderAccessURL: "http://localhost:3000",
+		CertFile:       certFile,
+		KeyFile:        keyFile,
 	})
 	require.NoError(t, err)
 
@@ -363,10 +401,11 @@ func TestProxy_Authentication(t *testing.T) {
 			// Start the proxy server on a random port to avoid conflicts when running tests in parallel.
 			// The actual port is accessible via srv.Addr().
 			srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-				ListenAddr:   "127.0.0.1:0",
-				CertFile:     certFile,
-				KeyFile:      keyFile,
-				AllowedPorts: []string{targetURL.Port()},
+				ListenAddr:     "127.0.0.1:0",
+				CoderAccessURL: "http://localhost:3000",
+				CertFile:       certFile,
+				KeyFile:        keyFile,
+				AllowedPorts:   []string{targetURL.Port()},
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = srv.Close() })
@@ -426,6 +465,146 @@ func TestProxy_Authentication(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 				require.Equal(t, "hello from target", string(body))
+			}
+		})
+	}
+}
+
+func TestProxy_MITM(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		targetHost   string
+		targetPath   string
+		expectedPath string
+		passthrough  bool
+	}{
+		{
+			name:         "AnthropicMessages",
+			targetHost:   "api.anthropic.com",
+			targetPath:   "/v1/messages",
+			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+		},
+		{
+			name:         "OpenAIChatCompletions",
+			targetHost:   "api.openai.com",
+			targetPath:   "/v1/chat/completions",
+			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+		},
+		{
+			name:        "UnknownHostPassthrough",
+			targetPath:  "/some/path",
+			passthrough: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Track what aibridged receives.
+			var receivedPath string
+			var receivedAuth string
+
+			// Create a mock aibridged server.
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedPath = r.URL.Path
+				receivedAuth = r.Header.Get("Authorization")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from aibridged"))
+			}))
+			defer aibridgedServer.Close()
+
+			// Create a mock target server for passthrough tests.
+			targetServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from passthrough"))
+			}))
+			defer targetServer.Close()
+
+			certFile, keyFile := generateTestCA(t)
+			logger := slogtest.Make(t, nil)
+
+			// Start the proxy server pointing to our mock aibridged.
+			srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+				ListenAddr:     "127.0.0.1:0",
+				CoderAccessURL: aibridgedServer.URL,
+				CertFile:       certFile,
+				KeyFile:        keyFile,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = srv.Close() })
+
+			proxyAddr := srv.Addr()
+			require.NotEmpty(t, proxyAddr)
+
+			// Wait for the proxy server to be ready.
+			require.Eventually(t, func() bool {
+				conn, err := net.Dial("tcp", proxyAddr)
+				if err != nil {
+					return false
+				}
+				_ = conn.Close()
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			// Load the CA certificate.
+			certPEM, err := os.ReadFile(certFile)
+			require.NoError(t, err)
+			certPool := x509.NewCertPool()
+			certPool.AppendCertsFromPEM(certPEM)
+
+			// Create an HTTP client configured to use the proxy.
+			proxyURL, err := url.Parse("http://" + proxyAddr)
+			require.NoError(t, err)
+
+			client := &http.Client{
+				Transport: &http.Transport{
+					Proxy: http.ProxyURL(proxyURL),
+					ProxyConnectHeader: http.Header{
+						"Proxy-Authorization": []string{makeProxyAuthHeader("test-session-token")},
+					},
+					TLSClientConfig: &tls.Config{
+						MinVersion: tls.VersionTLS12,
+						RootCAs:    certPool,
+					},
+				},
+			}
+
+			// Build the target URL:
+			// - For passthrough, target the local mock TLS server.
+			// - For AI providers, use their real hostnames to trigger routing.
+			var targetURL string
+			if tt.passthrough {
+				targetURL = targetServer.URL + tt.targetPath
+			} else {
+				targetURL = "https://" + tt.targetHost + tt.targetPath
+			}
+
+			// Make a request through the proxy to the target URL.
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			if tt.passthrough {
+				// Verify request went to target server, not aibridged.
+				require.Equal(t, "hello from passthrough", string(body))
+				require.Empty(t, receivedPath, "aibridged should not receive passthrough requests")
+				require.Empty(t, receivedAuth, "aibridged should not receive passthrough requests")
+			} else {
+				// Verify the request was routed to aibridged correctly.
+				require.Equal(t, "hello from aibridged", string(body))
+				require.Equal(t, tt.expectedPath, receivedPath)
+				require.Equal(t, "Bearer test-session-token", receivedAuth)
 			}
 		})
 	}
