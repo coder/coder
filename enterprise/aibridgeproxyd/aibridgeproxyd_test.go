@@ -254,6 +254,91 @@ func TestClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestProxy_CertCaching(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock HTTPS server that will be the target of our proxied request.
+	targetServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	certFile, keyFile := generateTestCA(t)
+	logger := slogtest.Make(t, nil)
+
+	// Start the proxy server.
+	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+		ListenAddr:     "127.0.0.1:0",
+		CoderAccessURL: "http://localhost:3000",
+		CertFile:       certFile,
+		KeyFile:        keyFile,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	proxyAddr := srv.Addr()
+	require.NotEmpty(t, proxyAddr)
+
+	// Wait for the proxy server to be ready.
+	require.Eventually(t, func() bool {
+		conn, err := net.Dial("tcp", proxyAddr)
+		if err != nil {
+			return false
+		}
+		_ = conn.Close()
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Load the CA certificate so the client trusts the proxy's MITM certificate.
+	certPEM, err := os.ReadFile(certFile)
+	require.NoError(t, err)
+	certPool := x509.NewCertPool()
+	certPool.AppendCertsFromPEM(certPEM)
+
+	// Create an HTTP client configured to use the proxy.
+	proxyURL, err := url.Parse("http://" + proxyAddr)
+	require.NoError(t, err)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+			ProxyConnectHeader: http.Header{
+				"Proxy-Authorization": []string{makeProxyAuthHeader("test-session-token")},
+			},
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    certPool,
+			},
+		},
+	}
+
+	// Make a request through the proxy to the target server.
+	// This triggers MITM and caches the generated certificate.
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetServer.URL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Verify the certificate was cached by the proxy.
+	certStore := srv.CertStore()
+	require.NotNil(t, certStore)
+
+	// goproxy uses hostname without port as the cache key.
+	targetURL, err := url.Parse(targetServer.URL)
+	require.NoError(t, err)
+
+	// Fetch with a generator that tracks calls: if the certificate was cached
+	// during the request above, the generator should not be called.
+	genCalls := 0
+	_, err = certStore.Fetch(targetURL.Hostname(), func() (*tls.Certificate, error) {
+		genCalls++
+		return &tls.Certificate{}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, genCalls, "certificate should have been cached during request")
+}
+
 func TestProxy_PortValidation(t *testing.T) {
 	t.Parallel()
 
