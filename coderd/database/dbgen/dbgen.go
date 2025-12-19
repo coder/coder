@@ -580,9 +580,10 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	require.NoError(t, err, "insert user")
 
 	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
-		ID:        user.ID,
-		Status:    takeFirst(orig.Status, database.UserStatusActive),
-		UpdatedAt: dbtime.Now(),
+		ID:         user.ID,
+		Status:     takeFirst(orig.Status, database.UserStatusActive),
+		UpdatedAt:  dbtime.Now(),
+		UserIsSeen: false,
 	})
 	require.NoError(t, err, "insert user")
 

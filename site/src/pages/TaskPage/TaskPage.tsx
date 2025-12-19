@@ -26,6 +26,7 @@ import { getAllAppsWithAgent } from "modules/tasks/apps";
 import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -275,9 +276,20 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 					<span className="text-content-secondary text-sm">
 						Apps and previous statuses are not available
 					</span>
+					{workspace.outdated && (
+						<div
+							data-testid="workspace-outdated-tooltip"
+							className="flex items-center gap-1.5 mt-1 text-content-secondary text-sm"
+						>
+							<WorkspaceOutdatedTooltip workspace={workspace}>
+								You can update your task workspace to a newer version
+							</WorkspaceOutdatedTooltip>
+						</div>
+					)}
 					<div className="flex flex-row mt-4 gap-4">
 						<Button
 							size="sm"
+							data-testid="task-start-workspace"
 							disabled={isWaitingForStart}
 							onClick={() => {
 								mutateStartWorkspace.mutate({
