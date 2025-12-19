@@ -6,6 +6,7 @@ export const Language = {
 	emailInvalid: "Please enter a valid email address.",
 	emailRequired: "Please enter an email address.",
 	passwordRequired: "Please enter a password.",
+	organizationRequired: "Please select an organization.",
 	createUser: "Create",
 	cancel: "Cancel",
 };

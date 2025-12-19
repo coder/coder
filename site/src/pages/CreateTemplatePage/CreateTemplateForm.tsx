@@ -76,6 +76,7 @@ const validationSchema = Yup.object({
 		"Please enter a description that is less than or equal to 128 characters.",
 	),
 	icon: Yup.string().optional(),
+	organization: Yup.string().required("Please select an organization."),
 });
 
 const defaultInitialValues: CreateTemplateFormData = {
@@ -108,6 +109,7 @@ type GetInitialValuesParams = {
 	variables?: TemplateVersionVariable[];
 	allowAdvancedScheduling: boolean;
 	searchParams: URLSearchParams;
+	showOrganizationPicker?: boolean;
 };
 
 const getInitialValues = ({
@@ -116,8 +118,14 @@ const getInitialValues = ({
 	allowAdvancedScheduling,
 	variables,
 	searchParams,
+	showOrganizationPicker,
 }: GetInitialValuesParams) => {
-	let initialValues = defaultInitialValues;
+	let initialValues = {
+		...defaultInitialValues,
+		organization: showOrganizationPicker
+			? ""
+			: defaultInitialValues.organization,
+	};
 
 	// Will assume the query param has a valid ProvisionerType, as this query param is only used
 	// in testing.
@@ -215,6 +223,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 			fromCopy: "copiedTemplate" in props ? props.copiedTemplate : undefined,
 			variables,
 			searchParams,
+			showOrganizationPicker,
 		}),
 		validationSchema,
 		onSubmit,
@@ -260,6 +269,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 							{showProvisionerWarning && <ProvisionerWarning />}
 							<OrganizationAutocomplete
 								{...getFieldHelpers("organization")}
+								required
 								label="Belongs to"
 								onChange={(newValue) => {
 									setSelectedOrg(newValue);

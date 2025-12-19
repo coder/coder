@@ -66,6 +66,7 @@ const validationSchema = Yup.object({
 	username: nameValidator(Language.usernameLabel),
 	name: displayNameValidator(Language.nameLabel),
 	login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
+	organization: Yup.string().required(Language.organizationRequired),
 });
 
 type CreateUserFormData = {
@@ -152,6 +153,7 @@ export const CreateUserForm: FC<
 					{showOrganizations && (
 						<OrganizationAutocomplete
 							{...getFieldHelpers("organization")}
+							required
 							label="Organization"
 							onChange={(newValue) => {
 								void form.setFieldValue("organization", newValue?.id ?? "");

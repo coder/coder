@@ -28,7 +28,7 @@ type CommonAutocompleteProps<T extends SelectedUser> = {
 type UserAutocompleteProps = CommonAutocompleteProps<User>;
 
 export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
-	const [filter, setFilter] = useState<string>();
+	const [filter, setFilter] = useState<string | undefined>("");
 
 	const usersQuery = useQuery({
 		...users({
@@ -82,6 +82,7 @@ type InnerAutocompleteProps<T extends SelectedUser> =
 		setFilter: (filter: string | undefined) => void;
 		/** Users are undefined if not loaded or errored. */
 		users: readonly T[] | undefined;
+		required?: boolean;
 	};
 
 const InnerAutocomplete = <T extends SelectedUser>({
@@ -92,6 +93,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 	setFilter,
 	users,
 	value,
+	required,
 }: InnerAutocompleteProps<T>) => {
 	const [inputValue, setInputValue] = useState("");
 
@@ -117,7 +119,8 @@ const InnerAutocomplete = <T extends SelectedUser>({
 					src={option.avatar_url}
 				/>
 			)}
-			placeholder={label ?? "User email or username"}
+			label={label}
+			placeholder="User email or username"
 			noOptionsText={
 				error
 					? getErrorMessage(error, "Unable to fetch users")
@@ -131,11 +134,12 @@ const InnerAutocomplete = <T extends SelectedUser>({
 			}}
 			onOpenChange={(isOpen) => {
 				if (isOpen) {
-					setFilter(value?.email ?? "");
+					setFilter("");
 				} else {
 					setFilter(undefined);
 				}
 			}}
+			required={required}
 			startAdornment={
 				value && (
 					<Avatar size="sm" src={value.avatar_url} fallback={value.username} />

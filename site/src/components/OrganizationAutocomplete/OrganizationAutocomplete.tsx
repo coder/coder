@@ -11,14 +11,20 @@ type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;
 	label?: string;
 	className?: string;
+	required?: boolean;
 	check?: AuthorizationCheck;
+	error?: boolean;
+	helperText?: React.ReactNode;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	onChange,
 	label,
 	className,
+	required,
 	check,
+	error,
+	helperText,
 }) => {
 	const [selected, setSelected] = useState<Organization | null>(null);
 	const organizationsQuery = useQuery(organizations());
@@ -65,34 +71,45 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	}, [options, selected, onChange]);
 
 	return (
-		<Autocomplete
-			value={selected}
-			onChange={(newValue) => {
-				setSelected(newValue);
-				onChange(newValue);
-			}}
-			options={options}
-			getOptionValue={(option) => option.id}
-			getOptionLabel={(option) => option.display_name}
-			isOptionEqualToValue={(a, b) => a.id === b.id}
-			renderOption={(option) => (
-				<AvatarData
-					title={option.display_name}
-					subtitle={option.name}
-					src={option.icon}
-				/>
+		<div className="flex flex-col gap-2">
+			<Autocomplete
+				value={selected}
+				onChange={(newValue) => {
+					setSelected(newValue);
+					onChange(newValue);
+				}}
+				options={options}
+				getOptionValue={(option) => option.id}
+				getOptionLabel={(option) => option.display_name}
+				isOptionEqualToValue={(a, b) => a.id === b.id}
+				renderOption={(option) => (
+					<AvatarData
+						title={option.display_name}
+						subtitle={option.name}
+						src={option.icon}
+					/>
+				)}
+				label={label}
+				placeholder="Organization name"
+				noOptionsText="No organizations found"
+				loading={organizationsQuery.isLoading}
+				disabled={options.length === 1}
+				required={required}
+				startAdornment={
+					selected && (
+						<Avatar size="sm" src={selected.icon} fallback={selected.name} />
+					)
+				}
+				className={className}
+				data-testid="organization-autocomplete"
+			/>
+			{helperText && (
+				<span
+					className={`text-xs ${error ? "text-content-destructive" : "text-content-secondary"}`}
+				>
+					{helperText}
+				</span>
 			)}
-			placeholder={label ?? "Organization name"}
-			noOptionsText="No organizations found"
-			loading={organizationsQuery.isLoading}
-			disabled={options.length === 1}
-			startAdornment={
-				selected && (
-					<Avatar size="sm" src={selected.icon} fallback={selected.name} />
-				)
-			}
-			className={className}
-			data-testid="organization-autocomplete"
-		/>
+		</div>
 	);
 };
