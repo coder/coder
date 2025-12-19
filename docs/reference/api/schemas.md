@@ -3175,6 +3175,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
+    "stats": {
+      "usage": {
+        "enable": true
+      }
+    },
     "strict_transport_security": 0,
     "strict_transport_security_options": [
       "string"
@@ -3210,9 +3215,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       }
-    },
-    "template_insights": {
-      "enable": true
     },
     "terms_of_service_url": "string",
     "tls": {
@@ -3706,6 +3708,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh_default_duration": 0
   },
   "ssh_keygen_algorithm": "string",
+  "stats": {
+    "usage": {
+      "enable": true
+    }
+  },
   "strict_transport_security": 0,
   "strict_transport_security_options": [
     "string"
@@ -3741,9 +3748,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     }
-  },
-  "template_insights": {
-    "enable": true
   },
   "terms_of_service_url": "string",
   "tls": {
@@ -3849,12 +3853,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `scim_api_key`                       | string                                                                                               | false    |              |                                                                    |
 | `session_lifetime`                   | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
 | `ssh_keygen_algorithm`               | string                                                                                               | false    |              |                                                                    |
+| `stats`                              | [codersdk.StatsConfig](#codersdkstatsconfig)                                                         | false    |              |                                                                    |
 | `strict_transport_security`          | integer                                                                                              | false    |              |                                                                    |
 | `strict_transport_security_options`  | array of string                                                                                      | false    |              |                                                                    |
 | `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
-| `template_insights`                  | [codersdk.TemplateInsightsConfig](#codersdktemplateinsightsconfig)                                   | false    |              |                                                                    |
 | `terms_of_service_url`               | string                                                                                               | false    |              |                                                                    |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
@@ -7823,6 +7827,36 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `name`            | string | false    |              |             |
 | `organization_id` | string | false    |              |             |
 
+## codersdk.StatsConfig
+
+```json
+{
+  "usage": {
+    "enable": true
+  }
+}
+```
+
+### Properties
+
+| Name    | Type                                                   | Required | Restrictions | Description |
+|---------|--------------------------------------------------------|----------|--------------|-------------|
+| `usage` | [codersdk.StatsUsageConfig](#codersdkstatsusageconfig) | false    |              |             |
+
+## codersdk.StatsUsageConfig
+
+```json
+{
+  "enable": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `enable` | boolean | false    |              |             |
+
 ## codersdk.SupportConfig
 
 ```json
@@ -8579,20 +8613,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------|---------|
 | `role`   | `admin` |
 | `role`   | `use`   |
-
-## codersdk.TemplateInsightsConfig
-
-```json
-{
-  "enable": true
-}
-```
-
-### Properties
-
-| Name     | Type    | Required | Restrictions | Description |
-|----------|---------|----------|--------------|-------------|
-| `enable` | boolean | false    |              |             |
 
 ## codersdk.TemplateInsightsIntervalReport
 
