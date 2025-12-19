@@ -1,5 +1,4 @@
 import Checkbox from "@mui/material/Checkbox";
-import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
@@ -16,6 +15,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
@@ -130,18 +134,21 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild>
-				<Tooltip title="Edit user roles">
-					<Button
-						variant="subtle"
-						aria-label="Edit user roles"
-						size="icon"
-						className="text-content-secondary hover:text-content-primary"
-					>
-						<EditSquare />
-					</Button>
-				</Tooltip>
-			</PopoverTrigger>
+			<Tooltip>
+				<PopoverTrigger asChild>
+					<TooltipTrigger asChild>
+						<Button
+							variant="subtle"
+							aria-label="Edit user roles"
+							size="icon"
+							className="text-content-secondary hover:text-content-primary"
+						>
+							<EditSquare />
+						</Button>
+					</TooltipTrigger>
+				</PopoverTrigger>
+				<TooltipContent side="bottom">Edit user roles</TooltipContent>
+			</Tooltip>
 
 			<PopoverContent
 				align="start"

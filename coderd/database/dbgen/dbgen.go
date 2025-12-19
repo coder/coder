@@ -440,10 +440,18 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		workspace.DormantAt = orig.DormantAt
 	}
 	if len(orig.UserACL) > 0 || len(orig.GroupACL) > 0 {
+		userACL := orig.UserACL
+		if userACL == nil {
+			userACL = database.WorkspaceACL{}
+		}
+		groupACL := orig.GroupACL
+		if groupACL == nil {
+			groupACL = database.WorkspaceACL{}
+		}
 		err = db.UpdateWorkspaceACLByID(genCtx, database.UpdateWorkspaceACLByIDParams{
 			ID:       workspace.ID,
-			UserACL:  orig.UserACL,
-			GroupACL: orig.GroupACL,
+			UserACL:  userACL,
+			GroupACL: groupACL,
 		})
 		require.NoError(t, err, "set workspace ACL")
 		workspace.UserACL = orig.UserACL
@@ -572,9 +580,10 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	require.NoError(t, err, "insert user")
 
 	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
-		ID:        user.ID,
-		Status:    takeFirst(orig.Status, database.UserStatusActive),
-		UpdatedAt: dbtime.Now(),
+		ID:         user.ID,
+		Status:     takeFirst(orig.Status, database.UserStatusActive),
+		UpdatedAt:  dbtime.Now(),
+		UserIsSeen: false,
 	})
 	require.NoError(t, err, "insert user")
 

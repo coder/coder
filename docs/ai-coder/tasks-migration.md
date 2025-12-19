@@ -8,7 +8,8 @@ Prior to Coder version 2.28.0, the definition of a Coder task was different to t
 
 Note that 2 and 3 were generally handled by the `coder/agentapi` Terraform module.
 
-The pre-2.28.0 definition will be supported until the release of 2.29.0. You will need to update your Tasks-enabled templates to continue using Tasks after this release.
+> [!IMPORTANT]
+> The pre-2.28.0 definition is no longer supported as of Coder 2.30.0. You must update your Tasks-enabled templates to use the new format described below.
 
 You can view an [example migration here](https://github.com/coder/coder/pull/20420). Alternatively, follow the steps below:
 
@@ -114,7 +115,7 @@ resource "coder_ai_task" "task" {
 
 In v2.28 and above, the following changes were made:
 
-- The explicitly named "AI Prompt" parameter is deprecated. The task prompt is now available in the `coder_ai_task` resource (provider version 2.12 and above) and `coder_task` data source (provider version 2.13 and above).
+- The explicitly named "AI Prompt" parameter is no longer supported. The task prompt is now available in the `coder_ai_task` resource (provider version 2.12 and above) and `coder_task` data source (provider version 2.13 and above).
 - Modules no longer define the `coder_ai_task` resource. These must be defined explicitly in the template.
 - The `sidebar_app` field of the `coder_ai_task` resource is now deprecated. In its place, use `app_id`.
 

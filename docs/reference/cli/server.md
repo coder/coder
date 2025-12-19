@@ -269,6 +269,17 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+### --template-insights-enable
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>bool</code>                                  |
+| Environment | <code>$CODER_TEMPLATE_INSIGHTS_ENABLE</code>       |
+| YAML        | <code>introspection.templateInsights.enable</code> |
+| Default     | <code>true</code>                                  |
+
+Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.
+
 ### --prometheus-enable
 
 |             |                                              |
@@ -1780,6 +1791,28 @@ Whether to inject Coder's MCP tools into intercepted AI Bridge requests (require
 | Default     | <code>60d</code>                       |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
+
+### --aibridge-max-concurrency
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>int</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_MAX_CONCURRENCY</code> |
+| YAML        | <code>aibridge.maxConcurrency</code>         |
+| Default     | <code>0</code>                               |
+
+Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
+
+### --aibridge-rate-limit
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>int</code>                        |
+| Environment | <code>$CODER_AIBRIDGE_RATE_LIMIT</code> |
+| YAML        | <code>aibridge.rateLimit</code>         |
+| Default     | <code>0</code>                          |
+
+Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
 
 ### --audit-logs-retention
 

@@ -29,6 +29,7 @@ const workspaceFilterQuery = {
 	failed: "status:failed",
 	dormant: "dormant:true",
 	outdated: "outdated:true",
+	shared: "shared:true",
 };
 
 type FilterPreset = {
@@ -58,6 +59,10 @@ const PRESET_FILTERS: FilterPreset[] = [
 	{
 		query: workspaceFilterQuery.outdated,
 		name: "Outdated workspaces",
+	},
+	{
+		query: workspaceFilterQuery.shared,
+		name: "Shared workspaces",
 	},
 ];
 

@@ -3,30 +3,22 @@ package sessionstore_test
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"path"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/sessionstore"
+	"github.com/coder/coder/v2/cli/sessionstore/testhelpers"
 )
 
 type storedCredentials map[string]struct {
 	CoderURL string `json:"coder_url"`
 	APIToken string `json:"api_token"`
-}
-
-// Generate a test service name for use with the OS keyring. It uses a combination
-// of the test name and a nanosecond timestamp to prevent collisions.
-func keyringTestServiceName(t *testing.T) string {
-	t.Helper()
-	return t.Name() + "_" + fmt.Sprintf("%v", time.Now().UnixNano())
 }
 
 func TestKeyring(t *testing.T) {
@@ -47,7 +39,7 @@ func TestKeyring(t *testing.T) {
 	t.Run("ReadNonExistent", func(t *testing.T) {
 		t.Parallel()
 
-		backend := sessionstore.NewKeyringWithService(keyringTestServiceName(t))
+		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = backend.Delete(srvURL) })
@@ -60,7 +52,7 @@ func TestKeyring(t *testing.T) {
 	t.Run("DeleteNonExistent", func(t *testing.T) {
 		t.Parallel()
 
-		backend := sessionstore.NewKeyringWithService(keyringTestServiceName(t))
+		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = backend.Delete(srvURL) })
@@ -73,7 +65,7 @@ func TestKeyring(t *testing.T) {
 	t.Run("WriteAndRead", func(t *testing.T) {
 		t.Parallel()
 
-		backend := sessionstore.NewKeyringWithService(keyringTestServiceName(t))
+		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = backend.Delete(srvURL) })
@@ -101,7 +93,7 @@ func TestKeyring(t *testing.T) {
 	t.Run("WriteAndDelete", func(t *testing.T) {
 		t.Parallel()
 
-		backend := sessionstore.NewKeyringWithService(keyringTestServiceName(t))
+		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = backend.Delete(srvURL) })
@@ -125,7 +117,7 @@ func TestKeyring(t *testing.T) {
 	t.Run("OverwriteToken", func(t *testing.T) {
 		t.Parallel()
 
-		backend := sessionstore.NewKeyringWithService(keyringTestServiceName(t))
+		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = backend.Delete(srvURL) })
@@ -156,7 +148,7 @@ func TestKeyring(t *testing.T) {
 	t.Run("MultipleServers", func(t *testing.T) {
 		t.Parallel()
 
-		backend := sessionstore.NewKeyringWithService(keyringTestServiceName(t))
+		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
 		srvURL2, err := url.Parse(testURL2)
@@ -220,7 +212,7 @@ func TestKeyring(t *testing.T) {
 		srv2URL, err := url.Parse(testURL2)
 		require.NoError(t, err)
 
-		serviceName := keyringTestServiceName(t)
+		serviceName := testhelpers.KeyringServiceName(t)
 		backend := sessionstore.NewKeyringWithService(serviceName)
 		t.Cleanup(func() {
 			_ = backend.Delete(srv1URL)

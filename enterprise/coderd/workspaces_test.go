@@ -629,6 +629,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -680,6 +682,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -861,7 +865,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
@@ -1384,6 +1388,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
@@ -1397,6 +1403,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 		}, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.TemplateID = template.ID
 		})
@@ -2579,21 +2587,11 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 		return r
 	}
 
-	applyResponse := func(withAgent bool) *proto.Response {
+	graphResponse := func(withAgent bool) *proto.Response {
 		return &proto.Response{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{resource(withAgent)},
-				},
-			},
-		}
-	}
-
-	return &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
 					Presets: []*proto.Preset{{
 						Name:       "preset-test",
 						Parameters: []*proto.PresetParameter{{Name: "k1", Value: "v1"}},
@@ -2601,10 +2599,19 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 					}},
 				},
 			},
+		}
+	}
+
+	return &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{},
+			},
 		}},
-		ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
-			proto.WorkspaceTransition_START: {applyResponse(true)},
-			proto.WorkspaceTransition_STOP:  {applyResponse(false)},
+		ProvisionGraphMap: map[proto.WorkspaceTransition][]*proto.Response{
+			proto.WorkspaceTransition_START: {graphResponse(true)},
+			proto.WorkspaceTransition_STOP:  {graphResponse(false)},
 		},
 	}
 }
@@ -2612,10 +2619,10 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 func templateWithFailedResponseAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Presets: []*proto.Preset{
 							{
 								Name: "preset-test",
@@ -4475,5 +4482,183 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		acl, err := workspaceOwnerClient.WorkspaceACL(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.Equal(t, acl.Groups[0].ID, group.ID)
+	})
+}
+
+func TestWorkspacesSharedWith(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ContainsActorsWithFullData", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+
+		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        workspaceOwner.ID,
+			OrganizationID: user.OrganizationID,
+		}).Do().Workspace
+
+		_, sharedWithUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Update a shared with user to have a name and avatar
+		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
+			ID:        sharedWithUser.ID,
+			Username:  sharedWithUser.Username,
+			Name:      "Shared User Name",
+			AvatarURL: "/emojis/1fae1.png",
+		})
+		require.NoError(t, err)
+
+		// Create a shared with group with a name and avatar
+		sharedWithGroup, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:      "shared-with-group",
+			AvatarURL: "/emojis/1f60d.png",
+		})
+		require.NoError(t, err)
+
+		// Share workspace with user and group
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				sharedWithGroup.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		// Fetch workspace as client
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+		require.NotNil(t, workspaces.Workspaces[0].SharedWith)
+		require.Len(t, workspaces.Workspaces[0].SharedWith, 2)
+
+		sharedWith := workspaces.Workspaces[0].SharedWith
+
+		// Find actors in response
+		var userActor, groupActor *codersdk.SharedWorkspaceActor
+		for i := range sharedWith {
+			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
+				userActor = &sharedWith[i]
+			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
+				groupActor = &sharedWith[i]
+			}
+		}
+
+		require.NotNil(t, userActor, "expected to find user actor")
+		assert.Equal(t, sharedWithUser.ID, userActor.ID)
+		assert.Contains(t, userActor.Roles, codersdk.WorkspaceRoleUse)
+		assert.Equal(t, "Shared User Name", userActor.Name)
+		assert.Equal(t, "/emojis/1fae1.png", userActor.AvatarURL)
+
+		require.NotNil(t, groupActor, "expected to find group actor")
+		assert.Equal(t, sharedWithGroup.ID, groupActor.ID)
+		assert.Equal(t, sharedWithGroup.Name, groupActor.Name)
+		assert.Contains(t, groupActor.Roles, codersdk.WorkspaceRoleAdmin)
+		assert.Equal(t, "/emojis/1f60d.png", groupActor.AvatarURL)
+	})
+
+	// /workspace endpoint should include the data too
+	t.Run("WorkspaceResponseIncludesSharedWith", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+
+		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        workspaceOwner.ID,
+			OrganizationID: user.OrganizationID,
+		}).Do().Workspace
+
+		_, sharedWithUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Update a shared with user to have a name and avatar
+		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
+			ID:        sharedWithUser.ID,
+			Username:  sharedWithUser.Username,
+			Name:      "Shared User Name",
+			AvatarURL: "/emojis/1fae1.png",
+		})
+		require.NoError(t, err)
+
+		// Create a shared with group with a name and avatar
+		sharedWithGroup, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:      "shared-with-group",
+			AvatarURL: "/emojis/1f60d.png",
+		})
+		require.NoError(t, err)
+
+		// Share workspace with user and group
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				sharedWithGroup.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		// Fetch from the /workspace endpoint as client
+		ws, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.NotNil(t, ws.SharedWith)
+		require.Len(t, ws.SharedWith, 2)
+
+		sharedWith := ws.SharedWith
+
+		// Find actors in response
+		var userActor, groupActor *codersdk.SharedWorkspaceActor
+		for i := range sharedWith {
+			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
+				userActor = &sharedWith[i]
+			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
+				groupActor = &sharedWith[i]
+			}
+		}
+
+		require.NotNil(t, userActor, "expected to find user actor")
+		assert.Equal(t, sharedWithUser.ID, userActor.ID)
+		assert.Contains(t, userActor.Roles, codersdk.WorkspaceRoleUse)
+		assert.Equal(t, "Shared User Name", userActor.Name)
+		assert.Equal(t, "/emojis/1fae1.png", userActor.AvatarURL)
+
+		require.NotNil(t, groupActor, "expected to find group actor")
+		assert.Equal(t, sharedWithGroup.ID, groupActor.ID)
+		assert.Equal(t, sharedWithGroup.Name, groupActor.Name)
+		assert.Contains(t, groupActor.Roles, codersdk.WorkspaceRoleAdmin)
+		assert.Equal(t, "/emojis/1f60d.png", groupActor.AvatarURL)
 	})
 }
