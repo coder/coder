@@ -411,81 +411,62 @@ jobs:
           fi
           echo "::endgroup::"
 
-          echo "::group::Streaming AI task output..."
+          echo "::group::Monitoring task until completion..."
           echo "╔══════════════════════════════════════════════════════════════╗"
           printf "║  Task: %-53s ║\n" "${TASK_NAME}"
-          echo "║  Streaming AgentAPI events from http://localhost:3284/events ║"
+          echo "║  Waiting for AI to complete analysis...                      ║"
           echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
 
-          # Start step summary section for streaming output
-          {
-            echo "## AI Task Output"
-            echo ""
-            echo '```'
-          } >> "${GITHUB_STEP_SUMMARY}"
+          # Poll task status until it goes stable (idle)
+          MAX_WAIT=600  # 10 minutes max
+          WAITED=0
+          while [[ $WAITED -lt $MAX_WAIT ]]; do
+            STATUS_JSON=$(coder task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
+            TASK_STATUS=$(echo "$STATUS_JSON" | jq -r '.status // "unknown"')
+            CURRENT_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
+            STATE_MSG=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
 
-          # Stream events from AgentAPI via SSH
-          # Write to both stdout and step summary
-          CURRENT_STATUS="running"
-          coder ssh "${TASK_NAME}" -- curl -sN http://localhost:3284/events 2>&1 | \
-            while IFS= read -r line; do
-              # Skip empty lines and SSE comments
-              [[ -z "$line" || "$line" == :* ]] && continue
+            echo "[${WAITED}s] Status: ${TASK_STATUS}, State: ${CURRENT_STATE}"
+            if [[ -n "$STATE_MSG" ]]; then
+              echo "       Message: ${STATE_MSG:0:60}..."
+            fi
 
-              # Track event type
-              if [[ "$line" == event:* ]]; then
-                EVENT_TYPE="${line#event:}"
-                EVENT_TYPE="${EVENT_TYPE// /}"  # trim whitespace
-                continue
-              fi
+            # Check if task is done (stable = idle)
+            if [[ "$TASK_STATUS" == "active" && "$CURRENT_STATE" == "idle" ]]; then
+              echo ""
+              echo "Task completed!"
+              break
+            fi
 
-              # Parse data payload
-              if [[ "$line" == data:* ]]; then
-                DATA="${line#data: }"
+            # Also check for paused status (task finished)
+            if [[ "$TASK_STATUS" == "paused" ]]; then
+              echo ""
+              echo "Task paused/completed!"
+              break
+            fi
 
-                case "$EVENT_TYPE" in
-                  message_update)
-                    # The API returns: {"id":N,"role":"agent|user","message":"..."}
-                    CONTENT=$(echo "$DATA" | jq -r '.message // empty' 2>/dev/null)
-                    if [[ -n "$CONTENT" && "$CONTENT" != "null" ]]; then
-                      # Output to both stdout and step summary
-                      echo "$CONTENT"
-                      echo "$CONTENT" >> "${GITHUB_STEP_SUMMARY}"
-                    fi
-                    ;;
+            sleep 10
+            WAITED=$((WAITED + 10))
+          done
 
-                  status_change)
-                    NEW_STATUS=$(echo "$DATA" | jq -r '.status // empty' 2>/dev/null)
-                    if [[ -n "$NEW_STATUS" && "$NEW_STATUS" != "$CURRENT_STATUS" ]]; then
-                      echo ""
-                      echo "── Status: ${NEW_STATUS} ──"
-                      echo "" >> "${GITHUB_STEP_SUMMARY}"
-                      echo "── Status: ${NEW_STATUS} ──" >> "${GITHUB_STEP_SUMMARY}"
-                      CURRENT_STATUS="$NEW_STATUS"
+          if [[ $WAITED -ge $MAX_WAIT ]]; then
+            echo "::warning::Task monitoring timed out after ${MAX_WAIT}s"
+          fi
+          echo "::endgroup::"
 
-                      if [[ "$NEW_STATUS" == "stable" ]]; then
-                        echo ""
-                        echo "╔══════════════════════════════════╗"
-                        echo "║  Task completed successfully     ║"
-                        echo "╚══════════════════════════════════╝"
-                        break
-                      fi
-                    fi
-                    ;;
-
-                esac
-
-                # Reset event type for next event
-                EVENT_TYPE=""
-              fi
-            done || true  # Don't fail if stream ends unexpectedly
-
-          # Close step summary code block
-          echo '```' >> "${GITHUB_STEP_SUMMARY}"
-
+          # Fetch and display the full conversation
+          echo "::group::AI Conversation Output"
           echo ""
-          echo "Stream ended."
+
+          MESSAGES=$(coder ssh "${TASK_NAME}" -- curl -s http://localhost:3284/messages 2>/dev/null || echo '{}')
+
+          if echo "$MESSAGES" | jq -e '.messages' >/dev/null 2>&1; then
+            echo "$MESSAGES" | jq -r '.messages[] | "═══════════════════════════════════════════════════════════════\n[\(.role | ascii_upcase)]\n═══════════════════════════════════════════════════════════════\n\(.content)\n"' 2>/dev/null || echo "Failed to parse messages"
+          else
+            echo "No messages retrieved or task not accessible"
+          fi
+
           echo "::endgroup::"
 
       - name: Cleanup Task and Workspace
