@@ -46,6 +46,7 @@ import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
 	type HTMLAttributes,
+	type JSX,
 	type PropsWithChildren,
 	type ReactNode,
 	useId,
@@ -275,6 +276,21 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	interval,
 	...panelProps
 }) => {
+	let content: JSX.Element;
+	if (!error && !data) {
+		content = <Loader css={{ height: "100%" }} />;
+	} else if (!error && data && data.length > 0) {
+		content = (
+			<ActiveUserChart
+				data={data.map((d) => ({
+					amount: d.active_users,
+					date: d.start_time,
+				}))}
+			/>
+		);
+	} else {
+		content = <NoDataAvailable error={error} />;
+	}
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
@@ -282,18 +298,7 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 					<ActiveUsersTitle interval={interval} />
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: "100%" }} />}
-				{(error || data?.length === 0) && <NoDataAvailable error={error} />}
-				{data && data.length > 0 && (
-					<ActiveUserChart
-						data={data.map((d) => ({
-							amount: d.active_users,
-							date: d.start_time,
-						}))}
-					/>
-				)}
-			</PanelContent>
+			<PanelContent>{content}</PanelContent>
 		</Panel>
 	);
 };
@@ -311,6 +316,43 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	const theme = useTheme();
 	const users = data?.report.users;
 
+	let content: JSX.Element | JSX.Element[];
+	if (!error && !users) {
+		content = <Loader css={{ height: "100%" }} />;
+	} else if (!error && users && users.length > 0) {
+		content = [...users]
+			.sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
+			.map((row) => (
+				<div
+					key={row.user_id}
+					css={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						fontSize: 14,
+						paddingTop: 8,
+						paddingBottom: 8,
+					}}
+				>
+					<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+						<Avatar fallback={row.username} src={row.avatar_url} />
+						<div css={{ fontWeight: 500 }}>{row.username}</div>
+					</div>
+					<div
+						css={{
+							color: getLatencyColor(theme, row.latency_ms.p50),
+							fontWeight: 500,
+							fontSize: 13,
+							textAlign: "right",
+						}}
+					>
+						{row.latency_ms.p50.toFixed(0)}ms
+					</div>
+				</div>
+			));
+	} else {
+		content = <NoDataAvailable error={error} />;
+	}
 	return (
 		<Panel {...panelProps} css={{ overflowY: "auto" }}>
 			<PanelHeader>
@@ -327,42 +369,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 					</HelpTooltip>
 				</PanelTitle>
 			</PanelHeader>
-
-			<PanelContent>
-				{!error && !users && <Loader css={{ height: "100%" }} />}
-				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
-				{users &&
-					[...users]
-						.sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
-						.map((row) => (
-							<div
-								key={row.user_id}
-								css={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									fontSize: 14,
-									paddingTop: 8,
-									paddingBottom: 8,
-								}}
-							>
-								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<Avatar fallback={row.username} src={row.avatar_url} />
-									<div css={{ fontWeight: 500 }}>{row.username}</div>
-								</div>
-								<div
-									css={{
-										color: getLatencyColor(theme, row.latency_ms.p50),
-										fontWeight: 500,
-										fontSize: 13,
-										textAlign: "right",
-									}}
-								>
-									{row.latency_ms.p50.toFixed(0)}ms
-								</div>
-							</div>
-						))}
-			</PanelContent>
+			<PanelContent>{content}</PanelContent>
 		</Panel>
 	);
 };
@@ -378,9 +385,43 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	...panelProps
 }) => {
 	const theme = useTheme();
-
 	const users = data?.report.users;
-
+	let content: JSX.Element | JSX.Element[];
+	if (!error && !users) {
+		content = <Loader css={{ height: "100%" }} />;
+	} else if (!error && users && users.length > 0) {
+		content = [...users]
+			.sort((a, b) => b.seconds - a.seconds)
+			.map((row) => (
+				<div
+					key={row.user_id}
+					css={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						fontSize: 14,
+						paddingTop: 8,
+						paddingBottom: 8,
+					}}
+				>
+					<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+						<Avatar fallback={row.username} src={row.avatar_url} />
+						<div css={{ fontWeight: 500 }}>{row.username}</div>
+					</div>
+					<div
+						css={{
+							color: theme.palette.text.secondary,
+							fontSize: 13,
+							textAlign: "right",
+						}}
+					>
+						{formatTime(row.seconds)}
+					</div>
+				</div>
+			));
+	} else {
+		content = <NoDataAvailable error={error} />;
+	}
 	return (
 		<Panel {...panelProps} css={{ overflowY: "auto" }}>
 			<PanelHeader>
@@ -398,40 +439,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 					</HelpTooltip>
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !users && <Loader css={{ height: "100%" }} />}
-				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
-				{users &&
-					[...users]
-						.sort((a, b) => b.seconds - a.seconds)
-						.map((row) => (
-							<div
-								key={row.user_id}
-								css={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									fontSize: 14,
-									paddingTop: 8,
-									paddingBottom: 8,
-								}}
-							>
-								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<Avatar fallback={row.username} src={row.avatar_url} />
-									<div css={{ fontWeight: 500 }}>{row.username}</div>
-								</div>
-								<div
-									css={{
-										color: theme.palette.text.secondary,
-										fontSize: 13,
-										textAlign: "right",
-									}}
-								>
-									{formatTime(row.seconds)}
-								</div>
-							</div>
-						))}
-			</PanelContent>
+			<PanelContent>{content}</PanelContent>
 		</Panel>
 	);
 };
@@ -457,106 +465,107 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.scale([theme.roles.success.fill.solid, theme.roles.warning.fill.solid])
 		.mode("lch")
 		.colors(validUsage?.length ?? 0);
-
+	let content: JSX.Element;
+	if (!error && !data) {
+		content = <Loader css={{ height: "100%" }} />;
+	} else if (!error && validUsage && validUsage.length > 0) {
+		content = (
+			<div
+				css={{
+					display: "flex",
+					flexDirection: "column",
+					gap: 24,
+				}}
+			>
+				{validUsage.map((usage, i) => {
+					const percentage = (usage.seconds / totalInSeconds) * 100;
+					return (
+						<div
+							key={usage.slug}
+							css={{ display: "flex", gap: 24, alignItems: "center" }}
+						>
+							<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<div
+									css={{
+										width: 20,
+										height: 20,
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+									}}
+								>
+									<img
+										src={usage.icon}
+										alt=""
+										style={{
+											objectFit: "contain",
+											width: "100%",
+											height: "100%",
+										}}
+									/>
+								</div>
+								<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
+									{usage.display_name}
+								</div>
+							</div>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<LinearProgress
+										value={percentage}
+										variant="determinate"
+										css={{
+											width: "100%",
+											height: 8,
+											backgroundColor: theme.palette.divider,
+											"& .MuiLinearProgress-bar": {
+												backgroundColor: usageColors[i],
+												borderRadius: 999,
+											},
+										}}
+									/>
+								</TooltipTrigger>
+								<TooltipContent>
+									{Math.floor(percentage)}%
+									<TooltipArrow className="fill-border" />
+								</TooltipContent>
+							</Tooltip>
+							<Stack
+								spacing={0}
+								css={{
+									fontSize: 13,
+									color: theme.palette.text.secondary,
+									width: 120,
+									flexShrink: 0,
+									lineHeight: "1.5",
+								}}
+							>
+								{formatTime(usage.seconds)}
+								{usage.times_used > 0 && (
+									<span
+										css={{
+											fontSize: 12,
+											color: theme.palette.text.disabled,
+										}}
+									>
+										Opened {usage.times_used.toLocaleString()}{" "}
+										{usage.times_used === 1 ? "time" : "times"}
+									</span>
+								)}
+							</Stack>
+						</div>
+					);
+				})}
+			</div>
+		);
+	} else {
+		content = <NoDataAvailable error={error} />;
+	}
 	return (
 		<Panel {...panelProps} css={{ overflowY: "auto" }}>
 			<PanelHeader>
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: "100%" }} />}
-				{(error || validUsage?.length === 0) && (
-					<NoDataAvailable error={error} />
-				)}
-				{validUsage && validUsage.length > 0 && (
-					<div
-						css={{
-							display: "flex",
-							flexDirection: "column",
-							gap: 24,
-						}}
-					>
-						{validUsage.map((usage, i) => {
-							const percentage = (usage.seconds / totalInSeconds) * 100;
-							return (
-								<div
-									key={usage.slug}
-									css={{ display: "flex", gap: 24, alignItems: "center" }}
-								>
-									<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
-										<div
-											css={{
-												width: 20,
-												height: 20,
-												display: "flex",
-												alignItems: "center",
-												justifyContent: "center",
-											}}
-										>
-											<img
-												src={usage.icon}
-												alt=""
-												style={{
-													objectFit: "contain",
-													width: "100%",
-													height: "100%",
-												}}
-											/>
-										</div>
-										<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-											{usage.display_name}
-										</div>
-									</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<LinearProgress
-												value={percentage}
-												variant="determinate"
-												css={{
-													width: "100%",
-													height: 8,
-													backgroundColor: theme.palette.divider,
-													"& .MuiLinearProgress-bar": {
-														backgroundColor: usageColors[i],
-														borderRadius: 999,
-													},
-												}}
-											/>
-										</TooltipTrigger>
-										<TooltipContent>
-											{Math.floor(percentage)}%
-											<TooltipArrow className="fill-border" />
-										</TooltipContent>
-									</Tooltip>
-									<Stack
-										spacing={0}
-										css={{
-											fontSize: 13,
-											color: theme.palette.text.secondary,
-											width: 120,
-											flexShrink: 0,
-											lineHeight: "1.5",
-										}}
-									>
-										{formatTime(usage.seconds)}
-										{usage.times_used > 0 && (
-											<span
-												css={{
-													fontSize: 12,
-													color: theme.palette.text.disabled,
-												}}
-											>
-												Opened {usage.times_used.toLocaleString()}{" "}
-												{usage.times_used === 1 ? "time" : "times"}
-											</span>
-										)}
-									</Stack>
-								</div>
-							);
-						})}
-					</div>
-				)}
-			</PanelContent>
+			<PanelContent>{content}</PanelContent>
 		</Panel>
 	);
 };
@@ -572,88 +581,84 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 	...panelProps
 }) => {
 	const theme = useTheme();
-
+	let content: JSX.Element | JSX.Element[];
+	if (!error && !data) {
+		content = <Loader css={{ height: 200 }} />;
+	} else if (!error && data && data.length > 0) {
+		content = data?.map((parameter, parameterIndex) => {
+			const label =
+				parameter.display_name !== "" ? parameter.display_name : parameter.name;
+			return (
+				<div
+					key={parameter.name}
+					css={{
+						display: "flex",
+						alignItems: "start",
+						padding: 24,
+						marginLeft: -24,
+						marginRight: -24,
+						borderTop: `1px solid ${theme.palette.divider}`,
+						width: "calc(100% + 48px)",
+						"&:first-of-type": {
+							borderTop: 0,
+						},
+						gap: 24,
+					}}
+				>
+					<div css={{ flex: 1 }}>
+						<div css={{ fontWeight: 500 }}>{label}</div>
+						<p
+							css={{
+								fontSize: 14,
+								color: theme.palette.text.secondary,
+								maxWidth: 400,
+								margin: 0,
+							}}
+						>
+							{parameter.description}
+						</p>
+					</div>
+					<div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
+						<ParameterUsageRow
+							css={{
+								color: theme.palette.text.secondary,
+								fontWeight: 500,
+								fontSize: 13,
+								cursor: "default",
+							}}
+						>
+							<div>Value</div>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div>Count</div>
+								</TooltipTrigger>
+								<TooltipContent>
+									The number of workspaces using this value
+								</TooltipContent>
+							</Tooltip>
+						</ParameterUsageRow>
+						{[...parameter.values]
+							.sort((a, b) => b.count - a.count)
+							.filter((usage) => filterOrphanValues(usage, parameter))
+							.map((usage, usageIndex) => (
+								<ParameterUsageRow key={`${parameterIndex}-${usageIndex}`}>
+									<ParameterUsageLabel usage={usage} parameter={parameter} />
+									<div css={{ textAlign: "right" }}>{usage.count}</div>
+								</ParameterUsageRow>
+							))}
+					</div>
+				</div>
+			);
+		});
+	} else {
+		content = <NoDataAvailable error={error} css={{ height: 200 }} />;
+	}
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
 				<PanelTitle>Parameters usage</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: 200 }} />}
-				{(error || data?.length === 0) && (
-					<NoDataAvailable error={error} css={{ height: 200 }} />
-				)}
-				{data?.map((parameter, parameterIndex) => {
-					const label =
-						parameter.display_name !== ""
-							? parameter.display_name
-							: parameter.name;
-					return (
-						<div
-							key={parameter.name}
-							css={{
-								display: "flex",
-								alignItems: "start",
-								padding: 24,
-								marginLeft: -24,
-								marginRight: -24,
-								borderTop: `1px solid ${theme.palette.divider}`,
-								width: "calc(100% + 48px)",
-								"&:first-of-type": {
-									borderTop: 0,
-								},
-								gap: 24,
-							}}
-						>
-							<div css={{ flex: 1 }}>
-								<div css={{ fontWeight: 500 }}>{label}</div>
-								<p
-									css={{
-										fontSize: 14,
-										color: theme.palette.text.secondary,
-										maxWidth: 400,
-										margin: 0,
-									}}
-								>
-									{parameter.description}
-								</p>
-							</div>
-							<div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
-								<ParameterUsageRow
-									css={{
-										color: theme.palette.text.secondary,
-										fontWeight: 500,
-										fontSize: 13,
-										cursor: "default",
-									}}
-								>
-									<div>Value</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div>Count</div>
-										</TooltipTrigger>
-										<TooltipContent>
-											The number of workspaces using this value
-										</TooltipContent>
-									</Tooltip>
-								</ParameterUsageRow>
-								{[...parameter.values]
-									.sort((a, b) => b.count - a.count)
-									.filter((usage) => filterOrphanValues(usage, parameter))
-									.map((usage, usageIndex) => (
-										<ParameterUsageRow key={`${parameterIndex}-${usageIndex}`}>
-											<ParameterUsageLabel
-												usage={usage}
-												parameter={parameter}
-											/>
-											<div css={{ textAlign: "right" }}>{usage.count}</div>
-										</ParameterUsageRow>
-									))}
-							</div>
-						</div>
-					);
-				})}
-			</PanelContent>
+			<PanelContent>{content}</PanelContent>
 		</Panel>
 	);
 };
