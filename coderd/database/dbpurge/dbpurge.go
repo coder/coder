@@ -66,23 +66,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
-	iterationDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "coderd",
-		Subsystem: "dbpurge",
-		Name:      "iteration_duration_seconds",
-		Help:      "Duration of each dbpurge iteration in seconds.",
-		Buckets:   []float64{1, 5, 10, 30, 60, 300, 600}, // 1s to 10min
-	}, []string{"success"})
-	reg.MustRegister(iterationDuration)
-
-	recordsPurged = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "coderd",
-		Subsystem: "dbpurge",
-		Name:      "records_purged_total",
-		Help:      "Total number of records purged by type.",
-	}, []string{"record_type"})
-	reg.MustRegister(recordsPurged)
-
 	// Start the ticker with the initial delay.
 	ticker := clk.NewTicker(delay)
 	doTick := func(ctx context.Context, start time.Time) {
