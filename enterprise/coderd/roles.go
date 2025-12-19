@@ -82,9 +82,9 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Role(inserted))
 }
 
-// patchRole will allow creating a custom organization role
+// putOrgRoles will allow updating a custom organization role
 //
-// @Summary Upsert a custom organization role
+// @Summary Update a custom organization role
 // @ID upsert-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
@@ -197,6 +197,12 @@ func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	rolename := chi.URLParam(r, "roleName")
+
+	// Catch requests that try to delete system roles.
+	if !validOrganizationRoleRequest(ctx, codersdk.CustomRoleRequest{Name: rolename}, rw) {
+		return
+	}
+
 	roles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles: []database.NameOrganizationPair{
 			{

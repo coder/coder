@@ -230,15 +230,25 @@ func allPermsExcept(excepts ...Objecter) []Permission {
 // https://github.com/coder/coder/issues/1194
 var builtInRoles map[string]func(orgID uuid.UUID) Role
 
+// systemRoles are roles that have migrated from builtInRoles to
+// database storage. This migration is partial - permissions are still
+// generated at runtime and reconciled to the database, rather than
+// the database being the source of truth.
+var systemRoles = map[string]struct{}{
+	RoleOrgMember(): {},
+}
+
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
-// names, but some roles are built in. So these names are reserved
+// names, but some roles are built in or generated at runtime. So these names
+// are reserved
 func ReservedRoleName(name string) bool {
-	_, ok := builtInRoles[name]
-	return ok
+	_, isBuiltIn := builtInRoles[name]
+	_, isSystem := systemRoles[name]
+	return isBuiltIn || isSystem
 }
 
 // ReloadBuiltinRoles loads the static roles into the builtInRoles map.
