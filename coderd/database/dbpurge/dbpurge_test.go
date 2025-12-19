@@ -22,8 +22,10 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -31,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1629,6 +1632,62 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDBPurgeAuthorization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DBPurgeActorCanCallPurgeOperations", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		rawDB, _ := dbtestutil.NewDB(t)
+
+		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+		db := dbauthz.New(rawDB, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
+
+		ctx = dbauthz.AsDBPurge(ctx)
+
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		require.True(t, ok, "actor should be present")
+		require.Equal(t, rbac.SubjectTypeDBPurge, actor.Type, "should be DBPurge type")
+		require.Contains(t, actor.Roles.Names(), rbac.RoleIdentifier{Name: "dbpurge"},
+			"should have dbpurge role")
+
+		_, err := db.DeleteOldWorkspaceAgentLogs(ctx, time.Now().Add(-24*time.Hour))
+		require.NoError(t, err)
+
+		err = db.DeleteOldWorkspaceAgentStats(ctx)
+		require.NoError(t, err)
+
+		err = db.DeleteOldProvisionerDaemons(ctx)
+		require.NoError(t, err)
+
+		err = db.DeleteOldNotificationMessages(ctx)
+		require.NoError(t, err)
+
+		err = db.ExpirePrebuildsAPIKeys(ctx, time.Now().Add(-24*time.Hour))
+		require.NoError(t, err)
+
+		params := database.DeleteExpiredAPIKeysParams{
+			Before:     time.Now().Add(-24 * time.Hour),
+			LimitCount: 100,
+		}
+		_, err = db.DeleteExpiredAPIKeys(ctx, params)
+		require.NoError(t, err)
+
+		err = db.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
+			BeforeTime: time.Now().Add(-24 * time.Hour),
+			LimitCount: 100,
+		})
+		require.NoError(t, err)
+
+		_, err = db.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
+			BeforeTime: time.Now().Add(-24 * time.Hour),
+			LimitCount: 100,
+		})
+		require.NoError(t, err)
+	})
 }
 
 // ptr is a helper to create a pointer to a value.
