@@ -90,6 +90,14 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	proxy := goproxy.NewProxyHttpServer()
 
+	// Cache generated leaf certificates to avoid expensive RSA key generation
+	// and signing on every request to the same hostname.
+	// TODO(ssncferreira): Currently certs are cached for all MITM'd hosts, but once
+	//   host filtering is implemented, only AI provider certs should be cached.
+	//   This will be implemented upstack.
+	//   Related to https://github.com/coder/internal/issues/1182
+	proxy.CertStore = NewCertCache()
+
 	srv := &Server{
 		ctx:            ctx,
 		logger:         logger,
@@ -144,6 +152,12 @@ func (s *Server) Addr() string {
 		return ""
 	}
 	return s.listener.Addr().String()
+}
+
+// CertStore returns the certificate cache used by the proxy.
+// Exposed for testing to verify caching is correctly configured.
+func (s *Server) CertStore() goproxy.CertStorage {
+	return s.proxy.CertStore
 }
 
 // Close gracefully shuts down the proxy server.
