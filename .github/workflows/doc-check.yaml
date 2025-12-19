@@ -390,6 +390,10 @@ jobs:
           TASK_URL: ${{ steps.create_task.outputs.task-url }}
           PR_URL: ${{ steps.determine-context.outputs.pr_url }}
         run: |
+          echo "Task created: ${TASK_CREATED}"
+          echo "Task name: ${TASK_NAME}"
+          echo "Task URL: ${TASK_URL}"
+          echo "PR URL: ${PR_URL}"
           {
             echo "## Documentation Check Task"
             echo ""
