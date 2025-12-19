@@ -305,13 +305,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									renderOption={(option) => (
 										<span className="flex-1">{`${option.flag} ${option.name}`}</span>
 									)}
-									placeholder={Language.countryLabel}
+									label={Language.countryLabel}
+									placeholder={"Select a country"}
 									id="trial_info.country"
 									data-testid="trial_info.country"
 								/>
 								{form.touched.trial_info?.country &&
 									form.errors.trial_info?.country && (
-										<p className="text-xs text-content-danger">
+										<p className="text-xs text-content-destructive">
 											{form.errors.trial_info.country}
 										</p>
 									)}
