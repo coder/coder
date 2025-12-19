@@ -1,4 +1,7 @@
-import type { AIBridgeInterception } from "api/typesGenerated";
+import type {
+	AIBridgeInterception,
+	AIBridgeUserPrompt,
+} from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { TableCell, TableRow } from "components/Table/Table";
@@ -13,8 +16,9 @@ import {
 	ArrowUpIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	ChevronUpIcon,
 } from "lucide-react";
-import { type FC, Fragment, useState } from "react";
+import { type FC, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { humanDuration } from "utils/time";
 import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
@@ -113,6 +117,62 @@ export function tokenUsageMetadataMerge(
 		? nonEmptyObjects
 		: result;
 }
+
+const RequestLogsPrompt: FC<{ prompt: AIBridgeUserPrompt }> = ({ prompt }) => {
+	const [isOpen, setIsOpen] = useState(false);
+	const [canCollapse, setCanCollapse] = useState(false);
+
+	const promptRef = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const promptEl = promptRef.current;
+		if (!promptEl || isOpen) {
+			// If the prompt is open or the prompt element is not found, return.
+			return;
+		}
+
+		const updateContentSize = () =>
+			setCanCollapse(promptEl.scrollHeight > promptEl.clientHeight);
+		updateContentSize();
+
+		const ro = new ResizeObserver(updateContentSize);
+		ro.observe(promptEl);
+		return () => {
+			ro.disconnect();
+		};
+	}, [isOpen]);
+
+	return (
+		<div className="p-4 bg-surface-secondary rounded-md flex flex-col gap-2">
+			<div
+				className={cn("text-xs leading-5", !isOpen && "line-clamp-[10]")}
+				ref={promptRef}
+			>
+				{prompt.prompt}
+			</div>
+			{canCollapse && (
+				<div className="flex items-center justify-end">
+					<button
+						type="button"
+						className={cn(
+							"bg-transparent border-none cursor-pointer rounded-sm",
+							"text-content-secondary hover:text-content-primary",
+							"outline-none focus:ring-2 focus:ring-content-link",
+							"text-xs hover:underline flex items-center gap-1",
+						)}
+						onClick={() => setIsOpen(!isOpen)}
+					>
+						{isOpen ? (
+							<ChevronUpIcon className="size-icon-xs" />
+						) : (
+							<ChevronDownIcon className="size-icon-xs" />
+						)}
+						<span>{isOpen ? "Show less" : "Show more"}</span>
+					</button>
+				</div>
+			)}
+		</div>
+	);
+};
 
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
@@ -370,21 +430,16 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							</dl>
 
 							{interception.user_prompts.length > 0 && (
-								<div className="flex flex-col gap-2">
+								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Prompts</div>
-									<div
-										className="bg-surface-secondary rounded-md p-4 text-xs leading-4"
-										data-chromatic="ignore"
-									>
-										{interception.user_prompts.map((prompt) => (
-											<Fragment key={prompt.id}>{prompt.prompt}</Fragment>
-										))}
-									</div>
+									{interception.user_prompts.map((prompt) => (
+										<RequestLogsPrompt key={prompt.id} prompt={prompt} />
+									))}
 								</div>
 							)}
 
 							{interception.tool_usages.length > 0 && (
-								<div className="flex flex-col gap-2">
+								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Tool Usages</div>
 									<div
 										className="bg-surface-secondary rounded-md p-4"
@@ -419,7 +474,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							)}
 
 							{tokenUsagesMetadata !== null && (
-								<div className="flex flex-col gap-2">
+								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Token Usage Metadata</div>
 									<div className="bg-surface-secondary rounded-md p-4">
 										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
