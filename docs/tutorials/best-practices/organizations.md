@@ -126,7 +126,7 @@ Using ClickOps to onboard new organizations, set quotas, and SSO sync can be
 cumbersome, especially if you want to "seed" organizations with provisioners and
 starter templates.
 
-Support for managing Organizations via the coderd Terrafom provider was introduced
-with the v0.0.8 release. Additional organization management functionality has been
-added with subsequent releases, see [https://github.com/coder/terraform-provider-coderd/releases](https://github.com/coder/terraform-provider-coderd/releases)
-for release information.
+We suggest using the coderd Terraform provider to manage organizations at scale.
+Documentation and examples for the Organization and Group Sync resources is available
+at https://registry.terraform.io/providers/coder/coderd/latest/docs. Feature requests
+for additional functionality can be created at https://github.com/coder/terraform-provider-coderd/issues.
