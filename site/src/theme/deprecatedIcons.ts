@@ -14,10 +14,14 @@ export const DEPRECATED_ICONS = [
 	"aws.png",
 	// we already serve this in `azure.svg`.
 	"azure.png",
+	// we already serve this in `do.svg`.
+	"do.png",
 	// we already serve this in `docker.svg`.
 	"docker.png",
 	// we have alternatives in `docker.svg`.
 	"docker-white.svg",
 	// we already serve this in `k8s.svg`.
 	"k8s.png",
+	// we already serve this in `ruby.svg`.
+	"ruby.png",
 ] satisfies string[];
