@@ -1,8 +1,3 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="128" cy="128" r="120" fill="black"/>
-  <polygon
-    points="128,70 178,170 78,170"
-    fill="white"
-  />
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M128 8C194.274 8 248 61.7258 248 128C248 194.274 194.274 248 128 248C61.7258 248 8 194.274 8 128C8 61.7258 61.7258 8 128 8ZM78 170H178L128 70L78 170Z" fill="black"/>
 </svg>
-
