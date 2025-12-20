@@ -20,6 +20,8 @@ export const DEPRECATED_ICONS = [
 	"docker.png",
 	// we have alternatives in `docker.svg`.
 	"docker-white.svg",
+	// we already serve this in `gcp.svg`.
+	"gcp.png",
 	// we already serve this in `k8s.svg`.
 	"k8s.png",
 	// we already serve this in `ruby.svg`.
