@@ -1,48 +1,21 @@
-<?xml version="1.0"?>
-<!-- MIT License
-
-Copyright (c) 2023 LobeHub
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.-->
-<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
- <title>Cursor</title>
- <defs>
-  <linearGradient fx="0.21" fy="0.75" id="svg_24" x1="1" x2="0.55" y1="0.34" y2="0.88">
-   <stop offset="0.18" stop-color="#666666" stop-opacity="1"/>
-   <stop offset="0.71" stop-color="#000000" stop-opacity="1"/>
-  </linearGradient>
-  <linearGradient fx="0.39" fy="0.45" id="svg_25" x1="0.48" x2="1" y1="0.26" y2="0.86">
-   <stop offset="0.16" stop-color="#7f7f7f" stop-opacity="1"/>
-   <stop offset="0.66" stop-color="#e5e5e5" stop-opacity="1"/>
-  </linearGradient>
-  <linearGradient fx="0.68" fy="0.53" id="svg_27" x1="0.36" x2="0.58" y1="0" y2="0.57">
-   <stop stop-color="#b2b2b2" stop-opacity="1"/>
-   <stop offset="0.67" stop-color="#666666" stop-opacity="1"/>
-  </linearGradient>
- </defs>
- <g class="layer">
-  <title>Layer 1</title>
-  <path d="m11.93,24l10.42,-6l-10.42,-6l-10.43,6l10.43,6z" fill="url(#svg_25)" id="svg_1" transform="matrix(1 0 0 1 0 0)"/>
-  <path d="m22.35,18l0,-12l-10.42,-6l0,12l10.42,6z" fill="url(#svg_24)" id="svg_2" transform="matrix(1 0 0 1 0 0)"/>
-  <path d="m11.93,0l-10.43,6l0,12l10.43,-6l0,-12z" fill="url(#svg_27)" id="svg_3"/>
-  <path d="m22.35,6l-10.42,18l0,-12l10.42,-6z" fill="#cccccc" id="svg_4"/>
-  <path d="m22.35,6l-10.42,6l-10.43,-6l20.85,0z" fill="#FFF" id="svg_5"/>
- </g>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M127.253 256L238.4 192L127.253 128L16 192L127.253 256Z" fill="url(#paint0_linear_2115_1834)"/>
+<path d="M238.401 192V64L127.254 0V128L238.401 192Z" fill="url(#paint1_linear_2115_1834)"/>
+<path d="M127.253 0L16 64V192L127.253 128V0Z" fill="url(#paint2_linear_2115_1834)"/>
+<path d="M238.401 64L127.254 256V128L238.401 64Z" fill="#CCCCCC"/>
+<path d="M238.4 64L127.253 128L16 64H238.4Z" fill="white"/>
+<defs>
+<linearGradient id="paint0_linear_2115_1834" x1="122.752" y1="161.28" x2="176.469" y2="268.971" gradientUnits="userSpaceOnUse">
+<stop offset="0.16" stop-color="#7F7F7F"/>
+<stop offset="0.66" stop-color="#E5E5E5"/>
+</linearGradient>
+<linearGradient id="paint1_linear_2115_1834" x1="238.401" y1="65.28" x2="156.084" y2="122.462" gradientUnits="userSpaceOnUse">
+<stop offset="0.18" stop-color="#666666"/>
+<stop offset="0.71"/>
+</linearGradient>
+<linearGradient id="paint2_linear_2115_1834" x1="56.0512" y1="-1.76125e-06" x2="114.067" y2="87.0989" gradientUnits="userSpaceOnUse">
+<stop stop-color="#B2B2B2"/>
+<stop offset="0.67" stop-color="#666666"/>
+</linearGradient>
+</defs>
 </svg>
-
