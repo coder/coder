@@ -7,7 +7,7 @@ USAGE:
 
     - Run with an input.json file:
   
-       $ coder organization -O <organization_name> roles create --stidin <
+       $ coder organization -O <organization_name> roles create --stdin <
   role.json
 
 OPTIONS:
