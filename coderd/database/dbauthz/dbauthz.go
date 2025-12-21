@@ -1278,25 +1278,43 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 	return nil
 }
 
+// requireSystemRestrictedActor checks to make sure the caller is a system restricted actor.
+func (q *querier) requireSystemRestrictedActor(ctx context.Context, action policy.Action, object rbac.Object) error {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return ErrNoActor
+	}
+
+	if act.Type == rbac.SubjectTypeSystemRestricted {
+		return nil
+	}
+
+	// We use a standard RBAC forbidden error to avoid leaking details
+	// to clients while still being verbose in tests/logs.
+	internal := xerrors.New("invalid actor, system restricted actor required")
+	err := rbac.ForbiddenWithInternal(internal, act, action, object, nil)
+	return logNotAuthorizedError(ctx, q.log, err)
+}
+
 // customRoleCheck will validate a custom role for inserting or updating.
 // If the role is not valid, an error will be returned.
 // - Check custom roles are valid for their resource types + actions
 // - Check the actor can create the custom role
 // - Check the custom role does not grant perms the actor does not have
-// - Prevent negative perms
-// - Prevent roles with site and org permissions.
+// - Prevent negative perms for non-system roles
+// - Prevent roles that have both (site|user) and org permissions.
 func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return ErrNoActor
 	}
 
-	// Org permissions require an org role
-	if role.OrganizationID.UUID == uuid.Nil && len(role.OrgPermissions) > 0 {
-		return xerrors.Errorf("organization permissions require specifying an organization id")
+	// Org and orgMember permissions require an org role.
+	if role.OrganizationID.UUID == uuid.Nil && (len(role.OrgPermissions) > 0 || len(role.MemberPermissions) > 0) {
+		return xerrors.Errorf("organization and member permissions require specifying an organization id")
 	}
 
-	// Org roles can only specify org permissions
+	// Org roles can only specify org permissions; system roles can also specify orgMember ones.
 	if role.OrganizationID.UUID != uuid.Nil && (len(role.SitePermissions) > 0 || len(role.UserPermissions) > 0) {
 		return xerrors.Errorf("organization roles specify site or user permissions")
 	}
@@ -1304,12 +1322,13 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	// The rbac.Role has a 'Valid()' function on it that will do a lot
 	// of checks.
 	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
-		Name:            role.Name,
-		DisplayName:     role.DisplayName,
-		SitePermissions: role.SitePermissions,
-		OrgPermissions:  role.OrgPermissions,
-		UserPermissions: role.UserPermissions,
-		OrganizationID:  role.OrganizationID,
+		Name:              role.Name,
+		DisplayName:       role.DisplayName,
+		SitePermissions:   role.SitePermissions,
+		OrgPermissions:    role.OrgPermissions,
+		UserPermissions:   role.UserPermissions,
+		MemberPermissions: role.MemberPermissions,
+		OrganizationID:    role.OrganizationID,
 	})
 	if err != nil {
 		return xerrors.Errorf("invalid args: %w", err)
@@ -1332,6 +1351,15 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		// Again to avoid more complexity in our roles. Roles are limited to one
 		// organization.
 		return xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
+	}
+
+	// System roles are managed internally and may include permissions
+	// (including negative ones) that user-facing custom role APIs
+	// should reject.  Still validate that the role shape and
+	// permissions are internally consistent via rbacRole.Valid()
+	// above.
+	if role.IsSystem {
+		return nil
 	}
 
 	// Prevent escalation
@@ -4133,22 +4161,32 @@ func (q *querier) InsertCustomRole(ctx context.Context, arg database.InsertCusto
 	if !arg.OrganizationID.Valid || arg.OrganizationID.UUID == uuid.Nil {
 		return database.CustomRole{}, NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")}
 	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+
+	rbacObj := rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)
+
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbacObj); err != nil {
 		return database.CustomRole{}, err
 	}
 
-	// TODO(geokat): should we add MemberPermissions validation too
-	// now that we have them in system roles?
+	if arg.IsSystem {
+		err := q.requireSystemRestrictedActor(ctx, policy.ActionCreate, rbacObj)
+		if err != nil {
+			return database.CustomRole{}, err
+		}
+	}
+
 	if err := q.customRoleCheck(ctx, database.CustomRole{
-		Name:            arg.Name,
-		DisplayName:     arg.DisplayName,
-		SitePermissions: arg.SitePermissions,
-		OrgPermissions:  arg.OrgPermissions,
-		UserPermissions: arg.UserPermissions,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-		OrganizationID:  arg.OrganizationID,
-		ID:              uuid.New(),
+		Name:              arg.Name,
+		DisplayName:       arg.DisplayName,
+		SitePermissions:   arg.SitePermissions,
+		OrgPermissions:    arg.OrgPermissions,
+		UserPermissions:   arg.UserPermissions,
+		MemberPermissions: arg.MemberPermissions,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+		OrganizationID:    arg.OrganizationID,
+		ID:                uuid.New(),
+		IsSystem:          arg.IsSystem,
 	}); err != nil {
 		return database.CustomRole{}, err
 	}
@@ -4889,22 +4927,46 @@ func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCusto
 	if !arg.OrganizationID.Valid || arg.OrganizationID.UUID == uuid.Nil {
 		return database.CustomRole{}, NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")}
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+
+	rbacObj := rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbacObj); err != nil {
 		return database.CustomRole{}, err
 	}
 
-	// TODO(geokat): should we add MemberPermissions validation too
-	// now that we have them in system roles?
+	existing, err := database.ExpectOne(q.db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           arg.Name,
+				OrganizationID: arg.OrganizationID.UUID,
+			},
+		},
+		ExcludeOrgRoles:    false,
+		OrganizationID:     uuid.Nil,
+		IncludeSystemRoles: true,
+	}))
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	if existing.IsSystem {
+		if err := q.requireSystemRestrictedActor(ctx, policy.ActionUpdate, rbacObj); err != nil {
+			return database.CustomRole{}, err
+		}
+	}
+
 	if err := q.customRoleCheck(ctx, database.CustomRole{
-		Name:            arg.Name,
-		DisplayName:     arg.DisplayName,
-		SitePermissions: arg.SitePermissions,
-		OrgPermissions:  arg.OrgPermissions,
-		UserPermissions: arg.UserPermissions,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-		OrganizationID:  arg.OrganizationID,
-		ID:              uuid.New(),
+		Name:              arg.Name,
+		DisplayName:       arg.DisplayName,
+		SitePermissions:   arg.SitePermissions,
+		OrgPermissions:    arg.OrgPermissions,
+		UserPermissions:   arg.UserPermissions,
+		MemberPermissions: arg.MemberPermissions,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+		OrganizationID:    arg.OrganizationID,
+		ID:                uuid.New(),
+		IsSystem:          existing.IsSystem,
 	}); err != nil {
 		return database.CustomRole{}, err
 	}
