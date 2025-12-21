@@ -977,6 +977,11 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 				policy.ActionRead,
 			},
 			// Users can create provisioner daemons scoped to themselves.
+			//
+			// TODO(geokat): copied from the original built-in role
+			// verbatim, but seems to be a no-op (not excepted above;
+			// plus no owner is set for the ProvisionerDaemon RBAC
+			// object).
 			ResourceProvisionerDaemon.Type: {
 				policy.ActionRead,
 				policy.ActionCreate,
