@@ -272,7 +272,7 @@ func ReconcileOrgMemberRole(
 		})
 		if err != nil {
 			return out, xerrors.Errorf("update organization-member custom role for organization %s: %w",
-				in.OrganizationID, err)
+				in.OrganizationID.UUID, err)
 		}
 	}
 
