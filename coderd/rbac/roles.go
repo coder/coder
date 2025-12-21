@@ -991,9 +991,12 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 	)
 
 	if workspaceSharingDisabled {
-		// This negation overrides the wildcard permission from
-		// allPermsExcept.
-		memberPerms = append(memberPerms, Permission{
+		// Org-level negation blocks sharing on ANY workspace in the
+		// org.  This overrides any positive permission from other
+		// roles, including org-admin.
+		//
+		// TODO(geokat): is this what we want?
+		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,
 			Action:       policy.ActionShare,
