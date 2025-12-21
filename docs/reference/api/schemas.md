@@ -11671,6 +11671,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------------|
 | ``, `admin`, `use` |
 
+## codersdk.WorkspaceSharingSettings
+
+```json
+{
+  "sharing_disabled": true
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `sharing_disabled` | boolean | false    |              |             |
+
 ## codersdk.WorkspaceStatus
 
 ```json
