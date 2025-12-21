@@ -947,6 +947,15 @@ SET
 WHERE
 	id = @id;
 
+-- name: DeleteWorkspaceACLsByOrganization :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::jsonb,
+	user_acl = '{}'::jsonb
+WHERE
+	organization_id = @organization_id;
+
 -- name: GetRegularWorkspaceCreateMetrics :many
 -- Count regular workspaces: only those whose first successful 'start' build
 -- was not initiated by the prebuild system user.
