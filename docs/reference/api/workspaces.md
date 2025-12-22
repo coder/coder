@@ -41,11 +41,11 @@ of the template will be used.
 
 ### Parameters
 
-| Name           | In   | Type                                                                         | Required | Description              |
-|----------------|------|------------------------------------------------------------------------------|----------|--------------------------|
-| `organization` | path | string(uuid)                                                                 | true     | Organization ID          |
-| `user`         | path | string                                                                       | true     | Username, UUID, or me    |
-| `body`         | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Create workspace request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`organization`|path|string(uuid)|true|Organization ID|
+|`user`|path|string|true|Username, UUID, or me|
+|`body`|body|[codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest)|true|Create workspace request|
 
 ### Example responses
 
@@ -325,9 +325,9 @@ of the template will be used.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Workspace](schemas.md#codersdkworkspace)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -346,11 +346,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                                                 |
-|-------------------|-------|---------|----------|-------------------------------------------------------------|
-| `user`            | path  | string  | true     | User ID, name, or me                                        |
-| `workspacename`   | path  | string  | true     | Workspace name                                              |
-| `include_deleted` | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`user`|path|string|true|User ID, name, or me|
+|`workspacename`|path|string|true|Workspace name|
+|`include_deleted`|query|boolean|false|Return data instead of HTTP 404 if the workspace is deleted|
 
 ### Example responses
 
@@ -630,9 +630,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Workspace](schemas.md#codersdkworkspace)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -677,10 +677,10 @@ of the template will be used.
 
 ### Parameters
 
-| Name   | In   | Type                                                                         | Required | Description              |
-|--------|------|------------------------------------------------------------------------------|----------|--------------------------|
-| `user` | path | string                                                                       | true     | Username, UUID, or me    |
-| `body` | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Create workspace request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`user`|path|string|true|Username, UUID, or me|
+|`body`|body|[codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest)|true|Create workspace request|
 
 ### Example responses
 
@@ -960,9 +960,9 @@ of the template will be used.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Workspace](schemas.md#codersdkworkspace)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -981,11 +981,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                                                        |
-|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent. |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                                                         |
-| `offset` | query | integer | false    | Page offset                                                                                                                                                                        |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`q`|query|string|false|Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent.|
+|`limit`|query|integer|false|Page limit|
+|`offset`|query|integer|false|Page offset|
 
 ### Example responses
 
@@ -1253,9 +1253,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspacesResponse](schemas.md#codersdkworkspacesresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspacesResponse](schemas.md#codersdkworkspacesresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1274,10 +1274,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                 |
-|-------------------|-------|--------------|----------|-------------------------------------------------------------|
-| `workspace`       | path  | string(uuid) | true     | Workspace ID                                                |
-| `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`include_deleted`|query|boolean|false|Return data instead of HTTP 404 if the workspace is deleted|
 
 ### Example responses
 
@@ -1557,9 +1557,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Workspace](schemas.md#codersdkworkspace)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1586,16 +1586,16 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Parameters
 
-| Name        | In   | Type                                                                         | Required | Description             |
-|-------------|------|------------------------------------------------------------------------------|----------|-------------------------|
-| `workspace` | path | string(uuid)                                                                 | true     | Workspace ID            |
-| `body`      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | Metadata update request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest)|true|Metadata update request|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1614,9 +1614,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Example responses
 
@@ -1668,13 +1668,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                   |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceACL](schemas.md#codersdkworkspaceacl) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspaceACL](schemas.md#codersdkworkspaceacl)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Completely clears the workspace's user and group ACLs
+## Completely clears the workspace's user and group ACLs.
 
 ### Code samples
 
@@ -1688,15 +1688,15 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1730,16 +1730,16 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 ### Parameters
 
-| Name        | In   | Type                                                                 | Required | Description                  |
-|-------------|------|----------------------------------------------------------------------|----------|------------------------------|
-| `workspace` | path | string(uuid)                                                         | true     | Workspace ID                 |
-| `body`      | body | [codersdk.UpdateWorkspaceACL](schemas.md#codersdkupdateworkspaceacl) | true     | Update workspace ACL request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.UpdateWorkspaceACL](schemas.md#codersdkupdateworkspaceacl)|true|Update workspace ACL request|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1766,16 +1766,16 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                           | Required | Description             |
-|-------------|------|------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `workspace` | path | string(uuid)                                                                                   | true     | Workspace ID            |
-| `body`      | body | [codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest) | true     | Schedule update request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest)|true|Schedule update request|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1802,20 +1802,20 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                                         | Required | Description               |
-|-------------|------|--------------------------------------------------------------------------------------------------------------|----------|---------------------------|
-| `workspace` | path | string(uuid)                                                                                                 | true     | Workspace ID              |
-| `body`      | body | [codersdk.UpdateWorkspaceAutomaticUpdatesRequest](schemas.md#codersdkupdateworkspaceautomaticupdatesrequest) | true     | Automatic updates request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.UpdateWorkspaceAutomaticUpdatesRequest](schemas.md#codersdkupdateworkspaceautomaticupdatesrequest)|true|Automatic updates request|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update workspace dormancy status by id
+## Update workspace dormancy status by id.
 
 ### Code samples
 
@@ -1839,10 +1839,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 ### Parameters
 
-| Name        | In   | Type                                                                           | Required | Description                        |
-|-------------|------|--------------------------------------------------------------------------------|----------|------------------------------------|
-| `workspace` | path | string(uuid)                                                                   | true     | Workspace ID                       |
-| `body`      | body | [codersdk.UpdateWorkspaceDormancy](schemas.md#codersdkupdateworkspacedormancy) | true     | Make a workspace dormant or active |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.UpdateWorkspaceDormancy](schemas.md#codersdkupdateworkspacedormancy)|true|Make a workspace dormant or active|
 
 ### Example responses
 
@@ -2122,9 +2122,9 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Workspace](schemas.md#codersdkworkspace)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2152,10 +2152,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                    |
-|-------------|------|------------------------------------------------------------------------------------|----------|--------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
-| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest)|true|Extend deadline update request|
 
 ### Example responses
 
@@ -2176,13 +2176,13 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Favorite workspace by ID
+## Favorite workspace by ID.
 
 ### Code samples
 
@@ -2196,19 +2196,19 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Unfavorite workspace by ID
+## Unfavorite workspace by ID.
 
 ### Code samples
 
@@ -2222,19 +2222,19 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Resolve workspace autostart by id
+## Resolve workspace autostart by id.
 
 ### Code samples
 
@@ -2249,9 +2249,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Example responses
 
@@ -2265,9 +2265,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                           |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ResolveAutostartResponse](schemas.md#codersdkresolveautostartresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.ResolveAutostartResponse](schemas.md#codersdkresolveautostartresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2286,9 +2286,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Example responses
 
@@ -2333,9 +2333,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                     |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuildTimings](schemas.md#codersdkworkspacebuildtimings) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspaceBuildTimings](schemas.md#codersdkworkspacebuildtimings)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2362,16 +2362,16 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                  |
-|-------------|------|------------------------------------------------------------------------------------|----------|------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
-| `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest)|true|Workspace TTL update request|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2399,16 +2399,16 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                  |
-|-------------|------|------------------------------------------------------------------------------------|----------|------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
-| `body`      | body | [codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest) | false    | Post workspace usage request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
+|`body`|body|[codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest)|false|Post workspace usage request|
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2427,9 +2427,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Example responses
 
@@ -2437,9 +2437,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2458,9 +2458,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspace`|path|string(uuid)|true|Workspace ID|
 
 ### Example responses
 
@@ -2475,8 +2475,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.ServerSentEvent](schemas.md#codersdkserversentevent)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

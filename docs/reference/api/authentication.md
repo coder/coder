@@ -12,3 +12,4 @@ You can use tokens with the Coder's REST API using the `Coder-Session-Token` HTT
 curl 'http://coder-server:8080/api/v2/workspaces' \
   -H 'Coder-Session-Token: *****'
 ```
+

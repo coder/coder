@@ -15,12 +15,12 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
 
 ### Parameters
 
-| Name       | In    | Type    | Required | Description                                                                                                            |
-|------------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `q`        | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before. |
-| `limit`    | query | integer | false    | Page limit                                                                                                             |
-| `after_id` | query | string  | false    | Cursor pagination after ID (cannot be used with offset)                                                                |
-| `offset`   | query | integer | false    | Offset pagination (cannot be used with after_id)                                                                       |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`q`|query|string|false|Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before.|
+|`limit`|query|integer|false|Page limit|
+|`after_id`|query|string|false|Cursor pagination after ID (cannot be used with offset)|
+|`offset`|query|integer|false|Offset pagination (cannot be used with after_id)|
 
 ### Example responses
 
@@ -98,8 +98,9 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIBridgeListInterceptionsResponse](schemas.md#codersdkaibridgelistinterceptionsresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.AIBridgeListInterceptionsResponse](schemas.md#codersdkaibridgelistinterceptionsresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
