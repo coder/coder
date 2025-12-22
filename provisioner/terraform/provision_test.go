@@ -1299,8 +1299,6 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
 
-	//applyComplete, err := sess.Recv()
-	//require.NoError(t, err)
 	apply := applyComplete.Type.(*proto.Response_Apply)
 	require.NotEmpty(t, apply.Apply.State, "state exists")
 }
