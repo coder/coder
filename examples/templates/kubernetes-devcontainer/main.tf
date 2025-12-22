@@ -139,7 +139,7 @@ variable "cache_repo_secret_name" {
   type        = string
 }
 
-data "kubernetes_secret" "cache_repo_dockerconfig_secret" {
+data "kubernetes_secret_v1" "cache_repo_dockerconfig_secret" {
   count = var.cache_repo_secret_name == "" ? 0 : 1
   metadata {
     name      = var.cache_repo_secret_name
@@ -164,7 +164,7 @@ locals {
     # Use the docker gateway if the access URL is 127.0.0.1
     "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
     "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
-    "ENVBUILDER_DOCKER_CONFIG_BASE64" : base64encode(try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], "")),
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : base64encode(try(data.kubernetes_secret_v1.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], "")),
     "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true"
     # You may need to adjust this if you get an error regarding deleting files when building the workspace.
     # For example, when testing in KinD, it was necessary to set `/product_name` and `/product_uuid` in
@@ -184,7 +184,7 @@ resource "envbuilder_cached_image" "cached" {
   insecure      = var.insecure_cache_repo
 }
 
-resource "kubernetes_persistent_volume_claim" "workspaces" {
+resource "kubernetes_persistent_volume_claim_v1" "workspaces" {
   metadata {
     name      = "coder-${lower(data.coder_workspace.me.id)}-workspaces"
     namespace = var.namespace
@@ -215,10 +215,10 @@ resource "kubernetes_persistent_volume_claim" "workspaces" {
   }
 }
 
-resource "kubernetes_deployment" "main" {
+resource "kubernetes_deployment_v1" "main" {
   count = data.coder_workspace.me.start_count
   depends_on = [
-    kubernetes_persistent_volume_claim.workspaces
+    kubernetes_persistent_volume_claim_v1.workspaces
   ]
   wait_for_rollout = false
   metadata {
@@ -297,7 +297,7 @@ resource "kubernetes_deployment" "main" {
         volume {
           name = "workspaces"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.workspaces.metadata.0.name
+            claim_name = kubernetes_persistent_volume_claim_v1.workspaces.metadata.0.name
             read_only  = false
           }
         }

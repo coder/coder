@@ -39,6 +39,7 @@ const AccessURLPage = () => {
 							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
+							prominent
 						>
 							{warning.message}
 						</Alert>

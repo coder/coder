@@ -19,6 +19,7 @@ import {
 } from "testHelpers/entities";
 import {
 	withAuthProvider,
+	withDashboardProvider,
 	withGlobalSnackbar,
 	withProxyProvider,
 	withWebSocket,
@@ -65,7 +66,7 @@ const MockVSCodeApp: WorkspaceApp = {
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
-	decorators: [withProxyProvider(), withAuthProvider],
+	decorators: [withProxyProvider(), withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
@@ -401,6 +402,50 @@ const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
 export const MainAppHealthy: Story = mainAppHealthStory("healthy");
 export const MainAppInitializing: Story = mainAppHealthStory("initializing");
 export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
+
+export const OutdatedWorkspace: Story = {
+	// Given: an 'outdated' workspace (that is, the latest build does not use template's active version)
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockTask.owner_name }],
+				data: [MockTask],
+			},
+			{
+				key: ["tasks", MockTask.owner_name, MockTask.id],
+				data: MockTask,
+			},
+			{
+				key: [
+					"workspace",
+					MockTask.owner_name,
+					MockTask.workspace_name,
+					"settings",
+				],
+				data: {
+					...MockStoppedWorkspace,
+					outdated: true,
+				},
+			},
+			{
+				key: [
+					"workspaceBuilds",
+					MockStoppedWorkspace.latest_build.id,
+					"parameters",
+				],
+				data: [],
+			},
+		],
+	},
+	// Then: a tooltip should be displayed prompting the user to update the workspace.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const outdatedTooltip = await canvas.findByTestId(
+			"workspace-outdated-tooltip",
+		);
+		expect(outdatedTooltip).toBeVisible();
+	},
+};
 
 export const Active: Story = {
 	decorators: [withProxyProvider()],

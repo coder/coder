@@ -4,18 +4,18 @@ package cli
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/dynamicparameters"
 	"github.com/coder/coder/v2/scaletest/harness"
 )
@@ -72,15 +72,6 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 				return err
 			}
 
-			client.HTTPClient = &http.Client{
-				Transport: &codersdk.HeaderTransport{
-					Transport: http.DefaultTransport,
-					Header: map[string][]string{
-						codersdk.BypassRatelimitHeader: {"true"},
-					},
-				},
-			}
-
 			reg := prometheus.NewRegistry()
 			metrics := dynamicparameters.NewMetrics(reg, "concurrent_evaluations")
 
@@ -122,7 +113,13 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 						Metrics:           metrics,
 						MetricLabelValues: []string{fmt.Sprintf("%d", part.ConcurrentEvaluations)},
 					}
-					var runner harness.Runnable = dynamicparameters.NewRunner(client, cfg)
+					// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
+					// requests being unbalanced among Coder instances.
+					runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+					if err != nil {
+						return xerrors.Errorf("create runner client: %w", err)
+					}
+					var runner harness.Runnable = dynamicparameters.NewRunner(runnerClient, cfg)
 					if tracingEnabled {
 						runner = &runnableTraceWrapper{
 							tracer:   tracer,
