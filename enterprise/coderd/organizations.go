@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -286,7 +287,9 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 		// Populate the placeholder system role(s) that the DB trigger
 		// created for us.
-		_, err := rolestore.ReconcileOrgMemberRole(ctx, tx, database.CustomRole{
+		//nolint:gocritic // We need to manage a system role.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		_, err := rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
 			Name: rbac.RoleOrgMember(),
 			OrganizationID: uuid.NullUUID{
 				UUID:  organizationID,
