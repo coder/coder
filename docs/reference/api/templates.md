@@ -3528,4 +3528,3 @@ Status Code **200**
 | `type`   | `string`, `number`, `bool` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

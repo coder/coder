@@ -466,4 +466,3 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

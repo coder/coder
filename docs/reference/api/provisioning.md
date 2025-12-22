@@ -112,4 +112,3 @@ Status Code **200**
 | `status` | `pending`, `running`, `succeeded`, `canceling`, `canceled`, `failed`, `offline`, `idle`, `busy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
