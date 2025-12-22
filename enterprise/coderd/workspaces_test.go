@@ -3114,15 +3114,12 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
 
-	db, ps := dbtestutil.NewDB(t)
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Logger: &logger,
 			// We intentionally do not run a built-in provisioner daemon here.
 			IncludeProvisionerDaemon: false,
 			DeploymentValues:         dv,
-			Database:                 db,
-			Pubsub:                   ps,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
