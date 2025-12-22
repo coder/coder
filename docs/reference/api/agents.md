@@ -1134,13 +1134,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value   |
-|----------|---------|
-| `level`  | `trace` |
-| `level`  | `debug` |
-| `level`  | `info`  |
-| `level`  | `warn`  |
-| `level`  | `error` |
+| Property | Value(s)                                  |
+|----------|-------------------------------------------|
+| `level`  | `debug`, `error`, `info`, `trace`, `warn` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1230,12 +1226,8 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value   |
-|----------|---------|
-| `level`  | `trace` |
-| `level`  | `debug` |
-| `level`  | `info`  |
-| `level`  | `warn`  |
-| `level`  | `error` |
+| Property | Value(s)                                  |
+|----------|-------------------------------------------|
+| `level`  | `debug`, `error`, `info`, `trace`, `warn` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

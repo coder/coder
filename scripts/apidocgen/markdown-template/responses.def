@@ -107,11 +107,12 @@ Status Code **{{=response.status}}**
 {{?}}
 
 {{? enums.length > 0 }}
+{{ var groupedEnums = data.functions.groupEnumsByName(enums); }}
 #### Enumerated Values
 
-|Property|Value|
+|Property|Value(s)|
 |---|---|
-{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~ groupedEnums :e}}|`{{=e.name}}`|{{~ e.values :v:idx}}`{{=data.utils.toPrimitive(v)}}`{{? idx < e.values.length - 1}}, {{?}}{{~}}|
 {{~}}
 
 {{?}}

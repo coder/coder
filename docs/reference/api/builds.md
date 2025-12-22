@@ -504,10 +504,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 #### Enumerated Values
 
-| Parameter       | Value     |
-|-----------------|-----------|
-| `expect_status` | `running` |
-| `expect_status` | `pending` |
+| Parameter       | Value(s)             |
+|-----------------|----------------------|
+| `expect_status` | `pending`, `running` |
 
 ### Example responses
 
@@ -595,15 +594,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                |
-|--------------|----------------------|
-| `log_level`  | `trace`              |
-| `log_level`  | `debug`              |
-| `log_level`  | `info`               |
-| `log_level`  | `warn`               |
-| `log_level`  | `error`              |
-| `log_source` | `provisioner_daemon` |
-| `log_source` | `provisioner`        |
+| Property     | Value(s)                                  |
+|--------------|-------------------------------------------|
+| `log_level`  | `debug`, `error`, `info`, `trace`, `warn` |
+| `log_source` | `provisioner`, `provisioner_daemon`       |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -936,40 +930,16 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value              |
-|---------------------------|--------------------|
-| `health`                  | `disabled`         |
-| `health`                  | `initializing`     |
-| `health`                  | `healthy`          |
-| `health`                  | `unhealthy`        |
-| `open_in`                 | `slim-window`      |
-| `open_in`                 | `tab`              |
-| `sharing_level`           | `owner`            |
-| `sharing_level`           | `authenticated`    |
-| `sharing_level`           | `organization`     |
-| `sharing_level`           | `public`           |
-| `state`                   | `working`          |
-| `state`                   | `idle`             |
-| `state`                   | `complete`         |
-| `state`                   | `failure`          |
-| `lifecycle_state`         | `created`          |
-| `lifecycle_state`         | `starting`         |
-| `lifecycle_state`         | `start_timeout`    |
-| `lifecycle_state`         | `start_error`      |
-| `lifecycle_state`         | `ready`            |
-| `lifecycle_state`         | `shutting_down`    |
-| `lifecycle_state`         | `shutdown_timeout` |
-| `lifecycle_state`         | `shutdown_error`   |
-| `lifecycle_state`         | `off`              |
-| `startup_script_behavior` | `blocking`         |
-| `startup_script_behavior` | `non-blocking`     |
-| `status`                  | `connecting`       |
-| `status`                  | `connected`        |
-| `status`                  | `disconnected`     |
-| `status`                  | `timeout`          |
-| `workspace_transition`    | `start`            |
-| `workspace_transition`    | `stop`             |
-| `workspace_transition`    | `delete`           |
+| Property                  | Value(s)                                                                                                                     |
+|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                           |
+| `open_in`                 | `slim-window`, `tab`                                                                                                         |
+| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
+| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
+| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
+| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1695,66 +1665,20 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value                         |
-|---------------------------|-------------------------------|
-| `error_code`              | `REQUIRED_TEMPLATE_VARIABLES` |
-| `status`                  | `pending`                     |
-| `status`                  | `running`                     |
-| `status`                  | `succeeded`                   |
-| `status`                  | `canceling`                   |
-| `status`                  | `canceled`                    |
-| `status`                  | `failed`                      |
-| `type`                    | `template_version_import`     |
-| `type`                    | `workspace_build`             |
-| `type`                    | `template_version_dry_run`    |
-| `reason`                  | `initiator`                   |
-| `reason`                  | `autostart`                   |
-| `reason`                  | `autostop`                    |
-| `health`                  | `disabled`                    |
-| `health`                  | `initializing`                |
-| `health`                  | `healthy`                     |
-| `health`                  | `unhealthy`                   |
-| `open_in`                 | `slim-window`                 |
-| `open_in`                 | `tab`                         |
-| `sharing_level`           | `owner`                       |
-| `sharing_level`           | `authenticated`               |
-| `sharing_level`           | `organization`                |
-| `sharing_level`           | `public`                      |
-| `state`                   | `working`                     |
-| `state`                   | `idle`                        |
-| `state`                   | `complete`                    |
-| `state`                   | `failure`                     |
-| `lifecycle_state`         | `created`                     |
-| `lifecycle_state`         | `starting`                    |
-| `lifecycle_state`         | `start_timeout`               |
-| `lifecycle_state`         | `start_error`                 |
-| `lifecycle_state`         | `ready`                       |
-| `lifecycle_state`         | `shutting_down`               |
-| `lifecycle_state`         | `shutdown_timeout`            |
-| `lifecycle_state`         | `shutdown_error`              |
-| `lifecycle_state`         | `off`                         |
-| `startup_script_behavior` | `blocking`                    |
-| `startup_script_behavior` | `non-blocking`                |
-| `status`                  | `connecting`                  |
-| `status`                  | `connected`                   |
-| `status`                  | `disconnected`                |
-| `status`                  | `timeout`                     |
-| `workspace_transition`    | `start`                       |
-| `workspace_transition`    | `stop`                        |
-| `workspace_transition`    | `delete`                      |
-| `status`                  | `pending`                     |
-| `status`                  | `starting`                    |
-| `status`                  | `running`                     |
-| `status`                  | `stopping`                    |
-| `status`                  | `stopped`                     |
-| `status`                  | `failed`                      |
-| `status`                  | `canceling`                   |
-| `status`                  | `canceled`                    |
-| `status`                  | `deleting`                    |
-| `status`                  | `deleted`                     |
-| `transition`              | `start`                       |
-| `transition`              | `stop`                        |
-| `transition`              | `delete`                      |
+| Property                  | Value(s)                                                                                                                                                                             |
+|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error_code`              | `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                        |
+| `status`                  | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timeout` |
+| `type`                    | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                             |
+| `reason`                  | `autostart`, `autostop`, `initiator`                                                                                                                                                 |
+| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                   |
+| `open_in`                 | `slim-window`, `tab`                                                                                                                                                                 |
+| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                                                                   |
+| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                                                                             |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                         |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                                                                           |
+| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                                                                            |
+| `transition`              | `delete`, `start`, `stop`                                                                                                                                                            |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
