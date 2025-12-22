@@ -3,6 +3,7 @@ package rbac_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -48,6 +49,56 @@ func TestBuiltInRoles(t *testing.T) {
 			require.NoError(t, r.Valid(), "invalid role")
 		})
 	}
+}
+
+func TestSystemRolesAreReservedRoleNames(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, rbac.ReservedRoleName(rbac.RoleOrgMember()))
+}
+
+func TestOrgMemberPermissions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WorkspaceSharingEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		orgPerms, _ := rbac.OrgMemberPermissions(false)
+
+		require.True(t, slices.Contains(orgPerms, rbac.Permission{
+			ResourceType: rbac.ResourceOrganizationMember.Type,
+			Action:       policy.ActionRead,
+		}))
+		require.True(t, slices.Contains(orgPerms, rbac.Permission{
+			ResourceType: rbac.ResourceGroup.Type,
+			Action:       policy.ActionRead,
+		}))
+		require.False(t, slices.Contains(orgPerms, rbac.Permission{
+			Negate:       true,
+			ResourceType: rbac.ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		}))
+	})
+
+	t.Run("WorkspaceSharingDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		orgPerms, _ := rbac.OrgMemberPermissions(true)
+
+		require.False(t, slices.Contains(orgPerms, rbac.Permission{
+			ResourceType: rbac.ResourceOrganizationMember.Type,
+			Action:       policy.ActionRead,
+		}))
+		require.False(t, slices.Contains(orgPerms, rbac.Permission{
+			ResourceType: rbac.ResourceGroup.Type,
+			Action:       policy.ActionRead,
+		}))
+		require.True(t, slices.Contains(orgPerms, rbac.Permission{
+			Negate:       true,
+			ResourceType: rbac.ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		}))
+	})
 }
 
 //nolint:tparallel,paralleltest
