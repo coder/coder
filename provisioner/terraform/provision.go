@@ -296,7 +296,7 @@ func (s *server) Apply(
 	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY {
 		_, err := os.Stat(statefilePath)
 		if errors.Is(err, os.ErrNotExist) {
-			sess.ProvisionLog(proto.LogLevel_INFO, "The terraform plan does not exist, there is nothing to do")
+			sess.ProvisionLog(proto.LogLevel_INFO, "The terraform state does not exist, there is nothing to do")
 			return &proto.ApplyComplete{}
 		}
 	}

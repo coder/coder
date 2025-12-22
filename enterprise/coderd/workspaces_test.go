@@ -3203,7 +3203,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		_ = closeLogs.Close()
 	})
 	for log := range logsCh {
-		assert.NotContains(t, log.Output, "The terraform plan does not exist, there is nothing to do")
+		assert.NotContains(t, log.Output, "there is nothing to do")
 	}
 
 	// File should be deleted from terraform apply
