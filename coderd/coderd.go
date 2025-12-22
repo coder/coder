@@ -1507,6 +1507,7 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
 			r.Get("/state", api.workspaceBuildState)
+			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
