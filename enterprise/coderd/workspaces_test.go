@@ -3107,12 +3107,15 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
 
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Logger: &logger,
 			// We intentionally do not run a built-in provisioner daemon here.
 			IncludeProvisionerDaemon: false,
 			DeploymentValues:         dv,
+			Database:                 db,
+			Pubsub:                   ps,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -3183,6 +3186,17 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.NoError(t, err)
 	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
+
+	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+	t.Cleanup(func() {
+		if !t.Failed() {
+			assert.NoError(t, closeLogs.Close())
+		}
+	})
+	for log := range logsCh {
+		t.Logf("log: %v", log)
+		assert.NotContains(t, log.Output, "The terraform plan does not exist, there is nothing to do")
+	}
 }
 
 type testWorkspaceTagsTerraformCase struct {
