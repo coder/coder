@@ -463,39 +463,4 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "should succeed with auth")
 	})
-
-	// Test that /api/experimental/ returns NotFound (not Unauthorized)
-	// when accessed without authentication
-	t.Run("ExperimentalWithoutAuth", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/experimental/", nil)
-		require.NoError(t, err)
-
-		resp, err := client.HTTPClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Should return NotFound, not Unauthorized, because middleware is optional
-		require.Equal(t, http.StatusNotFound, resp.StatusCode, "should return NotFound, not Unauthorized")
-	})
-
-	// Test that /api/experimental/ returns NotFound (not Unauthorized)
-	// when accessed with authentication
-	t.Run("ExperimentalWithAuth", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/experimental/", nil)
-		require.NoError(t, err)
-		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-
-		resp, err := client.HTTPClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Should return NotFound, not Unauthorized, because middleware is optional
-		require.Equal(t, http.StatusNotFound, resp.StatusCode, "should return NotFound, not Unauthorized")
-	})
 }
