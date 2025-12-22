@@ -3076,8 +3076,6 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 // It does not try to do this in coder/coder.
 func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	indicatorFile := filepath.Join(t.TempDir(), "workspace_indicator.txt")
-	err := os.MkdirAll(indicatorFile, 0755)
-	require.NoError(t, err)
 	mainTfTemplate := fmt.Sprintf(`
 		terraform {
 			required_providers {
@@ -3188,7 +3186,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
-	fmt.Println(indicatorFile)
+	// File should exist
+	_, err = os.Stat(indicatorFile)
+	require.NoError(t, err, "file created for workspace build")
 
 	// Now delete the workspace
 	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
@@ -3206,7 +3206,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		assert.NotContains(t, log.Output, "The terraform plan does not exist, there is nothing to do")
 	}
 
-	fmt.Println(indicatorFile)
+	// File should be deleted from terraform apply
+	_, err = os.Stat(indicatorFile)
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 type testWorkspaceTagsTerraformCase struct {
