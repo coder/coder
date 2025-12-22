@@ -1318,6 +1318,11 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		return xerrors.Errorf("organization roles specify site or user permissions")
 	}
 
+	// For now only system roles can specify orgMember permissions.
+	if !role.IsSystem && len(role.MemberPermissions) > 0 {
+		return xerrors.Errorf("non-system roles specify member permissions")
+	}
+
 	// The rbac.Role has a 'Valid()' function on it that will do a lot
 	// of checks.
 	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
