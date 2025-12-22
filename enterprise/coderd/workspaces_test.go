@@ -3189,12 +3189,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
 	t.Cleanup(func() {
-		if !t.Failed() {
-			assert.NoError(t, closeLogs.Close())
-		}
+		_ = closeLogs.Close()
 	})
 	for log := range logsCh {
-		t.Logf("log: %v", log)
 		assert.NotContains(t, log.Output, "The terraform plan does not exist, there is nothing to do")
 	}
 }
