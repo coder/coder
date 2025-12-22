@@ -110,7 +110,8 @@ func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerCl
 	return sess
 }
 
-func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient) string {
+func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient) (string, *proto.Response) {
+	var last *proto.Response
 	var logBuf strings.Builder
 	for {
 		msg, err := response.Recv()
@@ -122,9 +123,10 @@ func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient
 			require.NoError(t, err)
 			continue
 		}
+		last = msg
 		break
 	}
-	return logBuf.String()
+	return logBuf.String(), last
 }
 
 func sendInit(sess proto.DRPCProvisioner_SessionClient, archive []byte) error {
@@ -1287,15 +1289,20 @@ func TestProvision_SafeEnv(t *testing.T) {
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	_ = readProvisionLog(t, sess)
+	_, _ = readProvisionLog(t, sess)
 
 	err = sendApply(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	log := readProvisionLog(t, sess)
+	log, applyComplete := readProvisionLog(t, sess)
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
+
+	//applyComplete, err := sess.Recv()
+	//require.NoError(t, err)
+	apply := applyComplete.Type.(*proto.Response_Apply)
+	require.NotEmpty(t, apply.Apply.State, "state exists")
 }
 
 func TestProvision_MalformedModules(t *testing.T) {
@@ -1310,6 +1317,6 @@ func TestProvision_MalformedModules(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	log := readProvisionLog(t, sess)
+	log, _ := readProvisionLog(t, sess)
 	require.Contains(t, log, "Invalid block definition")
 }
