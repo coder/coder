@@ -12,12 +12,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
+
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -124,7 +125,7 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 	}
 
 	if options.Name == "" {
-		options.Name = namesgenerator.GetRandomName(1)
+		options.Name = namesgenerator.GetRandomName()
 	}
 
 	token := options.Token
