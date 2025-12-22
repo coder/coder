@@ -44,6 +44,11 @@ interface AutocompleteProps<TOption> {
 	className?: string;
 	id?: string;
 	"data-testid"?: string;
+	/**
+	 * Container element to portal the dropdown into. Use this when rendering
+	 * inside a Dialog to avoid scroll lock issues.
+	 */
+	popoverContainer?: HTMLElement | null;
 }
 
 export function Autocomplete<TOption>({
@@ -69,6 +74,7 @@ export function Autocomplete<TOption>({
 	className,
 	id,
 	"data-testid": testId,
+	popoverContainer,
 }: AutocompleteProps<TOption>) {
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
@@ -204,6 +210,7 @@ export function Autocomplete<TOption>({
 			<PopoverContent
 				className="w-[var(--radix-popover-trigger-width)] p-0"
 				align="start"
+				container={popoverContainer}
 			>
 				<Command shouldFilter={controlledInputValue === undefined}>
 					<CommandInput
