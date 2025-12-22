@@ -3196,6 +3196,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 
 	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = closeLogs.Close()
 	})
