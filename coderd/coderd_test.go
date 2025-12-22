@@ -401,12 +401,12 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, nil)
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Test that /api/v2/ works without authentication
 	t.Run("APIV2WithoutAuth", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/", nil)
 		require.NoError(t, err)
 
@@ -421,6 +421,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 	t.Run("APIV2WithAuth", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/", nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
@@ -436,6 +437,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 	t.Run("APIV2BuildInfoWithoutAuth", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/buildinfo", nil)
 		require.NoError(t, err)
 
@@ -450,6 +452,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 	t.Run("APIV2BuildInfoWithAuth", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/buildinfo", nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
@@ -466,6 +469,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 	t.Run("ExperimentalWithoutAuth", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/experimental/", nil)
 		require.NoError(t, err)
 
@@ -482,6 +486,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 	t.Run("ExperimentalWithAuth", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/experimental/", nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
