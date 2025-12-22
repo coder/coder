@@ -62,7 +62,7 @@
 
 	/**
 	 * Groups an array of {name, value} enum entries by name.
-	 * Returns an array of {name, values: []} objects.
+	 * Returns an array of {name, values: []} objects with sorted values.
 	 */
 	function groupEnumsByName(enums) {
 		var grouped = {};
@@ -75,6 +75,7 @@
 		}
 		var result = [];
 		for (var name in grouped) {
+			grouped[name].sort();
 			result.push({name: name, values: grouped[name]});
 		}
 		return result;
@@ -180,7 +181,7 @@ None
 {{~ groupedEnums :e}}|`{{=e.name}}`|{{~ e.values :v:idx}}`{{=data.utils.toPrimitive(v)}}`{{? idx < e.values.length - 1}}, {{?}}{{~}}|
 {{~}}
 {{??}}
-{{ var allValues = []; for (var i = 0; i < enums.length; i++) { allValues.push(enums[i].value); } }}
+{{ var allValues = []; for (var i = 0; i < enums.length; i++) { allValues.push(enums[i].value); } allValues.sort(); }}
 |Value(s)|
 |---|
 |{{~ allValues :v:idx}}`{{=data.utils.toPrimitive(v)}}`{{? idx < allValues.length - 1}}, {{?}}{{~}}|

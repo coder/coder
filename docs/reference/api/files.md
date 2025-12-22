@@ -23,11 +23,11 @@ file: string
 
 ### Parameters
 
-| Name           | In     | Type   | Required | Description                                                                                    |
-|----------------|--------|--------|----------|------------------------------------------------------------------------------------------------|
-| `Content-Type` | header | string | true     | Content-Type must be `application/x-tar` or `application/zip`                                  |
-| `body`         | body   | object | true     |                                                                                                |
-| `» file`       | body   | binary | true     | File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems). |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`Content-Type`|header|string|true|Content-Type must be `application/x-tar` or `application/zip`|
+|`body`|body|object|true||
+|`» file`|body|binary|true|File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems).|
 
 ### Example responses
 
@@ -41,10 +41,10 @@ file: string
 
 ### Responses
 
-| Status | Meaning                                                      | Description                        | Schema                                                       |
-|--------|--------------------------------------------------------------|------------------------------------|--------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)      | Returns existing file if duplicate | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Returns newly created file         | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Returns existing file if duplicate|[codersdk.UploadResponse](schemas.md#codersdkuploadresponse)|
+|201|[Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)|Returns newly created file|[codersdk.UploadResponse](schemas.md#codersdkuploadresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -62,14 +62,15 @@ curl -X GET http://coder-server:8080/api/v2/files/{fileID} \
 
 ### Parameters
 
-| Name     | In   | Type         | Required | Description |
-|----------|------|--------------|----------|-------------|
-| `fileID` | path | string(uuid) | true     | File ID     |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`fileID`|path|string(uuid)|true|File ID|
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
