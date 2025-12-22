@@ -5,6 +5,13 @@ Service account to merge into the libcoder template
 {{- end }}
 
 {{/*
+Component annotation for pod metadata.
+*/}}
+{{- define "coder.componentAnnotation" -}}
+com.coder/component: provisionerd
+{{- end }}
+
+{{/*
 Deployment to merge into the libcoder template
 */}}
 {{- define "coder.deployment" -}}

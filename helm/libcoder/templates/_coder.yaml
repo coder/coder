@@ -23,7 +23,11 @@ spec:
           {{- toYaml . | nindent 8 }}
           {{- end }}
       annotations:
-        {{- toYaml .Values.coder.podAnnotations | nindent 8  }}
+        {{- include "coder.componentAnnotation" . | nindent 8 }}
+          {{- with .Values.coder.podAnnotations }}
+          {{- toYaml . | nindent 8 }}
+          {{- end }}
+
     spec:
       serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
       {{- with .Values.coder.priorityClassName }}
