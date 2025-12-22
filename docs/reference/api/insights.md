@@ -67,10 +67,9 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
 
 #### Enumerated Values
 
-| Parameter  | Value  |
-|------------|--------|
-| `interval` | `week` |
-| `interval` | `day`  |
+| Parameter  | Value(s)      |
+|------------|---------------|
+| `interval` | `week`, `day` |
 
 ### Example responses
 
@@ -310,3 +309,4 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts?tz_offse
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetUserStatusCountsResponse](schemas.md#codersdkgetuserstatuscountsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

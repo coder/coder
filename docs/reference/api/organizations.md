@@ -283,21 +283,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 #### Enumerated Values
 
-| Parameter | Value       |
-|-----------|-------------|
-| `status`  | `pending`   |
-| `status`  | `running`   |
-| `status`  | `succeeded` |
-| `status`  | `canceling` |
-| `status`  | `canceled`  |
-| `status`  | `failed`    |
-| `status`  | `unknown`   |
-| `status`  | `pending`   |
-| `status`  | `running`   |
-| `status`  | `succeeded` |
-| `status`  | `canceling` |
-| `status`  | `canceled`  |
-| `status`  | `failed`    |
+| Parameter | Value(s)                                                                                                                                              |
+|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `status`  | `pending`, `running`, `succeeded`, `canceling`, `canceled`, `failed`, `unknown`, `pending`, `running`, `succeeded`, `canceling`, `canceled`, `failed` |
 
 ### Example responses
 
@@ -396,18 +384,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                         |
-|--------------|-------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
-| `status`     | `pending`                     |
-| `status`     | `running`                     |
-| `status`     | `succeeded`                   |
-| `status`     | `canceling`                   |
-| `status`     | `canceled`                    |
-| `status`     | `failed`                      |
-| `type`       | `template_version_import`     |
-| `type`       | `workspace_build`             |
-| `type`       | `template_version_dry_run`    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                            |
+| `status`     | `pending`, `running`, `succeeded`, `canceling`, `canceled`, `failed`     |
+| `type`       | `template_version_import`, `workspace_build`, `template_version_dry_run` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -485,3 +466,4 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

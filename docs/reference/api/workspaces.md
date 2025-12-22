@@ -1674,7 +1674,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Completely clears the workspace's user and group ACLs
+## Completely clears the workspace's user and group ACLs.
 
 ### Code samples
 
@@ -1815,7 +1815,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update workspace dormancy status by id
+## Update workspace dormancy status by id.
 
 ### Code samples
 
@@ -2182,7 +2182,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Favorite workspace by ID
+## Favorite workspace by ID.
 
 ### Code samples
 
@@ -2208,7 +2208,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Unfavorite workspace by ID
+## Unfavorite workspace by ID.
 
 ### Code samples
 
@@ -2234,7 +2234,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Resolve workspace autostart by id
+## Resolve workspace autostart by id.
 
 ### Code samples
 
@@ -2480,3 +2480,4 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

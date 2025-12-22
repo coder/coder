@@ -210,10 +210,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
 
 #### Enumerated Values
 
-| Parameter | Value       |
-|-----------|-------------|
-| `format`  | `plaintext` |
-| `format`  | `markdown`  |
+| Parameter | Value(s)                |
+|-----------|-------------------------|
+| `format`  | `plaintext`, `markdown` |
 
 ### Example responses
 
@@ -628,3 +627,4 @@ Status Code **200**
 | `» updated_at` | string(date-time) | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+

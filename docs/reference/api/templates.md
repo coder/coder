@@ -143,15 +143,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property               | Value           |
-|------------------------|-----------------|
-| `cors_behavior`        | `simple`        |
-| `cors_behavior`        | `passthru`      |
-| `max_port_share_level` | `owner`         |
-| `max_port_share_level` | `authenticated` |
-| `max_port_share_level` | `organization`  |
-| `max_port_share_level` | `public`        |
-| `provisioner`          | `terraform`     |
+| Property               | Value(s)                                           |
+|------------------------|----------------------------------------------------|
+| `cors_behavior`        | `simple`, `passthru`                               |
+| `max_port_share_level` | `owner`, `authenticated`, `organization`, `public` |
+| `provisioner`          | `terraform`                                        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -899,15 +895,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property               | Value           |
-|------------------------|-----------------|
-| `cors_behavior`        | `simple`        |
-| `cors_behavior`        | `passthru`      |
-| `max_port_share_level` | `owner`         |
-| `max_port_share_level` | `authenticated` |
-| `max_port_share_level` | `organization`  |
-| `max_port_share_level` | `public`        |
-| `provisioner`          | `terraform`     |
+| Property               | Value(s)                                           |
+|------------------------|----------------------------------------------------|
+| `cors_behavior`        | `simple`, `passthru`                               |
+| `max_port_share_level` | `owner`, `authenticated`, `organization`, `public` |
+| `provisioner`          | `terraform`                                        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1438,18 +1430,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                         |
-|--------------|-------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
-| `status`     | `pending`                     |
-| `status`     | `running`                     |
-| `status`     | `succeeded`                   |
-| `status`     | `canceling`                   |
-| `status`     | `canceled`                    |
-| `status`     | `failed`                      |
-| `type`       | `template_version_import`     |
-| `type`       | `workspace_build`             |
-| `type`       | `template_version_dry_run`    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                            |
+| `status`     | `pending`, `running`, `succeeded`, `canceling`, `canceled`, `failed`     |
+| `type`       | `template_version_import`, `workspace_build`, `template_version_dry_run` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1725,18 +1710,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                         |
-|--------------|-------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
-| `status`     | `pending`                     |
-| `status`     | `running`                     |
-| `status`     | `succeeded`                   |
-| `status`     | `canceling`                   |
-| `status`     | `canceled`                    |
-| `status`     | `failed`                      |
-| `type`       | `template_version_import`     |
-| `type`       | `workspace_build`             |
-| `type`       | `template_version_dry_run`    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                            |
+| `status`     | `pending`, `running`, `succeeded`, `canceling`, `canceled`, `failed`     |
+| `type`       | `template_version_import`, `workspace_build`, `template_version_dry_run` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2317,15 +2295,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                |
-|--------------|----------------------|
-| `log_level`  | `trace`              |
-| `log_level`  | `debug`              |
-| `log_level`  | `info`               |
-| `log_level`  | `warn`               |
-| `log_level`  | `error`              |
-| `log_source` | `provisioner_daemon` |
-| `log_source` | `provisioner`        |
+| Property     | Value(s)                                  |
+|--------------|-------------------------------------------|
+| `log_level`  | `trace`, `debug`, `info`, `warn`, `error` |
+| `log_source` | `provisioner_daemon`, `provisioner`       |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2649,40 +2622,16 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value              |
-|---------------------------|--------------------|
-| `health`                  | `disabled`         |
-| `health`                  | `initializing`     |
-| `health`                  | `healthy`          |
-| `health`                  | `unhealthy`        |
-| `open_in`                 | `slim-window`      |
-| `open_in`                 | `tab`              |
-| `sharing_level`           | `owner`            |
-| `sharing_level`           | `authenticated`    |
-| `sharing_level`           | `organization`     |
-| `sharing_level`           | `public`           |
-| `state`                   | `working`          |
-| `state`                   | `idle`             |
-| `state`                   | `complete`         |
-| `state`                   | `failure`          |
-| `lifecycle_state`         | `created`          |
-| `lifecycle_state`         | `starting`         |
-| `lifecycle_state`         | `start_timeout`    |
-| `lifecycle_state`         | `start_error`      |
-| `lifecycle_state`         | `ready`            |
-| `lifecycle_state`         | `shutting_down`    |
-| `lifecycle_state`         | `shutdown_timeout` |
-| `lifecycle_state`         | `shutdown_error`   |
-| `lifecycle_state`         | `off`              |
-| `startup_script_behavior` | `blocking`         |
-| `startup_script_behavior` | `non-blocking`     |
-| `status`                  | `connecting`       |
-| `status`                  | `connected`        |
-| `status`                  | `disconnected`     |
-| `status`                  | `timeout`          |
-| `workspace_transition`    | `start`            |
-| `workspace_transition`    | `stop`             |
-| `workspace_transition`    | `delete`           |
+| Property                  | Value(s)                                                                                                                     |
+|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `health`                  | `disabled`, `initializing`, `healthy`, `unhealthy`                                                                           |
+| `open_in`                 | `slim-window`, `tab`                                                                                                         |
+| `sharing_level`           | `owner`, `authenticated`, `organization`, `public`                                                                           |
+| `state`                   | `working`, `idle`, `complete`, `failure`                                                                                     |
+| `lifecycle_state`         | `created`, `starting`, `start_timeout`, `start_error`, `ready`, `shutting_down`, `shutdown_timeout`, `shutdown_error`, `off` |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
+| `status`                  | `connecting`, `connected`, `disconnected`, `timeout`                                                                         |
+| `workspace_transition`    | `start`, `stop`, `delete`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2953,15 +2902,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                |
-|--------------|----------------------|
-| `log_level`  | `trace`              |
-| `log_level`  | `debug`              |
-| `log_level`  | `info`               |
-| `log_level`  | `warn`               |
-| `log_level`  | `error`              |
-| `log_source` | `provisioner_daemon` |
-| `log_source` | `provisioner`        |
+| Property     | Value(s)                                  |
+|--------------|-------------------------------------------|
+| `log_level`  | `trace`, `debug`, `info`, `warn`, `error` |
+| `log_source` | `provisioner_daemon`, `provisioner`       |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3337,40 +3281,16 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value              |
-|---------------------------|--------------------|
-| `health`                  | `disabled`         |
-| `health`                  | `initializing`     |
-| `health`                  | `healthy`          |
-| `health`                  | `unhealthy`        |
-| `open_in`                 | `slim-window`      |
-| `open_in`                 | `tab`              |
-| `sharing_level`           | `owner`            |
-| `sharing_level`           | `authenticated`    |
-| `sharing_level`           | `organization`     |
-| `sharing_level`           | `public`           |
-| `state`                   | `working`          |
-| `state`                   | `idle`             |
-| `state`                   | `complete`         |
-| `state`                   | `failure`          |
-| `lifecycle_state`         | `created`          |
-| `lifecycle_state`         | `starting`         |
-| `lifecycle_state`         | `start_timeout`    |
-| `lifecycle_state`         | `start_error`      |
-| `lifecycle_state`         | `ready`            |
-| `lifecycle_state`         | `shutting_down`    |
-| `lifecycle_state`         | `shutdown_timeout` |
-| `lifecycle_state`         | `shutdown_error`   |
-| `lifecycle_state`         | `off`              |
-| `startup_script_behavior` | `blocking`         |
-| `startup_script_behavior` | `non-blocking`     |
-| `status`                  | `connecting`       |
-| `status`                  | `connected`        |
-| `status`                  | `disconnected`     |
-| `status`                  | `timeout`          |
-| `workspace_transition`    | `start`            |
-| `workspace_transition`    | `stop`             |
-| `workspace_transition`    | `delete`           |
+| Property                  | Value(s)                                                                                                                     |
+|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `health`                  | `disabled`, `initializing`, `healthy`, `unhealthy`                                                                           |
+| `open_in`                 | `slim-window`, `tab`                                                                                                         |
+| `sharing_level`           | `owner`, `authenticated`, `organization`, `public`                                                                           |
+| `state`                   | `working`, `idle`, `complete`, `failure`                                                                                     |
+| `lifecycle_state`         | `created`, `starting`, `start_timeout`, `start_error`, `ready`, `shutting_down`, `shutdown_timeout`, `shutdown_error`, `off` |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
+| `status`                  | `connecting`, `connected`, `disconnected`, `timeout`                                                                         |
+| `workspace_transition`    | `start`, `stop`, `delete`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3465,25 +3385,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property               | Value          |
-|------------------------|----------------|
-| `form_type`            | ``             |
-| `form_type`            | `radio`        |
-| `form_type`            | `dropdown`     |
-| `form_type`            | `input`        |
-| `form_type`            | `textarea`     |
-| `form_type`            | `slider`       |
-| `form_type`            | `checkbox`     |
-| `form_type`            | `switch`       |
-| `form_type`            | `tag-select`   |
-| `form_type`            | `multi-select` |
-| `form_type`            | `error`        |
-| `type`                 | `string`       |
-| `type`                 | `number`       |
-| `type`                 | `bool`         |
-| `type`                 | `list(string)` |
-| `validation_monotonic` | `increasing`   |
-| `validation_monotonic` | `decreasing`   |
+| Property               | Value(s)                                                                                                            |
+|------------------------|---------------------------------------------------------------------------------------------------------------------|
+| `form_type`            | ``, `radio`, `dropdown`, `input`, `textarea`, `slider`, `checkbox`, `switch`, `tag-select`, `multi-select`, `error` |
+| `type`                 | `string`, `number`, `bool`, `list(string)`                                                                          |
+| `validation_monotonic` | `increasing`, `decreasing`                                                                                          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3617,10 +3523,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value    |
-|----------|----------|
-| `type`   | `string` |
-| `type`   | `number` |
-| `type`   | `bool`   |
+| Property | Value(s)                   |
+|----------|----------------------------|
+| `type`   | `string`, `number`, `bool` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
