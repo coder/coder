@@ -7,6 +7,7 @@ import {
 import { withAuthProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { usersKey } from "api/queries/users";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -35,12 +36,12 @@ const meta: Meta<typeof TasksSidebar> = {
 				{ path: "/tasks", element: <div>Tasks Index Page</div> },
 			],
 		}),
-	},
-	beforeEach: () => {
-		spyOn(API, "getUsers").mockResolvedValue({
-			users: MockUsers,
-			count: MockUsers.length,
-		});
+		queries: [
+			{
+				key: usersKey({ q: "", limit: 25, offset: 0 }),
+				data: { users: MockUsers, count: MockUsers.length },
+			},
+		],
 	},
 };
 
@@ -70,13 +71,8 @@ export const Loaded: Story = {
 };
 
 export const DisplayName: Story = {
-	parameters: {
-		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockDisplayNameTasks,
-			},
-		],
+	beforeEach: () => {
+		spyOn(API, "getTasks").mockResolvedValue(MockDisplayNameTasks);
 	},
 };
 

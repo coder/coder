@@ -221,37 +221,26 @@ export const WaitingStartupScripts: Story = {
 
 export const StartupScriptError: Story = {
 	decorators: [withWebSocket],
-	parameters: {
-		queries: [
-			{
-				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: {
-					...MockTask,
-					workspace_agent_lifecycle: "start_error",
-				},
-			},
-			{
-				key: [
-					"workspace",
-					MockTask.owner_name,
-					MockTask.workspace_name,
-					"settings",
-				],
-				data: {
-					...MockWorkspace,
-					latest_build: {
-						...MockWorkspace.latest_build,
-						has_ai_task: true,
-						resources: [
-							{
-								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgent],
-							},
-						],
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			workspace_agent_lifecycle: "start_error",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				has_ai_task: true,
+				resources: [
+					{
+						...MockWorkspaceResource,
+						agents: [MockWorkspaceAgent],
 					},
-				},
+				],
 			},
-		],
+		});
+	},
+	parameters: {
 		webSocket: [
 			{
 				event: "message",
@@ -276,37 +265,26 @@ export const StartupScriptError: Story = {
 
 export const StartupScriptTimeout: Story = {
 	decorators: [withWebSocket],
-	parameters: {
-		queries: [
-			{
-				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: {
-					...MockTask,
-					workspace_agent_lifecycle: "start_timeout",
-				},
-			},
-			{
-				key: [
-					"workspace",
-					MockTask.owner_name,
-					MockTask.workspace_name,
-					"settings",
-				],
-				data: {
-					...MockWorkspace,
-					latest_build: {
-						...MockWorkspace.latest_build,
-						has_ai_task: true,
-						resources: [
-							{
-								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgent],
-							},
-						],
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			workspace_agent_lifecycle: "start_timeout",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				has_ai_task: true,
+				resources: [
+					{
+						...MockWorkspaceResource,
+						agents: [MockWorkspaceAgent],
 					},
-				},
+				],
 			},
-		],
+		});
+	},
+	parameters: {
 		webSocket: [
 			{
 				event: "message",
@@ -405,28 +383,15 @@ export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
 
 export const OutdatedWorkspace: Story = {
 	// Given: an 'outdated' workspace (that is, the latest build does not use template's active version)
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockStoppedWorkspace,
+			outdated: true,
+		});
+	},
 	parameters: {
 		queries: [
-			{
-				key: ["tasks", { owner: MockTask.owner_name }],
-				data: [MockTask],
-			},
-			{
-				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: MockTask,
-			},
-			{
-				key: [
-					"workspace",
-					MockTask.owner_name,
-					MockTask.workspace_name,
-					"settings",
-				],
-				data: {
-					...MockStoppedWorkspace,
-					outdated: true,
-				},
-			},
 			{
 				key: [
 					"workspaceBuilds",
@@ -610,32 +575,12 @@ export const WorkspaceStartFailureWithDialog: Story = {
 const longDisplayName =
 	"Implement comprehensive authentication and authorization system with role-based access control";
 export const LongDisplayName: Story = {
-	parameters: {
-		queries: [
-			{
-				// Sidebar: uses getTasks() which returns an array
-				key: ["tasks", { owner: MockTask.owner_name }],
-				data: [
-					{ ...MockDisplayNameTasks[0], display_name: longDisplayName },
-					...MockDisplayNameTasks.slice(1),
-				],
-			},
-			{
-				// TaskTopbar: uses getTask() which returns a single task
-				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: { ...MockDisplayNameTasks[0], display_name: longDisplayName },
-			},
-			{
-				// Workspace data for the task
-				key: [
-					"workspace",
-					MockTask.owner_name,
-					MockTask.workspace_name,
-					"settings",
-				],
-				data: MockWorkspace,
-			},
-		],
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockDisplayNameTasks[0],
+			display_name: longDisplayName,
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
 	},
 };
 

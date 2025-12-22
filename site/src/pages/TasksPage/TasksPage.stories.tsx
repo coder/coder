@@ -14,7 +14,12 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import { getTemplatesQueryKey } from "api/queries/templates";
+import {
+	getTemplatesQueryKey,
+	templateVersionExternalAuth,
+	templateVersionPresets,
+} from "api/queries/templates";
+import { usersKey } from "api/queries/users";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import TasksPage from "./TasksPage";
@@ -28,23 +33,28 @@ const meta: Meta<typeof TasksPage> = {
 		permissions: {
 			viewDeploymentConfig: true,
 		},
+		queries: [
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				key: usersKey({ q: "", limit: 25, offset: 0 }),
+				data: { users: MockUsers, count: MockUsers.length },
+			},
+			{
+				key: templateVersionExternalAuth(MockTemplate.active_version_id)
+					.queryKey,
+				data: [],
+			},
+			{
+				key: templateVersionPresets(MockTemplate.active_version_id).queryKey,
+				data: null,
+			},
+		],
 	},
 	beforeEach: () => {
-		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
-		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(null);
-		spyOn(API, "getUsers").mockResolvedValue({
-			users: MockUsers,
-			count: MockUsers.length,
-		});
-		spyOn(API, "getTemplates").mockResolvedValue([
-			MockTemplate,
-			{
-				...MockTemplate,
-				id: "test-template-2",
-				name: "template 2",
-				display_name: "Template 2",
-			},
-		]);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
 	},
 };
 
@@ -66,11 +76,10 @@ export const EmptyTemplates: Story = {
 				key: ["templates", { q: "has-ai-task:true" }],
 				data: [],
 			},
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: [],
-			},
 		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTasks").mockResolvedValue([]);
 	},
 };
 
@@ -87,7 +96,6 @@ export const LoadingTemplatesError: Story = {
 
 export const LoadingTasks: Story = {
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTasks").mockImplementation(
 			() => new Promise(() => 1000 * 60 * 60),
 		);
@@ -105,7 +113,6 @@ export const LoadingTasks: Story = {
 
 export const LoadingTasksError: Story = {
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTasks").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load tasks",
@@ -116,37 +123,21 @@ export const LoadingTasksError: Story = {
 
 export const EmptyTasks: Story = {
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTasks").mockResolvedValue([]);
 	},
 };
 
-export const LoadedTasks: Story = {
-	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
-	},
-};
+export const LoadedTasks: Story = {};
 
 export const DisplayName: Story = {
-	parameters: {
-		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockDisplayNameTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-		],
+	beforeEach: () => {
+		spyOn(API, "getTasks").mockResolvedValue(MockDisplayNameTasks);
 	},
 };
 
 export const LoadedTasksWaitingForInputTab: Story = {
 	beforeEach: () => {
 		const [firstTask, ...otherTasks] = MockTasks;
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
@@ -216,10 +207,6 @@ export const NonAdmin: Story = {
 			viewDeploymentConfig: false,
 		},
 	},
-	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
-	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
 
@@ -233,10 +220,6 @@ export const NonAdmin: Story = {
 };
 
 export const OpenDeleteDialog: Story = {
-	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const deleteButtons = await canvas.findAllByRole("button", {
@@ -247,49 +230,20 @@ export const OpenDeleteDialog: Story = {
 };
 
 export const InitializingTasks: Story = {
-	parameters: {
-		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockInitializingTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-		],
+	beforeEach: () => {
+		spyOn(API, "getTasks").mockResolvedValue(MockInitializingTasks);
 	},
 };
 
 export const BatchActionsEnabled: Story = {
 	parameters: {
 		features: ["task_batch_actions"],
-		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-		],
 	},
 };
 
 export const BatchActionsSomeSelected: Story = {
 	parameters: {
 		features: ["task_batch_actions"],
-		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-		],
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
@@ -307,16 +261,6 @@ export const BatchActionsSomeSelected: Story = {
 export const BatchActionsAllSelected: Story = {
 	parameters: {
 		features: ["task_batch_actions"],
-		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-		],
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
@@ -333,16 +277,6 @@ export const BatchActionsAllSelected: Story = {
 export const BatchActionsDropdownOpen: Story = {
 	parameters: {
 		features: ["task_batch_actions"],
-		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-		],
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
@@ -367,14 +301,6 @@ export const AllTaskNotificationsDisabledAlertVisible: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-			{
 				// User notification preferences: empty because user hasn't changed defaults
 				// Task notifications are disabled by default (enabled_by_default: false)
 				key: ["users", MockUserOwner.id, "notifications", "preferences"],
@@ -398,14 +324,6 @@ export const AllTaskNotificationsDisabledAlertDismissed: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
-			{
 				// User notification preferences: empty because user hasn't changed defaults
 				// Task notifications are disabled by default (enabled_by_default: false)
 				key: ["users", MockUserOwner.id, "notifications", "preferences"],
@@ -428,14 +346,6 @@ export const AllTaskNotificationsDisabledAlertDismissed: Story = {
 export const OneTaskNotificationEnabledAlertHidden: Story = {
 	parameters: {
 		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
 			{
 				// User has explicitly enabled one task notification (Task Working)
 				// Since at least one task notification is enabled, the warning alert should not appear
@@ -465,14 +375,6 @@ export const OneTaskNotificationEnabledAlertHidden: Story = {
 export const AllTaskNotificationsExplicitlyDisabledAlertVisible: Story = {
 	parameters: {
 		queries: [
-			{
-				key: ["tasks", { owner: MockUserOwner.username }],
-				data: MockTasks,
-			},
-			{
-				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
-				data: [MockTemplate],
-			},
 			{
 				// User has explicitly disabled a task notification
 				key: ["users", MockUserOwner.id, "notifications", "preferences"],
