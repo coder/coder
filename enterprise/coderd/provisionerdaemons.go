@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
@@ -29,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -192,7 +192,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	name := namesgenerator.GetRandomName(10)
+	name := namesgenerator.NameDigitWith("_")
 	if vals, ok := r.URL.Query()["name"]; ok && len(vals) > 0 {
 		name = vals[0]
 	} else {
