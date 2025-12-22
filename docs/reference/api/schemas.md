@@ -10851,6 +10851,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `running`  |
 | `stopped`  |
 | `starting` |
+| `stopping` |
+| `deleting` |
 | `error`    |
 
 ## codersdk.WorkspaceAgentHealth

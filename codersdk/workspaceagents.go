@@ -401,8 +401,21 @@ const (
 	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
 	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
 	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusStopping WorkspaceAgentDevcontainerStatus = "stopping"
+	WorkspaceAgentDevcontainerStatusDeleting WorkspaceAgentDevcontainerStatus = "deleting"
 	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
 )
+
+func (s WorkspaceAgentDevcontainerStatus) Transitioning() bool {
+	switch s {
+	case WorkspaceAgentDevcontainerStatusStarting,
+		WorkspaceAgentDevcontainerStatusStopping,
+		WorkspaceAgentDevcontainerStatusDeleting:
+		return true
+	default:
+		return false
+	}
+}
 
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
