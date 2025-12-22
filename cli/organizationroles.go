@@ -129,7 +129,7 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 		Long: FormatExamples(
 			Example{
 				Description: "Run with an input.json file",
-				Command:     "coder organization -O <organization_name> roles create --stidin < role.json",
+				Command:     "coder organization -O <organization_name> roles create --stdin < role.json",
 			},
 		),
 		Options: []serpent.Option{
