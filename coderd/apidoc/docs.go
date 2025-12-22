@@ -3349,7 +3349,7 @@ const docTemplate = `{
                 "tags": [
                     "Members"
                 ],
-                "summary": "Upsert a custom organization role",
+                "summary": "Update a custom organization role",
                 "operationId": "upsert-a-custom-organization-role",
                 "parameters": [
                     {
