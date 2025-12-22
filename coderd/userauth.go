@@ -19,7 +19,6 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -41,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1723,7 +1723,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					validUsername bool
 				)
 				for i := 0; i < 10; i++ {
-					alternate := fmt.Sprintf("%s-%s", original, namesgenerator.GetRandomName(1))
+					alternate := fmt.Sprintf("%s-%s", original, namesgenerator.NameDigitWith("_"))
 
 					params.Username = codersdk.UsernameFrom(alternate)
 
