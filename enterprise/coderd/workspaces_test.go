@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -3074,7 +3075,8 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 // This is testing that dynamic params defers input validation to terraform.
 // It does not try to do this in coder/coder.
 func TestWorkspaceTemplateParamsChange(t *testing.T) {
-	mainTfTemplate := `
+	indicatorFile := filepath.Join(t.TempDir(), "workspace_indicator.txt")
+	mainTfTemplate := fmt.Sprintf(`
 		terraform {
 			required_providers {
 				coder = {
@@ -3100,7 +3102,12 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 				min = data.coder_parameter.param_min.value
 			}
 		}
-	`
+
+		resource "local_file" "workspace_indicator" {
+		  content  = "I exist"
+		  filename = "%s"
+		}
+	`, indicatorFile)
 	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
@@ -3176,6 +3183,10 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
+	// File should exist
+	_, err = os.Stat(indicatorFile)
+	require.NoError(t, err, "file created for workspace build")
+
 	// Now delete the workspace
 	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
@@ -3183,6 +3194,19 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.NoError(t, err)
 	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
+
+	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = closeLogs.Close()
+	})
+	for log := range logsCh {
+		assert.NotContains(t, log.Output, "there is nothing to do")
+	}
+
+	// File should be deleted from terraform apply
+	_, err = os.Stat(indicatorFile)
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 type testWorkspaceTagsTerraformCase struct {

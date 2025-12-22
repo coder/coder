@@ -434,8 +434,6 @@ message PlanComplete {
 // in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
 message ApplyRequest {
   Metadata metadata = 1;
-  // state is the provisioner state (if any)
-  bytes state = 6;
 }
 
 // ApplyComplete indicates a request to apply completed.
