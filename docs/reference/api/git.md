@@ -31,9 +31,9 @@ curl -X GET http://coder-server:8080/api/v2/external-auth \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.ExternalAuthLink](schemas.md#codersdkexternalauthlink)|
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuthLink](schemas.md#codersdkexternalauthlink) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -52,9 +52,9 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`externalauth`|path|string(string)|true|Git Provider ID|
+| Name           | In   | Type           | Required | Description     |
+|----------------|------|----------------|----------|-----------------|
+| `externalauth` | path | string(string) | true     | Git Provider ID |
 
 ### Example responses
 
@@ -93,9 +93,9 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.ExternalAuth](schemas.md#codersdkexternalauth)|
+| Status | Meaning                                                 | Description | Schema                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuth](schemas.md#codersdkexternalauth) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -114,9 +114,9 @@ curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`externalauth`|path|string(string)|true|Git Provider ID|
+| Name           | In   | Type           | Required | Description     |
+|----------------|------|----------------|----------|-----------------|
+| `externalauth` | path | string(string) | true     | Git Provider ID |
 
 ### Example responses
 
@@ -131,13 +131,13 @@ curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.DeleteExternalAuthByIDResponse](schemas.md#codersdkdeleteexternalauthbyidresponse)|
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeleteExternalAuthByIDResponse](schemas.md#codersdkdeleteexternalauthbyidresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get external auth device by ID.
+## Get external auth device by ID
 
 ### Code samples
 
@@ -152,9 +152,9 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth}/device 
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`externalauth`|path|string(string)|true|Git Provider ID|
+| Name           | In   | Type           | Required | Description     |
+|----------------|------|----------------|----------|-----------------|
+| `externalauth` | path | string(string) | true     | Git Provider ID |
 
 ### Example responses
 
@@ -172,9 +172,9 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth}/device 
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.ExternalAuthDevice](schemas.md#codersdkexternalauthdevice)|
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuthDevice](schemas.md#codersdkexternalauthdevice) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -192,15 +192,14 @@ curl -X POST http://coder-server:8080/api/v2/external-auth/{externalauth}/device
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`externalauth`|path|string(string)|true|External Provider ID|
+| Name           | In   | Type           | Required | Description          |
+|----------------|------|----------------|----------|----------------------|
+| `externalauth` | path | string(string) | true     | External Provider ID |
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

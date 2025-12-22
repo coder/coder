@@ -15,9 +15,9 @@ curl -X GET http://coder-server:8080/api/v2/tasks \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`q`|query|string|false|Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>|
+| Name | In    | Type   | Required | Description                                                                                                         |
+|------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `q`  | query | string | false    | Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status> |
 
 ### Example responses
 
@@ -77,9 +77,9 @@ curl -X GET http://coder-server:8080/api/v2/tasks \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.TasksListResponse](schemas.md#codersdktaskslistresponse)|
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TasksListResponse](schemas.md#codersdktaskslistresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -111,10 +111,10 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user} \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`user`|path|string|true|Username, user ID, or 'me' for the authenticated user|
-|`body`|body|[codersdk.CreateTaskRequest](schemas.md#codersdkcreatetaskrequest)|true|Create task request|
+| Name   | In   | Type                                                               | Required | Description                                           |
+|--------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------|
+| `user` | path | string                                                             | true     | Username, user ID, or 'me' for the authenticated user |
+| `body` | body | [codersdk.CreateTaskRequest](schemas.md#codersdkcreatetaskrequest) | true     | Create task request                                   |
 
 ### Example responses
 
@@ -169,9 +169,9 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user} \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|201|[Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)|Created|[codersdk.Task](schemas.md#codersdktask)|
+| Status | Meaning                                                      | Description | Schema                                   |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Task](schemas.md#codersdktask) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -190,10 +190,10 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task} \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`user`|path|string|true|Username, user ID, or 'me' for the authenticated user|
-|`task`|path|string|true|Task ID, or task name|
+| Name   | In   | Type   | Required | Description                                           |
+|--------|------|--------|----------|-------------------------------------------------------|
+| `user` | path | string | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string | true     | Task ID, or task name                                 |
 
 ### Example responses
 
@@ -248,9 +248,9 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task} \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Task](schemas.md#codersdktask)|
+| Status | Meaning                                                 | Description | Schema                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Task](schemas.md#codersdktask) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -268,16 +268,16 @@ curl -X DELETE http://coder-server:8080/api/v2/tasks/{user}/{task} \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`user`|path|string|true|Username, user ID, or 'me' for the authenticated user|
-|`task`|path|string|true|Task ID, or task name|
+| Name   | In   | Type   | Required | Description                                           |
+|--------|------|--------|----------|-------------------------------------------------------|
+| `user` | path | string | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string | true     | Task ID, or task name                                 |
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|202|[Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3)|Accepted||
+| Status | Meaning                                                       | Description | Schema |
+|--------|---------------------------------------------------------------|-------------|--------|
+| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -304,17 +304,17 @@ curl -X PATCH http://coder-server:8080/api/v2/tasks/{user}/{task}/input \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`user`|path|string|true|Username, user ID, or 'me' for the authenticated user|
-|`task`|path|string|true|Task ID, or task name|
-|`body`|body|[codersdk.UpdateTaskInputRequest](schemas.md#codersdkupdatetaskinputrequest)|true|Update task input request|
+| Name   | In   | Type                                                                         | Required | Description                                           |
+|--------|------|------------------------------------------------------------------------------|----------|-------------------------------------------------------|
+| `user` | path | string                                                                       | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string                                                                       | true     | Task ID, or task name                                 |
+| `body` | body | [codersdk.UpdateTaskInputRequest](schemas.md#codersdkupdatetaskinputrequest) | true     | Update task input request                             |
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -333,10 +333,10 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`user`|path|string|true|Username, user ID, or 'me' for the authenticated user|
-|`task`|path|string|true|Task ID, or task name|
+| Name   | In   | Type   | Required | Description                                           |
+|--------|------|--------|----------|-------------------------------------------------------|
+| `user` | path | string | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string | true     | Task ID, or task name                                 |
 
 ### Example responses
 
@@ -357,9 +357,9 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.TaskLogsResponse](schemas.md#codersdktasklogsresponse)|
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TaskLogsResponse](schemas.md#codersdktasklogsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -386,17 +386,16 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/send \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`user`|path|string|true|Username, user ID, or 'me' for the authenticated user|
-|`task`|path|string|true|Task ID, or task name|
-|`body`|body|[codersdk.TaskSendRequest](schemas.md#codersdktasksendrequest)|true|Task input request|
+| Name   | In   | Type                                                           | Required | Description                                           |
+|--------|------|----------------------------------------------------------------|----------|-------------------------------------------------------|
+| `user` | path | string                                                         | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string                                                         | true     | Task ID, or task name                                 |
+| `body` | body | [codersdk.TaskSendRequest](schemas.md#codersdktasksendrequest) | true     | Task input request                                    |
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

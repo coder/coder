@@ -35,9 +35,8 @@ curl -X GET http://coder-server:8080/api/v2/regions \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.RegionsResponse-codersdk_Region](schemas.md#codersdkregionsresponse-codersdk_region)|
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RegionsResponse-codersdk_Region](schemas.md#codersdkregionsresponse-codersdk_region) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

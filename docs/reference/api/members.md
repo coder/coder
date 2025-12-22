@@ -15,9 +15,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string|true|Organization ID|
+| Name           | In   | Type   | Required | Description     |
+|----------------|------|--------|----------|-----------------|
+| `organization` | path | string | true     | Organization ID |
 
 ### Example responses
 
@@ -54,30 +54,30 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.OrganizationMemberWithUserData](schemas.md#codersdkorganizationmemberwithuserdata)|
+| Status | Meaning                                                 | Description | Schema                                                                                                |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OrganizationMemberWithUserData](schemas.md#codersdkorganizationmemberwithuserdata) |
 
 <h3 id="list-organization-members-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|`[array item]`|array|false|||
-|`» avatar_url`|string|false|||
-|`» created_at`|string(date-time)|false|||
-|`» email`|string|false|||
-|`» global_roles`|array|false|||
-|`»» display_name`|string|false|||
-|`»» name`|string|false|||
-|`»» organization_id`|string|false|||
-|`» name`|string|false|||
-|`» organization_id`|string(uuid)|false|||
-|`» roles`|array|false|||
-|`» updated_at`|string(date-time)|false|||
-|`» user_id`|string(uuid)|false|||
-|`» username`|string|false|||
+| Name                 | Type              | Required | Restrictions | Description |
+|----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`       | array             | false    |              |             |
+| `» avatar_url`       | string            | false    |              |             |
+| `» created_at`       | string(date-time) | false    |              |             |
+| `» email`            | string            | false    |              |             |
+| `» global_roles`     | array             | false    |              |             |
+| `»» display_name`    | string            | false    |              |             |
+| `»» name`            | string            | false    |              |             |
+| `»» organization_id` | string            | false    |              |             |
+| `» name`             | string            | false    |              |             |
+| `» organization_id`  | string(uuid)      | false    |              |             |
+| `» roles`            | array             | false    |              |             |
+| `» updated_at`       | string(date-time) | false    |              |             |
+| `» user_id`          | string(uuid)      | false    |              |             |
+| `» username`         | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -96,9 +96,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string(uuid)|true|Organization ID|
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
 
 ### Example responses
 
@@ -146,36 +146,36 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.AssignableRoles](schemas.md#codersdkassignableroles)|
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AssignableRoles](schemas.md#codersdkassignableroles) |
 
 <h3 id="get-member-roles-by-organization-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|`[array item]`|array|false|||
-|`» assignable`|boolean|false|||
-|`» built_in`|boolean|false||Built in roles are immutable|
-|`» display_name`|string|false|||
-|`» name`|string|false|||
-|`» organization_id`|string(uuid)|false|||
-|`» organization_member_permissions`|array|false||Organization member permissions are specific for the organization in the field 'OrganizationID' above.|
-|`»» action`|[codersdk.RBACAction](schemas.md#codersdkrbacaction)|false|||
-|`»» negate`|boolean|false||Negate makes this a negative permission|
-|`»» resource_type`|[codersdk.RBACResource](schemas.md#codersdkrbacresource)|false|||
-|`» organization_permissions`|array|false||Organization permissions are specific for the organization in the field 'OrganizationID' above.|
-|`» site_permissions`|array|false|||
-|`» user_permissions`|array|false|||
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» assignable`                      | boolean                                                  | false    |              |                                                                                                        |
+| `» built_in`                        | boolean                                                  | false    |              | Built in roles are immutable                                                                           |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
-|Property|Value(s)|
-|---|---|
-|`action`|`application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`|
-|`resource_type`|`*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy`|
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -232,10 +232,10 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string(uuid)|true|Organization ID|
-|`body`|body|[codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest)|true|Upsert role request|
+| Name           | In   | Type                                                               | Required | Description         |
+|----------------|------|--------------------------------------------------------------------|----------|---------------------|
+| `organization` | path | string(uuid)                                                       | true     | Organization ID     |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Upsert role request |
 
 ### Example responses
 
@@ -281,34 +281,34 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.Role](schemas.md#codersdkrole)|
+| Status | Meaning                                                 | Description | Schema                                            |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
 
 <h3 id="upsert-a-custom-organization-role-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|`[array item]`|array|false|||
-|`» display_name`|string|false|||
-|`» name`|string|false|||
-|`» organization_id`|string(uuid)|false|||
-|`» organization_member_permissions`|array|false||Organization member permissions are specific for the organization in the field 'OrganizationID' above.|
-|`»» action`|[codersdk.RBACAction](schemas.md#codersdkrbacaction)|false|||
-|`»» negate`|boolean|false||Negate makes this a negative permission|
-|`»» resource_type`|[codersdk.RBACResource](schemas.md#codersdkrbacresource)|false|||
-|`» organization_permissions`|array|false||Organization permissions are specific for the organization in the field 'OrganizationID' above.|
-|`» site_permissions`|array|false|||
-|`» user_permissions`|array|false|||
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
-|Property|Value(s)|
-|---|---|
-|`action`|`application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`|
-|`resource_type`|`*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy`|
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -365,10 +365,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string(uuid)|true|Organization ID|
-|`body`|body|[codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest)|true|Insert role request|
+| Name           | In   | Type                                                               | Required | Description         |
+|----------------|------|--------------------------------------------------------------------|----------|---------------------|
+| `organization` | path | string(uuid)                                                       | true     | Organization ID     |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Insert role request |
 
 ### Example responses
 
@@ -414,34 +414,34 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.Role](schemas.md#codersdkrole)|
+| Status | Meaning                                                 | Description | Schema                                            |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
 
 <h3 id="insert-a-custom-organization-role-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|`[array item]`|array|false|||
-|`» display_name`|string|false|||
-|`» name`|string|false|||
-|`» organization_id`|string(uuid)|false|||
-|`» organization_member_permissions`|array|false||Organization member permissions are specific for the organization in the field 'OrganizationID' above.|
-|`»» action`|[codersdk.RBACAction](schemas.md#codersdkrbacaction)|false|||
-|`»» negate`|boolean|false||Negate makes this a negative permission|
-|`»» resource_type`|[codersdk.RBACResource](schemas.md#codersdkrbacresource)|false|||
-|`» organization_permissions`|array|false||Organization permissions are specific for the organization in the field 'OrganizationID' above.|
-|`» site_permissions`|array|false|||
-|`» user_permissions`|array|false|||
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
-|Property|Value(s)|
-|---|---|
-|`action`|`application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`|
-|`resource_type`|`*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy`|
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -460,10 +460,10 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string(uuid)|true|Organization ID|
-|`roleName`|path|string|true|Role name|
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+| `roleName`     | path | string       | true     | Role name       |
 
 ### Example responses
 
@@ -509,34 +509,34 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.Role](schemas.md#codersdkrole)|
+| Status | Meaning                                                 | Description | Schema                                            |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
 
 <h3 id="delete-a-custom-organization-role-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|`[array item]`|array|false|||
-|`» display_name`|string|false|||
-|`» name`|string|false|||
-|`» organization_id`|string(uuid)|false|||
-|`» organization_member_permissions`|array|false||Organization member permissions are specific for the organization in the field 'OrganizationID' above.|
-|`»» action`|[codersdk.RBACAction](schemas.md#codersdkrbacaction)|false|||
-|`»» negate`|boolean|false||Negate makes this a negative permission|
-|`»» resource_type`|[codersdk.RBACResource](schemas.md#codersdkrbacresource)|false|||
-|`» organization_permissions`|array|false||Organization permissions are specific for the organization in the field 'OrganizationID' above.|
-|`» site_permissions`|array|false|||
-|`» user_permissions`|array|false|||
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
-|Property|Value(s)|
-|---|---|
-|`action`|`application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`|
-|`resource_type`|`*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy`|
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -555,10 +555,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string|true|Organization ID|
-|`user`|path|string|true|User ID, name, or me|
+| Name           | In   | Type   | Required | Description          |
+|----------------|------|--------|----------|----------------------|
+| `organization` | path | string | true     | Organization ID      |
+| `user`         | path | string | true     | User ID, name, or me |
 
 ### Example responses
 
@@ -582,9 +582,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.OrganizationMember](schemas.md#codersdkorganizationmember)|
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -602,16 +602,16 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string|true|Organization ID|
-|`user`|path|string|true|User ID, name, or me|
+| Name           | In   | Type   | Required | Description          |
+|----------------|------|--------|----------|----------------------|
+| `organization` | path | string | true     | Organization ID      |
+| `user`         | path | string | true     | User ID, name, or me |
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -641,11 +641,11 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string|true|Organization ID|
-|`user`|path|string|true|User ID, name, or me|
-|`body`|body|[codersdk.UpdateRoles](schemas.md#codersdkupdateroles)|true|Update roles request|
+| Name           | In   | Type                                                   | Required | Description          |
+|----------------|------|--------------------------------------------------------|----------|----------------------|
+| `organization` | path | string                                                 | true     | Organization ID      |
+| `user`         | path | string                                                 | true     | User ID, name, or me |
+| `body`         | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Update roles request |
 
 ### Example responses
 
@@ -669,9 +669,9 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.OrganizationMember](schemas.md#codersdkorganizationmember)|
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -690,11 +690,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`organization`|path|string|true|Organization ID|
-|`limit`|query|integer|false|Page limit, if 0 returns all members|
-|`offset`|query|integer|false|Page offset|
+| Name           | In    | Type    | Required | Description                          |
+|----------------|-------|---------|----------|--------------------------------------|
+| `organization` | path  | string  | true     | Organization ID                      |
+| `limit`        | query | integer | false    | Page limit, if 0 returns all members |
+| `offset`       | query | integer | false    | Page offset                          |
 
 ### Example responses
 
@@ -736,32 +736,32 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.PaginatedMembersResponse](schemas.md#codersdkpaginatedmembersresponse)|
+| Status | Meaning                                                 | Description | Schema                                                                                    |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.PaginatedMembersResponse](schemas.md#codersdkpaginatedmembersresponse) |
 
 <h3 id="paginated-organization-members-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|`[array item]`|array|false|||
-|`» count`|integer|false|||
-|`» members`|array|false|||
-|`»» avatar_url`|string|false|||
-|`»» created_at`|string(date-time)|false|||
-|`»» email`|string|false|||
-|`»» global_roles`|array|false|||
-|`»»» display_name`|string|false|||
-|`»»» name`|string|false|||
-|`»»» organization_id`|string|false|||
-|`»» name`|string|false|||
-|`»» organization_id`|string(uuid)|false|||
-|`»» roles`|array|false|||
-|`»» updated_at`|string(date-time)|false|||
-|`»» user_id`|string(uuid)|false|||
-|`»» username`|string|false|||
+| Name                  | Type              | Required | Restrictions | Description |
+|-----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`        | array             | false    |              |             |
+| `» count`             | integer           | false    |              |             |
+| `» members`           | array             | false    |              |             |
+| `»» avatar_url`       | string            | false    |              |             |
+| `»» created_at`       | string(date-time) | false    |              |             |
+| `»» email`            | string            | false    |              |             |
+| `»» global_roles`     | array             | false    |              |             |
+| `»»» display_name`    | string            | false    |              |             |
+| `»»» name`            | string            | false    |              |             |
+| `»»» organization_id` | string            | false    |              |             |
+| `»» name`             | string            | false    |              |             |
+| `»» organization_id`  | string(uuid)      | false    |              |             |
+| `»» roles`            | array             | false    |              |             |
+| `»» updated_at`       | string(date-time) | false    |              |             |
+| `»» user_id`          | string(uuid)      | false    |              |             |
+| `»» username`         | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -824,36 +824,35 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.AssignableRoles](schemas.md#codersdkassignableroles)|
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AssignableRoles](schemas.md#codersdkassignableroles) |
 
 <h3 id="get-site-member-roles-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|`[array item]`|array|false|||
-|`» assignable`|boolean|false|||
-|`» built_in`|boolean|false||Built in roles are immutable|
-|`» display_name`|string|false|||
-|`» name`|string|false|||
-|`» organization_id`|string(uuid)|false|||
-|`» organization_member_permissions`|array|false||Organization member permissions are specific for the organization in the field 'OrganizationID' above.|
-|`»» action`|[codersdk.RBACAction](schemas.md#codersdkrbacaction)|false|||
-|`»» negate`|boolean|false||Negate makes this a negative permission|
-|`»» resource_type`|[codersdk.RBACResource](schemas.md#codersdkrbacresource)|false|||
-|`» organization_permissions`|array|false||Organization permissions are specific for the organization in the field 'OrganizationID' above.|
-|`» site_permissions`|array|false|||
-|`» user_permissions`|array|false|||
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» assignable`                      | boolean                                                  | false    |              |                                                                                                        |
+| `» built_in`                        | boolean                                                  | false    |              | Built in roles are immutable                                                                           |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
-|Property|Value(s)|
-|---|---|
-|`action`|`application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`|
-|`resource_type`|`*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy`|
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
