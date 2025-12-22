@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -3074,7 +3075,10 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 // This is testing that dynamic params defers input validation to terraform.
 // It does not try to do this in coder/coder.
 func TestWorkspaceTemplateParamsChange(t *testing.T) {
-	mainTfTemplate := `
+	indicatorFile := filepath.Join(t.TempDir(), "workspace_indicator.txt")
+	err := os.MkdirAll(indicatorFile, 0755)
+	require.NoError(t, err)
+	mainTfTemplate := fmt.Sprintf(`
 		terraform {
 			required_providers {
 				coder = {
@@ -3100,14 +3104,19 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 				min = data.coder_parameter.param_min.value
 			}
 		}
-	`
+
+		resource "local_file" "workspace_indicator" {
+		  content  = "I exist"
+		  filename = "%s"
+		}
+	`, indicatorFile)
 	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
 
-	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	db, ps := dbtestutil.NewDB(t)
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Logger: &logger,
@@ -3179,6 +3188,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
+	fmt.Println(indicatorFile)
+
 	// Now delete the workspace
 	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
@@ -3194,6 +3205,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	for log := range logsCh {
 		assert.NotContains(t, log.Output, "The terraform plan does not exist, there is nothing to do")
 	}
+
+	fmt.Println(indicatorFile)
 }
 
 type testWorkspaceTagsTerraformCase struct {
