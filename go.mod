@@ -183,7 +183,7 @@ require (
 	github.com/unrolled/secure v1.17.0
 	github.com/valyala/fasthttp v1.68.0
 	github.com/wagslane/go-password-validator v0.3.0
-	github.com/zclconf/go-cty-yaml v1.1.0
+	github.com/zclconf/go-cty-yaml v1.2.0
 	go.mozilla.org/pkcs7 v0.9.0
 	go.nhat.io/otelsql v0.16.0
 	go.opentelemetry.io/otel v1.38.0
