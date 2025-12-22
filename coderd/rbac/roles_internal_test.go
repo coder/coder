@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -269,6 +270,29 @@ func TestDeduplicatePermissions(t *testing.T) {
 	}
 
 	require.Equal(t, want, got)
+}
+
+func TestPermissionsEqual(t *testing.T) {
+	t.Parallel()
+
+	a := []Permission{
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceTemplate.Type, Action: policy.ActionUpdate},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionShare, Negate: true},
+	}
+	b := []Permission{
+		a[2],
+		a[0],
+		a[1],
+	}
+	require.True(t, PermissionsEqual(a, b))
+	require.False(t, PermissionsEqual(a, a[:2]))
+
+	c := slices.Clone(a)
+	c[0] = Permission{
+		ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true,
+	}
+	require.False(t, PermissionsEqual(a, c))
 }
 
 // equalRoles compares 2 roles for equality.
