@@ -1,11 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AlertTitle from "@mui/material/AlertTitle";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuthDevice } from "api/typesGenerated";
 import { isAxiosError } from "axios";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
@@ -102,7 +101,9 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				break;
 			case DeviceExchangeError.AccessDenied:
 				status = (
-					<Alert severity="error">Access to the Git provider was denied.</Alert>
+					<Alert severity="error" prominent>
+						Access to the Git provider was denied.
+					</Alert>
 				);
 				break;
 			default:

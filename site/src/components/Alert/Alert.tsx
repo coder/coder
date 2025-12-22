@@ -1,21 +1,81 @@
-import MuiAlert, {
-	type AlertColor as MuiAlertColor,
-	type AlertProps as MuiAlertProps,
-} from "@mui/material/Alert";
-import Collapse from "@mui/material/Collapse";
+import { cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import {
+	CircleAlertIcon,
+	CircleCheckIcon,
+	InfoIcon,
+	TriangleAlertIcon,
+	XIcon,
+} from "lucide-react";
+import {
 	type FC,
+	forwardRef,
 	type PropsWithChildren,
 	type ReactNode,
 	useState,
 } from "react";
-export type AlertColor = MuiAlertColor;
+import { cn } from "utils/cn";
 
-export type AlertProps = MuiAlertProps & {
+const alertVariants = cva(
+	"relative w-full rounded-lg border border-solid p-4 text-left",
+	{
+		variants: {
+			severity: {
+				info: "",
+				success: "",
+				warning: "",
+				error: "",
+			},
+			prominent: {
+				true: "",
+				false: "",
+			},
+		},
+		compoundVariants: [
+			{
+				prominent: false,
+				className: "border-border-default bg-surface-secondary",
+			},
+			{
+				severity: "success",
+				prominent: true,
+				className: "border-border-success bg-surface-green",
+			},
+			{
+				severity: "warning",
+				prominent: true,
+				className: "border-border-warning bg-surface-orange",
+			},
+			{
+				severity: "error",
+				prominent: true,
+				className: "border-border-destructive bg-surface-red",
+			},
+		],
+		defaultVariants: {
+			severity: "info",
+			prominent: false,
+		},
+	},
+);
+
+const severityIcons = {
+	info: { icon: InfoIcon, className: "text-highlight-sky" },
+	success: { icon: CircleCheckIcon, className: "text-content-success" },
+	warning: { icon: TriangleAlertIcon, className: "text-content-warning" },
+	error: { icon: CircleAlertIcon, className: "text-content-destructive" },
+} as const;
+
+export type AlertColor = "info" | "success" | "warning" | "error";
+
+export type AlertProps = {
 	actions?: ReactNode;
 	dismissible?: boolean;
 	onDismiss?: () => void;
+	severity?: AlertColor;
+	prominent?: boolean;
+	children?: ReactNode;
+	className?: string;
 };
 
 export const Alert: FC<AlertProps> = ({
@@ -23,59 +83,69 @@ export const Alert: FC<AlertProps> = ({
 	actions,
 	dismissible,
 	severity = "info",
+	prominent = false,
 	onDismiss,
-	...alertProps
+	className,
+	...props
 }) => {
 	const [open, setOpen] = useState(true);
 
-	// Can't only rely on MUI's hiding behavior inside flex layouts, because even
-	// though MUI will make a dismissed alert have zero height, the alert will
-	// still behave as a flex child and introduce extra row/column gaps
 	if (!open) {
 		return null;
 	}
 
-	return (
-		<Collapse in>
-			<MuiAlert
-				{...alertProps}
-				css={{ textAlign: "left" }}
-				severity={severity}
-				action={
-					<>
-						{/* CTAs passed in by the consumer */}
-						{actions}
+	const { icon: Icon, className: iconClassName } = severityIcons[severity];
 
-						{/* close CTA */}
-						{dismissible && (
-							<Button
-								variant="subtle"
-								size="sm"
-								onClick={() => {
-									setOpen(false);
-									onDismiss?.();
-								}}
-								data-testid="dismiss-banner-btn"
-							>
-								Dismiss
-							</Button>
-						)}
-					</>
-				}
-			>
-				{children}
-			</MuiAlert>
-		</Collapse>
+	return (
+		<div
+			role="alert"
+			className={cn(alertVariants({ severity, prominent }), className)}
+			{...props}
+		>
+			<div className="flex items-center justify-between gap-4 text-sm">
+				<div className="flex flex-row items-start gap-3">
+					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
+					<div className="flex-1">{children}</div>
+				</div>
+				<div className="flex items-center gap-2">
+					{actions}
+
+					{dismissible && (
+						<Button
+							variant="subtle"
+							size="icon"
+							className="!size-auto !min-w-0 !p-0"
+							onClick={() => {
+								setOpen(false);
+								onDismiss?.();
+							}}
+							data-testid="dismiss-banner-btn"
+							aria-label="Dismiss"
+						>
+							<XIcon className="!size-icon-sm !p-0" />
+						</Button>
+					)}
+				</div>
+			</div>
+		</div>
 	);
 };
 
 export const AlertDetail: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<span
-			css={(theme) => ({ color: theme.palette.text.secondary, fontSize: 13 })}
-			data-chromatic="ignore"
-		>
+		<span className="m-0 text-sm" data-chromatic="ignore">
 			{children}
 		</span>
 	);
 };
+
+export const AlertTitle = forwardRef<
+	HTMLHeadingElement,
+	React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+	<h1
+		ref={ref}
+		className={cn("m-0 mb-1 text-sm font-medium", className)}
+		{...props}
+	/>
+));
