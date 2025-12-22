@@ -86,7 +86,8 @@ type API struct {
 	agentDirectory string
 
 	mu                       sync.RWMutex  // Protects the following fields.
-	initDone                 chan struct{} // Closed by Init.
+	initDone                 bool          // Whether Init has been called.
+	initialUpdateDone        chan struct{} // Closed after first updateContainers call in updaterLoop.
 	updateChans              []chan struct{}
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
@@ -324,7 +325,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
-		initDone:                    make(chan struct{}),
+		initialUpdateDone:           make(chan struct{}),
 		updateTrigger:               make(chan chan error),
 		updateInterval:              defaultUpdateInterval,
 		logger:                      logger,
@@ -378,20 +379,15 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	return api
 }
 
-// Init applies a final set of options to the API and then
-// closes initDone. This method can only be called once.
+// Init applies a final set of options to the API and marks
+// initialization as done. This method can only be called once.
 func (api *API) Init(opts ...Option) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
-	if api.closed {
+	if api.closed || api.initDone {
 		return
 	}
-	select {
-	case <-api.initDone:
-		return
-	default:
-	}
-	defer close(api.initDone)
+	api.initDone = true
 
 	for _, opt := range opts {
 		opt(api)
@@ -650,6 +646,7 @@ func (api *API) updaterLoop() {
 	} else {
 		api.logger.Debug(api.ctx, "initial containers update complete")
 	}
+	close(api.initialUpdateDone)
 
 	// We utilize a TickerFunc here instead of a regular Ticker so that
 	// we can guarantee execution of the updateContainers method after
@@ -714,7 +711,7 @@ func (api *API) UpdateSubAgentClient(client SubAgentClient) {
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 
-	ensureInitDoneMW := func(next http.Handler) http.Handler {
+	ensureInitialUpdateDoneMW := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			select {
 			case <-api.ctx.Done():
@@ -725,8 +722,8 @@ func (api *API) Routes() http.Handler {
 				return
 			case <-r.Context().Done():
 				return
-			case <-api.initDone:
-				// API init is done, we can start processing requests.
+			case <-api.initialUpdateDone:
+				// Initial update is done, we can start processing requests.
 			}
 			next.ServeHTTP(rw, r)
 		})
@@ -735,7 +732,7 @@ func (api *API) Routes() http.Handler {
 	// For now, all endpoints require the initial update to be done.
 	// If we want to allow some endpoints to be available before
 	// the initial update, we can enable this per-route.
-	r.Use(ensureInitDoneMW)
+	r.Use(ensureInitialUpdateDoneMW)
 
 	r.Get("/", api.handleList)
 	r.Get("/watch", api.watchContainers)
