@@ -922,14 +922,13 @@ func PermissionsEqual(a, b []Permission) bool {
 // OrgMemberPermissions returns the permissions for the organization-member
 // system role. The results are then stored in the database and can vary per
 // organization based on the workspace_sharing_disabled setting.
-//
 // This is the source of truth for org-member permissions, used by:
-//   - The startup reconciliation routine, to keep permissions current with
+//   - the startup reconciliation routine, to keep permissions current with
 //     RBAC resources
-//   - The organization workspace sharing setting endpoint, when updating
-//     the setting
-//   - The org creation endpoint, when populating the organization-member
-//     sytem role created by the DB trigger
+//   - the organization workspace sharing setting endpoint, when updating
+//     the setting.
+//   - the org creation endpoint, when populating the organization-member
+//     system role created by the DB trigger
 func OrgMemberPermissions(workspaceSharingDisabled bool) (
 	orgPerms, memberPerms []Permission,
 ) {
