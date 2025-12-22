@@ -14,9 +14,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/coordinator \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK||
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -35,9 +35,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`force`|query|boolean|false|Force a healthcheck to run|
+| Name    | In    | Type    | Required | Description                |
+|---------|-------|---------|----------|----------------------------|
+| `force` | query | boolean | false    | Force a healthcheck to run |
 
 ### Example responses
 
@@ -417,9 +417,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[healthsdk.HealthcheckReport](schemas.md#healthsdkhealthcheckreport)|
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthsdk.HealthcheckReport](schemas.md#healthsdkhealthcheckreport) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -450,9 +450,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[healthsdk.HealthSettings](schemas.md#healthsdkhealthsettings)|
+| Status | Meaning                                                 | Description | Schema                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthsdk.HealthSettings](schemas.md#healthsdkhealthsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -482,9 +482,9 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`body`|body|[healthsdk.UpdateHealthSettings](schemas.md#healthsdkupdatehealthsettings)|true|Update health settings|
+| Name   | In   | Type                                                                       | Required | Description            |
+|--------|------|----------------------------------------------------------------------------|----------|------------------------|
+| `body` | body | [healthsdk.UpdateHealthSettings](schemas.md#healthsdkupdatehealthsettings) | true     | Update health settings |
 
 ### Example responses
 
@@ -500,9 +500,9 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[healthsdk.UpdateHealthSettings](schemas.md#healthsdkupdatehealthsettings)|
+| Status | Meaning                                                 | Description | Schema                                                                     |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthsdk.UpdateHealthSettings](schemas.md#healthsdkupdatehealthsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -520,9 +520,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/tailnet \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK||
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-

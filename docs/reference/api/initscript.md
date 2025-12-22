@@ -14,14 +14,13 @@ curl -X GET http://coder-server:8080/api/v2/init-script/{os}/{arch}
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`os`|path|string|true|Operating system|
-|`arch`|path|string|true|Architecture|
+| Name   | In   | Type   | Required | Description      |
+|--------|------|--------|----------|------------------|
+| `os`   | path | string | true     | Operating system |
+| `arch` | path | string | true     | Architecture     |
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Success||
-
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Success     |        |

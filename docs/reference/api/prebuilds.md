@@ -25,9 +25,9 @@ curl -X GET http://coder-server:8080/api/v2/prebuilds/settings \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings)|
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -55,9 +55,9 @@ curl -X PUT http://coder-server:8080/api/v2/prebuilds/settings \
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`body`|body|[codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings)|true|Prebuilds settings request|
+| Name   | In   | Type                                                               | Required | Description                |
+|--------|------|--------------------------------------------------------------------|----------|----------------------------|
+| `body` | body | [codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings) | true     | Prebuilds settings request |
 
 ### Example responses
 
@@ -71,10 +71,9 @@ curl -X PUT http://coder-server:8080/api/v2/prebuilds/settings \
 
 ### Responses
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings)|
-|304|[Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1)|Not Modified||
+| Status | Meaning                                                         | Description  | Schema                                                             |
+|--------|-----------------------------------------------------------------|--------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK           | [codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings) |
+| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not Modified |                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
