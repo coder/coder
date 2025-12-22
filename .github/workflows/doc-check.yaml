@@ -127,6 +127,11 @@ jobs:
         run: |
           echo "Analyzing PR #${PR_NUMBER} (trigger: ${TRIGGER_TYPE}, is_new: ${IS_NEW_PR})"
 
+          # Generate random suffix for unique task naming (avoids container name conflicts)
+          RANDOM_SUFFIX=$(head -c 4 /dev/urandom | xxd -p)
+          echo "task_suffix=${RANDOM_SUFFIX}" >> "${GITHUB_OUTPUT}"
+          echo "Generated task suffix: ${RANDOM_SUFFIX}"
+
           # Common setup instructions (unquoted heredoc so PR_NUMBER expands)
           SETUP_INSTRUCTIONS=$(cat <<SETUPEOF
           SETUP (repo is pre-cloned at ~/coder):
@@ -387,7 +392,7 @@ jobs:
           coder-organization: "default"
           coder-template-name: coder
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
-          coder-task-name-prefix: doc-check-${{ github.run_number }}
+          coder-task-name-prefix: doc-check-${{ steps.extract-context.outputs.task_suffix }}
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
           github-user-id: ${{ steps.determine-context.outputs.github_user_id }}
           github-token: ${{ github.token }}
