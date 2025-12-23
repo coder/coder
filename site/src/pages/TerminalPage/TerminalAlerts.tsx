@@ -1,8 +1,13 @@
 import Link from "@mui/material/Link";
 import type { WorkspaceAgent } from "api/typesGenerated";
-import { Alert, type AlertProps } from "components/Alert/Alert";
+import {
+	Alert,
+	type AlertColor,
+	type AlertProps,
+} from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { type FC, useEffect, useRef, useState } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import type { ConnectionStatus } from "./types";
 
@@ -153,19 +158,22 @@ const LoadedScriptsAlert: FC = () => {
 	);
 };
 
+const severityBorderColors: Record<AlertColor, string> = {
+	info: "border-l-highlight-sky",
+	success: "border-l-content-success",
+	warning: "border-l-content-warning",
+	error: "border-l-content-destructive",
+};
+
 const TerminalAlert: FC<AlertProps> = (props) => {
+	const severity = props.severity ?? "info";
 	return (
 		<Alert
 			{...props}
-			css={(theme) => ({
-				borderRadius: 0,
-				borderWidth: 0,
-				borderBottomWidth: 1,
-				borderBottomColor: theme.palette.divider,
-				backgroundColor: theme.palette.background.paper,
-				borderLeft: `3px solid ${theme.palette[props.severity!].light}`,
-				marginBottom: 1,
-			})}
+			className={cn(
+				"rounded-none border-0 border-b border-l-[3px] border-b-border-default bg-surface-primary mb-px [&>div]:items-center",
+				severityBorderColors[severity],
+			)}
 		/>
 	);
 };

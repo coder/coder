@@ -69,6 +69,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 			{hasWebhookNotifications && !isWebhookConfigured && (
 				<Alert
 					severity="warning"
+					prominent
 					actions={
 						<Button variant="subtle" size="sm" asChild>
 							<a
@@ -88,6 +89,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 			{hasSMTPNotifications && !isSMTPConfigured && (
 				<Alert
 					severity="warning"
+					prominent
 					actions={
 						<Button variant="subtle" size="sm" asChild>
 							<a

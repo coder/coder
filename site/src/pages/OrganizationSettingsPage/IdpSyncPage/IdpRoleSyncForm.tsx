@@ -155,7 +155,9 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 					</p>
 				</div>
 				{form.errors.field && (
-					<p className="text-content-danger text-sm m-0">{form.errors.field}</p>
+					<p className="text-content-destructive text-sm m-0">
+						{form.errors.field}
+					</p>
 				)}
 				<div className="flex flex-row gap-2 justify-between items-start">
 					<div className="grid items-center gap-1 w-72">
@@ -240,7 +242,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 					</div>
 				</div>
 				{form.errors.mapping && (
-					<p className="text-content-danger text-sm m-0">
+					<p className="text-content-destructive text-sm m-0">
 						{Object.values(form.errors.mapping || {})}
 					</p>
 				)}

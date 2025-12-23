@@ -114,7 +114,9 @@ export const SignInForm: FC<SignInFormProps> = ({
 			)}
 
 			{!passwordEnabled && !oAuthEnabled && (
-				<Alert severity="error">No authentication methods configured!</Alert>
+				<Alert severity="error" prominent>
+					No authentication methods configured!
+				</Alert>
 			)}
 		</div>
 	);

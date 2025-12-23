@@ -1,8 +1,7 @@
-import AlertTitle from "@mui/material/AlertTitle";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "api/errors";
 import type { FC } from "react";
 import { Link } from "../Link/Link";
-import { Alert, AlertDetail, type AlertProps } from "./Alert";
+import { Alert, AlertDetail, type AlertProps, AlertTitle } from "./Alert";
 
 type ErrorAlertProps = Readonly<
 	Omit<AlertProps, "severity" | "children"> & { error: unknown }
@@ -18,7 +17,7 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 	const shouldDisplayDetail = message !== detail;
 
 	return (
-		<Alert severity="error" {...alertProps}>
+		<Alert severity="error" prominent {...alertProps}>
 			{
 				// When the error is a Forbidden response we include a link for the user to
 				// go back to a known viewable page.

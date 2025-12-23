@@ -146,7 +146,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 					</p>
 
 					{!isWorkspaceHealthy && isLoadingFiles && (
-						<Alert severity="warning">
+						<Alert severity="warning" prominent>
 							Your workspace is unhealthy. Some logs may be unavailable for
 							download.
 						</Alert>

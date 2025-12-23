@@ -172,67 +172,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                              |
-|-----------------|------------------------------------|
-| `action`        | `application_connect`              |
-| `action`        | `assign`                           |
-| `action`        | `create`                           |
-| `action`        | `create_agent`                     |
-| `action`        | `delete`                           |
-| `action`        | `delete_agent`                     |
-| `action`        | `read`                             |
-| `action`        | `read_personal`                    |
-| `action`        | `ssh`                              |
-| `action`        | `share`                            |
-| `action`        | `unassign`                         |
-| `action`        | `update`                           |
-| `action`        | `update_personal`                  |
-| `action`        | `use`                              |
-| `action`        | `view_insights`                    |
-| `action`        | `start`                            |
-| `action`        | `stop`                             |
-| `resource_type` | `*`                                |
-| `resource_type` | `aibridge_interception`            |
-| `resource_type` | `api_key`                          |
-| `resource_type` | `assign_org_role`                  |
-| `resource_type` | `assign_role`                      |
-| `resource_type` | `audit_log`                        |
-| `resource_type` | `connection_log`                   |
-| `resource_type` | `crypto_key`                       |
-| `resource_type` | `debug_info`                       |
-| `resource_type` | `deployment_config`                |
-| `resource_type` | `deployment_stats`                 |
-| `resource_type` | `file`                             |
-| `resource_type` | `group`                            |
-| `resource_type` | `group_member`                     |
-| `resource_type` | `idpsync_settings`                 |
-| `resource_type` | `inbox_notification`               |
-| `resource_type` | `license`                          |
-| `resource_type` | `notification_message`             |
-| `resource_type` | `notification_preference`          |
-| `resource_type` | `notification_template`            |
-| `resource_type` | `oauth2_app`                       |
-| `resource_type` | `oauth2_app_code_token`            |
-| `resource_type` | `oauth2_app_secret`                |
-| `resource_type` | `organization`                     |
-| `resource_type` | `organization_member`              |
-| `resource_type` | `prebuilt_workspace`               |
-| `resource_type` | `provisioner_daemon`               |
-| `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `replicas`                         |
-| `resource_type` | `system`                           |
-| `resource_type` | `tailnet_coordinator`              |
-| `resource_type` | `task`                             |
-| `resource_type` | `template`                         |
-| `resource_type` | `usage_event`                      |
-| `resource_type` | `user`                             |
-| `resource_type` | `user_secret`                      |
-| `resource_type` | `webpush_subscription`             |
-| `resource_type` | `workspace`                        |
-| `resource_type` | `workspace_agent_devcontainers`    |
-| `resource_type` | `workspace_agent_resource_monitor` |
-| `resource_type` | `workspace_dormant`                |
-| `resource_type` | `workspace_proxy`                  |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -362,67 +305,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                              |
-|-----------------|------------------------------------|
-| `action`        | `application_connect`              |
-| `action`        | `assign`                           |
-| `action`        | `create`                           |
-| `action`        | `create_agent`                     |
-| `action`        | `delete`                           |
-| `action`        | `delete_agent`                     |
-| `action`        | `read`                             |
-| `action`        | `read_personal`                    |
-| `action`        | `ssh`                              |
-| `action`        | `share`                            |
-| `action`        | `unassign`                         |
-| `action`        | `update`                           |
-| `action`        | `update_personal`                  |
-| `action`        | `use`                              |
-| `action`        | `view_insights`                    |
-| `action`        | `start`                            |
-| `action`        | `stop`                             |
-| `resource_type` | `*`                                |
-| `resource_type` | `aibridge_interception`            |
-| `resource_type` | `api_key`                          |
-| `resource_type` | `assign_org_role`                  |
-| `resource_type` | `assign_role`                      |
-| `resource_type` | `audit_log`                        |
-| `resource_type` | `connection_log`                   |
-| `resource_type` | `crypto_key`                       |
-| `resource_type` | `debug_info`                       |
-| `resource_type` | `deployment_config`                |
-| `resource_type` | `deployment_stats`                 |
-| `resource_type` | `file`                             |
-| `resource_type` | `group`                            |
-| `resource_type` | `group_member`                     |
-| `resource_type` | `idpsync_settings`                 |
-| `resource_type` | `inbox_notification`               |
-| `resource_type` | `license`                          |
-| `resource_type` | `notification_message`             |
-| `resource_type` | `notification_preference`          |
-| `resource_type` | `notification_template`            |
-| `resource_type` | `oauth2_app`                       |
-| `resource_type` | `oauth2_app_code_token`            |
-| `resource_type` | `oauth2_app_secret`                |
-| `resource_type` | `organization`                     |
-| `resource_type` | `organization_member`              |
-| `resource_type` | `prebuilt_workspace`               |
-| `resource_type` | `provisioner_daemon`               |
-| `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `replicas`                         |
-| `resource_type` | `system`                           |
-| `resource_type` | `tailnet_coordinator`              |
-| `resource_type` | `task`                             |
-| `resource_type` | `template`                         |
-| `resource_type` | `usage_event`                      |
-| `resource_type` | `user`                             |
-| `resource_type` | `user_secret`                      |
-| `resource_type` | `webpush_subscription`             |
-| `resource_type` | `workspace`                        |
-| `resource_type` | `workspace_agent_devcontainers`    |
-| `resource_type` | `workspace_agent_resource_monitor` |
-| `resource_type` | `workspace_dormant`                |
-| `resource_type` | `workspace_proxy`                  |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -552,67 +438,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                              |
-|-----------------|------------------------------------|
-| `action`        | `application_connect`              |
-| `action`        | `assign`                           |
-| `action`        | `create`                           |
-| `action`        | `create_agent`                     |
-| `action`        | `delete`                           |
-| `action`        | `delete_agent`                     |
-| `action`        | `read`                             |
-| `action`        | `read_personal`                    |
-| `action`        | `ssh`                              |
-| `action`        | `share`                            |
-| `action`        | `unassign`                         |
-| `action`        | `update`                           |
-| `action`        | `update_personal`                  |
-| `action`        | `use`                              |
-| `action`        | `view_insights`                    |
-| `action`        | `start`                            |
-| `action`        | `stop`                             |
-| `resource_type` | `*`                                |
-| `resource_type` | `aibridge_interception`            |
-| `resource_type` | `api_key`                          |
-| `resource_type` | `assign_org_role`                  |
-| `resource_type` | `assign_role`                      |
-| `resource_type` | `audit_log`                        |
-| `resource_type` | `connection_log`                   |
-| `resource_type` | `crypto_key`                       |
-| `resource_type` | `debug_info`                       |
-| `resource_type` | `deployment_config`                |
-| `resource_type` | `deployment_stats`                 |
-| `resource_type` | `file`                             |
-| `resource_type` | `group`                            |
-| `resource_type` | `group_member`                     |
-| `resource_type` | `idpsync_settings`                 |
-| `resource_type` | `inbox_notification`               |
-| `resource_type` | `license`                          |
-| `resource_type` | `notification_message`             |
-| `resource_type` | `notification_preference`          |
-| `resource_type` | `notification_template`            |
-| `resource_type` | `oauth2_app`                       |
-| `resource_type` | `oauth2_app_code_token`            |
-| `resource_type` | `oauth2_app_secret`                |
-| `resource_type` | `organization`                     |
-| `resource_type` | `organization_member`              |
-| `resource_type` | `prebuilt_workspace`               |
-| `resource_type` | `provisioner_daemon`               |
-| `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `replicas`                         |
-| `resource_type` | `system`                           |
-| `resource_type` | `tailnet_coordinator`              |
-| `resource_type` | `task`                             |
-| `resource_type` | `template`                         |
-| `resource_type` | `usage_event`                      |
-| `resource_type` | `user`                             |
-| `resource_type` | `user_secret`                      |
-| `resource_type` | `webpush_subscription`             |
-| `resource_type` | `workspace`                        |
-| `resource_type` | `workspace_agent_devcontainers`    |
-| `resource_type` | `workspace_agent_resource_monitor` |
-| `resource_type` | `workspace_dormant`                |
-| `resource_type` | `workspace_proxy`                  |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -704,67 +533,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                              |
-|-----------------|------------------------------------|
-| `action`        | `application_connect`              |
-| `action`        | `assign`                           |
-| `action`        | `create`                           |
-| `action`        | `create_agent`                     |
-| `action`        | `delete`                           |
-| `action`        | `delete_agent`                     |
-| `action`        | `read`                             |
-| `action`        | `read_personal`                    |
-| `action`        | `ssh`                              |
-| `action`        | `share`                            |
-| `action`        | `unassign`                         |
-| `action`        | `update`                           |
-| `action`        | `update_personal`                  |
-| `action`        | `use`                              |
-| `action`        | `view_insights`                    |
-| `action`        | `start`                            |
-| `action`        | `stop`                             |
-| `resource_type` | `*`                                |
-| `resource_type` | `aibridge_interception`            |
-| `resource_type` | `api_key`                          |
-| `resource_type` | `assign_org_role`                  |
-| `resource_type` | `assign_role`                      |
-| `resource_type` | `audit_log`                        |
-| `resource_type` | `connection_log`                   |
-| `resource_type` | `crypto_key`                       |
-| `resource_type` | `debug_info`                       |
-| `resource_type` | `deployment_config`                |
-| `resource_type` | `deployment_stats`                 |
-| `resource_type` | `file`                             |
-| `resource_type` | `group`                            |
-| `resource_type` | `group_member`                     |
-| `resource_type` | `idpsync_settings`                 |
-| `resource_type` | `inbox_notification`               |
-| `resource_type` | `license`                          |
-| `resource_type` | `notification_message`             |
-| `resource_type` | `notification_preference`          |
-| `resource_type` | `notification_template`            |
-| `resource_type` | `oauth2_app`                       |
-| `resource_type` | `oauth2_app_code_token`            |
-| `resource_type` | `oauth2_app_secret`                |
-| `resource_type` | `organization`                     |
-| `resource_type` | `organization_member`              |
-| `resource_type` | `prebuilt_workspace`               |
-| `resource_type` | `provisioner_daemon`               |
-| `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `replicas`                         |
-| `resource_type` | `system`                           |
-| `resource_type` | `tailnet_coordinator`              |
-| `resource_type` | `task`                             |
-| `resource_type` | `template`                         |
-| `resource_type` | `usage_event`                      |
-| `resource_type` | `user`                             |
-| `resource_type` | `user_secret`                      |
-| `resource_type` | `webpush_subscription`             |
-| `resource_type` | `workspace`                        |
-| `resource_type` | `workspace_agent_devcontainers`    |
-| `resource_type` | `workspace_agent_resource_monitor` |
-| `resource_type` | `workspace_dormant`                |
-| `resource_type` | `workspace_proxy`                  |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1078,66 +850,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                              |
-|-----------------|------------------------------------|
-| `action`        | `application_connect`              |
-| `action`        | `assign`                           |
-| `action`        | `create`                           |
-| `action`        | `create_agent`                     |
-| `action`        | `delete`                           |
-| `action`        | `delete_agent`                     |
-| `action`        | `read`                             |
-| `action`        | `read_personal`                    |
-| `action`        | `ssh`                              |
-| `action`        | `share`                            |
-| `action`        | `unassign`                         |
-| `action`        | `update`                           |
-| `action`        | `update_personal`                  |
-| `action`        | `use`                              |
-| `action`        | `view_insights`                    |
-| `action`        | `start`                            |
-| `action`        | `stop`                             |
-| `resource_type` | `*`                                |
-| `resource_type` | `aibridge_interception`            |
-| `resource_type` | `api_key`                          |
-| `resource_type` | `assign_org_role`                  |
-| `resource_type` | `assign_role`                      |
-| `resource_type` | `audit_log`                        |
-| `resource_type` | `connection_log`                   |
-| `resource_type` | `crypto_key`                       |
-| `resource_type` | `debug_info`                       |
-| `resource_type` | `deployment_config`                |
-| `resource_type` | `deployment_stats`                 |
-| `resource_type` | `file`                             |
-| `resource_type` | `group`                            |
-| `resource_type` | `group_member`                     |
-| `resource_type` | `idpsync_settings`                 |
-| `resource_type` | `inbox_notification`               |
-| `resource_type` | `license`                          |
-| `resource_type` | `notification_message`             |
-| `resource_type` | `notification_preference`          |
-| `resource_type` | `notification_template`            |
-| `resource_type` | `oauth2_app`                       |
-| `resource_type` | `oauth2_app_code_token`            |
-| `resource_type` | `oauth2_app_secret`                |
-| `resource_type` | `organization`                     |
-| `resource_type` | `organization_member`              |
-| `resource_type` | `prebuilt_workspace`               |
-| `resource_type` | `provisioner_daemon`               |
-| `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `replicas`                         |
-| `resource_type` | `system`                           |
-| `resource_type` | `tailnet_coordinator`              |
-| `resource_type` | `task`                             |
-| `resource_type` | `template`                         |
-| `resource_type` | `usage_event`                      |
-| `resource_type` | `user`                             |
-| `resource_type` | `user_secret`                      |
-| `resource_type` | `webpush_subscription`             |
-| `resource_type` | `workspace`                        |
-| `resource_type` | `workspace_agent_devcontainers`    |
-| `resource_type` | `workspace_agent_resource_monitor` |
-| `resource_type` | `workspace_dormant`                |
-| `resource_type` | `workspace_proxy`                  |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
