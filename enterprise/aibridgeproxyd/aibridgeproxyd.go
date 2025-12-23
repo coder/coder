@@ -314,6 +314,9 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// Check if this request is for a supported AI provider.
 	provider := providerFromURL(req.URL)
 	if provider == "" {
+		// TODO(ssncferreira): After implementing selective MITM, this case should never
+		//   happen since unknown hosts will be tunneled, not decrypted.
+		//   Related to https://github.com/coder/internal/issues/1182
 		s.logger.Debug(s.ctx, "passthrough request to unknown host",
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
