@@ -1,3 +1,4 @@
+import type { Entitlements } from "api/typesGenerated";
 import { chromatic } from "testHelpers/chromatic";
 import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -928,5 +929,22 @@ export const Loaded: Story = {
 			},
 			error: null,
 		},
+		entitlements: {
+			features: {
+				user_limit: {
+					enabled: true,
+					entitlement: "entitled",
+					limit: 100,
+					actual: 14,
+				},
+			},
+		} as Entitlements,
+	},
+};
+
+export const WithoutUserLimitFeature: Story = {
+	args: {
+		...Loaded.args,
+		entitlements: undefined,
 	},
 };
