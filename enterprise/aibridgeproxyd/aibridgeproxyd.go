@@ -169,7 +169,14 @@ func (s *Server) portMiddleware(allowedPorts []string) func(host string, ctx *go
 	return func(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 		_, port, err := net.SplitHostPort(host)
 		if err != nil {
-			s.logger.Warn(s.ctx, "rejecting CONNECT with missing port",
+			s.logger.Warn(s.ctx, "rejecting CONNECT with invalid host format",
+				slog.F("host", host),
+				slog.Error(err),
+			)
+			return goproxy.RejectConnect, host
+		}
+		if port == "" {
+			s.logger.Warn(s.ctx, "rejecting CONNECT with empty port",
 				slog.F("host", host),
 			)
 			return goproxy.RejectConnect, host
