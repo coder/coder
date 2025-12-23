@@ -3,6 +3,8 @@ package aibridgeproxyd
 import (
 	"crypto/tls"
 	"sync"
+
+	"golang.org/x/xerrors"
 )
 
 // CertCache implements goproxy.CertStorage to cache generated leaf certificates
@@ -44,6 +46,9 @@ func (c *CertCache) Fetch(hostname string, genFunc func() (*tls.Certificate, err
 	cert, err := genFunc()
 	if err != nil {
 		return nil, err
+	}
+	if cert == nil {
+		return nil, xerrors.New("generator function returned nil certificate")
 	}
 	c.certs[hostname] = cert
 	return cert, nil

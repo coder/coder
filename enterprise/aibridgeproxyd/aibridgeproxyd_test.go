@@ -263,15 +263,23 @@ func TestProxy_CertCaching(t *testing.T) {
 	}))
 	defer targetServer.Close()
 
+	targetURL, err := url.Parse(targetServer.URL)
+	require.NoError(t, err)
+
 	certFile, keyFile := generateTestCA(t)
 	logger := slogtest.Make(t, nil)
 
-	// Start the proxy server.
+	// Create a cert cache so we can inspect it after the request.
+	certCache := aibridgeproxyd.NewCertCache()
+
+	// Start the proxy server with the certificate cache.
 	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 		ListenAddr:     "127.0.0.1:0",
 		CoderAccessURL: "http://localhost:3000",
 		CertFile:       certFile,
 		KeyFile:        keyFile,
+		CertStore:      certCache,
+		AllowedPorts:   []string{targetURL.Port()},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
@@ -320,18 +328,10 @@ func TestProxy_CertCaching(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// Verify the certificate was cached by the proxy.
-	certStore := srv.CertStore()
-	require.NotNil(t, certStore)
-
-	// goproxy uses hostname without port as the cache key.
-	targetURL, err := url.Parse(targetServer.URL)
-	require.NoError(t, err)
-
 	// Fetch with a generator that tracks calls: if the certificate was cached
 	// during the request above, the generator should not be called.
 	genCalls := 0
-	_, err = certStore.Fetch(targetURL.Hostname(), func() (*tls.Certificate, error) {
+	_, err = certCache.Fetch(targetURL.Hostname(), func() (*tls.Certificate, error) {
 		genCalls++
 		return &tls.Certificate{}, nil
 	})
