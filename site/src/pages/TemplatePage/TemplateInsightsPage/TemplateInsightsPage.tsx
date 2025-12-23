@@ -2,14 +2,12 @@ import { useTheme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import { entitlements } from "api/queries/entitlements";
 import {
 	insightsTemplate,
 	insightsUserActivity,
 	insightsUserLatency,
 } from "api/queries/insights";
 import type {
-	Entitlements,
 	Template,
 	TemplateAppUsage,
 	TemplateInsightsResponse,
@@ -39,7 +37,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	CircleCheck as CircleCheckIcon,
 	CircleXIcon,
@@ -100,11 +97,6 @@ export default function TemplateInsightsPage() {
 	const userLatency = useQuery(insightsUserLatency(commonFilters));
 	const userActivity = useQuery(insightsUserActivity(commonFilters));
 
-	const { metadata } = useEmbeddedMetadata();
-	const { data: entitlementsQuery } = useQuery(
-		entitlements(metadata.entitlements),
-	);
-
 	return (
 		<>
 			<title>{getTemplatePageTitle("Insights", template)}</title>
@@ -123,7 +115,6 @@ export default function TemplateInsightsPage() {
 				userLatency={userLatency}
 				userActivity={userActivity}
 				interval={interval}
-				entitlements={entitlementsQuery}
 			/>
 		</>
 	);
@@ -215,7 +206,6 @@ interface TemplateInsightsPageViewProps {
 		data: UserActivityInsightsResponse | undefined;
 		error: unknown;
 	};
-	entitlements: Entitlements | undefined;
 	controls: ReactNode;
 	interval: InsightsInterval;
 }
@@ -224,7 +214,6 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	templateInsights,
 	userLatency,
 	userActivity,
-	entitlements,
 	controls,
 	interval,
 }) => {
@@ -251,11 +240,6 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 				<ActiveUsersPanel
 					css={{ gridColumn: "span 2" }}
 					interval={interval}
-					userLimit={
-						entitlements?.features.user_limit?.enabled
-							? entitlements?.features.user_limit?.limit
-							: undefined
-					}
 					data={templateInsights.data?.interval_reports}
 					error={templateInsights.error}
 				/>
@@ -283,14 +267,12 @@ interface ActiveUsersPanelProps extends PanelProps {
 	data: TemplateInsightsResponse["interval_reports"] | undefined;
 	error: unknown;
 	interval: InsightsInterval;
-	userLimit: number | undefined;
 }
 
 const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	data,
 	error,
 	interval,
-	userLimit,
 	...panelProps
 }) => {
 	return (
