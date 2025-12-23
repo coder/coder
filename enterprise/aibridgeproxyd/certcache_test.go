@@ -94,6 +94,20 @@ func TestCertCache_Fetch(t *testing.T) {
 		require.Nil(t, cert)
 	})
 
+	t.Run("GeneratorReturnsNil", func(t *testing.T) {
+		t.Parallel()
+
+		cache := aibridgeproxyd.NewCertCache()
+
+		cert, err := cache.Fetch("example.com", func() (*tls.Certificate, error) {
+			//nolint:nilnil // Intentionally testing this edge case
+			return nil, nil
+		})
+
+		require.ErrorContains(t, err, "generator function returned nil certificate")
+		require.Nil(t, cert)
+	})
+
 	t.Run("ConcurrentFetchSameHostname", func(t *testing.T) {
 		t.Parallel()
 
@@ -107,7 +121,7 @@ func TestCertCache_Fetch(t *testing.T) {
 
 		var fetchErrors atomic.Int32
 
-		// Spawn multiple goroutines that all request the same hostname simultaneously.
+		// Spawn multiple goroutines that all request the same hostname concurrently.
 		for range numGoroutines {
 			go func() {
 				defer wg.Done()
