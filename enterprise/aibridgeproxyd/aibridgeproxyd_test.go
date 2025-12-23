@@ -266,7 +266,7 @@ func TestProxy_CertCaching(t *testing.T) {
 	targetURL, err := url.Parse(targetServer.URL)
 	require.NoError(t, err)
 
-	certFile, keyFile := generateTestCA(t)
+	certFile, keyFile := getSharedTestCA(t)
 	logger := slogtest.Make(t, nil)
 
 	// Create a cert cache so we can inspect it after the request.
