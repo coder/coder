@@ -18,3 +18,19 @@ coder state push [flags] <workspace> <file>
 | Type | <code>int</code> |
 
 Specify a workspace build to target by name. Defaults to latest.
+
+### -n, --no-build
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Update the state without triggering a workspace build. Useful for state-only migrations.
+
+### -y, --yes
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Bypass prompts.

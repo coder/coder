@@ -883,7 +883,6 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
 }
 
-// @Summary Get workspace build timings by ID
 // @Summary Update workspace build state
 // @ID update-workspace-build-state
 // @Security CoderSessionToken
@@ -945,6 +944,7 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get workspace build timings by ID
 // @ID get-workspace-build-timings-by-id
 // @Security CoderSessionToken
 // @Produce json
