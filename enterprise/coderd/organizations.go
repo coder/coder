@@ -268,6 +268,17 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 	var organization database.Organization
 	err = api.Database.InTx(func(tx database.Store) error {
+		//nolint:gocritic // We need to manage a system role.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		// Serialize creation and reconciliation of the org-member
+		// system role across coderd instances (e.g. during rolling
+		// restarts).
+		err := tx.AcquireLock(sysCtx, database.LockIDReconcileSystemRoles)
+		if err != nil {
+			return xerrors.Errorf("acquire system roles reconciliation lock: %w", err)
+		}
+
 		if req.DisplayName == "" {
 			req.DisplayName = req.Name
 		}
@@ -287,9 +298,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 		// Populate the placeholder system role(s) that the DB trigger
 		// created for us.
-		//nolint:gocritic // We need to manage a system role.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		_, err := rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
+		_, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
 			Name: rbac.RoleOrgMember(),
 			OrganizationID: uuid.NullUUID{
 				UUID:  organizationID,
