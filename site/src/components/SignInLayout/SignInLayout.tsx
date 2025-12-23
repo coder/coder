@@ -7,7 +7,7 @@ export const SignInLayout: FC<PropsWithChildren> = ({ children }) => {
 					{children}
 				</div>
 				<div className="text-xs text-content-secondary pt-6">
-					\u00a9 {new Date().getFullYear()} Coder Technologies, Inc.
+					&copy; {new Date().getFullYear()} Coder Technologies, Inc.
 				</div>
 			</div>
 		</div>

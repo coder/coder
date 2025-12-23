@@ -30,7 +30,7 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 				</RouterLink>
 			</div>
 			<div css={styles.copyright}>
-				\u00a9 {new Date().getFullYear()} Coder Technologies, Inc.
+				&copy; {new Date().getFullYear()} Coder Technologies, Inc.
 			</div>
 		</div>
 	);
