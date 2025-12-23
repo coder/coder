@@ -95,7 +95,7 @@ export const BreadcrumbSeparator: FC<ComponentProps<"li">> = ({
 		)}
 		{...props}
 	>
-		{"/"}
+		/
 	</li>
 );
 

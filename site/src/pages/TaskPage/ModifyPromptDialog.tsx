@@ -108,7 +108,7 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 						<ErrorAlert error={updatePromptMutation.error} />
 					)}
 					{workspaceBuildRunning && (
-						<ErrorAlert error={"Cannot modify the prompt of a running task"} />
+						<ErrorAlert error="Cannot modify the prompt of a running task" />
 					)}
 
 					<div>

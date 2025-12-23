@@ -53,8 +53,8 @@ interface ProviderFilterProps {
 export const ProviderFilter: FC<ProviderFilterProps> = ({ menu }) => {
 	return (
 		<SelectFilter
-			label={"Select provider"}
-			placeholder={"All providers"}
+			label="Select provider"
+			placeholder="All providers"
 			emptyText="No providers found"
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}
