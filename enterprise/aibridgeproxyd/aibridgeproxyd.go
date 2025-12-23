@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/elazarl/goproxy"
@@ -13,6 +14,13 @@ import (
 
 	"cdr.dev/slog"
 )
+
+// loadMitmOnce ensures the MITM certificate is loaded exactly once.
+// goproxy.GoproxyCa is a package-level global variable shared across all
+// goproxy.ProxyHttpServer instances in the process. In tests, multiple proxy
+// servers run in parallel, and without this guard they would race on writing
+// to GoproxyCa. In production, only one server runs, so this has no impact.
+var loadMitmOnce sync.Once
 
 // Server is the AI MITM (Man-in-the-Middle) proxy server.
 // It is responsible for:
@@ -91,23 +99,28 @@ func (s *Server) Close() error {
 	return s.httpServer.Shutdown(ctx)
 }
 
-// loadMitmCertificate loads the CA certificate and key for MITM into goproxy.
+// loadMitmCertificate loads the CA certificate and private key for MITM proxying.
+// This function is safe to call concurrently - the certificate is only loaded once
+// into the global goproxy.GoproxyCa variable.
 func loadMitmCertificate(certFile, keyFile string) error {
 	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return xerrors.Errorf("load x509 keypair: %w", err)
+		return xerrors.Errorf("load CA certificate: %w", err)
 	}
 
 	x509Cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
 	if err != nil {
-		return xerrors.Errorf("parse certificate: %w", err)
+		return xerrors.Errorf("parse CA certificate: %w", err)
 	}
 
-	goproxy.GoproxyCa = tls.Certificate{
-		Certificate: tlsCert.Certificate,
-		PrivateKey:  tlsCert.PrivateKey,
-		Leaf:        x509Cert,
-	}
+	// Only protect the global assignment with sync.Once
+	loadMitmOnce.Do(func() {
+		goproxy.GoproxyCa = tls.Certificate{
+			Certificate: tlsCert.Certificate,
+			PrivateKey:  tlsCert.PrivateKey,
+			Leaf:        x509Cert,
+		}
+	})
 
 	return nil
 }
