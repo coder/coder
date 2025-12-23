@@ -1181,7 +1181,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 	defer dialCancel()
 	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
 	if err != nil {
-		httpapi.Write(dialCtx, rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
 			Detail:  err.Error(),
 		})
