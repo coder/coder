@@ -75,22 +75,28 @@ func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Re
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		var err error
+		//nolint:gocritic // We need to manage a system role.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		// Serialize organization workspace-sharing updates with system role
+		// reconciliation across coderd instances (e.g. during rolling restarts).
+		// This prevents conflicting writes to the organization-member system role.
+		// TODO(geokat): Consider finer-grained locks as we add more system roles.
+		err := tx.AcquireLock(sysCtx, database.LockIDReconcileSystemRoles)
+		if err != nil {
+			return xerrors.Errorf("acquire system roles reconciliation lock: %w", err)
+		}
+
 		org, err = tx.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
 			ID:                       org.ID,
 			WorkspaceSharingDisabled: req.SharingDisabled,
 			UpdatedAt:                dbtime.Now(),
 		})
 		if err != nil {
-			return xerrors.Errorf("update organization workspace sharing settings %w", err)
+			return xerrors.Errorf("update organization workspace sharing settings: %w", err)
 		}
 
-		// Update the organization's org-member role permissions to
-		// match the new setting. The role's permissions vary based
-		// on whether workspace sharing is disabled.
-		//nolint:gocritic // TODO(geokat): Update Organization is not enough here.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		roles, err := tx.CustomRoles(sysCtx, database.CustomRolesParams{
+		role, err := database.ExpectOne(tx.CustomRoles(sysCtx, database.CustomRolesParams{
 			LookupRoles: []database.NameOrganizationPair{
 				{
 					Name:           rbac.RoleOrgMember(),
@@ -101,15 +107,12 @@ func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Re
 			OrganizationID:     org.ID,
 			ExcludeOrgRoles:    false,
 			IncludeSystemRoles: true,
-		})
+		}))
 		if err != nil {
 			return xerrors.Errorf("get organization-member role: %w", err)
 		}
-		if len(roles) == 0 {
-			return xerrors.Errorf("organization-member role not found for organization %s", org.ID)
-		}
 
-		_, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, roles[0], req.SharingDisabled)
+		_, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, role, req.SharingDisabled)
 		if err != nil {
 			return xerrors.Errorf("reconcile organization-member role: %w", err)
 		}
