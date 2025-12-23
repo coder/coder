@@ -2223,6 +2223,10 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		workspace = httpmw.WorkspaceParam(r)
 	)
 
+	if !api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID) {
+		return
+	}
+
 	// Fetch the ACL data.
 	workspaceACL, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
 	if err != nil {
@@ -2345,6 +2349,10 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = workspace.WorkspaceTable()
 
+	if !api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID) {
+		return
+	}
+
 	var req codersdk.UpdateWorkspaceACL
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -2441,6 +2449,10 @@ func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	defer commitAuditor()
 	aReq.Old = workspace.WorkspaceTable()
 
+	if !api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID) {
+		return
+	}
+
 	err := api.Database.InTx(func(tx database.Store) error {
 		err := tx.DeleteWorkspaceACLByID(ctx, workspace.ID)
 		if err != nil {
@@ -2462,6 +2474,26 @@ func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = workspace.WorkspaceTable()
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// allowWorkspaceSharing reports whether workspace sharing is enabled
+// for an organization. Even if sharing is disabled, we still expose
+// the ACL endpoints (behind an experiment), but ACLs are not meaninful
+// and must not be modified or queried.
+func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWriter, organizationID uuid.UUID) bool {
+	// nolint:gocritic // Need system context to fetch org.
+	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), organizationID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+	if org.WorkspaceSharingDisabled {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Workspace sharing is disabled for this organization.",
+		})
+		return false
+	}
+	return true
 }
 
 // workspacesData only returns the data the caller can access. If the caller
