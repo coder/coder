@@ -1,9 +1,9 @@
-import { screen } from "@testing-library/react";
-import type { Entitlements } from "api/typesGenerated";
-import { HttpResponse, http } from "msw";
 import { MockLicenseResponse } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen } from "@testing-library/react";
+import type { Entitlements } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
 // Mock react-confetti to avoid canvas issues in tests
