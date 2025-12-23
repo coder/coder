@@ -233,7 +233,7 @@ func TestProxy_PortValidation(t *testing.T) {
 			targetURL, err := url.Parse(targetServer.URL)
 			require.NoError(t, err)
 
-			certFile, keyFile := getSharedTestCA(t)
+			certFile, keyFile := generateTestCA(t)
 			logger := slogtest.Make(t, nil)
 
 			// Configure allowed ports based on test case.
@@ -357,7 +357,7 @@ func TestProxy_Authentication(t *testing.T) {
 			targetURL, err := url.Parse(targetServer.URL)
 			require.NoError(t, err)
 
-			certFile, keyFile := getSharedTestCA(t)
+			certFile, keyFile := generateTestCA(t)
 			logger := slogtest.Make(t, nil)
 
 			// Start the proxy server on a random port to avoid conflicts when running tests in parallel.
