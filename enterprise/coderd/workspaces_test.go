@@ -3075,7 +3075,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 // This is testing that dynamic params defers input validation to terraform.
 // It does not try to do this in coder/coder.
 func TestWorkspaceTemplateParamsChange(t *testing.T) {
-	indicatorFile := filepath.Join(t.TempDir(), "workspace_indicator.txt")
+	indicatorFile := filepath.ToSlash(filepath.Join(t.TempDir(), "workspace_indicator.txt"))
 	mainTfTemplate := fmt.Sprintf(`
 		terraform {
 			required_providers {
