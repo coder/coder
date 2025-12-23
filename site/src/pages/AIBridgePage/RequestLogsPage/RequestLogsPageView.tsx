@@ -15,7 +15,7 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ComponentProps, FC } from "react";
 import { docs } from "utils/docs";
-import { RequestLogsFilter } from "./filter/RequestLogsFilter";
+import { RequestLogsFilter } from "./RequestLogsFilter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {

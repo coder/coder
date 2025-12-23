@@ -674,11 +674,6 @@ func TestAIBridgeRouting(t *testing.T) {
 			path:         "/api/v2/aibridge/openai/v1/chat/completions",
 			expectedPath: "/openai/v1/chat/completions",
 		},
-		{
-			name:         "ExperimentalPrefix",
-			path:         "/api/experimental/aibridge/openai/v1/chat/completions",
-			expectedPath: "/openai/v1/chat/completions",
-		},
 	}
 
 	for _, tc := range cases {

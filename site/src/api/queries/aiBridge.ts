@@ -13,7 +13,7 @@ export const paginatedInterceptions = (
 			return ["aiBridgeInterceptions", payload, pageNumber] as const;
 		},
 		queryFn: ({ limit, offset, payload }) =>
-			API.experimental.getAIBridgeInterceptions({
+			API.getAIBridgeInterceptions({
 				offset,
 				limit,
 				q: payload,
