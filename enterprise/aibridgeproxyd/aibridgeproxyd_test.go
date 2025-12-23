@@ -16,8 +16,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -125,7 +125,7 @@ func TestNew(t *testing.T) {
 	t.Run("MissingCoderAccessURL", func(t *testing.T) {
 		t.Parallel()
 
-		certFile, keyFile := generateTestCA(t)
+		certFile, keyFile := getSharedTestCA(t)
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
@@ -140,7 +140,7 @@ func TestNew(t *testing.T) {
 	t.Run("EmptyCoderAccessURL", func(t *testing.T) {
 		t.Parallel()
 
-		certFile, keyFile := generateTestCA(t)
+		certFile, keyFile := getSharedTestCA(t)
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
@@ -156,7 +156,7 @@ func TestNew(t *testing.T) {
 	t.Run("InvalidCoderAccessURL", func(t *testing.T) {
 		t.Parallel()
 
-		certFile, keyFile := generateTestCA(t)
+		certFile, keyFile := getSharedTestCA(t)
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
@@ -555,7 +555,7 @@ func TestProxy_MITM(t *testing.T) {
 			}))
 			t.Cleanup(func() { targetServer.Close() })
 
-			certFile, keyFile := generateTestCA(t)
+			certFile, keyFile := getSharedTestCA(t)
 			logger := slogtest.Make(t, nil)
 
 			// Configure allowed ports based on test case.
