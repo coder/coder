@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MockLicenseResponse } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
 const meta: Meta<typeof LicensesSettingsPage> = {
