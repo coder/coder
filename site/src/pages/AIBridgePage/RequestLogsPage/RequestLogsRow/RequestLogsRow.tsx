@@ -4,6 +4,7 @@ import type {
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
+import { Codeblock } from "components/Codeblock/Codeblock";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
@@ -178,7 +179,6 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	const [firstPrompt] = interception.user_prompts;
-
 	const inputTokens = interception.token_usages.reduce(
 		(acc, tokenUsage) => acc + tokenUsage.input_tokens,
 		0,
@@ -477,7 +477,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="flex flex-col gap-2 w-[800px]">
 									<div>Token Usage Metadata</div>
 									<div className="bg-surface-secondary rounded-md p-4">
-										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
+										<Codeblock>
+											{JSON.stringify(tokenUsagesMetadata, null, 2)}
+										</Codeblock>
 									</div>
 								</div>
 							)}
