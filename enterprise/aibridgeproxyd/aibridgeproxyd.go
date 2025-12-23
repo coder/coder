@@ -46,6 +46,9 @@ type Options struct {
 	CertFile string
 	// KeyFile is the path to the CA private key file used for MITM.
 	KeyFile string
+	// AllowedPorts is the list of ports allowed for CONNECT requests.
+	// Defaults to ["80", "443"] if empty.
+	AllowedPorts []string
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -72,12 +75,19 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy:  proxy,
 	}
 
+	// Reject CONNECT requests to non-standard ports.
+	allowedPorts := opts.AllowedPorts
+	if len(allowedPorts) == 0 {
+		allowedPorts = []string{"80", "443"}
+	}
+	proxy.OnRequest().HandleConnectFunc(srv.portMiddleware(allowedPorts))
+
 	// Extract Coder session token from proxy authentication to forward to aibridged.
 	// Decrypt all HTTPS requests via MITM. Requests are forwarded to
 	// the original destination without modification for now.
 	// TODO(ssncferreira): Route requests to aibridged will be implemented upstack.
 	//   Related to https://github.com/coder/internal/issues/1181
-	proxy.OnRequest().HandleConnect(goproxy.FuncHttpsHandler(srv.handleConnect))
+	proxy.OnRequest().HandleConnectFunc(srv.authMiddleware)
 
 	// Create listener first so we can get the actual address.
 	// This is useful in tests where port 0 is used to avoid conflicts.
@@ -148,18 +158,38 @@ func loadMitmCertificate(certFile, keyFile string) error {
 	return nil
 }
 
-// extractPort extracts the port from a host:port string.
-// Returns "443" as the default if no port is specified (standard HTTPS).
-func extractPort(host string) string {
-	if i := strings.LastIndex(host, ":"); i != -1 {
-		return host[i+1:]
+// portMiddleware is a CONNECT middleware that rejects requests to non-standard ports.
+// This prevents the proxy from being used to tunnel to arbitrary services (SSH, databases, etc.).
+func (s *Server) portMiddleware(allowedPorts []string) func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	allowed := make(map[string]bool, len(allowedPorts))
+	for _, p := range allowedPorts {
+		allowed[p] = true
 	}
-	return "443"
+
+	return func(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+		_, port, err := net.SplitHostPort(host)
+		if err != nil {
+			s.logger.Warn(s.ctx, "rejecting CONNECT with missing port",
+				slog.F("host", host),
+			)
+			return goproxy.RejectConnect, host
+		}
+
+		if !allowed[port] {
+			s.logger.Warn(s.ctx, "rejecting CONNECT to non-allowed port",
+				slog.F("host", host),
+				slog.F("port", port),
+			)
+			return goproxy.RejectConnect, host
+		}
+
+		return nil, ""
+	}
 }
 
-// handleConnect handles CONNECT requests for HTTPS proxying.
-// It extracts the Coder session token from the Proxy-Authorization header
-// and stores it in ctx.UserData for use by downstream request handlers.
+// authMiddleware is a CONNECT middleware that extracts the Coder session token
+// from the Proxy-Authorization header and stores it in ctx.UserData for use by
+// downstream request handlers.
 // Requests without valid credentials are rejected.
 //
 // Clients provide credentials by setting their HTTP Proxy as:
@@ -167,18 +197,7 @@ func extractPort(host string) string {
 //	HTTPS_PROXY=http://ignored:<coder-token>@host:port
 //
 // The token is extracted from the password field of basic auth.
-func (s *Server) handleConnect(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
-	// Restrict CONNECT to standard HTTP/HTTPS ports to prevent request smuggling.
-	// Attackers could use non-standard ports to bypass security controls.
-	port := extractPort(host)
-	if port != "443" && port != "80" {
-		s.logger.Warn(s.ctx, "connect to non-standard port",
-			slog.F("host", host),
-			slog.F("port", port),
-		)
-		// return goproxy.RejectConnect, host
-	}
-
+func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 	proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
 	coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
 
