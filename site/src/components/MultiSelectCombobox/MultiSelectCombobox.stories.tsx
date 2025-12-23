@@ -95,7 +95,7 @@ export const ClearFirstSelectedItem: Story = {
 		await userEvent.click(
 			canvas.getByRole("option", { name: "My Organization 2" }),
 		);
-		await userEvent.click(canvas.getAllByTestId("clear-option-button")[0]);
+		await userEvent.click(canvas.getAllByTestId("clear-option-button")[0]!);
 	},
 };
 

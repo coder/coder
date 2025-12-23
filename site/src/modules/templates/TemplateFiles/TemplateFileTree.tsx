@@ -84,8 +84,8 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 		const isHiddenFile = currentPath.startsWith(".");
 
 		if (shouldGroupFolder) {
-			const firstChildFileName = Object.keys(content)[0];
-			const child = content[firstChildFileName];
+			const firstChildFileName = Object.keys(content)[0]!;
+			const child = content[firstChildFileName]!;
 			return buildTreeItems(
 				`${label} / ${firstChildFileName}`,
 				firstChildFileName,

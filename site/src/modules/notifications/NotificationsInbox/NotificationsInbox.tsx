@@ -98,7 +98,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			}
 			const lastNotification =
 				inboxRes.notifications[inboxRes.notifications.length - 1];
-			const newRes = await fetchNotifications(lastNotification.id);
+			const newRes = await fetchNotifications(lastNotification!.id);
 			updateNotificationsCache((prev) => {
 				return {
 					unread_count: newRes.unread_count,

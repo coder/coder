@@ -71,7 +71,7 @@ const [first, ...others] = WorkspaceTimingsResponse.agent_script_timings;
 export const FailedScript: Story = {
 	args: {
 		agentScriptTimings: [
-			{ ...first, status: "exit_failure", exit_code: 1 },
+			{ ...first!, status: "exit_failure", exit_code: 1 },
 			...others,
 		],
 	},
@@ -109,9 +109,9 @@ export const NavigateToStartStage: Story = {
 export const DuplicatedScriptTiming: Story = {
 	args: {
 		agentScriptTimings: [
-			WorkspaceTimingsResponse.agent_script_timings[0],
+			WorkspaceTimingsResponse.agent_script_timings[0]!,
 			{
-				...WorkspaceTimingsResponse.agent_script_timings[0],
+				...WorkspaceTimingsResponse.agent_script_timings[0]!,
 				started_at: "2021-09-01T00:00:00Z",
 				ended_at: "2021-09-01T00:00:00Z",
 			},
@@ -131,21 +131,21 @@ export const LongTimeRange = {
 	args: {
 		provisionerTimings: [
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				started_at: "2021-09-01T00:00:00Z",
 				ended_at: "2021-09-01T00:10:00Z",
 			},
 		],
 		agentConnectionTimings: [
 			{
-				...WorkspaceTimingsResponse.agent_connection_timings[0],
+				...WorkspaceTimingsResponse.agent_connection_timings[0]!,
 				started_at: "2021-09-01T00:10:00Z",
 				ended_at: "2021-09-01T00:35:00Z",
 			},
 		],
 		agentScriptTimings: [
 			{
-				...WorkspaceTimingsResponse.agent_script_timings[0],
+				...WorkspaceTimingsResponse.agent_script_timings[0]!,
 				started_at: "2021-09-01T00:35:00Z",
 				ended_at: "2021-09-01T01:00:00Z",
 			},
@@ -234,25 +234,25 @@ export const InvalidTimeRange: Story = {
 	args: {
 		provisionerTimings: [
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "init",
 				started_at: "2025-01-01T00:00:00Z",
 				ended_at: "2025-01-01T00:01:00Z",
 			},
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "plan",
 				started_at: "2025-01-01T00:01:00Z",
 				ended_at: "0001-01-01T00:00:00Z",
 			},
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "graph",
 				started_at: "0001-01-01T00:00:00Z",
 				ended_at: "2025-01-01T00:03:00Z",
 			},
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "apply",
 				started_at: "2025-01-01T00:03:00Z",
 				ended_at: "2025-01-01T00:04:00Z",
@@ -269,7 +269,7 @@ export const InvalidTimeRange: Story = {
 		],
 		agentScriptTimings: [
 			{
-				...WorkspaceTimingsResponse.agent_script_timings[0],
+				...WorkspaceTimingsResponse.agent_script_timings[0]!,
 				display_name: "Startup Script 1",
 				started_at: "0001-01-01T00:00:00Z",
 				ended_at: "2025-01-01T00:10:00Z",
@@ -283,25 +283,25 @@ export const NoAgentScripts: Story = {
 	args: {
 		provisionerTimings: [
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "init",
 				started_at: "2025-01-01T00:00:00Z",
 				ended_at: "2025-01-01T00:01:00Z",
 			},
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "plan",
 				started_at: "2025-01-01T00:01:00Z",
 				ended_at: "0001-01-01T00:00:00Z",
 			},
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "graph",
 				started_at: "0001-01-01T00:00:00Z",
 				ended_at: "2025-01-01T00:03:00Z",
 			},
 			{
-				...WorkspaceTimingsResponse.provisioner_timings[0],
+				...WorkspaceTimingsResponse.provisioner_timings[0]!,
 				stage: "apply",
 				started_at: "2025-01-01T00:03:00Z",
 				ended_at: "2025-01-01T00:04:00Z",

@@ -83,14 +83,14 @@ export function selectTemplatesByGroup(
 		if (!grouped[template.group]) {
 			grouped[template.group] = [];
 		}
-		grouped[template.group].push(template);
+		grouped[template.group]!.push(template);
 	}
 
 	// Sort groups by name, and sort templates within each group
 	const sortedGroups = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 	const sortedGrouped: Record<string, NotificationTemplate[]> = {};
 	for (const group of sortedGroups) {
-		sortedGrouped[group] = grouped[group].sort((a, b) =>
+		sortedGrouped[group] = grouped[group]!.sort((a, b) =>
 			a.name.localeCompare(b.name),
 		);
 	}

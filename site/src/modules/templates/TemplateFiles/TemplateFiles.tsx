@@ -33,7 +33,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
 	const fileInfo = useCallback(
 		(filename: string) => {
-			const value = currentFiles[filename].trim();
+			const value = currentFiles[filename]!.trim();
 			const previousValue = baseFiles ? baseFiles[filename]?.trim() : undefined;
 			const hasDiff = previousValue && value !== previousValue;
 

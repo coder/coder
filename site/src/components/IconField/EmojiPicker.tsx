@@ -8,7 +8,7 @@ const custom = [
 		id: "icons",
 		name: "Icons",
 		emojis: icons.map((icon) => {
-			const id = icon.split(".")[0];
+			const id = icon.split(".")[0]!;
 
 			return {
 				id,

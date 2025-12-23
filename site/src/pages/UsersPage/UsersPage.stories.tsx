@@ -92,7 +92,7 @@ export const SuspendUserSuccess: Story = {
 
 		// Return the updated user in the suspended response and ensure the users
 		// query will return updated data.
-		const updatedUser: User = { ...MockUsers[0], status: "suspended" };
+		const updatedUser: User = { ...MockUsers[0]!, status: "suspended" };
 		spyOn(API, "suspendUser").mockResolvedValue(updatedUser);
 		spyOn(API, "getUsers").mockResolvedValue({
 			users: replaceUser(MockUsers, 0, updatedUser),
@@ -151,7 +151,7 @@ export const DeleteUserSuccess: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		const input = within(dialog).getByLabelText("Name of the user to delete");
-		await user.type(input, MockUsers[0].username);
+		await user.type(input, MockUsers[0]!.username);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 		await within(document.body).findByText("Successfully deleted the user.");
 	},
@@ -172,7 +172,7 @@ export const DeleteUserError: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		const input = within(dialog).getByLabelText("Name of the user to delete");
-		await user.type(input, MockUsers[0].username);
+		await user.type(input, MockUsers[0]!.username);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 		await within(document.body).findByText("Error deleting user.");
 	},
@@ -188,7 +188,7 @@ export const ActivateUserSuccess: Story = {
 				key: usersKey({ limit: 25, offset: 0, q: "" }),
 				data: {
 					users: replaceUser(MockUsers, 0, {
-						...MockUsers[0],
+						...MockUsers[0]!,
 						status: "suspended",
 					}),
 					count: 60,
@@ -205,7 +205,7 @@ export const ActivateUserSuccess: Story = {
 
 		// Return the updated user in the activate response and ensure the users
 		// query will return updated data.
-		const updatedUser: User = { ...MockUsers[0], status: "active" };
+		const updatedUser: User = { ...MockUsers[0]!, status: "active" };
 		spyOn(API, "activateUser").mockResolvedValue(updatedUser);
 		spyOn(API, "getUsers").mockResolvedValue({
 			users: replaceUser(MockUsers, 0, updatedUser),
@@ -318,7 +318,7 @@ export const UpdateUserRoleSuccess: Story = {
 				key: usersKey({ limit: 25, offset: 0, q: "" }),
 				data: {
 					users: replaceUser(MockUsers, 0, {
-						...MockUsers[0],
+						...MockUsers[0]!,
 						roles: [
 							{ name: "owner", display_name: "Owner" },
 							// We will update the user role to include auditor
@@ -340,7 +340,7 @@ export const UpdateUserRoleSuccess: Story = {
 		// Return the updated user in the update roles response and ensure the users
 		// query will return updated data.
 		const updatedUser: User = {
-			...MockUsers[0],
+			...MockUsers[0]!,
 			roles: [
 				{ name: "owner", display_name: "Owner" },
 				// We will update the user role to include auditor

@@ -61,7 +61,7 @@ export const TagInput: FC<TagInputProps> = ({
 								return;
 							}
 
-							const lastValue = values[values.length - 1];
+							const lastValue = values[values.length - 1]!;
 							onChange(values.slice(0, -1));
 							event.currentTarget.value = lastValue;
 						}

@@ -138,7 +138,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	// Template
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
-		templates[0].id,
+		templates[0]!.id,
 	);
 	const selectedTemplate = templates.find(
 		(t) => t.id === selectedTemplateId,
@@ -260,7 +260,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										setSelectedPresetId(undefined);
 									}
 								}}
-								defaultValue={templates[0].id}
+								defaultValue={templates[0]!.id}
 								required
 							>
 								<PromptSelectTrigger id="templateID" tooltip="Template">

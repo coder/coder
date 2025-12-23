@@ -35,7 +35,7 @@ export const ChooseOne: FC<PropsWithChildren> = ({ children }) => {
 		return null;
 	}
 	const conditionedOptions = childArray.slice(0, childArray.length - 1);
-	const defaultCase = childArray[childArray.length - 1];
+	const defaultCase = childArray[childArray.length - 1]!;
 	if (defaultCase.props.condition !== undefined) {
 		throw new Error(
 			"The last Cond in a ChooseOne was given a condition prop, but it is the default case.",

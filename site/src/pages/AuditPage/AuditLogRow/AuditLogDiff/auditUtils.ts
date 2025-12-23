@@ -19,7 +19,7 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
 		members: {
 			old: old?.map((groupMember) => groupMember.user_id),
 			new: new_?.map((groupMember) => groupMember.user_id),
-			secret: auditLogDiff.members?.secret,
+			secret: auditLogDiff.members?.secret ?? false,
 		},
 	};
 };
@@ -45,7 +45,7 @@ export const determineIdPSyncMappingDiff = (
 		mapping: {
 			old: JSON.stringify(old),
 			new: JSON.stringify(new_),
-			secret: auditLogDiff.mapping?.secret,
+			secret: auditLogDiff.mapping?.secret ?? false,
 		},
 	};
 };

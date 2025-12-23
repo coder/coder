@@ -32,7 +32,7 @@ export const Controlled: Story = {
 	render: (args) => {
 		const [value, setValue] = React.useState(50);
 		return (
-			<Slider {...args} value={[value]} onValueChange={([v]) => setValue(v)} />
+			<Slider {...args} value={[value]} onValueChange={([v]) => setValue(v!)} />
 		);
 	},
 	args: { value: [50], min: 0, max: 100, step: 1 },

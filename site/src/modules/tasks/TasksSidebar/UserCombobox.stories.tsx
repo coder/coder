@@ -61,7 +61,7 @@ export const SelectUser: Story = {
 		});
 
 		await step("select user", async () => {
-			const option = await body.findByText(MockUsers[1].name!, {
+			const option = await body.findByText(MockUsers[1]!.name!, {
 				exact: false,
 			});
 			await user.click(option);

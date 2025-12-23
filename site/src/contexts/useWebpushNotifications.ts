@@ -69,8 +69,8 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 
 			await API.createWebPushSubscription("me", {
 				endpoint: json.endpoint,
-				auth_key: json.keys.auth,
-				p256dh_key: json.keys.p256dh,
+				auth_key: json.keys!.auth!,
+				p256dh_key: json.keys!.p256dh!,
 			});
 
 			setSubscribed(true);

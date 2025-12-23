@@ -56,8 +56,8 @@ export const Loading: Story = {
 
 export const Loaded: Story = {
 	args: {
-		activeVersionId: MockVersions[2].id,
-		value: MockVersions[2].id,
+		activeVersionId: MockVersions[2]!.id,
+		value: MockVersions[2]!.id,
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersions").mockResolvedValue(MockVersions);
@@ -66,8 +66,8 @@ export const Loaded: Story = {
 
 export const Open: Story = {
 	args: {
-		activeVersionId: MockVersions[2].id,
-		value: MockVersions[2].id,
+		activeVersionId: MockVersions[2]!.id,
+		value: MockVersions[2]!.id,
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersions").mockResolvedValue(MockVersions);

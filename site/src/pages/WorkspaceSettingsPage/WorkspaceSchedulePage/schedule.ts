@@ -71,13 +71,13 @@ const transformSchedule = (schedule: string) => {
 	}
 
 	return {
-		sunday: weeklyFlags[0],
-		monday: weeklyFlags[1],
-		tuesday: weeklyFlags[2],
-		wednesday: weeklyFlags[3],
-		thursday: weeklyFlags[4],
-		friday: weeklyFlags[5],
-		saturday: weeklyFlags[6],
+		sunday: weeklyFlags[0]!,
+		monday: weeklyFlags[1]!,
+		tuesday: weeklyFlags[2]!,
+		wednesday: weeklyFlags[3]!,
+		thursday: weeklyFlags[4]!,
+		friday: weeklyFlags[5]!,
+		saturday: weeklyFlags[6]!,
 		startTime: `${HH}:${mm}`,
 		timezone,
 	};

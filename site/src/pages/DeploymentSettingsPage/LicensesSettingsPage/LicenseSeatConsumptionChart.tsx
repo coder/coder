@@ -178,7 +178,7 @@ export const LicenseSeatConsumptionChart: FC<
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
 													const item = p[0];
-													return `${item.value} seats`;
+													return `${item?.value} seats`;
 												}}
 												formatter={(_v, _n, item) => {
 													const date = new Date(item.payload.date);

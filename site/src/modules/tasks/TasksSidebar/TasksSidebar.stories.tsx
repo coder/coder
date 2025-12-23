@@ -24,10 +24,10 @@ const meta: Meta<typeof TasksSidebar> = {
 		},
 		reactRouter: reactRouterParameters({
 			location: {
-				path: `/tasks/${MockTasks[0].owner_name}/${MockTasks[0].id}`,
+				path: `/tasks/${MockTasks[0]!.owner_name}/${MockTasks[0]!.id}`,
 				pathParams: {
-					owner_name: MockTasks[0].owner_name,
-					taskId: MockTasks[0].id,
+					owner_name: MockTasks[0]!.owner_name,
+					taskId: MockTasks[0]!.id,
 				},
 			},
 			routing: [

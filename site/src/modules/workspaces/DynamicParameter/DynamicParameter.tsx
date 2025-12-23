@@ -316,7 +316,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						className="mt-2"
 						value={[numericValue]}
 						onValueChange={([value]) => {
-							onChange(value.toString());
+							onChange(value!.toString());
 						}}
 						min={min ?? undefined}
 						max={max ?? undefined}

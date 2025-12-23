@@ -39,8 +39,8 @@ export const ProvisionerTruncateTags: FC<ProvisionerTagsProps> = ({ tags }) => {
 		return null;
 	}
 
-	const firstKey = keys[0];
-	const firstValue = tags[firstKey];
+	const firstKey = keys[0]!;
+	const firstValue = tags[firstKey]!;
 	const remainderCount = keys.length - 1;
 
 	return (

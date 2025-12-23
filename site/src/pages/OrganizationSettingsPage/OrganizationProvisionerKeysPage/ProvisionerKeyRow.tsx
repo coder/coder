@@ -129,7 +129,7 @@ const TruncateProvisioners: FC<TruncateProvisionersProps> = ({
 
 	return (
 		<ProvisionerTags>
-			<Badge size="sm">{firstProvisioner.name}</Badge>
+			<Badge size="sm">{firstProvisioner!.name}</Badge>
 			{remainderCount > 0 && <Badge size="sm">+{remainderCount}</Badge>}
 		</ProvisionerTags>
 	);

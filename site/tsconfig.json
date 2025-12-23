@@ -15,6 +15,7 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
+		"noUncheckedIndexedAccess": true,
 		"target": "es2020",
 		"types": ["node", "react", "react-dom", "vite/client", "vitest/globals"],
 		"baseUrl": "src/"

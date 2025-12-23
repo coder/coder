@@ -67,14 +67,14 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 			<div css={containerStyles}>
 				<Pill type={type}>{Language.licenseIssue}</Pill>
 				<div css={styles.leftContent}>
-					<span>{formatMessage(messages[0])}</span>
+					<span>{formatMessage(messages[0]!)}</span>
 					&nbsp;
 					<Link
 						color={textColor}
 						fontWeight="medium"
 						href="mailto:sales@coder.com"
 					>
-						{messages[0] === LicenseTelemetryRequiredErrorText
+						{messages[0]! === LicenseTelemetryRequiredErrorText
 							? Language.exception
 							: Language.upgrade}
 					</Link>

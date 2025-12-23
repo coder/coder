@@ -8,7 +8,7 @@ describe("LicenseCard", () => {
 		// When
 		render(
 			<LicenseCard
-				license={MockLicenseResponse[0]}
+				license={MockLicenseResponse[0]!}
 				userLimitActual={1}
 				userLimitLimit={10}
 				onRemove={() => null}
@@ -26,7 +26,7 @@ describe("LicenseCard", () => {
 		// When
 		render(
 			<LicenseCard
-				license={MockLicenseResponse[0]}
+				license={MockLicenseResponse[0]!}
 				userLimitActual={1}
 				userLimitLimit={undefined}
 				onRemove={() => null}
@@ -43,11 +43,11 @@ describe("LicenseCard", () => {
 	it("renders license's user_limit when it is available instead of using the default", async () => {
 		const licenseUserLimit = 3;
 		const license = {
-			...MockLicenseResponse[0],
+			...MockLicenseResponse[0]!,
 			claims: {
-				...MockLicenseResponse[0].claims,
+				...MockLicenseResponse[0]!.claims,
 				features: {
-					...MockLicenseResponse[0].claims.features,
+					...MockLicenseResponse[0]!.claims.features,
 					user_limit: licenseUserLimit,
 				},
 			},

@@ -55,7 +55,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 					)}
 				>
 					{({ index, style }) => {
-						const log = logs[index];
+						const log = logs[index]!;
 						const logSource = getLogSource(log.sourceId);
 
 						let assignedIcon = false;
@@ -87,7 +87,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 
 						const doesNextLineHaveDifferentSource =
 							index < logs.length - 1 &&
-							getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
+							getLogSource(logs[index + 1]!.sourceId).id !== log.sourceId;
 
 						// We don't want every line to repeat the icon, because
 						// that is ugly and repetitive. This removes the icon
@@ -96,7 +96,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 						// same source.
 						const shouldHideSource =
 							index > 0 &&
-							getLogSource(logs[index - 1].sourceId).id === log.sourceId;
+							getLogSource(logs[index - 1]!.sourceId).id === log.sourceId;
 						if (shouldHideSource) {
 							icon = (
 								<div className="size-3.5 mr-2 flex justify-center relative shrink-0">
@@ -193,5 +193,5 @@ const determineScriptDisplayColor = (displayName: string): string => {
 	const hash = displayName.split("").reduce((hash, char) => {
 		return (hash << 5) + hash + char.charCodeAt(0); // bit-shift and add for our simple hash
 	}, 0);
-	return scriptDisplayColors[Math.abs(hash) % scriptDisplayColors.length];
+	return scriptDisplayColors[Math.abs(hash) % scriptDisplayColors.length]!;
 };

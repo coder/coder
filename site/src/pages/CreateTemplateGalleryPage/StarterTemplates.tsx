@@ -60,7 +60,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		: undefined;
 	const activeTag = urlParams.get("tag") ?? "all";
 	const visibleTemplates = starterTemplatesByTag
-		? sortVisibleTemplates(starterTemplatesByTag[activeTag])
+		? sortVisibleTemplates(starterTemplatesByTag[activeTag] ?? [])
 		: undefined;
 
 	return (
@@ -75,7 +75,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 							to={`?tag=${tag}`}
 							css={[styles.tagLink, tag === activeTag && styles.tagLinkActive]}
 						>
-							{getTagLabel(tag)} ({starterTemplatesByTag[tag].length})
+							{getTagLabel(tag)} ({starterTemplatesByTag[tag]!.length})
 						</Link>
 					))}
 				</Stack>

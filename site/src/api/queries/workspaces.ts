@@ -187,7 +187,7 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	} catch (err) {
 		if (isApiValidationError(err)) {
 			const firstValidationErrorDetail =
-				err.response.data.validations?.[0].detail;
+				err.response.data.validations?.[0]?.detail;
 			throw new DetailedError(
 				"Invalid match value",
 				firstValidationErrorDetail,

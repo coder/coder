@@ -63,7 +63,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 					const firstChild = node.children[0];
 					// When pre is wrapping a code, the SyntaxHighlighter is already going
 					// to wrap it with a pre so we don't need it
-					if (firstChild.type === "element" && firstChild.tagName === "code") {
+					if (firstChild && firstChild.type === "element" && firstChild.tagName === "code") {
 						return <>{children}</>;
 					}
 					return <pre>{children}</pre>;
@@ -75,7 +75,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 					return match ? (
 						<SyntaxHighlighter
 							style={dracula}
-							language={match[1].toLowerCase() ?? "language-shell"}
+							language={match[1]!.toLowerCase() ?? "language-shell"}
 							useInlineStyles={false}
 							codeTagProps={{ style: {} }}
 							{...restProps} // Exclude 'ref' from being passed here
