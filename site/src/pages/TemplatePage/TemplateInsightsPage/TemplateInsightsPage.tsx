@@ -252,8 +252,8 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					css={{ gridColumn: "span 2" }}
 					interval={interval}
 					userLimit={
-						entitlements?.features.user_limit.enabled
-							? entitlements?.features.user_limit.limit
+						entitlements?.features.user_limit?.enabled
+							? entitlements?.features.user_limit?.limit
 							: undefined
 					}
 					data={templateInsights.data?.interval_reports}
