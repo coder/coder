@@ -175,7 +175,7 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 		// until we release the lock (when this transaction commits).
 		err := tx.AcquireLock(ctx, database.LockIDReconcileSystemRoles)
 		if err != nil {
-			return xerrors.Errorf("acquire reconcile system roles lock: %w", err)
+			return xerrors.Errorf("acquire system roles reconciliation lock: %w", err)
 		}
 
 		orgs, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{})
