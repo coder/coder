@@ -1029,6 +1029,7 @@ func New(options *Options) *API {
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
+		r.Get("/", apiRoot)
 
 		// NOTE(DanielleMaywood):
 		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
