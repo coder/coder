@@ -282,7 +282,7 @@ func TestProxy_PortValidation(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from target"))
 			}))
-			defer targetServer.Close()
+			t.Cleanup(func() { targetServer.Close() })
 
 			targetURL, err := url.Parse(targetServer.URL)
 			require.NoError(t, err)
@@ -407,7 +407,7 @@ func TestProxy_Authentication(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from target"))
 			}))
-			defer targetServer.Close()
+			t.Cleanup(func() { targetServer.Close() })
 
 			targetURL, err := url.Parse(targetServer.URL)
 			require.NoError(t, err)
@@ -546,14 +546,14 @@ func TestProxy_MITM(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
 			}))
-			defer aibridgedServer.Close()
+			t.Cleanup(func() { aibridgedServer.Close() })
 
 			// Create a mock target server for passthrough tests.
 			targetServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from passthrough"))
 			}))
-			defer targetServer.Close()
+			t.Cleanup(func() { targetServer.Close() })
 
 			certFile, keyFile := generateTestCA(t)
 			logger := slogtest.Make(t, nil)
