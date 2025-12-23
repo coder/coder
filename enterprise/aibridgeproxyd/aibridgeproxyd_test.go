@@ -137,6 +137,22 @@ func TestNew(t *testing.T) {
 		require.Contains(t, err.Error(), "coder access URL is required")
 	})
 
+	t.Run("EmptyCoderAccessURL", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := generateTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:     "127.0.0.1:0",
+			CoderAccessURL: " ",
+			CertFile:       certFile,
+			KeyFile:        keyFile,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "coder access URL is required")
+	})
+
 	t.Run("InvalidCoderAccessURL", func(t *testing.T) {
 		t.Parallel()
 
@@ -286,10 +302,11 @@ func TestProxy_PortValidation(t *testing.T) {
 
 			// Start the proxy server on a random port to avoid conflicts when running tests in parallel.
 			srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-				ListenAddr:   "127.0.0.1:0",
-				CertFile:     certFile,
-				KeyFile:      keyFile,
-				AllowedPorts: allowedPorts,
+				ListenAddr:     "127.0.0.1:0",
+				CoderAccessURL: "http://localhost:3000",
+				CertFile:       certFile,
+				KeyFile:        keyFile,
+				AllowedPorts:   allowedPorts,
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = srv.Close() })
@@ -476,6 +493,7 @@ func TestProxy_MITM(t *testing.T) {
 	tests := []struct {
 		name         string
 		targetHost   string
+		targetPort   string // optional, if empty uses default HTTPS port (443)
 		targetPath   string
 		expectedPath string
 		passthrough  bool
@@ -487,8 +505,22 @@ func TestProxy_MITM(t *testing.T) {
 			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
 		},
 		{
+			name:         "AnthropicNonDefaultPort",
+			targetHost:   "api.anthropic.com",
+			targetPort:   "8443",
+			targetPath:   "/v1/messages",
+			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+		},
+		{
 			name:         "OpenAIChatCompletions",
 			targetHost:   "api.openai.com",
+			targetPath:   "/v1/chat/completions",
+			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+		},
+		{
+			name:         "OpenAINonDefaultPort",
+			targetHost:   "api.openai.com",
+			targetPort:   "8443",
 			targetPath:   "/v1/chat/completions",
 			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
 		},
@@ -526,12 +558,28 @@ func TestProxy_MITM(t *testing.T) {
 			certFile, keyFile := generateTestCA(t)
 			logger := slogtest.Make(t, nil)
 
+			// Configure allowed ports based on test case.
+			// AI provider tests connect to the specified port, or 443 if not specified.
+			// Passthrough tests connect directly to the local target server's random port.
+			var allowedPorts []string
+			switch {
+			case tt.passthrough:
+				parsedTargetURL, err := url.Parse(targetServer.URL)
+				require.NoError(t, err)
+				allowedPorts = []string{parsedTargetURL.Port()}
+			case tt.targetPort != "":
+				allowedPorts = []string{tt.targetPort}
+			default:
+				allowedPorts = []string{"443"}
+			}
+
 			// Start the proxy server pointing to our mock aibridged.
 			srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 				ListenAddr:     "127.0.0.1:0",
 				CoderAccessURL: aibridgedServer.URL,
 				CertFile:       certFile,
 				KeyFile:        keyFile,
+				AllowedPorts:   allowedPorts,
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = srv.Close() })
@@ -575,11 +623,18 @@ func TestProxy_MITM(t *testing.T) {
 			// Build the target URL:
 			// - For passthrough, target the local mock TLS server.
 			// - For AI providers, use their real hostnames to trigger routing.
+			//   Non-default ports are included explicitly; default port (443) is omitted.
 			var targetURL string
-			if tt.passthrough {
-				targetURL = targetServer.URL + tt.targetPath
-			} else {
-				targetURL = "https://" + tt.targetHost + tt.targetPath
+			switch {
+			case tt.passthrough:
+				targetURL, err = url.JoinPath(targetServer.URL, tt.targetPath)
+				require.NoError(t, err)
+			case tt.targetPort != "":
+				targetURL, err = url.JoinPath("https://"+tt.targetHost+":"+tt.targetPort, tt.targetPath)
+				require.NoError(t, err)
+			default:
+				targetURL, err = url.JoinPath("https://"+tt.targetHost, tt.targetPath)
+				require.NoError(t, err)
 			}
 
 			// Make a request through the proxy to the target URL.

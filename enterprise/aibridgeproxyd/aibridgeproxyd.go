@@ -17,6 +17,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
+	"github.com/coder/aibridge"
+)
+
+// Known AI provider hosts.
+const (
+	HostAnthropic = "api.anthropic.com"
+	HostOpenAI    = "api.openai.com"
 )
 
 // loadMitmOnce ensures the MITM certificate is loaded exactly once.
@@ -67,7 +75,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.New("cert file and key file are required")
 	}
 
-	if opts.CoderAccessURL == "" {
+	if strings.TrimSpace(opts.CoderAccessURL) == "" {
 		return nil, xerrors.New("coder access URL is required")
 	}
 	coderAccessURL, err := url.Parse(opts.CoderAccessURL)
@@ -274,14 +282,6 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
-// canonicalHost strips the port from a host:port string and lowercases it.
-func canonicalHost(host string) string {
-	if i := strings.IndexByte(host, ':'); i != -1 {
-		host = host[:i]
-	}
-	return strings.ToLower(host)
-}
-
 // providerFromHost maps the request host to the aibridge provider name.
 //   - Known AI providers return their provider name, used to route to the
 //     corresponding aibridge endpoint.
@@ -290,12 +290,15 @@ func canonicalHost(host string) string {
 // TODO(ssncferreira): Provider list configurable via domain allowlists will be implemented upstack.
 //
 //	Related to https://github.com/coder/internal/issues/1182.
-func providerFromHost(host string) string {
-	switch canonicalHost(host) {
-	case "api.anthropic.com":
-		return "anthropic"
-	case "api.openai.com":
-		return "openai"
+func providerFromURL(reqURL *url.URL) string {
+	if reqURL == nil {
+		return ""
+	}
+	switch strings.ToLower(reqURL.Hostname()) {
+	case HostAnthropic:
+		return aibridge.ProviderAnthropic
+	case HostOpenAI:
+		return aibridge.ProviderOpenAI
 	default:
 		return ""
 	}
@@ -306,13 +309,15 @@ func providerFromHost(host string) string {
 //     (from ctx.UserData, set during CONNECT) injected in the Authorization header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+	originalPath := req.URL.Path
+
 	// Check if this request is for a supported AI provider.
-	provider := providerFromHost(req.Host)
+	provider := providerFromURL(req.URL)
 	if provider == "" {
 		s.logger.Debug(s.ctx, "passthrough request to unknown host",
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
-			slog.F("path", req.URL.Path),
+			slog.F("path", originalPath),
 		)
 		return req, nil
 	}
@@ -333,15 +338,28 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 
 	// Rewrite the request to point to aibridged.
-	originalPath := req.URL.Path
-	aibridgePath := "/" + provider + originalPath
+	if s.coderAccessURL == nil || s.coderAccessURL.String() == "" {
+		s.logger.Error(s.ctx, "coderAccessURL is not configured")
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
+	}
 
-	newURL := *s.coderAccessURL
-	newURL.Path = "/api/v2/aibridge" + aibridgePath
-	newURL.RawQuery = req.URL.RawQuery
+	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), "api/v2/aibridge", provider, originalPath)
+	if err != nil {
+		s.logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Bridge URL")
+	}
 
-	req.URL = &newURL
-	req.Host = newURL.Host
+	aiBridgeParsedURL, err := url.Parse(aiBridgeURL)
+	if err != nil {
+		s.logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Bridge URL")
+	}
+
+	// Preserve query parameters from the original request.
+	// Both URL and Host must be set for the request to be properly routed.
+	aiBridgeParsedURL.RawQuery = req.URL.RawQuery
+	req.URL = aiBridgeParsedURL
+	req.Host = aiBridgeParsedURL.Host
 
 	// Set Authorization header for aibridged authentication.
 	req.Header.Set("Authorization", "Bearer "+coderToken)
@@ -349,7 +367,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	s.logger.Debug(s.ctx, "routing request to aibridged",
 		slog.F("provider", provider),
 		slog.F("original_path", originalPath),
-		slog.F("aibridged_url", newURL.String()),
+		slog.F("aibridged_url", aiBridgeParsedURL.String()),
 	)
 
 	return req, nil
