@@ -76,6 +76,8 @@ coder:
 
   # coder.podAnnotations -- The Coder pod annotations. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  # Note: The annotation `com.coder/component` is automatically added to identify
+  # the component type (coderd, wsproxy, or provisionerd).
   podAnnotations: {}
 
   # coder.podLabels -- The Coder pod labels. See:
