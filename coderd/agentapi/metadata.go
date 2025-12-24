@@ -18,7 +18,7 @@ import (
 )
 
 type MetadataAPI struct {
-	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	Agent     *CachedAgentFields
 	Workspace *CachedWorkspaceFields
 	Database  database.Store
 	Pubsub    pubsub.Pubsub
@@ -60,16 +60,11 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		}
 	}
 
-	workspaceAgent, err := a.AgentFn(rbacCtx)
-	if err != nil {
-		return nil, err
-	}
-
 	var (
 		collectedAt = a.now()
 		allKeysLen  = 0
 		dbUpdate    = database.UpdateWorkspaceAgentMetadataParams{
-			WorkspaceAgentID: workspaceAgent.ID,
+			WorkspaceAgentID: a.Agent.ID,
 			// These need to be `make(x, 0, len(req.Metadata))` instead of
 			// `make(x, len(req.Metadata))` because we may not insert all
 			// metadata if the keys are large.
@@ -134,7 +129,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	if err != nil {
 		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
 	}
-	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
+	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(a.Agent.ID), payload)
 	if err != nil {
 		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
 	}

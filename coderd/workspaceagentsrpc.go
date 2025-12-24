@@ -158,7 +158,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
-	}, workspace)
+	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{
 		Name: fmt.Sprintf("%s-%s-%s", workspace.OwnerUsername, workspace.Name, workspaceAgent.Name),

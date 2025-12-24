@@ -21,7 +21,12 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 	var (
 		agent = database.WorkspaceAgent{
-			ID: uuid.New(),
+			ID:   uuid.New(),
+			Name: "test-agent",
+		}
+		agentAsCacheFields = agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
 		}
 		app1 = database.WorkspaceApp{
 			ID:             uuid.New(),
@@ -59,12 +64,10 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -97,12 +100,10 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -136,12 +137,10 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:    &agentAsCacheFields,
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -172,9 +171,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app3}, nil)
 
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
@@ -201,9 +198,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app1, app2}, nil)
 
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
@@ -231,9 +226,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app1, app2}, nil)
 
 		api := &agentapi.AppsAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:                    &agentAsCacheFields,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,

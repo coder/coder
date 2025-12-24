@@ -58,6 +58,7 @@ type API struct {
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
+	cachedAgentFields     CachedAgentFields
 
 	mu sync.Mutex
 }
@@ -97,7 +98,7 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options, workspace database.Workspace) *API {
+func New(opts Options, workspace database.Workspace, agent database.WorkspaceAgent) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
@@ -126,6 +127,15 @@ func New(opts Options, workspace database.Workspace) *API {
 		api.cachedWorkspaceFields.UpdateValues(workspace)
 	}
 
+	// Initialize agent cache with static fields.
+	// These fields never change during an agent connection lifetime.
+	// Unlike workspaces, agents don't need prebuild checking because agent ID
+	// and Name are immutable - they never change regardless of prebuild status.
+	api.cachedAgentFields = CachedAgentFields{
+		ID:   agent.ID,
+		Name: agent.Name,
+	}
+
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
 	}
@@ -150,7 +160,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.StatsAPI = &StatsAPI{
-		AgentFn:                   api.agent,
+		Agent:                     &api.cachedAgentFields,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -160,22 +170,24 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
-		AgentFn:                  api.agent,
-		WorkspaceID:              opts.WorkspaceID,
-		Database:                 opts.Database,
-		Log:                      opts.Log,
-		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		AgentFn:     api.agent,
+		WorkspaceID: opts.WorkspaceID,
+		Database:    opts.Database,
+		Log:         opts.Log,
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			return api.publishWorkspaceUpdate(ctx, agent.ID, kind)
+		},
 	}
 
 	api.AppsAPI = &AppsAPI{
-		AgentFn:                  api.agent,
+		Agent:                    &api.cachedAgentFields,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:   api.agent,
+		Agent:     &api.cachedAgentFields,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
 		Pubsub:    opts.Pubsub,
@@ -183,10 +195,12 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.LogsAPI = &LogsAPI{
-		AgentFn:                           api.agent,
-		Database:                          opts.Database,
-		Log:                               opts.Log,
-		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
+		AgentFn:  api.agent,
+		Database: opts.Database,
+		Log:      opts.Log,
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			return api.publishWorkspaceUpdate(ctx, agent.ID, kind)
+		},
 		PublishWorkspaceAgentLogsUpdateFn: opts.PublishWorkspaceAgentLogsUpdateFn,
 	}
 
@@ -195,7 +209,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.ConnLogAPI = &ConnLogAPI{
-		AgentFn:          api.agent,
+		Agent:            &api.cachedAgentFields,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,
@@ -325,11 +339,11 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	a.cachedWorkspaceFields.Clear()
 }
 
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        kind,
 		WorkspaceID: a.opts.WorkspaceID,
-		AgentID:     &agent.ID,
+		AgentID:     &agentID,
 	})
 	return nil
 }

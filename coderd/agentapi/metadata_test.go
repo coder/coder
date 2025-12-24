@@ -44,7 +44,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 	t.Parallel()
 
 	agent := database.WorkspaceAgent{
-		ID: uuid.New(),
+		ID:   uuid.New(),
+		Name: "test-agent",
+	}
+	agentAsCacheFields := agentapi.CachedAgentFields{
+		ID:   agent.ID,
+		Name: agent.Name,
 	}
 
 	t.Run("OK", func(t *testing.T) {
@@ -87,9 +92,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		}).Return(nil)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:     &agentAsCacheFields,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
 			Pubsub:    pub,
@@ -173,9 +176,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		}).Return(nil)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:     &agentAsCacheFields,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
 			Pubsub:    pub,
@@ -243,9 +244,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		}).Return(nil)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:     &agentAsCacheFields,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbM,
 			Pubsub:    pub,
@@ -302,8 +301,13 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		)
 
 		agent := database.WorkspaceAgent{
-			ID: agentID,
+			ID:   agentID,
+			Name: "test-agent",
 			// In a real scenario, this agent would belong to a resource in the workspace above
+		}
+		agentCache := agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
 		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
@@ -341,9 +345,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:     &agentCache,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:    pub,
@@ -424,7 +426,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		)
 
 		agent := database.WorkspaceAgent{
-			ID: agentID,
+			ID:   agentID,
+			Name: "test-agent",
+		}
+		agentCache := agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
 		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
@@ -466,9 +473,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent: &agentCache,
 
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
@@ -553,7 +558,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		)
 
 		agent := database.WorkspaceAgent{
-			ID: agentID,
+			ID:   agentID,
+			Name: "test-agent",
+		}
+		agentCache := agentapi.CachedAgentFields{
+			ID:   agent.ID,
+			Name: agent.Name,
 		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
@@ -595,9 +605,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent:     &agentCache,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Database:  dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:    pub,
@@ -676,7 +684,8 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		)
 
 		agent := database.WorkspaceAgent{
-			ID: agentID,
+			ID:   agentID,
+			Name: "test-agent",
 		}
 
 		// Initial workspace - has Monday-Friday 9am autostart
@@ -721,8 +730,8 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		// This is the key assertion - proves the refresh mechanism is working
 		dbM.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(updatedWorkspace, nil)
 
-		// API needs to fetch the agent when calling metadata update
-		dbM.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agent, nil)
+		// With agent caching, GetWorkspaceAgentByID is not called - agent ID comes from cache
+		// If this is called, the test will fail, indicating caching isn't working
 
 		// After refresh, metadata update should work with updated cache
 		dbM.EXPECT().UpdateWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -804,7 +813,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			Log:              testutil.Logger(t),
 			Clock:            mClock,
 			Pubsub:           pub,
-		}, initialWorkspace) // Cache is initialized with 9am schedule and "my-workspace" name
+		}, initialWorkspace, agent) // Cache is initialized with 9am schedule and "my-workspace" name
 
 		// Wait for ticker to be set up and release it so it can fire
 		tickerTrap.MustWait(ctx).MustRelease(ctx)
