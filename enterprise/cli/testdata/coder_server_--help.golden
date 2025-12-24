@@ -15,6 +15,12 @@ SUBCOMMANDS:
                                 PostgreSQL deployment.
 
 OPTIONS:
+      --agent-metadata-min-interval duration, $CODER_AGENT_METADATA_MIN_INTERVAL (default: 0s)
+          Minimum interval for agent metadata collection. Template-defined
+          intervals below this value will cause template import to fail.
+          Existing workspaces with lower intervals will be silently upgraded on
+          restart. Set to 0 to disable enforcement.
+
       --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
           DEPRECATED: Allow users to rename their workspaces. Use only for
           temporary compatibility reasons, this will be removed in a future
