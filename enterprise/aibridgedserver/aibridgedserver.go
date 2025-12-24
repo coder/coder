@@ -151,9 +151,12 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		return nil, xerrors.Errorf("invalid interception ID %q: %w", in.GetId(), err)
 	}
 
+	parentInterceptionID := s.findParentInterceptionID(ctx, in.GetToolCallId())
+
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-		ID:      intcID,
-		EndedAt: in.EndedAt.AsTime(),
+		ID:                   intcID,
+		ParentInterceptionID: uuid.NullUUID{UUID: parentInterceptionID, Valid: parentInterceptionID != uuid.Nil},
+		EndedAt:              in.EndedAt.AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -414,6 +417,37 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
 	}, nil
+}
+
+func (s *Server) findParentInterceptionID(ctx context.Context, toolCallID string) uuid.UUID {
+	if toolCallID == "" {
+		return uuid.Nil
+	}
+
+	interceptions, err := s.store.GetAIBridgeInterceptionByToolCallID(ctx, sql.NullString{String: toolCallID, Valid: toolCallID != ""})
+	if err != nil {
+		s.logger.Warn(ctx, "failed to retrieve parent interception id", slog.Error(err), slog.F("tool_call_id", toolCallID))
+		return uuid.Nil
+	}
+
+	if len(interceptions) == 0 {
+		return uuid.Nil
+	}
+
+	// Tool call IDs are not *guaranteed* to be unique by the upstream AI providers at the time of writing (Dec 2025).
+	// Therefore it's possible that a collision may occur, in which case all we can do is log it and return the last one.
+	// We have no other discriminating values which will help us isolate which interception we actually care about.
+	// Anthropic's & OpenAI's tool call IDs contain 143 bits of entropy, so the likelihood of collision is about the same as UUIDv4.
+	if len(interceptions) > 1 {
+		slices.SortStableFunc(interceptions, func(a, b uuid.UUID) int {
+			return strings.Compare(a.String(), b.String())
+		})
+		uniq := slices.Compact(interceptions)
+		s.logger.Info(ctx, "tool call collision, picking latest", slog.F("tool_call_id", toolCallID), slog.F("returned", len(interceptions)), slog.F("unique", len(uniq)))
+		interceptions = uniq
+	}
+
+	return interceptions[0]
 }
 
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
