@@ -14365,6 +14365,9 @@ const docTemplate = `{
                 "ssh_keygen_algorithm": {
                     "type": "string"
                 },
+                "stats": {
+                    "$ref": "#/definitions/codersdk.StatsConfig"
+                },
                 "strict_transport_security": {
                     "type": "integer"
                 },
@@ -14382,9 +14385,6 @@ const docTemplate = `{
                 },
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"
-                },
-                "template_insights": {
-                    "$ref": "#/definitions/codersdk.TemplateInsightsConfig"
                 },
                 "terms_of_service_url": {
                     "type": "string"
@@ -18031,6 +18031,22 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.StatsConfig": {
+            "type": "object",
+            "properties": {
+                "usage": {
+                    "$ref": "#/definitions/codersdk.StatsUsageConfig"
+                }
+            }
+        },
+        "codersdk.StatsUsageConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.SupportConfig": {
             "type": "object",
             "properties": {
@@ -18683,14 +18699,6 @@ const docTemplate = `{
                 "total_member_count": {
                     "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.TemplateInsightsConfig": {
-            "type": "object",
-            "properties": {
-                "enable": {
-                    "type": "boolean"
                 }
             }
         },

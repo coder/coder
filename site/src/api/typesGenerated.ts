@@ -1774,7 +1774,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
-	readonly template_insights?: TemplateInsightsConfig;
+	readonly stats?: StatsConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -4584,6 +4584,16 @@ export interface SlimRole {
 	readonly organization_id?: string;
 }
 
+// From codersdk/deployment.go
+export interface StatsConfig {
+	readonly usage: StatsUsageConfig;
+}
+
+// From codersdk/deployment.go
+export interface StatsUsageConfig {
+	readonly enable: boolean;
+}
+
 // From codersdk/client.go
 /**
  * SubdomainAppSessionTokenCookie is the name of the cookie that stores an
@@ -5094,11 +5104,6 @@ export interface TemplateFilter {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
 	readonly role: TemplateRole;
-}
-
-// From codersdk/deployment.go
-export interface TemplateInsightsConfig {
-	readonly enable: boolean;
 }
 
 // From codersdk/insights.go
