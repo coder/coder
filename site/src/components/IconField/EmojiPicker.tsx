@@ -1,22 +1,25 @@
 import data from "@emoji-mart/data/sets/15/apple.json";
 import EmojiMart from "@emoji-mart/react";
 import { type ComponentProps, type FC, useEffect } from "react";
+import { DEPRECATED_ICONS } from "theme/deprecatedIcons";
 import icons from "theme/icons.json";
 
 const custom = [
 	{
 		id: "icons",
 		name: "Icons",
-		emojis: icons.map((icon) => {
-			const id = icon.split(".")[0];
+		emojis: icons
+			.filter((icon) => !DEPRECATED_ICONS.includes(icon))
+			.map((icon) => {
+				const id = icon.split(".")[0];
 
-			return {
-				id,
-				name: id,
-				keywords: id.split("-"),
-				skins: [{ src: `/icon/${icon}` }],
-			};
-		}),
+				return {
+					id,
+					name: id,
+					keywords: id.split("-"),
+					skins: [{ src: `/icon/${icon}` }],
+				};
+			}),
 	},
 ];
 

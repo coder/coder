@@ -18,6 +18,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
+import { DEPRECATED_ICONS } from "theme/deprecatedIcons";
 import {
 	defaultParametersForBuiltinIcons,
 	parseImageParameters,
@@ -26,7 +27,8 @@ import icons from "theme/icons.json";
 import uFuzzy from "ufuzzy";
 import { pageTitle } from "utils/page";
 
-const iconsWithoutSuffix = icons.map((icon) => icon.split(".")[0]);
+const filteredIcons = icons.filter((icon) => !DEPRECATED_ICONS.includes(icon));
+const iconsWithoutSuffix = filteredIcons.map((icon) => icon.split(".")[0]);
 const fuzzyFinder = new uFuzzy({
 	intraMode: 1,
 	intraIns: 1,
@@ -42,7 +44,10 @@ const IconsPage: FC = () => {
 
 	const searchedIcons = useMemo(() => {
 		if (!searchText) {
-			return icons.map((icon) => ({ url: `/icon/${icon}`, description: icon }));
+			return filteredIcons.map((icon) => ({
+				url: `/icon/${icon}`,
+				description: icon,
+			}));
 		}
 
 		const [map, info, sorted] = fuzzyFinder.search(
@@ -56,7 +61,7 @@ const IconsPage: FC = () => {
 		}
 
 		return sorted.map((i) => {
-			const iconName = icons[info.idx[i]];
+			const iconName = filteredIcons[info.idx[i]];
 			const ranges = info.ranges[i];
 
 			const nodes: ReactNode[] = [];
