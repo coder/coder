@@ -39,8 +39,9 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 
 func (t *recorderTranslation) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
 	_, err := t.client.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
-		Id:      req.ID,
-		EndedAt: timestamppb.New(req.EndedAt),
+		Id:         req.ID,
+		ToolCallId: req.ToolCallID,
+		EndedAt:    timestamppb.New(req.EndedAt),
 	})
 	return err
 }
@@ -92,6 +93,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 		InterceptionId:  req.InterceptionID,
 		MsgId:           req.MsgID,
+		ToolCallId:      req.ToolCallID,
 		ServerUrl:       req.ServerURL,
 		Tool:            req.Tool,
 		Input:           string(serialized),

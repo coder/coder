@@ -50,6 +50,7 @@ message RecordInterceptionResponse {}
 message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
+  string tool_call_id = 3;
 }
 
 message RecordInterceptionEndedResponse {}
@@ -76,6 +77,7 @@ message RecordPromptUsageResponse {}
 message RecordToolUsageRequest {
   string interception_id = 1; // UUID.
   string msg_id = 2; // ID provided by provider.
+  string tool_call_id = 10; // The ID of the tool call provided by provider.
   optional string server_url = 3; // The URL of the MCP server.
   string tool = 4;
   string input = 5;
