@@ -1,8 +1,6 @@
 import { API } from "api/api";
-import { DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import type {
-	DynamicParametersRequest,
 	DynamicParametersResponse,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
@@ -17,9 +15,10 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useDynamicParametersWebSocket } from "hooks/useDynamicParametersWebSocket";
 import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
@@ -49,10 +48,9 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
-	const wsResponseId = useRef<number>(-1);
-	const ws = useRef<WebSocket | null>(null);
-	const [wsError, setWsError] = useState<Error | null>(null);
 	const initialParamsSentRef = useRef(false);
+	// Ref to store current form values for reconnection.
+	const currentFormValuesRef = useRef<Record<string, string>>({});
 
 	const autofillParameters: AutofillBuildParameter[] =
 		latestBuildParameters?.map((p) => ({
@@ -60,36 +58,26 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			source: "active_build",
 		})) ?? [];
 
-	const sendMessage = useEffectEvent((formValues: Record<string, string>) => {
-		const request: DynamicParametersRequest = {
-			id: wsResponseId.current + 1,
-			owner_id: workspace.owner_id,
-			inputs: formValues,
-		};
-		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-			ws.current.send(JSON.stringify(request));
-			wsResponseId.current = wsResponseId.current + 1;
-		}
-	});
-
 	// On page load, sends initial workspace build parameters to the websocket.
 	// This ensures the backend has the form's complete initial state,
 	// vital for rendering dynamic UI elements dependent on initial parameter values.
-	const sendInitialParameters = useEffectEvent(() => {
-		if (initialParamsSentRef.current) return;
-		if (autofillParameters.length === 0) return;
+	const sendInitialParameters = useEffectEvent(
+		(sendFn: (values: Record<string, string>) => void) => {
+			if (initialParamsSentRef.current) return;
+			if (autofillParameters.length === 0) return;
 
-		const initialParamsToSend: Record<string, string> = {};
-		for (const param of autofillParameters) {
-			if (param.name && param.value) {
-				initialParamsToSend[param.name] = param.value;
+			const initialParamsToSend: Record<string, string> = {};
+			for (const param of autofillParameters) {
+				if (param.name && param.value) {
+					initialParamsToSend[param.name] = param.value;
+				}
 			}
-		}
-		if (Object.keys(initialParamsToSend).length === 0) return;
+			if (Object.keys(initialParamsToSend).length === 0) return;
 
-		sendMessage(initialParamsToSend);
-		initialParamsSentRef.current = true;
-	});
+			sendFn(initialParamsToSend);
+			initialParamsSentRef.current = true;
+		},
+	);
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
@@ -97,50 +85,32 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		}
 
 		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
-			sendInitialParameters();
+			sendInitialParameters(sendMessage);
 		}
 
 		setLatestResponse(response);
 	});
 
-	useEffect(() => {
-		if (!templateVersionId && !workspace.latest_build.template_version_id)
-			return;
+	const onReconnect = useEffectEvent(() => {
+		// Resend current form values to restore server-side state after reconnection.
+		const currentValues = currentFormValuesRef.current;
+		if (Object.keys(currentValues).length > 0) {
+			sendMessage(currentValues);
+		}
+	});
 
-		const socket = API.templateVersionDynamicParameters(
+	// Initialize the WebSocket connection with auto-reconnection support.
+	const {
+		sendMessage,
+		status: wsStatus,
+		error: wsError,
+	} = useDynamicParametersWebSocket({
+		templateVersionId:
 			templateVersionId ?? workspace.latest_build.template_version_id,
-			workspace.owner_id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
-
-		ws.current = socket;
-
-		return () => {
-			socket.close();
-		};
-	}, [
-		templateVersionId,
-		workspace.latest_build.template_version_id,
+		userId: workspace.owner_id,
 		onMessage,
-		workspace.owner_id,
-	]);
+		onReconnect,
+	});
 
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
@@ -198,7 +168,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	if (
 		latestBuildParametersLoading ||
 		!latestResponse ||
-		(ws.current && ws.current.readyState === WebSocket.CONNECTING)
+		wsStatus === "connecting"
 	) {
 		return <Loader />;
 	}
@@ -250,7 +220,11 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					onCancel={() =>
 						navigate(`/@${workspace.owner_name}/${workspace.name}`)
 					}
-					sendMessage={sendMessage}
+					sendMessage={(formValues) => {
+						// Store form values for potential reconnection.
+						currentFormValuesRef.current = formValues;
+						sendMessage(formValues);
+					}}
 				/>
 			) : (
 				<EmptyState

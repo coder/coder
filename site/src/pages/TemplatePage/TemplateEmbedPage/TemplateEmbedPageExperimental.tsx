@@ -1,7 +1,4 @@
-import { API } from "api/api";
-import { DetailedError } from "api/errors";
 import type {
-	DynamicParametersRequest,
 	DynamicParametersResponse,
 	FriendlyDiagnostic,
 	PreviewParameter,
@@ -16,6 +13,7 @@ import { Skeleton } from "components/Skeleton/Skeleton";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useClipboard } from "hooks/useClipboard";
+import { useDynamicParametersWebSocket } from "hooks/useDynamicParametersWebSocket";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import {
 	Diagnostics,
@@ -32,23 +30,8 @@ const TemplateEmbedPageExperimental: FC = () => {
 	const { user: me } = useAuthenticated();
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
-	const wsResponseId = useRef<number>(-1);
-	const ws = useRef<WebSocket | null>(null);
-	const [wsError, setWsError] = useState<Error | null>(null);
-
-	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, _ownerId?: string) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				owner_id: me.id,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
-		},
-	);
+	// Ref to store current form values for reconnection.
+	const currentFormValuesRef = useRef<Record<string, string>>({});
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
@@ -58,40 +41,25 @@ const TemplateEmbedPageExperimental: FC = () => {
 		setLatestResponse(response);
 	});
 
-	useEffect(() => {
-		if (!template.active_version_id || !me) {
-			return;
+	const onReconnect = useEffectEvent(() => {
+		// Resend current form values to restore server-side state after reconnection.
+		const currentValues = currentFormValuesRef.current;
+		if (Object.keys(currentValues).length > 0) {
+			sendMessage(currentValues);
 		}
+	});
 
-		const socket = API.templateVersionDynamicParameters(
-			template.active_version_id,
-			me.id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
-
-		ws.current = socket;
-
-		return () => {
-			socket.close();
-		};
-	}, [template.active_version_id, onMessage, me]);
+	// Initialize the WebSocket connection with auto-reconnection support.
+	const {
+		sendMessage,
+		status: wsStatus,
+		error: wsError,
+	} = useDynamicParametersWebSocket({
+		templateVersionId: template.active_version_id,
+		userId: me.id,
+		onMessage,
+		onReconnect,
+	});
 
 	const sortedParams = useMemo(() => {
 		if (!latestResponse?.parameters) {
@@ -100,8 +68,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
-	const isLoading =
-		ws.current?.readyState === WebSocket.CONNECTING || !latestResponse;
+	const isLoading = wsStatus === "connecting" || !latestResponse;
 
 	return (
 		<>
@@ -112,7 +79,11 @@ const TemplateEmbedPageExperimental: FC = () => {
 				parameters={sortedParams}
 				diagnostics={latestResponse?.diagnostics ?? []}
 				error={wsError}
-				sendMessage={sendMessage}
+				sendMessage={(formValues) => {
+					// Store form values for potential reconnection.
+					currentFormValuesRef.current = formValues;
+					sendMessage(formValues);
+				}}
 				isLoading={isLoading}
 			/>
 		</>

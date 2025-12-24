@@ -1,5 +1,4 @@
-import { API } from "api/api";
-import { type ApiErrorResponse, DetailedError } from "api/errors";
+import type { ApiErrorResponse } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
@@ -8,7 +7,6 @@ import {
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
-	DynamicParametersRequest,
 	DynamicParametersResponse,
 	PreviewParameter,
 	Workspace,
@@ -16,6 +14,7 @@ import type {
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useDynamicParametersWebSocket } from "hooks/useDynamicParametersWebSocket";
 import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
@@ -49,10 +48,10 @@ const CreateWorkspacePage: FC = () => {
 
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
-	const wsResponseId = useRef<number>(-1);
-	const ws = useRef<WebSocket | null>(null);
-	const [wsError, setWsError] = useState<Error | null>(null);
 	const initialParamsSentRef = useRef(false);
+	// Ref to store current form values for reconnection. Updated by the view
+	// component when form values change.
+	const currentFormValuesRef = useRef<Record<string, string>>({});
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -90,27 +89,16 @@ const CreateWorkspacePage: FC = () => {
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
-	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, ownerId?: string) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				owner_id: ownerId ?? owner.id,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
-		},
-	);
-
 	// On page load, sends all initial parameter values to the websocket
 	// (including defaults and autofilled from the url)
 	// This ensures the backend has the complete initial state of the form,
 	// which is vital for correctly rendering dynamic UI elements where parameter visibility
 	// or options might depend on the initial values of other parameters.
 	const sendInitialParameters = useEffectEvent(
-		(parameters: PreviewParameter[]) => {
+		(
+			parameters: PreviewParameter[],
+			sendFn: (values: Record<string, string>) => void,
+		) => {
 			if (initialParamsSentRef.current) return;
 			if (parameters.length === 0) return;
 
@@ -129,7 +117,7 @@ const CreateWorkspacePage: FC = () => {
 
 			if (Object.keys(initialParamsToSend).length === 0) return;
 
-			sendMessage(initialParamsToSend);
+			sendFn(initialParamsToSend);
 			initialParamsSentRef.current = true;
 		},
 	);
@@ -140,45 +128,31 @@ const CreateWorkspacePage: FC = () => {
 		}
 
 		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
-			sendInitialParameters([...response.parameters]);
+			sendInitialParameters([...response.parameters], sendMessage);
 		}
 
 		setLatestResponse(response);
 	});
 
-	// Initialize the WebSocket connection when there is a valid template version ID
-	useEffect(() => {
-		if (!realizedVersionId) return;
+	const onReconnect = useEffectEvent(() => {
+		// Resend current form values to restore server-side state after reconnection.
+		const currentValues = currentFormValuesRef.current;
+		if (Object.keys(currentValues).length > 0) {
+			sendMessage(currentValues, owner.id);
+		}
+	});
 
-		const socket = API.templateVersionDynamicParameters(
-			realizedVersionId,
-			defaultOwner.id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
-
-		ws.current = socket;
-
-		return () => {
-			socket.close();
-		};
-	}, [realizedVersionId, onMessage, defaultOwner.id]);
+	// Initialize the WebSocket connection with auto-reconnection support.
+	const {
+		sendMessage,
+		status: wsStatus,
+		error: wsError,
+	} = useDynamicParametersWebSocket({
+		templateVersionId: realizedVersionId,
+		userId: defaultOwner.id,
+		onMessage,
+		onReconnect,
+	});
 
 	const organizationId = templateQuery.data?.organization_id;
 
@@ -190,7 +164,7 @@ const CreateWorkspacePage: FC = () => {
 	} = useExternalAuth(realizedVersionId);
 
 	const isLoadingFormData =
-		ws.current?.readyState === WebSocket.CONNECTING ||
+		wsStatus === "connecting" ||
 		templateQuery.isLoading ||
 		permissionsQuery.isLoading;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
@@ -316,7 +290,11 @@ const CreateWorkspacePage: FC = () => {
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isPending}
-					sendMessage={sendMessage}
+					sendMessage={(formValues, ownerId) => {
+						// Store form values for potential reconnection.
+						currentFormValuesRef.current = formValues;
+						sendMessage(formValues, ownerId);
+					}}
 					onCancel={() => {
 						navigate(-1);
 					}}
