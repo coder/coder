@@ -1574,59 +1574,48 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
+	const (
+		workspaceFolder = "/home/coder/coder"
+	)
+	configFile := filepath.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
 
-		var (
-			workspaceFolder = "/home/coder/coder"
-			configFile      = filepath.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
-			devcontainerID  = uuid.New()
+	setupDevcontainerMocks := func(t *testing.T) (
+		*gomock.Controller,
+		*acmock.MockContainerCLI,
+		*acmock.MockDevcontainerCLI,
+		codersdk.WorkspaceAgentContainer,
+		codersdk.WorkspaceAgentDevcontainer,
+		[]agentcontainers.Option,
+	) {
+		devcontainerID := uuid.New()
+		devContainer := codersdk.WorkspaceAgentContainer{
+			ID:           uuid.NewString(),
+			CreatedAt:    dbtime.Now(),
+			FriendlyName: testutil.GetRandomName(t),
+			Image:        "busybox:latest",
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+				agentcontainers.DevcontainerConfigFileLabel:  configFile,
+			},
+			Running: true,
+			Status:  "running",
+		}
+		devcontainer := codersdk.WorkspaceAgentDevcontainer{
+			ID:              devcontainerID,
+			Name:            "test-devcontainer",
+			WorkspaceFolder: workspaceFolder,
+			ConfigPath:      configFile,
+			Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+			Container:       &devContainer,
+		}
 
-			devContainer = codersdk.WorkspaceAgentContainer{
-				ID:           uuid.NewString(),
-				CreatedAt:    dbtime.Now(),
-				FriendlyName: testutil.GetRandomName(t),
-				Image:        "busybox:latest",
-				Labels: map[string]string{
-					agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
-					agentcontainers.DevcontainerConfigFileLabel:  configFile,
-				},
-				Running: true,
-				Status:  "running",
-			}
-
-			devcontainer = codersdk.WorkspaceAgentDevcontainer{
-				ID:              devcontainerID,
-				Name:            "test-devcontainer",
-				WorkspaceFolder: workspaceFolder,
-				ConfigPath:      configFile,
-				Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
-				Container:       &devContainer,
-			}
-		)
-
-		var (
-			ctx        = testutil.Context(t, testutil.WaitLong)
-			mCtrl      = gomock.NewController(t)
-			mCCLI      = acmock.NewMockContainerCLI(mCtrl)
-			mDCCLI     = acmock.NewMockDevcontainerCLI(mCtrl)
-			logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				Logger: &logger,
-			})
-			user = coderdtest.CreateFirstUser(t, client)
-			r    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OrganizationID: user.OrganizationID,
-				OwnerID:        user.UserID,
-			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-				return agents
-			}).Do()
-		)
+		mCtrl := gomock.NewController(t)
+		mCCLI := acmock.NewMockContainerCLI(mCtrl)
+		mDCCLI := acmock.NewMockDevcontainerCLI(mCtrl)
 
 		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{devContainer},
 		}, nil).AnyTimes()
-
 		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
 		mDCCLI.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
 
@@ -1637,110 +1626,101 @@ func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
 			agentcontainers.WithDevcontainers([]codersdk.WorkspaceAgentDevcontainer{devcontainer}, nil),
 		}
 
-		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-			o.Logger = logger.Named("agent")
-			o.Devcontainers = true
-			o.DevcontainerAPIOptions = devcontainerAPIOptions
-		})
-		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
-		require.Len(t, resources, 1, "expected one resource")
-		require.Len(t, resources[0].Agents, 1, "expected one agent")
-		agentID := resources[0].Agents[0].ID
+		return mCtrl, mCCLI, mDCCLI, devContainer, devcontainer, devcontainerAPIOptions
+	}
 
-		// Given: We expect `Stop` and `Remove` to be called.
-		mCCLI.EXPECT().Stop(gomock.Any(), devContainer.ID).Return(nil).Times(1)
-		mCCLI.EXPECT().Remove(gomock.Any(), devContainer.ID).Return(nil).Times(1)
+	tests := []struct {
+		name           string
+		startAgent     bool
+		useAnotherUser bool
+		expectError    bool
+		expectedStatus int
+	}{
+		{
+			name:           "OK",
+			startAgent:     true,
+			useAnotherUser: false,
+			expectError:    false,
+		},
+		{
+			name:           "Forbidden",
+			startAgent:     true,
+			useAnotherUser: true,
+			expectError:    true,
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "AgentNotConnected",
+			startAgent:     false,
+			useAnotherUser: false,
+			expectError:    true,
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
 
-		// When: The user attempts to delete the devcontainer
-		err := client.WorkspaceAgentDeleteDevcontainer(ctx, agentID, devcontainerID.String())
-		// Then: They are able to.
-		require.NoError(t, err, "failed to delete devcontainer")
-	})
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("Forbidden", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			workspaceFolder = "/home/coder/coder"
-			configFile      = filepath.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
-			devcontainerID  = uuid.New()
-
-			devContainer = codersdk.WorkspaceAgentContainer{
-				ID:           uuid.NewString(),
-				CreatedAt:    dbtime.Now(),
-				FriendlyName: testutil.GetRandomName(t),
-				Image:        "busybox:latest",
-				Labels: map[string]string{
-					agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
-					agentcontainers.DevcontainerConfigFileLabel:  configFile,
-				},
-				Running: true,
-				Status:  "running",
-			}
-
-			devcontainer = codersdk.WorkspaceAgentDevcontainer{
-				ID:              devcontainerID,
-				Name:            "test-devcontainer",
-				WorkspaceFolder: workspaceFolder,
-				ConfigPath:      configFile,
-				Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
-				Container:       &devContainer,
-			}
-		)
-
-		var (
-			ctx        = testutil.Context(t, testutil.WaitLong)
-			mCtrl      = gomock.NewController(t)
-			mCCLI      = acmock.NewMockContainerCLI(mCtrl)
-			mDCCLI     = acmock.NewMockDevcontainerCLI(mCtrl)
-			logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				Logger: &logger,
 			})
-			user = coderdtest.CreateFirstUser(t, client)
-			r    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			user := coderdtest.CreateFirstUser(t, client)
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: user.OrganizationID,
 				OwnerID:        user.UserID,
 			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
 				return agents
 			}).Do()
-		)
-		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentContainer{devContainer},
-		}, nil).AnyTimes()
 
-		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
-		mDCCLI.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
+			_, mCCLI, _, devContainer, devcontainer, devcontainerAPIOptions := setupDevcontainerMocks(t)
 
-		devcontainerAPIOptions := []agentcontainers.Option{
-			agentcontainers.WithContainerCLI(mCCLI),
-			agentcontainers.WithDevcontainerCLI(mDCCLI),
-			agentcontainers.WithWatcher(watcher.NewNoop()),
-			agentcontainers.WithDevcontainers([]codersdk.WorkspaceAgentDevcontainer{devcontainer}, nil),
-		}
+			var agentID uuid.UUID
+			if tc.startAgent {
+				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+					o.Logger = logger.Named("agent")
+					o.Devcontainers = true
+					o.DevcontainerAPIOptions = devcontainerAPIOptions
+				})
+				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+				require.Len(t, resources, 1, "expected one resource")
+				require.Len(t, resources[0].Agents, 1, "expected one agent")
+				agentID = resources[0].Agents[0].ID
 
-		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-			o.Logger = logger.Named("agent")
-			o.Devcontainers = true
-			o.DevcontainerAPIOptions = devcontainerAPIOptions
+				if !tc.expectError {
+					// Set up expectations for Stop and Remove when expecting success.
+					mCCLI.EXPECT().Stop(gomock.Any(), devContainer.ID).Return(nil).Times(1)
+					mCCLI.EXPECT().Remove(gomock.Any(), devContainer.ID).Return(nil).Times(1)
+				}
+			} else {
+				// When not starting an agent, get the agent ID from the workspace resources.
+				ws, err := client.Workspace(ctx, r.Workspace.ID)
+				require.NoError(t, err, "failed to get workspace")
+				require.Len(t, ws.LatestBuild.Resources, 1, "expected one resource")
+				require.Len(t, ws.LatestBuild.Resources[0].Agents, 1, "expected one agent")
+				agentID = ws.LatestBuild.Resources[0].Agents[0].ID
+			}
+
+			testClient := client
+			if tc.useAnotherUser {
+				testClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			}
+
+			err := testClient.WorkspaceAgentDeleteDevcontainer(ctx, agentID, devcontainer.ID.String())
+
+			if tc.expectError {
+				require.Error(t, err)
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, tc.expectedStatus, sdkErr.StatusCode())
+			} else {
+				require.NoError(t, err, "failed to delete devcontainer")
+			}
 		})
-		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
-		require.Len(t, resources, 1, "expected one resource")
-		require.Len(t, resources[0].Agents, 1, "expected one agent")
-		agentID := resources[0].Agents[0].ID
-
-		// Given: A new user that does not have permission to delete a dev container
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		// When: They attempt to delete the dev container
-		err := anotherClient.WorkspaceAgentDeleteDevcontainer(ctx, agentID, devcontainerID.String())
-
-		// Then: We expect them to be unable to delete it
-		require.Error(t, err, "should not be able to delete another user's devcontainer")
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
-	})
+	}
 }
 
 func TestWorkspaceAgentAppHealth(t *testing.T) {
