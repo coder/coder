@@ -1728,6 +1728,8 @@ func (api *API) watchWorkspaceAgentMetadata(
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
 	update := make(chan agentapi.WorkspaceAgentMetadataChannelPayload, 1)
+
+	// Subscribe to per-agent channel for non-batched updates (when batcher is nil).
 	cancelSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
 			return
@@ -1740,7 +1742,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		log.Debug(ctx, "received metadata update", "payload", payload)
+		log.Info(ctx, "received metadata update from per-agent channel", slog.F("agent_id", workspaceAgent.ID), slog.F("keys", payload.Keys), slog.F("collected_at", payload.CollectedAt))
 
 		select {
 		case prev := <-update:
@@ -1755,6 +1757,51 @@ func (api *API) watchWorkspaceAgentMetadata(
 		return
 	}
 	defer cancelSub()
+
+	// Also subscribe to the global batched metadata channel.
+	// The batcher publishes only to this channel to achieve O(1) NOTIFY scaling.
+	cancelBatchSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataBatchChannel(), func(_ context.Context, byt []byte) {
+		if ctx.Err() != nil {
+			return
+		}
+
+		var batchPayload agentapi.WorkspaceAgentMetadataBatchPayload
+		err := json.Unmarshal(byt, &batchPayload)
+		if err != nil {
+			log.Error(ctx, "failed to unmarshal batched pubsub message", slog.Error(err))
+			return
+		}
+
+		// Check if this agent is in the batch update.
+		for _, agentID := range batchPayload.AgentIDs {
+			if agentID != workspaceAgent.ID {
+				continue
+			}
+
+			log.Info(ctx, "received metadata update from batch channel", slog.F("agent_id", agentID), slog.F("batch_size", len(batchPayload.AgentIDs)))
+
+			// Signal to re-fetch all metadata for this agent.
+			// We pass nil for Keys to indicate all keys should be fetched.
+			payload := agentapi.WorkspaceAgentMetadataChannelPayload{
+				CollectedAt: time.Now(),
+				Keys:        nil,
+			}
+
+			select {
+			case prev := <-update:
+				payload.Keys = appendUnique(prev.Keys, payload.Keys)
+			default:
+			}
+			// This can never block since we pop and merge beforehand.
+			update <- payload
+			break
+		}
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	defer cancelBatchSub()
 
 	// We always use the original Request context because it contains
 	// the RBAC actor.
