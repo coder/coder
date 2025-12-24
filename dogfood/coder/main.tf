@@ -599,7 +599,7 @@ resource "coder_agent" "dev" {
   startup_script = <<-EOT
     #!/usr/bin/env bash
     set -eux -o pipefail
-
+    # Allow other scripts to wait for agent startup.
     trap 'coder exp sync complete agent-startup' EXIT
     coder exp sync start agent-startup
 
