@@ -56,6 +56,32 @@ var (
 	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
 )
 
+// incrementWorkspaceCreationAttemptsMetric increments the workspace creation
+// attempts metric for first 'start' builds. This counts regular (non-prebuilt)
+// workspace creation attempts.
+func (api *API) incrementWorkspaceCreationAttemptsMetric(ctx context.Context, db database.Store, workspace database.Workspace, workspaceBuild database.WorkspaceBuild, initiatorID uuid.UUID) {
+	if workspaceBuild.BuildNumber == 1 &&
+		workspaceBuild.Transition == database.WorkspaceTransitionStart &&
+		initiatorID != database.PrebuildsSystemUserID {
+		// Get preset name for labels.
+		presetName := ""
+		if workspaceBuild.TemplateVersionPresetID.Valid {
+			preset, err := db.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+			if err == nil {
+				presetName = preset.Name
+			}
+		}
+
+		if api.workspaceCreationAttemptsTotal != nil {
+			api.workspaceCreationAttemptsTotal.WithLabelValues(
+				workspace.OrganizationName,
+				workspace.TemplateName,
+				presetName,
+			).Inc()
+		}
+	}
+}
+
 // @Summary Get workspace metadata by ID
 // @ID get-workspace-metadata-by-id
 // @Security CoderSessionToken
@@ -808,7 +834,15 @@ func createWorkspace(
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Increment workspace creation attempts metric for first 'start' builds.
+		// This counts regular (non-prebuilt) workspace creation attempts.
+		api.incrementWorkspaceCreationAttemptsMetric(ctx, db, workspace, *workspaceBuild, initiatorID)
+
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err

@@ -2351,29 +2351,27 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 	}
 
-	// Update workspace (regular and prebuild) timing metrics
-	// Only consider 'start' workspace builds
+	// Update workspace (regular and prebuild) timing and outcome metrics.
+	// Only consider 'start' workspace builds.
 	if s.metrics != nil && workspaceBuild.Transition == database.WorkspaceTransitionStart {
-		// Get the updated job to report the metrics with correct data
+		// Get the updated job to report the metrics with correct data.
 		updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
 		if err != nil {
 			s.Logger.Error(ctx, "get updated job from database", slog.Error(err))
-		} else
-		// Only consider 'succeeded' provisioner jobs
-		if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
+		} else {
+			// Get preset name for metrics labels.
 			presetName := ""
 			if workspaceBuild.TemplateVersionPresetID.Valid {
 				preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
 				if err != nil {
 					if !errors.Is(err, sql.ErrNoRows) {
-						s.Logger.Error(ctx, "get preset by ID for workspace timing metrics", slog.Error(err))
+						s.Logger.Error(ctx, "get preset by ID for workspace metrics", slog.Error(err))
 					}
 				} else {
 					presetName = preset.Name
 				}
 			}
 
-			buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
 			flags := WorkspaceTimingFlags{
 				// Is a prebuilt workspace creation build
 				IsPrebuild: input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
@@ -2383,15 +2381,32 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// Only consider the first build number for regular workspaces
 				IsFirstBuild: workspaceBuild.BuildNumber == 1,
 			}
-			// Only track metrics for prebuild creation, prebuild claims and workspace creation
+
+			// Only track metrics for prebuild creation, prebuild claims and workspace creation.
 			if flags.IsTrackable() {
-				s.metrics.UpdateWorkspaceTimingsMetrics(
+				jobSucceeded := updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded
+
+				// Update timing metrics only for succeeded jobs.
+				if jobSucceeded {
+					buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
+					s.metrics.UpdateWorkspaceTimingsMetrics(
+						ctx,
+						flags,
+						workspace.OrganizationName,
+						workspace.TemplateName,
+						presetName,
+						buildTime,
+					)
+				}
+
+				// Update outcomes metric for both succeeded and failed jobs.
+				s.metrics.UpdateWorkspaceCreationOutcomesMetric(
 					ctx,
 					flags,
 					workspace.OrganizationName,
 					workspace.TemplateName,
 					presetName,
-					buildTime,
+					jobSucceeded,
 				)
 			}
 		}

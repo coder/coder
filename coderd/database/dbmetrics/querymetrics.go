@@ -1481,13 +1481,6 @@ func (m queryMetricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID 
 	return consumed, err
 }
 
-func (m queryMetricsStore) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetRegularWorkspaceCreateMetrics(ctx)
-	m.queryLatencies.WithLabelValues("GetRegularWorkspaceCreateMetrics").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	start := time.Now()
 	replica, err := m.s.GetReplicaByID(ctx, id)

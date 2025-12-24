@@ -5,14 +5,16 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"cdr.dev/slog"
 )
 
 type Metrics struct {
-	logger                   slog.Logger
-	workspaceCreationTimings *prometheus.HistogramVec
-	workspaceClaimTimings    *prometheus.HistogramVec
+	logger                         slog.Logger
+	workspaceCreationTimings       *prometheus.HistogramVec
+	workspaceClaimTimings          *prometheus.HistogramVec
+	workspaceCreationOutcomesTotal *prometheus.CounterVec
 }
 
 type WorkspaceTimingType int
@@ -35,12 +37,13 @@ type WorkspaceTimingFlags struct {
 	IsFirstBuild bool
 }
 
-func NewMetrics(logger slog.Logger) *Metrics {
+func NewMetrics(logger slog.Logger, reg prometheus.Registerer) *Metrics {
 	log := logger.Named("provisionerd_server_metrics")
+	factory := promauto.With(reg)
 
 	return &Metrics{
 		logger: log,
-		workspaceCreationTimings: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		workspaceCreationTimings: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Name:      "workspace_creation_duration_seconds",
 			Help:      "Time to create a workspace by organization, template, preset, and type (regular or prebuild).",
@@ -63,7 +66,7 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name", "type"}),
-		workspaceClaimTimings: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		workspaceClaimTimings: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Name:      "prebuilt_workspace_claim_duration_seconds",
 			Help:      "Time to claim a prebuilt workspace by organization, template, and preset.",
@@ -90,14 +93,16 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name"}),
+		workspaceCreationOutcomesTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "workspace_creation_outcomes_total",
+				Help:      "Outcomes of regular (non-prebuilt) workspace first builds by organization, template, preset, and status.",
+			},
+			[]string{"organization_name", "template_name", "preset_name", "status"},
+		),
 	}
-}
-
-func (m *Metrics) Register(reg prometheus.Registerer) error {
-	if err := reg.Register(m.workspaceCreationTimings); err != nil {
-		return err
-	}
-	return reg.Register(m.workspaceClaimTimings)
 }
 
 // IsTrackable returns true if the workspace build should be tracked in metrics.
@@ -161,4 +166,38 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 	default:
 		// Not a trackable build type (e.g. restart, stop, subsequent builds)
 	}
+}
+
+// UpdateWorkspaceCreationOutcomesMetric increments the workspace creation
+// outcomes counter for regular (non-prebuilt) workspace first builds.
+func (m *Metrics) UpdateWorkspaceCreationOutcomesMetric(
+	ctx context.Context,
+	flags WorkspaceTimingFlags,
+	organizationName string,
+	templateName string,
+	presetName string,
+	jobSucceeded bool,
+) {
+	// Only track regular workspace creation (not prebuilds or claims)
+	if getWorkspaceTimingType(flags) != WorkspaceCreation {
+		return
+	}
+
+	status := "success"
+	if !jobSucceeded {
+		status = "failure"
+	}
+
+	m.logger.Debug(ctx, "update workspace creation outcomes metric",
+		"organizationName", organizationName,
+		"templateName", templateName,
+		"presetName", presetName,
+		"status", status)
+
+	m.workspaceCreationOutcomesTotal.WithLabelValues(
+		organizationName,
+		templateName,
+		presetName,
+		status,
+	).Inc()
 }

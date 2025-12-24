@@ -4286,7 +4286,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		},
 		notifEnq,
 		&op,
-		provisionerdserver.NewMetrics(logger),
+		provisionerdserver.NewMetrics(logger, prometheus.NewRegistry()),
 		coderd.ReadExperiments(logger, deploymentValues.Experiments),
 	)
 	require.NoError(t, err)

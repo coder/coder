@@ -290,10 +290,7 @@ func enablePrometheus(
 		}
 	}
 
-	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger)
-	if err := provisionerdserverMetrics.Register(options.PrometheusRegistry); err != nil {
-		return nil, xerrors.Errorf("failed to register provisionerd_server metrics: %w", err)
-	}
+	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger, options.PrometheusRegistry)
 	options.ProvisionerdServerMetrics = provisionerdserverMetrics
 
 	//nolint:revive
