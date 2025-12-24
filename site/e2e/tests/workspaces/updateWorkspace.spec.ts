@@ -62,14 +62,14 @@ test.skip("update workspace, new optional, immutable parameter added", async ({
 	// Now, update the workspace, and select the value for immutable parameter.
 	await login(page, users.member);
 	await updateWorkspace(page, workspaceName, updatedRichParameters, [
-		{ name: fifthParameter.name, value: fifthParameter.options[0].value },
+		{ name: fifthParameter.name, value: fifthParameter.options[0]!.value },
 	]);
 
 	// Verify parameter values.
 	await verifyParameters(page, workspaceName, updatedRichParameters, [
 		{ name: firstParameter.name, value: firstParameter.defaultValue },
 		{ name: secondParameter.name, value: secondParameter.defaultValue },
-		{ name: fifthParameter.name, value: fifthParameter.options[0].value },
+		{ name: fifthParameter.name, value: fifthParameter.options[0]!.value },
 	]);
 });
 

@@ -61,7 +61,7 @@ export const Toggle: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const tmpl = MockSystemNotificationTemplates[4];
-		const option = await canvas.findByText(tmpl.name);
+		const option = await canvas.findByText(tmpl!.name);
 		const li = option.closest("li");
 		if (!li) {
 			throw new Error("Could not find li");
@@ -80,7 +80,7 @@ export const ToggleError: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const tmpl = MockSystemNotificationTemplates[4];
-		const option = await canvas.findByText(tmpl.name);
+		const option = await canvas.findByText(tmpl!.name);
 		const li = option.closest("li");
 		if (!li) {
 			throw new Error("Could not find li");

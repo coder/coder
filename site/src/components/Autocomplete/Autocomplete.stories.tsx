@@ -62,7 +62,7 @@ export const Default: Story = {
 
 export const WithSelectedValue: Story = {
 	render: function WithSelectedValueStory() {
-		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[2]);
+		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[2]!);
 		return (
 			<div className="w-80">
 				<Autocomplete
@@ -96,7 +96,7 @@ export const WithSelectedValue: Story = {
 
 export const NotClearable: Story = {
 	render: function NotClearableStory() {
-		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
+		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]!);
 		return (
 			<div className="w-80">
 				<Autocomplete
@@ -142,7 +142,7 @@ export const Loading: Story = {
 
 export const Disabled: Story = {
 	render: function DisabledStory() {
-		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[1]);
+		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[1]!);
 		return (
 			<div className="w-80">
 				<Autocomplete
@@ -223,7 +223,7 @@ export const SearchAndFilter: Story = {
 
 export const ClearSelection: Story = {
 	render: function ClearSelectionStory() {
-		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
+		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]!);
 		return (
 			<div className="w-80">
 				<Autocomplete
@@ -318,7 +318,7 @@ export const WithCustomRenderOption: Story = {
 
 export const WithStartAdornment: Story = {
 	render: function WithStartAdornmentStory() {
-		const [value, setValue] = useState<User | null>(users[0]);
+		const [value, setValue] = useState<User | null>(users[0]!);
 		return (
 			<div className="w-[350px]">
 				<Autocomplete

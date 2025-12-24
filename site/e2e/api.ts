@@ -26,7 +26,7 @@ export const getCurrentOrgId = async (): Promise<string> => {
 		return currentOrgId;
 	}
 	const currentUser = await API.getAuthenticatedUser();
-	currentOrgId = currentUser.organization_ids[0];
+	currentOrgId = currentUser.organization_ids[0]!;
 	return currentOrgId;
 };
 

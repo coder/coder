@@ -25,7 +25,7 @@ const groupLogsByStage: GroupLogsByStageFn = (logs) => {
 
 	for (const log of logs) {
 		if (log.stage in logsByStage) {
-			logsByStage[log.stage].push(log);
+			logsByStage[log.stage]!.push(log);
 		} else {
 			logsByStage[log.stage] = [log];
 		}
@@ -39,8 +39,8 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 		return;
 	}
 
-	const startedAt = dayjs(logs[0].created_at);
-	const completedAt = dayjs(logs[logs.length - 1].created_at);
+	const startedAt = dayjs(logs[0]!.created_at);
+	const completedAt = dayjs(logs[logs.length - 1]!.created_at);
 	return completedAt.diff(startedAt, "seconds");
 };
 

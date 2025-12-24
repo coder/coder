@@ -64,7 +64,7 @@ describe("Snackbar", () => {
 			// calls[0][0] is the first argument of the first call
 			// calls[0][0].detail is the 'detail' argument passed to the `CustomEvent` -
 			// this is the `NotificationMsg` object that gets sent to `dispatchEvent`
-			return dispatchEventMock.mock.calls[0][0].detail;
+			return dispatchEventMock.mock.calls[0]![0]!.detail;
 		};
 
 		beforeEach(() => {

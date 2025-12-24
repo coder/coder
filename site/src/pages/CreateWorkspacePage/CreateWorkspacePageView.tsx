@@ -234,7 +234,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		const selectedPresetOption = presetOptions[selectedPresetIndex];
 		let selectedPreset: TypesGen.Preset | undefined;
 		for (const preset of presets) {
-			if (preset.ID === selectedPresetOption.value) {
+			if (preset.ID === selectedPresetOption!.value) {
 				selectedPreset = preset;
 				break;
 			}

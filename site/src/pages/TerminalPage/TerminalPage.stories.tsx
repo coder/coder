@@ -37,7 +37,7 @@ const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 				...MockWorkspace.latest_build,
 				resources: [
 					{
-						...MockWorkspace.latest_build.resources[0],
+						...MockWorkspace.latest_build.resources[0]!,
 						agents: [{ ...MockWorkspaceAgent, lifecycle_state: lifecycle }],
 					},
 				],

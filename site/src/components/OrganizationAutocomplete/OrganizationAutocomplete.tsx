@@ -64,7 +64,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	// its own data. Until we refactor, proceed cautiously!
 	useEffect(() => {
 		const org = options[0];
-		if (options.length !== 1 || org === selected) {
+		if (options.length !== 1 || org === selected || !org) {
 			return;
 		}
 

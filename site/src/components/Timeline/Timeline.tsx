@@ -13,9 +13,9 @@ const groupByDate = <TData,>(
 		const dateKey = getDate(item).toDateString();
 
 		if (dateKey in itemsByDate) {
-			itemsByDate[dateKey].push(item);
+			itemsByDate[dateKey]!.push(item);
 		} else {
-			itemsByDate[dateKey] = [item];
+			itemsByDate[dateKey]! = [item];
 		}
 	}
 

@@ -29,7 +29,7 @@ export const Day: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const datePicker = canvas.getAllByRole("button")[1];
+		const datePicker = canvas.getAllByRole("button")[1]!;
 		await userEvent.click(datePicker);
 	},
 };
@@ -41,7 +41,7 @@ export const Week: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const dropdown = canvas.getAllByRole("button")[1];
+		const dropdown = canvas.getAllByRole("button")[1]!;
 		await userEvent.click(dropdown);
 	},
 };

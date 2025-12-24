@@ -17,7 +17,7 @@ export const mergeTimeRanges = (ranges: TimeRange[]): TimeRange => {
 	const sortedEndDurations = [...ranges].sort(
 		(a, b) => a.endedAt.getTime() - b.endedAt.getTime(),
 	);
-	const end = sortedEndDurations[sortedEndDurations.length - 1].endedAt;
+	const end = sortedEndDurations[sortedEndDurations.length - 1]!.endedAt;
 
 	// Ref: #15432: if there start time is the 'zero' value, default
 	// to the end time. This will result in an 'instant'.
@@ -73,7 +73,7 @@ const pickScale = (totalTime: number): number => {
 			return s;
 		}
 	}
-	return scales[0];
+	return scales[0]!;
 };
 
 export const makeTicks = (time: number) => {

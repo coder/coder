@@ -67,8 +67,8 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 						}
 
 						selectionStatusRef.current = "idle";
-						const startDate = range.startDate as Date;
-						const endDate = range.endDate as Date;
+						const startDate = range!.startDate as Date;
+						const endDate = range!.endDate as Date;
 						const now = new Date();
 						onChange({
 							startDate: dayjs(startDate).startOf("day").toDate(),

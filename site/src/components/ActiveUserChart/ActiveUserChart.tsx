@@ -66,7 +66,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
 							labelClassName="text-content-primary"
 							labelFormatter={(_, p) => {
 								const item = p[0];
-								return `${item.value} active users`;
+								return `${item?.value} active users`;
 							}}
 							formatter={(_v, _n, item) => {
 								const date = new Date(item.payload.date);

@@ -101,13 +101,13 @@ export const OnMarkNotificationAsRead: Story = {
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		const notifications = body.getAllByRole("menuitem");
-		const secondNotification = notifications[1];
+		const secondNotification = notifications[1]!;
 		await userEvent.click(secondNotification);
 		const markButton = body.getByRole("button", { name: /mark as read/i });
 		await userEvent.click(markButton);
 		await expect(args.onMarkNotificationAsRead).toHaveBeenCalledTimes(1);
 		await expect(args.onMarkNotificationAsRead).toHaveBeenCalledWith(
-			args.notifications?.[1].id,
+			args.notifications?.[1]!.id,
 		);
 	},
 	parameters: {

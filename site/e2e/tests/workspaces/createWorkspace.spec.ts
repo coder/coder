@@ -119,8 +119,8 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
 	];
 
 	const buildParameters = [
-		{ name: richParameters[0].name, value: "AAAAA" },
-		{ name: richParameters[1].name, value: "false" },
+		{ name: richParameters[0]!.name, value: "AAAAA" },
+		{ name: richParameters[1]!.name, value: "false" },
 	];
 	const template = await createTemplate(
 		page,

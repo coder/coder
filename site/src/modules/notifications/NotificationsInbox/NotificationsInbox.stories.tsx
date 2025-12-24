@@ -139,7 +139,7 @@ export const MarkNotificationAsRead: Story = {
 		markNotificationAsRead: fn(async () => ({
 			unread_count: 1,
 			notification: {
-				...MockNotifications[1],
+				...MockNotifications[1]!,
 				read_at: new Date().toISOString(),
 			},
 		})),
@@ -147,7 +147,7 @@ export const MarkNotificationAsRead: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		const notifications = await body.findAllByRole("menuitem");
-		const secondNotification = notifications[1];
+		const secondNotification = notifications[1]!;
 		within(secondNotification).getByText(/unread/i);
 
 		await userEvent.click(secondNotification);
@@ -172,7 +172,7 @@ export const MarkNotificationAsReadFailure: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		const notifications = await body.findAllByRole("menuitem");
-		const secondNotification = notifications[1];
+		const secondNotification = notifications[1]!;
 		await userEvent.click(secondNotification);
 		const markButton = body.getByRole("button", { name: /mark as read/i });
 		await userEvent.click(markButton);

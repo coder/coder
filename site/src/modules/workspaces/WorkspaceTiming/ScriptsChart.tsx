@@ -58,9 +58,9 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 	const visibleTimings = timings.filter((t) => t.name.includes(filter));
 	const theme = useTheme();
 	const legendsByStatus = getLegendsByStatus(theme);
-	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
-		(s) => legendsByStatus[s],
-	);
+	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))]
+		.map((s) => legendsByStatus[s])
+		.filter((l): l is ChartLegend => l !== undefined);
 
 	return (
 		<Chart>
@@ -113,7 +113,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legendsByStatus[t.status].colors}
+												colors={legendsByStatus[t.status]!.colors}
 											/>
 										</TooltipTrigger>
 										<TooltipContent

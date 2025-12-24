@@ -69,7 +69,7 @@ export const SingleProxy: Story = {
 	args: {
 		proxyContextValue: {
 			...defaultProxyContextValue,
-			proxies: [MockWorkspaceProxies[0]],
+			proxies: [MockWorkspaceProxies[0]!],
 		},
 	},
 	play: async ({ canvasElement }) => {
