@@ -1057,12 +1057,15 @@ CREATE TABLE aibridge_interceptions (
     started_at timestamp with time zone NOT NULL,
     metadata jsonb,
     ended_at timestamp with time zone,
-    api_key_id text
+    api_key_id text,
+    parent_id uuid
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
 
 COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users record, but FK is elided for performance.';
+
+COMMENT ON COLUMN aibridge_interceptions.parent_id IS 'The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.';
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
@@ -1088,7 +1091,8 @@ CREATE TABLE aibridge_tool_usages (
     injected boolean DEFAULT false NOT NULL,
     invocation_error text,
     metadata jsonb,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    provider_tool_call_id text
 );
 
 COMMENT ON TABLE aibridge_tool_usages IS 'Audit log of tool calls in intercepted requests in AI Bridge';
@@ -3289,6 +3293,8 @@ CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions U
 
 CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
 
+CREATE INDEX idx_aibridge_interceptions_parent_id ON aibridge_interceptions USING btree (parent_id);
+
 CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
 
 CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);
@@ -3298,6 +3304,8 @@ CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages 
 CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);
 
 CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_tool_usages_provider_tool_call_id ON aibridge_tool_usages USING btree (provider_tool_call_id);
 
 CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages USING btree (provider_response_id);
 
