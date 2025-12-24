@@ -2,14 +2,15 @@
 # It creates a Coder Task that uses AI to analyze the PR changes,
 # search existing docs, and comment with recommendations.
 #
-# Triggered by: Adding the "doc-check" label to a PR, or manual dispatch.
+# Triggered by: PR opened, PR updated (new commits), or manual dispatch.
 
 name: AI Documentation Check
 
 on:
   pull_request:
     types:
-      - labeled
+      - opened       # New PR - full analysis
+      - synchronize  # PR updated with new commits - brief update
   workflow_dispatch:
     inputs:
       pr_url:
@@ -27,8 +28,7 @@ jobs:
     name: Analyze PR for Documentation Updates Needed
     runs-on: ubuntu-latest
     if: |
-      (github.event.label.name == 'doc-check' || github.event_name == 'workflow_dispatch') &&
-      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
+      github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -39,11 +39,18 @@ jobs:
       actions: write
 
     steps:
+      - name: Setup Coder CLI
+        uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1.1.0
+        with:
+          access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+
       - name: Determine PR Context
         id: determine-context
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action }}
           GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_EVENT_SENDER_ID: ${{ github.event.sender.id }}
@@ -55,7 +62,7 @@ jobs:
           echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
           echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
 
-          # For workflow_dispatch, use the provided PR URL
+          # First, determine PR context based on event type
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
               echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
@@ -66,93 +73,299 @@ jobs:
             echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
 
             echo "Using PR URL: ${INPUTS_PR_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
 
-            # Extract PR number from URL for later use
             PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
-            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "Using PR sender: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
             echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
             echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
 
             echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
-            echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            PR_NUMBER="${GITHUB_EVENT_PR_NUMBER}"
+            echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           else
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
             exit 1
           fi
 
+          # Check if bot has already analyzed this PR by looking for our marker comment
+          # This determines whether to use full analysis or brief update prompt
+          echo "Checking for existing doc-check analysis on PR #${PR_NUMBER}..."
+
+          EXISTING_ANALYSIS=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- doc-check-analysis -->")) | .id' | head -1 || echo "")
+
+          if [[ -n "${EXISTING_ANALYSIS}" ]]; then
+            echo "Found existing analysis (comment ID: ${EXISTING_ANALYSIS})"
+            echo "Will use UPDATE prompt (brief)"
+            echo "is_new_pr=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "No existing analysis found"
+            echo "Will use NEW PR prompt (full analysis)"
+            echo "is_new_pr=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+          echo "trigger_type=${GITHUB_EVENT_ACTION:-manual}" >> "${GITHUB_OUTPUT}"
+
       - name: Extract changed files and build prompt
         id: extract-context
         env:
           PR_URL: ${{ steps.determine-context.outputs.pr_url }}
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+          TRIGGER_TYPE: ${{ steps.determine-context.outputs.trigger_type }}
+          IS_NEW_PR: ${{ steps.determine-context.outputs.is_new_pr }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Analyzing PR #${PR_NUMBER}"
+          echo "Analyzing PR #${PR_NUMBER} (trigger: ${TRIGGER_TYPE}, is_new: ${IS_NEW_PR})"
 
-          # Build task prompt - using unquoted heredoc so variables expand
-          TASK_PROMPT=$(cat <<EOF
-          Review PR #${PR_NUMBER} and determine if documentation needs updating or creating.
+          # Generate random suffix for unique task naming (avoids container name conflicts)
+          RANDOM_SUFFIX=$(head -c 4 /dev/urandom | xxd -p)
+          echo "task_suffix=${RANDOM_SUFFIX}" >> "${GITHUB_OUTPUT}"
+          echo "Generated task suffix: ${RANDOM_SUFFIX}"
 
-          PR URL: ${PR_URL}
-
-          WORKFLOW:
-            1. Setup (repo is pre-cloned at ~/coder)
+          # Common setup instructions (unquoted heredoc so PR_NUMBER expands)
+          SETUP_INSTRUCTIONS=$(cat <<SETUPEOF
+          SETUP (repo is pre-cloned at ~/coder):
                cd ~/coder
                git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
                git checkout pr-${PR_NUMBER}
+          SETUPEOF
+          )
 
-            2. Get PR info
-               Use GitHub MCP tools to get PR title, body, and diff
-               Or use: git diff main...pr-${PR_NUMBER}
+          # Full analysis comment format (for new PRs)
+          COMMENT_FORMAT=$(cat <<'COMMENTEOF'
+          FULL ANALYSIS COMMENT FORMAT (for new PRs):
+          <!-- doc-check-analysis -->
+          ## Documentation Check
 
-            3. Understand Changes
-               Read the diff and identify what changed
-               Ask: Is this user-facing? Does it change behavior? Is it a new feature?
+          **Analyzed:** [current date/time]
 
-            4. Search for Related Docs
-               cat ~/coder/docs/manifest.json | jq '.routes[] | {title, path}' | head -50
-               grep -ri "relevant_term" ~/coder/docs/ --include="*.md"
-
-            5. Decide
-               NEEDS DOCS if: New feature, API change, CLI change, behavior change, user-visible
-               NO DOCS if: Internal refactor, test-only, already documented, non-user-facing, dependency updates
-               FIRST check: Did this PR already update docs? If yes and complete, say "No Changes Needed"
-
-            6. Comment on the PR using this format
-
-          COMMENT FORMAT:
-          ## 📚 Documentation Check
-
-          ### ✅ Updates Needed
+          ### Updates Needed
           - **[docs/path/file.md](github_link)** - Brief what needs changing
 
-          ### 📝 New Docs Needed
+          ### New Docs Needed
           - **docs/suggested/location.md** - What should be documented
 
-          ### ✨ No Changes Needed
+          ### No Changes Needed
           [Reason: Documents already updated in PR | Internal changes only | Test-only | No user-facing impact]
 
           ---
-          *This comment was generated by an AI Agent through [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+          *Analysis by [Coder Tasks](https://coder.com/docs/ai-coder/tasks) - Updates will appear as new comments*
+          COMMENTEOF
+          )
 
-          DOCS STRUCTURE:
-            Read ~/coder/docs/manifest.json for the complete documentation structure.
-            Common areas include: reference/, admin/, user-guides/, ai-coder/, install/, tutorials/
-            But check manifest.json - it has everything.
+          # Build different prompts based on trigger type
+          if [[ "${IS_NEW_PR}" == "true" ]]; then
+            echo "Building NEW PR prompt (full analysis)"
+
+            TASK_PROMPT=$(cat <<EOF
+          Doc Check: PR #${PR_NUMBER} - Full Analysis
+
+          ═══════════════════════════════════════════════════════════
+          NEW PR DOCUMENTATION CHECK - Full Analysis Required
+          ═══════════════════════════════════════════════════════════
+
+          Review PR #${PR_NUMBER} and determine if documentation needs updating or creating.
+          This is a NEW PR - perform a complete analysis from scratch.
+
+          PR URL: ${PR_URL}
+
+          ${SETUP_INSTRUCTIONS}
+
+          ⚠️ CRITICAL REQUIREMENTS:
+          1. You MUST complete each step below and SHOW YOUR WORK.
+          2. DO NOT skip steps. DO NOT make assumptions. DO NOT comment until Step 5.
+          3. You MUST use the coder_report_task tool to report your progress:
+
+             Tool: coder_report_task
+             Parameters:
+               - state: "working" | "idle"
+               - summary: string (max 160 chars, no newlines)
+               - link: optional URL (e.g., PR URL)
+
+             REQUIRED CALLS:
+             - After each STEP: coder_report_task(state="working", summary="Step N: <brief desc>")
+             - FINAL STEP (after posting comment): coder_report_task(state="idle", summary="Complete", link="${PR_URL}")
+
+          ⚠️ The CI monitors your state. You MUST call coder_report_task(state="idle") when finished or it will timeout!
+
+          ═══════════════════════════════════════════════════════════
+          STEP 1: Fetch and display PR info
+          ═══════════════════════════════════════════════════════════
+          Run these commands and SHOW THE OUTPUT:
+            git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+            git checkout pr-${PR_NUMBER}
+            git log -1 --format="PR Title: %s%nAuthor: %an%nDate: %ad"
+
+          CHECKPOINT: State the PR title and what it claims to do.
+
+          ═══════════════════════════════════════════════════════════
+          STEP 2: Review the actual diff
+          ═══════════════════════════════════════════════════════════
+          Run and SHOW KEY PORTIONS:
+            git diff main...pr-${PR_NUMBER} --stat
+            git diff main...pr-${PR_NUMBER} -- "*.go" "*.ts" "*.md" | head -200
+
+          CHECKPOINT: List the files changed and summarize what ACTUALLY changed.
+          Include specific line references (e.g., "+// NewFunction added at line 45")
+
+          ═══════════════════════════════════════════════════════════
+          STEP 3: Search existing documentation
+          ═══════════════════════════════════════════════════════════
+          Based on what you found in Step 2, search for related docs:
+            grep -ri "relevant_term" ~/coder/docs/ --include="*.md" -l
+            cat ~/coder/docs/manifest.json | jq '.routes[] | {title, path}' | head -30
+
+          CHECKPOINT: List which docs you searched and what you found (or didn't find).
+
+          ═══════════════════════════════════════════════════════════
+          STEP 4: Make your determination WITH EVIDENCE
+          ═══════════════════════════════════════════════════════════
+          Answer these questions explicitly:
+            1. What files were modified? (list them from Step 2)
+            2. Is this user-facing? Why or why not?
+            3. Does this change any: CLI commands? API endpoints? UI behavior? Configuration?
+            4. Did the PR already include doc updates? Are they complete?
+            5. What existing docs (from Step 3) might need updates?
+
+          Decision criteria:
+            NEEDS DOCS: New feature, API change, CLI change, behavior change, user-visible change
+            NO DOCS: Internal refactor, test-only, already documented in PR, non-user-facing
+
+          CHECKPOINT: State your decision and the SPECIFIC EVIDENCE from the diff that supports it.
+
+          ═══════════════════════════════════════════════════════════
+          STEP 5: Post your comment (FINAL STEP - only after completing 1-4)
+          ═══════════════════════════════════════════════════════════
+          Now and ONLY now, post a comment on the PR using this format:
+
+          ${COMMENT_FORMAT}
+
+          Include references to specific files/lines that informed your decision.
+          Keep headings clean (no emojis in headings). Use ✓ ⚠ ✗ sparingly for status only.
+
+          DOCS STRUCTURE (for reference):
+            ~/coder/docs/manifest.json contains the full structure
+            Common areas: reference/, admin/, user-guides/, ai-coder/, install/, tutorials/
+
+          ⛔ STOP AFTER COMMENTING:
+          - Post EXACTLY ONE comment
+          - Call coder_report_task(state="idle") immediately after
+          - DO NOT loop, retry, or post additional comments
+          - DO NOT continue working after reporting idle
+          - Your task is COMPLETE once you post the comment and report idle
 
           EOF
           )
+
+          else
+            echo "Building PR UPDATE prompt (incremental analysis)"
+
+            TASK_PROMPT=$(cat <<EOF
+          Doc Check: PR #${PR_NUMBER} - Update
+
+          ═══════════════════════════════════════════════════════════
+          PR UPDATE - Quick Documentation Re-check
+          ═══════════════════════════════════════════════════════════
+
+          PR #${PR_NUMBER} has been UPDATED with new commits (trigger: ${TRIGGER_TYPE}).
+
+          PR URL: ${PR_URL}
+
+          ${SETUP_INSTRUCTIONS}
+
+          IMPORTANT CONTEXT:
+            - This PR was previously analyzed (there may be an earlier doc-check comment)
+            - New commits have been pushed since then
+            - Your job is to provide a BRIEF update, not repeat the full analysis
+
+          ⚠️ CRITICAL REQUIREMENTS:
+          1. You MUST show your work before commenting. DO NOT skip steps.
+          2. You MUST use the coder_report_task tool to report your progress:
+
+             Tool: coder_report_task
+             Parameters:
+               - state: "working" | "idle"
+               - summary: string (max 160 chars, no newlines)
+               - link: optional URL
+
+             REQUIRED CALLS:
+             - After each STEP: coder_report_task(state="working", summary="Step N: <brief desc>")
+             - FINAL STEP (after posting comment): coder_report_task(state="idle", summary="Update complete", link="${PR_URL}")
+
+          ⚠️ The CI monitors your state. You MUST call coder_report_task(state="idle") when finished or it will timeout!
+
+          ═══════════════════════════════════════════════════════════
+          STEP 1: Check what changed since last analysis
+          ═══════════════════════════════════════════════════════════
+          Run and SHOW OUTPUT:
+            git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
+            git checkout pr-${PR_NUMBER}
+            git log --oneline -5
+
+          CHECKPOINT: List the recent commits and what they claim to do.
+
+          ═══════════════════════════════════════════════════════════
+          STEP 2: Quick diff review
+          ═══════════════════════════════════════════════════════════
+          Run and SHOW KEY CHANGES:
+            git diff HEAD~3..HEAD --stat
+            git diff HEAD~3..HEAD -- "*.md" | head -50  # Check if docs were updated
+
+          CHECKPOINT: Summarize what actually changed in the recent commits.
+          Note any doc file changes.
+
+          ═══════════════════════════════════════════════════════════
+          STEP 3: Make determination and post comment (FINAL STEP)
+          ═══════════════════════════════════════════════════════════
+          Based on Steps 1-2, post a BRIEF update comment:
+
+          UPDATE COMMENT FORMAT (keep it SHORT!):
+          <!-- doc-check-update -->
+          ### Doc Check Update
+
+          **Commits reviewed:** [X new commits]
+
+          [Pick ONE status line based on what you found:]
+
+          ✓ **No changes needed** - [brief reason: minor fix / internal change / etc.]
+
+          ✓ **Docs updated** - [what was added/changed in docs]
+
+          ⚠ **Still needs docs** - [brief reminder of what's outstanding]
+
+          ⚠ **Updated but requesting changes** - [acknowledge changes but note what's still missing]
+
+          ✗ **New issues found** - [if new commits introduce new doc requirements]
+
+          ---
+          *[Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+
+          GUIDELINES:
+            - Be concise! 2-4 lines max
+            - Reference specific commits/files from your analysis
+            - Don't repeat previous analysis
+            - Only do full re-analysis if the PR direction changed significantly
+
+          ⛔ STOP AFTER COMMENTING:
+          - Post EXACTLY ONE comment
+          - Call coder_report_task(state="idle") immediately after
+          - DO NOT loop, retry, or post additional comments
+          - DO NOT continue working after reporting idle
+          - Your task is COMPLETE once you post the comment and report idle
+
+          EOF
+          )
+          fi
 
           # Output the prompt
           {
@@ -179,20 +392,24 @@ jobs:
           coder-organization: "default"
           coder-template-name: coder
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
-          coder-task-name-prefix: doc-check
+          coder-task-name-prefix: doc-check-${{ steps.extract-context.outputs.task_suffix }}
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
           github-user-id: ${{ steps.determine-context.outputs.github_user_id }}
           github-token: ${{ github.token }}
           github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
           comment-on-issue: true
 
-      - name: Write outputs
+      - name: Write Task Info to Summary
         env:
           TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
           TASK_URL: ${{ steps.create_task.outputs.task-url }}
           PR_URL: ${{ steps.determine-context.outputs.pr_url }}
         run: |
+          echo "Task created: ${TASK_CREATED}"
+          echo "Task name: ${TASK_NAME}"
+          echo "Task URL: ${TASK_URL}"
+          echo "PR URL: ${PR_URL}"
           {
             echo "## Documentation Check Task"
             echo ""
@@ -201,5 +418,172 @@ jobs:
             echo "**Task name:** ${TASK_NAME}"
             echo "**Task URL:** ${TASK_URL}"
             echo ""
-            echo "The Coder task is analyzing the PR changes and will comment with documentation recommendations."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Monitor Task Status
+        id: monitor_task
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::Waiting for task workspace to be ready..."
+
+          # Wait for workspace to be running and agent to be ready
+          MAX_WAIT=300  # 5 minutes max wait for workspace
+          WAITED=0
+          while [[ $WAITED -lt $MAX_WAIT ]]; do
+            STATUS=$(coder task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
+            WORKSPACE_STATUS=$(echo "$STATUS" | jq -r '.workspace_status // "unknown"')
+            AGENT_LIFECYCLE=$(echo "$STATUS" | jq -r '.workspace_agent_lifecycle // "unknown"')
+
+            echo "Workspace: ${WORKSPACE_STATUS}, Agent: ${AGENT_LIFECYCLE}"
+
+            if [[ "$WORKSPACE_STATUS" == "running" && "$AGENT_LIFECYCLE" == "ready" ]]; then
+              echo "Workspace and agent are ready!"
+              break
+            fi
+
+            if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
+              echo "::error::Workspace failed to start: ${WORKSPACE_STATUS}"
+              exit 1
+            fi
+
+            sleep 5
+            WAITED=$((WAITED + 5))
+          done
+
+          if [[ $WAITED -ge $MAX_WAIT ]]; then
+            echo "::error::Timeout waiting for workspace to be ready"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Monitoring task until completion..."
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          printf "║  Task: %-53s ║\n" "${TASK_NAME}"
+          echo "║  Waiting for AI to complete analysis...                      ║"
+          echo "╚══════════════════════════════════════════════════════════════╝"
+          echo ""
+
+          # Poll AgentAPI status: wait for running first, then stable
+          # AgentAPI: stable (idle) -> running (processing) -> stable (done)
+          MAX_WAIT=600  # 10 minutes max
+          WAITED=0
+          LAST_MSG=""
+          STARTED_RUNNING=false
+
+          while [[ $WAITED -lt $MAX_WAIT ]]; do
+            # Get task status for the message display
+            STATUS_JSON=$(coder task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
+            TASK_STATUS=$(echo "$STATUS_JSON" | jq -r '.status // "unknown"')
+            CURRENT_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
+            STATE_MSG=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
+
+            # Check AgentAPI directly for actual completion status
+            AGENT_STATUS=$(coder ssh "${TASK_NAME}" -- curl -s http://localhost:3284/status 2>/dev/null | jq -r '.status // "unknown"')
+
+            # Track when we first see running
+            if [[ "$AGENT_STATUS" == "running" ]]; then
+              STARTED_RUNNING=true
+            fi
+
+            # Only print when message changes to reduce noise
+            if [[ "$STATE_MSG" != "$LAST_MSG" ]]; then
+              echo "[${WAITED}s] ${CURRENT_STATE}: ${STATE_MSG:-no message}"
+              LAST_MSG="$STATE_MSG"
+            else
+              # Print a dot to show we're still polling
+              echo -n "."
+            fi
+
+            # Check if agent is done (must have been running first, then stable)
+            if [[ "$STARTED_RUNNING" == "true" && "$AGENT_STATUS" == "stable" ]]; then
+              echo ""
+              echo ""
+              echo "╔══════════════════════════════════════════════════════════════╗"
+              echo "║  Task completed (AgentAPI status: stable)                    ║"
+              echo "╚══════════════════════════════════════════════════════════════╝"
+              break
+            fi
+
+            # Also check for paused status (task finished)
+            if [[ "$TASK_STATUS" == "paused" ]]; then
+              echo ""
+              echo ""
+              echo "╔══════════════════════════════════════════════════════════════╗"
+              echo "║  Task paused/completed (state: paused)                       ║"
+              echo "╚══════════════════════════════════════════════════════════════╝"
+              break
+            fi
+
+            sleep 5
+            WAITED=$((WAITED + 5))
+          done
+
+          if [[ $WAITED -ge $MAX_WAIT ]]; then
+            echo ""
+            echo "::warning::Task monitoring timed out after ${MAX_WAIT}s - agent may not have reported completion"
+          fi
+          echo "::endgroup::"
+
+      - name: Fetch Task Messages Log
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::AI Conversation Log"
+          echo ""
+
+          if [[ -z "${TASK_NAME}" ]]; then
+            echo "No task name found, skipping message fetch"
+            echo "::endgroup::"
+            exit 0
+          fi
+
+          MESSAGES=$(coder ssh "${TASK_NAME}" -- curl -s http://localhost:3284/messages 2>/dev/null || echo '{}')
+
+          if echo "$MESSAGES" | jq -e '.messages' >/dev/null 2>&1; then
+            MSG_COUNT=$(echo "$MESSAGES" | jq '.messages | length')
+            echo "Retrieved ${MSG_COUNT} messages from task conversation"
+            echo ""
+            echo "$MESSAGES" | jq -r '.messages[] | "═══════════════════════════════════════════════════════════\n[\(.role | ascii_upcase)]\n═══════════════════════════════════════════════════════════════\n\(.content)\n"' 2>/dev/null || echo "Failed to parse messages"
+          else
+            echo "No messages retrieved or task not accessible"
+          fi
+
+          echo "::endgroup::"
+
+      - name: Cleanup Task and Workspace
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::Cleaning up task and workspace..."
+
+          if [[ -n "${TASK_NAME}" ]]; then
+            echo "Deleting task: ${TASK_NAME}"
+            coder task delete --yes "${TASK_NAME}" 2>&1 || echo "Task deletion failed or already deleted"
+            echo "Cleanup complete"
+          else
+            echo "No task name found, skipping cleanup"
+          fi
+
+          echo "::endgroup::"
+
+      - name: Write Final Summary
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_URL: ${{ steps.create_task.outputs.task-url }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+        run: |
+          {
+            echo ""
+            echo "---"
+            echo "### Task Completed"
+            echo ""
+            echo "- **Task:** ${TASK_NAME}"
+            echo "- **PR:** #${PR_NUMBER}"
+            echo "- **Status:** Completed and cleaned up"
+            echo ""
+            echo "The AI has analyzed the PR and commented with documentation recommendations."
           } >> "${GITHUB_STEP_SUMMARY}"
