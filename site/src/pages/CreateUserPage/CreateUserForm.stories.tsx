@@ -63,7 +63,8 @@ export const WithOrganizations: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Organization *"));
+		const autocomplete = await canvas.findByTestId("organization-autocomplete");
+		await userEvent.click(autocomplete);
 	},
 };
 

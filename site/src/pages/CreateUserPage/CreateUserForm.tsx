@@ -66,6 +66,7 @@ const validationSchema = Yup.object({
 	username: nameValidator(Language.usernameLabel),
 	name: displayNameValidator(Language.nameLabel),
 	login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
+	organization: Yup.string().required(Language.organizationRequired),
 });
 
 type CreateUserFormData = {
