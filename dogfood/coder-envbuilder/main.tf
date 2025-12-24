@@ -123,7 +123,7 @@ module "personalize" {
 
 module "code-server" {
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.1"
+  version                 = "1.4.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
