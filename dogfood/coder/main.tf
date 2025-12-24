@@ -362,6 +362,12 @@ module "git-clone" {
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
+  post_clone_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+    coder exp sync start git-clone
+    coder exp sync complete git-clone
+  EOT
 }
 
 module "personalize" {
@@ -594,8 +600,8 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
-    # Allow synchronization between scripts.
-    trap 'touch /tmp/.coder-startup-script.done' EXIT
+    trap 'coder exp sync complete agent-startup' EXIT
+    coder exp sync start agent-startup
 
     # Authenticate GitHub CLI
     if ! gh auth status >/dev/null 2>&1; then
@@ -611,14 +617,6 @@ resource "coder_agent" "dev" {
     sudo sh -c 'jq ". += {\"shutdown-timeout\": 240}" /etc/docker/daemon.json > /tmp/daemon.json.new && mv /tmp/daemon.json.new /etc/docker/daemon.json'
     # Start Docker service
     sudo service docker start
-    # Install playwright dependencies
-    # We want to use the playwright version from site/package.json
-    # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.
-    while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
-      sleep 1
-    done
-    cd "${local.repo_dir}" && make clean
-    cd "${local.repo_dir}/site" && pnpm install
   EOT
 
   shutdown_script = <<-EOT
@@ -640,6 +638,26 @@ resource "coder_agent" "dev" {
 
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
+  EOT
+}
+
+resource "coder_script" "install-deps" {
+  agent_id           = coder_agent.dev.id
+  display_name       = "Installing Dependencies"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    trap 'coder exp sync complete install-deps' EXIT
+    coder exp sync want install-deps git-clone
+    coder exp sync start install-deps
+
+    # Install playwright dependencies
+    # We want to use the playwright version from site/package.json
+    cd "${local.repo_dir}" && make clean
+    cd "${local.repo_dir}/site" && pnpm install
   EOT
 }
 
@@ -767,6 +785,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
+    "CODER_AGENT_SOCKET_SERVER_ENABLED=true",
   ]
   host {
     host = "host.docker.internal"
@@ -862,6 +881,10 @@ resource "coder_script" "boundary_config_setup" {
 
   script = <<-EOF
     #!/bin/sh
+
+    trap 'coder exp sync complete boundary-config-setup' EXIT
+    coder exp sync start boundary-config-setup
+
     mkdir -p ~/.config/coder_boundary
     echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
     chmod 600 ~/.config/coder_boundary/config.yaml
@@ -917,14 +940,10 @@ resource "coder_script" "develop_sh" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
-    # Wait for the agent startup script to finish.
-    for attempt in {1..60}; do
-      if [[ -f /tmp/.coder-startup-script.done ]]; then
-        break
-      fi
-      echo "Waiting for agent startup script to finish... ($attempt/60)"
-      sleep 10
-    done
+    trap 'coder exp sync complete develop-sh' EXIT
+    coder exp sync want develop-sh install-deps
+    coder exp sync start develop-sh
+
     cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
   EOT
 }
