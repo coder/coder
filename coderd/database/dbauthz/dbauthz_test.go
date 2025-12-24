@@ -1990,6 +1990,26 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
 		check.Args(res.ID).Asserts(ws, policy.ActionRead).Returns(res)
 	}))
+	s.Run("GetWorkspaceResourceWithJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{})
+		resWithJob := database.GetWorkspaceResourceWithJobByIDRow{
+			ID:           res.ID,
+			CreatedAt:    res.CreatedAt,
+			JobID:        res.JobID,
+			Transition:   res.Transition,
+			Type:         res.Type,
+			Name:         res.Name,
+			Hide:         res.Hide,
+			Icon:         res.Icon,
+			InstanceType: res.InstanceType,
+			DailyCost:    res.DailyCost,
+			ModulePath:   res.ModulePath,
+			JobType:      database.ProvisionerJobTypeWorkspaceBuild,
+			JobInput:     []byte(`{}`),
+		}
+		dbm.EXPECT().GetWorkspaceResourceWithJobByID(gomock.Any(), res.ID).Return(resWithJob, nil).AnyTimes()
+		check.Args(res.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(resWithJob)
+	}))
 	s.Run("Build/GetWorkspaceResourcesByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
