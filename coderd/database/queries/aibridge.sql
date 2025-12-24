@@ -8,11 +8,19 @@ RETURNING *;
 
 -- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = @ended_at::timestamptz
+	SET ended_at = @ended_at::timestamptz,
+      parent_id = sqlc.narg('parent_interception_id')::uuid
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL
 RETURNING *;
+
+-- name: GetAIBridgeInterceptionByToolCallID :many
+-- Retrieve the interception ID of a given tool call ID. It's *possible* that the provider_tool_call_id
+-- may not be unique, therefore we retrieve all matches and deal with this in application code.
+SELECT interception_id FROM aibridge_tool_usages
+WHERE provider_tool_call_id = @tool_call_id
+ORDER BY created_at DESC;
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
@@ -32,9 +40,9 @@ RETURNING *;
 
 -- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+  id, interception_id, provider_response_id, provider_tool_call_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 

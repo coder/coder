@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -51,6 +52,7 @@ var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
 	// Recorder-related queries.
+	GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error)
 	InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)

@@ -396,6 +396,37 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 	return i, err
 }
 
+const getAIBridgeInterceptionByToolCallID = `-- name: GetAIBridgeInterceptionByToolCallID :many
+SELECT interception_id FROM aibridge_tool_usages
+WHERE provider_tool_call_id = $1
+ORDER BY created_at DESC
+`
+
+// Retrieve the interception ID of a given tool call ID. It's *possible* that the provider_tool_call_id
+// may not be unique, therefore we retrieve all matches and deal with this in application code.
+func (q *sqlQuerier) GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeInterceptionByToolCallID, toolCallID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var interception_id uuid.UUID
+		if err := rows.Scan(&interception_id); err != nil {
+			return nil, err
+		}
+		items = append(items, interception_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
 	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, parent_id
@@ -1052,20 +1083,22 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = $1::timestamptz
+	SET ended_at = $1::timestamptz,
+      parent_id = $2::uuid
 WHERE
-	id = $2::uuid
+	id = $3::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, parent_id
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
-	EndedAt time.Time `db:"ended_at" json:"ended_at"`
-	ID      uuid.UUID `db:"id" json:"id"`
+	EndedAt              time.Time     `db:"ended_at" json:"ended_at"`
+	ParentInterceptionID uuid.NullUUID `db:"parent_interception_id" json:"parent_interception_id"`
+	ID                   uuid.UUID     `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
-	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ParentInterceptionID, arg.ID)
 	var i AIBridgeInterception
 	err := row.Scan(
 		&i.ID,
@@ -1076,6 +1109,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.Metadata,
 		&i.EndedAt,
 		&i.APIKeyID,
+		&i.ParentID,
 	)
 	return i, err
 }
