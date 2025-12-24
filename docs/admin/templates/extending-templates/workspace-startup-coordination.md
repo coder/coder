@@ -476,7 +476,7 @@ intentional to ensure clean initialization on every start.
 
 ## Next Steps
 
-- [Workspace Build Timing](../../tutorials/best-practices/speed-up-templates.md) - Analyze and optimize startup
+- [Workspace Build Timing](../../../tutorials/best-practices/speed-up-templates.md) - Analyze and optimize startup
   performance
 - [coder_script Documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script) -
   Complete coder_script resource reference
