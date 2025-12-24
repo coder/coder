@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -36,6 +38,72 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/quartz"
 )
+
+// presetFailuresTracker tracks creation failures for presets to implement incremental backoff.
+type presetFailuresTracker struct {
+	failures map[uuid.UUID]*presetCreationFailure
+	mu       sync.RWMutex
+	clock    quartz.Clock
+}
+
+// presetCreationFailure tracks recent creation failures for a preset to implement incremental backoff.
+type presetCreationFailure struct {
+	consecutiveFailures int
+	lastFailureAt       time.Time
+}
+
+func newPresetFailuresTracker(clock quartz.Clock) *presetFailuresTracker {
+	return &presetFailuresTracker{
+		failures: make(map[uuid.UUID]*presetCreationFailure),
+		clock:    clock,
+	}
+}
+
+// RecordFailure records a prebuild creation failure for a preset and increments the consecutive failure count.
+func (t *presetFailuresTracker) RecordFailure(presetID uuid.UUID) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	failure, exists := t.failures[presetID]
+	if !exists {
+		failure = &presetCreationFailure{}
+		t.failures[presetID] = failure
+	}
+
+	failure.consecutiveFailures++
+	failure.lastFailureAt = t.clock.Now()
+}
+
+// RecordSuccess clears the failure tracking for a preset after a successful creation.
+func (t *presetFailuresTracker) RecordSuccess(presetID uuid.UUID) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	delete(t.failures, presetID)
+}
+
+// ShouldBackoff checks if we should delay creation attempts for a preset based on recent failures.
+// It returns true and the backoff time if we should delay, false and zero time otherwise.
+func (t *presetFailuresTracker) ShouldBackoff(presetID uuid.UUID, backoffInterval time.Duration) (bool, time.Time) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	failure, exists := t.failures[presetID]
+	if !exists || failure.consecutiveFailures == 0 {
+		return false, time.Time{}
+	}
+
+	// Calculate exponential backoff: backoffInterval * consecutiveFailures
+	// This gives us a linear backoff that increases with each consecutive failure.
+	backoffDuration := backoffInterval * time.Duration(failure.consecutiveFailures)
+	backoffUntil := failure.lastFailureAt.Add(backoffDuration)
+
+	if t.clock.Now().Before(backoffUntil) {
+		return true, backoffUntil
+	}
+
+	return false, time.Time{}
+}
 
 type StoreReconciler struct {
 	store             database.Store
@@ -58,6 +126,9 @@ type StoreReconciler struct {
 	metrics *MetricsCollector
 	// Operational metrics
 	reconciliationDuration prometheus.Histogram
+
+	// Per-preset creation failure tracking for incremental backoff
+	failureTracker *presetFailuresTracker
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -102,6 +173,7 @@ func NewStoreReconciler(store database.Store,
 		buildUsageChecker: buildUsageChecker,
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
+		failureTracker:    newPresetFailuresTracker(clock),
 	}
 
 	if registerer != nil {
@@ -122,6 +194,22 @@ func NewStoreReconciler(store database.Store,
 	}
 
 	return reconciler
+}
+
+// RecordCreationFailure records a prebuild creation failure for a preset and increments the consecutive failure count.
+func (c *StoreReconciler) RecordCreationFailure(presetID uuid.UUID) {
+	c.failureTracker.RecordFailure(presetID)
+}
+
+// RecordCreationSuccess clears the failure tracking for a preset after a successful creation.
+func (c *StoreReconciler) RecordCreationSuccess(presetID uuid.UUID) {
+	c.failureTracker.RecordSuccess(presetID)
+}
+
+// ShouldBackoffCreation checks if we should delay creation attempts for a preset based on recent failures.
+// It returns true and the backoff time if we should delay, false and zero time otherwise.
+func (c *StoreReconciler) ShouldBackoffCreation(presetID uuid.UUID) (bool, time.Time) {
+	return c.failureTracker.ShouldBackoff(presetID, c.cfg.ReconciliationBackoffInterval.Value())
 }
 
 func (c *StoreReconciler) Run(ctx context.Context) {
@@ -643,6 +731,16 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		return nil
 
 	case prebuilds.ActionTypeCreate:
+		// Check if we should backoff on this preset due to recent creation failures
+		if shouldBackoff, backoffUntil := c.failureTracker.ShouldBackoff(ps.Preset.ID, c.cfg.ReconciliationBackoffInterval.Value()); shouldBackoff {
+			logger.Warn(ctx, "backing off prebuild creation due to recent failures",
+				slog.F("preset_id", ps.Preset.ID.String()),
+				slog.F("backoff_until", backoffUntil.Format(time.RFC3339)),
+				slog.F("backoff_secs", math.Round(backoffUntil.Sub(c.clock.Now()).Seconds())),
+			)
+			return nil
+		}
+
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
 		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
@@ -666,7 +764,18 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		for range action.Create {
 			if err := c.createPrebuiltWorkspace(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
+
+				// Only apply backoff for transient errors (500-level).
+				// Config errors (400-level) should fail immediately and count toward the hard limit.
+				var buildErr wsbuilder.BuildError
+				if errors.As(err, &buildErr) && buildErr.Status == http.StatusInternalServerError {
+					c.failureTracker.RecordFailure(ps.Preset.ID)
+				}
+
 				multiErr.Errors = append(multiErr.Errors, err)
+			} else {
+				// Only clear failure tracking if we successfully created at least one prebuild
+				c.failureTracker.RecordSuccess(ps.Preset.ID)
 			}
 		}
 
@@ -734,7 +843,22 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 			slog.F("workspace_id", prebuiltWorkspaceID.String()), slog.F("preset_id", presetID.String()))
 
 		provisionerJob, err = c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionStart, workspace, DeprovisionModeNormal)
-		return err
+		if err != nil {
+			// Check if this is a config error (non-transient) from wsbuilder.
+			// If so, create a failed build record so it counts toward the hard limit.
+			var buildErr wsbuilder.BuildError
+			if errors.As(err, &buildErr) && buildErr.Status != http.StatusInternalServerError {
+				// This is a config error (400-level). Create a failed build record
+				// so it counts toward the hard failure limit.
+				if failErr := c.createFailedBuildRecord(ctx, db, workspace, template, presetID, now, buildErr); failErr != nil {
+					c.logger.Warn(ctx, "failed to create failed build record for config error",
+						slog.Error(failErr),
+						slog.F("original_error", err.Error()))
+				}
+			}
+			return err
+		}
+		return nil
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  false,
@@ -745,6 +869,105 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 
 	// Publish provisioner job event to notify the acquirer that a new job was posted
 	c.publishProvisionerJob(ctx, provisionerJob, prebuiltWorkspaceID)
+
+	return nil
+}
+
+// createFailedBuildRecord creates a workspace build and provisioner job record marked as failed.
+// This allows config errors that fail at wsbuilder.Build() time to count toward the hard failure limit.
+// The hard limit query checks workspace_latest_builds.job_status, which is derived from the provisioner job.
+//
+// IMPORTANT: This function must be called within a database transaction.
+func (c *StoreReconciler) createFailedBuildRecord(
+	ctx context.Context,
+	db database.Store,
+	workspace database.Workspace,
+	template database.Template,
+	presetID uuid.UUID,
+	now time.Time,
+	buildErr wsbuilder.BuildError,
+) error {
+	// Get template version job to populate provisioner job fields
+	templateVersion, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID)
+	if err != nil {
+		return xerrors.Errorf("get template version: %w", err)
+	}
+
+	templateVersionJob, err := db.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		return xerrors.Errorf("get template version job: %w", err)
+	}
+
+	// Create a provisioner job marked as failed
+	provisionerJobID := uuid.New()
+	_, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+		ID:             provisionerJobID,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		OrganizationID: template.OrganizationID,
+		Provisioner:    template.Provisioner,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StorageMethod:  templateVersionJob.StorageMethod,
+		FileID:         templateVersionJob.FileID,
+		Input:          []byte("{}"), // Empty input since we never got to build
+		Tags:           database.StringMap{},
+		TraceMetadata:  pqtype.NullRawMessage{Valid: false},
+		LogsOverflowed: false,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert provisioner job: %w", err)
+	}
+
+	// Mark the job as failed immediately
+	// nolint: gocritic // At this moment, we are pretending to be provisionerd.
+	err = db.UpdateProvisionerJobWithCompleteWithStartedAtByID(dbauthz.AsProvisionerd(ctx), database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
+		ID:          provisionerJobID,
+		UpdatedAt:   now,
+		CompletedAt: sql.NullTime{Valid: true, Time: now},
+		StartedAt:   sql.NullTime{Valid: true, Time: now},
+		Error:       sql.NullString{Valid: true, String: buildErr.Message},
+		ErrorCode:   sql.NullString{Valid: false},
+	})
+	if err != nil {
+		return xerrors.Errorf("mark provisioner job as failed: %w", err)
+	}
+
+	// Create workspace build linking to the failed job
+	workspaceBuildID := uuid.New()
+	buildNumber := int32(1) // This will be the first build for this workspace
+	if latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID); err == nil {
+		buildNumber = latestBuild.BuildNumber + 1
+	}
+
+	err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		ID:                workspaceBuildID,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: template.ActiveVersionID,
+		BuildNumber:       buildNumber,
+		ProvisionerState:  []byte("[]"), // Empty state since we never provisioned
+		InitiatorID:       database.PrebuildsSystemUserID,
+		Transition:        database.WorkspaceTransitionStart,
+		JobID:             provisionerJobID,
+		Reason:            database.BuildReasonInitiator,
+		Deadline:          time.Time{},
+		MaxDeadline:       time.Time{},
+		TemplateVersionPresetID: uuid.NullUUID{
+			UUID:  presetID,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert workspace build: %w", err)
+	}
+
+	c.logger.Info(ctx, "created failed build record for config error",
+		slog.F("workspace_id", workspace.ID.String()),
+		slog.F("build_id", workspaceBuildID.String()),
+		slog.F("preset_id", presetID.String()),
+		slog.F("error", buildErr.Message))
 
 	return nil
 }
