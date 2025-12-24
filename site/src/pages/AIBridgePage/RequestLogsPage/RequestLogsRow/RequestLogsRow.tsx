@@ -173,7 +173,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<Avatar
 								fallback={interception.initiator.username}
 								src={interception.initiator.avatar_url}
-								size={"lg"}
+								size="lg"
 								className="flex-shrink-0"
 							/>
 							<div className="font-medium truncate min-w-0 flex-1 overflow-hidden">
@@ -303,7 +303,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 									<Avatar
 										fallback={interception.initiator.username}
 										src={interception.initiator.avatar_url}
-										size={"sm"}
+										size="sm"
 										className="flex-shrink-0"
 									/>
 									<span className="truncate min-w-0 w-full">

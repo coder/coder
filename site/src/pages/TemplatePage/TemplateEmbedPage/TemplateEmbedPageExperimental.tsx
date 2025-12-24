@@ -228,13 +228,13 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 								>
 									<div className="flex items-center gap-3">
 										<RadioGroupItem value="manual" id="manual" />
-										<Label htmlFor={"manual"} className="cursor-pointer">
+										<Label htmlFor="manual" className="cursor-pointer">
 											Manual
 										</Label>
 									</div>
 									<div className="flex items-center gap-3">
 										<RadioGroupItem value="auto" id="automatic" />
-										<Label htmlFor={"automatic"} className="cursor-pointer">
+										<Label htmlFor="automatic" className="cursor-pointer">
 											Automatic
 										</Label>
 									</div>

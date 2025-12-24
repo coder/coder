@@ -376,7 +376,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 						<TableRow>
 							<TableCell colSpan={999}>
 								<EmptyState
-									message={"No organization mappings"}
+									message="No organization mappings"
 									isCompact
 									cta={
 										<Link
