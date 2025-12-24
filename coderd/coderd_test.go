@@ -391,3 +391,107 @@ func TestCSRFExempt(t *testing.T) {
 		require.NotContains(t, string(data), "CSRF")
 	})
 }
+
+// TestOptionalAuthMiddleware tests that apiKeyMiddlewareOptional is
+// correctly applied to /api/v2 and /api/experimental routes. This ensures
+// that routes work both with and without authentication, and that the
+// middleware is actually being applied.
+// Regression test for https://github.com/coder/coder/issues/20857
+func TestOptionalAuthMiddleware(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+
+	// Test that /api/v2/ works without authentication
+	t.Run("APIV2WithoutAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/", nil)
+		require.NoError(t, err)
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "should succeed without auth")
+	})
+
+	// Test that /api/v2/ works with authentication
+	t.Run("APIV2WithAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/", nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "should succeed with auth")
+	})
+
+	// Test that /api/v2/buildinfo works without authentication
+	t.Run("APIV2BuildInfoWithoutAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/buildinfo", nil)
+		require.NoError(t, err)
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "should succeed without auth")
+	})
+
+	// Test that /api/v2/buildinfo works with authentication
+	t.Run("APIV2BuildInfoWithAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/buildinfo", nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "should succeed with auth")
+	})
+
+	// Test that /api/experimental works without authentication
+	t.Run("APIExperimentalWithoutAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/experimental", nil)
+		require.NoError(t, err)
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "should succeed without auth")
+	})
+
+	// Test that /api/experimental works with authentication
+	t.Run("APIExperimentalWithAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/experimental", nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "should succeed with auth")
+	})
+}

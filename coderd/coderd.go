@@ -1023,11 +1023,13 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
+			apiKeyMiddlewareOptional,
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
+		r.Get("/", apiRoot)
 
 		// NOTE(DanielleMaywood):
 		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
@@ -1066,6 +1068,7 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
+			apiKeyMiddlewareOptional,
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
