@@ -9,5 +9,12 @@ OPTIONS:
   -b, --build int
           Specify a workspace build to target by name. Defaults to latest.
 
+  -n, --no-build bool
+          Update the state without triggering a workspace build. Useful for
+          state-only migrations.
+
+  -y, --yes bool
+          Bypass prompts.
+
 ———
 Run `coder --help` for a list of global options.

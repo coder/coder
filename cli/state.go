@@ -87,6 +87,7 @@ func buildNumberOption(n *int64) serpent.Option {
 
 func (r *RootCmd) statePush() *serpent.Command {
 	var buildNumber int64
+	var noBuild bool
 	cmd := &serpent.Command{
 		Use:   "push <workspace> <file>",
 		Short: "Push a Terraform state file to a workspace.",
@@ -126,6 +127,29 @@ func (r *RootCmd) statePush() *serpent.Command {
 				return err
 			}
 
+			if noBuild {
+				// Warn user about the dangerous operation.
+				cliui.Warn(inv.Stderr,
+					"This will update the Terraform state directly without triggering a build.\n"+
+						"The workspace will not be reconciled with the new state.")
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Confirm state update?",
+					IsConfirm: true,
+					Default:   cliui.ConfirmNo,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Update state directly without triggering a build.
+				err = client.UpdateWorkspaceBuildState(inv.Context(), build.ID, state)
+				if err != nil {
+					return err
+				}
+				_, _ = fmt.Fprintln(inv.Stdout, "State updated successfully.")
+				return nil
+			}
+
 			build, err = client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: build.TemplateVersionID,
 				Transition:        build.Transition,
@@ -139,6 +163,13 @@ func (r *RootCmd) statePush() *serpent.Command {
 	}
 	cmd.Options = serpent.OptionSet{
 		buildNumberOption(&buildNumber),
+		{
+			Flag:          "no-build",
+			FlagShorthand: "n",
+			Description:   "Update the state without triggering a workspace build. Useful for state-only migrations.",
+			Value:         serpent.BoolOf(&noBuild),
+		},
+		cliui.SkipPromptOption(),
 	}
 	return cmd
 }
