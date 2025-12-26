@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	reflect "reflect"
 	time "time"
 
@@ -1259,19 +1258,19 @@ func (mr *MockStoreMockRecorder) GetAIBridgeInterceptionByID(ctx, id any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeInterceptionByID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeInterceptionByID), ctx, id)
 }
 
-// GetAIBridgeInterceptionByToolCallID mocks base method.
-func (m *MockStore) GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error) {
+// GetAIBridgeInterceptionLineageByToolCallID mocks base method.
+func (m *MockStore) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIBridgeInterceptionByToolCallID", ctx, toolCallID)
-	ret0, _ := ret[0].([]uuid.UUID)
+	ret := m.ctrl.Call(m, "GetAIBridgeInterceptionLineageByToolCallID", ctx, toolCallID)
+	ret0, _ := ret[0].(database.GetAIBridgeInterceptionLineageByToolCallIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAIBridgeInterceptionByToolCallID indicates an expected call of GetAIBridgeInterceptionByToolCallID.
-func (mr *MockStoreMockRecorder) GetAIBridgeInterceptionByToolCallID(ctx, toolCallID any) *gomock.Call {
+// GetAIBridgeInterceptionLineageByToolCallID indicates an expected call of GetAIBridgeInterceptionLineageByToolCallID.
+func (mr *MockStoreMockRecorder) GetAIBridgeInterceptionLineageByToolCallID(ctx, toolCallID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeInterceptionByToolCallID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeInterceptionByToolCallID), ctx, toolCallID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeInterceptionLineageByToolCallID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeInterceptionLineageByToolCallID), ctx, toolCallID)
 }
 
 // GetAIBridgeInterceptions mocks base method.

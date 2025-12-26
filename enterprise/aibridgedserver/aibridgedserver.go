@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/url"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -52,7 +51,7 @@ var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
 	// Recorder-related queries.
-	GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error)
+	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 	InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)
@@ -151,12 +150,12 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		return nil, xerrors.Errorf("invalid interception ID %q: %w", in.GetId(), err)
 	}
 
-	parentInterceptionID := s.findParentInterceptionID(ctx, in.GetToolCallId())
-
+	parentID, ancestorID := s.findInterceptionLineage(ctx, in.GetToolCallId())
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-		ID:                   intcID,
-		ParentInterceptionID: uuid.NullUUID{UUID: parentInterceptionID, Valid: parentInterceptionID != uuid.Nil},
-		EndedAt:              in.EndedAt.AsTime(),
+		ID:                     intcID,
+		ParentInterceptionID:   uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+		AncestorInterceptionID: uuid.NullUUID{UUID: ancestorID, Valid: ancestorID != uuid.Nil},
+		EndedAt:                in.EndedAt.AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -419,35 +418,22 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
-func (s *Server) findParentInterceptionID(ctx context.Context, toolCallID string) uuid.UUID {
+func (s *Server) findInterceptionLineage(ctx context.Context, toolCallID string) (uuid.UUID, uuid.UUID) {
 	if toolCallID == "" {
-		return uuid.Nil
+		return uuid.Nil, uuid.Nil
 	}
 
-	interceptions, err := s.store.GetAIBridgeInterceptionByToolCallID(ctx, sql.NullString{String: toolCallID, Valid: toolCallID != ""})
+	lineage, err := s.store.GetAIBridgeInterceptionLineageByToolCallID(ctx, toolCallID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve parent interception id", slog.Error(err), slog.F("tool_call_id", toolCallID))
-		return uuid.Nil
+		return uuid.Nil, uuid.Nil
 	}
 
-	if len(interceptions) == 0 {
-		return uuid.Nil
+	if lineage.ParentID == uuid.Nil {
+		return uuid.Nil, uuid.Nil
 	}
 
-	// Tool call IDs are not *guaranteed* to be unique by the upstream AI providers at the time of writing (Dec 2025).
-	// Therefore it's possible that a collision may occur, in which case all we can do is log it and return the last one.
-	// We have no other discriminating values which will help us isolate which interception we actually care about.
-	// Anthropic's & OpenAI's tool call IDs contain 143 bits of entropy, so the likelihood of collision is about the same as UUIDv4.
-	if len(interceptions) > 1 {
-		slices.SortStableFunc(interceptions, func(a, b uuid.UUID) int {
-			return strings.Compare(a.String(), b.String())
-		})
-		uniq := slices.Compact(interceptions)
-		s.logger.Info(ctx, "tool call collision, picking latest", slog.F("tool_call_id", toolCallID), slog.F("returned", len(interceptions)), slog.F("unique", len(uniq)))
-		interceptions = uniq
-	}
-
-	return interceptions[0]
+	return lineage.ParentID, lineage.AncestorID
 }
 
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {

@@ -3617,6 +3617,8 @@ type AIBridgeInterception struct {
 	APIKeyID    sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	// The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.
 	ParentID uuid.NullUUID `db:"parent_id" json:"parent_id"`
+	// The first interception which directly caused a series of interceptions to occur (including this one), usually through an agentic loop or threaded conversation.
+	AncestorID uuid.NullUUID `db:"ancestor_id" json:"ancestor_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge

@@ -1058,7 +1058,8 @@ CREATE TABLE aibridge_interceptions (
     metadata jsonb,
     ended_at timestamp with time zone,
     api_key_id text,
-    parent_id uuid
+    parent_id uuid,
+    ancestor_id uuid
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1066,6 +1067,8 @@ COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by
 COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users record, but FK is elided for performance.';
 
 COMMENT ON COLUMN aibridge_interceptions.parent_id IS 'The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.';
+
+COMMENT ON COLUMN aibridge_interceptions.ancestor_id IS 'The first interception which directly caused a series of interceptions to occur (including this one), usually through an agentic loop or threaded conversation.';
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,

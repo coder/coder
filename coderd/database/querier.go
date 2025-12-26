@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -166,9 +165,13 @@ type sqlcQuerier interface {
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
-	// Retrieve the interception ID of a given tool call ID. It's *possible* that the provider_tool_call_id
-	// may not be unique, therefore we retrieve all matches and deal with this in application code.
-	GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error)
+	// Retrieve the interception lineage by a given tool call ID. Tool call IDs allow us to infer relationships
+	// between independent interceptions.
+	// Tool call IDs are not *guaranteed* to be unique by the upstream AI providers at the time of writing (Dec 2025).
+	// Therefore it's possible that a collision may occur, in which case all we can do is log it and return the last one.
+	// We have no other discriminating values which will help us isolate which interception we actually care about.
+	// Anthropic's & OpenAI's tool call IDs contain 143 bits of entropy, so the likelihood of collision is about the same as UUIDv4.
+	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)

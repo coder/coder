@@ -9,18 +9,29 @@ RETURNING *;
 -- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
 	SET ended_at = @ended_at::timestamptz,
-      parent_id = sqlc.narg('parent_interception_id')::uuid
+      parent_id = sqlc.narg('parent_interception_id')::uuid,
+      ancestor_id = sqlc.narg('ancestor_interception_id')::uuid
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL
 RETURNING *;
 
--- name: GetAIBridgeInterceptionByToolCallID :many
--- Retrieve the interception ID of a given tool call ID. It's *possible* that the provider_tool_call_id
--- may not be unique, therefore we retrieve all matches and deal with this in application code.
-SELECT interception_id FROM aibridge_tool_usages
-WHERE provider_tool_call_id = @tool_call_id
-ORDER BY created_at DESC;
+-- name: GetAIBridgeInterceptionLineageByToolCallID :one
+-- Retrieve the interception lineage by a given tool call ID. Tool call IDs allow us to infer relationships
+-- between independent interceptions.
+-- Tool call IDs are not *guaranteed* to be unique by the upstream AI providers at the time of writing (Dec 2025).
+-- Therefore it's possible that a collision may occur, in which case all we can do is log it and return the last one.
+-- We have no other discriminating values which will help us isolate which interception we actually care about.
+-- Anthropic's & OpenAI's tool call IDs contain 143 bits of entropy, so the likelihood of collision is about the same as UUIDv4.
+WITH linked AS (
+  SELECT interception_id FROM aibridge_tool_usages
+  WHERE provider_tool_call_id = @tool_call_id::text
+  ORDER BY created_at DESC
+  LIMIT 1
+)
+SELECT linked.interception_id AS parent_id, COALESCE(ancestor_id, linked.interception_id) as ancestor_id FROM aibridge_interceptions
+INNER JOIN linked ON linked.interception_id = aibridge_interceptions.id
+WHERE aibridge_interceptions.id = linked.interception_id;
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
