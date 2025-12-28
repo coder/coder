@@ -884,6 +884,7 @@ module "claude-code" {
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_task.me.prompt
   post_install_script = <<-EOT
+    cd $HOME/coder
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
   EOT
 }
