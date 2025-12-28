@@ -150,7 +150,7 @@ func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero
 				slog.F("path", headerPath),
 				slog.F("mode", fmt.Sprintf("%O", mode)))
 		case tar.TypeReg:
-			file, err := fs.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
+			file, err := fs.OpenFile(headerPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
 			if err != nil {
 				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"strings"
 )
 
@@ -53,8 +52,7 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer, maxSize int6
 		return err
 	}
 
-	n, err := io.CopyN(tarWriter, fileReader, maxSize)
-	log.Println(file.Name, n, err)
+	_, err = io.CopyN(tarWriter, fileReader, maxSize)
 	if errors.Is(err, io.EOF) {
 		err = nil
 	}
