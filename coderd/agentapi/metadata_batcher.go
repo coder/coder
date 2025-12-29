@@ -211,15 +211,10 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 
 		// Check if an entry already exists for this key.
 		existingValue, exists := b.buf[agentID][keys[i]]
-		if exists {
-			// Only overwrite if the new data is newer than the existing data.
-			if collectedAt[i].Before(existingValue.collectedAt) {
-				// Skip this update - the existing data is newer.
-				continue
-			}
-			// Existing entry will be replaced, no change to entryCount.
-		} else {
-			// New key - increment the entry count.
+		if exists && collectedAt[i].Before(existingValue.collectedAt) {
+			continue
+		}
+		if !exists {
 			b.entryCount++
 		}
 
@@ -332,11 +327,6 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 		return
 	}
 
-	// Publish batched notifications with all agent IDs that have updates.
-	// Listeners will re-fetch metadata for these agents from the database.
-	// If the payload exceeds PostgreSQL's 8KB NOTIFY limit, split into
-	// multiple messages.
-
 	// Build list of unique agent IDs from the map keys.
 	uniqueAgentIDs := make([]uuid.UUID, 0, len(b.buf))
 	for agentID := range b.buf {
@@ -389,11 +379,18 @@ func (b *MetadataBatcher) publishAgentIDsInChunks(ctx context.Context, agentIDs 
 	}
 }
 
-// publishChunk marshals and publishes a single chunk of agent IDs.
-func (b *MetadataBatcher) publishChunk(ctx context.Context, agentIDs []uuid.UUID) {
-	payload, err := json.Marshal(WorkspaceAgentMetadataBatchPayload{
+// marshalAgentIDPayload marshals agent IDs into a JSON payload and returns
+// the marshaled bytes and any error. This is separated for testing payload
+// size constraints.
+func marshalAgentIDPayload(agentIDs []uuid.UUID) ([]byte, error) {
+	return json.Marshal(WorkspaceAgentMetadataBatchPayload{
 		AgentIDs: agentIDs,
 	})
+}
+
+// publishChunk marshals and publishes a single chunk of agent IDs.
+func (b *MetadataBatcher) publishChunk(ctx context.Context, agentIDs []uuid.UUID) {
+	payload, err := marshalAgentIDPayload(agentIDs)
 	if err != nil {
 		b.log.Error(ctx, "failed to marshal workspace agent metadata chunk", slog.Error(err))
 		return
