@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestTasks(t *testing.T) {
@@ -1532,7 +1533,8 @@ func TestTasksNotification(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
 			notifyEnq := &notificationstest.FakeEnqueuer{}
 			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues:      coderdtest.DeploymentValues(t),
@@ -1572,6 +1574,8 @@ func TestTasksNotification(t *testing.T) {
 			}
 			workspaceBuild := workspaceBuilder.Do()
 
+			ctx := testutil.Context(t, testutil.WaitShort)
+
 			// Given: set the agent lifecycle state if specified
 			if tc.agentLifecycle != "" {
 				workspace := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
@@ -1582,10 +1586,10 @@ func TestTasksNotification(t *testing.T) {
 					readyAt   sql.NullTime
 				)
 				if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateReady {
-					startedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
-					readyAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
+					readyAt = sql.NullTime{Time: clock.Now(), Valid: true}
 				} else if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateStarting {
-					startedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
 				}
 
 				// nolint:gocritic // This is a system restricted operation for test setup.
@@ -1602,8 +1606,12 @@ func TestTasksNotification(t *testing.T) {
 			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspaceBuild.AgentToken))
 			if len(tc.latestAppStatuses) > 0 {
 				workspace := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
+
 				for _, appStatus := range tc.latestAppStatuses {
+					clock.Advance(time.Second)
+
 					dbgen.WorkspaceAppStatus(t, db, database.WorkspaceAppStatus{
+						CreatedAt:   clock.Now(),
 						WorkspaceID: workspaceBuild.Workspace.ID,
 						AgentID:     workspace.LatestBuild.Resources[0].Agents[0].ID,
 						AppID:       workspaceAgentAppID,
