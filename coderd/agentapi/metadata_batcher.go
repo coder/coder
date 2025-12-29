@@ -30,14 +30,12 @@ const (
 	defaultMetadataFlushInterval = 5 * time.Second
 )
 
-// agentMetadataUpdate holds metadata updates for a single agent that are
-// pending flush.
-type agentMetadataUpdate struct {
-	agentID     uuid.UUID
-	keys        []string
-	values      []string
-	errors      []string
-	collectedAt []time.Time
+// metadataValue holds a single metadata key-value pair with its error state
+// and collection timestamp.
+type metadataValue struct {
+	value       string
+	error       string
+	collectedAt time.Time
 }
 
 // MetadataBatcher holds a buffer of agent metadata updates and periodically
@@ -49,10 +47,13 @@ type MetadataBatcher struct {
 	log    slog.Logger
 
 	mu sync.Mutex
-	// buf holds pending metadata updates up to batchSize capacity.
-	// When full, new updates are dropped.
-	buf       []agentMetadataUpdate
-	batchSize int
+	// buf holds pending metadata updates indexed by agent ID and metadata key name.
+	// Structure: map[agentID]map[metadataKeyName]metadataValue
+	// This deduplicates updates to the same metadata key for the same agent within
+	// a flush interval, keeping only the most recent value.
+	buf        map[uuid.UUID]map[string]metadataValue
+	entryCount int // Total number of metadata key-value pairs across all agents
+	batchSize  int // Maximum number of metadata entries before forcing a flush
 
 	// tickCh is used to periodically flush the buffer.
 	tickCh   <-chan time.Time
@@ -146,7 +147,8 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 		b.tickCh = b.ticker.C
 	}
 
-	b.buf = make([]agentMetadataUpdate, 0, b.batchSize)
+	b.buf = make(map[uuid.UUID]map[string]metadataValue)
+	b.entryCount = 0
 
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -167,33 +169,47 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 }
 
 // Add adds metadata updates for an agent to the batcher.
-// If the buffer is full, the update is dropped.
+// Updates to the same metadata key for the same agent are deduplicated,
+// keeping only the most recent value. If the buffer is at capacity, updates
+// are dropped.
 func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// If buffer is full, drop this update.
-	if len(b.buf) >= b.batchSize {
-		b.log.Warn(context.Background(), "metadata buffer full, dropping update",
-			slog.F("agent_id", agentID),
-			slog.F("batch_size", b.batchSize),
-		)
-		return
+	// Ensure agent map exists.
+	if b.buf[agentID] == nil {
+		b.buf[agentID] = make(map[string]metadataValue)
 	}
 
-	// Append to buffer.
-	b.buf = append(b.buf, agentMetadataUpdate{
-		agentID:     agentID,
-		keys:        keys,
-		values:      values,
-		errors:      errors,
-		collectedAt: collectedAt,
-	})
+	// Process each key one at a time.
+	for i := range keys {
+		// If buffer is already at max capacity, drop this and remaining keys.
+		if b.entryCount >= b.batchSize {
+			b.log.Warn(context.Background(), "metadata buffer at capacity, dropping remaining keys",
+				slog.F("agent_id", agentID),
+				slog.F("entry_count", b.entryCount),
+				slog.F("batch_size", b.batchSize),
+				slog.F("dropped_keys", len(keys)-i),
+			)
+			return
+		}
 
-	// If the buffer is now full, signal immediate flush.
-	if len(b.buf) >= b.batchSize && !b.flushForced.Load() {
-		b.flushLever <- struct{}{}
-		b.flushForced.Store(true)
+		// Check if this is a new key (not a replacement).
+		if _, exists := b.buf[agentID][keys[i]]; !exists {
+			b.entryCount++
+		}
+
+		b.buf[agentID][keys[i]] = metadataValue{
+			value:       values[i],
+			error:       errors[i],
+			collectedAt: collectedAt[i],
+		}
+
+		// If we've reached capacity after adding this key, trigger immediate flush.
+		if b.entryCount >= b.batchSize && !b.flushForced.Load() {
+			b.flushLever <- struct{}{}
+			b.flushForced.Store(true)
+		}
 	}
 }
 
@@ -227,7 +243,7 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 	b.mu.Lock()
 	b.flushForced.Store(true)
 	start := time.Now()
-	count := len(b.buf)
+	count := b.entryCount
 	defer func() {
 		b.flushForced.Store(false)
 		b.mu.Unlock()
@@ -251,26 +267,26 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 		}
 	}()
 
-	if len(b.buf) == 0 {
+	if b.entryCount == 0 {
 		return
 	}
 
 	// Flatten the buffer into parallel arrays for the batch query.
 	var (
-		agentIDs    = make([]uuid.UUID, 0, len(b.buf)*15) // Estimate 15 keys per agent
-		keys        = make([]string, 0, len(b.buf)*15)
-		values      = make([]string, 0, len(b.buf)*15)
-		errors      = make([]string, 0, len(b.buf)*15)
-		collectedAt = make([]time.Time, 0, len(b.buf)*15)
+		agentIDs    = make([]uuid.UUID, 0, b.entryCount)
+		keys        = make([]string, 0, b.entryCount)
+		values      = make([]string, 0, b.entryCount)
+		errors      = make([]string, 0, b.entryCount)
+		collectedAt = make([]time.Time, 0, b.entryCount)
 	)
 
-	for _, update := range b.buf {
-		for i := range update.keys {
-			agentIDs = append(agentIDs, update.agentID)
-			keys = append(keys, update.keys[i])
-			values = append(values, update.values[i])
-			errors = append(errors, update.errors[i])
-			collectedAt = append(collectedAt, update.collectedAt[i])
+	for agentID, metadataMap := range b.buf {
+		for key, metadata := range metadataMap {
+			agentIDs = append(agentIDs, agentID)
+			keys = append(keys, key)
+			values = append(values, metadata.value)
+			errors = append(errors, metadata.error)
+			collectedAt = append(collectedAt, metadata.collectedAt)
 		}
 	}
 
@@ -296,14 +312,14 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 	// Listeners will re-fetch metadata for these agents from the database.
 	// This scales to O(1) NOTIFY calls per flush rather than O(N) where N = agent count.
 
-	// Build list of unique agent IDs.
-	agentIDs = agentIDs[:0] // Reuse slice, clear it first
-	for _, update := range b.buf {
-		agentIDs = append(agentIDs, update.agentID)
+	// Build list of unique agent IDs from the map keys.
+	uniqueAgentIDs := make([]uuid.UUID, 0, len(b.buf))
+	for agentID := range b.buf {
+		uniqueAgentIDs = append(uniqueAgentIDs, agentID)
 	}
 
 	batchPayload, err2 := json.Marshal(WorkspaceAgentMetadataBatchPayload{
-		AgentIDs: agentIDs,
+		AgentIDs: uniqueAgentIDs,
 	})
 	if err2 != nil {
 		b.log.Error(ctx, "failed to marshal batched workspace agent metadata payload", slog.Error(err2))
@@ -314,6 +330,7 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 		}
 	}
 
-	// Clear the buffer by resetting to empty slice with same capacity.
-	b.buf = b.buf[:0]
+	// Clear the buffer and reset entry count.
+	b.buf = make(map[uuid.UUID]map[string]metadataValue)
+	b.entryCount = 0
 }

@@ -71,7 +71,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// When: it becomes time to flush
 	tick <- t2
 	f = <-flushed
-	require.Equal(t, 1, f, "expected one agent to be flushed")
+	require.Equal(t, 2, f, "expected 2 entries to be flushed")
 	t.Log("flush 2 completed")
 
 	// Then: agent1's metadata should be updated
@@ -94,7 +94,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// When: it becomes time to flush
 	tick <- t3
 	f = <-flushed
-	require.Equal(t, 2, f, "expected two agents to be flushed")
+	require.Equal(t, 5, f, "expected 5 entries to be flushed (3 for agent1 + 2 for agent2)")
 	t.Log("flush 3 completed")
 
 	// Then: both agents' metadata should be updated
@@ -147,7 +147,7 @@ func TestMetadataBatcher(t *testing.T) {
 	t5 := t4.Add(time.Second)
 	tick <- t5
 	f = <-flushed
-	require.Zero(t, f, "expected zero agents to have been flushed")
+	require.Zero(t, f, "expected zero entries to have been flushed")
 	t.Log("flush 5 completed")
 }
 
@@ -234,16 +234,16 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	// Add first update
 	b.Add(agent.ID, []string{"key1"}, []string{"first_value"}, []string{""}, []time.Time{t1})
 
-	// Add second update for same agent (both should be batched)
+	// Add second update for same agent+key (should deduplicate)
 	t2 := t1.Add(time.Millisecond)
 	b.Add(agent.ID, []string{"key1"}, []string{"second_value"}, []string{""}, []time.Time{t2})
 
 	// Flush
 	tick <- t2
 	f := <-flushed
-	require.Equal(t, 2, f, "expected two updates to be flushed")
+	require.Equal(t, 1, f, "expected 1 entry to be flushed (deduplicated)")
 
-	// Verify the second update was applied (last write wins in database)
+	// Verify the second update was applied (deduplication keeps latest value)
 	metadata, err := store.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: agent.ID,
 		Keys:             []string{"key1"},
@@ -252,6 +252,133 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	require.Len(t, metadata, 1)
 	require.Equal(t, "second_value", metadata[0].Value)
 	require.Equal(t, t2, metadata[0].CollectedAt)
+}
+
+func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	store, ps := dbtestutil.NewDB(t)
+
+	agent := setupAgentWithMetadata(t, store)
+
+	tick := make(chan time.Time)
+	flushed := make(chan int, 1)
+
+	b, closer, err := NewMetadataBatcher(ctx,
+		MetadataBatcherWithStore(store),
+		MetadataBatcherWithPubsub(ps),
+		MetadataBatcherWithLogger(log),
+		func(b *MetadataBatcher) {
+			b.tickCh = tick
+			b.flushed = flushed
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	t1 := dbtime.Now()
+
+	// Add updates with some duplicate keys and some unique keys
+	b.Add(agent.ID, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t1, t1})
+
+	t2 := t1.Add(time.Millisecond)
+	// Update key1, add key3 - key2 stays from first update
+	b.Add(agent.ID, []string{"key1", "key3"}, []string{"new_value1", "value3"}, []string{"", ""}, []time.Time{t2, t2})
+
+	// Flush
+	tick <- t2
+	f := <-flushed
+	require.Equal(t, 3, f, "expected 3 entries (key1 deduplicated, key2 and key3 unique)")
+
+	// Verify all keys are present with correct values
+	metadata, err := store.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: agent.ID,
+		Keys:             []string{"key1", "key2", "key3"},
+	})
+	require.NoError(t, err)
+	require.Len(t, metadata, 3)
+
+	// Check each metadata value
+	for _, md := range metadata {
+		switch md.Key {
+		case "key1":
+			require.Equal(t, "new_value1", md.Value, "key1 should have updated value")
+			require.Equal(t, t2, md.CollectedAt)
+		case "key2":
+			require.Equal(t, "value2", md.Value, "key2 should have original value")
+			require.Equal(t, t1, md.CollectedAt)
+		case "key3":
+			require.Equal(t, "value3", md.Value, "key3 should be present")
+			require.Equal(t, t2, md.CollectedAt)
+		}
+	}
+}
+
+func TestMetadataBatcher_EntryCountTracking(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	store, ps := dbtestutil.NewDB(t)
+
+	agent := setupAgentWithMetadata(t, store)
+
+	tick := make(chan time.Time)
+	flushed := make(chan int, 1)
+
+	b, closer, err := NewMetadataBatcher(ctx,
+		MetadataBatcherWithStore(store),
+		MetadataBatcherWithPubsub(ps),
+		MetadataBatcherWithLogger(log),
+		MetadataBatcherWithBatchSize(5), // Small size to test capacity
+		func(b *MetadataBatcher) {
+			b.tickCh = tick
+			b.flushed = flushed
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	t1 := dbtime.Now()
+
+	// Add 3 entries
+	b.Add(agent.ID, []string{"key1", "key2", "key3"}, []string{"v1", "v2", "v3"}, []string{"", "", ""}, []time.Time{t1, t1, t1})
+
+	// Verify internal state
+	b.mu.Lock()
+	require.Equal(t, 3, b.entryCount, "entryCount should be 3")
+	b.mu.Unlock()
+
+	// Add 2 more entries (should reach capacity of 5)
+	b.Add(agent.ID, []string{"key4", "key5"}, []string{"v4", "v5"}, []string{"", ""}, []time.Time{t1, t1})
+
+	// Should trigger automatic flush at capacity
+	f := <-flushed
+	require.Equal(t, 5, f, "expected 5 entries to be flushed")
+
+	// Verify entry count reset after flush
+	b.mu.Lock()
+	require.Equal(t, 0, b.entryCount, "entryCount should be reset to 0 after flush")
+	b.mu.Unlock()
+
+	// Add update to same key (should be counted as replacement, not new entry)
+	t2 := t1.Add(time.Second)
+	b.Add(agent.ID, []string{"key1"}, []string{"new_v1"}, []string{""}, []time.Time{t2})
+
+	b.mu.Lock()
+	require.Equal(t, 1, b.entryCount, "entryCount should be 1 after adding new entry")
+	b.mu.Unlock()
+
+	// Update same key again (should still be 1 entry)
+	b.Add(agent.ID, []string{"key1"}, []string{"newer_v1"}, []string{""}, []time.Time{t2})
+
+	b.mu.Lock()
+	require.Equal(t, 1, b.entryCount, "entryCount should still be 1 after replacement")
+	b.mu.Unlock()
 }
 
 // setupAgentWithMetadata creates a test agent with some metadata keys.
