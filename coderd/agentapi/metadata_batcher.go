@@ -55,9 +55,9 @@ type metadataValue struct {
 // flushes them to the database and pubsub. This reduces database write
 // frequency and pubsub publish rate.
 type MetadataBatcher struct {
-	store  database.Store
-	pubsub pubsub.Pubsub
-	log    slog.Logger
+	store database.Store
+	ps    pubsub.Pubsub
+	log   slog.Logger
 
 	mu sync.Mutex
 	// buf holds pending metadata updates indexed by agent ID and metadata key name.
@@ -94,9 +94,9 @@ func MetadataBatcherWithStore(store database.Store) MetadataBatcherOption {
 }
 
 // MetadataBatcherWithPubsub sets the pubsub to use for publishing metadata updates.
-func MetadataBatcherWithPubsub(pubsub pubsub.Pubsub) MetadataBatcherOption {
+func MetadataBatcherWithPubsub(ps pubsub.Pubsub) MetadataBatcherOption {
 	return func(b *MetadataBatcher) {
-		b.pubsub = pubsub
+		b.ps = ps
 	}
 }
 
@@ -143,7 +143,7 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 		return nil, nil, xerrors.Errorf("no store configured for metadata batcher")
 	}
 
-	if b.pubsub == nil {
+	if b.ps == nil {
 		return nil, nil, xerrors.Errorf("no pubsub configured for metadata batcher")
 	}
 
@@ -408,7 +408,7 @@ func (b *MetadataBatcher) publishChunk(ctx context.Context, agentIDs []uuid.UUID
 		// Still try to publish - it might work or give us better error info.
 	}
 
-	err = b.pubsub.Publish(WatchWorkspaceAgentMetadataBatchChannel(), payload)
+	err = b.ps.Publish(WatchWorkspaceAgentMetadataBatchChannel(), payload)
 	if err != nil {
 		b.log.Error(ctx, "failed to publish workspace agent metadata batch",
 			slog.Error(err),
