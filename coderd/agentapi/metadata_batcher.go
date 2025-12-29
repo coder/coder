@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	// defaultMetadataBatchSize is the maximum number of agents to batch in a
-	// single flush. This provides headroom for growth beyond typical 300
-	// agents per flush.
+	// defaultMetadataBatchSize is the maximum number of metadata entries
+	// (key-value pairs across all agents) to batch before forcing a flush.
+	// With typical agents having 5-15 metadata keys, this accommodates
+	// 30-100 agents per batch.
 	defaultMetadataBatchSize = 500
 
 	// defaultMetadataFlushInterval is how frequently to flush batched metadata
@@ -100,7 +101,7 @@ func MetadataBatcherWithPubsub(ps pubsub.Pubsub) MetadataBatcherOption {
 	}
 }
 
-// MetadataBatcherWithBatchSize sets the maximum number of agents to batch.
+// MetadataBatcherWithBatchSize sets the maximum number of metadata entries to batch.
 func MetadataBatcherWithBatchSize(size int) MetadataBatcherOption {
 	return func(b *MetadataBatcher) {
 		b.batchSize = size
