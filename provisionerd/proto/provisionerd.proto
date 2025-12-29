@@ -28,7 +28,6 @@ message AcquiredJob {
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
     // Reserved 11 for an experiment `exp_reuse_terraform_workspace` (bool) that was replaced.
     reserved 11;
-    bytes initial_modules_tar = 12;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;
@@ -160,10 +159,20 @@ message CommitQuotaResponse {
 
 message CancelAcquire {}
 
+message FileRequest {
+  string file_id = 1;
+}
+
+
+message FailedFile {
+  string error = 1;
+}
+
 message UploadFileRequest {
   oneof type {
     provisioner.DataUpload data_upload = 1;
     provisioner.ChunkPiece chunk_piece = 2;
+    FailedFile error = 3;
   }
 }
 
@@ -198,4 +207,6 @@ service ProvisionerDaemon {
   // UploadFile streams files to be inserted into the database.
   // The file upload_type should be used to determine how to handle the file.
   rpc UploadFile(stream UploadFileRequest) returns (Empty);
+
+  rpc DownloadFile(FileRequest) returns (stream UploadFileRequest);
 }

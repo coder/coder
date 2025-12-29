@@ -365,6 +365,7 @@ message Metadata {
   string task_id = 22;
   string task_prompt = 23;
   string template_version_id = 24;
+  string template_version_modules_file = 25;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

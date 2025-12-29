@@ -509,19 +509,25 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+
+		versionModulesFile := ""
 		tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			// Allow ErrNoRows here as terraform values are not present on older template versions.
 			return nil, failJob(fmt.Sprintf("get template version terraform values: %s", err))
 		}
-		var cachedModulesData []byte
-		if tfvals.CachedModuleFiles.Valid && tfvals.CachedModuleFiles.UUID != uuid.Nil {
-			cachedModules, err := s.Database.GetFileByID(ctx, tfvals.CachedModuleFiles.UUID)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("get cached module files: %s", err))
-			}
-			cachedModulesData = cachedModules.Data
+		if err == nil && tfvals.CachedModuleFiles.Valid {
+			versionModulesFile = tfvals.CachedModuleFiles.UUID.String()
 		}
+
+		//var cachedModulesData []byte
+		//if tfvals.CachedModuleFiles.Valid && tfvals.CachedModuleFiles.UUID != uuid.Nil {
+		//	cachedModules, err := s.Database.GetFileByID(ctx, tfvals.CachedModuleFiles.UUID)
+		//	if err != nil {
+		//		return nil, failJob(fmt.Sprintf("get cached module files: %s", err))
+		//	}
+		//	cachedModulesData = cachedModules.Data
+		//}
 
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
 		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
@@ -714,7 +720,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				InitialModulesTar:       cachedModulesData, // TODO: This might exceed the max message size
+				//InitialModulesTar:       cachedModulesData, // TODO: This might exceed the max message size
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
 				WorkspaceName:           workspace.Name,
 				State:                   workspaceBuild.ProvisionerState,
@@ -747,6 +753,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
 					TaskId:                        task.ID.String(),
 					TaskPrompt:                    task.Prompt,
+					TemplateVersionModulesFile:    versionModulesFile,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1440,52 +1447,9 @@ func (s *server) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream)
 	// Always terminate the stream with an empty response.
 	defer stream.SendAndClose(&proto.Empty{})
 
-UploadFileStream:
-	for {
-		msg, err := stream.Recv()
-		if err != nil {
-			return xerrors.Errorf("receive complete job with files: %w", err)
-		}
-
-		switch typed := msg.Type.(type) {
-		case *proto.UploadFileRequest_DataUpload:
-			if file != nil {
-				return xerrors.New("unexpected file upload while waiting for file completion")
-			}
-
-			file, err = sdkproto.NewDataBuilder(&sdkproto.DataUpload{
-				UploadType: typed.DataUpload.UploadType,
-				DataHash:   typed.DataUpload.DataHash,
-				FileSize:   typed.DataUpload.FileSize,
-				Chunks:     typed.DataUpload.Chunks,
-			})
-			if err != nil {
-				return xerrors.Errorf("unable to create file upload: %w", err)
-			}
-
-			if file.IsDone() {
-				// If a file is 0 bytes, we can consider it done immediately.
-				// This should never really happen in practice, but we handle it gracefully.
-				break UploadFileStream
-			}
-		case *proto.UploadFileRequest_ChunkPiece:
-			if file == nil {
-				return xerrors.New("unexpected chunk piece while waiting for file upload")
-			}
-
-			done, err := file.Add(&sdkproto.ChunkPiece{
-				Data:         typed.ChunkPiece.Data,
-				FullDataHash: typed.ChunkPiece.FullDataHash,
-				PieceIndex:   typed.ChunkPiece.PieceIndex,
-			})
-			if err != nil {
-				return xerrors.Errorf("unable to add chunk piece: %w", err)
-			}
-
-			if done {
-				break UploadFileStream
-			}
-		}
+	file, err := provisionersdk.HandleReceivingDataUpload(stream)
+	if err != nil {
+		return err
 	}
 
 	fileData, err := file.Complete()
@@ -1529,6 +1493,60 @@ UploadFileStream:
 		// new_insert indicates whether the file was newly inserted or already existed.
 		slog.F("new_insert", err == nil),
 	)
+
+	return nil
+}
+
+func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvisionerDaemon_DownloadFileStream) error {
+	defer stream.CloseSend()
+	ctx := dbauthz.AsProvisionerd(stream.Context())
+
+	// A graceful error message will help debugging.
+	fail := func(err error) error {
+		_ = stream.Send(&proto.UploadFileRequest{
+			Type: &proto.UploadFileRequest_Error{
+				Error: &proto.FailedFile{
+					Error: err.Error(),
+				},
+			},
+		})
+		return err
+	}
+	if request.FileId == "" || request.FileId == uuid.Nil.String() {
+		return fail(xerrors.New("file id is required"))
+	}
+
+	fid, err := uuid.Parse(request.FileId)
+	if err != nil {
+		return fail(xerrors.Errorf("invalid file id: %w", err))
+	}
+
+	file, err := s.Database.GetFileByID(ctx, fid)
+	if err != nil {
+		return fail(xerrors.Errorf("get file: %w", err))
+	}
+
+	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+
+	err = stream.Send(&proto.UploadFileRequest{
+		Type: &proto.UploadFileRequest_DataUpload{DataUpload: upload},
+	})
+	if err != nil {
+		return fail(xerrors.Errorf("send file upload: %w", err))
+	}
+
+	for i, c := range chunks {
+		if ctx.Err() != nil {
+			return fail(ctx.Err())
+		}
+
+		err = stream.Send(&proto.UploadFileRequest{
+			Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: c},
+		})
+		if err != nil {
+			return fail(xerrors.Errorf("send chunk piece %d: %w", i, err))
+		}
+	}
 
 	return nil
 }
