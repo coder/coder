@@ -474,7 +474,7 @@ require (
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
-	github.com/brianvoe/gofakeit/v7 v7.12.1
+	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aibridge v0.3.0
 	github.com/coder/aisdk-go v0.0.9
