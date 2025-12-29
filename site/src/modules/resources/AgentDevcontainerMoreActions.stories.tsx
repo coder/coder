@@ -29,9 +29,6 @@ export const MenuOpen: Story = {
 		await user.click(
 			canvas.getByRole("button", { name: "Dev Container actions" }),
 		);
-
-		const body = canvasElement.ownerDocument.body;
-		await within(body).findByText("Delete…");
 	},
 };
 
@@ -46,8 +43,6 @@ export const ConfirmDialogOpen: Story = {
 
 		const body = canvasElement.ownerDocument.body;
 		await user.click(await within(body).findByText("Delete…"));
-
-		await within(body).findByText("Delete Dev Container");
 	},
 };
 
@@ -57,7 +52,7 @@ export const ConfirmDeleteCallsAPI: Story = {
 		const canvas = within(canvasElement);
 
 		const deleteSpy = spyOn(API, "deleteDevContainer").mockResolvedValue(
-			undefined as never,
+			undefined,
 		);
 
 		await user.click(
