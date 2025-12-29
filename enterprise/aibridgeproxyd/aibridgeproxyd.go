@@ -5,11 +5,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -48,9 +48,9 @@ type Server struct {
 	httpServer     *http.Server
 	listener       net.Listener
 	coderAccessURL *url.URL
-	// certPEM is the PEM-encoded CA certificate loaded during initialization.
+	// caCert is the PEM-encoded CA certificate loaded during initialization.
 	// This is served to clients who need to trust the proxy.
-	certPEM []byte
+	caCert []byte
 }
 
 // Options configures the AI Bridge Proxy server.
@@ -115,7 +115,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		logger:         logger,
 		proxy:          proxy,
 		coderAccessURL: coderAccessURL,
-		certPEM:        certPEM,
+		caCert:         certPEM,
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -182,20 +182,25 @@ func (s *Server) Close() error {
 // into the global goproxy.GoproxyCa variable.
 // Returns the PEM-encoded certificate for serving to clients.
 func loadMitmCertificate(certFile, keyFile string) ([]byte, error) {
-	certPEM, err := os.ReadFile(certFile)
-	if err != nil {
-		return nil, xerrors.Errorf("read CA certificate file: %w", err)
-	}
-
 	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, xerrors.Errorf("load CA certificate: %w", err)
+	}
+
+	if len(tlsCert.Certificate) == 0 {
+		return nil, xerrors.Errorf("no certificates found")
 	}
 
 	x509Cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
 	if err != nil {
 		return nil, xerrors.Errorf("parse CA certificate: %w", err)
 	}
+
+	// Ensure that we only return the certificate and never any included private keys.
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: tlsCert.Certificate[0],
+	})
 
 	// Only protect the global assignment with sync.Once
 	loadMitmOnce.Do(func() {
@@ -416,7 +421,7 @@ func (s *Server) Handler() http.Handler {
 // proxying. Clients need this certificate to trust the proxy's intercepted
 // connections. The certificate was validated during server initialization.
 func (s *Server) serveCACert(rw http.ResponseWriter, _ *http.Request) {
-	if len(s.certPEM) == 0 {
+	if len(s.caCert) == 0 {
 		http.Error(rw, "CA certificate not configured", http.StatusNotFound)
 		return
 	}
@@ -424,5 +429,5 @@ func (s *Server) serveCACert(rw http.ResponseWriter, _ *http.Request) {
 	rw.Header().Set("Content-Type", "application/x-pem-file")
 	rw.Header().Set("Content-Disposition", "attachment; filename=ca-cert.pem")
 	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(s.certPEM)
+	_, _ = rw.Write(s.caCert)
 }
