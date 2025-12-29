@@ -381,6 +381,66 @@ func TestMetadataBatcher_EntryCountTracking(t *testing.T) {
 	b.mu.Unlock()
 }
 
+func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	store, ps := dbtestutil.NewDB(t)
+
+	agent := setupAgentWithMetadata(t, store)
+
+	tick := make(chan time.Time)
+	flushed := make(chan int, 1)
+
+	b, closer, err := NewMetadataBatcher(ctx,
+		MetadataBatcherWithStore(store),
+		MetadataBatcherWithPubsub(ps),
+		MetadataBatcherWithLogger(log),
+		func(b *MetadataBatcher) {
+			b.tickCh = tick
+			b.flushed = flushed
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	t1 := dbtime.Now()
+	t2 := t1.Add(time.Second)
+	t3 := t1.Add(2 * time.Second)
+
+	// Add update with t2 timestamp
+	b.Add(agent.ID, []string{"key1"}, []string{"newer_value"}, []string{""}, []time.Time{t2})
+
+	// Try to add older update with t1 timestamp - should be ignored
+	b.Add(agent.ID, []string{"key1"}, []string{"older_value"}, []string{""}, []time.Time{t1})
+
+	// Add even newer update with t3 timestamp - should overwrite
+	b.Add(agent.ID, []string{"key1"}, []string{"newest_value"}, []string{""}, []time.Time{t3})
+
+	// Verify internal state - should have only 1 entry
+	b.mu.Lock()
+	require.Equal(t, 1, b.entryCount, "entryCount should be 1")
+	require.Equal(t, "newest_value", b.buf[agent.ID]["key1"].value, "should have newest value")
+	require.Equal(t, t3, b.buf[agent.ID]["key1"].collectedAt, "should have newest timestamp")
+	b.mu.Unlock()
+
+	// Flush and verify database has the newest value
+	tick <- t3
+	f := <-flushed
+	require.Equal(t, 1, f, "expected 1 entry to be flushed")
+
+	metadata, err := store.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: agent.ID,
+		Keys:             []string{"key1"},
+	})
+	require.NoError(t, err)
+	require.Len(t, metadata, 1)
+	require.Equal(t, "newest_value", metadata[0].Value, "database should have newest value")
+	require.Equal(t, t3, metadata[0].CollectedAt, "database should have newest timestamp")
+}
+
 // setupAgentWithMetadata creates a test agent with some metadata keys.
 func setupAgentWithMetadata(t *testing.T, store database.Store) database.WorkspaceAgent {
 	t.Helper()

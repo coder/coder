@@ -170,8 +170,9 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 
 // Add adds metadata updates for an agent to the batcher.
 // Updates to the same metadata key for the same agent are deduplicated,
-// keeping only the most recent value. If the buffer is at capacity, updates
-// are dropped.
+// keeping only the value with the most recent collectedAt timestamp. Older
+// updates are silently ignored. If the buffer is at capacity, updates are
+// dropped.
 func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -194,8 +195,17 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 			return
 		}
 
-		// Check if this is a new key (not a replacement).
-		if _, exists := b.buf[agentID][keys[i]]; !exists {
+		// Check if an entry already exists for this key.
+		existingValue, exists := b.buf[agentID][keys[i]]
+		if exists {
+			// Only overwrite if the new data is newer than the existing data.
+			if collectedAt[i].Before(existingValue.collectedAt) {
+				// Skip this update - the existing data is newer.
+				continue
+			}
+			// Existing entry will be replaced, no change to entryCount.
+		} else {
+			// New key - increment the entry count.
 			b.entryCount++
 		}
 
