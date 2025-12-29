@@ -173,6 +173,9 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
 			}
 			closers.Add(aiBridgeProxyServer)
+
+			// Register the handler so coderd can serve the proxy endpoints.
+			api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
 		}
 
 		return api.AGPL, closers, nil
