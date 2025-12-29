@@ -490,3 +490,9 @@ export const workspaceAgentCredentials = (
 		queryFn: () => API.getWorkspaceAgentCredentials(workspaceId, agentName),
 	};
 };
+
+export const workspaceAgentContainersKey = (agentId: string) => [
+	"agents",
+	agentId,
+	"containers",
+];

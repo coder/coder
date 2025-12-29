@@ -35,6 +35,7 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
+import { workspaceAgentContainersKey } from "api/queries/workspaces";
 
 type AgentDevcontainerCardProps = {
 	parentAgent: WorkspaceAgent;
@@ -79,6 +80,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		showVSCode ||
 		appSections.some((it) => it.apps.length > 0);
 
+	const queryKey = workspaceAgentContainersKey(parentAgent.id);
+
 	const rebuildDevcontainerMutation = useMutation({
 		mutationFn: async () => {
 			await API.recreateDevContainer({
@@ -87,22 +90,16 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			});
 		},
 		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: ["agents", parentAgent.id, "containers"],
-			});
+			await queryClient.cancelQueries({ queryKey });
 
 			// Snapshot the previous data for rollback in case of error.
-			const previousData = queryClient.getQueryData([
-				"agents",
-				parentAgent.id,
-				"containers",
-			]);
+			const previousData = queryClient.getQueryData(queryKey);
 
 			// Optimistically update the devcontainer status to
 			// "starting" and zero the agent and container to mimic what
 			// the API does.
 			queryClient.setQueryData(
-				["agents", parentAgent.id, "containers"],
+				queryKey,
 				(oldData?: WorkspaceAgentListContainersResponse) => {
 					if (!oldData?.devcontainers) return oldData;
 					return {
@@ -127,10 +124,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			// If the mutation fails, use the context returned from
 			// onMutate to roll back.
 			if (context?.previousData) {
-				queryClient.setQueryData(
-					["agents", parentAgent.id, "containers"],
-					context.previousData,
-				);
+				queryClient.setQueryData(queryKey, context.previousData);
 			}
 			const errorMessage =
 				error instanceof Error ? error.message : "An unknown error occurred.";
@@ -150,9 +144,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		if (!latestSubAgentByName?.id || !latestSubAgentByName?.status) {
 			return;
 		}
-		queryClient.invalidateQueries({
-			queryKey: ["agents", parentAgent.id, "containers"],
-		});
+		queryClient.invalidateQueries({ queryKey });
 	}, [
 		latestSubAgentByName?.id,
 		latestSubAgentByName?.status,

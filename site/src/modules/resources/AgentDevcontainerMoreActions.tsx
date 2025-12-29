@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import { workspaceAgentContainersKey } from "api/queries/workspaces";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
@@ -29,6 +30,8 @@ export const AgentDevcontainerMoreActions: FC<
 	const [open, setOpen] = useState(false);
 	const menuContentId = useId();
 
+	const queryKey = workspaceAgentContainersKey(parentAgent.id);
+
 	const deleteDevContainerMutation = useMutation({
 		mutationFn: async () => {
 			await API.deleteDevContainer({
@@ -37,20 +40,16 @@ export const AgentDevcontainerMoreActions: FC<
 			});
 		},
 		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: ["agents", parentAgent.id, "containers"],
-			});
-
-			const previousData = queryClient.getQueryData([
-				"agents",
-				parentAgent.id,
-				"containers",
-			]);
+			await queryClient.cancelQueries({ queryKey });
+			const previousData = queryClient.getQueryData(queryKey);
 
 			queryClient.setQueryData(
-				["agents", parentAgent.id, "containers"],
+				queryKey,
 				(oldData?: WorkspaceAgentListContainersResponse) => {
-					if (!oldData?.devcontainers) return oldData;
+					if (!oldData?.devcontainers) {
+						return oldData;
+					}
+
 					return {
 						...oldData,
 						devcontainers: oldData.devcontainers.map((dc) => {
@@ -71,10 +70,7 @@ export const AgentDevcontainerMoreActions: FC<
 		},
 		onError: (_, __, context) => {
 			if (context?.previousData) {
-				queryClient.setQueryData(
-					["agents", parentAgent.id, "containers"],
-					context.previousData,
-				);
+				queryClient.setQueryData(queryKey, context.previousData);
 			}
 		},
 	});
