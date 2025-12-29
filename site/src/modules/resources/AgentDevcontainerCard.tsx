@@ -5,6 +5,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
+	WorkspaceAgentDevcontainerStatus,
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -126,6 +127,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			if (context?.previousData) {
 				queryClient.setQueryData(queryKey, context.previousData);
 			}
+
 			const errorMessage =
 				error instanceof Error ? error.message : "An unknown error occurred.";
 			displayError(`Failed to rebuild devcontainer: ${errorMessage}`);
@@ -153,15 +155,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	]);
 
 	const showDevcontainerControls = subAgent && devcontainer.container;
-	const statusLabels: Partial<
-		Record<WorkspaceAgentDevcontainer["status"], string>
-	> = {
-		deleting: "Deleting",
-		stopping: "Stopping",
-	};
-	const rebuildButtonLabel =
-		statusLabels[devcontainer.status] ??
-		(devcontainer.container === undefined ? "Start" : "Rebuild");
 	const isTransitioning =
 		devcontainer.status === "starting" ||
 		devcontainer.status === "stopping" ||
@@ -254,7 +247,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					>
 						<Spinner loading={isTransitioning} />
 
-						{rebuildButtonLabel}
+						{rebuildButtonLabel(devcontainer)}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
@@ -389,3 +382,19 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		</Stack>
 	);
 };
+
+function rebuildButtonLabel(devcontainer: WorkspaceAgentDevcontainer) {
+	switch (devcontainer.status) {
+		case "deleting":
+			return "Deleting";
+
+		case "stopping":
+			return "Stopping";
+
+		default:
+			if (devcontainer.container) {
+				return "Rebuild";
+			}
+			return "Start";
+	}
+}
