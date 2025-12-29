@@ -39,6 +39,10 @@ OPTIONS:
       --block-file-transfer bool, $CODER_AGENT_BLOCK_FILE_TRANSFER (default: false)
           Block file transfer using known applications: nc,rsync,scp,sftp.
 
+      --boundary-proxy-socket-path string, $CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH (default: /tmp/boundary-proxy.sock)
+          The path for the boundary log proxy server Unix socket. Boundary
+          should write audit logs to this socket.
+
       --debug-address string, $CODER_AGENT_DEBUG_ADDRESS (default: 127.0.0.1:2113)
           The bind address to serve a debug HTTP server.
 

@@ -103,6 +103,7 @@ type Options struct {
 	Clock                        quartz.Clock
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
+	BoundaryLogProxySocketPath   string
 }
 
 type Client interface {
@@ -206,10 +207,11 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		devcontainers:       options.Devcontainers,
-		containerAPIOptions: options.DevcontainerAPIOptions,
-		socketPath:          options.SocketPath,
-		socketServerEnabled: options.SocketServerEnabled,
+		devcontainers:              options.Devcontainers,
+		containerAPIOptions:        options.DevcontainerAPIOptions,
+		socketPath:                 options.SocketPath,
+		socketServerEnabled:        options.SocketServerEnabled,
+		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -280,7 +282,8 @@ type agent struct {
 
 	// boundaryLogProxy is a socket server that forwards boundary audit logs to coderd.
 	// It may be nil if there is a problem starting the server.
-	boundaryLogProxy *boundarylogproxy.Server
+	boundaryLogProxy           *boundarylogproxy.Server
+	boundaryLogProxySocketPath string
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -403,9 +406,7 @@ func (a *agent) initSocketServer() {
 
 // startBoundaryLogProxyServer starts the boundary log proxy socket server.
 func (a *agent) startBoundaryLogProxyServer() {
-	const boundaryAuditSocketPath = "/tmp/boundary-audit.sock"
-
-	proxy := boundarylogproxy.NewServer(a.logger, boundaryAuditSocketPath)
+	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath)
 	if err := proxy.Start(); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
 		return
@@ -413,7 +414,7 @@ func (a *agent) startBoundaryLogProxyServer() {
 
 	a.boundaryLogProxy = proxy
 	a.logger.Info(a.hardCtx, "boundary log proxy server started",
-		slog.F("socket_path", boundaryAuditSocketPath))
+		slog.F("socket_path", a.boundaryLogProxySocketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.

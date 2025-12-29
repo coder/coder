@@ -59,6 +59,7 @@ func workspaceAgent() *serpent.Command {
 		devcontainerDiscoveryAutostart bool
 		socketServerEnabled            bool
 		socketPath                     string
+		boundaryLogProxySocketPath     string
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -319,8 +320,9 @@ func workspaceAgent() *serpent.Command {
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
 						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
 					},
-					SocketPath:          socketPath,
-					SocketServerEnabled: socketServerEnabled,
+					SocketPath:                 socketPath,
+					SocketServerEnabled:        socketServerEnabled,
+					BoundaryLogProxySocketPath: boundaryLogProxySocketPath,
 				})
 
 				if debugAddress != "" {
@@ -493,6 +495,13 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_SOCKET_PATH",
 			Description: "Specify the path for the agent socket.",
 			Value:       serpent.StringOf(&socketPath),
+		},
+		{
+			Flag:        "boundary-proxy-socket-path",
+			Default:     "/tmp/boundary-proxy.sock",
+			Env:         "CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH",
+			Description: "The path for the boundary log proxy server Unix socket. Boundary should write audit logs to this socket.",
+			Value:       serpent.StringOf(&boundaryLogProxySocketPath),
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)
