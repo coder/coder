@@ -806,37 +806,23 @@ func TestServeCACert(t *testing.T) {
 func TestServeCACert_CompoundPEM(t *testing.T) {
 	t.Parallel()
 
-	// Generate a CA certificate and key.
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	certFile, keyFile := getSharedTestCA(t)
+
+	// Read the shared CA cert and key to create a compound PEM file.
+	certPEM, err := os.ReadFile(certFile)
 	require.NoError(t, err)
-
-	caTemplate := x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "Compound PEM Test CA"},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-
-	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caKey.PublicKey, caKey)
+	keyPEM, err := os.ReadFile(keyFile)
 	require.NoError(t, err)
 
 	// Create a compound PEM file containing both the certificate and the private key.
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
 	compoundPEM := make([]byte, 0, len(certPEM)+len(keyPEM))
 	compoundPEM = append(compoundPEM, certPEM...)
 	compoundPEM = append(compoundPEM, keyPEM...)
 
 	tmpDir := t.TempDir()
 	compoundCertFile := filepath.Join(tmpDir, "compound.pem")
-	keyFile := filepath.Join(tmpDir, "key.pem")
 
 	err = os.WriteFile(compoundCertFile, compoundPEM, 0o600)
-	require.NoError(t, err)
-	err = os.WriteFile(keyFile, keyPEM, 0o600)
 	require.NoError(t, err)
 
 	logger := slogtest.Make(t, nil)
@@ -886,5 +872,5 @@ func TestServeCACert_CompoundPEM(t *testing.T) {
 	// Verify the certificate is valid X.509.
 	cert, err := x509.ParseCertificate(pemBlocks[0].Bytes)
 	require.NoError(t, err)
-	require.Equal(t, "Compound PEM Test CA", cert.Subject.CommonName)
+	require.Equal(t, "Shared Test CA", cert.Subject.CommonName)
 }
