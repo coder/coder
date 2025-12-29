@@ -174,7 +174,6 @@ SET
 	max_port_sharing_level = $9,
 	use_classic_parameter_flow = $10,
 	cors_behavior = $11,
-	use_terraform_workspace_cache = $12
 WHERE
 	id = $1
 ;

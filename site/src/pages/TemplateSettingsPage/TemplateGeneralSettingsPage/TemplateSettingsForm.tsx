@@ -97,7 +97,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			max_port_share_level: template.max_port_share_level,
 			use_classic_parameter_flow: template.use_classic_parameter_flow,
 			cors_behavior: template.cors_behavior,
-			use_terraform_workspace_cache: template.use_terraform_workspace_cache,
 		},
 		validationSchema,
 		onSubmit,
