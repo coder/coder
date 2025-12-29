@@ -26,7 +26,8 @@ message AcquiredJob {
     // workspace build. Omit these values if the workspace is being created
     // for the first time.
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
-    optional bool exp_reuse_terraform_workspace = 11;
+    // Reserved 11 for an experiment `exp_reuse_terraform_workspace` (bool) that was replaced.
+    reserved 11;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;

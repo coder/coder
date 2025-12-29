@@ -13,10 +13,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
-	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
 
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -54,10 +52,6 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	s.Config = config
 	if s.Config.ProvisionerLogLevel != "" {
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
-	}
-
-	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
-		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
 	}
 
 	// Cleanup any previously left stale sessions.
@@ -255,7 +249,7 @@ func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *pr
 
 type Session struct {
 	Logger slog.Logger
-	Files  tfpath.Layouter
+	Files  tfpath.Layout
 	Config *proto.Config
 
 	// initialized indicates if an init was run.

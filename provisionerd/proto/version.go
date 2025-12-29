@@ -62,9 +62,12 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added new field `template_version_id` to `provisioner.Metadata`
 //   - Added new field `exp_reuse_terraform_workspace` to `provisioner.Job.WorkspaceBuild`
 //   - Added fields `template_version_id`, `template_id`, and `exp_reuse_terraform_workspace` to `provisioner.Config`
+//
+// API v1.13:
+//   - Removed experimental fields `exp_reuse_terraform_workspace`. Caching moved into Coderd
 const (
 	CurrentMajor = 1
-	CurrentMinor = 12
+	CurrentMinor = 13
 )
 
 // CurrentVersion is the current provisionerd API version.
