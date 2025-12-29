@@ -40,7 +40,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@fe4161a26a8629af62121b670040955b330f9af2 # v3.29.5
+        uses: github/codeql-action/init@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v3.29.5
         with:
           languages: go, javascript
 
@@ -50,7 +50,7 @@ jobs:
           rm Makefile
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@fe4161a26a8629af62121b670040955b330f9af2 # v3.29.5
+        uses: github/codeql-action/analyze@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v3.29.5
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
@@ -154,7 +154,7 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@fe4161a26a8629af62121b670040955b330f9af2 # v3.29.5
+        uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v3.29.5
         with:
           sarif_file: trivy-results.sarif
           category: "Trivy"
