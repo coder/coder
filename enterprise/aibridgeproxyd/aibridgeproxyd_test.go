@@ -749,3 +749,128 @@ func TestProxy_MITM(t *testing.T) {
 		})
 	}
 }
+
+// TestServeCACert validates that a configured certificate file can be served correctly by the API.
+//
+// Note: Tests for certificate file errors (missing file, invalid PEM) are
+// covered by [TestNew] since certificate validation happens at initialization.
+// The serveCACert handler returns the pre-loaded, pre-validated certificate.
+func TestServeCACert(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:     "127.0.0.1:0",
+			CoderAccessURL: "http://localhost:3000",
+			CertFile:       certFile,
+			KeyFile:        keyFile,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
+
+		// Create a request to the CA cert endpoint via the Handler.
+		req := httptest.NewRequest(http.MethodGet, "/ca-cert.pem", nil)
+		rec := httptest.NewRecorder()
+
+		srv.Handler().ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "application/x-pem-file", rec.Header().Get("Content-Type"))
+		require.Equal(t, "attachment; filename=ca-cert.pem", rec.Header().Get("Content-Disposition"))
+
+		// Verify the certificate is valid PEM.
+		body := rec.Body.Bytes()
+		block, _ := pem.Decode(body)
+		require.NotNil(t, block, "response should be valid PEM")
+		require.Equal(t, "CERTIFICATE", block.Type)
+
+		// Verify the certificate is valid X.509.
+		cert, err := x509.ParseCertificate(block.Bytes)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+
+		// Verify it matches the original certificate.
+		expectedCertPEM, err := os.ReadFile(certFile)
+		require.NoError(t, err)
+		require.Equal(t, expectedCertPEM, body)
+	})
+}
+
+// TestServeCACert_CompoundPEM validates that a compound PEM certificate which contains a private key
+// will only have its certificate type returned from the /ca-cert.pem endpoint.
+func TestServeCACert_CompoundPEM(t *testing.T) {
+	t.Parallel()
+
+	certFile, keyFile := getSharedTestCA(t)
+
+	// Read the shared CA cert and key to create a compound PEM file.
+	certPEM, err := os.ReadFile(certFile)
+	require.NoError(t, err)
+	keyPEM, err := os.ReadFile(keyFile)
+	require.NoError(t, err)
+
+	// Create a compound PEM file containing both the certificate and the private key.
+	compoundPEM := make([]byte, 0, len(certPEM)+len(keyPEM))
+	compoundPEM = append(compoundPEM, certPEM...)
+	compoundPEM = append(compoundPEM, keyPEM...)
+
+	tmpDir := t.TempDir()
+	compoundCertFile := filepath.Join(tmpDir, "compound.pem")
+
+	err = os.WriteFile(compoundCertFile, compoundPEM, 0o600)
+	require.NoError(t, err)
+
+	logger := slogtest.Make(t, nil)
+
+	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+		ListenAddr:     "127.0.0.1:0",
+		CoderAccessURL: "http://localhost:3000",
+		CertFile:       compoundCertFile,
+		KeyFile:        keyFile,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	// Create a request to the CA cert endpoint via the Handler.
+	req := httptest.NewRequest(http.MethodGet, "/ca-cert.pem", nil)
+	rec := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Verify the response contains only the certificate, not the private key.
+	body := rec.Body.Bytes()
+
+	// Parse all PEM blocks from the response.
+	var pemBlocks []*pem.Block
+	remaining := body
+	for {
+		var block *pem.Block
+		block, remaining = pem.Decode(remaining)
+		if block == nil {
+			break
+		}
+		pemBlocks = append(pemBlocks, block)
+	}
+
+	// There should be exactly one PEM block (the certificate).
+	require.Len(t, pemBlocks, 1, "response should contain exactly one PEM block")
+	require.Equal(t, "CERTIFICATE", pemBlocks[0].Type, "the PEM block should be a certificate")
+
+	// Verify no private key material is present by checking for common key block types.
+	bodyStr := string(body)
+	require.NotContains(t, bodyStr, "PRIVATE KEY", "response should not contain any private key")
+	require.NotContains(t, bodyStr, "RSA PRIVATE KEY", "response should not contain RSA private key")
+	require.NotContains(t, bodyStr, "EC PRIVATE KEY", "response should not contain EC private key")
+
+	// Verify the certificate is valid X.509.
+	cert, err := x509.ParseCertificate(pemBlocks[0].Bytes)
+	require.NoError(t, err)
+	require.Equal(t, "Shared Test CA", cert.Subject.CommonName)
+}

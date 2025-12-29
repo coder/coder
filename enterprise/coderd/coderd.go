@@ -231,6 +231,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
 		r.Group(func(r chi.Router) {
@@ -691,7 +695,8 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	aibridgedHandler http.Handler
+	aibridgedHandler      http.Handler
+	aibridgeproxydHandler http.Handler
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header

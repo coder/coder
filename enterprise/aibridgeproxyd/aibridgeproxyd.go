@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"net"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/elazarl/goproxy"
+	"github.com/go-chi/chi/v5"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -46,6 +48,9 @@ type Server struct {
 	httpServer     *http.Server
 	listener       net.Listener
 	coderAccessURL *url.URL
+	// caCert is the PEM-encoded CA certificate loaded during initialization.
+	// This is served to clients who need to trust the proxy.
+	caCert []byte
 }
 
 // Options configures the AI Bridge Proxy server.
@@ -87,7 +92,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	// Load CA certificate for MITM
-	if err := loadMitmCertificate(opts.CertFile, opts.KeyFile); err != nil {
+	certPEM, err := loadMitmCertificate(opts.CertFile, opts.KeyFile)
+	if err != nil {
 		return nil, xerrors.Errorf("failed to load MITM certificate: %w", err)
 	}
 
@@ -109,6 +115,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		logger:         logger,
 		proxy:          proxy,
 		coderAccessURL: coderAccessURL,
+		caCert:         certPEM,
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -173,16 +180,27 @@ func (s *Server) Close() error {
 // loadMitmCertificate loads the CA certificate and private key for MITM proxying.
 // This function is safe to call concurrently - the certificate is only loaded once
 // into the global goproxy.GoproxyCa variable.
-func loadMitmCertificate(certFile, keyFile string) error {
+// Returns the PEM-encoded certificate for serving to clients.
+func loadMitmCertificate(certFile, keyFile string) ([]byte, error) {
 	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return xerrors.Errorf("load CA certificate: %w", err)
+		return nil, xerrors.Errorf("load CA certificate: %w", err)
+	}
+
+	if len(tlsCert.Certificate) == 0 {
+		return nil, xerrors.Errorf("no certificates found")
 	}
 
 	x509Cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
 	if err != nil {
-		return xerrors.Errorf("parse CA certificate: %w", err)
+		return nil, xerrors.Errorf("parse CA certificate: %w", err)
 	}
+
+	// Ensure that we only return the certificate and never any included private keys.
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: tlsCert.Certificate[0],
+	})
 
 	// Only protect the global assignment with sync.Once
 	loadMitmOnce.Do(func() {
@@ -193,7 +211,7 @@ func loadMitmCertificate(certFile, keyFile string) error {
 		}
 	})
 
-	return nil
+	return certPEM, nil
 }
 
 // portMiddleware is a CONNECT middleware that rejects requests to non-standard ports.
@@ -388,4 +406,28 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	)
 
 	return req, nil
+}
+
+// Handler returns an HTTP handler for the AI Bridge Proxy's HTTP endpoints.
+// This is separate from the proxy server itself and is used by coderd to
+// serve endpoints like the CA certificate.
+func (s *Server) Handler() http.Handler {
+	r := chi.NewRouter()
+	r.Get("/ca-cert.pem", s.serveCACert)
+	return r
+}
+
+// serveCACert is an HTTP handler that serves the CA certificate used for MITM
+// proxying. Clients need this certificate to trust the proxy's intercepted
+// connections. The certificate was validated during server initialization.
+func (s *Server) serveCACert(rw http.ResponseWriter, _ *http.Request) {
+	if len(s.caCert) == 0 {
+		http.Error(rw, "CA certificate not configured", http.StatusNotFound)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/x-pem-file")
+	rw.Header().Set("Content-Disposition", "attachment; filename=ca-cert.pem")
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(s.caCert)
 }
