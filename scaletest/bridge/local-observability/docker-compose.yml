@@ -120,6 +120,33 @@ services:
       - loki
     restart: unless-stopped
 
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      - DATA_SOURCE_NAME=postgresql://coder:coder@host.docker.internal:5435/coder?sslmode=disable
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - observability
+    restart: unless-stopped
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.rootfs=/host'
+    pid: host
+    volumes:
+      - '/:/host:ro,rslave'
+    networks:
+      - observability
+    restart: unless-stopped
+
 
 volumes:
   prometheus-data:

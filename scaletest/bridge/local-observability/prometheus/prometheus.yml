@@ -38,3 +38,19 @@ scrape_configs:
   - job_name: 'tempo-metrics-generator'
     static_configs:
       - targets: ['tempo:3200']
+
+  # PostgreSQL metrics from postgres-exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          environment: 'development'
+
+  # Host system metrics from node-exporter
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+          environment: 'development'
