@@ -26,6 +26,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 		switch r := l.Resource.(type) {
 		case *agentproto.BoundaryLog_HttpRequest_:
 			if r.HttpRequest == nil {
+				a.Log.Warn(ctx, "empty http request resource")
 				continue
 			}
 
@@ -42,6 +43,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 
 			a.Log.With(fields...).Info(ctx, "boundary_request")
 		default:
+			a.Log.Warn(ctx, "unexpected resource type", slog.F("type", r))
 		}
 	}
 

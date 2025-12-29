@@ -108,6 +108,7 @@ func (s *Server) acceptLoop(ctx context.Context) {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
+				s.logger.Warn(ctx, "accept loop terminated", slog.Error(ctx.Err()))
 				return
 			}
 			s.logger.Warn(ctx, "socket accept error", slog.Error(err))
