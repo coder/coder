@@ -27,7 +27,6 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -477,9 +476,8 @@ func TestAcquireJob(t *testing.T) {
 				})
 				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-						ExpReuseTerraformWorkspace: ptr.Ref(false),
-						WorkspaceBuildId:           build.ID.String(),
-						WorkspaceName:              workspace.Name,
+						WorkspaceBuildId: build.ID.String(),
+						WorkspaceName:    workspace.Name,
 						VariableValues: []*sdkproto.VariableValue{
 							{
 								Name:      "first",

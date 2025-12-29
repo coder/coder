@@ -423,11 +423,7 @@ export interface Config {
     | string
     | undefined;
   /** Dry runs omit version id */
-  templateVersionId?:
-    | string
-    | undefined;
-  /** Whether to reuse existing terraform workspaces if they exist. */
-  expReuseTerraformWorkspace?: boolean | undefined;
+  templateVersionId?: string | undefined;
 }
 
 /** ParseRequest consumes source-code to produce inputs. */
@@ -1352,9 +1348,6 @@ export const Config = {
     }
     if (message.templateVersionId !== undefined) {
       writer.uint32(26).string(message.templateVersionId);
-    }
-    if (message.expReuseTerraformWorkspace !== undefined) {
-      writer.uint32(32).bool(message.expReuseTerraformWorkspace);
     }
     return writer;
   },
