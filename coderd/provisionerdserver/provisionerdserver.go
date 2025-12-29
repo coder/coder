@@ -1503,9 +1503,9 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 
 	// A graceful error message will help debugging.
 	fail := func(err error) error {
-		_ = stream.Send(&proto.UploadFileRequest{
-			Type: &proto.UploadFileRequest_Error{
-				Error: &proto.FailedFile{
+		_ = stream.Send(&sdkproto.FileUpload{
+			Type: &sdkproto.FileUpload_Error{
+				Error: &sdkproto.FailedFile{
 					Error: err.Error(),
 				},
 			},
@@ -1528,8 +1528,8 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 
 	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
 
-	err = stream.Send(&proto.UploadFileRequest{
-		Type: &proto.UploadFileRequest_DataUpload{DataUpload: upload},
+	err = stream.Send(&sdkproto.FileUpload{
+		Type: &sdkproto.FileUpload_DataUpload{DataUpload: upload},
 	})
 	if err != nil {
 		return fail(xerrors.Errorf("send file upload: %w", err))
@@ -1540,8 +1540,8 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 			return fail(ctx.Err())
 		}
 
-		err = stream.Send(&proto.UploadFileRequest{
-			Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: c},
+		err = stream.Send(&sdkproto.FileUpload{
+			Type: &sdkproto.FileUpload_ChunkPiece{ChunkPiece: c},
 		})
 		if err != nil {
 			return fail(xerrors.Errorf("send chunk piece %d: %w", i, err))

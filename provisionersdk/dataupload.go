@@ -3,13 +3,16 @@ package provisionersdk
 import (
 	"io"
 
-	"github.com/coder/coder/v2/provisionerd/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"golang.org/x/xerrors"
 )
 
+func StreamFromChannel(chan *sdkproto.FileUpload) {
+
+}
+
 func HandleReceivingDataUpload(stream interface {
-	Recv() (*proto.UploadFileRequest, error)
+	Recv() (*sdkproto.FileUpload, error)
 }) (*sdkproto.DataBuilder, error) {
 	var file *sdkproto.DataBuilder
 UploadFileStream:
@@ -23,9 +26,9 @@ UploadFileStream:
 		}
 
 		switch typed := msg.Type.(type) {
-		case *proto.UploadFileRequest_Error:
+		case *sdkproto.FileUpload_Error:
 			return nil, xerrors.Errorf("download file: %s", typed.Error.Error)
-		case *proto.UploadFileRequest_DataUpload:
+		case *sdkproto.FileUpload_DataUpload:
 			if file != nil {
 				return nil, xerrors.New("unexpected file download while waiting for file completion")
 			}
@@ -45,7 +48,7 @@ UploadFileStream:
 				// This should never really happen in practice, but we handle it gracefully.
 				break UploadFileStream
 			}
-		case *proto.UploadFileRequest_ChunkPiece:
+		case *sdkproto.FileUpload_ChunkPiece:
 			if file == nil {
 				return nil, xerrors.New("unexpected chunk piece while waiting for file upload")
 			}

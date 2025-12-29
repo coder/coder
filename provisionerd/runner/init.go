@@ -16,13 +16,51 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
+	// This is safe to call on nil or empty slices.
+	data, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleTar)
+
+	hash := []byte{}
+	if len(moduleTar) > 0 {
+		hash = data.DataHash
+	}
+
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Init{Init: &sdkproto.InitRequest{
 		TemplateSourceArchive: templateArchive,
 		OmitModuleFiles:       omitModules,
-		InitialModuleTar:      moduleTar,
+		InitialModuleTarHash:  hash,
 	}}})
 	if err != nil {
 		return nil, r.failedJobf("send init request: %v", err)
+	}
+
+	if len(moduleTar) > 0 {
+		err = r.session.Send(&sdkproto.Request{
+			Type: &sdkproto.Request_File{
+				File: &sdkproto.FileUpload{
+					Type: &sdkproto.FileUpload_DataUpload{
+						DataUpload: data,
+					},
+				},
+			},
+		})
+		if err != nil {
+			return nil, r.failedJobf("send module files data upload: %v", err)
+		}
+
+		for _, c := range chunks {
+			err = r.session.Send(&sdkproto.Request{
+				Type: &sdkproto.Request_File{
+					File: &sdkproto.FileUpload{
+						Type: &sdkproto.FileUpload_ChunkPiece{
+							ChunkPiece: c,
+						},
+					},
+				},
+			})
+			if err != nil {
+				return nil, r.failedJobf("send module files chunk: %v", err)
+			}
+		}
 	}
 
 	nevermind := make(chan struct{})

@@ -127,6 +127,7 @@ func (s *Session) handleRequests() error {
 			if s.initialized {
 				return xerrors.New("cannot init more than once per session")
 			}
+
 			initResp, err := s.handleInitRequest(init, requests)
 			if err != nil {
 				return err
@@ -187,7 +188,39 @@ func (s *Session) handleRequests() error {
 	return nil
 }
 
+type fromChannel struct {
+	requests <-chan *proto.Request
+}
+
+func (f *fromChannel) Recv() (*proto.FileUpload, error) {
+	next, ok := <-f.requests
+	if !ok {
+		return nil, xerrors.New("channel closed")
+	}
+
+	file := next.GetFile()
+	if file == nil {
+		return nil, xerrors.Errorf("expected file upload")
+	}
+
+	return file, nil
+}
+
 func (s *Session) handleInitRequest(init *proto.InitRequest, requests <-chan *proto.Request) (*proto.InitComplete, error) {
+	if len(init.GetInitialModuleTarHash()) > 0 {
+		file, err := HandleReceivingDataUpload(&fromChannel{requests: requests})
+		if err != nil {
+			return nil, err
+		}
+
+		data, err := file.Complete()
+		if err != nil {
+			return nil, err
+		}
+		// TODO: This is jank, don't do this
+		init.InitialModuleTarHash = data
+	}
+
 	r := &request[*proto.InitRequest, *proto.InitComplete]{
 		req:      init,
 		session:  s,
