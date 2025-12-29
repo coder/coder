@@ -273,39 +273,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
-					{experiments.includes("terraform-directory-reuse") && (
-						<FormControlLabel
-							control={
-								<Checkbox
-									size="small"
-									id="use_terraform_workspace_cache"
-									name="use_terraform_workspace_cache"
-									checked={form.values.use_terraform_workspace_cache}
-									onChange={form.handleChange}
-									disabled={false}
-								/>
-							}
-							label={
-								<StackLabel>
-									<span className="flex flex-row gap-2">
-										Enable Terraform directory caching on provisioners
-									</span>
-									<StackLabelHelperText>
-										<div>
-											When enabled, the provisioner reuses the .terraform
-											directory for all workspace builds using the active
-											version. This significantly reduces Terraform init time by
-											caching module and provider downloads.{" "}
-											<strong>
-												Unpinned modules may cause inconsistent builds between
-												provisioners.
-											</strong>
-										</div>
-									</StackLabelHelperText>
-								</StackLabel>
-							}
-						/>
-					)}
 				</FormFields>
 			</FormSection>
 
