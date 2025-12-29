@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestAIBridgeProxy(t *testing.T) {
+func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 	t.Parallel()
 
 	t.Run("DisabledReturns404", func(t *testing.T) {
@@ -72,5 +72,34 @@ func TestAIBridgeProxy(t *testing.T) {
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("RequiresAuthentication", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Make a request to the proxy CA cert endpoint without authentication.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/aibridge/proxy/ca-cert.pem", nil)
+		require.NoError(t, err)
+
+		// No session token header set.
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 }
