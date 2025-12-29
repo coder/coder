@@ -341,77 +341,86 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 	b.entryCount = 0
 }
 
-// publishAgentIDsInChunks publishes agent IDs in chunks that fit within the
-// PostgreSQL NOTIFY 8KB payload size limit. Each chunk is published as a
-// separate message. Uses size estimation to avoid excessive JSON marshaling.
-func (b *MetadataBatcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.UUID) {
+// buildAndMarshalChunk builds a chunk of agent IDs that fits within the
+// maxPubsubPayloadSize limit and marshals it to JSON. Returns the marshaled
+// payload and the number of agent IDs consumed from the input slice.
+// This function is separated for testing payload size assumptions.
+func buildAndMarshalChunk(agentIDs []uuid.UUID) ([]byte, int, error) {
 	if len(agentIDs) == 0 {
-		return
+		return nil, 0, nil
 	}
 
-	// Pre-allocate with estimated capacity.
+	// Use size estimation to determine initial chunk size.
 	estimatedCapacity := (maxPubsubPayloadSize - pubsubBaseOverhead) / estimatedUUIDJSONSize
-	currentChunk := make([]uuid.UUID, 0, estimatedCapacity)
+	if estimatedCapacity > len(agentIDs) {
+		estimatedCapacity = len(agentIDs)
+	}
+
+	chunk := make([]uuid.UUID, 0, estimatedCapacity)
 	estimatedSize := pubsubBaseOverhead
 
-	for _, agentID := range agentIDs {
-		// Estimate size if we add this agent.
+	for i, agentID := range agentIDs {
 		newEstimatedSize := estimatedSize + estimatedUUIDJSONSize
+		if newEstimatedSize > maxPubsubPayloadSize && len(chunk) > 0 {
+			// Would exceed limit, marshal current chunk.
+			break
+		}
 
-		// If adding this agent would exceed the limit, publish current chunk.
-		if newEstimatedSize > maxPubsubPayloadSize && len(currentChunk) > 0 {
-			b.publishChunk(ctx, currentChunk)
+		chunk = append(chunk, agentID)
+		estimatedSize = newEstimatedSize
 
-			// Start new chunk with current agent.
-			currentChunk = make([]uuid.UUID, 0, estimatedCapacity)
-			currentChunk = append(currentChunk, agentID)
-			estimatedSize = pubsubBaseOverhead + estimatedUUIDJSONSize
-		} else {
-			// Add agent to current chunk.
-			currentChunk = append(currentChunk, agentID)
-			estimatedSize = newEstimatedSize
+		// If this is the last agent ID, no need to continue.
+		if i == len(agentIDs)-1 {
+			break
 		}
 	}
 
-	// Publish final chunk if it has any agents.
-	if len(currentChunk) > 0 {
-		b.publishChunk(ctx, currentChunk)
-	}
-}
-
-// marshalAgentIDPayload marshals agent IDs into a JSON payload and returns
-// the marshaled bytes and any error. This is separated for testing payload
-// size constraints.
-func marshalAgentIDPayload(agentIDs []uuid.UUID) ([]byte, error) {
-	return json.Marshal(WorkspaceAgentMetadataBatchPayload{
-		AgentIDs: agentIDs,
+	payload, err := json.Marshal(WorkspaceAgentMetadataBatchPayload{
+		AgentIDs: chunk,
 	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return payload, len(chunk), nil
 }
 
-// publishChunk marshals and publishes a single chunk of agent IDs.
-func (b *MetadataBatcher) publishChunk(ctx context.Context, agentIDs []uuid.UUID) {
-	payload, err := marshalAgentIDPayload(agentIDs)
-	if err != nil {
-		b.log.Error(ctx, "failed to marshal workspace agent metadata chunk", slog.Error(err))
-		return
-	}
+// publishAgentIDsInChunks publishes agent IDs in chunks that fit within the
+// PostgreSQL NOTIFY 8KB payload size limit. Each chunk is published as a
+// separate message.
+func (b *MetadataBatcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.UUID) {
+	offset := 0
+	for offset < len(agentIDs) {
+		payload, consumed, err := buildAndMarshalChunk(agentIDs[offset:])
+		if err != nil {
+			b.log.Error(ctx, "failed to marshal workspace agent metadata chunk", slog.Error(err))
+			return
+		}
 
-	// Verify our size estimate was correct (for debugging/monitoring).
-	if len(payload) > maxPubsubPayloadSize {
-		b.log.Warn(ctx, "pubsub payload exceeded size limit despite estimation",
-			slog.F("payload_size", len(payload)),
-			slog.F("limit", maxPubsubPayloadSize),
-			slog.F("chunk_size", len(agentIDs)),
-		)
-		// Still try to publish - it might work or give us better error info.
-	}
+		if consumed == 0 {
+			// Should never happen, but protect against infinite loop.
+			b.log.Error(ctx, "failed to make progress chunking agent IDs")
+			return
+		}
 
-	err = b.ps.Publish(WatchWorkspaceAgentMetadataBatchChannel(), payload)
-	if err != nil {
-		b.log.Error(ctx, "failed to publish workspace agent metadata batch",
-			slog.Error(err),
-			slog.F("chunk_size", len(agentIDs)),
-			slog.F("payload_size", len(payload)),
-		)
+		// Verify our size estimate was correct (for debugging/monitoring).
+		if len(payload) > maxPubsubPayloadSize {
+			b.log.Warn(ctx, "pubsub payload exceeded size limit despite estimation",
+				slog.F("payload_size", len(payload)),
+				slog.F("limit", maxPubsubPayloadSize),
+				slog.F("chunk_size", consumed),
+			)
+		}
+
+		err = b.ps.Publish(WatchWorkspaceAgentMetadataBatchChannel(), payload)
+		if err != nil {
+			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
+				slog.Error(err),
+				slog.F("chunk_size", consumed),
+				slog.F("payload_size", len(payload)),
+			)
+		}
+
+		offset += consumed
 	}
 }
