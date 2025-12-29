@@ -750,6 +750,11 @@ func TestProxy_MITM(t *testing.T) {
 	}
 }
 
+// TestServeCACert validates that a configured certificate file can be served correctly by the API.
+//
+// Note: Tests for certificate file errors (missing file, invalid PEM) are
+// covered by [TestNew] since certificate validation happens at initialization.
+// The serveCACert handler returns the pre-loaded, pre-validated certificate.
 func TestServeCACert(t *testing.T) {
 	t.Parallel()
 
@@ -794,10 +799,6 @@ func TestServeCACert(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedCertPEM, body)
 	})
-
-	// Note: Tests for certificate file errors (missing file, invalid PEM) are
-	// covered by TestNew since certificate validation happens at initialization.
-	// The serveCACert handler returns the pre-loaded, pre-validated certificate.
 }
 
 // TestServeCACert_CompoundPEM validates that a compound PEM certificate which contains a private key
