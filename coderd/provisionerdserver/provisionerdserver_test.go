@@ -476,9 +476,8 @@ func TestAcquireJob(t *testing.T) {
 				})
 				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-						ExpReuseTerraformWorkspace: ptr.Ref(false),
-						WorkspaceBuildId:           build.ID.String(),
-						WorkspaceName:              workspace.Name,
+						WorkspaceBuildId: build.ID.String(),
+						WorkspaceName:    workspace.Name,
 						VariableValues: []*sdkproto.VariableValue{
 							{
 								Name:      "first",
