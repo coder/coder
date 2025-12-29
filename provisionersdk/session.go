@@ -54,10 +54,6 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
 
-	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
-		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
-	}
-
 	// Cleanup any previously left stale sessions.
 	err = s.Files.CleanStaleSessions(s.Context(), s.Logger, afero.NewOsFs(), time.Now())
 	if err != nil {
@@ -253,7 +249,7 @@ func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *pr
 
 type Session struct {
 	Logger slog.Logger
-	Files  tfpath.Layouter
+	Files  tfpath.Layout
 	Config *proto.Config
 
 	// initialized indicates if an init was run.

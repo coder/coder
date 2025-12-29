@@ -43,7 +43,6 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -699,7 +698,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
-		activeVersion := template.ActiveVersionID == templateVersion.ID
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
@@ -709,12 +707,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),
 				ExternalAuthProviders:   externalAuthProviders,
-				// If active and experiment is enabled, allow workspace reuse existing TF
-				// workspaces (directories) for a faster startup.
-				ExpReuseTerraformWorkspace: ptr.Ref(s.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) && // Experiment required
-					template.UseTerraformWorkspaceCache && // Template setting
-					activeVersion, // Only for active versions
-				),
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,

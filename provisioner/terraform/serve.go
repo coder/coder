@@ -160,7 +160,7 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-func (s *server) executor(files tfpath.Layouter, stage database.ProvisionerJobTimingStage) *executor {
+func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
 		server:        s,
 		mut:           s.execMut,
