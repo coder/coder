@@ -173,7 +173,7 @@ SET
 	group_acl = $8,
 	max_port_sharing_level = $9,
 	use_classic_parameter_flow = $10,
-	cors_behavior = $11,
+	cors_behavior = $11
 WHERE
 	id = $1
 ;
