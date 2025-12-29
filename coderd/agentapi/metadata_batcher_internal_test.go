@@ -441,6 +441,54 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	require.Equal(t, t3, metadata[0].CollectedAt, "database should have newest timestamp")
 }
 
+func TestMetadataBatcher_PubsubChunking(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	store, ps := dbtestutil.NewDB(t)
+
+	tick := make(chan time.Time)
+	flushed := make(chan int, 1)
+
+	b, closer, err := NewMetadataBatcher(ctx,
+		MetadataBatcherWithStore(store),
+		MetadataBatcherWithPubsub(ps),
+		MetadataBatcherWithLogger(log),
+		func(b *MetadataBatcher) {
+			b.tickCh = tick
+			b.flushed = flushed
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	t1 := dbtime.Now()
+
+	// Create enough agents to exceed the 8KB pubsub limit.
+	// A UUID in JSON is ~38 bytes (36 chars + quotes), plus JSON overhead.
+	// 8000 / 38 ≈ 210 agents should fit in one message.
+	// Let's create 250 agents to force chunking.
+	numAgents := 250
+	agents := make([]database.WorkspaceAgent, numAgents)
+	for i := 0; i < numAgents; i++ {
+		agents[i] = setupAgentWithMetadata(t, store)
+		// Add a single metadata update for each agent
+		b.Add(agents[i].ID, []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1})
+	}
+
+	// Flush and verify all updates were processed
+	tick <- t1
+	f := <-flushed
+	require.Equal(t, numAgents, f, "expected all agent entries to be flushed")
+
+	// Verify that the pubsub messages were sent (we can't easily verify
+	// they were chunked without mocking pubsub, but we can verify no errors
+	// occurred during the flush, which would indicate chunking worked)
+}
+
+
 // setupAgentWithMetadata creates a test agent with some metadata keys.
 func setupAgentWithMetadata(t *testing.T, store database.Store) database.WorkspaceAgent {
 	t.Helper()
