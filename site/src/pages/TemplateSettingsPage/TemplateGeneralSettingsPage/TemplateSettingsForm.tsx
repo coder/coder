@@ -103,7 +103,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 		initialTouched,
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
-	const { experiments } = useDashboard();
 
 	return (
 		<HorizontalForm

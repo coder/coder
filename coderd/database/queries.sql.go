@@ -4,6 +4,17 @@
 
 package database
 
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/sqlc-dev/pqtype"
+)
+
 const activityBumpWorkspace = `-- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT

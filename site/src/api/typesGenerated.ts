@@ -1884,7 +1884,6 @@ export type Experiment =
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
-	| "terraform-directory-reuse"
 	| "web-push"
 	| "workspace-sharing"
 	| "workspace-usage";
@@ -1895,7 +1894,6 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
-	"terraform-directory-reuse",
 	"web-push",
 	"workspace-sharing",
 	"workspace-usage",
@@ -4980,7 +4978,6 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
-	readonly use_terraform_workspace_cache: boolean;
 }
 
 // From codersdk/templates.go
