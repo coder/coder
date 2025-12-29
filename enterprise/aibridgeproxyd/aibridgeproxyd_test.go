@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"io"
 	"math/big"
@@ -92,6 +93,13 @@ func generateSharedTestCA() (certFile, keyFile string, err error) {
 	}
 
 	return certPath, keyPath, nil
+}
+
+// makeProxyAuthHeader creates a Proxy-Authorization header value with the given token.
+// Format: "Basic base64(username:token)" where username is "ignored".
+func makeProxyAuthHeader(token string) string {
+	credentials := base64.StdEncoding.EncodeToString([]byte("ignored:" + token))
+	return "Basic " + credentials
 }
 
 func TestNew(t *testing.T) {
@@ -192,68 +200,233 @@ func TestClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestProxy_MITM(t *testing.T) {
+func TestProxy_PortValidation(t *testing.T) {
 	t.Parallel()
 
-	// Create a mock HTTPS server that will be the target of our proxied request.
-	targetServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("hello from target"))
-	}))
-	defer targetServer.Close()
-
-	certFile, keyFile := getSharedTestCA(t)
-	logger := slogtest.Make(t, nil)
-
-	// Start the proxy server.
-	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-		ListenAddr: "127.0.0.1:8888",
-		CertFile:   certFile,
-		KeyFile:    keyFile,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = srv.Close() })
-
-	// Wait for the proxy server to be ready.
-	require.Eventually(t, func() bool {
-		conn, err := net.Dial("tcp", "127.0.0.1:8888")
-		if err != nil {
-			return false
-		}
-		_ = conn.Close()
-		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
-
-	// Load the CA certificate so the client trusts the proxy's MITM certificate.
-	certPEM, err := os.ReadFile(certFile)
-	require.NoError(t, err)
-	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM(certPEM)
-
-	// Create an HTTP client configured to use the proxy.
-	proxyURL, err := url.Parse("http://127.0.0.1:8888")
-	require.NoError(t, err)
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxyURL),
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    certPool,
-			},
+	tests := []struct {
+		name        string
+		allowPort   bool
+		expectError bool
+	}{
+		{
+			name:      "AllowedPort",
+			allowPort: true,
+		},
+		{
+			name:        "RejectedPort",
+			allowPort:   false,
+			expectError: true,
 		},
 	}
 
-	// Make a request through the proxy to the target server.
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetServer.URL, nil)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Verify the response was successfully proxied.
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, "hello from target", string(body))
+			// Create a target HTTPS server that will be the destination of our proxied request.
+			targetServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from target"))
+			}))
+			defer targetServer.Close()
+
+			targetURL, err := url.Parse(targetServer.URL)
+			require.NoError(t, err)
+
+			certFile, keyFile := getSharedTestCA(t)
+			logger := slogtest.Make(t, nil)
+
+			// Configure allowed ports based on test case.
+			// For allowed case, include the target's random port.
+			// For rejected case, only allow port 443 which doesn't match the target.
+			var allowedPorts []string
+			if tt.allowPort {
+				allowedPorts = []string{targetURL.Port()}
+			} else {
+				allowedPorts = []string{"443"}
+			}
+
+			// Start the proxy server on a random port to avoid conflicts when running tests in parallel.
+			srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				CertFile:     certFile,
+				KeyFile:      keyFile,
+				AllowedPorts: allowedPorts,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = srv.Close() })
+
+			proxyAddr := srv.Addr()
+			require.NotEmpty(t, proxyAddr)
+
+			// Wait for the proxy server to be ready.
+			require.Eventually(t, func() bool {
+				conn, err := net.Dial("tcp", proxyAddr)
+				if err != nil {
+					return false
+				}
+				_ = conn.Close()
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			// Load the CA certificate so the client trusts the proxy's MITM certificate.
+			certPEM, err := os.ReadFile(certFile)
+			require.NoError(t, err)
+			certPool := x509.NewCertPool()
+			certPool.AppendCertsFromPEM(certPEM)
+
+			// Create an HTTP client configured to use the proxy.
+			proxyURL, err := url.Parse("http://" + proxyAddr)
+			require.NoError(t, err)
+
+			client := &http.Client{
+				Transport: &http.Transport{
+					Proxy: http.ProxyURL(proxyURL),
+					ProxyConnectHeader: http.Header{
+						"Proxy-Authorization": []string{makeProxyAuthHeader("test-session-token")},
+					},
+					TLSClientConfig: &tls.Config{
+						MinVersion: tls.VersionTLS12,
+						RootCAs:    certPool,
+					},
+				},
+			}
+
+			// Make a request through the proxy to the target server.
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetServer.URL, nil)
+			require.NoError(t, err)
+
+			resp, err := client.Do(req)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "hello from target", string(body))
+		})
+	}
+}
+
+func TestProxy_Authentication(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		proxyAuth   string
+		expectError bool
+	}{
+		{
+			name:        "ValidCredentials",
+			proxyAuth:   makeProxyAuthHeader("test-coder-session-token"),
+			expectError: false,
+		},
+		{
+			name:        "MissingCredentials",
+			proxyAuth:   "",
+			expectError: true,
+		},
+		{
+			name:        "InvalidBase64",
+			proxyAuth:   "Basic not-valid-base64!",
+			expectError: true,
+		},
+		{
+			name:        "EmptyToken",
+			proxyAuth:   makeProxyAuthHeader(""),
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a mock HTTPS server that will be the target of our proxied request.
+			targetServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from target"))
+			}))
+			defer targetServer.Close()
+
+			targetURL, err := url.Parse(targetServer.URL)
+			require.NoError(t, err)
+
+			certFile, keyFile := getSharedTestCA(t)
+			logger := slogtest.Make(t, nil)
+
+			// Start the proxy server on a random port to avoid conflicts when running tests in parallel.
+			// The actual port is accessible via srv.Addr().
+			srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				CertFile:     certFile,
+				KeyFile:      keyFile,
+				AllowedPorts: []string{targetURL.Port()},
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = srv.Close() })
+
+			proxyAddr := srv.Addr()
+			require.NotEmpty(t, proxyAddr)
+
+			// Wait for the proxy server to be ready.
+			require.Eventually(t, func() bool {
+				conn, err := net.Dial("tcp", proxyAddr)
+				if err != nil {
+					return false
+				}
+				_ = conn.Close()
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			// Load the CA certificate so the client trusts the proxy's MITM certificate.
+			certPEM, err := os.ReadFile(certFile)
+			require.NoError(t, err)
+			certPool := x509.NewCertPool()
+			certPool.AppendCertsFromPEM(certPEM)
+
+			// Create an HTTP client configured to use the proxy.
+			proxyURL, err := url.Parse("http://" + proxyAddr)
+			require.NoError(t, err)
+
+			transport := &http.Transport{
+				Proxy: http.ProxyURL(proxyURL),
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					RootCAs:    certPool,
+				},
+			}
+
+			if tt.proxyAuth != "" {
+				transport.ProxyConnectHeader = http.Header{
+					"Proxy-Authorization": []string{tt.proxyAuth},
+				}
+			}
+
+			client := &http.Client{Transport: transport}
+
+			// Make a request through the proxy to the target server.
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetServer.URL, nil)
+			require.NoError(t, err)
+			resp, err := client.Do(req)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				// Verify the response was successfully proxied.
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Equal(t, "hello from target", string(body))
+			}
+		})
+	}
 }
