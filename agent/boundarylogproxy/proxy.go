@@ -1,16 +1,9 @@
 // Package boundarylogproxy provides a Unix socket server that receives boundary
 // audit logs and forwards them to coderd via the agent API.
-//
-// Wire Format:
-// Boundary sends tag and length prefixed protobuf messages over the Unix socket (TLV).
-//   - 4 bits: big-endian tag (always 1 for now)
-//   - 28 bits: big-endian length of the protobuf data
-//   - length bytes: encoded protobuf data
 package boundarylogproxy
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"io"
 	"net"
@@ -21,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/boundarylogproxy/codec"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 )
 
@@ -138,11 +132,10 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		_ = conn.Close()
 	}()
 
-	// Even though the length of data received can be larger than maxMsgSize,
-	// practically they are not expected to be. This is a sanity check and
-	// allows re-using a small fixed size read buffer.
-	const maxMsgSize = 1 << 15
-	buf := make([]byte, maxMsgSize)
+	// This is intended to be a sane starting point for the read buffer size. It may be
+	// grown by codec.ReadFrame if necessary.
+	const initBufSize = 1 << 10
+	buf := make([]byte, initBufSize)
 
 	for {
 		select {
@@ -151,35 +144,26 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		default:
 		}
 
-		var header uint32
-		if err := binary.Read(conn, binary.BigEndian, &header); err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				return
-			}
-			s.logger.Warn(ctx, "read length error", slog.Error(err))
+		var (
+			tag uint8
+			err error
+		)
+		tag, buf, err = codec.ReadFrame(conn, codec.MaxMessageSize, buf)
+		switch {
+		case errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed):
+			return
+		case err != nil:
+			s.logger.Warn(ctx, "read frame error", slog.Error(err))
 			return
 		}
 
-		length := header & 0x0FFFFFFF
-		tag := header >> 28
-
-		if tag != 1 {
+		if tag != codec.TagV1 {
 			s.logger.Warn(ctx, "invalid tag value", slog.F("tag", tag))
 			return
 		}
 
-		if length > maxMsgSize {
-			s.logger.Warn(ctx, "message too large", slog.F("length", length))
-			return
-		}
-
-		if _, err := io.ReadFull(conn, buf[:length]); err != nil {
-			s.logger.Warn(ctx, "read full request error", slog.Error(err))
-			return
-		}
-
 		var req agentproto.ReportBoundaryLogsRequest
-		if err := proto.Unmarshal(buf[:length], &req); err != nil {
+		if err := proto.Unmarshal(buf, &req); err != nil {
 			s.logger.Warn(ctx, "proto unmarshal error", slog.Error(err))
 			continue
 		}

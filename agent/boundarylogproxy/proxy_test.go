@@ -16,11 +16,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
+	"github.com/coder/coder/v2/agent/boundarylogproxy/codec"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
-// sendMessage writes a length-prefixed protobuf message to the connection.
+// sendMessage writes a framed protobuf message to the connection.
 func sendMessage(t *testing.T, conn net.Conn, req *agentproto.ReportBoundaryLogsRequest) {
 	t.Helper()
 
@@ -30,21 +31,10 @@ func sendMessage(t *testing.T, conn net.Conn, req *agentproto.ReportBoundaryLogs
 		t.Errorf("%s marshal req: %s", conn.LocalAddr().String(), err)
 	}
 
-	var header uint32
-	//nolint:gosec // In tests we're not worried about possible integer overflow.
-	header |= uint32(len(data))
-	header |= 1 << 28
-
-	err = binary.Write(conn, binary.BigEndian, header)
+	err = codec.WriteFrame(conn, codec.TagV1, data)
 	if err != nil {
 		//nolint:gocritic // In tests we're not worried about conn being nil.
-		t.Errorf("%s write conn length: %s", conn.LocalAddr().String(), err)
-	}
-
-	_, err = conn.Write(data)
-	if err != nil {
-		//nolint:gocritic // In tests we're not worried about conn being nil.
-		t.Errorf("%s write conn data: %s", conn.LocalAddr().String(), err)
+		t.Errorf("%s write frame: %s", conn.LocalAddr().String(), err)
 	}
 }
 
@@ -293,7 +283,7 @@ func TestServer_MessageTooLarge(t *testing.T) {
 	defer conn.Close()
 
 	// Send a message claiming to be larger than the max message size.
-	var length uint32 = 1 << 16
+	var length uint32 = codec.MaxMessageSize + 1
 	err = binary.Write(conn, binary.BigEndian, length)
 	require.NoError(t, err)
 
@@ -443,12 +433,14 @@ func TestServer_InvalidProtobuf(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	// Send a valid header (tag=1) with garbage protobuf data.
+	// Send a valid header with garbage protobuf data.
 	// The server should log an unmarshal error but continue processing.
-	var header uint32 = (1 << 28) | 5 // tag=1, length=5
+	invalidProto := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	//nolint: gosec // codec.DataLength is always less than the size of the header.
+	header := (codec.TagV1 << codec.DataLength) | uint32(len(invalidProto))
 	err = binary.Write(conn, binary.BigEndian, header)
 	require.NoError(t, err)
-	_, err = conn.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF}) // invalid protobuf
+	_, err = conn.Write(invalidProto)
 	require.NoError(t, err)
 
 	// Now send a valid message. The server should continue processing.
@@ -520,10 +512,10 @@ func TestServer_InvalidHeader(t *testing.T) {
 	sendInvalidHeader(t, "garbage", 0xFFFFFFFF)
 
 	// Valid tag, invalid length (exceeds max message size).
-	sendInvalidHeader(t, "invalid length", (1<<28)|0x00FFFFFF)
+	sendInvalidHeader(t, "invalid length", (codec.TagV1<<codec.DataLength)|0x00FFFFFF)
 
 	// Invalid tag, valid length.
-	sendInvalidHeader(t, "invalid tag", (15<<28)|100)
+	sendInvalidHeader(t, "invalid tag", (15<<codec.DataLength)|100)
 
 	cancel()
 	<-forwarderDone
