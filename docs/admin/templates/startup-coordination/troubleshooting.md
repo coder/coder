@@ -14,7 +14,7 @@ coder exp sync ping
 * If sync is working, expect the output to be `Success`.
 * Otherwise, you will see an error message similar to the below:
 
-```
+```bash
 error: connect to agent socket: connect to socket: dial unix /tmp/coder-agent.sock: connect: permission denied
 ```
 
@@ -60,7 +60,7 @@ error: connect to agent socket: connect to socket: dial unix /tmp/coder-agent.so
 Verify `CODER_AGENT_SOCKET_SERVER_ENABLED=true` is set in the Coder agent's environment:
 
 ```bash
-# tr '\0' '\n' < /proc/$(pidof -s coder)/environ | grep CODER_AGENT_SOCKET_SERVER_ENABLED
+tr '\0' '\n' < /proc/$(pidof -s coder)/environ | grep CODER_AGENT_SOCKET_SERVER_ENABLED
 ```
 
 If the output of the above command is empty, review your template and ensure that the environment variable is set such that it is readable by the Coder agent process. Setting it on the `coder_agent` resource directly is **not** sufficient.
@@ -69,17 +69,18 @@ If the output of the above command is empty, review your template and ensure tha
 
 If the workspace startup scripts appear to 'hang', one or more of your startup scripts may be waiting for a dependency that never completes.
 
-- Inside the workspace, review `/tmp/coder-script-*.log` for more details on your script's execution.
-	> **Tip:** add `set -x` to the top of your script to enable debug mode and update/restart the workspace.
-- Review your template and verify that `coder exp sync complete <unit>` is called after the script completes e.g. with an exit trap.
-- View the unit status using `coder exp sync status <unit>`.
+* Inside the workspace, review `/tmp/coder-script-*.log` for more details on your script's execution.
+    > **Tip:** add `set -x` to the top of your script to enable debug mode and update/restart the workspace.
+* Review your template and verify that `coder exp sync complete <unit>` is called after the script completes e.g. with an exit trap.
+* View the unit status using `coder exp sync status <unit>`.
 
 ## Workspace startup scripts fail
 
 If the workspace startup scripts fail:
 
-- Review `/tmp/coder-script-*.log` inside the workspace for script errors.
-- Verify the Coder CLI is available in `$PATH` inside the workspace:
+* Review `/tmp/coder-script-*.log` inside the workspace for script errors.
+* Verify the Coder CLI is available in `$PATH` inside the workspace:
+
     ```bash
     command -v coder
     ```

@@ -37,12 +37,14 @@ To start using workspace startup coordination, follow these steps:
     ]
   }
   ```
-2. Add calls to `coder exp sync (start|complete)` in your startup scripts where required:
-	```bash
-		trap 'coder exp sync complete my-script' EXIT
-	  coder exp sync want my-script my-other-script
-	  coder exp sync start my-script
-    # Existing startup logic
-	```
 
-For more information, refer to the [usage documentation](./usage.md) or [troubleshooting documentation](./troubleshooting.md).
+1. Add calls to `coder exp sync (start|complete)` in your startup scripts where required:
+
+  ```bash
+  trap 'coder exp sync complete my-script' EXIT
+  coder exp sync want my-script my-other-script
+  coder exp sync start my-script
+  # Existing startup logic
+  ```
+
+For more information, refer to the [usage documentation](./usage.md), [troubleshooting documentation](./troubleshooting.md), or view our [examples](./examples.md).

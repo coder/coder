@@ -9,6 +9,7 @@ Startup coordination is built around the concept of **units**. You declare units
 
 A **unit** is a named phase of work, typically corresponding to a script or initialization
 task.
+
 - Units **may** declare dependencies on other units, creating an explicit ordering for workspace initialization.
 - Units **must** be registered before they can be marked as complete.
 - Units **may** be marked as dependencies before they are registered.
@@ -16,10 +17,13 @@ task.
 
 ## Requirements
 
-To use startup dependencies in your templates:
+> [!IMPORTANT]
+> The `coder exp sync` command is only available from Coder version >=v2.30 onwards.
+
+To use startup dependencies in your templates, you must:
 
 - Enable the Coder Agent Socket Server.
-- Declare dependencies in your workspace startup scripts.
+- Modify your workspace startup scripts to run in parallel and declare dependencies as required using `coder exp sync`.
 
 ### Enable the Coder Agent Socket Server
 
@@ -234,12 +238,11 @@ resource "coder_script" "ide_setup" {
 
 The Coder Agent detects and rejects circular dependencies, but they indicate a design problem:
 
-```
+```bash
 # This will fail
 coder exp sync want "unit-a" "unit-b"
 coder exp sync want "unit-b" "unit-a"
 ```
-
 
 ## Frequently Asked Questions
 
@@ -252,10 +255,9 @@ Look for these patterns in existing templates:
 - Scripts that fail intermittently on startup
 - Comments like "must run after X" or "wait for Y"
 
-
 ### Will this slow down my workspace?
 
-No. The socket server adds minimal overhead. The default polling interval is 1
+No. The socket server adds minimal overhead, and the default polling interval is 1
 second, so waiting for dependencies adds at most a few seconds to startup.
 You are more likely to notice an improvement in startup times as it becomes easier to manage complex dependencies in parallel.
 
@@ -267,7 +269,9 @@ Only units with unsatisfied dependencies wait for their dependencies.
 ### How long can a dependency take to complete?
 
 By default, `coder exp sync start` has a 5-minute timeout to prevent indefinite hangs.
-You can adjust this as necessary for long-running operations:
+Upon timeout, the command will exit with an error code and print `timeout waiting for dependencies of unit <unit_name>` to stderr.
+
+You can adjust this timeout as necessary for long-running operations:
 
 ```bash
 coder exp sync start "long-operation" --timeout 10m

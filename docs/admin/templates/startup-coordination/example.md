@@ -70,7 +70,6 @@ This script demonstrates several [best practices](./usage.md#best-practices):
 - Graceful degradation when `coder exp sync` isn't available
 - Redirecting `coder exp sync` output to reduce noise in logs
 
-
 ## Template Migration Example
 
 Below is a simple example Docker template that clones [Miguel Grinberg's example Flask repo](https://github.com/miguelgrinberg/microblog/) using the [`git-clone` module](https://registry.coder.com/modules/coder/git-clone) and installs the required dependencies for the project:
@@ -208,8 +207,8 @@ A short summary of the changes:
 
 - We've added `CODER_AGENT_SOCKET_SERVER_ENABLED=true` to the environment variables of the Docker container in which the Coder agent runs.
 - We've broken the monolithic "setup" script into two separate scripts: one for the `apt` commands, and one for the `pip` commands.
-	- In each script, we've added a `coder exp sync start $SCRIPT_NAME` command to mark the startup script as started.
-	- We've also added an exit trap to ensure that we mark the startup scripts as completed. Without this, the `coder exp sync wait` command would eventually time out.
+  - In each script, we've added a `coder exp sync start $SCRIPT_NAME` command to mark the startup script as started.
+  - We've also added an exit trap to ensure that we mark the startup scripts as completed. Without this, the `coder exp sync wait` command would eventually time out.
 - We have used the `post_clone_script` feature of the `git-clone` module to allow waiting on the Git repository clone.
 - In the `pip-install` script, we have declared a dependency on both `git-clone` and `apt-install`.
 
