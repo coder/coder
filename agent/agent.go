@@ -312,7 +312,7 @@ func (a *agent) init() {
 			switch magicType {
 			case agentssh.MagicSessionTypeSSH:
 				connectionType = proto.Connection_SSH
-			case agentssh.MagicSessionTypeVSCode:
+			case agentssh.MagicSessionTypeVSCode, agentssh.MagicSessionTypeCursor, agentssh.MagicSessionTypeWindsurf:
 				connectionType = proto.Connection_VSCODE
 			case agentssh.MagicSessionTypeJetBrains:
 				connectionType = proto.Connection_JETBRAINS

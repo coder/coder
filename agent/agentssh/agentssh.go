@@ -84,6 +84,11 @@ const (
 	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
 	// extension to identify itself.
 	MagicSessionTypeJetBrains MagicSessionType = "jetbrains"
+	// MagicSessionTypeCursor is set in the SSH config by the Cursor extension to identify itself.
+	MagicSessionTypeCursor MagicSessionType = "cursor"
+	// MagicSessionTypeWindsurf is set in the SSH config by the Windsurf
+	// extension to identify itself.
+	MagicSessionTypeWindsurf MagicSessionType = "windsurf"
 )
 
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
@@ -320,6 +325,10 @@ func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType 
 		magicType = MagicSessionTypeVSCode
 	case MagicSessionTypeJetBrains:
 		magicType = MagicSessionTypeJetBrains
+	case MagicSessionTypeCursor:
+		magicType = MagicSessionTypeCursor
+	case MagicSessionTypeWindsurf:
+		magicType = MagicSessionTypeWindsurf
 	case "", MagicSessionTypeSSH:
 		magicType = MagicSessionTypeSSH
 	default:
@@ -416,7 +425,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	reportSession := true
 
 	switch magicType {
-	case MagicSessionTypeVSCode:
+	case MagicSessionTypeVSCode, MagicSessionTypeCursor, MagicSessionTypeWindsurf:
 		s.connCountVSCode.Add(1)
 		defer s.connCountVSCode.Add(-1)
 	case MagicSessionTypeJetBrains:
