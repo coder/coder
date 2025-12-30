@@ -91,6 +91,6 @@ func TestReadFrameAllocatesWhenNeeded(t *testing.T) {
 	readBuf := make([]byte, 4)
 	tag, got, err := codec.ReadFrame(&buf, codec.MaxMessageSize, readBuf)
 	require.NoError(t, err)
-	require.Equal(t, uint8(codec.TagV1), tag)
+	require.Equal(t, codec.TagV1, tag)
 	require.Equal(t, data, got)
 }
