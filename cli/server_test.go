@@ -2150,7 +2150,7 @@ func TestConnectToPostgres(t *testing.T) {
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up)
+		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, 10, migrations.Up)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
@@ -2169,7 +2169,7 @@ func TestConnectToPostgres(t *testing.T) {
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, 10, nil)
 		require.NoError(t, err)
 		defer okDB.Close()
 
@@ -2177,7 +2177,7 @@ func TestConnectToPostgres(t *testing.T) {
 		_, err = okDB.Exec(`UPDATE schema_migrations SET version = version + 1`)
 		require.NoError(t, err)
 
-		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, 10, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "database needs migration")
 

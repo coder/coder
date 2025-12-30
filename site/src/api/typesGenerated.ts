@@ -1736,6 +1736,7 @@ export interface DeploymentValues {
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
+	readonly pg_conn_max_open?: number;
 	readonly oauth2?: OAuth2Config;
 	readonly oidc?: OIDCConfig;
 	readonly telemetry?: TelemetryConfig;

@@ -748,7 +748,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// "bare" read on this channel.
 			var pubsubWatchdogTimeout <-chan struct{}
 
-			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), int(vals.PostgresConnMaxOpen.Value()), sqlDriver)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -2332,7 +2332,7 @@ func IsLocalhost(host string) bool {
 // future or past migration version.
 //
 // If no error is returned, the database is fully migrated and up to date.
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(db *sql.DB) error) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, maxOpenConns int, migrate func(db *sql.DB) error) (*sql.DB, error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	var err error
@@ -2415,7 +2415,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// cannot accept new connections, so we try to limit that here.
 	// Requests will wait for a new connection instead of a hard error
 	// if a limit is set.
-	sqlDB.SetMaxOpenConns(10)
+	sqlDB.SetMaxOpenConns(maxOpenConns)
 	// Allow a max of 3 idle connections at a time. Lower values end up
 	// creating a lot of connection churn. Since each connection uses about
 	// 10MB of memory, we're allocating 30MB to Postgres connections per
@@ -2831,7 +2831,7 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 	return inv.SignalNotifyContext(ctx, sig...)
 }
 
-func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, maxOpenConns int, sqlDriver string) (*sql.DB, string, error) {
 	dbURL, err := escapePostgresURLUserInfo(postgresURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
@@ -2844,7 +2844,7 @@ func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresUR
 		}
 	}
 
-	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrations.Up)
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, maxOpenConns, migrations.Up)
 	if err != nil {
 		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
 	}

@@ -464,6 +464,7 @@ type DeploymentValues struct {
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
+	PostgresConnMaxOpen             serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2615,6 +2616,20 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default:     "password",
 			Value:       serpent.EnumOf(&c.PostgresAuth, PostgresAuthDrivers...),
 			YAML:        "pgAuth",
+		},
+		{
+			Name:        "Postgres Connection Max Open",
+			Description: "Maximum number of open connections to the database. Defaults to 10.",
+			Flag:        "pg-conn-max-open",
+			Env:         "CODER_PG_CONN_MAX_OPEN",
+			Default:     "10",
+			Value: serpent.Validate(&c.PostgresConnMaxOpen, func(value *serpent.Int64) error {
+				if value.Value() <= 0 {
+					return xerrors.New("must be greater than zero")
+				}
+				return nil
+			}),
+			YAML: "pgConnMaxOpen",
 		},
 		{
 			Name:        "Secure Auth Cookie",
