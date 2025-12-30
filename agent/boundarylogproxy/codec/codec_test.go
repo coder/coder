@@ -14,7 +14,7 @@ func TestRoundTrip(t *testing.T) {
 
 	tests := []struct {
 		name string
-		tag  uint8
+		tag  codec.Tag
 		data []byte
 	}{
 		{

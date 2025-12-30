@@ -437,7 +437,7 @@ func TestServer_InvalidProtobuf(t *testing.T) {
 	// The server should log an unmarshal error but continue processing.
 	invalidProto := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	//nolint: gosec // codec.DataLength is always less than the size of the header.
-	header := (codec.TagV1 << codec.DataLength) | uint32(len(invalidProto))
+	header := (uint32(codec.TagV1) << codec.DataLength) | uint32(len(invalidProto))
 	err = binary.Write(conn, binary.BigEndian, header)
 	require.NoError(t, err)
 	_, err = conn.Write(invalidProto)
@@ -512,7 +512,7 @@ func TestServer_InvalidHeader(t *testing.T) {
 	sendInvalidHeader(t, "garbage", 0xFFFFFFFF)
 
 	// Valid tag, invalid length (exceeds max message size).
-	sendInvalidHeader(t, "invalid length", (codec.TagV1<<codec.DataLength)|0x00FFFFFF)
+	sendInvalidHeader(t, "invalid length", (uint32(codec.TagV1)<<codec.DataLength)|0x00FFFFFF)
 
 	// Invalid tag, valid length.
 	sendInvalidHeader(t, "invalid tag", (15<<codec.DataLength)|100)

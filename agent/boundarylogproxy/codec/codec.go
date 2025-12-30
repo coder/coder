@@ -18,15 +18,19 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type Tag uint8
+
+const (
+	// TagV1 identifies the first revision of the protocol.
+	TagV1 Tag = 1
+)
+
 const (
 	// DataLength is the number of bits used for the length of encoded protobuf data.
 	DataLength = 28
 
 	// tagLength is the number of bits used for the tag.
 	tagLength = 4
-
-	// TagV1 identifies the first revision of the protocol.
-	TagV1 = 1
 
 	// MaxMessageSize is the practical maximum size of the protobuf messages
 	// sent over the wire. While the wire format allows for messages much larger
@@ -37,8 +41,8 @@ const (
 var ErrTooLarge = xerrors.New("message too large")
 
 // WriteFrame writes a framed message with the given tag and data. The tag must
-// fit in 4 bits (0-15), and data must not exceed 2^28 bytes in length.
-func WriteFrame(w io.Writer, tag uint8, data []byte) error {
+// fit in 4 bits (0-15), and data must not exceed 2^DataLength in length.
+func WriteFrame(w io.Writer, tag Tag, data []byte) error {
 	if len(data) > 1<<DataLength {
 		return xerrors.Errorf("data too large: %d bytes", len(data))
 	}
@@ -64,7 +68,7 @@ func WriteFrame(w io.Writer, tag uint8, data []byte) error {
 //	for {
 //	    _, buf, _ = ReadFrame(r, maxSize, buf)
 //	}
-func ReadFrame(r io.Reader, maxSize uint32, buf []byte) (uint8, []byte, error) {
+func ReadFrame(r io.Reader, maxSize uint32, buf []byte) (Tag, []byte, error) {
 	var header uint32
 	if err := binary.Read(r, binary.BigEndian, &header); err != nil {
 		return 0, nil, xerrors.Errorf("read header error: %w", err)
@@ -78,7 +82,7 @@ func ReadFrame(r io.Reader, maxSize uint32, buf []byte) (uint8, []byte, error) {
 		// shifted <= tagMask.
 		return 0, nil, xerrors.Errorf("invalid tag: %d", shifted)
 	}
-	tag := uint8(shifted)
+	tag := Tag(shifted)
 
 	if length > maxSize {
 		return 0, nil, ErrTooLarge

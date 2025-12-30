@@ -146,7 +146,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		}
 
 		var (
-			tag uint8
+			tag codec.Tag
 			err error
 		)
 		tag, buf, err = codec.ReadFrame(conn, codec.MaxMessageSize, buf)
