@@ -283,7 +283,7 @@ func TestServer_MessageTooLarge(t *testing.T) {
 	defer conn.Close()
 
 	// Send a message claiming to be larger than the max message size.
-	var length uint32 = codec.MaxMessageSize + 1
+	var length uint32 = codec.MaxMessageSizeV1 + 1
 	err = binary.Write(conn, binary.BigEndian, length)
 	require.NoError(t, err)
 
@@ -508,14 +508,12 @@ func TestServer_InvalidHeader(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalFast, name)
 	}
 
-	// Garbage header: invalid tag and invalid length.
-	sendInvalidHeader(t, "garbage", 0xFFFFFFFF)
+	// TagV1 with length exceeding MaxMessageSizeV1.
+	sendInvalidHeader(t, "v1 too large", (uint32(codec.TagV1)<<codec.DataLength)|(codec.MaxMessageSizeV1+1))
 
-	// Valid tag, invalid length (exceeds max message size).
-	sendInvalidHeader(t, "invalid length", (uint32(codec.TagV1)<<codec.DataLength)|0x00FFFFFF)
-
-	// Invalid tag, valid length.
-	sendInvalidHeader(t, "invalid tag", (15<<codec.DataLength)|100)
+	// Unknown tag.
+	const bogusTag = 0xFF
+	sendInvalidHeader(t, "unknown tag too large", (bogusTag<<codec.DataLength)|(codec.MaxMessageSizeV1+1))
 
 	cancel()
 	<-forwarderDone

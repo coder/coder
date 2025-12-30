@@ -149,7 +149,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 			tag codec.Tag
 			err error
 		)
-		tag, buf, err = codec.ReadFrame(conn, codec.MaxMessageSize, buf)
+		tag, buf, err = codec.ReadFrame(conn, buf)
 		switch {
 		case errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed):
 			return
