@@ -1,11 +1,11 @@
 import Skeleton from "@mui/material/Skeleton";
 import { API } from "api/api";
+import { workspaceAgentContainersKey } from "api/queries/workspaces";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
-	WorkspaceAgentDevcontainerStatus,
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -22,7 +22,6 @@ import { Container, ExternalLinkIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
-import { useEffect } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { portForwardURL } from "utils/portForward";
@@ -36,7 +35,6 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
-import { workspaceAgentContainersKey } from "api/queries/workspaces";
 
 type AgentDevcontainerCardProps = {
 	parentAgent: WorkspaceAgent;
@@ -134,25 +132,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			console.error("Failed to rebuild devcontainer:", error);
 		},
 	});
-
-	// Re-fetch containers when the subAgent changes to ensure data is
-	// in sync. This relies on agent updates being pushed to the client
-	// to trigger the re-fetch. That is why we match on name here
-	// instead of ID as we need to fetch to get an up-to-date ID.
-	const latestSubAgentByName = subAgents.find(
-		(agent) => agent.name === devcontainer.name,
-	);
-	useEffect(() => {
-		if (!latestSubAgentByName?.id || !latestSubAgentByName?.status) {
-			return;
-		}
-		queryClient.invalidateQueries({ queryKey });
-	}, [
-		latestSubAgentByName?.id,
-		latestSubAgentByName?.status,
-		queryClient,
-		parentAgent.id,
-	]);
 
 	const showDevcontainerControls = subAgent && devcontainer.container;
 	const isTransitioning =
