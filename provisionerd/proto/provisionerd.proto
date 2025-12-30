@@ -159,11 +159,9 @@ message CommitQuotaResponse {
 
 message CancelAcquire {}
 
-message UploadFileRequest {
-  oneof type {
-    provisioner.DataUpload data_upload = 1;
-    provisioner.ChunkPiece chunk_piece = 2;
-  }
+message FileRequest {
+  string file_id = 1;
+  provisioner.DataUploadType upload_type = 2;
 }
 
 service ProvisionerDaemon {
@@ -196,5 +194,7 @@ service ProvisionerDaemon {
 
   // UploadFile streams files to be inserted into the database.
   // The file upload_type should be used to determine how to handle the file.
-  rpc UploadFile(stream UploadFileRequest) returns (Empty);
+  rpc UploadFile(stream provisioner.FileUpload) returns (Empty);
+
+  rpc DownloadFile(FileRequest) returns (stream provisioner.FileUpload);
 }
