@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/quartz"
 )
 
 func TestMetadataBatcher(t *testing.T) {
@@ -24,6 +24,7 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	clock := quartz.NewMock(t)
 
 	// Set up test agents with metadata.
 	agent1 := setupAgentWithMetadata(t, store)
@@ -36,6 +37,7 @@ func TestMetadataBatcher(t *testing.T) {
 		MetadataBatcherWithStore(store),
 		MetadataBatcherWithPubsub(ps),
 		MetadataBatcherWithLogger(log),
+		MetadataBatcherWithTimeNow(clock.Now),
 		func(b *MetadataBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
@@ -46,7 +48,7 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Given: no metadata updates are added
 	// When: it becomes time to flush
-	t1 := dbtime.Now()
+	t1 := clock.Now()
 	tick <- t1
 	f := <-flushed
 	require.Equal(t, 0, f, "expected no agents to be flushed")
@@ -158,6 +160,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	clock := quartz.NewMock(t)
 
 	agent1 := setupAgentWithMetadata(t, store)
 	agent2 := setupAgentWithMetadata(t, store)
@@ -171,6 +174,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 		MetadataBatcherWithPubsub(ps),
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(2),
+		MetadataBatcherWithTimeNow(clock.Now),
 		func(b *MetadataBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
@@ -179,7 +183,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closer)
 
-	t1 := dbtime.Now()
+	t1 := clock.Now()
 
 	// Fill buffer to capacity
 	b.Add(agent1.ID, []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1})
@@ -211,6 +215,7 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	clock := quartz.NewMock(t)
 
 	agent := setupAgentWithMetadata(t, store)
 
@@ -221,6 +226,7 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 		MetadataBatcherWithStore(store),
 		MetadataBatcherWithPubsub(ps),
 		MetadataBatcherWithLogger(log),
+		MetadataBatcherWithTimeNow(clock.Now),
 		func(b *MetadataBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
@@ -229,7 +235,7 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closer)
 
-	t1 := dbtime.Now()
+	t1 := clock.Now()
 
 	// Add first update
 	b.Add(agent.ID, []string{"key1"}, []string{"first_value"}, []string{""}, []time.Time{t1})
@@ -261,6 +267,7 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	clock := quartz.NewMock(t)
 
 	agent := setupAgentWithMetadata(t, store)
 
@@ -271,6 +278,7 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 		MetadataBatcherWithStore(store),
 		MetadataBatcherWithPubsub(ps),
 		MetadataBatcherWithLogger(log),
+		MetadataBatcherWithTimeNow(clock.Now),
 		func(b *MetadataBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
@@ -279,7 +287,7 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closer)
 
-	t1 := dbtime.Now()
+	t1 := clock.Now()
 
 	// Add updates with some duplicate keys and some unique keys
 	b.Add(agent.ID, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t1, t1})
@@ -324,6 +332,7 @@ func TestMetadataBatcher_EntryCountTracking(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	clock := quartz.NewMock(t)
 
 	agent := setupAgentWithMetadata(t, store)
 
@@ -335,6 +344,7 @@ func TestMetadataBatcher_EntryCountTracking(t *testing.T) {
 		MetadataBatcherWithPubsub(ps),
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(5), // Small size to test capacity
+		MetadataBatcherWithTimeNow(clock.Now),
 		func(b *MetadataBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
@@ -343,7 +353,7 @@ func TestMetadataBatcher_EntryCountTracking(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closer)
 
-	t1 := dbtime.Now()
+	t1 := clock.Now()
 
 	// Add 3 entries
 	b.Add(agent.ID, []string{"key1", "key2", "key3"}, []string{"v1", "v2", "v3"}, []string{"", "", ""}, []time.Time{t1, t1, t1})
@@ -388,6 +398,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	clock := quartz.NewMock(t)
 
 	agent := setupAgentWithMetadata(t, store)
 
@@ -398,6 +409,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 		MetadataBatcherWithStore(store),
 		MetadataBatcherWithPubsub(ps),
 		MetadataBatcherWithLogger(log),
+		MetadataBatcherWithTimeNow(clock.Now),
 		func(b *MetadataBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
@@ -406,7 +418,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closer)
 
-	t1 := dbtime.Now()
+	t1 := clock.Now()
 	t2 := t1.Add(time.Second)
 	t3 := t1.Add(2 * time.Second)
 
@@ -448,6 +460,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	clock := quartz.NewMock(t)
 
 	tick := make(chan time.Time)
 	flushed := make(chan int, 1)
@@ -456,6 +469,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		MetadataBatcherWithStore(store),
 		MetadataBatcherWithPubsub(ps),
 		MetadataBatcherWithLogger(log),
+		MetadataBatcherWithTimeNow(clock.Now),
 		func(b *MetadataBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
@@ -464,7 +478,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closer)
 
-	t1 := dbtime.Now()
+	t1 := clock.Now()
 
 	// Create enough agents to exceed the 8KB pubsub limit.
 	// A UUID in JSON is ~38 bytes (36 chars + quotes), plus JSON overhead.
@@ -487,7 +501,6 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// they were chunked without mocking pubsub, but we can verify no errors
 	// occurred during the flush, which would indicate chunking worked)
 }
-
 
 // setupAgentWithMetadata creates a test agent with some metadata keys.
 func setupAgentWithMetadata(t *testing.T, store database.Store) database.WorkspaceAgent {
