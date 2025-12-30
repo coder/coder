@@ -104,6 +104,75 @@ func TestCreateOrganizationRoles(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "not allowed to assign site wide permissions for an organization role")
 	})
+
+	// Test that the output of `coder organization roles show --output json` can
+	// be used as input to `coder organization roles create --stdin`.
+	t.Run("JSONArrayInput", func(t *testing.T) {
+		t.Parallel()
+
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organization", "roles", "create", "--stdin")
+		// Input is an array with a single element (matching export format).
+		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`[{
+    "name": "new-role-from-array",
+    "organization_id": "%s",
+    "display_name": "New Role",
+    "site_permissions": [],
+    "organization_permissions": [
+		{
+		  "resource_type": "workspace",
+		  "action": "read"
+		}
+    ],
+    "user_permissions": [],
+    "assignable": true,
+    "built_in": false
+  }]`, owner.OrganizationID.String()))
+		//nolint:gocritic // only owners can edit roles
+		clitest.SetupConfig(t, client, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "new-role-from-array")
+	})
+
+	t.Run("JSONArrayMultipleRolesError", func(t *testing.T) {
+		t.Parallel()
+
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organization", "roles", "create", "--stdin")
+		// Input is an array with multiple elements - should error.
+		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`[
+  {"name": "role1", "organization_id": "%s", "organization_permissions": []},
+  {"name": "role2", "organization_id": "%s", "organization_permissions": []}
+]`, owner.OrganizationID.String(), owner.OrganizationID.String()))
+		//nolint:gocritic // only owners can edit roles
+		clitest.SetupConfig(t, client, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "only 1 role can be sent at a time")
+	})
 }
 
 func TestShowOrganizations(t *testing.T) {
@@ -287,5 +356,63 @@ func TestUpdateOrganizationRoles(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "The role test-role does not exist.")
+	})
+
+	// Test that the output of `coder organization roles show --output json` can
+	// be used as input to `coder organization roles update --stdin`.
+	t.Run("JSONArrayInput", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleOwner())
+
+		// Create a role in the DB with no permissions
+		const expectedRole = "test-role-array"
+		dbgen.CustomRole(t, db, database.CustomRole{
+			Name:            expectedRole,
+			DisplayName:     "Test Role Array",
+			SitePermissions: nil,
+			OrgPermissions:  nil,
+			UserPermissions: nil,
+			OrganizationID: uuid.NullUUID{
+				UUID:  owner.OrganizationID,
+				Valid: true,
+			},
+		})
+
+		// Update the role via JSON array input (matching export format).
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organization", "roles", "update", "--stdin")
+		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`[{
+    "name": "test-role-array",
+    "organization_id": "%s",
+    "display_name": "Updated Role",
+    "site_permissions": [],
+    "organization_permissions": [
+		{
+		  "resource_type": "workspace",
+		  "action": "read"
+		}
+    ],
+    "user_permissions": [],
+    "assignable": true,
+    "built_in": false
+  }]`, owner.OrganizationID.String()))
+
+		//nolint:gocritic // only owners can edit roles
+		clitest.SetupConfig(t, client, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "test-role-array")
+		require.Contains(t, buf.String(), "1 permissions")
 	})
 }
