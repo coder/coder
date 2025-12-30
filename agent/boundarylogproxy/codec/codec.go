@@ -53,10 +53,13 @@ func WriteFrame(w io.Writer, tag Tag, data []byte) error {
 	header |= uint32(tag) << DataLength
 
 	if err := binary.Write(w, binary.BigEndian, header); err != nil {
-		return err
+		return xerrors.Errorf("write header error: %w", err)
 	}
-	_, err := w.Write(data)
-	return err
+	if _, err := w.Write(data); err != nil {
+		return xerrors.Errorf("write data error: %w", err)
+	}
+
+	return nil
 }
 
 // ReadFrame reads a framed message, returning the decoded tag and data. If the
