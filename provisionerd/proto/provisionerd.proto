@@ -161,6 +161,7 @@ message CancelAcquire {}
 
 message FileRequest {
   string file_id = 1;
+  provisioner.DataUploadType upload_type = 2;
 }
 
 service ProvisionerDaemon {

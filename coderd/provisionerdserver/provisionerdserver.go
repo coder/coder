@@ -520,15 +520,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			versionModulesFile = tfvals.CachedModuleFiles.UUID.String()
 		}
 
-		//var cachedModulesData []byte
-		//if tfvals.CachedModuleFiles.Valid && tfvals.CachedModuleFiles.UUID != uuid.Nil {
-		//	cachedModules, err := s.Database.GetFileByID(ctx, tfvals.CachedModuleFiles.UUID)
-		//	if err != nil {
-		//		return nil, failJob(fmt.Sprintf("get cached module files: %s", err))
-		//	}
-		//	cachedModulesData = cachedModules.Data
-		//}
-
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
 		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
 			if !xerrors.Is(err, sql.ErrNoRows) {
@@ -720,7 +711,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				//InitialModulesTar:       cachedModulesData, // TODO: This might exceed the max message size
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
 				WorkspaceName:           workspace.Name,
 				State:                   workspaceBuild.ProvisionerState,
@@ -1524,6 +1514,16 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 	file, err := s.Database.GetFileByID(ctx, fid)
 	if err != nil {
 		return fail(xerrors.Errorf("get file: %w", err))
+	}
+
+	switch request.UploadType {
+	case sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES:
+		// This check is not perfect. If these conditions are not true, then the file is not a modules file.
+		if file.CreatedBy != uuid.Nil || file.Mimetype != tarMimeType {
+			return fail(xerrors.Errorf("file %s is not a modules file", fid))
+		}
+	default:
+		return fail(xerrors.Errorf("unsupported file upload type: %s", request.UploadType))
 	}
 
 	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
