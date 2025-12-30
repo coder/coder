@@ -47,4 +47,4 @@ To start using workspace startup coordination, follow these steps:
   # Existing startup logic
   ```
 
-For more information, refer to the [usage documentation](./usage.md), [troubleshooting documentation](./troubleshooting.md), or view our [examples](./examples.md).
+For more information, refer to the [usage documentation](./usage.md), [troubleshooting documentation](./troubleshooting.md), or view our [examples](./example.md).
