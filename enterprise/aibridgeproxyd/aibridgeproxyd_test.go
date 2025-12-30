@@ -119,9 +119,9 @@ func withAllowedPorts(ports ...string) testProxyOption {
 	}
 }
 
-func withCoderAccessURL(url string) testProxyOption {
+func withCoderAccessURL(accessURL string) testProxyOption {
 	return func(cfg *testProxyConfig) {
-		cfg.coderAccessURL = url
+		cfg.coderAccessURL = accessURL
 	}
 }
 
