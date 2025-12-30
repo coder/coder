@@ -486,6 +486,10 @@ pgAuth: password
 # Maximum number of open connections to the database. Defaults to 10.
 # (default: 10, type: int)
 pgConnMaxOpen: 10
+# Maximum number of idle connections to the database. Defaults to 0 which means
+# auto (max open / 3).
+# (default: 0, type: int)
+pgConnMaxIdle: 0
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)

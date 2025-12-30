@@ -60,7 +60,7 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, regenVapidKeypairDBURL, 10, nil)
+			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, regenVapidKeypairDBURL, nil)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}

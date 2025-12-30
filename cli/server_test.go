@@ -2150,7 +2150,7 @@ func TestConnectToPostgres(t *testing.T) {
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, 10, migrations.Up)
+		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
@@ -2169,7 +2169,7 @@ func TestConnectToPostgres(t *testing.T) {
 		dbURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
-		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, 10, nil)
+		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
 		require.NoError(t, err)
 		defer okDB.Close()
 
@@ -2177,12 +2177,103 @@ func TestConnectToPostgres(t *testing.T) {
 		_, err = okDB.Exec(`UPDATE schema_migrations SET version = version + 1`)
 		require.NoError(t, err)
 
-		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, 10, nil)
+		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "database needs migration")
 
 		require.NoError(t, okDB.PingContext(ctx))
 	})
+}
+
+func TestComputeMaxIdleConns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		maxOpen        int
+		configuredIdle int
+		expectedIdle   int
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "auto_default_10_open",
+			maxOpen:        10,
+			configuredIdle: 0,
+			expectedIdle:   3, // 10/3 = 3
+		},
+		{
+			name:           "auto_30_open",
+			maxOpen:        30,
+			configuredIdle: 0,
+			expectedIdle:   10, // 30/3 = 10
+		},
+		{
+			name:           "auto_minimum_1",
+			maxOpen:        1,
+			configuredIdle: 0,
+			expectedIdle:   1, // 1/3 = 0, but minimum is 1
+		},
+		{
+			name:           "auto_minimum_2_open",
+			maxOpen:        2,
+			configuredIdle: 0,
+			expectedIdle:   1, // 2/3 = 0, but minimum is 1
+		},
+		{
+			name:           "auto_3_open",
+			maxOpen:        3,
+			configuredIdle: 0,
+			expectedIdle:   1, // 3/3 = 1
+		},
+		{
+			name:           "explicit_equal_to_max",
+			maxOpen:        10,
+			configuredIdle: 10,
+			expectedIdle:   10,
+		},
+		{
+			name:           "explicit_less_than_max",
+			maxOpen:        10,
+			configuredIdle: 5,
+			expectedIdle:   5,
+		},
+		{
+			name:           "explicit_1",
+			maxOpen:        10,
+			configuredIdle: 1,
+			expectedIdle:   1,
+		},
+		{
+			name:           "error_exceeds_max",
+			maxOpen:        10,
+			configuredIdle: 15,
+			expectError:    true,
+			errorContains:  "cannot exceed",
+		},
+		{
+			name:           "error_exceeds_max_by_1",
+			maxOpen:        10,
+			configuredIdle: 11,
+			expectError:    true,
+			errorContains:  "cannot exceed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := cli.ComputeMaxIdleConns(tt.maxOpen, tt.configuredIdle)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedIdle, result)
+			}
+		})
+	}
 }
 
 func TestServer_InvalidDERP(t *testing.T) {

@@ -33,7 +33,7 @@ func TestDriver(t *testing.T) {
 	sqlDriver, err := awsiamrds.Register(ctx, "postgres")
 	require.NoError(t, err)
 
-	db, err := cli.ConnectToPostgres(ctx, testutil.Logger(t), sqlDriver, url, 10, migrations.Up)
+	db, err := cli.ConnectToPostgres(ctx, testutil.Logger(t), sqlDriver, url, migrations.Up)
 	require.NoError(t, err)
 	defer func() {
 		_ = db.Close()

@@ -65,6 +65,10 @@ OPTIONS:
           Type of auth to use when connecting to postgres. For AWS RDS, using
           IAM authentication (awsiamrds) is recommended.
 
+      --pg-conn-max-idle int, $CODER_PG_CONN_MAX_IDLE (default: 0)
+          Maximum number of idle connections to the database. Defaults to 0
+          which means auto (max open / 3).
+
       --pg-conn-max-open int, $CODER_PG_CONN_MAX_OPEN (default: 10)
           Maximum number of open connections to the database. Defaults to 10.
 

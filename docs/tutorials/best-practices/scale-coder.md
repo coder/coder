@@ -218,6 +218,30 @@ performance. Coder's
 [validated architectures](../../admin/infrastructure/validated-architectures/index.md)
 give specific sizing recommendations for various user scales.
 
+### Connection pool tuning
+
+Coder Server maintains a pool of connections to PostgreSQL. You can tune the
+pool size with these settings:
+
+- `--pg-conn-max-open` (env: `CODER_PG_CONN_MAX_OPEN`): Maximum number of open
+  connections. Default: 10.
+- `--pg-conn-max-idle` (env: `CODER_PG_CONN_MAX_IDLE`): Maximum number of idle
+  connections kept in the pool. Default: 0 (auto), which uses max open / 3.
+
+When a connection is returned to the pool and the idle pool is already full, the
+connection is closed immediately. This can cause connection establishment
+overhead (churn) when load fluctuates. Monitor these metrics to understand your
+connection pool behavior:
+
+- **Capacity**: `go_sql_max_open_connections - go_sql_in_use_connections` shows
+  how many connections are available for new requests.
+- **Churn**: `sum(rate(go_sql_max_idle_closed_total[$__rate_interval]))` shows
+  how many connections are being closed because the idle pool is full.
+
+If you see high churn, consider increasing `--pg-conn-max-idle` to keep more
+connections ready for reuse. If you see capacity consistently near zero,
+consider increasing `--pg-conn-max-open`.
+
 ## Workspace proxies
 
 Workspace proxies proxy HTTP traffic from end users to workspaces for Coder apps
