@@ -1781,18 +1781,20 @@ func (api *API) watchWorkspaceAgentMetadata(
 			log.Info(ctx, "received metadata update from batch channel", slog.F("agent_id", agentID), slog.F("batch_size", len(batchPayload.AgentIDs)))
 
 			// Signal to re-fetch all metadata for this agent.
-			// We pass nil for Keys to indicate all keys should be fetched.
+			// Batch notifications don't include which keys changed, so we
+			// must fetch all keys. Don't merge with pending updates - just
+			// replace with "fetch all" since that's the most complete action.
 			payload := agentapi.WorkspaceAgentMetadataChannelPayload{
 				CollectedAt: time.Now(),
-				Keys:        nil,
+				Keys:        nil, // nil = fetch all keys
 			}
 
+			// Clear any pending partial fetches - batch always means "fetch all".
 			select {
-			case prev := <-update:
-				payload.Keys = appendUnique(prev.Keys, payload.Keys)
+			case <-update:
 			default:
 			}
-			// This can never block since we pop and merge beforehand.
+			// This can never block since we drained beforehand.
 			update <- payload
 			break
 		}
