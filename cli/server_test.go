@@ -2191,7 +2191,7 @@ func TestComputeMaxIdleConns(t *testing.T) {
 	tests := []struct {
 		name           string
 		maxOpen        int
-		configuredIdle int
+		configuredIdle string
 		expectedIdle   int
 		expectError    bool
 		errorContains  string
@@ -2199,64 +2199,85 @@ func TestComputeMaxIdleConns(t *testing.T) {
 		{
 			name:           "auto_default_10_open",
 			maxOpen:        10,
-			configuredIdle: 0,
+			configuredIdle: "auto",
 			expectedIdle:   3, // 10/3 = 3
 		},
 		{
 			name:           "auto_30_open",
 			maxOpen:        30,
-			configuredIdle: 0,
+			configuredIdle: "auto",
 			expectedIdle:   10, // 30/3 = 10
 		},
 		{
 			name:           "auto_minimum_1",
 			maxOpen:        1,
-			configuredIdle: 0,
+			configuredIdle: "auto",
 			expectedIdle:   1, // 1/3 = 0, but minimum is 1
 		},
 		{
 			name:           "auto_minimum_2_open",
 			maxOpen:        2,
-			configuredIdle: 0,
+			configuredIdle: "auto",
 			expectedIdle:   1, // 2/3 = 0, but minimum is 1
 		},
 		{
 			name:           "auto_3_open",
 			maxOpen:        3,
-			configuredIdle: 0,
+			configuredIdle: "auto",
 			expectedIdle:   1, // 3/3 = 1
 		},
 		{
 			name:           "explicit_equal_to_max",
 			maxOpen:        10,
-			configuredIdle: 10,
+			configuredIdle: "10",
 			expectedIdle:   10,
 		},
 		{
 			name:           "explicit_less_than_max",
 			maxOpen:        10,
-			configuredIdle: 5,
+			configuredIdle: "5",
 			expectedIdle:   5,
 		},
 		{
 			name:           "explicit_1",
 			maxOpen:        10,
-			configuredIdle: 1,
+			configuredIdle: "1",
 			expectedIdle:   1,
 		},
 		{
 			name:           "error_exceeds_max",
 			maxOpen:        10,
-			configuredIdle: 15,
+			configuredIdle: "15",
 			expectError:    true,
 			errorContains:  "cannot exceed",
 		},
 		{
 			name:           "error_exceeds_max_by_1",
 			maxOpen:        10,
-			configuredIdle: 11,
+			configuredIdle: "11",
 			expectError:    true,
 			errorContains:  "cannot exceed",
+		},
+		{
+			name:           "error_invalid_string",
+			maxOpen:        10,
+			configuredIdle: "invalid",
+			expectError:    true,
+			errorContains:  "must be \"auto\" or a positive integer",
+		},
+		{
+			name:           "error_negative",
+			maxOpen:        10,
+			configuredIdle: "-1",
+			expectError:    true,
+			errorContains:  "must be \"auto\" or a positive integer",
+		},
+		{
+			name:           "error_zero",
+			maxOpen:        10,
+			configuredIdle: "0",
+			expectError:    true,
+			errorContains:  "must be \"auto\" or a positive integer",
 		},
 	}
 

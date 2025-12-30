@@ -226,7 +226,7 @@ pool size with these settings:
 - `--pg-conn-max-open` (env: `CODER_PG_CONN_MAX_OPEN`): Maximum number of open
   connections. Default: 10.
 - `--pg-conn-max-idle` (env: `CODER_PG_CONN_MAX_IDLE`): Maximum number of idle
-  connections kept in the pool. Default: 0 (auto), which uses max open / 3.
+  connections kept in the pool. Default: "auto", which uses max open / 3.
 
 When a connection is returned to the pool and the idle pool is already full, the
 connection is closed immediately. This can cause connection establishment

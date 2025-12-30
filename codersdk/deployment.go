@@ -465,7 +465,7 @@ type DeploymentValues struct {
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	PostgresConnMaxOpen             serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
-	PostgresConnMaxIdle             serpent.Int64                        `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
+	PostgresConnMaxIdle             serpent.String                       `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2634,13 +2634,20 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Postgres Connection Max Idle",
-			Description: "Maximum number of idle connections to the database. Defaults to 0 which means auto (max open / 3).",
+			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3.",
 			Flag:        "pg-conn-max-idle",
 			Env:         "CODER_PG_CONN_MAX_IDLE",
-			Default:     "0",
-			Value: serpent.Validate(&c.PostgresConnMaxIdle, func(value *serpent.Int64) error {
-				if value.Value() < 0 {
-					return xerrors.New("must be zero or positive")
+			Default:     "auto",
+			Value: serpent.Validate(&c.PostgresConnMaxIdle, func(value *serpent.String) error {
+				if value.Value() == "auto" {
+					return nil
+				}
+				n, err := strconv.Atoi(value.Value())
+				if err != nil {
+					return xerrors.Errorf("must be \"auto\" or a positive integer: %w", err)
+				}
+				if n < 1 {
+					return xerrors.New("must be \"auto\" or a positive integer")
 				}
 				return nil
 			}),

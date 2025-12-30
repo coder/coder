@@ -749,7 +749,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var pubsubWatchdogTimeout <-chan struct{}
 
 			maxOpenConns := int(vals.PostgresConnMaxOpen.Value())
-			maxIdleConns, err := ComputeMaxIdleConns(maxOpenConns, int(vals.PostgresConnMaxIdle.Value()))
+			maxIdleConns, err := ComputeMaxIdleConns(maxOpenConns, vals.PostgresConnMaxIdle.Value())
 			if err != nil {
 				return xerrors.Errorf("compute max idle connections: %w", err)
 			}
@@ -2334,20 +2334,27 @@ func IsLocalhost(host string) bool {
 }
 
 // ComputeMaxIdleConns calculates the effective maxIdleConns value. If
-// configuredIdle is 0 (auto), it returns maxOpen/3 with a minimum of 1. If
+// configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
 // configuredIdle exceeds maxOpen, it returns an error.
-func ComputeMaxIdleConns(maxOpen, configuredIdle int) (int, error) {
-	if configuredIdle == 0 {
+func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
+	if configuredIdle == "auto" {
 		computed := maxOpen / 3
 		if computed < 1 {
 			return 1, nil
 		}
 		return computed, nil
 	}
-	if configuredIdle > maxOpen {
-		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", configuredIdle, maxOpen)
+	idle, err := strconv.Atoi(configuredIdle)
+	if err != nil {
+		return 0, xerrors.Errorf("invalid max idle connections %q: must be \"auto\" or a positive integer", configuredIdle)
 	}
-	return configuredIdle, nil
+	if idle < 1 {
+		return 0, xerrors.New("max idle connections must be \"auto\" or a positive integer")
+	}
+	if idle > maxOpen {
+		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
+	}
+	return idle, nil
 }
 
 // PostgresConnectOptions contains options for connecting to Postgres.
