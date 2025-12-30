@@ -62,7 +62,7 @@ Once started, the Coder agent is responsible for running your workspace startup
 scripts. These may configure tools, service connections, or personalization with
 [dotfiles](./workspace-dotfiles.md). For complex initialization with multiple
 dependent scripts, see
-[Workspace Startup Coordination](./workspace-startup-coordination.md).
+[Workspace Startup Coordination](../admin/templates/startup-coordination/index.md).
 
 Once these steps have completed, your workspace will now be in the `Running`
 state. You can access it via any of the [supported methods](./index.md), stop it
