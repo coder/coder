@@ -444,6 +444,10 @@ var PostgresAuthDrivers = []string{
 	string(PostgresAuthAWSIAMRDS),
 }
 
+// PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
+// based on max open connections.
+const PostgresConnMaxIdleAuto = "auto"
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -2637,17 +2641,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3.",
 			Flag:        "pg-conn-max-idle",
 			Env:         "CODER_PG_CONN_MAX_IDLE",
-			Default:     "auto",
+			Default:     PostgresConnMaxIdleAuto,
 			Value: serpent.Validate(&c.PostgresConnMaxIdle, func(value *serpent.String) error {
-				if value.Value() == "auto" {
+				if value.Value() == PostgresConnMaxIdleAuto {
 					return nil
 				}
 				n, err := strconv.Atoi(value.Value())
 				if err != nil {
-					return xerrors.Errorf("must be \"auto\" or a positive integer: %w", err)
+					return xerrors.Errorf("must be %q or a positive integer: %w", PostgresConnMaxIdleAuto, err)
 				}
 				if n < 1 {
-					return xerrors.New("must be \"auto\" or a positive integer")
+					return xerrors.Errorf("must be %q or a positive integer", PostgresConnMaxIdleAuto)
 				}
 				return nil
 			}),

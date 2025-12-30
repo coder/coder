@@ -3455,6 +3455,13 @@ export type PostgresAuth = "awsiamrds" | "password";
 export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
 
 // From codersdk/deployment.go
+/**
+ * PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
+ * based on max open connections.
+ */
+export const PostgresConnMaxIdleAuto = "auto";
+
+// From codersdk/deployment.go
 export interface PprofConfig {
 	readonly enable: boolean;
 	readonly address: string;

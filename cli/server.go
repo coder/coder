@@ -2337,7 +2337,7 @@ func IsLocalhost(host string) bool {
 // configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
 // configuredIdle exceeds maxOpen, it returns an error.
 func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
-	if configuredIdle == "auto" {
+	if configuredIdle == codersdk.PostgresConnMaxIdleAuto {
 		computed := maxOpen / 3
 		if computed < 1 {
 			return 1, nil
@@ -2346,10 +2346,10 @@ func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
 	}
 	idle, err := strconv.Atoi(configuredIdle)
 	if err != nil {
-		return 0, xerrors.Errorf("invalid max idle connections %q: must be \"auto\" or a positive integer", configuredIdle)
+		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or a positive integer", configuredIdle, codersdk.PostgresConnMaxIdleAuto)
 	}
 	if idle < 1 {
-		return 0, xerrors.New("max idle connections must be \"auto\" or a positive integer")
+		return 0, xerrors.Errorf("max idle connections must be %q or a positive integer", codersdk.PostgresConnMaxIdleAuto)
 	}
 	if idle > maxOpen {
 		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
@@ -2359,11 +2359,7 @@ func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
 
 // PostgresConnectOptions contains options for connecting to Postgres.
 type PostgresConnectOptions struct {
-	// MaxOpenConns is the maximum number of open connections to the database.
-	// Defaults to 10.
 	MaxOpenConns int
-	// MaxIdleConns is the maximum number of idle connections in the pool.
-	// Defaults to 3.
 	MaxIdleConns int
 }
 
