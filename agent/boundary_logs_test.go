@@ -4,7 +4,6 @@ package agent_test
 
 import (
 	"context"
-	"encoding/binary"
 	"net"
 	"path/filepath"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
+	"github.com/coder/coder/v2/agent/boundarylogproxy/codec"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/testutil"
@@ -59,15 +59,7 @@ func sendBoundaryLogsRequest(t *testing.T, conn net.Conn, req *agentproto.Report
 	data, err := proto.Marshal(req)
 	require.NoError(t, err)
 
-	var header uint32
-	//nolint:gosec // In tests we're not worried about possible integer overflow.
-	header |= uint32(len(data))
-	header |= 1 << 28
-
-	err = binary.Write(conn, binary.BigEndian, header)
-	require.NoError(t, err)
-
-	_, err = conn.Write(data)
+	err = codec.WriteFrame(conn, codec.TagV1, data)
 	require.NoError(t, err)
 }
 
