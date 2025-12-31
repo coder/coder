@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 
 const meta: Meta<typeof AgentDevcontainerMoreActions> = {
@@ -40,13 +39,12 @@ export const ConfirmDialogOpen: Story = {
 };
 
 export const ConfirmDeleteCallsAPI: Story = {
-	play: async ({ canvasElement }) => {
+	args: {
+		deleteDevContainer: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-
-		const deleteSpy = spyOn(API, "deleteDevContainer").mockResolvedValue(
-			undefined,
-		);
 
 		await user.click(
 			canvas.getByRole("button", { name: "Dev Container actions" }),
@@ -58,7 +56,7 @@ export const ConfirmDeleteCallsAPI: Story = {
 		await user.click(within(body).getByTestId("confirm-button"));
 
 		await waitFor(() => {
-			expect(deleteSpy).toHaveBeenCalledTimes(1);
+			expect(args.deleteDevContainer).toHaveBeenCalledTimes(1);
 		});
 	},
 };
