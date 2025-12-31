@@ -299,9 +299,10 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 
 	logger.Debug(ctx, "starting reconciliation")
 
-	err = c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+	err = c.WithReconciliationLock(ctx, logger, func(ctx context.Context, db database.Store) error {
 		// Check if prebuilds reconciliation is paused
-		settingsJSON, err := c.store.GetPrebuildsSettings(ctx)
+		// Use db (lock tx) for read-only operations
+		settingsJSON, err := db.GetPrebuildsSettings(ctx)
 		if err != nil {
 			return xerrors.Errorf("get prebuilds settings: %w", err)
 		}
@@ -322,13 +323,16 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 			return nil
 		}
 
+		// MembershipReconciler performs write operations.
+		// It cannot use db because the lock transaction is read-only.
 		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock, logger)
 		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, PrebuiltWorkspacesGroupName)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
 
-		snapshot, err := c.SnapshotState(ctx, c.store)
+		// Use db (lock tx) for read-only operations
+		snapshot, err := c.SnapshotState(ctx, db)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
 		}
@@ -426,6 +430,8 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 
 	var state prebuilds.GlobalSnapshot
 
+	// If called with a store that is already in a transaction,
+	// InTx will reuse that transaction rather than creating a new one.
 	err := store.InTx(func(db database.Store) error {
 		// TODO: implement template-specific reconciliations later
 		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{})
