@@ -3,6 +3,7 @@ package codec_test
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -77,8 +78,7 @@ func TestReadFrameEmptyReader(t *testing.T) {
 	var buf bytes.Buffer
 	readBuf := make([]byte, codec.MaxMessageSizeV1)
 	_, _, err := codec.ReadFrame(&buf, readBuf)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "read header error")
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestReadFrameInvalidTag(t *testing.T) {
@@ -101,7 +101,7 @@ func TestReadFrameInvalidTag(t *testing.T) {
 
 	readBuf := make([]byte, 1)
 	_, _, err = codec.ReadFrame(&buf, readBuf)
-	require.Error(t, err)
+	require.ErrorIs(t, err, codec.ErrUnsupportedTag)
 }
 
 func TestReadFrameAllocatesWhenNeeded(t *testing.T) {
@@ -131,15 +131,15 @@ func TestWriteFrameDataSize(t *testing.T) {
 	//nolint: makezero // This intentionally increases the slice length.
 	data = append(data, 0) // One byte over the maximum
 	err = codec.WriteFrame(&buf, codec.TagV1, data)
-	require.Error(t, err)
+	require.ErrorIs(t, err, codec.ErrMessageTooLarge)
 }
 
 func TestWriteFrameInvalidTag(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	readBuf := make([]byte, 1)
+	data := make([]byte, 1)
 	const bogusTag = 2
-	err := codec.WriteFrame(&buf, codec.Tag(bogusTag), readBuf)
-	require.Error(t, err)
+	err := codec.WriteFrame(&buf, codec.Tag(bogusTag), data)
+	require.ErrorIs(t, err, codec.ErrUnsupportedTag)
 }

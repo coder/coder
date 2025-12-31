@@ -37,7 +37,13 @@ const (
 	MaxMessageSizeV1 uint32 = 1 << 15
 )
 
-var ErrMessageTooLarge = xerrors.New("message too large")
+var (
+	// ErrMessageTooLarge is returned when the message exceeds the maximum size
+	// allowed for the tag.
+	ErrMessageTooLarge = xerrors.New("message too large")
+	// ErrUnsupportedTag is returned when an unrecognized tag is encountered.
+	ErrUnsupportedTag = xerrors.New("unsupported tag")
+)
 
 // WriteFrame writes a framed message with the given tag and data. The data
 // must not exceed 2^DataLength in length.
@@ -47,11 +53,11 @@ func WriteFrame(w io.Writer, tag Tag, data []byte) error {
 	case TagV1:
 		maxSize = MaxMessageSizeV1
 	default:
-		return xerrors.Errorf("unsupported tag: %d", tag)
+		return xerrors.Errorf("%w: %d", ErrUnsupportedTag, tag)
 	}
 
 	if len(data) > int(maxSize) {
-		return xerrors.Errorf("data too large for tag %d: %d > %d", tag, len(data), maxSize)
+		return xerrors.Errorf("%w for tag %d: %d > %d", ErrMessageTooLarge, tag, len(data), maxSize)
 	}
 
 	var header uint32
@@ -100,7 +106,7 @@ func ReadFrame(r io.Reader, buf []byte) (Tag, []byte, error) {
 	case TagV1:
 		maxSize = MaxMessageSizeV1
 	default:
-		return 0, nil, xerrors.Errorf("unsupported tag: %d", tag)
+		return 0, nil, xerrors.Errorf("%w: %d", ErrUnsupportedTag, tag)
 	}
 
 	if length > maxSize {
