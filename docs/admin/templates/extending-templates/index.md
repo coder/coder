@@ -194,7 +194,7 @@ internally. For example:
 - [`dotfiles`](https://registry.coder.com/modules/coder/dotfiles): Applies user
   dotfiles
 - [`code-server`](https://registry.coder.com/modules/coder/code-server):
-  Installs and configures VS Code
+  Installs and configures code-server (VS Code in the browser)
 
 You can also reference external script files:
 
