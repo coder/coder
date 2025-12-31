@@ -580,7 +580,7 @@ func setupAgentWithMetadata(t *testing.T, store database.Store) database.Workspa
 	})
 
 	// Create some metadata keys for this agent
-	for i := 1; i <= 5; i++ {
+	for i := int32(1); i <= 5; i++ {
 		err := store.InsertWorkspaceAgentMetadata(context.Background(), database.InsertWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: agt.ID,
 			DisplayName:      fmt.Sprintf("Key %d", i),
@@ -588,7 +588,7 @@ func setupAgentWithMetadata(t *testing.T, store database.Store) database.Workspa
 			Script:           "echo test",
 			Timeout:          30000000000, // 30 seconds in nanoseconds
 			Interval:         10000000000, // 10 seconds in nanoseconds
-			DisplayOrder:     int32(i),
+			DisplayOrder:     i,
 		})
 		require.NoError(t, err)
 	}

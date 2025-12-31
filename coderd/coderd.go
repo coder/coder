@@ -1877,7 +1877,6 @@ type API struct {
 	statsReporter         *workspacestats.Reporter
 	metadataBatcher       *agentapi.MetadataBatcher
 	metadataBatcherCloser func()
-	metadataBatcherMu     sync.Mutex
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
