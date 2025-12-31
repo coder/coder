@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -24,6 +25,11 @@ const (
 	// forwarding batches of logs in parallel.
 	logBufferSize = 100
 )
+
+// DefaultSocketPath returns the default path for the boundary audit log socket.
+func DefaultSocketPath() string {
+	return path.Join(os.TempDir(), "boundary-audit.sock")
+}
 
 // Reporter reports boundary logs from workspaces.
 type Reporter interface {

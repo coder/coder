@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -497,8 +498,8 @@ func workspaceAgent() *serpent.Command {
 			Value:       serpent.StringOf(&socketPath),
 		},
 		{
-			Flag:        "boundary-proxy-socket-path",
-			Default:     "/tmp/boundary-proxy.sock",
+			Flag:        "boundary-log-proxy-socket-path",
+			Default:     boundarylogproxy.DefaultSocketPath(),
 			Env:         "CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH",
 			Description: "The path for the boundary log proxy server Unix socket. Boundary should write audit logs to this socket.",
 			Value:       serpent.StringOf(&boundaryLogProxySocketPath),
