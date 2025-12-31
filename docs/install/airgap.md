@@ -255,14 +255,23 @@ Gateway, JetBrains' remote development product that works with Coder,
 
 ## Microsoft VS Code Remote - SSH
 
-Installation of the
-[Visual Studio Code Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh)
-(for connecting a local VS Code to a remote Coder workspace) requires that your
-local machine has outbound HTTPS (port 443) connectivity to:
+The [Coder Remote](https://github.com/coder/vscode-coder) extension for VS Code
+uses VS Code's built-in Remote SSH extension to connect to workspaces. The
+Remote SSH extension requires that your **local machine** (VS Code client) has
+outbound HTTPS (port 443) connectivity to:
 
-- update.code.visualstudio.com
-- vscode.blob.core.windows.net
-- \*.vo.msecnd.net
+- `update.code.visualstudio.com`
+- `vscode.blob.core.windows.net`
+- `*.vo.msecnd.net`
+
+The workspace itself does not need internet access. The VS Code client downloads
+the `vscode-server` component and transfers it to the workspace via SSH.
+
+**Fully offline environments**: VS Code Remote SSH does not support scenarios
+where both the client and workspace are fully offline with no internet access.
+For detailed information about offline behavior, manual installation
+workarounds, and known limitations, see
+[Offline environments](../user-guides/workspace-access/vscode.md#offline-environments).
 
 ## Next steps
 

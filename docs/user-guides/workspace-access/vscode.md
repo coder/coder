@@ -162,3 +162,158 @@ workspace terminal:
 ```console
 code --extensions-dir ~/.vscode-server/extensions --install-extension "$extension"
 ```
+
+## Offline environments
+
+### VS Code Remote SSH offline behavior
+
+The Coder Remote extension uses VS Code's built-in Remote SSH extension
+(`ms-vscode-remote.remote-ssh`) to connect to workspaces. This extension
+requires specific network connectivity to function properly.
+
+#### Network requirements
+
+When connecting to a workspace, VS Code Remote SSH downloads the `vscode-server`
+component to the remote workspace. This requires the **client machine** (your
+desktop running VS Code) to have outbound HTTPS (port 443) connectivity to:
+
+- `update.code.visualstudio.com`
+- `vscode.blob.core.windows.net`
+- `*.vo.msecnd.net`
+
+> [!NOTE]
+> The workspace itself does not need internet access. Only the VS Code client
+> needs connectivity to download the server component, which is then transferred
+> to the workspace via SSH.
+
+#### Fully offline scenarios
+
+**VS Code Remote SSH does not support scenarios where both the client and
+workspace are fully offline** with no internet access. The extension requires
+the client to download `vscode-server` during the initial connection.
+
+If your client machine cannot access the required Microsoft domains, consider
+these alternatives:
+
+- **[code-server](./code-server.md)**: A browser-based VS Code that runs
+  entirely within the workspace. See
+  [air-gapped deployments](../../install/airgap.md) for offline setup.
+- **[JetBrains IDEs](../../admin/templates/extending-templates/jetbrains-airgapped.md)**:
+  Documented offline deployment steps for Gateway.
+
+See [microsoft/vscode-remote-release#1242](https://github.com/microsoft/vscode-remote-release/issues/1242)
+for more information about offline support limitations.
+
+### How vscode-server is installed
+
+VS Code Remote SSH installs `vscode-server` on the workspace through one of
+these methods:
+
+1. **Download via client** (default): The VS Code client downloads the server
+   binary from Microsoft's CDN and transfers it to the workspace via `scp`.
+   This is the standard method used by the Coder Remote extension.
+
+2. **Direct download** (fallback): If the workspace has internet access and the
+   client cannot transfer the file, the workspace may attempt to download
+   `vscode-server` directly. This requires the workspace to access the same
+   Microsoft domains listed above.
+
+The server binary is version-specific and tied to a commit hash that matches
+your VS Code client version. The binary is extracted to
+`~/.vscode-server/bin/<COMMIT_ID>/` in the workspace.
+
+### Manual vscode-server installation
+
+In restricted environments where automated installation fails, you can manually
+download and install `vscode-server`. This is **not officially supported by
+Microsoft** and may break with VS Code updates.
+
+> [!WARNING]
+> Manual installation creates maintenance overhead. You must re-download and
+> install `vscode-server` after every VS Code client update, as version
+> mismatches will prevent connections.
+
+#### Finding the commit ID
+
+To find the commit ID for your VS Code version:
+
+1. In VS Code, go to **Help** → **About**
+2. Look for the "Commit" field (example:
+   `92da9481c0904c6adfe372c12da3b7748d74bdcb`)
+
+Alternatively, check the output in the **Remote - SSH** extension log when
+attempting to connect to a workspace.
+
+#### Download and installation steps
+
+On a machine with internet access:
+
+1. Download the server binary for your commit ID and platform:
+
+   ```sh
+   # For Linux x64 (most common)
+   COMMIT_ID="92da9481c0904c6adfe372c12da3b7748d74bdcb"
+   curl -Lo vscode-server.tar.gz \
+     "https://update.code.visualstudio.com/commit:${COMMIT_ID}/server-linux-x64/stable"
+
+   # For Alpine Linux (musl)
+   curl -Lo vscode-server.tar.gz \
+     "https://update.code.visualstudio.com/commit:${COMMIT_ID}/server-linux-alpine-x64/stable"
+
+   # For ARM64
+   curl -Lo vscode-server.tar.gz \
+     "https://update.code.visualstudio.com/commit:${COMMIT_ID}/server-linux-arm64/stable"
+   ```
+
+2. Transfer the tarball to your workspace
+3. On the workspace, extract and install:
+
+   ```sh
+   COMMIT_ID="92da9481c0904c6adfe372c12da3b7748d74bdcb"
+
+   # Create the directory structure
+   mkdir -p ~/.vscode-server/bin/${COMMIT_ID}
+
+   # Extract the server
+   tar -xzf vscode-server.tar.gz -C ~/.vscode-server/bin/${COMMIT_ID} --strip-components=1
+
+   # Create marker file to indicate successful installation
+   touch ~/.vscode-server/bin/${COMMIT_ID}/0
+   ```
+
+4. Attempt to connect from VS Code Desktop
+
+See community resources for automated scripts:
+
+- [Manual download script](https://gist.github.com/cvcore/8e187163f41a77f5271c26a870e52778)
+- [Offline installation guide](https://gist.github.com/mansicer/9dd6a33beaf6852e841286c2511e25d5)
+
+#### Known issues with manual installation
+
+**Version mismatches**: When your VS Code client updates, the commit ID changes
+and you must reinstall `vscode-server` with the new commit ID. Connections will
+fail until versions match.
+
+**Platform detection**: Ensure you download the correct platform binary
+(Linux/Alpine/ARM) that matches your workspace architecture.
+
+**Extension updates**: VS Code regularly releases updates that change server
+requirements. Manual installations may break after VS Code auto-updates.
+
+**Unsupported configuration**: Microsoft does not officially support manual
+installation. Recent VS Code versions have made changes to the deployment
+process that may affect manual installations.
+
+#### Alternative: Mirror service
+
+For organizations with many offline users, consider setting up an internal
+mirror that mimics Microsoft's update service:
+
+- Mirror the endpoints used by VS Code:
+  - `https://update.code.visualstudio.com/commit:<COMMIT_ID>/server-<platform>/<channel>`
+- Use network policies to redirect VS Code traffic to your mirror
+- See [this example implementation](https://gist.github.com/b01/0a16b6645ab7921b0910603dfb85e4fb)
+  for inspiration
+
+This approach centralizes version management but requires infrastructure and
+ongoing maintenance to stay current with VS Code releases.
