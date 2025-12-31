@@ -115,6 +115,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		// clock skew.
 		dbUpdate.CollectedAt = append(dbUpdate.CollectedAt, collectedAt)
 
+		fmt.Println("dbupdate collected at: ", dbUpdate.CollectedAt)
 		a.Log.Debug(
 			ctx, "accepted metadata report",
 			slog.F("collected_at", collectedAt),

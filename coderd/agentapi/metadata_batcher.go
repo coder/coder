@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 	"sync/atomic"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,7 +14,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
@@ -80,8 +80,6 @@ type MetadataBatcher struct {
 
 	// flushed is used during testing to signal that a flush has completed.
 	flushed chan<- int
-
-	timeNowFn func() time.Time
 }
 
 // MetadataBatcherOption is a functional option for configuring a MetadataBatcher.
@@ -122,19 +120,11 @@ func MetadataBatcherWithLogger(log slog.Logger) MetadataBatcherOption {
 	}
 }
 
-// MetadataBatcherWithTimeNow sets a custom time function for testing.
-func MetadataBatcherWithTimeNow(fn func() time.Time) MetadataBatcherOption {
-	return func(b *MetadataBatcher) {
-		b.timeNowFn = fn
-	}
-}
-
 // NewMetadataBatcher creates a new MetadataBatcher and starts it.
 func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*MetadataBatcher, func(), error) {
 	b := &MetadataBatcher{}
 	b.log = slog.Logger{}
 	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
-	b.timeNowFn = dbtime.Now
 
 	for _, opt := range opts {
 		opt(b)
@@ -196,6 +186,10 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 		b.buf[agentID] = make(map[string]metadataValue)
 	}
 
+	if !(len(keys) == len(values) && len(values) == len(errors) && len(errors) == len(collectedAt)) {
+		return
+	}
+
 	// Process each key one at a time.
 	for i := range keys {
 		// If buffer is already at max capacity, drop this and remaining keys.
@@ -223,6 +217,7 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 			error:       errors[i],
 			collectedAt: collectedAt[i],
 		}
+		fmt.Println("collected at: ", collectedAt[i])
 
 		// If we've reached capacity after adding this key, trigger immediate flush.
 		if b.entryCount >= b.batchSize && !b.flushForced.Load() {
@@ -306,6 +301,7 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 			values = append(values, metadata.value)
 			errors = append(errors, metadata.error)
 			collectedAt = append(collectedAt, metadata.collectedAt)
+			fmt.Println("collectedAt in otuput:", collectedAt)
 		}
 	}
 
