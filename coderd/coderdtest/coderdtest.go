@@ -1565,7 +1565,7 @@ func RandomUsername(_ testing.TB) string {
 // RandomName returns a random name in title case (e.g. "Happy Einstein").
 func RandomName(_ testing.TB) string {
 	return cases.Title(language.English).String(
-		strings.ReplaceAll(namesgenerator.GetRandomName(), "_", " "),
+		namesgenerator.GenerateDelimited(" "),
 	)
 }
 

@@ -126,7 +126,7 @@ func generateFallback() TaskName {
 	// We have a 32 character limit for the name.
 	// We have a 5 character suffix `-ffff`.
 	// This leaves us with 27 characters for the name.
-	name := namesgenerator.GenerateHyphenated()
+	name := namesgenerator.GenerateDelimited("-")
 	name = name[:min(len(name), 27)]
 	name = strings.TrimSuffix(name, "-")
 

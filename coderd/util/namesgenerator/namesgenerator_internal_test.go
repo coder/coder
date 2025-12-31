@@ -1,7 +1,9 @@
 package namesgenerator
 
 import (
+	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -63,19 +65,30 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-func TestGetRandomName(t *testing.T) {
+func TestGetRandomNameLength(t *testing.T) {
 	t.Parallel()
-	for range len(adjectives) {
-		name := GetRandomName()
+
+	const (
+		initSeed = 1
+		delim    = "-"
+		// 10000 iterations arbitrary, but it will exercise many generated names.
+		iter = 10000
+	)
+	for i := range iter {
+		//nolint:gosec // not worried about overflow when when the iteration count is known/small.
+		name := getRandomName(delim, initSeed+uint64(i))
 		assert.LessOrEqual(t, len(name), maxNameLen)
+		assert.Contains(t, name, delim)
+		assert.Equal(t, name, strings.ToLower(name))
+		verifyNoWhitespace(t, name)
 	}
 }
 
-func TestGetRandomNameHyphenated(t *testing.T) {
-	t.Parallel()
-	for range len(adjectives) {
-		name := GetRandomNameHyphenated()
-		assert.LessOrEqual(t, len(name), maxNameLen)
-		assert.NotContains(t, name, "_")
+func verifyNoWhitespace(t *testing.T, s string) {
+	t.Helper()
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			t.Fatalf("found whitespace in string %q: %v", s, r)
+		}
 	}
 }

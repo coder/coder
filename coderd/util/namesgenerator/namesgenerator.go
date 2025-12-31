@@ -8,406 +8,67 @@
 package namesgenerator
 
 import (
-	"math/rand/v2"
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"github.com/brianvoe/gofakeit/v7"
 )
 
-var adjectives = [...]string{
-	"admiring",
-	"adoring",
-	"affectionate",
-	"agitated",
-	"amazing",
-	"angry",
-	"awesome",
-	"beautiful",
-	"blissful",
-	"bold",
-	"boring",
-	"brave",
-	"busy",
-	"charming",
-	"clever",
-	"compassionate",
-	"competent",
-	"condescending",
-	"confident",
-	"cool",
-	"cranky",
-	"crazy",
-	"dazzling",
-	"determined",
-	"distracted",
-	"dreamy",
-	"eager",
-	"ecstatic",
-	"elastic",
-	"elated",
-	"elegant",
-	"eloquent",
-	"epic",
-	"exciting",
-	"fervent",
-	"festive",
-	"flamboyant",
-	"focused",
-	"friendly",
-	"frosty",
-	"funny",
-	"gallant",
-	"gifted",
-	"goofy",
-	"gracious",
-	"great",
-	"happy",
-	"hardcore",
-	"heuristic",
-	"hopeful",
-	"hungry",
-	"infallible",
-	"inspiring",
-	"intelligent",
-	"interesting",
-	"jolly",
-	"jovial",
-	"keen",
-	"kind",
-	"laughing",
-	"loving",
-	"lucid",
-	"magical",
-	"modest",
-	"musing",
-	"mystifying",
-	"naughty",
-	"nervous",
-	"nice",
-	"nifty",
-	"nostalgic",
-	"objective",
-	"optimistic",
-	"peaceful",
-	"pedantic",
-	"pensive",
-	"practical",
-	"priceless",
-	"quirky",
-	"quizzical",
-	"recursing",
-	"relaxed",
-	"reverent",
-	"romantic",
-	"sad",
-	"serene",
-	"sharp",
-	"silly",
-	"sleepy",
-	"stoic",
-	"strange",
-	"stupefied",
-	"suspicious",
-	"sweet",
-	"tender",
-	"thirsty",
-	"trusting",
-	"unruffled",
-	"upbeat",
-	"vibrant",
-	"vigilant",
-	"vigorous",
-	"wizardly",
-	"wonderful",
-	"xenodochial",
-	"youthful",
-	"zealous",
-	"zen",
-}
-
-var scientists = [...]string{
-	"agnesi",
-	"albattani",
-	"allen",
-	"almeida",
-	"antonelli",
-	"archimedes",
-	"ardinghelli",
-	"aryabhata",
-	"austin",
-	"babbage",
-	"banach",
-	"banzai",
-	"bardeen",
-	"bartik",
-	"bassi",
-	"beaver",
-	"bell",
-	"benz",
-	"bhabha",
-	"bhaskara",
-	"black",
-	"blackburn",
-	"blackwell",
-	"bohr",
-	"booth",
-	"borg",
-	"bose",
-	"bouman",
-	"boyd",
-	"brahmagupta",
-	"brattain",
-	"brown",
-	"buck",
-	"burnell",
-	"cannon",
-	"carson",
-	"cartwright",
-	"carver",
-	"cerf",
-	"chandrasekhar",
-	"chaplygin",
-	"chatelet",
-	"chatterjee",
-	"chaum",
-	"chebyshev",
-	"clarke",
-	"cohen",
-	"colden",
-	"cori",
-	"cray",
-	"curie",
-	"curran",
-	"darwin",
-	"davinci",
-	"dewdney",
-	"dhawan",
-	"diffie",
-	"dijkstra",
-	"dirac",
-	"driscoll",
-	"dubinsky",
-	"easley",
-	"edison",
-	"einstein",
-	"elbakyan",
-	"elgamal",
-	"elion",
-	"ellis",
-	"engelbart",
-	"euclid",
-	"euler",
-	"faraday",
-	"feistel",
-	"fermat",
-	"fermi",
-	"feynman",
-	"franklin",
-	"gagarin",
-	"galileo",
-	"galois",
-	"ganguly",
-	"gates",
-	"gauss",
-	"germain",
-	"goldberg",
-	"goldstine",
-	"goldwasser",
-	"golick",
-	"goodall",
-	"gould",
-	"greider",
-	"grothendieck",
-	"haibt",
-	"hamilton",
-	"haslett",
-	"hawking",
-	"heisenberg",
-	"hellman",
-	"hermann",
-	"herschel",
-	"hertz",
-	"heyrovsky",
-	"hodgkin",
-	"hofstadter",
-	"hoover",
-	"hopper",
-	"hugle",
-	"hypatia",
-	"ishizaka",
-	"jackson",
-	"jang",
-	"jemison",
-	"jennings",
-	"jepsen",
-	"johnson",
-	"joliot",
-	"jones",
-	"kalam",
-	"kapitsa",
-	"kare",
-	"keldysh",
-	"keller",
-	"kepler",
-	"khayyam",
-	"khorana",
-	"kilby",
-	"kirch",
-	"knuth",
-	"kowalevski",
-	"lalande",
-	"lamarr",
-	"lamport",
-	"leakey",
-	"leavitt",
-	"lederberg",
-	"lehmann",
-	"lewin",
-	"lichterman",
-	"liskov",
-	"lovelace",
-	"lumiere",
-	"mahavira",
-	"margulis",
-	"matsumoto",
-	"maxwell",
-	"mayer",
-	"mccarthy",
-	"mcclintock",
-	"mclaren",
-	"mclean",
-	"mcnulty",
-	"meitner",
-	"mendel",
-	"mendeleev",
-	"meninsky",
-	"merkle",
-	"mestorf",
-	"mirzakhani",
-	"montalcini",
-	"moore",
-	"morse",
-	"moser",
-	"murdock",
-	"napier",
-	"nash",
-	"neumann",
-	"newton",
-	"nightingale",
-	"nobel",
-	"noether",
-	"northcutt",
-	"noyce",
-	"panini",
-	"pare",
-	"pascal",
-	"pasteur",
-	"payne",
-	"perlman",
-	"pike",
-	"poincare",
-	"poitras",
-	"proskuriakova",
-	"ptolemy",
-	"raman",
-	"ramanujan",
-	"rhodes",
-	"ride",
-	"ritchie",
-	"robinson",
-	"roentgen",
-	"rosalind",
-	"rubin",
-	"saha",
-	"sammet",
-	"sanderson",
-	"satoshi",
-	"shamir",
-	"shannon",
-	"shaw",
-	"shirley",
-	"shockley",
-	"shtern",
-	"sinoussi",
-	"snyder",
-	"solomon",
-	"spence",
-	"stonebraker",
-	"sutherland",
-	"swanson",
-	"swartz",
-	"swirles",
-	"taussig",
-	"tesla",
-	"tharp",
-	"thompson",
-	"torvalds",
-	"tu",
-	"turing",
-	"varahamihira",
-	"vaughan",
-	"villani",
-	"visvesvaraya",
-	"volhard",
-	"wescoff",
-	"wilbur",
-	"wiles",
-	"williams",
-	"williamson",
-	"wilson",
-	"wing",
-	"wozniak",
-	"wright",
-	"wu",
-	"yalow",
-	"yonath",
-	"zhukovsky",
-}
-
 // maxNameLen is the maximum length for names in tests. Many places in Coder
-// have a 32 character limit for names (usernames, workspace names, etc.).
+// have a 32 character limit for names (e.g. usernames, workspace names).
 const maxNameLen = 32
 
 // counter is used to generate unique suffixes for names.
 var counter atomic.Int64
 
-// Generate returns a random "adjective_scientist" name without any suffix.
-// Use this when you need the base name and will add your own unique suffix.
+// GenerateDelimited generates a string of an adjective and last name joined
+// by the given delimiter.
 //
-// WARNING: Do not use in tests - the names are not unique and will cause
-// collisions. Use GetRandomName or testutil.GetRandomName instead.
-func Generate() string {
-	//nolint:gosec // Cryptographic randomness is not required for these names.
-	return adjectives[rand.IntN(len(adjectives))] + "_" + scientists[rand.IntN(len(scientists))]
+// WARNING: The names returned are not guaranteed to be unique. Use GetRandomName
+// or testutil.GetRandomName if unique names are required.
+func GenerateDelimited(delim string) string {
+	const seed = 0 // gofakeit will use a random crypto seed.
+	return generateDelimited(delim, seed)
 }
 
-// GenerateHyphenated is like Generate but uses hyphens instead of underscores.
-//
-// WARNING: Do not use in tests - the names are not unique and will cause
-// collisions. Use GetRandomNameHyphenated or testutil.GetRandomNameHyphenated
-// instead.
-func GenerateHyphenated() string {
-	return strings.ReplaceAll(Generate(), "_", "-")
+//nolint:revive // Differs in capitalization so the public API doesn't need to provide a seed.
+func generateDelimited(delim string, seed uint64) string {
+	faker := gofakeit.New(seed)
+	adjective := strings.ToLower(faker.AdjectiveDescriptive())
+	last := strings.ToLower(faker.LastName())
+	return strings.Join([]string{adjective, last}, delim)
 }
 
-// GetRandomName generates a random name from the list of adjectives and scientists.
-// The name is formatted as "adjective_scientist" with a monotonically increasing
-// suffix to guarantee uniqueness within the process. It is truncated to maxNameLen
-// characters if necessary.
+func generateDelimitedUnique(delim string, seed uint64) string {
+	return generateDelimited(delim, seed) + strconv.FormatInt(counter.Add(1), 10)
+}
+
+// GetRandomName generates a random name. The name is formatted as "adjective_surname"
+// with a monotonically increasing suffix to guarantee uniqueness within the process.
+// It is truncated to maxNameLen characters if necessary.
 func GetRandomName() string {
-	generatedWithSuffix := Generate() + strconv.FormatInt(counter.Add(1), 10)
+	const seed = 0 // gofakeit will use a random crypto seed.
+	return getRandomName("_", seed)
+}
+
+//nolint:revive // Differs in capitalization so the public API doesn't need to provide a seed.
+func getRandomName(delim string, seed uint64) string {
+	generatedWithSuffix := generateDelimitedUnique(delim, seed)
 	return truncate(generatedWithSuffix, maxNameLen)
 }
 
 // GetRandomNameHyphenated is like GetRandomName but uses hyphens instead of
 // underscores.
 func GetRandomNameHyphenated() string {
-	generatedWithSuffix := GenerateHyphenated() + strconv.FormatInt(counter.Add(1), 10)
-	return truncate(generatedWithSuffix, maxNameLen)
+	const seed = 0 // gofakeit will use a random crypto seed.
+	return getRandomName("-", seed)
 }
 
 // truncate truncates a name to maxLen characters. It assumes the name ends with
 // a numeric suffix and preserves it, truncating the base name portion instead.
+// If there are enough names generated, this would truncate the entire name, but
+// that's unlikely to happen in practice.
 func truncate(name string, maxLen int) string {
 	if len(name) <= maxLen {
 		return name
