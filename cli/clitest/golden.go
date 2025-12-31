@@ -145,7 +145,9 @@ func normalizeGoldenFile(t *testing.T, byt []byte) []byte {
 		{"\r\n", "\n"},
 		{`~\.cache\coder`, "~/.cache/coder"},
 		{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
-		{os.TempDir(), "/tmp"},
+		// Normalize the temp directory because os.TempDir() may have a trailing slash on
+		// some platforms (e.g., macOS returns /var/folders/.../T/).
+		{filepath.Clean(os.TempDir()), "/tmp"},
 	} {
 		byt = bytes.ReplaceAll(byt, []byte(r.old), []byte(r.new))
 	}
