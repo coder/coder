@@ -363,10 +363,8 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 			}
 
 			// Performance optimization: Skip presets that won't need any database operations.
-			// Presets from inactive template versions with no running workspaces, pending jobs,
-			// or in-progress builds will result in no reconciliation actions (no creates/deletes).
-			// By skipping them here, we avoid holding a slot in the errgroup limiter, which
-			// reserves capacity for presets that actually need database connections.
+			// This avoids holding a slot in the errgroup limiter, reserving capacity for
+			// presets that actually need database connections.
 			if ps.CanSkipReconciliation() {
 				continue
 			}

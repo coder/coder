@@ -92,30 +92,40 @@ func NewPresetSnapshot(
 // that have no work to do. It only returns true for presets from inactive
 // template versions that have no running workspaces, no pending jobs, and no
 // in-progress builds.
-//
-// Fields checked:
-//   - isActive(): Active presets are never skipped. Presets from active template
-//     versions always go through the reconciliation loop to ensure desired_instances
-//     is maintained correctly.
-//   - Running: Non-empty means there are prebuilds to delete.
-//   - Expired: Non-empty means there are expired prebuilds to delete.
-//   - PendingCount: Non-zero means there are pending jobs to cancel.
-//   - Backoff: Checked defensively, but only populated for active presets.
-//
-// Fields not checked:
-// - PrebuildSchedules: Only affects desired instance calculation for active presets.
-// - InProgress: Only populated for active template versions.
-// - IsHardLimited: Only populated for active template versions.
 func (p PresetSnapshot) CanSkipReconciliation() bool {
-	// Only skip presets from inactive template versions that have absolutely nothing to clean up
-	if !p.isActive() &&
-		len(p.Running) == 0 &&
-		len(p.Expired) == 0 &&
-		p.PendingCount == 0 &&
-		p.Backoff == nil {
-		return true
+	// Active presets are never skipped. Presets from active template versions always
+	// go through the reconciliation loop to ensure desired_instances is maintained correctly.
+	if p.isActive() {
+		return false
 	}
-	return false
+
+	// Inactive presets with running prebuilds means there are prebuilds to delete.
+	if len(p.Running) > 0 {
+		return false
+	}
+
+	// Inactive presets with expired prebuilds means there are expired prebuilds to delete.
+	if len(p.Expired) > 0 {
+		return false
+	}
+
+	// Inactive presets with pending jobs means there are pending jobs to cancel.
+	if p.PendingCount > 0 {
+		return false
+	}
+
+	// Backoff is only populated for active presets, but check defensively.
+	if p.Backoff != nil {
+		return false
+	}
+
+	// Fields not checked (only relevant for active presets):
+	// - PrebuildSchedules: Only affects desired instance calculation.
+	// - InProgress: Only populated for active template versions.
+	// - IsHardLimited: Only populated for active template versions.
+
+	// Inactive preset with nothing to clean up: safe to skip.
+	return true
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,

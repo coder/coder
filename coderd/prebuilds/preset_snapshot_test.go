@@ -1564,8 +1564,8 @@ func TestCanSkipReconciliation(t *testing.T) {
 			pendingCount:       0,
 			backoff:            nil,
 			isHardLimited:      false,
-			expectedCanSkip:    true,
-			expectedActionNoOp: true,
+			expectedCanSkip:    true, // Inactive with nothing to clean up
+			expectedActionNoOp: true, // No actions needed
 		},
 		{
 			name: "inactive_with_running_workspaces",
@@ -1582,8 +1582,8 @@ func TestCanSkipReconciliation(t *testing.T) {
 			pendingCount:       0,
 			backoff:            nil,
 			isHardLimited:      false,
-			expectedCanSkip:    false,
-			expectedActionNoOp: false,
+			expectedCanSkip:    false, // Has running prebuilds to delete
+			expectedActionNoOp: false, // Returns ActionTypeDelete
 		},
 		{
 			name: "inactive_with_pending_jobs",
@@ -1598,8 +1598,27 @@ func TestCanSkipReconciliation(t *testing.T) {
 			pendingCount:       3,
 			backoff:            nil,
 			isHardLimited:      false,
-			expectedCanSkip:    false,
-			expectedActionNoOp: false,
+			expectedCanSkip:    false, // Has pending jobs to cancel
+			expectedActionNoOp: false, // Returns ActionTypeCancelPending
+		},
+		{
+			name: "inactive_with_backoff",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            false,
+				Deprecated:         false,
+			},
+			running:      []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:      []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:   []database.CountInProgressPrebuildsRow{},
+			pendingCount: 0,
+			backoff: &database.GetPresetsBackoffRow{
+				NumFailed:   3,
+				LastBuildAt: clock.Now().Add(-1 * time.Minute),
+			},
+			isHardLimited:      false,
+			expectedCanSkip:    false, // Has backoff
+			expectedActionNoOp: false, // Returns ActionTypeBackoff
 		},
 		{
 			name: "inactive_deleted_template_with_nothing_to_cleanup",
@@ -1614,8 +1633,8 @@ func TestCanSkipReconciliation(t *testing.T) {
 			pendingCount:       0,
 			backoff:            nil,
 			isHardLimited:      false,
-			expectedCanSkip:    true,
-			expectedActionNoOp: true,
+			expectedCanSkip:    true, // Deleted template with nothing to clean up
+			expectedActionNoOp: true, // No actions needed
 		},
 		{
 			name: "inactive_deprecated_template_with_nothing_to_cleanup",
@@ -1630,8 +1649,8 @@ func TestCanSkipReconciliation(t *testing.T) {
 			pendingCount:       0,
 			backoff:            nil,
 			isHardLimited:      false,
-			expectedCanSkip:    true,
-			expectedActionNoOp: true,
+			expectedCanSkip:    true, // Deprecated template with nothing to clean up
+			expectedActionNoOp: true, // No actions needed
 		},
 		{
 			name: "inactive_hard_limited",
@@ -1646,8 +1665,8 @@ func TestCanSkipReconciliation(t *testing.T) {
 			pendingCount:       0,
 			backoff:            nil,
 			isHardLimited:      true,
-			expectedCanSkip:    true,
-			expectedActionNoOp: true,
+			expectedCanSkip:    true, // Hard limited but nothing to clean up
+			expectedActionNoOp: true, // No actions needed
 		},
 		{
 			name: "active_with_desired_instances",
@@ -1667,7 +1686,7 @@ func TestCanSkipReconciliation(t *testing.T) {
 			backoff:            nil,
 			isHardLimited:      false,
 			expectedCanSkip:    false, // Active presets are never skipped
-			expectedActionNoOp: true,  // But no action needed
+			expectedActionNoOp: true,  // Already at desired count
 		},
 		{
 			name: "active_with_no_workspaces",
@@ -1683,8 +1702,8 @@ func TestCanSkipReconciliation(t *testing.T) {
 			pendingCount:       0,
 			backoff:            nil,
 			isHardLimited:      false,
-			expectedCanSkip:    false,
-			expectedActionNoOp: false, // Should create 5 workspaces
+			expectedCanSkip:    false, // Active presets are never skipped
+			expectedActionNoOp: false, // Returns ActionTypeCreate
 		},
 		{
 			name: "active_with_backoff",
@@ -1703,8 +1722,8 @@ func TestCanSkipReconciliation(t *testing.T) {
 				LastBuildAt: clock.Now().Add(-1 * time.Minute),
 			},
 			isHardLimited:      false,
-			expectedCanSkip:    false,
-			expectedActionNoOp: false, // Should backoff
+			expectedCanSkip:    false, // Active presets are never skipped
+			expectedActionNoOp: false, // Returns ActionTypeBackoff
 		},
 		{
 			name: "active_hard_limited",
@@ -1721,7 +1740,7 @@ func TestCanSkipReconciliation(t *testing.T) {
 			backoff:            nil,
 			isHardLimited:      true,
 			expectedCanSkip:    false, // Active presets are never skipped
-			expectedActionNoOp: false,
+			expectedActionNoOp: false, // Returns ActionTypeCreate (skipped in executeReconciliationAction)
 		},
 	}
 
