@@ -138,6 +138,20 @@ func normalizeGoldenFile(t *testing.T, byt []byte) []byte {
 
 	// The home directory changes depending on the test environment.
 	byt = bytes.ReplaceAll(byt, []byte(homeDir), []byte("~"))
+
+	// Normalize the temp directory. os.TempDir() may have a trailing slash on
+	// some platforms (e.g., macOS returns /var/folders/.../T/). We handle both
+	// the raw os.TempDir() and the cleaned version.
+	tempDir := os.TempDir()
+	cleanTempDir := filepath.Clean(tempDir)
+	if tempDir != cleanTempDir {
+		// Replace with-slash version first, preserving the slash for paths.
+		byt = bytes.ReplaceAll(byt, []byte(tempDir), []byte("/tmp/"))
+		// Clean up trailing slashes (e.g., "/tmp/)" -> "/tmp)").
+		byt = bytes.ReplaceAll(byt, []byte("/tmp/)"), []byte("/tmp)"))
+	}
+	byt = bytes.ReplaceAll(byt, []byte(cleanTempDir), []byte("/tmp"))
+
 	for _, r := range []struct {
 		old string
 		new string
@@ -145,9 +159,6 @@ func normalizeGoldenFile(t *testing.T, byt []byte) []byte {
 		{"\r\n", "\n"},
 		{`~\.cache\coder`, "~/.cache/coder"},
 		{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
-		// Normalize the temp directory because os.TempDir() may have a trailing slash on
-		// some platforms (e.g., macOS returns /var/folders/.../T/).
-		{filepath.Clean(os.TempDir()), "/tmp"},
 	} {
 		byt = bytes.ReplaceAll(byt, []byte(r.old), []byte(r.new))
 	}
