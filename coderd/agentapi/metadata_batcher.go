@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"sync"
 	"sync/atomic"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -217,7 +216,6 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 			error:       errors[i],
 			collectedAt: collectedAt[i],
 		}
-		fmt.Println("collected at: ", collectedAt[i])
 
 		// If we've reached capacity after adding this key, trigger immediate flush.
 		if b.entryCount >= b.batchSize && !b.flushForced.Load() {
@@ -301,7 +299,6 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 			values = append(values, metadata.value)
 			errors = append(errors, metadata.error)
 			collectedAt = append(collectedAt, metadata.collectedAt)
-			fmt.Println("collectedAt in otuput:", collectedAt)
 		}
 	}
 

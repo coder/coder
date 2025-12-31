@@ -6,13 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
 	"github.com/coder/quartz"
 )
 
@@ -158,11 +162,29 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	store, ps := dbtestutil.NewDB(t)
+
+	// Use mocks instead of real database for this unit test
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+	ps := psmock.NewMockPubsub(ctrl)
 	clock := quartz.NewMock(t)
 
-	agent1 := setupAgentWithMetadata(t, store)
-	agent2 := setupAgentWithMetadata(t, store)
+	// Generate mock agent IDs - no need for real database entries
+	agent1 := uuid.New()
+	agent2 := uuid.New()
+	agent3 := uuid.New()
+
+	// Expect the store to be called when flush happens
+	store.EXPECT().
+		BatchUpdateWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Expect pubsub publish to be called when flush happens
+	ps.EXPECT().
+		Publish(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
 
 	tick := make(chan time.Time)
 	flushed := make(chan int, 1)
@@ -184,27 +206,51 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	t1 := clock.Now()
 
 	// Fill buffer to capacity
-	b.Add(agent1.ID, []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1})
-	b.Add(agent2.ID, []string{"key1"}, []string{"value2"}, []string{""}, []time.Time{t1})
+	b.Add(agent1, []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1})
+	b.Add(agent2, []string{"key1"}, []string{"value2"}, []string{""}, []time.Time{t1})
 
-	// Buffer should now trigger flush
-	b.flushLever <- struct{}{}
+	// Buffer should now trigger automatic flush at capacity
+	// Wait for the automatic flush to complete
 	f := <-flushed
 	require.Equal(t, 2, f, "expected two updates to be flushed")
 
-	// // Try to add another update - buffer is now empty but we'll fill it again
-	// t2 := t1.Add(time.Second)
-	// b.Add(agent1.ID, []string{"key2"}, []string{"value3"}, []string{""}, []time.Time{t2})
-	// b.Add(agent2.ID, []string{"key2"}, []string{"value4"}, []string{""}, []time.Time{t2})
+	// Try to add another update - buffer is now empty but we'll fill it again
+	t2 := t1.Add(time.Second)
+	b.Add(agent1, []string{"key2"}, []string{"value3"}, []string{""}, []time.Time{t2})
+	b.Add(agent2, []string{"key2"}, []string{"value4"}, []string{""}, []time.Time{t2})
 
-	// Try to add one more - this should be dropped
-	// agent3 := setupAgentWithMetadata(t, store)
-	// b.Add(agent3.ID, []string{"key1"}, []string{"dropped"}, []string{""}, []time.Time{t2})
+	// Wait for the automatic flush (buffer reached capacity again)
+	f = <-flushed
+	require.Equal(t, 2, f, "expected two updates to be flushed from second batch")
 
-	// // Flush
-	// tick <- t2
-	// f = <-flushed
-	// require.Equal(t, 2, f, "expected only two updates, third should have been dropped")
+	// Now the buffer is empty. Add entries until we hit capacity, then try to add more.
+	// The batcher should drop entries when buffer is full.
+	b.Add(agent1, []string{"key3"}, []string{"value5"}, []string{""}, []time.Time{t2})
+	// entryCount = 1, not at capacity yet
+
+	b.Add(agent2, []string{"key3"}, []string{"value6"}, []string{""}, []time.Time{t2})
+	// entryCount = 2, at capacity, triggers automatic flush
+
+	// Wait for that flush to complete
+	f = <-flushed
+	require.Equal(t, 2, f, "expected two updates from third batch")
+
+	// Buffer is now empty again. Add ONE entry, leaving room for one more.
+	b.Add(agent1, []string{"key4"}, []string{"value7"}, []string{""}, []time.Time{t2})
+	// entryCount = 1, not at capacity
+
+	// Now try to add TWO more entries. The first will succeed, the second should be dropped.
+	b.Add(agent2, []string{"key4"}, []string{"value8"}, []string{""}, []time.Time{t2})
+	// entryCount = 2, at capacity, triggers automatic flush, BUT...
+
+	// This add happens while flush is being triggered - it checks entryCount >= batchSize BEFORE adding
+	// So this should be dropped
+	b.Add(agent3, []string{"key1"}, []string{"dropped"}, []string{""}, []time.Time{t2})
+
+	// Wait for the automatic flush
+	f = <-flushed
+	// Should have 2 entries (agent1.key4 and agent2.key4), agent3 was dropped
+	require.Equal(t, 2, f, "expected only 2 updates, agent3 should have been dropped")
 }
 
 func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
@@ -252,7 +298,6 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 		WorkspaceAgentID: agent.ID,
 		Keys:             []string{"key1"},
 	})
-	fmt.Println("metadata is: ", metadata)
 	require.NoError(t, err)
 	require.Len(t, metadata, 1)
 	require.Equal(t, "second_value", metadata[0].Value)
@@ -286,13 +331,11 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 	t.Cleanup(closer)
 
 	t1 := clock.Now()
-	fmt.Println("t1: ", t1)
 
 	// Add updates with some duplicate keys and some unique keys
 	b.Add(agent.ID, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t1, t1})
 
 	t2 := t1.Add(time.Millisecond)
-	fmt.Println("t2: ", t2)
 	// Update key1, add key3 - key2 stays from first update
 	b.Add(agent.ID, []string{"key1", "key3"}, []string{"new_value1", "value3"}, []string{"", ""}, []time.Time{t2, t2})
 
@@ -308,7 +351,6 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, metadata, 3)
-	fmt.Println("metadata: ", metadata)
 
 	// Check each metadata value
 	for _, md := range metadata {
