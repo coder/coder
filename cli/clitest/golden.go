@@ -140,8 +140,9 @@ func normalizeGoldenFile(t *testing.T, byt []byte) []byte {
 	byt = bytes.ReplaceAll(byt, []byte(homeDir), []byte("~"))
 
 	// Normalize the temp directory. os.TempDir() may have a trailing slash on
-	// some platforms (e.g., macOS returns /var/folders/.../T/). We handle both
-	// the raw os.TempDir() and the cleaned version.
+	// some platforms (e.g., macOS returns /var/folders/.../T/), and it may be
+	// followed by more filepath elements. We handle both the raw os.TempDir()
+	// and the cleaned version.
 	tempDir := os.TempDir()
 	cleanTempDir := filepath.Clean(tempDir)
 	if tempDir != cleanTempDir {
