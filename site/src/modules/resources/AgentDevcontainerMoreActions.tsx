@@ -1,10 +1,3 @@
-import { API } from "api/api";
-import { workspaceAgentContainersKey } from "api/queries/workspaces";
-import type {
-	WorkspaceAgent,
-	WorkspaceAgentDevcontainer,
-	WorkspaceAgentListContainersResponse,
-} from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
@@ -15,65 +8,17 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { EllipsisVertical } from "lucide-react";
 import { type FC, useId, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
 
 type AgentDevcontainerMoreActionsProps = {
-	parentAgent: WorkspaceAgent;
-	devcontainer: WorkspaceAgentDevcontainer;
+	deleteDevContainer: () => void;
 };
 
 export const AgentDevcontainerMoreActions: FC<
 	AgentDevcontainerMoreActionsProps
-> = ({ parentAgent, devcontainer }) => {
-	const queryClient = useQueryClient();
+> = ({ deleteDevContainer }) => {
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const [open, setOpen] = useState(false);
 	const menuContentId = useId();
-
-	const queryKey = workspaceAgentContainersKey(parentAgent.id);
-
-	const deleteDevContainerMutation = useMutation({
-		mutationFn: async () => {
-			await API.deleteDevContainer({
-				parentAgentId: parentAgent.id,
-				devcontainerId: devcontainer.id,
-			});
-		},
-		onMutate: async () => {
-			await queryClient.cancelQueries({ queryKey });
-			const previousData = queryClient.getQueryData(queryKey);
-
-			queryClient.setQueryData(
-				queryKey,
-				(oldData?: WorkspaceAgentListContainersResponse) => {
-					if (!oldData?.devcontainers) {
-						return oldData;
-					}
-
-					return {
-						...oldData,
-						devcontainers: oldData.devcontainers.map((dc) => {
-							if (dc.id === devcontainer.id) {
-								return {
-									...dc,
-									status: "stopping",
-									container: undefined,
-								};
-							}
-							return dc;
-						}),
-					};
-				},
-			);
-
-			return { previousData };
-		},
-		onError: (_, __, context) => {
-			if (context?.previousData) {
-				queryClient.setQueryData(queryKey, context.previousData);
-			}
-		},
-	});
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -99,7 +44,7 @@ export const AgentDevcontainerMoreActions: FC<
 				isOpen={isConfirmingDelete}
 				onCancel={() => setIsConfirmingDelete(false)}
 				onConfirm={() => {
-					deleteDevContainerMutation.mutate();
+					deleteDevContainer();
 					setIsConfirmingDelete(false);
 				}}
 			/>

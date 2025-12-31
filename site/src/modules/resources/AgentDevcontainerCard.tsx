@@ -1,6 +1,10 @@
 import Skeleton from "@mui/material/Skeleton";
 import { API } from "api/api";
-import { workspaceAgentContainersKey } from "api/queries/workspaces";
+import { getErrorDetail, getErrorMessage } from "api/errors";
+import {
+	deleteWorkspaceAgentDevcontainer,
+	workspaceAgentContainersKey,
+} from "api/queries/workspaces";
 import type {
 	Template,
 	Workspace,
@@ -9,6 +13,15 @@ import type {
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
@@ -80,6 +93,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		appSections.some((it) => it.apps.length > 0);
 
 	const queryKey = workspaceAgentContainersKey(parentAgent.id);
+
+	const deleteDevcontainerMutation = useMutation({
+		...deleteWorkspaceAgentDevcontainer(parentAgent, devcontainer, queryClient),
+	});
 
 	const rebuildDevcontainerMutation = useMutation({
 		mutationFn: async () => {
@@ -249,10 +266,15 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 					{showDevcontainerControls && (
 						<AgentDevcontainerMoreActions
-							devcontainer={devcontainer}
-							parentAgent={parentAgent}
+							deleteDevContainer={deleteDevcontainerMutation.mutate}
 						/>
 					)}
+
+					<DevcontainerDeleteErrorDialog
+						open={deleteDevcontainerMutation.isError}
+						error={deleteDevcontainerMutation.error}
+						onClose={deleteDevcontainerMutation.reset}
+					/>
 				</div>
 			</header>
 
@@ -377,3 +399,56 @@ function rebuildButtonLabel(devcontainer: WorkspaceAgentDevcontainer) {
 			return "Start";
 	}
 }
+
+type DevcontainerDeleteErrorDialogProps = {
+	open: boolean;
+	error?: unknown;
+	onClose: () => void;
+};
+
+const DevcontainerDeleteErrorDialog: FC<DevcontainerDeleteErrorDialogProps> = ({
+	open,
+	error,
+	onClose,
+}) => {
+	const errorDetail = getErrorDetail(error);
+	const errorMessage = getErrorMessage(
+		error,
+		"Failed to delete dev container.",
+	);
+
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) {
+					onClose();
+				}
+			}}
+		>
+			<DialogContent variant="destructive">
+				<DialogHeader>
+					<DialogTitle>Error deleting dev container</DialogTitle>
+					<DialogDescription className="flex flex-row gap-4">
+						<strong className="text-content-primary">Message</strong>{" "}
+						<span>{errorMessage}</span>
+					</DialogDescription>
+					{errorDetail && (
+						<DialogDescription className="flex flex-row gap-9">
+							<strong className="text-content-primary">Detail</strong>{" "}
+							{/* TODO(DanielleMaywood): `[overflow-wrap:anywhere]` should be replaced with `wrap-anywhere` when we hit tailwind v4 */}
+							<span className="[overflow-wrap:anywhere] break-normal">
+								{errorDetail}
+							</span>
+						</DialogDescription>
+					)}
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose asChild>
+						<Button>Ok</Button>
+					</DialogClose>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+};

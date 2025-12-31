@@ -1,7 +1,3 @@
-import {
-	MockWorkspaceAgent,
-	MockWorkspaceAgentDevcontainer,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -10,10 +6,7 @@ import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 const meta: Meta<typeof AgentDevcontainerMoreActions> = {
 	title: "modules/resources/AgentDevcontainerMoreActions",
 	component: AgentDevcontainerMoreActions,
-	args: {
-		parentAgent: MockWorkspaceAgent,
-		devcontainer: MockWorkspaceAgentDevcontainer,
-	},
+	args: {},
 };
 
 export default meta;
@@ -47,7 +40,7 @@ export const ConfirmDialogOpen: Story = {
 };
 
 export const ConfirmDeleteCallsAPI: Story = {
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 
@@ -66,10 +59,6 @@ export const ConfirmDeleteCallsAPI: Story = {
 
 		await waitFor(() => {
 			expect(deleteSpy).toHaveBeenCalledTimes(1);
-			expect(deleteSpy).toHaveBeenCalledWith({
-				parentAgentId: args.parentAgent.id,
-				devcontainerId: args.devcontainer.id,
-			});
 		});
 	},
 };
