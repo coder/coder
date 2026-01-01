@@ -190,27 +190,34 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 	}
 
 	// Process each key one at a time.
+	droppedCount := 0
 	for i := range keys {
-		// If buffer is already at max capacity, drop this and remaining keys.
-		if b.entryCount >= b.batchSize {
-			b.log.Warn(context.Background(), "metadata buffer at capacity, dropping remaining keys",
-				slog.F("agent_id", agentID),
-				slog.F("entry_count", b.entryCount),
-				slog.F("batch_size", b.batchSize),
-				slog.F("dropped_keys", len(keys)-i),
-			)
-			return
-		}
-
 		// Check if an entry already exists for this key.
 		existingValue, exists := b.buf[agentID][keys[i]]
-		if exists && collectedAt[i].Before(existingValue.collectedAt) {
+
+		// Always allow updates to existing keys, even if at capacity.
+		if exists {
+			// Only overwrite if the new value has a newer timestamp.
+			if collectedAt[i].Before(existingValue.collectedAt) {
+				continue
+			}
+			// Update existing key (no capacity change).
+			b.buf[agentID][keys[i]] = metadataValue{
+				value:       values[i],
+				error:       errors[i],
+				collectedAt: collectedAt[i],
+			}
 			continue
 		}
-		if !exists {
-			b.entryCount++
+
+		// New key - check capacity before adding.
+		if b.entryCount >= b.batchSize {
+			droppedCount++
+			continue // Skip this new key but continue processing others.
 		}
 
+		// Add new key.
+		b.entryCount++
 		b.buf[agentID][keys[i]] = metadataValue{
 			value:       values[i],
 			error:       errors[i],
@@ -222,6 +229,16 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 			b.flushLever <- struct{}{}
 			b.flushForced.Store(true)
 		}
+	}
+
+	// Log dropped keys at the end if any were dropped.
+	if droppedCount > 0 {
+		b.log.Warn(context.Background(), "metadata buffer at capacity, dropped new keys",
+			slog.F("agent_id", agentID),
+			slog.F("entry_count", b.entryCount),
+			slog.F("batch_size", b.batchSize),
+			slog.F("dropped_count", droppedCount),
+		)
 	}
 }
 
