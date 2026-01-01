@@ -22,16 +22,19 @@ const (
 type WorkspaceStatus string
 
 const (
-	WorkspaceStatusPending   WorkspaceStatus = "pending"
-	WorkspaceStatusStarting  WorkspaceStatus = "starting"
-	WorkspaceStatusRunning   WorkspaceStatus = "running"
-	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
-	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
-	WorkspaceStatusFailed    WorkspaceStatus = "failed"
-	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
-	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
-	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
-	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
+	WorkspaceStatusPending      WorkspaceStatus = "pending"
+	WorkspaceStatusStarting     WorkspaceStatus = "starting"
+	WorkspaceStatusRunning      WorkspaceStatus = "running"
+	WorkspaceStatusStopping     WorkspaceStatus = "stopping"
+	WorkspaceStatusStopped      WorkspaceStatus = "stopped"
+	WorkspaceStatusFailed       WorkspaceStatus = "failed"
+	WorkspaceStatusFailedStart  WorkspaceStatus = "failed_start"
+	WorkspaceStatusFailedStop   WorkspaceStatus = "failed_stop"
+	WorkspaceStatusFailedDelete WorkspaceStatus = "failed_delete"
+	WorkspaceStatusCanceling    WorkspaceStatus = "canceling"
+	WorkspaceStatusCanceled     WorkspaceStatus = "canceled"
+	WorkspaceStatusDeleting     WorkspaceStatus = "deleting"
+	WorkspaceStatusDeleted      WorkspaceStatus = "deleted"
 )
 
 type BuildReason string
@@ -84,7 +87,7 @@ type WorkspaceBuild struct {
 	Resources               []WorkspaceResource  `json:"resources"`
 	Deadline                NullTime             `json:"deadline,omitempty" format:"date-time"`
 	MaxDeadline             NullTime             `json:"max_deadline,omitempty" format:"date-time"`
-	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
+	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,failed_start,failed_stop,failed_delete,canceling,canceled,deleting,deleted"`
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`

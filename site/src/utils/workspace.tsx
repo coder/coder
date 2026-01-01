@@ -273,6 +273,24 @@ export const getDisplayWorkspaceStatus = (
 				text: "Failed",
 				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
+		case "failed_start":
+			return {
+				type: "error",
+				text: "Failed to start",
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
+			} as const;
+		case "failed_stop":
+			return {
+				type: "warning",
+				text: "Failed to stop",
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
+			} as const;
+		case "failed_delete":
+			return {
+				type: "danger",
+				text: "Failed to delete",
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
+			} as const;
 		case "pending":
 			return {
 				type: "active",

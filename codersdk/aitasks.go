@@ -112,7 +112,7 @@ type Task struct {
 	TemplateIcon            string                   `json:"template_icon" table:"template icon"`
 	WorkspaceID             uuid.NullUUID            `json:"workspace_id" format:"uuid" table:"workspace id"`
 	WorkspaceName           string                   `json:"workspace_name" table:"workspace name"`
-	WorkspaceStatus         WorkspaceStatus          `json:"workspace_status,omitempty" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"workspace status"`
+	WorkspaceStatus         WorkspaceStatus          `json:"workspace_status,omitempty" enums:"pending,starting,running,stopping,stopped,failed,failed_start,failed_stop,failed_delete,canceling,canceled,deleting,deleted" table:"workspace status"`
 	WorkspaceBuildNumber    int32                    `json:"workspace_build_number,omitempty" table:"workspace build number"`
 	WorkspaceAgentID        uuid.NullUUID            `json:"workspace_agent_id" format:"uuid" table:"workspace agent id"`
 	WorkspaceAgentLifecycle *WorkspaceAgentLifecycle `json:"workspace_agent_lifecycle" table:"workspace agent lifecycle"`

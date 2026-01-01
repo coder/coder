@@ -14,6 +14,13 @@ var succeededStatusFromTransition = map[WorkspaceTransition]string{
 	WorkspaceTransitionDelete: "Deleted",
 }
 
+// Maps workspace transition to display status for Failed job status
+var failedStatusFromTransition = map[WorkspaceTransition]string{
+	WorkspaceTransitionStart:  "Failed to start",
+	WorkspaceTransitionStop:   "Failed to stop",
+	WorkspaceTransitionDelete: "Failed to delete",
+}
+
 const unknownStatus = "Unknown"
 
 // WorkspaceDisplayStatus computes a status to display on CLI/UI based on
@@ -41,7 +48,11 @@ func WorkspaceDisplayStatus(jobStatus ProvisionerJobStatus, transition Workspace
 	case ProvisionerJobCanceled:
 		return "Canceled"
 	case ProvisionerJobFailed:
-		return "Failed"
+		status, ok := failedStatusFromTransition[transition]
+		if !ok {
+			return "Failed"
+		}
+		return status
 	default:
 		return unknownStatus
 	}

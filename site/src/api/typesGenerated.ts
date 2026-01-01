@@ -6668,6 +6668,9 @@ export type WorkspaceStatus =
 	| "deleted"
 	| "deleting"
 	| "failed"
+	| "failed_delete"
+	| "failed_start"
+	| "failed_stop"
 	| "pending"
 	| "running"
 	| "starting"
@@ -6680,6 +6683,9 @@ export const WorkspaceStatuses: WorkspaceStatus[] = [
 	"deleted",
 	"deleting",
 	"failed",
+	"failed_delete",
+	"failed_start",
+	"failed_stop",
 	"pending",
 	"running",
 	"starting",
