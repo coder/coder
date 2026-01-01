@@ -253,6 +253,148 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	require.Equal(t, 2, f, "expected only 2 updates, agent3 should have been dropped")
 }
 
+func TestMetadataBatcher_UpdatesExistingKeysAtCapacity(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+	ps := psmock.NewMockPubsub(ctrl)
+	clock := quartz.NewMock(t)
+
+	agent1 := uuid.New()
+	agent2 := uuid.New()
+
+	// Expect the store to be called when flush happens
+	store.EXPECT().
+		BatchUpdateWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Expect pubsub publish to be called when flush happens
+	ps.EXPECT().
+		Publish(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	tick := make(chan time.Time)
+	flushed := make(chan int, 1)
+
+	// Create batcher with capacity of 2 entries
+	b, closer, err := NewMetadataBatcher(ctx,
+		MetadataBatcherWithStore(store),
+		MetadataBatcherWithPubsub(ps),
+		MetadataBatcherWithLogger(log),
+		MetadataBatcherWithBatchSize(2),
+		func(b *MetadataBatcher) {
+			b.tickCh = tick
+			b.flushed = flushed
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	t1 := clock.Now()
+
+	// Fill buffer to capacity with 2 entries
+	b.Add(agent1, []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1})
+	b.Add(agent2, []string{"key1"}, []string{"value2"}, []string{""}, []time.Time{t1})
+
+	// Drain automatic flush
+	f := <-flushed
+	require.Equal(t, 2, f)
+
+	// Add one entry, leaving room for one more
+	t2 := t1.Add(time.Second)
+	b.Add(agent1, []string{"key2"}, []string{"value3"}, []string{""}, []time.Time{t2})
+
+	// Verify we have 1 entry
+	b.mu.Lock()
+	require.Equal(t, 1, b.entryCount, "should have 1 entry")
+	b.mu.Unlock()
+
+	// Add another entry to reach capacity
+	b.Add(agent2, []string{"key2"}, []string{"value4"}, []string{""}, []time.Time{t2})
+
+	// Drain automatic flush
+	f = <-flushed
+	require.Equal(t, 2, f)
+
+	// Fill buffer again to capacity
+	t3 := t2.Add(time.Second)
+	b.Add(agent1, []string{"key3"}, []string{"value5"}, []string{""}, []time.Time{t3})
+	b.Add(agent2, []string{"key3"}, []string{"value6"}, []string{""}, []time.Time{t3})
+
+	// Drain automatic flush triggered by reaching capacity
+	f = <-flushed
+	require.Equal(t, 2, f)
+
+	// Buffer is now empty. Add entries again to fill to capacity.
+	t4 := t3.Add(time.Second)
+	b.Add(agent1, []string{"key4"}, []string{"value7"}, []string{""}, []time.Time{t4})
+	b.Add(agent2, []string{"key4"}, []string{"value8"}, []string{""}, []time.Time{t4})
+
+	// Drain automatic flush
+	f = <-flushed
+	require.Equal(t, 2, f)
+
+	// Add entries one more time to fill to capacity
+	t5 := t4.Add(time.Second)
+	b.Add(agent1, []string{"key5"}, []string{"value9"}, []string{""}, []time.Time{t5})
+	b.Add(agent2, []string{"key5"}, []string{"value10"}, []string{""}, []time.Time{t5})
+
+	// Drain automatic flush triggered by reaching capacity
+	f = <-flushed
+	require.Equal(t, 2, f)
+
+	// NOW buffer is empty. Fill it partially (add 1 entry, leaving room for 1 more)
+	t6 := t5.Add(time.Second)
+	b.Add(agent1, []string{"key6"}, []string{"value11"}, []string{""}, []time.Time{t6})
+
+	// Verify we have 1 entry
+	b.mu.Lock()
+	require.Equal(t, 1, b.entryCount, "should have 1 entry")
+	b.mu.Unlock()
+
+	// Add one more to reach capacity
+	b.Add(agent2, []string{"key6"}, []string{"value12"}, []string{""}, []time.Time{t6})
+
+	// Drain automatic flush
+	f = <-flushed
+	require.Equal(t, 2, f)
+
+	// NOW buffer is empty again. Fill to capacity one last time.
+	t7 := t6.Add(time.Second)
+	b.Add(agent1, []string{"key7"}, []string{"value13"}, []string{""}, []time.Time{t7})
+	b.Add(agent2, []string{"key7"}, []string{"value14"}, []string{""}, []time.Time{t7})
+
+	// Buffer is now at capacity (entryCount = 2).
+	// The flush will be triggered but we won't drain it yet.
+	// While at capacity, try to:
+	// 1. Update an existing key (should succeed)
+	// 2. Add new keys (should be dropped)
+	t8 := t7.Add(time.Second)
+
+	// This should succeed - updating existing key even at capacity
+	b.Add(agent1, []string{"key7"}, []string{"updated_value13"}, []string{""}, []time.Time{t8})
+
+	// These should be dropped - new keys when at capacity
+	b.Add(agent1, []string{"key8"}, []string{"dropped1"}, []string{""}, []time.Time{t8})
+	b.Add(agent1, []string{"key9"}, []string{"dropped2"}, []string{""}, []time.Time{t8})
+
+	// Drain the flush that was triggered at line 346
+	f = <-flushed
+	require.Equal(t, 2, f)
+
+	// Check internal state - buffer should now be empty since we drained
+	b.mu.Lock()
+	require.Equal(t, 0, b.entryCount, "buffer should be empty after flush")
+	require.Len(t, b.buf, 0, "buffer map should be empty")
+	b.mu.Unlock()
+}
+
 func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	t.Parallel()
 
