@@ -139,4 +139,76 @@ resource "coder_app" "zed" {
 Check out our [module registry](https://registry.coder.com/modules) for
 additional Coder apps from the team and our OSS community.
 
+## Running scripts on workspace lifecycle
+
+The
+[`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
+resource runs scripts during workspace lifecycle events like startup, stop, or
+on a scheduled basis. It provides more control than the deprecated
+`startup_script` field in `coder_agent`.
+
+### When to use coder_script
+
+- **Initialization tasks**: Install dependencies, clone repositories, configure
+  services
+- **Cleanup tasks**: Stop services gracefully on workspace stop
+- **Scheduled maintenance**: Run periodic tasks via cron schedules
+- **Blocking startup**: Wait for critical services before allowing user login
+
+### Basic example
+
+```tf
+resource "coder_script" "install_dependencies" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Install Dependencies"
+  icon               = "/icon/package.svg"
+  script             = <<-EOF
+    #!/bin/sh
+    set -e
+    apt-get update
+    apt-get install -y git curl
+  EOF
+  run_on_start       = true
+  start_blocks_login = true
+}
+```
+
+### Key features
+
+- **Lifecycle control**: Run on start (`run_on_start`), stop (`run_on_stop`),
+  or cron schedule (`cron`)
+- **Login blocking**: Use `start_blocks_login = true` to ensure critical setup
+  completes before user access
+- **Timeouts**: Configure `timeout` for long-running scripts
+- **Custom icons**: Display meaningful icons with the `icon` parameter
+- **Log capture**: Script output is automatically captured and visible in the
+  workspace UI
+
+### Advanced patterns
+
+Many [Coder modules](https://registry.coder.com/modules) use `coder_script`
+internally. For example:
+
+- [`git-clone`](https://registry.coder.com/modules/coder/git-clone): Clones
+  repositories on startup
+- [`dotfiles`](https://registry.coder.com/modules/coder/dotfiles): Applies user
+  dotfiles
+- [`code-server`](https://registry.coder.com/modules/coder/code-server):
+  Installs and configures code-server (VS Code in the browser)
+
+You can also reference external script files:
+
+```tf
+resource "coder_script" "init_docker" {
+  agent_id     = coder_agent.main.id
+  display_name = "Initialize Docker"
+  script       = file("${path.module}/scripts/init-docker.sh")
+  run_on_start = true
+}
+```
+
+See the
+[Coder Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
+for complete reference.
+
 <children></children>
