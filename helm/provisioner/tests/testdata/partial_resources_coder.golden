@@ -93,7 +93,8 @@ spec:
       app.kubernetes.io/name: coder-provisioner
   template:
     metadata:
-      annotations: {}
+      annotations:
+        com.coder/component: provisionerd
       labels:
         app.kubernetes.io/instance: release-name
         app.kubernetes.io/managed-by: Helm
