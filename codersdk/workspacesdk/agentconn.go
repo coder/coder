@@ -60,6 +60,7 @@ type AgentConn interface {
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
+	DeleteDevcontainer(ctx context.Context, devcontainerID string) error
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
@@ -459,6 +460,22 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 
 	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
 	return d.Chan(), d, nil
+}
+
+// DeleteDevcontainer deletes the provided devcontainer.
+// This is a blocking call and will wait for the container to be deleted.
+func (c *agentConn) DeleteDevcontainer(ctx context.Context, devcontainerID string) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodDelete, "/api/v0/containers/devcontainers/"+devcontainerID, nil)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // RecreateDevcontainer recreates a devcontainer with the given container.

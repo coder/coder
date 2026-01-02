@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
@@ -102,11 +103,12 @@ type Options struct {
 	Clock                        quartz.Clock
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
+	BoundaryLogProxySocketPath   string
 }
 
 type Client interface {
-	ConnectRPC26(ctx context.Context) (
-		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
+	ConnectRPC27(ctx context.Context) (
+		proto.DRPCAgentClient27, tailnetproto.DRPCTailnetClient27, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -205,10 +207,11 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		devcontainers:       options.Devcontainers,
-		containerAPIOptions: options.DevcontainerAPIOptions,
-		socketPath:          options.SocketPath,
-		socketServerEnabled: options.SocketServerEnabled,
+		devcontainers:              options.Devcontainers,
+		containerAPIOptions:        options.DevcontainerAPIOptions,
+		socketPath:                 options.SocketPath,
+		socketServerEnabled:        options.SocketServerEnabled,
+		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -276,6 +279,11 @@ type agent struct {
 	reportConnections       []*proto.ReportConnectionRequest
 
 	logSender *agentsdk.LogSender
+
+	// boundaryLogProxy is a socket server that forwards boundary audit logs to coderd.
+	// It may be nil if there is a problem starting the server.
+	boundaryLogProxy           *boundarylogproxy.Server
+	boundaryLogProxySocketPath string
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -371,6 +379,7 @@ func (a *agent) init() {
 	)
 
 	a.initSocketServer()
+	a.startBoundaryLogProxyServer()
 
 	go a.runLoop()
 }
@@ -393,6 +402,19 @@ func (a *agent) initSocketServer() {
 
 	a.socketServer = server
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
+}
+
+// startBoundaryLogProxyServer starts the boundary log proxy socket server.
+func (a *agent) startBoundaryLogProxyServer() {
+	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath)
+	if err := proxy.Start(); err != nil {
+		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
+		return
+	}
+
+	a.boundaryLogProxy = proxy
+	a.logger.Info(a.hardCtx, "boundary log proxy server started",
+		slog.F("socket_path", a.boundaryLogProxySocketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -506,7 +528,7 @@ func (t *trySingleflight) Do(key string, fn func()) {
 	fn()
 }
 
-func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	tickerDone := make(chan struct{})
 	collectDone := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
@@ -721,7 +743,7 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient26
 
 // reportLifecycle reports the current lifecycle state once. All state
 // changes are reported in order.
-func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	for {
 		select {
 		case <-a.lifecycleUpdate:
@@ -801,7 +823,7 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 }
 
 // reportConnectionsLoop reports connections to the agent for auditing.
-func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	for {
 		select {
 		case <-a.reportConnectionsUpdate:
@@ -932,7 +954,7 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
-func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	ticker := time.NewTicker(a.announcementBannersRefreshInterval)
 	defer ticker.Stop()
 	for {
@@ -967,7 +989,7 @@ func (a *agent) run() (retErr error) {
 	}
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	aAPI, tAPI, err := a.client.ConnectRPC26(a.hardCtx)
+	aAPI, tAPI, err := a.client.ConnectRPC27(a.hardCtx)
 	if err != nil {
 		return err
 	}
@@ -984,7 +1006,7 @@ func (a *agent) run() (retErr error) {
 	connMan := newAPIConnRoutineManager(a.gracefulCtx, a.hardCtx, a.logger, aAPI, tAPI)
 
 	connMan.startAgentAPI("init notification banners", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+		func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
 				return xerrors.Errorf("fetch service banner: %w", err)
@@ -1001,7 +1023,7 @@ func (a *agent) run() (retErr error) {
 	// sending logs gets gracefulShutdownBehaviorRemain because we want to send logs generated by
 	// shutdown scripts.
 	connMan.startAgentAPI("send logs", gracefulShutdownBehaviorRemain,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+		func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 			err := a.logSender.SendLoop(ctx, aAPI)
 			if xerrors.Is(err, agentsdk.ErrLogLimitExceeded) {
 				// we don't want this error to tear down the API connection and propagate to the
@@ -1012,6 +1034,15 @@ func (a *agent) run() (retErr error) {
 			return err
 		})
 
+	// Forward boundary audit logs to coderd if boundary log forwarding is enabled.
+	// These are audit logs so they should continue during graceful shutdown.
+	if a.boundaryLogProxy != nil {
+		proxyFunc := func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
+			return a.boundaryLogProxy.RunForwarder(ctx, aAPI)
+		}
+		connMan.startAgentAPI("boundary log proxy", gracefulShutdownBehaviorRemain, proxyFunc)
+	}
+
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
 	// lifecycle reporting has to be via gracefulShutdownBehaviorRemain
 	connMan.startAgentAPI("report lifecycle", gracefulShutdownBehaviorRemain, a.reportLifecycle)
@@ -1020,7 +1051,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
 
 	// resources monitor can cease as soon as we start gracefully shutting down.
-	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 		logger := a.logger.Named("resources_monitor")
 		clk := quartz.NewReal()
 		config, err := aAPI.GetResourcesMonitoringConfiguration(ctx, &proto.GetResourcesMonitoringConfigurationRequest{})
@@ -1067,7 +1098,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
 
 	connMan.startAgentAPI("app health reporter", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+		func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 			if err := manifestOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no manifest: %w", err)
 			}
@@ -1100,7 +1131,7 @@ func (a *agent) run() (retErr error) {
 
 	connMan.startAgentAPI("fetch service banner loop", gracefulShutdownBehaviorStop, a.fetchServiceBannerLoop)
 
-	connMan.startAgentAPI("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+	connMan.startAgentAPI("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 		if err := networkOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no network: %w", err)
 		}
@@ -1115,8 +1146,8 @@ func (a *agent) run() (retErr error) {
 }
 
 // handleManifest returns a function that fetches and processes the manifest
-func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
-	return func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
+	return func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 		var (
 			sentResult = false
 			err        error
@@ -1279,7 +1310,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 func (a *agent) createDevcontainer(
 	ctx context.Context,
-	aAPI proto.DRPCAgentClient26,
+	aAPI proto.DRPCAgentClient27,
 	dc codersdk.WorkspaceAgentDevcontainer,
 	script codersdk.WorkspaceAgentScript,
 ) (err error) {
@@ -1311,8 +1342,8 @@ func (a *agent) createDevcontainer(
 
 // createOrUpdateNetwork waits for the manifest to be set using manifestOK, then creates or updates
 // the tailnet using the information in the manifest
-func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient26) error {
-	return func(ctx context.Context, aAPI proto.DRPCAgentClient26) (retErr error) {
+func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient27) error {
+	return func(ctx context.Context, aAPI proto.DRPCAgentClient27) (retErr error) {
 		if err := manifestOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no manifest: %w", err)
 		}
@@ -1401,6 +1432,7 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		"CODER_WORKSPACE_NAME":       manifest.WorkspaceName,
 		"CODER_WORKSPACE_AGENT_NAME": manifest.AgentName,
 		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
+		"CODER_WORKSPACE_ID":         manifest.WorkspaceID.String(),
 
 		// Specific Coder subcommands require the agent token exposed!
 		"CODER_AGENT_TOKEN": a.client.GetSessionToken(),
@@ -1981,6 +2013,13 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
 	}
 
+	if a.boundaryLogProxy != nil {
+		err = a.boundaryLogProxy.Close()
+		if err != nil {
+			a.logger.Warn(context.Background(), "close boundary log proxy", slog.Error(err))
+		}
+	}
+
 	// Wait for the graceful shutdown to complete, but don't wait forever so
 	// that we don't break user expectations.
 	go func() {
@@ -2098,7 +2137,7 @@ const (
 
 type apiConnRoutineManager struct {
 	logger    slog.Logger
-	aAPI      proto.DRPCAgentClient26
+	aAPI      proto.DRPCAgentClient27
 	tAPI      tailnetproto.DRPCTailnetClient24
 	eg        *errgroup.Group
 	stopCtx   context.Context
@@ -2107,7 +2146,7 @@ type apiConnRoutineManager struct {
 
 func newAPIConnRoutineManager(
 	gracefulCtx, hardCtx context.Context, logger slog.Logger,
-	aAPI proto.DRPCAgentClient26, tAPI tailnetproto.DRPCTailnetClient24,
+	aAPI proto.DRPCAgentClient27, tAPI tailnetproto.DRPCTailnetClient24,
 ) *apiConnRoutineManager {
 	// routines that remain in operation during graceful shutdown use the remainCtx.  They'll still
 	// exit if the errgroup hits an error, which usually means a problem with the conn.
@@ -2140,7 +2179,7 @@ func newAPIConnRoutineManager(
 // but for Tailnet.
 func (a *apiConnRoutineManager) startAgentAPI(
 	name string, behavior gracefulShutdownBehavior,
-	f func(context.Context, proto.DRPCAgentClient26) error,
+	f func(context.Context, proto.DRPCAgentClient27) error,
 ) {
 	logger := a.logger.With(slog.F("name", name))
 	var ctx context.Context

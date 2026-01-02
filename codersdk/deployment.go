@@ -1217,6 +1217,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "AI Bridge",
 			YAML: "aibridge",
 		}
+		deploymentGroupAIBridgeProxy = serpent.Group{
+			Name: "AI Bridge Proxy",
+			YAML: "aibridgeproxy",
+		}
 		deploymentGroupRetention = serpent.Group{
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
@@ -3443,6 +3447,49 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rateLimit",
 		},
+
+		// AI Bridge Proxy Options
+		{
+			Name:        "AI Bridge Proxy Enabled",
+			Description: "Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.",
+			Flag:        "aibridge-proxy-enabled",
+			Env:         "CODER_AIBRIDGE_PROXY_ENABLED",
+			Value:       &c.AI.BridgeProxyConfig.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "enabled",
+		},
+		{
+			Name:        "AI Bridge Proxy Listen Address",
+			Description: "The address the AI Bridge Proxy will listen on.",
+			Flag:        "aibridge-proxy-listen-addr",
+			Env:         "CODER_AIBRIDGE_PROXY_LISTEN_ADDR",
+			Value:       &c.AI.BridgeProxyConfig.ListenAddr,
+			Default:     ":8888",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "listen_addr",
+		},
+		{
+			Name:        "AI Bridge Proxy Certificate File",
+			Description: "Path to the CA certificate file for AI Bridge Proxy.",
+			Flag:        "aibridge-proxy-cert-file",
+			Env:         "CODER_AIBRIDGE_PROXY_CERT_FILE",
+			Value:       &c.AI.BridgeProxyConfig.CertFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "cert_file",
+		},
+		{
+			Name:        "AI Bridge Proxy Key File",
+			Description: "Path to the CA private key file for AI Bridge Proxy.",
+			Flag:        "aibridge-proxy-key-file",
+			Env:         "CODER_AIBRIDGE_PROXY_KEY_FILE",
+			Value:       &c.AI.BridgeProxyConfig.KeyFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "key_file",
+		},
+
 		// Retention settings
 		{
 			Name:        "Audit Logs Retention",
@@ -3535,8 +3582,16 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
+type AIBridgeProxyConfig struct {
+	Enabled    serpent.Bool   `json:"enabled" typescript:",notnull"`
+	ListenAddr serpent.String `json:"listen_addr" typescript:",notnull"`
+	CertFile   serpent.String `json:"cert_file" typescript:",notnull"`
+	KeyFile    serpent.String `json:"key_file" typescript:",notnull"`
+}
+
 type AIConfig struct {
-	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
+	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
+	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 }
 
 type SupportConfig struct {

@@ -1,7 +1,7 @@
-import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
+import { Link } from "components/Link/Link";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { BlocksIcon, HistoryIcon } from "lucide-react";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
@@ -193,14 +193,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{workspace.latest_build.job.error && (
-							<Alert severity="error">
+							<Alert severity="error" prominent>
 								<AlertTitle>Workspace build failed</AlertTitle>
 								<AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
 							</Alert>
 						)}
 
 						{!workspace.health.healthy && (
-							<Alert severity="warning">
+							<Alert severity="warning" prominent>
 								<AlertTitle>Workspace is unhealthy</AlertTitle>
 								<AlertDetail>
 									<p>
@@ -208,7 +208,12 @@ export const Workspace: FC<WorkspaceProps> = ({
 										{workspace.health.failing_agents.length > 1
 											? `${workspace.health.failing_agents.length} agents are unhealthy`
 											: "1 agent is unhealthy"}
-										.
+										.{" "}
+										{troubleshootingURL && (
+											<Link href={troubleshootingURL} target="_blank">
+												View docs to troubleshoot
+											</Link>
+										)}
 									</p>
 									{hasActions && (
 										<div className="flex items-center gap-2">
@@ -217,15 +222,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 													onClick={() => handleRestart()}
 												>
 													Restart
-												</NotificationActionButton>
-											)}
-											{troubleshootingURL && (
-												<NotificationActionButton
-													onClick={() =>
-														window.open(troubleshootingURL, "_blank")
-													}
-												>
-													Troubleshooting
 												</NotificationActionButton>
 											)}
 										</div>

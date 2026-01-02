@@ -35,7 +35,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -157,7 +157,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -181,7 +181,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
       - name: golangci-lint cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -251,7 +251,7 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -308,7 +308,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -343,7 +343,7 @@ jobs:
   test-go-pg:
     # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
     # when changing runner sizes
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || matrix.os && matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-32' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || matrix.os && matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
@@ -360,7 +360,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -470,8 +470,8 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our Linux runners have 16 cores.
-          test-parallelism-packages: "16"
+          # Our Linux runners have 8 cores.
+          test-parallelism-packages: "8"
           test-parallelism-tests: "8"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
@@ -500,8 +500,12 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our Windows runners have 32 cores.
-          test-parallelism-packages: "32"
+          # Our Windows runners have 16 cores.
+          # On Windows Postgres chokes up when we have 16x16=256 tests
+          # running in parallel, and dbtestutil.NewDB starts to take more than
+          # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
+          # Postgres tends not to choke.
+          test-parallelism-packages: "8"
           test-parallelism-tests: "16"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
@@ -512,7 +516,7 @@ jobs:
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Upload failed test db dumps
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: failed-test-db-dump-${{matrix.os}}
           path: "**/*.test.sql"
@@ -539,7 +543,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-pg-17:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
@@ -550,7 +554,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -585,8 +589,8 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "17"
-          # Our Linux runners have 16 cores.
-          test-parallelism-packages: "16"
+          # Our Linux runners have 8 cores.
+          test-parallelism-packages: "8"
           test-parallelism-tests: "8"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
@@ -606,13 +610,13 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-race-pg:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-32' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -647,13 +651,13 @@ jobs:
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
       # short timeouts are used.
       # c.f. discussion on https://github.com/coder/coder/pull/15106
-      # Our Linux runners have 32 cores, but we reduce parallelism since race detection adds a lot of overhead.
-      # We aim to have parallelism match CPU count (8*4=32) to avoid making flakes worse.
+      # Our Linux runners have 16 cores, but we reduce parallelism since race detection adds a lot of overhead.
+      # We aim to have parallelism match CPU count (4*4=16) to avoid making flakes worse.
       - name: Run Tests
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "17"
-          test-parallelism-packages: "8"
+          test-parallelism-packages: "4"
           test-parallelism-tests: "4"
           race-detection: "true"
 
@@ -684,7 +688,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -711,7 +715,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -744,7 +748,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -793,7 +797,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
@@ -801,7 +805,7 @@ jobs:
 
       - name: Upload debug log
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: coderd-debug-logs${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/e2e/test-results/debug.log
@@ -809,7 +813,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -824,7 +828,7 @@ jobs:
     if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -905,7 +909,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -976,7 +980,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -1075,7 +1079,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dylibs
           path: |
@@ -1096,7 +1100,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -1151,7 +1155,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -1240,7 +1244,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Download dylibs
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: dylibs
           path: ./build
@@ -1369,7 +1373,7 @@ jobs:
         id: attest_main
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        uses: actions/attest@7667f588f2f73a90cea6c7ac70e78266c4f76616 # v3.1.0
         with:
           subject-name: "ghcr.io/coder/coder-preview:main"
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -1406,7 +1410,7 @@ jobs:
         id: attest_latest
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        uses: actions/attest@7667f588f2f73a90cea6c7ac70e78266c4f76616 # v3.1.0
         with:
           subject-name: "ghcr.io/coder/coder-preview:latest"
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -1443,7 +1447,7 @@ jobs:
         id: attest_version
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        uses: actions/attest@7667f588f2f73a90cea6c7ac70e78266c4f76616 # v3.1.0
         with:
           subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -1507,7 +1511,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: coder
           path: |
@@ -1548,7 +1552,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 

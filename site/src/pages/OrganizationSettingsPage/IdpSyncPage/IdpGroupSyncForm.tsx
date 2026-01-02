@@ -194,7 +194,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 					</div>
 					{form.errors.field ||
 						(form.errors.regex_filter && (
-							<p className="text-content-danger text-sm m-0">
+							<p className="text-content-destructive text-sm m-0">
 								{form.errors.field || form.errors.regex_filter}
 							</p>
 						))}
@@ -302,7 +302,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 					</div>
 				</div>
 				{form.errors.mapping && (
-					<p className="text-content-danger text-sm m-0">
+					<p className="text-content-destructive text-sm m-0">
 						{Object.values(form.errors.mapping || {})}
 					</p>
 				)}

@@ -60,9 +60,33 @@
 		return correctLetterCase(description);
 	}
 
+	/**
+	 * Groups an array of {name, value} enum entries by name.
+	 * Returns an array of {name, values: []} objects with sorted, unique values.
+	 */
+	function groupEnumsByName(enums) {
+		var grouped = {};
+		for (var i = 0; i < enums.length; i++) {
+			var e = enums[i];
+			if (!grouped[e.name]) {
+				grouped[e.name] = [];
+			}
+			if (grouped[e.name].indexOf(e.value) === -1) {
+				grouped[e.name].push(e.value);
+			}
+		}
+		var result = [];
+		for (var name in grouped) {
+			grouped[name].sort();
+			result.push({name: name, values: grouped[name]});
+		}
+		return result;
+	}
+
 	/* Export functions that are used by other template partials. */
 	data.functions = {};
 	data.functions.renderDescription = renderDescription;
+	data.functions.groupEnumsByName = groupEnumsByName;
 }}
 
 {{? data.api.components && data.api.components.securitySchemes }}{{#def.security}}{{?}}
@@ -153,15 +177,16 @@ None
 #### Enumerated Values
 
 {{? block.rows.length > 0 && block.rows[0].displayName != "*anonymous*"}}
-|Property|Value|
+{{ var groupedEnums = groupEnumsByName(enums); }}
+|Property|Value(s)|
 |---|---|
-{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~ groupedEnums :e}}|`{{=e.name}}`|{{~ e.values :v:idx}}`{{=data.utils.toPrimitive(v)}}`{{? idx < e.values.length - 1}}, {{?}}{{~}}|
 {{~}}
 {{??}}
-|Value|
+{{ var allValues = []; for (var i = 0; i < enums.length; i++) { if (allValues.indexOf(enums[i].value) === -1) allValues.push(enums[i].value); } allValues.sort(); }}
+|Value(s)|
 |---|
-{{~ enums :e}}|`{{=data.utils.toPrimitive(e.value)}}`|
-{{~}}
+|{{~ allValues :v:idx}}`{{=data.utils.toPrimitive(v)}}`{{? idx < allValues.length - 1}}, {{?}}{{~}}|
 {{?}}
 
 {{= data.tags.endSection }}

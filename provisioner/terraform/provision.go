@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -284,18 +285,21 @@ func (s *server) Apply(
 	}
 	logTerraformEnvVars(sess)
 
-	// Exit early if there is no plan file. This is necessary to
+	// Earlier in the session, Plan() will have written the state file and the plan file.
+	statefilePath := sess.Files.StateFilePath()
+
+	// Exit early if there is no state file. This is necessary to
 	// avoid any cases where a workspace is "locked out" of terraform due to
 	// e.g. bad template param values and cannot be deleted. This is just for
 	// contingency, in the future we will try harder to prevent workspaces being
 	// broken this hard.
-	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(request.GetState()) == 0 {
-		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform plan does not exist, there is nothing to do")
-		return &proto.ApplyComplete{}
+	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY {
+		if _, err := os.Stat(statefilePath); errors.Is(err, os.ErrNotExist) {
+			sess.ProvisionLog(proto.LogLevel_INFO, "The terraform state does not exist, there is nothing to do")
+			return &proto.ApplyComplete{}
+		}
 	}
 
-	// Earlier in the session, Plan() will have written the state file and the plan file.
-	statefilePath := sess.Files.StateFilePath()
 	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil)
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)

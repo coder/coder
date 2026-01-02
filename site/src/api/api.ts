@@ -2744,6 +2744,16 @@ class ApiMethods {
 			setTimeout(() => res(), 500);
 		});
 	};
+
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			"/api/v2/aibridge/interceptions",
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
@@ -2760,16 +2770,6 @@ export type CreateTaskFeedbackRequest = {
 // above the ApiMethods class for a full explanation.
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
-
-	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/aibridge/interceptions",
-			options,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
-		return response.data;
-	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

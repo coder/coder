@@ -1122,6 +1122,96 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, cts)
 }
 
+// @Summary Delete devcontainer for workspace agent
+// @ID delete-devcontainer-for-workspace-agent
+// @Security CoderSessionToken
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param devcontainer path string true "Devcontainer ID"
+// @Success 204
+// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer} [delete]
+func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	devcontainer := chi.URLParam(r, "devcontainer")
+	if devcontainer == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Devcontainer ID is required.",
+			Validations: []codersdk.ValidationError{
+				{Field: "devcontainer", Detail: "Devcontainer ID is required."},
+			},
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		workspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	if err = agentConn.DeleteDevcontainer(ctx, devcontainer); err != nil {
+		if errors.Is(err, context.Canceled) {
+			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
+				Message: "Failed to delete devcontainer from agent.",
+				Detail:  "Request timed out.",
+			})
+			return
+		}
+		// If the agent returns a codersdk.Error, we can return that directly.
+		if cerr, ok := codersdk.AsError(err); ok {
+			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting devcontainer.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // @Summary Recreate devcontainer for workspace agent
 // @ID recreate-devcontainer-for-workspace-agent
 // @Security CoderSessionToken
