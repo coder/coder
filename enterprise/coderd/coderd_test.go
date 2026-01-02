@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -32,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -1109,7 +1109,7 @@ func tcpEchoServer(t *testing.T) string {
 
 // nolint:revive // t takes precedence.
 func writeReadEcho(t *testing.T, ctx context.Context, conn net.Conn) {
-	msg := namesgenerator.GetRandomName(0)
+	msg := namesgenerator.GetRandomName()
 
 	deadline, ok := ctx.Deadline()
 	if ok {
