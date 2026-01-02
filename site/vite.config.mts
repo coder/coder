@@ -137,7 +137,7 @@ export default defineConfig({
 		include: ["src/**/*.test.?(m)ts?(x)"],
 		globals: true,
 		environment: "jsdom",
-		setupFiles: ["@testing-library/jest-dom/vitest"],
+		setupFiles: ["@testing-library/jest-dom/vitest", "./test/vitestSetup.ts"],
 		silent: "passed-only",
 	},
 });
