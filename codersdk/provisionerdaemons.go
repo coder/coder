@@ -531,6 +531,14 @@ func ConvertWorkspaceStatus(jobStatus ProvisionerJobStatus, transition Workspace
 	case ProvisionerJobCanceled:
 		return WorkspaceStatusCanceled
 	case ProvisionerJobFailed:
+		switch transition {
+		case WorkspaceTransitionStart:
+			return WorkspaceStatusFailedStart
+		case WorkspaceTransitionStop:
+			return WorkspaceStatusFailedStop
+		case WorkspaceTransitionDelete:
+			return WorkspaceStatusFailedDelete
+		}
 		return WorkspaceStatusFailed
 	}
 
