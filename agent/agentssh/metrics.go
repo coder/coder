@@ -76,6 +76,8 @@ func magicTypeMetricLabel(magicType MagicSessionType) string {
 	case MagicSessionTypeVSCode:
 	case MagicSessionTypeJetBrains:
 	case MagicSessionTypeSSH:
+	case MagicSessionTypeCursor:
+	case MagicSessionTypeWindsurf:
 	case MagicSessionTypeUnknown:
 	default:
 		magicType = MagicSessionTypeUnknown
