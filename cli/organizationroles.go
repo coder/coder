@@ -173,18 +173,9 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 					return xerrors.Errorf("reading stdin: %w", err)
 				}
 
-				err = json.Unmarshal(bytes, &customRole)
+				customRole, err = parseRoleFromJSON(bytes)
 				if err != nil {
-					return xerrors.Errorf("parsing stdin json: %w", err)
-				}
-
-				if customRole.Name == "" {
-					arr := make([]json.RawMessage, 0)
-					err = json.Unmarshal(bytes, &arr)
-					if err == nil && len(arr) > 0 {
-						return xerrors.Errorf("the input appears to be an array, only 1 role can be sent at a time")
-					}
-					return xerrors.Errorf("json input does not appear to be a valid role")
+					return xerrors.Errorf("parsing stdin: %w", err)
 				}
 
 				if role := existingRole(customRole.Name, existingRoles); role != nil {
@@ -299,18 +290,9 @@ func (r *RootCmd) updateOrganizationRole(orgContext *OrganizationContext) *serpe
 					return xerrors.Errorf("reading stdin: %w", err)
 				}
 
-				err = json.Unmarshal(bytes, &customRole)
+				customRole, err = parseRoleFromJSON(bytes)
 				if err != nil {
-					return xerrors.Errorf("parsing stdin json: %w", err)
-				}
-
-				if customRole.Name == "" {
-					arr := make([]json.RawMessage, 0)
-					err = json.Unmarshal(bytes, &arr)
-					if err == nil && len(arr) > 0 {
-						return xerrors.Errorf("only 1 role can be sent at a time")
-					}
-					return xerrors.Errorf("json input does not appear to be a valid role")
+					return xerrors.Errorf("parsing stdin: %w", err)
 				}
 
 				if role := existingRole(customRole.Name, existingRoles); role == nil {
@@ -518,6 +500,39 @@ func existingRole(newRoleName string, existingRoles []codersdk.AssignableRoles) 
 	}
 
 	return nil
+}
+
+// parseRoleFromJSON parses a role from JSON input. It handles both:
+// - A single Role object: {"name": "my-role", ...}
+// - An array with a single Role/AssignableRoles: [{"name": "my-role", ...}]
+//
+// This allows the output of `coder organization roles show --output json` to be
+// used directly as input to `coder organization roles create/update --stdin`.
+func parseRoleFromJSON(data []byte) (codersdk.Role, error) {
+	// Try to parse as a single Role object first.
+	var role codersdk.Role
+	err := json.Unmarshal(data, &role)
+	if err == nil && role.Name != "" {
+		return role, nil
+	}
+
+	// Try to parse as an array (export format from `coder organization roles show --output json`).
+	var roles []codersdk.Role
+	if err := json.Unmarshal(data, &roles); err == nil {
+		if len(roles) == 0 {
+			return codersdk.Role{}, xerrors.Errorf("json input does not appear to be a valid role")
+		}
+		if len(roles) > 1 {
+			return codersdk.Role{}, xerrors.Errorf("the input appears to be an array of %d roles, only 1 role can be sent at a time", len(roles))
+		}
+		if roles[0].Name == "" {
+			return codersdk.Role{}, xerrors.Errorf("json input does not appear to be a valid role")
+		}
+		return roles[0], nil
+	}
+
+	// Neither single object nor array parsing worked.
+	return codersdk.Role{}, xerrors.Errorf("json input does not appear to be a valid role")
 }
 
 type roleTableRow struct {
