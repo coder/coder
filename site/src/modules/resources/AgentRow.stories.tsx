@@ -7,6 +7,7 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { workspaceAgentContainersKey } from "api/queries/workspaces";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { spyOn, userEvent, within } from "storybook/test";
 import { AgentRow } from "./AgentRow";
@@ -296,7 +297,7 @@ export const Devcontainer: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["agents", M.MockWorkspaceAgent.id, "containers"],
+				key: workspaceAgentContainersKey(M.MockWorkspaceAgent.id),
 				data: {
 					devcontainers: [M.MockWorkspaceAgentDevcontainer],
 					containers: [M.MockWorkspaceAgentContainer],
@@ -316,7 +317,7 @@ export const FoundDevcontainer: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["agents", M.MockWorkspaceAgentReady.id, "containers"],
+				key: workspaceAgentContainersKey(M.MockWorkspaceAgentReady.id),
 				data: {
 					devcontainers: [
 						{

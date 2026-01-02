@@ -1,4 +1,8 @@
-import { API, watchAgentContainers } from "api/api";
+import { watchAgentContainers } from "api/api";
+import {
+	workspaceAgentContainers,
+	workspaceAgentContainersKey,
+} from "api/queries/workspaces";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
@@ -13,23 +17,19 @@ export function useAgentContainers(
 	agent: WorkspaceAgent,
 ): readonly WorkspaceAgentDevcontainer[] | undefined {
 	const queryClient = useQueryClient();
+	const queryKey = workspaceAgentContainersKey(agent.id);
 
 	const {
 		data: devcontainers,
 		error: queryError,
 		isLoading: queryIsLoading,
 	} = useQuery({
-		queryKey: ["agents", agent.id, "containers"],
-		queryFn: () => API.getAgentContainers(agent.id),
-		enabled: agent.status === "connected",
+		...workspaceAgentContainers(agent),
 		select: (res) => res.devcontainers,
-		staleTime: Number.POSITIVE_INFINITY,
 	});
 
 	const updateDevcontainersCache = useEffectEvent(
 		async (data: WorkspaceAgentListContainersResponse) => {
-			const queryKey = ["agents", agent.id, "containers"];
-
 			queryClient.setQueryData(queryKey, data);
 		},
 	);
