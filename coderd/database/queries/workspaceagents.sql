@@ -142,6 +142,27 @@ WHERE
 	wam.workspace_agent_id = $1
 	AND wam.key = m.key;
 
+-- name: BatchUpdateWorkspaceAgentMetadata :exec
+WITH metadata AS (
+	SELECT
+		unnest(sqlc.arg('workspace_agent_id')::uuid[]) AS workspace_agent_id,
+		unnest(sqlc.arg('key')::text[]) AS key,
+		unnest(sqlc.arg('value')::text[]) AS value,
+		unnest(sqlc.arg('error')::text[]) AS error,
+		unnest(sqlc.arg('collected_at')::timestamptz[]) AS collected_at
+)
+UPDATE
+	workspace_agent_metadata wam
+SET
+	value = m.value,
+	error = m.error,
+	collected_at = m.collected_at
+FROM
+	metadata m
+WHERE
+	wam.workspace_agent_id = m.workspace_agent_id
+	AND wam.key = m.key;
+
 -- name: GetWorkspaceAgentMetadata :many
 SELECT
 	*

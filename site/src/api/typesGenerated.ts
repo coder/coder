@@ -1891,6 +1891,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
+	| "metadata-batching"
 	| "notifications"
 	| "oauth2"
 	| "terraform-directory-reuse"
@@ -1902,6 +1903,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
+	"metadata-batching",
 	"notifications",
 	"oauth2",
 	"terraform-directory-reuse",
