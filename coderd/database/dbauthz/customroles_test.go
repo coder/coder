@@ -73,6 +73,7 @@ func TestInsertCustomRoles(t *testing.T) {
 		site           []codersdk.Permission
 		org            []codersdk.Permission
 		user           []codersdk.Permission
+		member         []codersdk.Permission
 		errorContains  string
 	}{
 		{
@@ -172,6 +173,16 @@ func TestInsertCustomRoles(t *testing.T) {
 			errorContains: "organization roles specify site or user permissions",
 		},
 		{
+			// Not allowing these at this time.
+			name:           "member-permissions",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole),
+			member: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
+			errorContains: "non-system roles specify member permissions",
+		},
+		{
 			name:           "site-escalation",
 			organizationID: orgID,
 			subject:        merge(canCreateCustomRole, rbac.RoleTemplateAdmin()),
@@ -213,12 +224,13 @@ func TestInsertCustomRoles(t *testing.T) {
 			ctx = dbauthz.As(ctx, subject)
 
 			_, err := az.InsertCustomRole(ctx, database.InsertCustomRoleParams{
-				Name:            "test-role",
-				DisplayName:     "",
-				OrganizationID:  uuid.NullUUID{UUID: tc.organizationID, Valid: true},
-				SitePermissions: db2sdk.List(tc.site, convertSDKPerm),
-				OrgPermissions:  db2sdk.List(tc.org, convertSDKPerm),
-				UserPermissions: db2sdk.List(tc.user, convertSDKPerm),
+				Name:              "test-role",
+				DisplayName:       "",
+				OrganizationID:    uuid.NullUUID{UUID: tc.organizationID, Valid: true},
+				SitePermissions:   db2sdk.List(tc.site, convertSDKPerm),
+				OrgPermissions:    db2sdk.List(tc.org, convertSDKPerm),
+				UserPermissions:   db2sdk.List(tc.user, convertSDKPerm),
+				MemberPermissions: db2sdk.List(tc.member, convertSDKPerm),
 			})
 			if tc.errorContains != "" {
 				require.ErrorContains(t, err, tc.errorContains)
@@ -249,4 +261,146 @@ func convertSDKPerm(perm codersdk.Permission) database.CustomRolePermission {
 		ResourceType: string(perm.ResourceType),
 		Action:       policy.Action(perm.Action),
 	}
+}
+
+func TestSystemRoles(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+
+	canManageOrgRoles := rbac.Role{
+		Identifier:  rbac.RoleIdentifier{Name: "can-manage-org-roles"},
+		DisplayName: "",
+		Site: rbac.Permissions(map[string][]policy.Action{
+			rbac.ResourceAssignOrgRole.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate},
+		}),
+	}
+
+	userID := uuid.New()
+	subject := rbac.Subject{
+		FriendlyName: "Test user",
+		ID:           userID.String(),
+		Roles:        rbac.Roles([]rbac.Role{canManageOrgRoles}),
+		Groups:       nil,
+		Scope:        rbac.ScopeAll,
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	rec := &coderdtest.RecordingAuthorizer{
+		Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
+	}
+	az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	t.Run("insert-requires-system-restricted", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := az.InsertCustomRole(dbauthz.As(ctx, subject), database.InsertCustomRoleParams{
+			Name: "test-system-role",
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			SitePermissions:   database.CustomRolePermissions{},
+			OrgPermissions:    database.CustomRolePermissions{},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+			IsSystem:          true,
+		})
+		require.ErrorContains(t, err, "forbidden")
+	})
+
+	t.Run("update-requires-system-restricted", func(t *testing.T) {
+		t.Parallel()
+
+		role, err := az.InsertCustomRole(dbauthz.AsSystemRestricted(ctx), database.InsertCustomRoleParams{
+			Name: "test-system-role-update",
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			SitePermissions:   database.CustomRolePermissions{},
+			OrgPermissions:    database.CustomRolePermissions{},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+			IsSystem:          true,
+		})
+		require.NoError(t, err)
+
+		_, err = az.UpdateCustomRole(dbauthz.As(ctx, subject), database.UpdateCustomRoleParams{
+			Name: role.Name,
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			DisplayName:       "",
+			SitePermissions:   database.CustomRolePermissions{},
+			OrgPermissions:    database.CustomRolePermissions{},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+		})
+		require.ErrorContains(t, err, "forbidden")
+
+		_, err = az.UpdateCustomRole(dbauthz.AsSystemRestricted(ctx), database.UpdateCustomRoleParams{
+			Name: role.Name,
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			DisplayName:       "",
+			SitePermissions:   database.CustomRolePermissions{},
+			OrgPermissions:    database.CustomRolePermissions{},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("allow-member-permissions", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := az.InsertCustomRole(dbauthz.AsSystemRestricted(ctx), database.InsertCustomRoleParams{
+			Name: "test-system-role-member-perms",
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			SitePermissions: database.CustomRolePermissions{},
+			OrgPermissions:  database.CustomRolePermissions{},
+			UserPermissions: database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{
+				{
+					ResourceType: rbac.ResourceWorkspace.Type,
+					Action:       policy.ActionRead,
+				},
+			},
+			IsSystem: true,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("allow-negative-permissions", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := az.InsertCustomRole(dbauthz.AsSystemRestricted(ctx), database.InsertCustomRoleParams{
+			Name: "test-system-role-negative",
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			SitePermissions: database.CustomRolePermissions{},
+			OrgPermissions: database.CustomRolePermissions{
+				{
+					Negate:       true,
+					ResourceType: rbac.ResourceWorkspace.Type,
+					Action:       policy.ActionShare,
+				},
+			},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+			IsSystem:          true,
+		})
+		require.NoError(t, err)
+	})
 }

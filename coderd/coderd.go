@@ -573,6 +573,15 @@ func New(options *Options) *API {
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
+	// Ensure all system role permissions are current.
+	//nolint:gocritic // We need to manage system roles
+	err = rolestore.ReconcileSystemRoles(dbauthz.AsSystemRestricted(ctx), options.Logger, options.Database)
+	if err != nil {
+		// Not ideal, but not using Fatal here and just continuing
+		// after logging the error would be a potential security hole.
+		options.Logger.Fatal(ctx, "failed to reconcile system role permissions", slog.Error(err))
+	}
+
 	// AGPL uses a no-op build usage checker as there are no license
 	// entitlements to enforce. This is swapped out in
 	// enterprise/coderd/coderd.go.
