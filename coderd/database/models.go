@@ -3741,7 +3741,7 @@ type CustomRole struct {
 	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
 	// Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.
 	ID uuid.UUID `db:"id" json:"id"`
-	// System roles are managed by Coder; they should not be modified or deleted by users.
+	// System roles are managed by Coder and cannot be modified or deleted by users.
 	IsSystem          bool                  `db:"is_system" json:"is_system"`
 	MemberPermissions CustomRolePermissions `db:"member_permissions" json:"member_permissions"`
 }
