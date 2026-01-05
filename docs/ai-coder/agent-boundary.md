@@ -112,3 +112,15 @@ Boundary supports two different jail types for process isolation, each with diff
 2. **landjail** - Uses Landlock V4 for network isolation. This provides network isolation through the Landlock Linux Security Module (LSM) without requiring network namespace capabilities. See [landjail documentation](landjail.md) for implementation details.
 
 The choice of jail type depends on your security requirements, available Linux capabilities, and runtime environment. Both nsjail and landjail provide network isolation, but they use different underlying mechanisms. nsjail uses Linux namespaces, while landjail uses Landlock V4. Landjail may be preferred in environments where namespace capabilities are limited or unavailable.
+
+## Implementation Comparison: Namespaces+iptables vs Landlock V4
+
+| Aspect | Current: Namespaces + veth-pair + iptables              | Proposed: Landlock V4 |
+|--------|---------------------------------------------------------|----------------------|
+| **Privileges** | Requires `CAP_NET_ADMIN`                                | ✅ No special capabilities required |
+| **Docker seccomp** | ❌ Requires seccomp profile modifications or sysbox-runc | ✅ Works without seccomp changes |
+| **Kernel requirements** | Linux 3.8+ (widely available)                           | ❌ Linux 6.7+ (very new, limited adoption) |
+| **Bypass resistance** | ✅ Strong - transparent interception prevents bypass     | ❌ **Medium - can bypass by connecting to `evil.com:<HTTP_PROXY_PORT>`** |
+| **Process isolation** | ✅ PID namespace (processes can't see/kill others); **implementation in-progress**      | ❌ No PID namespace (agent can kill other processes) |
+| **Non-TCP traffic control** | ✅ Can block/control UDP via iptables; **implementation in-progress**                   | ❌ No control over UDP (data can leak via UDP) |
+| **Application compatibility** | ✅ Works with ANY application (transparent interception) | ❌ Tools without `HTTP_PROXY` support will be blocked |
