@@ -224,6 +224,9 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 				return xerrors.Errorf("reconcile organization-member role for organization %s: %w",
 					org.ID, err)
 			}
+			if didUpdate {
+				log.Info(ctx, "organization-member system role updated", "organization_id", org.ID)
+			}
 		}
 
 		return nil
