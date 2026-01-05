@@ -8,6 +8,10 @@ nsjail leverages Linux namespace technology to isolate processes at the network 
 
 This jail type requires Linux capabilities to create and manage network namespaces, which means it has specific runtime requirements when running in containerized environments like Docker.
 
+## Architecture
+
+<img width="1228" height="604" alt="Boundary" src="https://github.com/user-attachments/assets/1b7c8c5b-7b8f-4adf-8795-325bd28715c6" />
+
 ## Runtime & Permission Requirements for Running the Boundary in Docker
 
 This section describes the Linux capabilities and runtime configurations required to run the Agent Boundary with nsjail inside a Docker container. Requirements vary depending on the OCI runtime and the seccomp profile in use.
