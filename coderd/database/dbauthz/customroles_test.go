@@ -276,14 +276,34 @@ func TestSystemRoles(t *testing.T) {
 		}),
 	}
 
+	canCreateSystem := rbac.Role{
+		Identifier:  rbac.RoleIdentifier{Name: "can-create-system"},
+		DisplayName: "",
+		Site: rbac.Permissions(map[string][]policy.Action{
+			rbac.ResourceSystem.Type: {policy.ActionCreate},
+		}),
+	}
+
+	canUpdateSystem := rbac.Role{
+		Identifier:  rbac.RoleIdentifier{Name: "can-update-system"},
+		DisplayName: "",
+		Site: rbac.Permissions(map[string][]policy.Action{
+			rbac.ResourceSystem.Type: {policy.ActionUpdate},
+		}),
+	}
+
 	userID := uuid.New()
-	subject := rbac.Subject{
+	subjectNoSystemPerms := rbac.Subject{
 		FriendlyName: "Test user",
 		ID:           userID.String(),
 		Roles:        rbac.Roles([]rbac.Role{canManageOrgRoles}),
 		Groups:       nil,
 		Scope:        rbac.ScopeAll,
 	}
+	subjectWithSystemCreatePerms := subjectNoSystemPerms
+	subjectWithSystemCreatePerms.Roles = rbac.Roles([]rbac.Role{canManageOrgRoles, canCreateSystem})
+	subjectWithSystemUpdatePerms := subjectNoSystemPerms
+	subjectWithSystemUpdatePerms.Roles = rbac.Roles([]rbac.Role{canManageOrgRoles, canUpdateSystem})
 
 	db, _ := dbtestutil.NewDB(t)
 	rec := &coderdtest.RecordingAuthorizer{
@@ -293,10 +313,10 @@ func TestSystemRoles(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
-	t.Run("insert-requires-system-restricted", func(t *testing.T) {
+	t.Run("insert-requires-system-create", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := az.InsertCustomRole(dbauthz.As(ctx, subject), database.InsertCustomRoleParams{
+		_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectNoSystemPerms), database.InsertCustomRoleParams{
 			Name: "test-system-role",
 			OrganizationID: uuid.NullUUID{
 				UUID:  orgID,
@@ -309,12 +329,40 @@ func TestSystemRoles(t *testing.T) {
 			IsSystem:          true,
 		})
 		require.ErrorContains(t, err, "forbidden")
+
+		_, err = az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemUpdatePerms), database.InsertCustomRoleParams{
+			Name: "test-system-role-insert-update-only",
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			SitePermissions:   database.CustomRolePermissions{},
+			OrgPermissions:    database.CustomRolePermissions{},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+			IsSystem:          true,
+		})
+		require.ErrorContains(t, err, "forbidden")
+
+		_, err = az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
+			Name: "test-system-role-allowed-insert",
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			SitePermissions:   database.CustomRolePermissions{},
+			OrgPermissions:    database.CustomRolePermissions{},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+			IsSystem:          true,
+		})
+		require.NoError(t, err)
 	})
 
-	t.Run("update-requires-system-restricted", func(t *testing.T) {
+	t.Run("update-requires-system-update", func(t *testing.T) {
 		t.Parallel()
 
-		role, err := az.InsertCustomRole(dbauthz.AsSystemRestricted(ctx), database.InsertCustomRoleParams{
+		role, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 			Name: "test-system-role-update",
 			OrganizationID: uuid.NullUUID{
 				UUID:  orgID,
@@ -328,7 +376,7 @@ func TestSystemRoles(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = az.UpdateCustomRole(dbauthz.As(ctx, subject), database.UpdateCustomRoleParams{
+		_, err = az.UpdateCustomRole(dbauthz.As(ctx, subjectNoSystemPerms), database.UpdateCustomRoleParams{
 			Name: role.Name,
 			OrganizationID: uuid.NullUUID{
 				UUID:  orgID,
@@ -342,7 +390,21 @@ func TestSystemRoles(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "forbidden")
 
-		_, err = az.UpdateCustomRole(dbauthz.AsSystemRestricted(ctx), database.UpdateCustomRoleParams{
+		_, err = az.UpdateCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.UpdateCustomRoleParams{
+			Name: role.Name,
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			DisplayName:       "",
+			SitePermissions:   database.CustomRolePermissions{},
+			OrgPermissions:    database.CustomRolePermissions{},
+			UserPermissions:   database.CustomRolePermissions{},
+			MemberPermissions: database.CustomRolePermissions{},
+		})
+		require.ErrorContains(t, err, "forbidden")
+
+		_, err = az.UpdateCustomRole(dbauthz.As(ctx, subjectWithSystemUpdatePerms), database.UpdateCustomRoleParams{
 			Name: role.Name,
 			OrganizationID: uuid.NullUUID{
 				UUID:  orgID,
@@ -360,7 +422,7 @@ func TestSystemRoles(t *testing.T) {
 	t.Run("allow-member-permissions", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := az.InsertCustomRole(dbauthz.AsSystemRestricted(ctx), database.InsertCustomRoleParams{
+		_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 			Name: "test-system-role-member-perms",
 			OrganizationID: uuid.NullUUID{
 				UUID:  orgID,
@@ -383,7 +445,7 @@ func TestSystemRoles(t *testing.T) {
 	t.Run("allow-negative-permissions", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := az.InsertCustomRole(dbauthz.AsSystemRestricted(ctx), database.InsertCustomRoleParams{
+		_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 			Name: "test-system-role-negative",
 			OrganizationID: uuid.NullUUID{
 				UUID:  orgID,
