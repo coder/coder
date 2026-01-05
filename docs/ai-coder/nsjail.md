@@ -79,4 +79,3 @@ docker run -it \
 ```
 
 This instructs Docker to load your modified seccomp profile while granting only the minimal required capability (`CAP_NET_ADMIN`).
-
