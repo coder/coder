@@ -80,8 +80,9 @@ func TestReconcileOrgMemberRole(t *testing.T) {
 	stale.OrgPermissions = database.CustomRolePermissions{}
 	stale.MemberPermissions = database.CustomRolePermissions{}
 
-	reconciled, err := rolestore.ReconcileOrgMemberRole(ctx, db, stale, org.WorkspaceSharingDisabled)
+	reconciled, didUpdate, err := rolestore.ReconcileOrgMemberRole(ctx, db, stale, org.WorkspaceSharingDisabled)
 	require.NoError(t, err)
+	require.True(t, didUpdate, "expected reconciliation to update stale permissions")
 
 	got, err := database.ExpectOne(db.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles: []database.NameOrganizationPair{
@@ -99,6 +100,10 @@ func TestReconcileOrgMemberRole(t *testing.T) {
 	require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.MemberPermissions), wantMember))
 	require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.OrgPermissions), wantOrg))
 	require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.MemberPermissions), wantMember))
+
+	_, didUpdate, err = rolestore.ReconcileOrgMemberRole(ctx, db, reconciled, org.WorkspaceSharingDisabled)
+	require.NoError(t, err)
+	require.False(t, didUpdate, "expected no-op reconciliation when permissions are already current")
 }
 
 func TestReconcileSystemRoles(t *testing.T) {
