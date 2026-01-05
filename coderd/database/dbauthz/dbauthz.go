@@ -1277,24 +1277,6 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 	return nil
 }
 
-// requireSystemRestrictedActor checks to make sure the caller is a system restricted actor.
-func (q *querier) requireSystemRestrictedActor(ctx context.Context, action policy.Action, object rbac.Object) error {
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return ErrNoActor
-	}
-
-	if act.Type == rbac.SubjectTypeSystemRestricted {
-		return nil
-	}
-
-	// We use a standard RBAC forbidden error to avoid leaking details
-	// to clients while still being verbose in tests/logs.
-	internal := xerrors.New("invalid actor, system restricted actor required")
-	err := rbac.ForbiddenWithInternal(internal, act, action, object, nil)
-	return logNotAuthorizedError(ctx, q.log, err)
-}
-
 // customRoleCheck will validate a custom role for inserting or updating.
 // If the role is not valid, an error will be returned.
 // - Check custom roles are valid for their resource types + actions
@@ -4173,7 +4155,7 @@ func (q *querier) InsertCustomRole(ctx context.Context, arg database.InsertCusto
 	}
 
 	if arg.IsSystem {
-		err := q.requireSystemRestrictedActor(ctx, policy.ActionCreate, rbacObj)
+		err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem)
 		if err != nil {
 			return database.CustomRole{}, err
 		}
@@ -4954,7 +4936,8 @@ func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCusto
 	}
 
 	if existing.IsSystem {
-		if err := q.requireSystemRestrictedActor(ctx, policy.ActionUpdate, rbacObj); err != nil {
+		err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem)
+		if err != nil {
 			return database.CustomRole{}, err
 		}
 	}
