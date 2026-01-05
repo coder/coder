@@ -1284,14 +1284,14 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 // - Check the actor can create the custom role
 // - Check the custom role does not grant perms the actor does not have
 // - Prevent negative perms for non-system roles
-// - Prevent roles that have both (site|user) and org permissions.
+// - Prevent roles that have both organization scoped and non-organization scoped permissions
 func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return ErrNoActor
 	}
 
-	// Org and orgMember permissions require an org role.
+	// Org and org member permissions require an org role.
 	if role.OrganizationID.UUID == uuid.Nil && (len(role.OrgPermissions) > 0 || len(role.MemberPermissions) > 0) {
 		return xerrors.Errorf("organization and member permissions require specifying an organization id")
 	}
