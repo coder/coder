@@ -600,7 +600,12 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
     # Allow other scripts to wait for agent startup.
-    trap 'coder exp sync complete agent-startup' EXIT
+    function cleanup() {
+      coder exp sync complete agent-startup
+      # Some folks will also use this for their personalize scripts.
+      touch /tmp/.coder-startup-script.done
+    }
+    trap cleanup EXIT
     coder exp sync start agent-startup
 
     # Authenticate GitHub CLI
