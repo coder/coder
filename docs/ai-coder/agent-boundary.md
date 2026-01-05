@@ -103,74 +103,24 @@ You can also run Agent Boundaries directly in your workspace and configure it pe
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
  ```
 
-## Runtime & Permission Requirements for Running the Boundary in Docker
+## Jail Types
 
-This section describes the Linux capabilities and runtime configurations required to run the Agent Boundary inside a Docker container. Requirements vary depending on the OCI runtime and the seccomp profile in use.
+Boundary supports two different jail types for process isolation, each with different characteristics and requirements:
 
-### 1. Default `runc` runtime with `CAP_NET_ADMIN`
+1. **nsjail** - Uses Linux namespaces for isolation. This is the default jail type and provides network namespace isolation. See [nsjail documentation](nsjail.md) for detailed information about runtime requirements and Docker configuration.
 
-When using Docker’s default `runc` runtime, the Boundary requires the container to have `CAP_NET_ADMIN`. This is the minimal capability needed for configuring virtual networking inside the container.
+2. **landjail** - Uses Landlock V4 for network isolation. This provides network isolation through the Landlock Linux Security Module (LSM) without requiring network namespace capabilities. See [landjail documentation](landjail.md) for implementation details.
 
-Docker’s default seccomp profile may also block certain syscalls (such as `clone`) required for creating unprivileged network namespaces. If you encounter these restrictions, you may need to update or override the seccomp profile to allow these syscalls.
+The choice of jail type depends on your security requirements, available Linux capabilities, and runtime environment. Both nsjail and landjail provide network isolation, but they use different underlying mechanisms. nsjail uses Linux namespaces, while landjail uses Landlock V4. Landjail may be preferred in environments where namespace capabilities are limited or unavailable.
 
-[see Docker Seccomp Profile Considerations](#docker-seccomp-profile-considerations)
+## Implementation Comparison: Namespaces+iptables vs Landlock V4
 
-### 2. Default `runc` runtime with `CAP_SYS_ADMIN` (testing only)
-
-For development or testing environments, you may grant the container `CAP_SYS_ADMIN`, which implicitly bypasses many of the restrictions in Docker’s default seccomp profile.
-
-- The Boundary does not require `CAP_SYS_ADMIN` itself.
-- However, Docker’s default seccomp policy commonly blocks namespace-related syscalls unless `CAP_SYS_ADMIN` is present.
-- Granting `CAP_SYS_ADMIN` enables the Boundary to run without modifying the seccomp profile.
-
-⚠️ Warning: `CAP_SYS_ADMIN` is extremely powerful and should not be used in production unless absolutely necessary.
-
-### 3. `sysbox-runc` runtime with `CAP_NET_ADMIN`
-
-When using the `sysbox-runc` runtime (from Nestybox), the Boundary can run with only:
-
-- `CAP_NET_ADMIN`
-
-The sysbox-runc runtime provides more complete support for unprivileged user namespaces and nested containerization, which typically eliminates the need for seccomp profile modifications.
-
-## Docker Seccomp Profile Considerations
-
-Docker’s default seccomp profile frequently blocks the `clone` syscall, which is required by the Boundary when creating unprivileged network namespaces. If the `clone` syscall is denied, the Boundary will fail to start.
-
-To address this, you may need to modify or override the seccomp profile used by your container to explicitly allow the required `clone` variants.
-
-You can find the default Docker seccomp profile for your Docker version here (specify your docker version):
-
-https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
-
-If the profile blocks the necessary `clone` syscall arguments, you can provide a custom seccomp profile that adds an allow rule like the following:
-
-```json
-{
-  "names": [
-    "clone"
-  ],
-  "action": "SCMP_ACT_ALLOW"
-}
-```
-
-This example unblocks the clone syscall entirely.
-
-### Example: Overriding the Docker Seccomp Profile
-
-To use a custom seccomp profile, start by downloading the default profile for your Docker version:
-
-https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
-
-Save it locally as seccomp-v25.0.13.json, then insert the clone allow rule shown above (or add "clone" to the list of allowed syscalls).
-
-Once updated, you can run the container with the custom seccomp profile:
-
-```bash
-docker run -it \
-  --cap-add=NET_ADMIN \
-  --security-opt seccomp=seccomp-v25.0.13.json \
-  test bash
-```
-
-This instructs Docker to load your modified seccomp profile while granting only the minimal required capability (`CAP_NET_ADMIN`).
+| Aspect                        | Current: Namespaces + veth-pair + iptables                                        | Proposed: Landlock V4                                                   |
+|-------------------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| **Privileges**                | Requires `CAP_NET_ADMIN`                                                          | ✅ No special capabilities required                                      |
+| **Docker seccomp**            | ❌ Requires seccomp profile modifications or sysbox-runc                           | ✅ Works without seccomp changes                                         |
+| **Kernel requirements**       | Linux 3.8+ (widely available)                                                     | ❌ Linux 6.7+ (very new, limited adoption)                               |
+| **Bypass resistance**         | ✅ Strong - transparent interception prevents bypass                               | ❌ **Medium - can bypass by connecting to `evil.com:<HTTP_PROXY_PORT>`** |
+| **Process isolation**         | ✅ PID namespace (processes can't see/kill others); **implementation in-progress** | ❌ No PID namespace (agent can kill other processes)                     |
+| **Non-TCP traffic control**   | ✅ Can block/control UDP via iptables; **implementation in-progress**              | ❌ No control over UDP (data can leak via UDP)                           |
+| **Application compatibility** | ✅ Works with ANY application (transparent interception)                           | ❌ Tools without `HTTP_PROXY` support will be blocked                    |
