@@ -28,7 +28,10 @@ import uFuzzy from "ufuzzy";
 import { pageTitle } from "utils/page";
 
 const filteredIcons = icons.filter((icon) => !DEPRECATED_ICONS.includes(icon));
-const iconsWithoutSuffix = filteredIcons.map((icon) => icon.split(".")[0]);
+const iconsWithoutSuffix = filteredIcons.map((icon) => {
+	const lastDotIndex = icon.lastIndexOf(".");
+	return lastDotIndex === -1 ? icon : icon.substring(0, lastDotIndex);
+});
 const fuzzyFinder = new uFuzzy({
 	intraMode: 1,
 	intraIns: 1,
