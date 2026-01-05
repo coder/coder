@@ -66,7 +66,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 						{isLoading ? (
 							<TableLoader />
 						) : interceptions?.length === 0 ? (
-							<TableEmpty message={"No request logs available"} />
+							<TableEmpty message="No request logs available" />
 						) : (
 							interceptions?.map((interception) => (
 								<RequestLogsRow

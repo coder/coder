@@ -25,21 +25,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 #### Enumerated Values
 
-| Parameter | Value       |
-|-----------|-------------|
-| `status`  | `pending`   |
-| `status`  | `running`   |
-| `status`  | `succeeded` |
-| `status`  | `canceling` |
-| `status`  | `canceled`  |
-| `status`  | `failed`    |
-| `status`  | `unknown`   |
-| `status`  | `pending`   |
-| `status`  | `running`   |
-| `status`  | `succeeded` |
-| `status`  | `canceling` |
-| `status`  | `canceled`  |
-| `status`  | `failed`    |
+| Parameter | Value(s)                                                                        |
+|-----------|---------------------------------------------------------------------------------|
+| `status`  | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
 
 ### Example responses
 
@@ -119,16 +107,8 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value       |
-|----------|-------------|
-| `status` | `pending`   |
-| `status` | `running`   |
-| `status` | `succeeded` |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `failed`    |
-| `status` | `offline`   |
-| `status` | `idle`      |
-| `status` | `busy`      |
+| Property | Value(s)                                                                                        |
+|----------|-------------------------------------------------------------------------------------------------|
+| `status` | `busy`, `canceled`, `canceling`, `failed`, `idle`, `offline`, `pending`, `running`, `succeeded` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

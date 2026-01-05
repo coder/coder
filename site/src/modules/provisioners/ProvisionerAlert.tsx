@@ -1,8 +1,13 @@
-import type { Theme } from "@emotion/react";
-import AlertTitle from "@mui/material/AlertTitle";
-import { Alert, type AlertColor, AlertDetail } from "components/Alert/Alert";
+import {
+	Alert,
+	type AlertColor,
+	AlertDetail,
+	AlertTitle,
+} from "components/Alert/Alert";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
+import { cn } from "utils/cn";
+
 export enum AlertVariant {
 	// Alerts are usually styled with a full rounded border and meant to use as a visually distinct element of the page.
 	// The Standalone variant conforms to this styling.
@@ -21,20 +26,21 @@ interface ProvisionerAlertProps {
 	variant?: AlertVariant;
 }
 
-const getAlertStyles = (variant: AlertVariant, severity: AlertColor) => {
-	switch (variant) {
-		case AlertVariant.Inline:
-			return {
-				css: (theme: Theme) => ({
-					borderRadius: 0,
-					border: 0,
-					borderBottom: `1px solid ${theme.palette.divider}`,
-					borderLeft: `2px solid ${theme.palette[severity].main}`,
-				}),
-			};
-		default:
-			return {};
+const severityBorderColors: Record<AlertColor, string> = {
+	info: "border-l-highlight-sky",
+	success: "border-l-content-success",
+	warning: "border-l-content-warning",
+	error: "border-l-content-destructive",
+};
+
+const getAlertClassName = (variant: AlertVariant, severity: AlertColor) => {
+	if (variant === AlertVariant.Inline) {
+		return cn(
+			"rounded-none border-0 border-b border-l-2 border-solid border-b-border-default",
+			severityBorderColors[severity],
+		);
 	}
+	return undefined;
 };
 
 export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
@@ -45,7 +51,7 @@ export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 	variant = AlertVariant.Standalone,
 }) => {
 	return (
-		<Alert severity={severity} {...getAlertStyles(variant, severity)}>
+		<Alert severity={severity} className={getAlertClassName(variant, severity)}>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDetail>
 				<div>{detail}</div>

@@ -67,10 +67,9 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
 
 #### Enumerated Values
 
-| Parameter  | Value  |
-|------------|--------|
-| `interval` | `week` |
-| `interval` | `day`  |
+| Parameter  | Value(s)      |
+|------------|---------------|
+| `interval` | `day`, `week` |
 
 ### Example responses
 

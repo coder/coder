@@ -493,11 +493,7 @@ export interface PlanComplete {
  * in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
  */
 export interface ApplyRequest {
-  metadata:
-    | Metadata
-    | undefined;
-  /** state is the provisioner state (if any) */
-  state: Uint8Array;
+  metadata: Metadata | undefined;
 }
 
 /** ApplyComplete indicates a request to apply completed. */
@@ -1485,9 +1481,6 @@ export const ApplyRequest = {
   encode(message: ApplyRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.metadata !== undefined) {
       Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim();
-    }
-    if (message.state.length !== 0) {
-      writer.uint32(50).bytes(message.state);
     }
     return writer;
   },

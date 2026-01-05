@@ -226,14 +226,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
-	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
-		// Deprecated.
-		// TODO: remove with Beta release.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
@@ -697,7 +695,8 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	aibridgedHandler http.Handler
+	aibridgedHandler      http.Handler
+	aibridgeproxydHandler http.Handler
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header

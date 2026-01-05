@@ -1,4 +1,3 @@
-import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
@@ -7,7 +6,7 @@ import TextField from "@mui/material/TextField";
 import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FormFields, VerticalForm } from "components/Form/Form";
@@ -352,7 +351,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					)}
 
 					{isAxiosError(error) && error.response?.data?.message && (
-						<Alert severity="error">
+						<Alert severity="error" prominent>
 							<AlertTitle>{error.response.data.message}</AlertTitle>
 							{error.response.data.detail && (
 								<AlertDetail>

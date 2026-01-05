@@ -65,6 +65,14 @@ export interface AIBridgeOpenAIConfig {
 	readonly key: string;
 }
 
+// From codersdk/deployment.go
+export interface AIBridgeProxyConfig {
+	readonly enabled: boolean;
+	readonly listen_addr: string;
+	readonly cert_file: string;
+	readonly key_file: string;
+}
+
 // From codersdk/aibridge.go
 export interface AIBridgeTokenUsage {
 	readonly id: string;
@@ -106,6 +114,7 @@ export interface AIBridgeUserPrompt {
 // From codersdk/deployment.go
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
+	readonly aibridge_proxy?: AIBridgeProxyConfig;
 }
 
 // From codersdk/allowlist.go
@@ -6127,13 +6136,15 @@ export interface WorkspaceAgentDevcontainerAgent {
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentDevcontainerStatus =
+	| "deleting"
 	| "error"
 	| "running"
 	| "starting"
-	| "stopped";
+	| "stopped"
+	| "stopping";
 
 export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
-	["error", "running", "starting", "stopped"];
+	["deleting", "error", "running", "starting", "stopped", "stopping"];
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {

@@ -102,7 +102,7 @@ export const PublishTemplateVersionDialog: FC<
 								rows={5}
 							/>
 
-							<Stack direction={"row"}>
+							<Stack direction="row">
 								<FormControlLabel
 									label={Language.defaultCheckboxLabel}
 									control={

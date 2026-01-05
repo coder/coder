@@ -9583,6 +9583,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Delete devcontainer for workspace agent",
+                "operationId": "delete-devcontainer-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Devcontainer ID",
+                        "name": "devcontainer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
                 "security": [
@@ -11973,6 +12009,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeProxyConfig": {
+            "type": "object",
+            "properties": {
+                "cert_file": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "key_file": {
+                    "type": "string"
+                },
+                "listen_addr": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIBridgeTokenUsage": {
             "type": "object",
             "properties": {
@@ -12072,6 +12125,9 @@ const docTemplate = `{
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
+                "aibridge_proxy": {
+                    "$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
+                },
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
                 }
@@ -20411,12 +20467,16 @@ const docTemplate = `{
                 "running",
                 "stopped",
                 "starting",
+                "stopping",
+                "deleting",
                 "error"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentDevcontainerStatusRunning",
                 "WorkspaceAgentDevcontainerStatusStopped",
                 "WorkspaceAgentDevcontainerStatusStarting",
+                "WorkspaceAgentDevcontainerStatusStopping",
+                "WorkspaceAgentDevcontainerStatusDeleting",
                 "WorkspaceAgentDevcontainerStatusError"
             ]
         },

@@ -36,12 +36,13 @@
 				"useAsConstAssertion": "error",
 				"useEnumInitializers": "error",
 				"useSingleVarDeclarator": "error",
+				"useConsistentCurlyBraces": "error",
 				"noUnusedTemplateLiteral": "error",
 				"useNumberNamespace": "error",
 				"noInferrableTypes": "error",
 				"noUselessElse": "error",
-			"noRestrictedImports": {
-				"level": "error",
+				"noRestrictedImports": {
+					"level": "error",
 					"options": {
 						"paths": {
 							// "@mui/material/Alert": "Use components/Alert/Alert instead.",

@@ -174,6 +174,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					{build.transition === "delete" && build.job.status === "failed" && (
 						<Alert
 							severity="error"
+							prominent
 							className="rounded-none border-0 border-b border-solid border-border"
 						>
 							<div>
@@ -190,6 +191,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					{build?.job?.logs_overflowed && (
 						<Alert
 							severity="warning"
+							prominent
 							className="rounded-none border-0 border-b border-solid border-border"
 						>
 							Provisioner logs exceeded the max size of 1MB. Will not continue

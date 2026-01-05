@@ -94,7 +94,7 @@ func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 				Return(nil)
 			mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 				gomock.Any(),
-				connectionUpdate(agentID, replicaID, withDisconnectedAfter(now)),
+				connectionUpdate(agentID, replicaID, withDisconnectedNotBefore(now)),
 			).
 				After(connected).
 				Times(1).
@@ -172,7 +172,7 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 		Return(nil)
 	mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID, withDisconnectedAfter(now)),
+		connectionUpdate(agent.ID, replicaID, withDisconnectedNotBefore(now)),
 	).
 		After(connected).
 		Times(1).
@@ -235,7 +235,7 @@ func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
 		Return(nil)
 	mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID, withDisconnectedAfter(now)),
+		connectionUpdate(agent.ID, replicaID, withDisconnectedNotBefore(now)),
 	).
 		After(connected).
 		Times(1).
@@ -320,7 +320,7 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 		Return(nil)
 	mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 		gomock.Any(),
-		connectionUpdate(agent.ID, replicaID, withDisconnectedAfter(now)),
+		connectionUpdate(agent.ID, replicaID, withDisconnectedNotBefore(now)),
 	).
 		After(connected).
 		Times(1).
@@ -423,10 +423,10 @@ func (f *fakeUpdater) getUpdates() int {
 }
 
 type connectionUpdateMatcher struct {
-	agentID           uuid.UUID
-	replicaID         uuid.UUID
-	disconnectedAt    sql.NullTime
-	disconnectedAfter sql.NullTime
+	agentID               uuid.UUID
+	replicaID             uuid.UUID
+	disconnectedAt        sql.NullTime
+	disconnectedNotBefore sql.NullTime
 }
 
 type connectionUpdateMatcherOption func(m connectionUpdateMatcher) connectionUpdateMatcher
@@ -442,9 +442,9 @@ func connectionUpdate(id, replica uuid.UUID, opts ...connectionUpdateMatcherOpti
 	return m
 }
 
-func withDisconnectedAfter(t time.Time) connectionUpdateMatcherOption {
+func withDisconnectedNotBefore(t time.Time) connectionUpdateMatcherOption {
 	return func(m connectionUpdateMatcher) connectionUpdateMatcher {
-		m.disconnectedAfter = sql.NullTime{
+		m.disconnectedNotBefore = sql.NullTime{
 			Valid: true,
 			Time:  t,
 		}
@@ -476,14 +476,14 @@ func (m connectionUpdateMatcher) Matches(x interface{}) bool {
 	if args.LastConnectedReplicaID.UUID != m.replicaID {
 		return false
 	}
-	if m.disconnectedAfter.Valid {
+	if m.disconnectedNotBefore.Valid {
 		if !args.DisconnectedAt.Valid {
 			return false
 		}
-		if !args.DisconnectedAt.Time.After(m.disconnectedAfter.Time) {
+		if args.DisconnectedAt.Time.Before(m.disconnectedNotBefore.Time) {
 			return false
 		}
-		// disconnectedAfter takes precedence over disconnectedAt
+		// disconnectedNotBefore takes precedence over disconnectedAt
 	} else if args.DisconnectedAt != m.disconnectedAt {
 		return false
 	}
@@ -491,8 +491,8 @@ func (m connectionUpdateMatcher) Matches(x interface{}) bool {
 }
 
 func (m connectionUpdateMatcher) String() string {
-	return fmt.Sprintf("{agent=%s, replica=%s, disconnectedAt=%v, disconnectedAfter=%v}",
-		m.agentID.String(), m.replicaID.String(), m.disconnectedAt, m.disconnectedAfter)
+	return fmt.Sprintf("{agent=%s, replica=%s, disconnectedAt=%v, disconnectedNotBefore=%v}",
+		m.agentID.String(), m.replicaID.String(), m.disconnectedAt, m.disconnectedNotBefore)
 }
 
 func (connectionUpdateMatcher) Got(x interface{}) string {

@@ -41,7 +41,7 @@ type PoolOptions struct {
 	TTL      time.Duration
 }
 
-var DefaultPoolOptions = PoolOptions{MaxItems: 100, TTL: time.Minute * 15}
+var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
 
 var _ Pooler = &CachedBridgePool{}
 

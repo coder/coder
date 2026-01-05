@@ -462,18 +462,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value       |
-|--------------|-------------|
-| `login_type` | ``          |
-| `login_type` | `password`  |
-| `login_type` | `github`    |
-| `login_type` | `oidc`      |
-| `login_type` | `token`     |
-| `login_type` | `none`      |
-| `status`     | `active`    |
-| `status`     | `suspended` |
-| `source`     | `user`      |
-| `source`     | `oidc`      |
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
+| `source`     | `oidc`, `user`                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1272,9 +1265,9 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&st
 
 #### Enumerated Values
 
-| Parameter       | Value  |
-|-----------------|--------|
-| `response_type` | `code` |
+| Parameter       | Value(s) |
+|-----------------|----------|
+| `response_type` | `code`   |
 
 ### Responses
 
@@ -1308,9 +1301,9 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&s
 
 #### Enumerated Values
 
-| Parameter       | Value  |
-|-----------------|--------|
-| `response_type` | `code` |
+| Parameter       | Value(s) |
+|-----------------|----------|
+| `response_type` | `code`   |
 
 ### Responses
 
@@ -1669,10 +1662,9 @@ grant_type: authorization_code
 
 #### Enumerated Values
 
-| Parameter      | Value                |
-|----------------|----------------------|
-| `» grant_type` | `authorization_code` |
-| `» grant_type` | `refresh_token`      |
+| Parameter      | Value(s)                              |
+|----------------|---------------------------------------|
+| `» grant_type` | `authorization_code`, `refresh_token` |
 
 ### Example responses
 
@@ -1813,18 +1805,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value       |
-|--------------|-------------|
-| `login_type` | ``          |
-| `login_type` | `password`  |
-| `login_type` | `github`    |
-| `login_type` | `oidc`      |
-| `login_type` | `token`     |
-| `login_type` | `none`      |
-| `status`     | `active`    |
-| `status`     | `suspended` |
-| `source`     | `user`      |
-| `source`     | `oidc`      |
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
+| `source`     | `oidc`, `user`                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2245,17 +2230,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value       |
-|----------|-------------|
-| `status` | `pending`   |
-| `status` | `running`   |
-| `status` | `succeeded` |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `failed`    |
-| `status` | `offline`   |
-| `status` | `idle`      |
-| `status` | `busy`      |
+| Property | Value(s)                                                                                        |
+|----------|-------------------------------------------------------------------------------------------------|
+| `status` | `busy`, `canceled`, `canceling`, `failed`, `idle`, `offline`, `pending`, `running`, `succeeded` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3860,18 +3837,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value       |
-|--------------|-------------|
-| `login_type` | ``          |
-| `login_type` | `password`  |
-| `login_type` | `github`    |
-| `login_type` | `oidc`      |
-| `login_type` | `token`     |
-| `login_type` | `none`      |
-| `status`     | `active`    |
-| `status`     | `suspended` |
-| `source`     | `user`      |
-| `source`     | `oidc`      |
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
+| `source`     | `oidc`, `user`                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4171,12 +4141,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value          |
-|----------|----------------|
-| `status` | `ok`           |
-| `status` | `unreachable`  |
-| `status` | `unhealthy`    |
-| `status` | `unregistered` |
+| Property | Value(s)                                         |
+|----------|--------------------------------------------------|
+| `status` | `ok`, `unhealthy`, `unreachable`, `unregistered` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
