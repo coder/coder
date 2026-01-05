@@ -187,14 +187,18 @@
 				</ul>
 			</div>
 			{{ end }}
+
+			{{- if .Error.Actions }}
 			<div class="button-group">
-				{{- if and .Error.AdditionalButtonText .Error.AdditionalButtonLink }}
-				<a href="{{ .Error.AdditionalButtonLink }}">{{ .Error.AdditionalButtonText }}</a>
-				{{ end }} {{- if .Error.RetryEnabled }}
-				<button onclick="window.location.reload()">Retry</button>
-				{{ end }}
-				<a href="{{ .Error.DashboardURL }}">Back to site</a>
+				{{ range $i, $v := .Error.Actions }}
+				{{- if $v.URL }}
+				<a href="{{ $v.URL }}">{{ $v.Text }}</a>
+				{{ else }}
+				<button onclick="window.location.reload()">{{ $v.Text }}</button>
+				{{end}}
+				{{end}}
 			</div>
+			{{end}}
 		</div>
 	</body>
 </html>

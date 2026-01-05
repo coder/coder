@@ -47,6 +47,13 @@ OPTIONS:
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
+      --disable-workspace-sharing bool, $CODER_DISABLE_WORKSPACE_SHARING
+          Disable workspace sharing (requires the "workspace-sharing" experiment
+          to be enabled). Workspace ACL checking is disabled and only owners can
+          have ssh, apps and terminal access to workspaces. Access based on the
+          'owner' role is also allowed unless disabled via
+          --disable-owner-workspace-access.
+
       --swagger-enable bool, $CODER_SWAGGER_ENABLE
           Expose the swagger endpoint via /swagger.
 
@@ -119,11 +126,33 @@ AI BRIDGE OPTIONS:
           requests (requires the "oauth2" and "mcp-server-http" experiments to
           be enabled).
 
+      --aibridge-max-concurrency int, $CODER_AIBRIDGE_MAX_CONCURRENCY (default: 0)
+          Maximum number of concurrent AI Bridge requests per replica. Set to 0
+          to disable (unlimited).
+
       --aibridge-openai-base-url string, $CODER_AIBRIDGE_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
           The base URL of the OpenAI API.
 
       --aibridge-openai-key string, $CODER_AIBRIDGE_OPENAI_KEY
           The key to authenticate against the OpenAI API.
+
+      --aibridge-rate-limit int, $CODER_AIBRIDGE_RATE_LIMIT (default: 0)
+          Maximum number of AI Bridge requests per second per replica. Set to 0
+          to disable (unlimited).
+
+AI BRIDGE PROXY OPTIONS: 
+      --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
+          Path to the CA certificate file for AI Bridge Proxy.
+
+      --aibridge-proxy-enabled bool, $CODER_AIBRIDGE_PROXY_ENABLED (default: false)
+          Enable the AI Bridge MITM Proxy for intercepting and decrypting AI
+          provider requests.
+
+      --aibridge-proxy-key-file string, $CODER_AIBRIDGE_PROXY_KEY_FILE
+          Path to the CA private key file for AI Bridge Proxy.
+
+      --aibridge-proxy-listen-addr string, $CODER_AIBRIDGE_PROXY_LISTEN_ADDR (default: :8888)
+          The address the AI Bridge Proxy will listen on.
 
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
@@ -262,6 +291,16 @@ INTROSPECTION / PROMETHEUS OPTIONS:
 
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
+
+INTROSPECTION / TEMPLATE INSIGHTS OPTIONS: 
+      --template-insights-enable bool, $CODER_TEMPLATE_INSIGHTS_ENABLE (default: true)
+          Enable the collection and display of template insights along with the
+          associated API endpoints. This will also enable aggregating these
+          insights into daily active users, application usage, and transmission
+          rates for overall deployment stats. When disabled, these values will
+          be zero, which will also affect what the bottom deployment overview
+          bar displays. Disabling will also prevent Prometheus collection of
+          these values.
 
 INTROSPECTION / TRACING OPTIONS: 
       --trace-logs bool, $CODER_TRACE_LOGS

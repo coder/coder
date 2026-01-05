@@ -94,14 +94,15 @@ type ExternalAuthLink struct {
 
 // ExternalAuthLinkProvider are the static details of a provider.
 type ExternalAuthLinkProvider struct {
-	ID                 string `json:"id"`
-	Type               string `json:"type"`
-	Device             bool   `json:"device"`
-	DisplayName        string `json:"display_name"`
-	DisplayIcon        string `json:"display_icon"`
-	AllowRefresh       bool   `json:"allow_refresh"`
-	AllowValidate      bool   `json:"allow_validate"`
-	SupportsRevocation bool   `json:"supports_revocation"`
+	ID                            string   `json:"id"`
+	Type                          string   `json:"type"`
+	Device                        bool     `json:"device"`
+	DisplayName                   string   `json:"display_name"`
+	DisplayIcon                   string   `json:"display_icon"`
+	AllowRefresh                  bool     `json:"allow_refresh"`
+	AllowValidate                 bool     `json:"allow_validate"`
+	SupportsRevocation            bool     `json:"supports_revocation"`
+	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported"`
 }
 
 type ExternalAuthAppInstallation struct {

@@ -226,14 +226,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
-	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
-		// Deprecated.
-		// TODO: remove with Beta release.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
@@ -697,7 +695,8 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	aibridgedHandler http.Handler
+	aibridgedHandler      http.Handler
+	aibridgeproxydHandler http.Handler
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -971,7 +970,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 var _ wsbuilder.UsageChecker = &API{}
 
-func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
 	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
@@ -984,16 +983,31 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 		}
 	}
 
-	// If the template version doesn't have an AI task, we don't need to check
-	// usage.
-	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
-		return wsbuilder.UsageCheckResponse{
-			Permitted: true,
-		}, nil
+	resp, err := api.checkAIBuildUsage(ctx, store, templateVersion, transition)
+	if err != nil {
+		return wsbuilder.UsageCheckResponse{}, err
+	}
+	if !resp.Permitted {
+		return resp, nil
 	}
 
-	// When unlicensed, we need to check that we haven't breached the managed agent
-	// limit.
+	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+}
+
+// checkAIBuildUsage validates AI-related usage constraints. It is a no-op
+// unless the transition is "start" and the template version has an AI task.
+func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+	// Only check AI usage rules for start transitions.
+	if transition != database.WorkspaceTransitionStart {
+		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+	}
+
+	// If the template version doesn't have an AI task, we don't need to check usage.
+	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
+		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+	}
+
+	// When licensed, ensure we haven't breached the managed agent limit.
 	// Unlicensed deployments are allowed to use unlimited managed agents.
 	if api.Entitlements.HasLicense() {
 		managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
@@ -1004,8 +1018,9 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 			}, nil
 		}
 
-		// This check is intentionally not committed to the database. It's fine if
-		// it's not 100% accurate or allows for minor breaches due to build races.
+		// This check is intentionally not committed to the database. It's fine
+		// if it's not 100% accurate or allows for minor breaches due to build
+		// races.
 		// nolint:gocritic // Requires permission to read all usage events.
 		managedAgentCount, err := store.GetTotalUsageDCManagedAgentsV1(agpldbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
 			StartDate: managedAgentLimit.UsagePeriod.Start,
@@ -1023,9 +1038,7 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 		}
 	}
 
-	return wsbuilder.UsageCheckResponse{
-		Permitted: true,
-	}, nil
+	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 }
 
 // getProxyDERPStartingRegionID returns the starting region ID that should be

@@ -333,6 +333,10 @@ func New(options *Options) *API {
 		})
 	}
 
+	if options.DeploymentValues.DisableWorkspaceSharing {
+		rbac.SetWorkspaceACLDisabled(true)
+	}
+
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
@@ -764,14 +768,15 @@ func New(options *Options) *API {
 	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
-		Database:              options.Database,
-		Logger:                options.Logger.Named("workspacestats"),
-		Pubsub:                options.Pubsub,
-		TemplateScheduleStore: options.TemplateScheduleStore,
-		StatsBatcher:          options.StatsBatcher,
-		UsageTracker:          options.WorkspaceUsageTracker,
-		UpdateAgentMetricsFn:  options.UpdateAgentMetrics,
-		AppStatBatchSize:      workspaceapps.DefaultStatsDBReporterBatchSize,
+		Database:               options.Database,
+		Logger:                 options.Logger.Named("workspacestats"),
+		Pubsub:                 options.Pubsub,
+		TemplateScheduleStore:  options.TemplateScheduleStore,
+		StatsBatcher:           options.StatsBatcher,
+		UsageTracker:           options.WorkspaceUsageTracker,
+		UpdateAgentMetricsFn:   options.UpdateAgentMetrics,
+		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
+		DisableDatabaseInserts: !options.DeploymentValues.TemplateInsights.Enable.Value(),
 	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
@@ -936,7 +941,7 @@ func New(options *Options) *API {
 				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
-						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, externalAuthConfig.CodeChallengeMethodsSupported),
 					)
 					r.Get("/", api.externalAuthCallback(externalAuthConfig))
 				})
@@ -1285,14 +1290,15 @@ func New(options *Options) *API {
 					r.Get("/github/device", api.userOAuth2GithubDevice)
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
+							// Github supports PKCE S256
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, options.GithubOAuth2Config.PKCESupported()),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
-						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams),
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams, options.OIDCConfig.PKCESupported()),
 					)
 					r.Get("/", api.userOIDC)
 				})
@@ -1436,6 +1442,7 @@ func New(options *Options) *API {
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/containers", api.workspaceAgentListContainers)
 				r.Get("/containers/watch", api.watchWorkspaceAgentContainers)
+				r.Delete("/containers/devcontainers/{devcontainer}", api.workspaceAgentDeleteDevcontainer)
 				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
@@ -1524,11 +1531,28 @@ func New(options *Options) *API {
 		})
 		r.Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/daus", api.deploymentDAUs)
-			r.Get("/user-activity", api.insightsUserActivity)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					func(next http.Handler) http.Handler {
+						return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+							if !options.DeploymentValues.TemplateInsights.Enable.Value() {
+								httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
+									Message: "Not Found.",
+									Detail:  "Template insights are disabled.",
+								})
+								return
+							}
+
+							next.ServeHTTP(rw, r)
+						})
+					},
+				)
+				r.Get("/daus", api.deploymentDAUs)
+				r.Get("/user-activity", api.insightsUserActivity)
+				r.Get("/user-latency", api.insightsUserLatency)
+				r.Get("/templates", api.insightsTemplates)
+			})
 			r.Get("/user-status-counts", api.insightsUserStatusCounts)
-			r.Get("/user-latency", api.insightsUserLatency)
-			r.Get("/templates", api.insightsTemplates)
 		})
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(

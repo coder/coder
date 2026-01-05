@@ -855,6 +855,33 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Delete devcontainer for workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+| `devcontainer`   | path | string       | true     | Devcontainer ID    |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Recreate devcontainer for workspace agent
 
 ### Code samples
@@ -1134,13 +1161,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value   |
-|----------|---------|
-| `level`  | `trace` |
-| `level`  | `debug` |
-| `level`  | `info`  |
-| `level`  | `warn`  |
-| `level`  | `error` |
+| Property | Value(s)                                  |
+|----------|-------------------------------------------|
+| `level`  | `debug`, `error`, `info`, `trace`, `warn` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1230,12 +1253,8 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value   |
-|----------|---------|
-| `level`  | `trace` |
-| `level`  | `debug` |
-| `level`  | `info`  |
-| `level`  | `warn`  |
-| `level`  | `error` |
+| Property | Value(s)                                  |
+|----------|-------------------------------------------|
+| `level`  | `debug`, `error`, `info`, `trace`, `warn` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

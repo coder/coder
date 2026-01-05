@@ -165,6 +165,19 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			closers.Add(aibridgeDaemon)
 		}
 
+		// In-memory AI Bridge Proxy daemon
+		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
+			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api)
+			if err != nil {
+				_ = closers.Close()
+				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
+			}
+			closers.Add(aiBridgeProxyServer)
+
+			// Register the handler so coderd can serve the proxy endpoints.
+			api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
+		}
+
 		return api.AGPL, closers, nil
 	})
 

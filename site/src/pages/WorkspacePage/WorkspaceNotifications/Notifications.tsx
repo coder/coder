@@ -105,7 +105,7 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 };
 
 export const NotificationActionButton: FC<ButtonProps> = (props) => {
-	return <Button variant="outline" size="sm" {...props} />;
+	return <Button variant="default" size="sm" {...props} />;
 };
 
 const styles = {

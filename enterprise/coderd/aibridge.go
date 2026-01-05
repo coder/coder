@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -23,10 +23,19 @@ import (
 const (
 	maxListInterceptionsLimit     = 1000
 	defaultListInterceptionsLimit = 100
+	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
+	// requests. This is hardcoded to keep configuration simple.
+	aiBridgeRateLimitWindow = time.Second
 )
 
 // aibridgeHandler handles all aibridged-related endpoints.
 func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	// Build the overload protection middleware chain for the aibridged handler.
+	// These limits are applied per-replica.
+	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
+	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Bridge")
+	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), aiBridgeRateLimitWindow)
+
 	return func(r chi.Router) {
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 		r.Group(func(r chi.Router) {
@@ -34,25 +43,22 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			r.Get("/interceptions", api.aiBridgeListInterceptions)
 		})
 
-		// This is a bit funky but since aibridge only exposes a HTTP
-		// handler, this is how it has to be.
-		r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-			if api.aibridgedHandler == nil {
-				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
-					Message: "aibridged handler not mounted",
-				})
-				return
-			}
-
-			// Strip either the experimental or stable prefix.
-			// TODO: experimental route is deprecated and must be removed with Beta.
-			prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
-			for _, prefix := range prefixes {
-				if strings.Contains(r.URL.String(), prefix) {
-					http.StripPrefix(prefix, api.aibridgedHandler).ServeHTTP(rw, r)
-					break
+		// Apply overload protection middleware to the aibridged handler.
+		// Concurrency limit is checked first for faster rejection under load.
+		r.Group(func(r chi.Router) {
+			r.Use(concurrencyLimiter, rateLimiter)
+			// This is a bit funky but since aibridge only exposes a HTTP
+			// handler, this is how it has to be.
+			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+				if api.aibridgedHandler == nil {
+					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+						Message: "aibridged handler not mounted",
+					})
+					return
 				}
-			}
+
+				http.StripPrefix("/api/v2/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
+			})
 		})
 	}
 }

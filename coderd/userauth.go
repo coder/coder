@@ -648,9 +648,10 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 
 		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 		newUser, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        user.ID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+			ID:         user.ID,
+			Status:     database.UserStatusActive,
+			UpdatedAt:  dbtime.Now(),
+			UserIsSeen: true,
 		})
 		if err != nil {
 			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
@@ -768,6 +769,10 @@ type GithubOAuth2Config struct {
 	AllowTeams         []GithubOAuth2Team
 
 	DefaultProviderConfigured bool
+}
+
+func (*GithubOAuth2Config) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	return []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256}
 }
 
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
@@ -1172,6 +1177,15 @@ type OIDCConfig struct {
 	IconURL string
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
+	PKCEMethods         []promoauth.Oauth2PKCEChallengeMethod
+}
+
+// PKCESupported is to prevent nil pointer dereference.
+func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	if o == nil {
+		return nil
+	}
+	return o.PKCEMethods
 }
 
 // @Summary OpenID Connect Callback
@@ -1786,9 +1800,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			dormantConvertAudit.Old = user
 			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-				ID:        user.ID,
-				Status:    database.UserStatusActive,
-				UpdatedAt: dbtime.Now(),
+				ID:         user.ID,
+				Status:     database.UserStatusActive,
+				UpdatedAt:  dbtime.Now(),
+				UserIsSeen: true,
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to update user status to active", slog.Error(err))

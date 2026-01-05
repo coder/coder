@@ -266,7 +266,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 		<HelpTooltip>
 			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
-					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
+					<Avatar size="md" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</HelpTooltipTrigger>
@@ -294,7 +294,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar
-						size="sm"
+						size="md"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
@@ -321,7 +321,12 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<Avatar variant="icon" src={orgIconUrl} fallback={orgName} />
+							<Avatar
+								variant="icon"
+								src={orgIconUrl}
+								fallback={orgName}
+								size="md"
+							/>
 						)
 					}
 					imgFallbackText={orgName}
@@ -389,6 +394,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 								variant="icon"
 								src={templateIconUrl}
 								fallback={templateDisplayName}
+								size="md"
 							/>
 						}
 						imgFallbackText={templateDisplayName}

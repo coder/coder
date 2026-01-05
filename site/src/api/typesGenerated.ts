@@ -33,6 +33,8 @@ export interface AIBridgeConfig {
 	readonly bedrock: AIBridgeBedrockConfig;
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
+	readonly max_concurrency: number;
+	readonly rate_limit: number;
 }
 
 // From codersdk/aibridge.go
@@ -61,6 +63,14 @@ export interface AIBridgeListInterceptionsResponse {
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
+}
+
+// From codersdk/deployment.go
+export interface AIBridgeProxyConfig {
+	readonly enabled: boolean;
+	readonly listen_addr: string;
+	readonly cert_file: string;
+	readonly key_file: string;
 }
 
 // From codersdk/aibridge.go
@@ -104,23 +114,8 @@ export interface AIBridgeUserPrompt {
 // From codersdk/deployment.go
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
+	readonly aibridge_proxy?: AIBridgeProxyConfig;
 }
-
-// From codersdk/aitasks.go
-/**
- * AITaskPromptParameterName is the name of the parameter used to pass prompts
- * to AI tasks.
- *
- * Deprecated: This constant is deprecated and maintained only for backwards
- * compatibility with older templates. Task prompts are now stored directly
- * in the tasks.prompt database column. New code should access prompts via
- * the Task.InitialPrompt field returned from task endpoints.
- *
- * This constant will be removed in a future major version. Templates should
- * not rely on this parameter name, as the backend will continue to create it
- * automatically for compatibility but reads from tasks.prompt.
- */
-export const AITaskPromptParameterName = "AI Prompt";
 
 // From codersdk/allowlist.go
 /**
@@ -1772,6 +1767,7 @@ export interface DeploymentValues {
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
 	readonly disable_owner_workspace_exec?: boolean;
+	readonly disable_workspace_sharing?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
@@ -1787,6 +1783,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
+	readonly template_insights?: TemplateInsightsConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -2000,6 +1997,11 @@ export interface ExternalAuthConfig {
 	 * DisplayIcon is a URL to an icon to display in the UI.
 	 */
 	readonly display_icon: string;
+	/**
+	 * CodeChallengeMethodsSupported lists the PKCE code challenge methods
+	 * The only one supported by Coder is "S256".
+	 */
+	readonly code_challenge_methods_supported: readonly string[];
 }
 
 // From codersdk/externalauth.go
@@ -2049,6 +2051,7 @@ export interface ExternalAuthLinkProvider {
 	readonly allow_refresh: boolean;
 	readonly allow_validate: boolean;
 	readonly supports_revocation: boolean;
+	readonly code_challenge_methods_supported: readonly string[];
 }
 
 // From codersdk/externalauth.go
@@ -2176,7 +2179,11 @@ export interface GetInboxNotificationResponse {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
-	readonly offset: string;
+	/**
+	 * Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
+	 * for the local timezone.
+	 */
+	readonly offset: number;
 }
 
 // From codersdk/insights.go
@@ -3041,6 +3048,14 @@ export interface OAuth2GithubConfig {
 	readonly allow_everyone: boolean;
 	readonly enterprise_base_url: string;
 }
+
+// From codersdk/client.go
+/**
+ * OAuth2PKCEVerifier is the name of the cookie that stores the oauth2 PKCE
+ * verifier. This is the raw verifier that when hashed, will match the challenge
+ * sent in the initial oauth2 request.
+ */
+export const OAuth2PKCEVerifier = "oauth_pkce_verifier";
 
 // From codersdk/oauth2.go
 /**
@@ -4527,6 +4542,23 @@ export interface SessionLifetime {
  */
 export const SessionTokenHeader = "Coder-Session-Token";
 
+// From codersdk/workspaces.go
+export interface SharedWorkspaceActor {
+	readonly id: string;
+	readonly actor_type: SharedWorkspaceActorType;
+	readonly name: string;
+	readonly avatar_url?: string;
+	readonly roles: readonly WorkspaceRole[];
+}
+
+// From codersdk/workspaces.go
+export type SharedWorkspaceActorType = "group" | "user";
+
+export const SharedWorkspaceActorTypes: SharedWorkspaceActorType[] = [
+	"group",
+	"user",
+];
+
 // From codersdk/client.go
 /**
  * SignedAppTokenCookie is the name of the cookie that stores a temporary
@@ -5071,6 +5103,11 @@ export interface TemplateFilter {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
 	readonly role: TemplateRole;
+}
+
+// From codersdk/deployment.go
+export interface TemplateInsightsConfig {
+	readonly enable: boolean;
 }
 
 // From codersdk/insights.go
@@ -5939,6 +5976,7 @@ export interface Workspace {
 	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	 */
 	readonly task_id?: string;
+	readonly shared_with?: readonly SharedWorkspaceActor[];
 }
 
 // From codersdk/workspaces.go
@@ -6098,13 +6136,15 @@ export interface WorkspaceAgentDevcontainerAgent {
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentDevcontainerStatus =
+	| "deleting"
 	| "error"
 	| "running"
 	| "starting"
-	| "stopped";
+	| "stopped"
+	| "stopping";
 
 export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
-	["error", "running", "starting", "stopped"];
+	["deleting", "error", "running", "starting", "stopped", "stopping"];
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {

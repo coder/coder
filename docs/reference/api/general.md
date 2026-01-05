@@ -162,6 +162,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "agent_stat_refresh_interval": 0,
     "ai": {
+      "aibridge_proxy": {
+        "cert_file": "string",
+        "enabled": true,
+        "key_file": "string",
+        "listen_addr": "string"
+      },
       "bridge": {
         "anthropic": {
           "base_url": "string",
@@ -176,10 +182,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         },
         "enabled": true,
         "inject_coder_mcp_tools": true,
+        "max_concurrency": 0,
         "openai": {
           "base_url": "string",
           "key": "string"
         },
+        "rate_limit": 0,
         "retention": 0
       }
     },
@@ -233,6 +241,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -259,6 +268,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
+          "code_challenge_methods_supported": [
+            "string"
+          ],
           "device_code_url": "string",
           "device_flow": true,
           "display_icon": "string",
@@ -514,6 +526,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "scheme": "string",
         "user": {}
       }
+    },
+    "template_insights": {
+      "enable": true
     },
     "terms_of_service_url": "string",
     "tls": {

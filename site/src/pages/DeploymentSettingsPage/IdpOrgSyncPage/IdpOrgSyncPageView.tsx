@@ -208,7 +208,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 						</div>
 					</div>
 					{form.errors.field && (
-						<p className="text-content-danger text-sm m-0">
+						<p className="text-content-destructive text-sm m-0">
 							{form.errors.field}
 						</p>
 					)}
@@ -297,7 +297,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</div>
 						</div>
 						{form.errors.mapping && (
-							<p className="text-content-danger text-sm m-0">
+							<p className="text-content-destructive text-sm m-0">
 								{Object.values(form.errors.mapping || {})}
 							</p>
 						)}
@@ -376,7 +376,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 						<TableRow>
 							<TableCell colSpan={999}>
 								<EmptyState
-									message={"No organization mappings"}
+									message="No organization mappings"
 									isCompact
 									cta={
 										<Link

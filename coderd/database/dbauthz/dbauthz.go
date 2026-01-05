@@ -616,6 +616,27 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectDBPurge = rbac.Subject{
+		Type:         rbac.SubjectTypeDBPurge,
+		FriendlyName: "DB Purge",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "dbpurge"},
+				DisplayName: "DB Purge Daemon",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceSystem.Type:               {policy.ActionDelete},
+					rbac.ResourceNotificationMessage.Type:  {policy.ActionDelete},
+					rbac.ResourceApiKey.Type:               {policy.ActionDelete},
+					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -708,6 +729,12 @@ func AsUsagePublisher(ctx context.Context) context.Context {
 // required for creating, reading, and updating aibridge-related resources.
 func AsAIBridged(ctx context.Context) context.Context {
 	return As(ctx, subjectAibridged)
+}
+
+// AsDBPurge returns a context with an actor that has permissions required
+// for dbpurge to delete old database records.
+func AsDBPurge(ctx context.Context) context.Context {
+	return As(ctx, subjectDBPurge)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -2455,6 +2482,18 @@ func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Contex
 }
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+	// Fast path: Check if we have a workspace RBAC object in context.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Errors here will result in falling back to GetWorkspaceByAgentID,
+		// in case the cached data is stale.
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
+			return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+		}
+
+		q.log.Debug(ctx, "fast path authorization failed for GetLatestWorkspaceBuildByWorkspaceID, using slow path",
+			slog.F("workspace_id", workspaceID))
+	}
+
 	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
@@ -3548,6 +3587,21 @@ func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context
 }
 
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+	// Fast path: Check if we have a workspace RBAC object in context.
+	// In the agent API this is set at agent connection time to avoid the expensive
+	// GetWorkspaceByAgentID query for every agent operation.
+	// NOTE: The cached RBAC object is refreshed every 5 minutes in agentapi/api.go.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Errors here will result in falling back to GetWorkspaceByAgentID,
+		// in case the cached data is stale.
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
+			return q.db.GetWorkspaceAgentByID(ctx, id)
+		}
+		q.log.Debug(ctx, "fast path authorization failed for GetWorkspaceAgentByID, using slow path",
+			slog.F("agent_id", id))
+	}
+
+	// Slow path: Fallback to fetching the workspace for authorization
 	if _, err := q.GetWorkspaceByAgentID(ctx, id); err != nil {
 		return database.WorkspaceAgent{}, err
 	}

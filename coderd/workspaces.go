@@ -114,6 +114,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	w, err := convertWorkspace(
+		ctx,
+		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -168,7 +171,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	// Workspaces do not have ACL columns.
 	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -193,6 +195,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	if len(workspaceRows) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -218,7 +221,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces := database.ConvertWorkspaceRows(workspaceRows)
+	workspaces, err := database.ConvertWorkspaceRows(workspaceRows)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace rows.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	data, err := api.workspaceData(ctx, workspaces)
 	if err != nil {
@@ -229,7 +239,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wss, err := convertWorkspaces(apiKey.UserID, workspaces, data)
+	wss, err := convertWorkspaces(
+		ctx,
+		api.Experiments,
+		api.Logger,
+		apiKey.UserID,
+		workspaces,
+		data,
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting workspaces.",
@@ -319,6 +336,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 
 	w, err := convertWorkspace(
+		ctx,
+		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -847,6 +867,9 @@ func createWorkspace(
 	}
 
 	w, err := convertWorkspace(
+		ctx,
+		api.Experiments,
+		api.Logger,
 		initiatorID,
 		workspace,
 		apiBuild,
@@ -1490,6 +1513,9 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	w, err := convertWorkspace(
+		ctx,
+		api.Experiments,
+		api.Logger,
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
@@ -2067,6 +2093,9 @@ func (api *API) watchWorkspace(
 			appStatus = data.appStatuses[0]
 		}
 		w, err := convertWorkspace(
+			ctx,
+			api.Experiments,
+			api.Logger,
 			apiKey.UserID,
 			workspace,
 			data.builds[0],
@@ -2516,7 +2545,14 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
-func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
+func convertWorkspaces(
+	ctx context.Context,
+	experiments codersdk.Experiments,
+	logger slog.Logger,
+	requesterID uuid.UUID,
+	workspaces []database.Workspace,
+	data workspaceData,
+) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
@@ -2548,6 +2584,9 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 		appStatus := appStatusesByWorkspaceID[workspace.ID]
 
 		w, err := convertWorkspace(
+			ctx,
+			experiments,
+			logger,
 			requesterID,
 			workspace,
 			build,
@@ -2565,6 +2604,9 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 }
 
 func convertWorkspace(
+	ctx context.Context,
+	experiments codersdk.Experiments,
+	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
@@ -2662,7 +2704,57 @@ func convertWorkspace(
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
 		TaskID:           workspace.TaskID,
+		SharedWith:       sharedWorkspaceActors(ctx, experiments, logger, workspace),
 	}, nil
+}
+
+func sharedWorkspaceActors(
+	ctx context.Context,
+	experiments codersdk.Experiments,
+	logger slog.Logger,
+	workspace database.Workspace,
+) []codersdk.SharedWorkspaceActor {
+	if !experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
+		return nil
+	}
+
+	out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
+
+	// Users
+	for id, aclEntry := range workspace.UserACL {
+		userID, err := uuid.Parse(id)
+		if err != nil {
+			logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+			continue
+		}
+
+		out = append(out, codersdk.SharedWorkspaceActor{
+			ID:        userID,
+			ActorType: codersdk.SharedWorkspaceActorTypeUser,
+			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
+			Name:      workspace.UserACLDisplayInfo[id].Name,
+			AvatarURL: workspace.UserACLDisplayInfo[id].AvatarURL,
+		})
+	}
+
+	// Groups
+	for id, aclEntry := range workspace.GroupACL {
+		groupID, err := uuid.Parse(id)
+		if err != nil {
+			logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+			continue
+		}
+
+		out = append(out, codersdk.SharedWorkspaceActor{
+			ID:        groupID,
+			ActorType: codersdk.SharedWorkspaceActorTypeGroup,
+			Roles:     []codersdk.WorkspaceRole{convertToWorkspaceRole(aclEntry.Permissions)},
+			Name:      workspace.GroupACLDisplayInfo[id].Name,
+			AvatarURL: workspace.GroupACLDisplayInfo[id].AvatarURL,
+		})
+	}
+
+	return out
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
