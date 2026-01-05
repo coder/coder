@@ -4595,7 +4595,7 @@ export interface SlimRole {
 
 // From codersdk/deployment.go
 export interface StatsCollectionConfig {
-	readonly usage: UsageStatsConfig;
+	readonly usage_stats: UsageStatsConfig;
 }
 
 // From codersdk/client.go

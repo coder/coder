@@ -18054,7 +18054,7 @@ const docTemplate = `{
         "codersdk.StatsCollectionConfig": {
             "type": "object",
             "properties": {
-                "usage": {
+                "usage_stats": {
                     "$ref": "#/definitions/codersdk.UsageStatsConfig"
                 }
             }

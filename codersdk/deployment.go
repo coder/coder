@@ -616,7 +616,7 @@ type UsageStatsConfig struct {
 }
 
 type StatsCollectionConfig struct {
-	UsageStats UsageStatsConfig `json:"usage" tyescript:",notnull"`
+	UsageStats UsageStatsConfig `json:"usage_stats" tyescript:",notnull"`
 }
 
 type PrometheusConfig struct {

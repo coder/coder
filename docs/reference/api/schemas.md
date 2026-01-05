@@ -2952,7 +2952,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "ssh_keygen_algorithm": "string",
     "stats_collection": {
-      "usage": {
+      "usage_stats": {
         "enable": true
       }
     },
@@ -3491,7 +3491,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "ssh_keygen_algorithm": "string",
   "stats_collection": {
-    "usage": {
+    "usage_stats": {
       "enable": true
     }
   },
@@ -7453,7 +7453,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "usage": {
+  "usage_stats": {
     "enable": true
   }
 }
@@ -7461,9 +7461,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name    | Type                                                   | Required | Restrictions | Description |
-|---------|--------------------------------------------------------|----------|--------------|-------------|
-| `usage` | [codersdk.UsageStatsConfig](#codersdkusagestatsconfig) | false    |              |             |
+| Name          | Type                                                   | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------|----------|--------------|-------------|
+| `usage_stats` | [codersdk.UsageStatsConfig](#codersdkusagestatsconfig) | false    |              |             |
 
 ## codersdk.SupportConfig
 

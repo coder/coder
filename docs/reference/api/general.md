@@ -492,7 +492,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "ssh_keygen_algorithm": "string",
     "stats_collection": {
-      "usage": {
+      "usage_stats": {
         "enable": true
       }
     },
