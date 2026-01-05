@@ -298,7 +298,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 		// Populate the placeholder system role(s) that the DB trigger
 		// created for us.
-		_, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
+		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
 			Name: rbac.RoleOrgMember(),
 			OrganizationID: uuid.NullUUID{
 				UUID:  organizationID,

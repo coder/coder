@@ -994,8 +994,6 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 		// Org-level negation blocks sharing on ANY workspace in the
 		// org.  This overrides any positive permission from other
 		// roles, including org-admin.
-		//
-		// TODO(geokat): is this what we want?
 		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,

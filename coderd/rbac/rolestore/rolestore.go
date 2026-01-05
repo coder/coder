@@ -216,10 +216,13 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 				continue
 			}
 
-			_, err := ReconcileOrgMemberRole(ctx, tx, role, org.WorkspaceSharingDisabled)
+			_, didUpdate, err := ReconcileOrgMemberRole(ctx, tx, role, org.WorkspaceSharingDisabled)
 			if err != nil {
 				return xerrors.Errorf("reconcile organization-member role for organization %s: %w",
 					org.ID, err)
+			}
+			if didUpdate {
+				log.Info(ctx, "organization-member system role updated", "organization_id", org.ID)
 			}
 		}
 
@@ -230,14 +233,15 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 // ReconcileOrgMemberRole ensures passed-in org-member role's perms
 // are correct (current) and stored in the DB. Uses set-based
 // comparison to avoid unnecessary database writes when permissions
-// haven't changed. Returns the correct role.
+// haven't changed. Returns the correct role and a boolean indicating
+// whether the reconciliation was necessary.
 func ReconcileOrgMemberRole(
 	ctx context.Context,
 	tx database.Store,
 	in database.CustomRole,
 	workspaceSharingDisabled bool,
 ) (
-	database.CustomRole, error,
+	database.CustomRole, bool, error,
 ) {
 	// All fields except OrgPermissions and MemberPermissions will be the same.
 	out := in
@@ -271,12 +275,12 @@ func ReconcileOrgMemberRole(
 			MemberPermissions: out.MemberPermissions,
 		})
 		if err != nil {
-			return out, xerrors.Errorf("update organization-member custom role for organization %s: %w",
+			return out, !match, xerrors.Errorf("update organization-member custom role for organization %s: %w",
 				in.OrganizationID.UUID, err)
 		}
 	}
 
-	return out, nil
+	return out, !match, nil
 }
 
 // CreateOrgMemberRole creates an org-member system role for an organization.
