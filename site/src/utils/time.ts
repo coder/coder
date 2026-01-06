@@ -57,8 +57,11 @@ const defaultDateLocaleOptions: Intl.DateTimeFormatOptions = {
 	year: "numeric",
 };
 
-export function formatDate(date: Date, options?: Intl.DateTimeFormatOptions) {
-	return date.toLocaleDateString(undefined, {
+export function formatDate(
+	date: Date,
+	options?: { locale: Intl.LocalesArgument } & Intl.DateTimeFormatOptions,
+) {
+	return date.toLocaleDateString(options?.locale, {
 		...defaultDateLocaleOptions,
 		...options,
 	});
