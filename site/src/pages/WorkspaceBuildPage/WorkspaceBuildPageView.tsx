@@ -34,7 +34,7 @@ import {
 } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
-import { formatDate } from "utils/date";
+import { formatDate } from "utils/time";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 

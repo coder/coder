@@ -23,7 +23,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { formatDate } from "utils/date";
+import { formatDate } from "utils/time";
 import { docs } from "utils/docs";
 
 const chartConfig = {

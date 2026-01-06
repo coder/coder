@@ -13,7 +13,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { formatDate } from "utils/date";
+import { formatDate } from "utils/time";
 
 const chartConfig = {
 	amount: {

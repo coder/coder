@@ -17,7 +17,7 @@ import { type FC, useEffect, useState } from "react";
 dayjs.extend(relativeTime);
 
 import { useQuery } from "react-query";
-import { formatDate } from "utils/date";
+import { formatDate } from "utils/time";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	NotificationActionButton,

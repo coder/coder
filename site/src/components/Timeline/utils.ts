@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import calendar from "dayjs/plugin/calendar";
-import { formatDate } from "utils/date";
+import { formatDate } from "utils/time";
 
 dayjs.extend(calendar);
 
