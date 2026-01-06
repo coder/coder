@@ -893,30 +893,24 @@ func DeduplicatePermissions(perms []Permission) []Permission {
 	return deduped
 }
 
-// PermissionsEqual compares two permission slices using set-based
-// comparison. Order does not matter; it only checks that both slices
-// contain the same permissions. This is used by the organization
-// member system role startup hook to detect when permissions need
-// updating.
+// PermissionsEqual compares two permission slices as sets.  Order and
+// duplicate entries do not matter; it only checks that both slices
+// contain the same unique permissions.
 func PermissionsEqual(a, b []Permission) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	set := make(map[string]struct{}, len(a))
+	setA := make(map[Permission]struct{}, len(a))
 	for _, p := range a {
-		key := p.ResourceType + "\x00" + string(p.Action) + "\x00" + strconv.FormatBool(p.Negate)
-		set[key] = struct{}{}
+		setA[p] = struct{}{}
 	}
 
+	setB := make(map[Permission]struct{}, len(b))
 	for _, p := range b {
-		key := p.ResourceType + "\x00" + string(p.Action) + "\x00" + strconv.FormatBool(p.Negate)
-		if _, ok := set[key]; !ok {
+		if _, ok := setA[p]; !ok {
 			return false
 		}
+		setB[p] = struct{}{}
 	}
 
-	return true
+	return len(setA) == len(setB)
 }
 
 // OrgMemberPermissions returns the permissions for the organization-member
