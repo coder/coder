@@ -69,11 +69,11 @@ const BasePageButton: FC<BasePageButtonProps> = ({
 	return (
 		<Button
 			variant={highlighted ? "default" : "outline"}
+			size="icon"
 			aria-label={ariaLabel}
 			name={name}
 			disabled={disabled}
 			onClick={onClick}
-			size="icon"
 			className="min-w-8 w-auto"
 		>
 			{children}
