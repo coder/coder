@@ -124,7 +124,7 @@ spec:
   template:
     metadata:
       annotations:
-        com.coder/component: coderd
+        app.kubernetes.io/component: coderd
       labels:
         app.kubernetes.io/instance: release-name
         app.kubernetes.io/managed-by: Helm

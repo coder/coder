@@ -9,9 +9,9 @@ Component annotation for pod metadata.
 */}}
 {{- define "coder.componentAnnotation" -}}
 {{- if .Values.coder.workspaceProxy -}}
-com.coder/component: wsproxy
+app.kubernetes.io/component: wsproxy
 {{- else -}}
-com.coder/component: coderd
+app.kubernetes.io/component: coderd
 {{- end -}}
 {{- end }}
 
