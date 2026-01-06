@@ -112,7 +112,7 @@ func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Re
 			return xerrors.Errorf("get organization-member role: %w", err)
 		}
 
-		_, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, role, req.SharingDisabled)
+		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, role, req.SharingDisabled)
 		if err != nil {
 			return xerrors.Errorf("reconcile organization-member role: %w", err)
 		}
