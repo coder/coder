@@ -491,6 +491,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
+    "stats_collection": {
+      "usage_stats": {
+        "enable": true
+      }
+    },
     "strict_transport_security": 0,
     "strict_transport_security_options": [
       "string"
@@ -526,9 +531,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "scheme": "string",
         "user": {}
       }
-    },
-    "template_insights": {
-      "enable": true
     },
     "terms_of_service_url": "string",
     "tls": {
