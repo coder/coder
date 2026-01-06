@@ -965,12 +965,12 @@
 					"children": [
 						{
 							"title": "nsjail",
-							"description": "nsjail jail type documentation",
+							"description": "Documentation for Namespace Jail",
 							"path": "./ai-coder/nsjail.md"
 						},
 						{
 							"title": "landjail",
-							"description": "landjail jail type documentation",
+							"description": "Documentation for LandJail",
 							"path": "./ai-coder/landjail.md"
 						}
 					]
