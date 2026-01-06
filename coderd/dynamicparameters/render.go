@@ -290,13 +290,13 @@ func WorkspaceOwner(ctx context.Context, db database.Store, org uuid.UUID, owner
 	user, err := db.GetUserByID(ctx, ownerID)
 	if err != nil {
 		// If the user failed to read, we also try to read the user from their
-		// organization member. You only need to be able to read the organization member
-		// to get the owner data.
+		// organization member. We use a privileged context here because the caller
+		// may be a shared workspace user who has permission to operate on the
+		// workspace but not to read other users' organization membership records.
+		// This is safe because we've already authorized the workspace operation.
 		//
-		// Only the terraform files can therefore leak more information than the
-		// caller should have access to. All this info should be public assuming you can
-		// read the user though.
-		mem, err := database.ExpectOne(db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		//nolint:gocritic // Has the correct permissions, and matches the provisioning flow.
+		mem, err := database.ExpectOne(db.OrganizationMembers(dbauthz.AsProvisionerd(ctx), database.OrganizationMembersParams{
 			OrganizationID: org,
 			UserID:         ownerID,
 			IncludeSystem:  true,
