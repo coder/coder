@@ -14385,6 +14385,9 @@ const docTemplate = `{
                 "ssh_keygen_algorithm": {
                     "type": "string"
                 },
+                "stats_collection": {
+                    "$ref": "#/definitions/codersdk.StatsCollectionConfig"
+                },
                 "strict_transport_security": {
                     "type": "integer"
                 },
@@ -14402,9 +14405,6 @@ const docTemplate = `{
                 },
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"
-                },
-                "template_insights": {
-                    "$ref": "#/definitions/codersdk.TemplateInsightsConfig"
                 },
                 "terms_of_service_url": {
                     "type": "string"
@@ -18051,6 +18051,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.StatsCollectionConfig": {
+            "type": "object",
+            "properties": {
+                "usage_stats": {
+                    "$ref": "#/definitions/codersdk.UsageStatsConfig"
+                }
+            }
+        },
         "codersdk.SupportConfig": {
             "type": "object",
             "properties": {
@@ -18703,14 +18711,6 @@ const docTemplate = `{
                 "total_member_count": {
                     "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.TemplateInsightsConfig": {
-            "type": "object",
-            "properties": {
-                "enable": {
-                    "type": "boolean"
                 }
             }
         },
@@ -19656,6 +19656,14 @@ const docTemplate = `{
                 "start": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UsageStatsConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
                 }
             }
         },

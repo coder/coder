@@ -776,7 +776,7 @@ func New(options *Options) *API {
 		UsageTracker:           options.WorkspaceUsageTracker,
 		UpdateAgentMetricsFn:   options.UpdateAgentMetrics,
 		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
-		DisableDatabaseInserts: !options.DeploymentValues.TemplateInsights.Enable.Value(),
+		DisableDatabaseInserts: !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value(),
 	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
@@ -1535,7 +1535,8 @@ func New(options *Options) *API {
 				r.Use(
 					func(next http.Handler) http.Handler {
 						return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-							if !options.DeploymentValues.TemplateInsights.Enable.Value() {
+							// Template insights depend on the usage stats.
+							if !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value() {
 								httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 									Message: "Not Found.",
 									Detail:  "Template insights are disabled.",
