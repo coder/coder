@@ -86,6 +86,7 @@ func TestSupportBundle(t *testing.T) {
 	})
 
 	t.Run("WorkspaceWithAgent", func(t *testing.T) {
+		t.Parallel()
 		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
