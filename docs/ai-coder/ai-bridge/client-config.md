@@ -4,7 +4,7 @@ Once AI Bridge is setup on your deployment, the AI coding tools used by your use
 
 ## Base URLs
 
-Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [/v1/chat/completions](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of "https://api.openai.com/v1", you'll need to set it to "https://coder.example.com/api/v2/aibridge/openai/v1".
+Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/aibridge/openai/v1`.
 
 The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
 
