@@ -3,6 +3,7 @@ package cli_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
@@ -56,10 +58,19 @@ func TestSupportBundle(t *testing.T) {
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
+	// Set up test fixtures
+	setupCtx := testutil.Context(t, testutil.WaitSuperLong)
+	workspaceWithAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+		// This should not show up in the bundle output
+		agents[0].Env["SECRET_VALUE"] = secretValue
+		return agents
+	})
+	workspaceWithoutAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, nil)
+	memberWorkspace := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, member.ID, nil)
+
 	// Wait for healthcheck to complete successfully before continuing with sub-tests.
 	// The result is cached so subsequent requests will be fast.
 	healthcheckDone := make(chan *healthsdk.HealthcheckReport)
-	setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 	go func() {
 		defer close(healthcheckDone)
 		hc, err := healthsdk.New(client).DebugHealth(setupCtx)
@@ -75,56 +86,22 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("WorkspaceWithAgent", func(t *testing.T) {
 		t.Parallel()
-		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        owner.UserID,
-		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-			// This should not show up in the bundle output
-			agents[0].Env["SECRET_VALUE"] = secretValue
-			return agents
-		}).Do()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ws, err := client.Workspace(ctx, r.Workspace.ID)
-		require.NoError(t, err)
 		tempDir := t.TempDir()
 		logPath := filepath.Join(tempDir, "coder-agent.log")
 		require.NoError(t, os.WriteFile(logPath, []byte("hello from the agent"), 0o600))
-		agt := agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+		agt := agenttest.New(t, client.URL, workspaceWithAgent.AgentToken, func(o *agent.Options) {
 			o.LogDir = tempDir
 		})
 		defer agt.Close()
-		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
-
-		ctx = testutil.Context(t, testutil.WaitShort) // Reset timeout after waiting for agent.
-
-		// Insert a provisioner job log
-		_, err = api.Database.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
-			JobID:     r.Build.JobID,
-			CreatedAt: []time.Time{dbtime.Now()},
-			Source:    []database.LogSource{database.LogSourceProvisionerDaemon},
-			Level:     []database.LogLevel{database.LogLevelInfo},
-			Stage:     []string{"provision"},
-			Output:    []string{"done"},
-		})
-		require.NoError(t, err)
-		// Insert an agent log
-		_, err = api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-			AgentID:      ws.LatestBuild.Resources[0].Agents[0].ID,
-			CreatedAt:    dbtime.Now(),
-			Output:       []string{"started up"},
-			Level:        []database.LogLevel{database.LogLevelInfo},
-			LogSourceID:  r.Build.JobID,
-			OutputLength: 10,
-		})
-		require.NoError(t, err)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspaceWithAgent.Workspace.ID).Wait()
 
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output-file", path, "--yes")
+		inv, root := clitest.New(t, "support", "bundle", workspaceWithAgent.Workspace.Name, "--output-file", path, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
-		err = inv.Run()
+		err := inv.Run()
 		require.NoError(t, err)
 		assertBundleContents(t, path, true, true, []string{secretValue})
 	})
@@ -144,13 +121,9 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoAgent", func(t *testing.T) {
 		t.Parallel()
-		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        owner.UserID,
-		}).Do() // without agent!
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output-file", path, "--yes")
+		inv, root := clitest.New(t, "support", "bundle", workspaceWithoutAgent.Workspace.Name, "--output-file", path, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
@@ -160,11 +133,7 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoPrivilege", func(t *testing.T) {
 		t.Parallel()
-		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-		}).Do()
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
+		inv, root := clitest.New(t, "support", "bundle", memberWorkspace.Workspace.Name, "--yes")
 		clitest.SetupConfig(t, memberClient, root)
 		err := inv.Run()
 		require.ErrorContains(t, err, "failed authorization check")
@@ -271,7 +240,7 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			require.NotEmpty(t, v, "workspace should not be empty")
 		case "workspace/build_logs.txt":
 			bs := readBytesFromZip(t, f)
-			if !wantWorkspace || !wantAgent {
+			if !wantWorkspace {
 				require.Empty(t, bs, "expected workspace build logs to be empty")
 				continue
 			}
@@ -434,4 +403,55 @@ func seedSecretDeploymentOptions(t *testing.T, dc *codersdk.DeploymentConfig, se
 			opt.Value.Set(secretValue)
 		}
 	}
+}
+
+func setupSupportBundleTestFixture(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	orgID, ownerID uuid.UUID,
+	withAgent func([]*proto.Agent) []*proto.Agent,
+) dbfake.WorkspaceResponse {
+	t.Helper()
+	// nolint: gocritic // Used for seeding test data only.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	b := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
+	})
+	if withAgent != nil {
+		b = b.WithAgent(withAgent)
+	}
+	r := b.Do()
+	_, err := db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+		JobID:     r.Build.JobID,
+		CreatedAt: []time.Time{dbtime.Now()},
+		Source:    []database.LogSource{database.LogSourceProvisionerDaemon},
+		Level:     []database.LogLevel{database.LogLevelInfo},
+		Stage:     []string{"provision"},
+		Output:    []string{"done"},
+	})
+	require.NoError(t, err)
+	if withAgent != nil {
+		res, err := db.GetWorkspaceResourcesByJobID(ctx, r.Build.JobID)
+		require.NoError(t, err)
+		var resIDs []uuid.UUID
+		for _, res := range res {
+			resIDs = append(resIDs, res.ID)
+		}
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, resIDs)
+		require.NoError(t, err)
+		for _, agt := range agents {
+			_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+				AgentID:      agt.ID,
+				CreatedAt:    dbtime.Now(),
+				Output:       []string{"started up"},
+				Level:        []database.LogLevel{database.LogLevelInfo},
+				LogSourceID:  r.Build.JobID,
+				OutputLength: 10,
+			})
+			require.NoError(t, err)
+		}
+	}
+	return r
 }
