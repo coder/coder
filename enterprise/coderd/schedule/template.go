@@ -140,8 +140,8 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	var (
-		template          database.Template
-		markedForDeletion []database.WorkspaceTable
+		template                 database.Template
+		dormantWorkspacesUpdated []database.WorkspaceTable
 	)
 	err = db.InTx(func(tx database.Store) error {
 		ctx, span := tracing.StartSpanWithName(ctx, "(*schedule.EnterpriseTemplateScheduleStore).Set()-InTx()")
@@ -176,7 +176,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		markedForDeletion, err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+		dormantWorkspacesUpdated, err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
 			TemplateID:                 tpl.ID,
 			TimeTilDormantAutodeleteMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
 			DormantAt:                  dormantAt,
@@ -267,27 +267,30 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		}
 	}
 
-	for _, ws := range markedForDeletion {
+	if opts.TimeTilDormantAutoDelete > 0 {
 		dormantTime := s.now().Add(opts.TimeTilDormantAutoDelete)
-		_, err = s.enqueuer.Enqueue(
-			// nolint:gocritic // Need actor to enqueue notification
-			dbauthz.AsNotifier(ctx),
-			ws.OwnerID,
-			notifications.TemplateWorkspaceMarkedForDeletion,
-			map[string]string{
-				"name":           ws.Name,
-				"reason":         "an update to the template's dormancy",
-				"timeTilDormant": humanize.Time(dormantTime),
-			},
-			"scheduletemplate",
-			// Associate this notification with all the related entities.
-			ws.ID,
-			ws.OwnerID,
-			ws.TemplateID,
-			ws.OrganizationID,
-		)
-		if err != nil {
-			s.logger.Warn(ctx, "failed to notify of workspace marked for deletion", slog.Error(err), slog.F("workspace_id", ws.ID))
+
+		for _, ws := range dormantWorkspacesUpdated {
+			_, err = s.enqueuer.Enqueue(
+				// nolint:gocritic // Need actor to enqueue notification
+				dbauthz.AsNotifier(ctx),
+				ws.OwnerID,
+				notifications.TemplateWorkspaceMarkedForDeletion,
+				map[string]string{
+					"name":           ws.Name,
+					"reason":         "an update to the template's dormancy",
+					"timeTilDormant": humanize.Time(dormantTime),
+				},
+				"scheduletemplate",
+				// Associate this notification with all the related entities.
+				ws.ID,
+				ws.OwnerID,
+				ws.TemplateID,
+				ws.OrganizationID,
+			)
+			if err != nil {
+				s.logger.Warn(ctx, "failed to notify of workspace marked for deletion", slog.Error(err), slog.F("workspace_id", ws.ID))
+			}
 		}
 	}
 
