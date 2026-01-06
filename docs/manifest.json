@@ -961,7 +961,19 @@
 					"title": "Agent Boundaries",
 					"description": "Understanding Agent Boundaries in Coder Tasks",
 					"path": "./ai-coder/agent-boundary.md",
-					"state": ["early access"]
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "nsjail",
+							"description": "nsjail jail type documentation",
+							"path": "./ai-coder/nsjail.md"
+						},
+						{
+							"title": "landjail",
+							"description": "landjail jail type documentation",
+							"path": "./ai-coder/landjail.md"
+						}
+					]
 				},
 				{
 					"title": "AI Bridge",
