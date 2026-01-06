@@ -44,7 +44,6 @@ func TestSupportBundle(t *testing.T) {
 	}
 
 	// Support bundle tests can share a single coderdtest instance.
-	setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 	var dc codersdk.DeploymentConfig
 	secretValue := uuid.NewString()
 	seedSecretDeploymentOptions(t, &dc, secretValue)
@@ -60,6 +59,7 @@ func TestSupportBundle(t *testing.T) {
 	// Wait for healthcheck to complete successfully before continuing with sub-tests.
 	// The result is cached so subsequent requests will be fast.
 	healthcheckDone := make(chan *healthsdk.HealthcheckReport)
+	setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 	go func() {
 		defer close(healthcheckDone)
 		hc, err := healthsdk.New(client).DebugHealth(setupCtx)
