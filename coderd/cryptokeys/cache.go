@@ -126,7 +126,7 @@ func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher
 func newCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*cache)) *cache {
 	cache := &cache{
 		clock:   quartz.NewReal(),
-		logger:  logger,
+		logger:  logger.With(slog.F("feature", feature)),
 		fetcher: fetcher,
 		feature: feature,
 	}
@@ -134,6 +134,7 @@ func newCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature 
 	for _, opt := range opts {
 		opt(cache)
 	}
+	cache.logger.Debug(ctx, "created new key cache")
 
 	cache.cond = sync.NewCond(&cache.mu)
 	//nolint:gocritic // We need to be able to read the keys in order to cache them.
@@ -229,6 +230,7 @@ func idSecret(k codersdk.CryptoKey) (string, []byte, error) {
 }
 
 func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, []byte, error) {
+	c.logger.Debug(ctx, "request for key", slog.F("sequence", sequence))
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -343,11 +345,13 @@ func (c *cache) refresh() {
 // cryptoKeys queries the control plane for the crypto keys.
 // Outside of initialization, this should only be called by fetch.
 func (c *cache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, error) {
+	c.logger.Debug(ctx, "fetching crypto keys")
 	keys, err := c.fetcher.Fetch(ctx, c.feature)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch: %w", err)
 	}
 	cache := toKeyMap(keys, c.clock.Now())
+	c.logger.Debug(ctx, "crypto key fetch complete")
 	return cache, nil
 }
 
@@ -358,6 +362,7 @@ func toKeyMap(keys []codersdk.CryptoKey, now time.Time) map[int32]codersdk.Crypt
 		m[key.Sequence] = key
 		if key.Sequence > latest.Sequence && key.CanSign(now) {
 			m[latestSequence] = key
+			latest = key
 		}
 	}
 	return m
