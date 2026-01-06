@@ -23,6 +23,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
+import { formatDate } from "utils/date";
 import { docs } from "utils/docs";
 
 const chartConfig = {
@@ -153,7 +154,7 @@ export const LicenseSeatConsumptionChart: FC<
 										tickMargin={12}
 										minTickGap={24}
 										tickFormatter={(value: string) =>
-											new Date(value).toLocaleDateString(undefined, {
+											formatDate(new Date(value), {
 												month: "short",
 												day: "numeric",
 											})

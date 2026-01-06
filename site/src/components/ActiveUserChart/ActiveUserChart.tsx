@@ -13,6 +13,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { formatDate } from "utils/date";
 
 const chartConfig = {
 	amount: {
@@ -43,7 +44,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
 					tickMargin={12}
 					minTickGap={24}
 					tickFormatter={(value: string) =>
-						new Date(value).toLocaleDateString(undefined, {
+						formatDate(new Date(value), {
 							month: "short",
 							day: "numeric",
 						})

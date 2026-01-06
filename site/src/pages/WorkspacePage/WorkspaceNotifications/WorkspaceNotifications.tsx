@@ -17,6 +17,7 @@ import { type FC, useEffect, useState } from "react";
 dayjs.extend(relativeTime);
 
 import { useQuery } from "react-query";
+import { formatDate } from "utils/date";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	NotificationActionButton,
@@ -128,9 +129,9 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	const advancedSchedulingEnabled =
 		entitlements.features.advanced_template_scheduling.enabled;
 	if (advancedSchedulingEnabled && workspace.dormant_at) {
-		const formatDate = (dateStr: string, timestamp: boolean): string => {
+		const formatDateTime = (dateStr: string, timestamp: boolean): string => {
 			const date = new Date(dateStr);
-			return date.toLocaleDateString(undefined, {
+			return formatDate(date, {
 				month: "long",
 				day: "numeric",
 				year: "numeric",
@@ -150,17 +151,17 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<>
 					This workspace has not been used for{" "}
 					{dayjs(workspace.last_used_at).fromNow(true)} and was marked dormant
-					on {formatDate(workspace.dormant_at, false)}. It is scheduled to be
-					deleted on {formatDate(workspace.deleting_at, true)}. To keep it you
-					must activate the workspace.
+					on {formatDateTime(workspace.dormant_at, false)}. It is scheduled to
+					be deleted on {formatDateTime(workspace.deleting_at, true)}. To keep
+					it you must activate the workspace.
 				</>
 			) : (
 				<>
 					This workspace has not been used for{" "}
 					{dayjs(workspace.last_used_at).fromNow(true)} and was marked dormant
-					on {formatDate(workspace.dormant_at, false)}. It is not scheduled for
-					auto-deletion but will become a candidate if auto-deletion is enabled
-					on this template. To keep it you must activate the workspace.
+					on {formatDateTime(workspace.dormant_at, false)}. It is not scheduled
+					for auto-deletion but will become a candidate if auto-deletion is
+					enabled on this template. To keep it you must activate the workspace.
 				</>
 			),
 		});

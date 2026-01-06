@@ -16,6 +16,7 @@ import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { formatDate } from "utils/date";
 
 const chartConfig = {
 	users: {
@@ -105,7 +106,7 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 										tickMargin={12}
 										minTickGap={24}
 										tickFormatter={(value: string) =>
-											new Date(value).toLocaleDateString(undefined, {
+											formatDate(new Date(value), {
 												month: "short",
 												day: "numeric",
 											})

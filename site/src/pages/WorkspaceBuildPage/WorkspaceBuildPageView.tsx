@@ -34,6 +34,7 @@ import {
 } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
+import { formatDate } from "utils/date";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
@@ -118,7 +119,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 						{displayWorkspaceBuildDuration(build)}
 					</BuildStatsItem>
 					<BuildStatsItem label="Started at">
-						{new Date(build.created_at).toLocaleString()}
+						{formatDate(new Date(build.created_at))}
 					</BuildStatsItem>
 					<BuildStatsItem label="Action">
 						<span className="capitalize">{build.transition}</span>
