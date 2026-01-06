@@ -73,18 +73,6 @@ func TestSupportBundle(t *testing.T) {
 		t.Fatal("healthcheck did not complete in time -- this may be a transient issue")
 	}
 
-	t.Run("NoPrivilege", func(t *testing.T) {
-		t.Parallel()
-		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-		}).Do()
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
-		clitest.SetupConfig(t, memberClient, root)
-		err := inv.Run()
-		require.ErrorContains(t, err, "failed authorization check")
-	})
-
 	t.Run("WorkspaceWithAgent", func(t *testing.T) {
 		t.Parallel()
 		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
@@ -168,6 +156,18 @@ func TestSupportBundle(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 		assertBundleContents(t, path, true, false, []string{secretValue})
+	})
+
+	t.Run("NoPrivilege", func(t *testing.T) {
+		t.Parallel()
+		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).Do()
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
+		clitest.SetupConfig(t, memberClient, root)
+		err := inv.Run()
+		require.ErrorContains(t, err, "failed authorization check")
 	})
 
 	// This ensures that the CLI does not panic when trying to generate a support bundle
