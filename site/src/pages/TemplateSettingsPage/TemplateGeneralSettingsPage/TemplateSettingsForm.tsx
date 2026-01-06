@@ -26,7 +26,6 @@ import {
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
 import { type FormikTouched, useFormik } from "formik";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
