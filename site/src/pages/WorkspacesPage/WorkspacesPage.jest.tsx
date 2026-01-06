@@ -5,6 +5,8 @@ import {
 	MockRunningOutdatedWorkspace,
 	MockStoppedWorkspace,
 	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
 	MockWorkspacesResponse,
 } from "testHelpers/entities";
 import {
@@ -15,7 +17,12 @@ import { server } from "testHelpers/server";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
-import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceApp,
+	WorkspaceAppHealth,
+	WorkspacesResponse,
+} from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import * as CreateDayString from "utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
@@ -351,3 +358,96 @@ const getWorkspaceCheckbox = (workspace: Workspace) => {
 		"checkbox",
 	);
 };
+
+describe("WorkspaceApps filtering", () => {
+	it.each<[WorkspaceAppHealth, boolean]>([
+		["healthy", true],
+		["disabled", true],
+		["unhealthy", false],
+		["initializing", false],
+	])(
+		"apps with '%s' health status should be shown: %s",
+		async (health, shouldBeVisible) => {
+			const app: WorkspaceApp = {
+				...MockWorkspaceApp,
+				id: `${health}-app`,
+				display_name: `${health} App`,
+				health,
+				hidden: false,
+			};
+			const workspace: Workspace = {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					status: "running",
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									apps: [app],
+								},
+							],
+						},
+					],
+				},
+			};
+			jest
+				.spyOn(API, "getWorkspaces")
+				.mockResolvedValue({ workspaces: [workspace], count: 1 });
+
+			renderWithAuth(<WorkspacesPage />);
+			await waitForLoaderToBeRemoved();
+
+			const appLink = screen.queryByRole("link", {
+				name: (name) => name.toLowerCase().includes(app.display_name!.toLowerCase()),
+			});
+			if (shouldBeVisible) {
+				expect(appLink).toBeInTheDocument();
+			} else {
+				expect(appLink).not.toBeInTheDocument();
+			}
+		},
+	);
+
+	it("does not show hidden apps regardless of health status", async () => {
+		const hiddenApp: WorkspaceApp = {
+			...MockWorkspaceApp,
+			id: "hidden-app",
+			display_name: "Hidden App",
+			health: "healthy",
+			hidden: true,
+		};
+		const workspace: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				status: "running",
+				resources: [
+					{
+						...MockWorkspace.latest_build.resources[0],
+						agents: [
+							{
+								...MockWorkspaceAgent,
+								apps: [hiddenApp],
+							},
+						],
+					},
+				],
+			},
+		};
+		jest
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValue({ workspaces: [workspace], count: 1 });
+
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		expect(
+			screen.queryByRole("link", {
+				name: (name) => name.toLowerCase().includes(hiddenApp.display_name!.toLowerCase()),
+			}),
+		).not.toBeInTheDocument();
+	});
+});
