@@ -43,20 +43,39 @@ func TestSupportBundle(t *testing.T) {
 		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
 	}
 
-	// Support bundle tests can share a single coderd instance.
+	// Support bundle tests can share a single coderdtest instance.
+	setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 	var dc codersdk.DeploymentConfig
 	secretValue := uuid.NewString()
 	seedSecretDeploymentOptions(t, &dc, secretValue)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues:   dc.Values,
 		HealthcheckTimeout: testutil.WaitSuperLong,
 	})
+
+	t.Cleanup(func() { closer.Close() })
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
+	// Wait for healthcheck to complete successfully before continuing with sub-tests.
+	// The result is cached so subsequent requests will be fast.
+	healthcheckDone := make(chan *healthsdk.HealthcheckReport)
+	go func() {
+		defer close(healthcheckDone)
+		hc, err := healthsdk.New(client).DebugHealth(setupCtx)
+		if err != nil {
+			assert.NoError(t, err, "seed healthcheck cache")
+			return
+		}
+		healthcheckDone <- &hc
+	}()
+	if _, ok := testutil.AssertReceive(setupCtx, t, healthcheckDone); !ok {
+		t.Fatal("healthcheck did not complete in time -- this may be a transient issue")
+	}
+
 	t.Run("NoPrivilege", func(t *testing.T) {
 		t.Parallel()
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 		}).Do()
@@ -67,7 +86,7 @@ func TestSupportBundle(t *testing.T) {
 	})
 
 	t.Run("WorkspaceWithAgent", func(t *testing.T) {
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -91,7 +110,7 @@ func TestSupportBundle(t *testing.T) {
 		ctx = testutil.Context(t, testutil.WaitShort) // Reset timeout after waiting for agent.
 
 		// Insert a provisioner job log
-		_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+		_, err = api.Database.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
 			JobID:     r.Build.JobID,
 			CreatedAt: []time.Time{dbtime.Now()},
 			Source:    []database.LogSource{database.LogSourceProvisionerDaemon},
@@ -101,7 +120,7 @@ func TestSupportBundle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Insert an agent log
-		_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+		_, err = api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 			AgentID:      ws.LatestBuild.Resources[0].Agents[0].ID,
 			CreatedAt:    dbtime.Now(),
 			Output:       []string{"started up"},
@@ -136,7 +155,7 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoAgent", func(t *testing.T) {
 		t.Parallel()
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
 		}).Do() // without agent!
