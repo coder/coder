@@ -30,8 +30,8 @@ import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndi
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { formatDate } from "utils/time";
 import { displayDormantDeletion } from "utils/dormant";
+import { formatDate } from "utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
