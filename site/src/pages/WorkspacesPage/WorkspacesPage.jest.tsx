@@ -401,7 +401,8 @@ describe("WorkspaceApps filtering", () => {
 			await waitForLoaderToBeRemoved();
 
 			const appLink = screen.queryByRole("link", {
-				name: (name) => name.toLowerCase().includes(app.display_name!.toLowerCase()),
+				name: (name) =>
+					name.toLowerCase().includes(app.display_name!.toLowerCase()),
 			});
 			if (shouldBeVisible) {
 				expect(appLink).toBeInTheDocument();
@@ -446,7 +447,8 @@ describe("WorkspaceApps filtering", () => {
 
 		expect(
 			screen.queryByRole("link", {
-				name: (name) => name.toLowerCase().includes(hiddenApp.display_name!.toLowerCase()),
+				name: (name) =>
+					name.toLowerCase().includes(hiddenApp.display_name!.toLowerCase()),
 			}),
 		).not.toBeInTheDocument();
 	});
