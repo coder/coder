@@ -466,8 +466,9 @@ message BoundaryLog {
 	message HttpRequest {
 		string method = 1;
 		string url = 2;
-		// The rule that resulted in this HTTP request not being allowed.
-		// Only populated when allowed = false.
+		// The rule that resulted in this HTTP request being allowed. Only populated
+		// when allowed = true because boundary denies requests by default and
+		// requires rule(s) that allow requests.
 		string matched_rule = 3;
 	}
 
