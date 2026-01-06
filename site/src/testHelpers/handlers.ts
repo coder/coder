@@ -78,6 +78,9 @@ export const handlers = [
 	),
 
 	// templates
+	http.get("/api/v2/templates", () => {
+		return HttpResponse.json([M.MockTemplate]);
+	}),
 	http.get("/api/v2/templates/examples", () => {
 		return HttpResponse.json([M.MockTemplateExample, M.MockTemplateExample2]);
 	}),
@@ -165,7 +168,7 @@ export const handlers = [
 	http.get("/api/v2/users/me/appearance", () => {
 		return HttpResponse.json(M.MockUserAppearanceSettings);
 	}),
-	http.get("/api/v2/users/me/keys", () => {
+	http.post("/api/v2/users/me/keys", () => {
 		return HttpResponse.json(M.MockAPIKey);
 	}),
 	http.get("/api/v2/users/authmethods", () => {
