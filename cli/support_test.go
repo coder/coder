@@ -43,17 +43,30 @@ func TestSupportBundle(t *testing.T) {
 		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
 	}
 
-	t.Run("Workspace", func(t *testing.T) {
-		t.Parallel()
+	// Support bundle tests can share a single coderd instance.
+	var dc codersdk.DeploymentConfig
+	secretValue := uuid.NewString()
+	seedSecretDeploymentOptions(t, &dc, secretValue)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:   dc.Values,
+		HealthcheckTimeout: testutil.WaitSuperLong,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		var dc codersdk.DeploymentConfig
-		secretValue := uuid.NewString()
-		seedSecretDeploymentOptions(t, &dc, secretValue)
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitSuperLong,
-		})
-		owner := coderdtest.CreateFirstUser(t, client)
+	t.Run("NoPrivilege", func(t *testing.T) {
+		t.Parallel()
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).Do()
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
+		clitest.SetupConfig(t, memberClient, root)
+		err := inv.Run()
+		require.ErrorContains(t, err, "failed authorization check")
+	})
+
+	t.Run("WorkspaceWithAgent", func(t *testing.T) {
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
@@ -110,14 +123,6 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoWorkspace", func(t *testing.T) {
 		t.Parallel()
-		var dc codersdk.DeploymentConfig
-		secretValue := uuid.NewString()
-		seedSecretDeploymentOptions(t, &dc, secretValue)
-		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitSuperLong,
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
 
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
@@ -131,17 +136,9 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoAgent", func(t *testing.T) {
 		t.Parallel()
-		var dc codersdk.DeploymentConfig
-		secretValue := uuid.NewString()
-		seedSecretDeploymentOptions(t, &dc, secretValue)
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitSuperLong,
-		})
-		admin := coderdtest.CreateFirstUser(t, client)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: admin.OrganizationID,
-			OwnerID:        admin.UserID,
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        owner.UserID,
 		}).Do() // without agent!
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
@@ -151,21 +148,6 @@ func TestSupportBundle(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 		assertBundleContents(t, path, true, false, []string{secretValue})
-	})
-
-	t.Run("NoPrivilege", func(t *testing.T) {
-		t.Parallel()
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        member.ID,
-		}).WithAgent().Do()
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
-		clitest.SetupConfig(t, memberClient, root)
-		err := inv.Run()
-		require.ErrorContains(t, err, "failed authorization check")
 	})
 
 	// This ensures that the CLI does not panic when trying to generate a support bundle
