@@ -42,9 +42,15 @@ func TestCryptoKeyCache(t *testing.T) {
 				Sequence: 2,
 				StartsAt: now,
 			}
+			olderKey := codersdk.CryptoKey{
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:   generateKey(t, 64),
+				Sequence: 1,
+				StartsAt: now,
+			}
 
 			ff := &fakeFetcher{
-				keys: []codersdk.CryptoKey{expected},
+				keys: []codersdk.CryptoKey{expected, olderKey},
 			}
 
 			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
