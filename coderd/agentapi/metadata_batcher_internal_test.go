@@ -5,19 +5,17 @@ import (
 	"fmt"
 	// "sync"
 	"testing"
-	"time"
 
 	// "github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	// "go.uber.org/mock/gomock"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	// "github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	// "github.com/coder/coder/v2/coderd/database/pubsub/psmock"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
 	"github.com/coder/quartz"
 )
 
@@ -28,12 +26,16 @@ func TestMetadataBatcher(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	store, ps := dbtestutil.NewDB(t)
-	// clock := quartz.NewMock(t)
 
-	// Set up test agents with metadata.
-	// agent1 := setupAgentWithMetadata(t, store)
-	// agent2 := setupAgentWithMetadata(t, store)
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+	ps := psmock.NewMockPubsub(ctrl)
+
+	// Expect UpdateWorkspaceAgentMetadata to be called with empty data on first flush
+	store.EXPECT().
+		UpdateWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
 
 	flushed := make(chan int, 1)
 
@@ -45,7 +47,6 @@ func TestMetadataBatcher(t *testing.T) {
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(mClock),
 		func(b *MetadataBatcher) {
-			// b.tickCh = tick
 			b.flushed = flushed
 		},
 	)
@@ -55,11 +56,7 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Given: no metadata updates are added
 	// When: it becomes time to flush
-	fmt.Println("now: ", mClock.Now())
-	fmt.Println("b now: ", b.clock.Now())
-	mClock.Advance(6*time.Second)
-	fmt.Println("now after advance: ", mClock.Now())
-	fmt.Println("b now after advance: ", b.clock.Now())
+	mClock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 
 	f := <-flushed
 	require.Equal(t, 0, f, "expected no agents to be flushed")

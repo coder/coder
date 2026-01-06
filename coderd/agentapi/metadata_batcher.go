@@ -3,7 +3,6 @@ package agentapi
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -174,6 +173,8 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 		b.clock = quartz.NewReal()
 	}
 
+	b.ticker = b.clock.NewTicker(b.interval)
+
 	b.buf = make(map[uuid.UUID]map[string]metadataValue)
 	b.entryCount = 0
 
@@ -281,11 +282,9 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 func (b *MetadataBatcher) run(ctx context.Context) {
 	// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
-	b.ticker = b.clock.NewTicker(b.interval)
 	for {
 		select {
 		case <-b.ticker.C:
-			fmt.Println("flushing")
 			b.flush(authCtx, false, "scheduled")
 			b.ticker.Reset(b.interval)
 		case <-b.flushLever:
