@@ -280,19 +280,52 @@ func TestPermissionsEqual(t *testing.T) {
 		{ResourceType: ResourceTemplate.Type, Action: policy.ActionUpdate},
 		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionShare, Negate: true},
 	}
-	b := []Permission{
-		a[2],
-		a[0],
-		a[1],
-	}
-	require.True(t, PermissionsEqual(a, b))
-	require.False(t, PermissionsEqual(a, a[:2]))
 
-	c := slices.Clone(a)
-	c[0] = Permission{
-		ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true,
-	}
-	require.False(t, PermissionsEqual(a, c))
+	t.Run("Order", func(t *testing.T) {
+		t.Parallel()
+
+		b := []Permission{
+			a[2],
+			a[0],
+			a[1],
+		}
+		require.True(t, PermissionsEqual(a, b))
+	})
+
+	t.Run("SubsetAndSuperset", func(t *testing.T) {
+		t.Parallel()
+
+		require.False(t, PermissionsEqual(a, a[:2]))
+
+		b := append(slices.Clone(a), Permission{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate})
+		require.False(t, PermissionsEqual(a, b))
+	})
+
+	t.Run("Negate", func(t *testing.T) {
+		t.Parallel()
+
+		b := slices.Clone(a)
+		b[0] = Permission{
+			ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true,
+		}
+		require.False(t, PermissionsEqual(a, b))
+	})
+
+	t.Run("Duplicates", func(t *testing.T) {
+		t.Parallel()
+
+		b := append(slices.Clone(a), a[0])
+		require.True(t, PermissionsEqual(a, b), "equal sets with duplicates should compare equal even without pre-deduplication")
+	})
+
+	t.Run("NilEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		var nilSlice []Permission
+		emptySlice := []Permission{}
+		require.True(t, PermissionsEqual(nilSlice, emptySlice))
+		require.True(t, PermissionsEqual(emptySlice, nilSlice))
+	})
 }
 
 // equalRoles compares 2 roles for equality.
