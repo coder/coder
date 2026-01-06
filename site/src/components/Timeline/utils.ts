@@ -17,5 +17,5 @@ export const createDisplayDate = (
 			sameElse: "MM/DD/YYYY",
 		});
 	}
-	return formatDate(date);
+	return formatDate(date, {});
 };
