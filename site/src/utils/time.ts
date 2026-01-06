@@ -59,7 +59,7 @@ const defaultDateLocaleOptions: Intl.DateTimeFormatOptions = {
 
 export function formatDate(
 	date: Date,
-	options?: { locale: Intl.LocalesArgument } & Intl.DateTimeFormatOptions,
+	options?: { locale?: Intl.LocalesArgument } & Intl.DateTimeFormatOptions,
 ) {
 	return date.toLocaleDateString(options?.locale, {
 		...defaultDateLocaleOptions,
