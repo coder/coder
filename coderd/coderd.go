@@ -43,6 +43,7 @@ import (
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -773,6 +774,30 @@ func New(options *Options) *API {
 		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
 		DisableDatabaseInserts: !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value(),
 	})
+
+	// Initialize the metadata batcher for batching agent metadata updates.
+	// Only enable if the experiment is turned on.
+	metadataBatcherCloser := func() {}
+	if experiments.Enabled(codersdk.ExperimentMetadataBatching) {
+		metadataBatcherMetrics := agentapi.NewMetadataBatcherMetrics()
+		for _, collector := range metadataBatcherMetrics.Collectors() {
+			options.PrometheusRegistry.MustRegister(collector)
+		}
+
+		api.metadataBatcher, metadataBatcherCloser, err = agentapi.NewMetadataBatcher(
+			api.ctx,
+			agentapi.MetadataBatcherWithStore(options.Database),
+			agentapi.MetadataBatcherWithPubsub(options.Pubsub),
+			agentapi.MetadataBatcherWithLogger(options.Logger.Named("metadata_batcher")),
+			agentapi.MetadataBatcherWithMetrics(metadataBatcherMetrics),
+		)
+		if err != nil {
+			api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
+		}
+	}
+	// Store the closer so we can call it in Close().
+	api.metadataBatcherCloser = metadataBatcherCloser
+
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
 		named := workspaceAppsLogger.Named("stats_collector")
@@ -1852,7 +1877,9 @@ type API struct {
 	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
-	statsReporter *workspacestats.Reporter
+	statsReporter         *workspacestats.Reporter
+	metadataBatcher       *agentapi.MetadataBatcher
+	metadataBatcherCloser func()
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
@@ -1904,6 +1931,9 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.statsReporter.Close()
+	if api.metadataBatcherCloser != nil {
+		api.metadataBatcherCloser()
+	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
