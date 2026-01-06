@@ -8,7 +8,7 @@ Service account to merge into the libcoder template
 Component annotation for pod metadata.
 */}}
 {{- define "coder.componentAnnotation" -}}
-com.coder/component: provisionerd
+app.kubernetes.io/component: provisionerd
 {{- end }}
 
 {{/*
