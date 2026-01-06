@@ -80,6 +80,7 @@ type Options struct {
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
+	MetadataBatcher                   *MetadataBatcher
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, userID uuid.UUID, event wspubsub.WorkspaceEvent)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
@@ -180,6 +181,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database:  opts.Database,
 		Pubsub:    opts.Pubsub,
 		Log:       opts.Log,
+		Batcher:   opts.MetadataBatcher,
 	}
 
 	api.LogsAPI = &LogsAPI{

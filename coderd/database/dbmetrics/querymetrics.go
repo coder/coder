@@ -130,6 +130,13 @@ func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceAgentMetadata(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
 	start := time.Now()
 	r0 := m.s.BatchUpdateWorkspaceLastUsedAt(ctx, arg)

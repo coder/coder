@@ -23,6 +23,7 @@ type MetadataAPI struct {
 	Database  database.Store
 	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
+	Batcher   *MetadataBatcher
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -122,21 +123,29 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		)
 	}
 
-	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
-	if err != nil {
-		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
-	}
+	// Use batcher if available, otherwise fall back to direct database write.
+	if a.Batcher != nil {
+		err = a.Batcher.Add(workspaceAgent.ID, dbUpdate.Key, dbUpdate.Value, dbUpdate.Error, dbUpdate.CollectedAt)
+		if err != nil {
+			return nil, xerrors.Errorf("add metadata to batcher: %w", err)
+		}
+	} else {
+		err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
+		}
 
-	payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
-		CollectedAt: collectedAt,
-		Keys:        dbUpdate.Key,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
-	}
-	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
-	if err != nil {
-		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
+		payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
+			CollectedAt: collectedAt,
+			Keys:        dbUpdate.Key,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
+		}
+		err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
+		if err != nil {
+			return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
+		}
 	}
 
 	// If the metadata keys were too large, we return an error so the agent can
@@ -160,6 +169,19 @@ type WorkspaceAgentMetadataChannelPayload struct {
 	Keys        []string  `json:"keys"`
 }
 
+// WorkspaceAgentMetadataBatchPayload is published to the batched metadata
+// channel with agent IDs that have metadata updates. Listeners should
+// re-fetch metadata for these agents from the database.
+type WorkspaceAgentMetadataBatchPayload struct {
+	AgentIDs []uuid.UUID `json:"agent_ids"`
+}
+
 func WatchWorkspaceAgentMetadataChannel(id uuid.UUID) string {
 	return "workspace_agent_metadata:" + id.String()
+}
+
+// WatchWorkspaceAgentMetadataBatchChannel returns the global channel name for
+// batched metadata updates across all agents.
+func WatchWorkspaceAgentMetadataBatchChannel() string {
+	return "workspace_agent_metadata_batch"
 }

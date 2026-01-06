@@ -14580,12 +14580,14 @@ const docTemplate = `{
                 "oauth2",
                 "mcp-server-http",
                 "workspace-sharing",
-                "terraform-directory-reuse"
+                "terraform-directory-reuse",
+                "metadata-batching"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+                "ExperimentMetadataBatching": "Enables batched writes for workspace agent metadata updates.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentTerraformWorkspace": "Enables reuse of existing terraform directory for builds",
@@ -14602,7 +14604,8 @@ const docTemplate = `{
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceSharing",
-                "ExperimentTerraformWorkspace"
+                "ExperimentTerraformWorkspace",
+                "ExperimentMetadataBatching"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

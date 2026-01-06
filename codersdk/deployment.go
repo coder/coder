@@ -3845,6 +3845,7 @@ const (
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
 	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
 	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
+	ExperimentMetadataBatching   Experiment = "metadata-batching"         // Enables batched writes for workspace agent metadata updates.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3867,6 +3868,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Sharing"
 	case ExperimentTerraformWorkspace:
 		return "Terraform Directory Reuse"
+	case ExperimentMetadataBatching:
+		return "Metadata Batching"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3885,6 +3888,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
+	ExperimentTerraformWorkspace,
+	ExperimentMetadataBatching,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
