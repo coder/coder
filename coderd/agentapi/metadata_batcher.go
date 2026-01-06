@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -61,6 +63,7 @@ type MetadataBatcher struct {
 	store database.Store
 	ps    pubsub.Pubsub
 	log   slog.Logger
+	clock quartz.Clock
 
 	mu sync.Mutex
 	// buf holds pending metadata updates indexed by agent ID and metadata key name.
@@ -71,9 +74,8 @@ type MetadataBatcher struct {
 	entryCount int // Total number of metadata key-value pairs across all agents
 	batchSize  int // Maximum number of metadata entries before forcing a flush
 
-	// tickCh is used to periodically flush the buffer.
-	tickCh   <-chan time.Time
-	ticker   *time.Ticker
+	// ticker is used to periodically flush the buffer.
+	ticker *quartz.Ticker
 	interval time.Duration
 
 	// flushLever is used to signal the flusher to flush the buffer immediately.
@@ -104,6 +106,13 @@ func MetadataBatcherWithStore(store database.Store) MetadataBatcherOption {
 func MetadataBatcherWithPubsub(ps pubsub.Pubsub) MetadataBatcherOption {
 	return func(b *MetadataBatcher) {
 		b.ps = ps
+	}
+}
+
+// MetadataBatcherWithClock sets the clock to be used for the internal flush ticker.
+func MetadataBatcherWithClock(c quartz.Clock) MetadataBatcherOption {
+	return func(b *MetadataBatcher) {
+		b.clock = c
 	}
 }
 
@@ -161,9 +170,8 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 		b.batchSize = defaultMetadataBatchSize
 	}
 
-	if b.tickCh == nil {
-		b.ticker = time.NewTicker(b.interval)
-		b.tickCh = b.ticker.C
+	if b.clock == nil {
+		b.clock = quartz.NewReal()
 	}
 
 	b.buf = make(map[uuid.UUID]map[string]metadataValue)
@@ -273,10 +281,13 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 func (b *MetadataBatcher) run(ctx context.Context) {
 	// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
+	b.ticker = b.clock.NewTicker(b.interval)
 	for {
 		select {
-		case <-b.tickCh:
+		case <-b.ticker.C:
+			fmt.Println("flushing")
 			b.flush(authCtx, false, "scheduled")
+			b.ticker.Reset(b.interval)
 		case <-b.flushLever:
 			// If the flush lever is depressed, flush the buffer immediately.
 			b.flush(authCtx, true, "reaching capacity")
