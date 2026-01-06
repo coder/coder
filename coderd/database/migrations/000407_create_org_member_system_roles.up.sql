@@ -9,6 +9,10 @@
 -- a placeholder role with empty permissions is harmless and the
 -- reconciliation process is idempotent.
 
+-- 'organization-member' is reserved and blocked from being created in
+-- coderd, but let's do a delete just in case.
+DELETE FROM custom_roles WHERE name = 'organization-member';
+
 -- Create roles for the existing organizations.
 INSERT INTO custom_roles (
     name,
