@@ -935,6 +935,16 @@ func (c *StoreReconciler) provision(
 	workspace database.Workspace,
 	mode DeprovisionMode,
 ) (*database.ProvisionerJob, error) {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.provision", trace.WithAttributes(
+		attribute.String("prebuild_id", prebuildID.String()),
+		attribute.String("template_id", template.ID.String()),
+		attribute.String("preset_id", presetID.String()),
+		attribute.String("transition", string(transition)),
+		attribute.String("workspace_id", workspace.ID.String()),
+		attribute.String("mode", mode.String()),
+	))
+	defer span.End()
+
 	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch preset details: %w", err)

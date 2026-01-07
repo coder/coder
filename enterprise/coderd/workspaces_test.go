@@ -2970,6 +2970,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		prometheus.NewRegistry(),
 		notifications.NewNoopEnqueuer(),
 		api.AGPL.BuildUsageChecker,
+		noop.NewTracerProvider(),
 	)
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
