@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
@@ -45,6 +44,10 @@ const (
 
 	// Timeout to use for the context created when flushing the final batch due to the top level context being 'Done'
 	finalFlushTimeout = 15 * time.Second
+
+	// Channel to publish batch metadata updates to, each update contains a list of all Agent IDs that have an update in
+	// the most recent batch
+	metadataBatchPubsubChannel = "workspace_agent_metadata_batch"
 )
 
 // metadataValue holds a single metadata key-value pair with its error state
@@ -94,20 +97,6 @@ type MetadataBatcher struct {
 // MetadataBatcherOption is a functional option for configuring a MetadataBatcher.
 type MetadataBatcherOption func(b *MetadataBatcher)
 
-// MetadataBatcherWithStore sets the store to use for storing metadata.
-func MetadataBatcherWithStore(store database.Store) MetadataBatcherOption {
-	return func(b *MetadataBatcher) {
-		b.store = store
-	}
-}
-
-// MetadataBatcherWithPubsub sets the pubsub to use for publishing metadata updates.
-func MetadataBatcherWithPubsub(ps pubsub.Pubsub) MetadataBatcherOption {
-	return func(b *MetadataBatcher) {
-		b.ps = ps
-	}
-}
-
 // MetadataBatcherWithBatchSize sets the maximum number of metadata entries to batch.
 func MetadataBatcherWithBatchSize(size int) MetadataBatcherOption {
 	return func(b *MetadataBatcher) {
@@ -144,22 +133,17 @@ func MetadataBatcherWithMetrics(metrics *MetadataBatcherMetrics) MetadataBatcher
 }
 
 // NewMetadataBatcher creates a new MetadataBatcher and starts it.
-func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*MetadataBatcher, func(), error) {
-	b := &MetadataBatcher{}
+func NewMetadataBatcher(ctx context.Context, store database.Store, ps pubsub.Pubsub, opts ...MetadataBatcherOption) (*MetadataBatcher, func(), error) {
+	b := &MetadataBatcher{
+		store: store,
+		ps: ps,
+	}
 	b.log = slog.Logger{}
 	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
 	b.clock = quartz.NewReal()
 
 	for _, opt := range opts {
 		opt(b)
-	}
-
-	if b.store == nil {
-		return nil, nil, xerrors.Errorf("no store configured for metadata batcher")
-	}
-
-	if b.ps == nil {
-		return nil, nil, xerrors.Errorf("no pubsub configured for metadata batcher")
 	}
 
 	if b.interval == 0 {
@@ -479,7 +463,7 @@ func (b *MetadataBatcher) publishAgentIDsInChunks(ctx context.Context, agentIDs 
 			)
 		}
 
-		err = b.ps.Publish(WatchWorkspaceAgentMetadataBatchChannel(), payload)
+		err = b.ps.Publish(metadataBatchPubsubChannel, payload)
 		if err != nil {
 			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
 				slog.Error(err),

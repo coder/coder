@@ -179,9 +179,3 @@ type WorkspaceAgentMetadataBatchPayload struct {
 func WatchWorkspaceAgentMetadataChannel(id uuid.UUID) string {
 	return "workspace_agent_metadata:" + id.String()
 }
-
-// WatchWorkspaceAgentMetadataBatchChannel returns the global channel name for
-// batched metadata updates across all agents.
-func WatchWorkspaceAgentMetadataBatchChannel() string {
-	return "workspace_agent_metadata_batch"
-}
