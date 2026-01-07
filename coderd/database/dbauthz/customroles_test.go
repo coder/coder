@@ -311,13 +311,12 @@ func TestSystemRoles(t *testing.T) {
 	}
 	az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
 	t.Run("insert-requires-system-create", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("deny-no-system-perms", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectNoSystemPerms), database.InsertCustomRoleParams{
 				Name: "test-system-role-" + uuid.NewString(),
@@ -336,6 +335,7 @@ func TestSystemRoles(t *testing.T) {
 
 		t.Run("deny-update-only", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemUpdatePerms), database.InsertCustomRoleParams{
 				Name: "test-system-role-" + uuid.NewString(),
@@ -354,6 +354,7 @@ func TestSystemRoles(t *testing.T) {
 
 		t.Run("allow-create-only", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 				Name: "test-system-role-" + uuid.NewString(),
@@ -376,6 +377,7 @@ func TestSystemRoles(t *testing.T) {
 
 		t.Run("deny-no-system-perms", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			role, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 				Name: "test-system-role-" + uuid.NewString(),
@@ -408,6 +410,7 @@ func TestSystemRoles(t *testing.T) {
 
 		t.Run("deny-create-only", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			role, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 				Name: "test-system-role-" + uuid.NewString(),
@@ -440,6 +443,7 @@ func TestSystemRoles(t *testing.T) {
 
 		t.Run("allow-update-only", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			role, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 				Name: "test-system-role-" + uuid.NewString(),
@@ -473,6 +477,7 @@ func TestSystemRoles(t *testing.T) {
 
 	t.Run("allow-member-permissions", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 			Name: "test-system-role-member-perms",
@@ -496,6 +501,7 @@ func TestSystemRoles(t *testing.T) {
 
 	t.Run("allow-negative-permissions", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := az.InsertCustomRole(dbauthz.As(ctx, subjectWithSystemCreatePerms), database.InsertCustomRoleParams{
 			Name: "test-system-role-negative",
