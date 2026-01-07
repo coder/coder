@@ -1368,12 +1368,14 @@ func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed d
 
 func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
 	role, err := db.InsertCustomRole(genCtx, database.InsertCustomRoleParams{
-		Name:            takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),
-		DisplayName:     testutil.GetRandomName(t),
-		OrganizationID:  seed.OrganizationID,
-		SitePermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
-		OrgPermissions:  takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
-		UserPermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		Name:              takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),
+		DisplayName:       testutil.GetRandomName(t),
+		OrganizationID:    seed.OrganizationID,
+		SitePermissions:   takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		OrgPermissions:    takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		UserPermissions:   takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		MemberPermissions: takeFirstSlice(seed.MemberPermissions, []database.CustomRolePermission{}),
+		IsSystem:          seed.IsSystem,
 	})
 	require.NoError(t, err, "insert custom role")
 	return role

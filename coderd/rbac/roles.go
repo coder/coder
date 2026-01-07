@@ -921,9 +921,11 @@ func PermissionsEqual(a, b []Permission) bool {
 //   - the startup reconciliation routine, to keep permissions current with
 //     RBAC resources
 //   - the organization workspace sharing setting endpoint, when updating
-//     the setting.
+//     the setting
 //   - the org creation endpoint, when populating the organization-member
 //     system role created by the DB trigger
+//
+//nolint:revive // workspaceSharingDisabled is an org setting
 func OrgMemberPermissions(workspaceSharingDisabled bool) (
 	orgPerms, memberPerms []Permission,
 ) {

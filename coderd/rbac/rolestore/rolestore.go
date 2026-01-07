@@ -184,6 +184,9 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 		}
 
 		customRoles, err := tx.CustomRoles(ctx, database.CustomRolesParams{
+			LookupRoles:        nil,
+			ExcludeOrgRoles:    false,
+			OrganizationID:     uuid.Nil,
 			IncludeSystemRoles: true,
 		})
 		if err != nil {
