@@ -29,6 +29,24 @@ func (r *RootCmd) logs() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
+		Options: serpent.OptionSet{
+			{
+				Name:          "Build Number",
+				Flag:          "build-number",
+				FlagShorthand: "n",
+				Description:   "Only show logs for a specific build number. Defaults to 0, which maps to the most recent build (build numbers start at 1). Negative values are treated as offsets—for example, -1 refers to the previous build.",
+				Value:         serpent.Int64Of(&buildNumberArg),
+				Default:       "0",
+			},
+			{
+				Name:          "Follow",
+				Flag:          "follow",
+				FlagShorthand: "f",
+				Description:   "Follow logs as they are emitted.",
+				Value:         serpent.BoolOf(&followArg),
+				Default:       "false",
+			},
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			client, err := r.InitClient(inv)
@@ -73,24 +91,6 @@ func (r *RootCmd) logs() *serpent.Command {
 				}
 			}
 			return nil
-		},
-		Options: serpent.OptionSet{
-			{
-				Name:          "Build Number",
-				Flag:          "build-number",
-				FlagShorthand: "n",
-				Description:   "Only show logs for a specific build number. Defaults to 0, which maps to the most recent build (build numbers start at 1). Negative values are treated as offsets—for example, -1 refers to the previous build.",
-				Value:         serpent.Int64Of(&buildNumberArg),
-				Default:       "0",
-			},
-			{
-				Name:          "Follow",
-				Flag:          "follow",
-				FlagShorthand: "f",
-				Description:   "Follow logs as they are emitted.",
-				Value:         serpent.BoolOf(&followArg),
-				Default:       "false",
-			},
 		},
 	}
 	return cmd
