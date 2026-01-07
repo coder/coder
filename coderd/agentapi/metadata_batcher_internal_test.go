@@ -3,18 +3,21 @@ package agentapi
 import (
 	"context"
 	"fmt"
-	"sync"
+	// "sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -46,7 +49,8 @@ func TestMetadataBatcher(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	reg := prometheus.NewRegistry()
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 	)
@@ -58,6 +62,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// Then: no metadata should be updated (flush() returns 0)
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 	t.Log("flush 1 completed (expected 0 entries)")
+	require.Equal(t, float64(0),	prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
 
 	// Given: a single metadata update is added for agent1
 	t2 := clock.Now()
@@ -67,7 +72,13 @@ func TestMetadataBatcher(t *testing.T) {
 	// When: it becomes time to flush
 	// Then: agent1's metadata should be updated (verified by mock expectations)
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
+	time.Sleep(100*time.Millisecond)
 	t.Log("flush 2 completed (expected 2 entries)")
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool { 
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(2),	prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
 	// Given: metadata updates are added for multiple agents
 	t3 := clock.Now()
@@ -78,7 +89,13 @@ func TestMetadataBatcher(t *testing.T) {
 	// When: it becomes time to flush
 	// Then: both agents' metadata should be updated (verified by mock expectations)
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
-	t.Log("flush 3 completed (expected 5 entries)")
+	t.Log("flush 3 completed (expected 5 new entries)")
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool { 
+		fmt.Println("val", prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
+		return float64(2) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+		}, testutil.IntervalFast)
+	require.Equal(t, float64(7),	prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
 	// Given: a lot of agents are added (to trigger flush at capacity)
 	t4 := clock.Now()
@@ -99,10 +116,13 @@ func TestMetadataBatcher(t *testing.T) {
 	// Wait for all updates to be added
 	<-done
 	t.Log("flush 4 completed (capacity flush, expected", defaultMetadataBatchSize, "entries)")
-
-	// Ensure that a subsequent flush does not push stale data
-	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 	t.Log("flush 5 completed (expected 0 entries)")
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool { 
+		fmt.Println("val", prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
+		}, testutil.IntervalFast)
+	require.Equal(t, float64(507),	prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
