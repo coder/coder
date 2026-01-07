@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -370,6 +371,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			prometheus.NewRegistry(),
 			notifications.NewNoopEnqueuer(),
 			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -481,6 +483,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			prometheus.NewRegistry(),
 			notifications.NewNoopEnqueuer(),
 			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
