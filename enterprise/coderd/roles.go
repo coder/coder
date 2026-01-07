@@ -88,12 +88,12 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // putOrgRoles will allow updating a custom organization role
 //
 // @Summary Update a custom organization role
-// @ID upsert-a-custom-organization-role
+// @ID update-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.CustomRoleRequest true "Upsert role request"
+// @Param request body codersdk.CustomRoleRequest true "Update role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /organizations/{organization}/members/roles [put]
