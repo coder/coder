@@ -31,6 +31,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { displayDormantDeletion } from "utils/dormant";
+import { formatDate } from "utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
@@ -201,9 +202,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							css={{ color: "inherit" }}
 						>
 							{workspace.deleting_at ? (
-								<>
-									Deletion on {new Date(workspace.deleting_at).toLocaleString()}
-								</>
+								<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
 							) : (
 								"Deletion soon"
 							)}
