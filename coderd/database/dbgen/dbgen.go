@@ -472,6 +472,20 @@ func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.Work
 	return sources[0]
 }
 
+func WorkspaceAgentLog(t testing.TB, db database.Store, orig database.WorkspaceAgentLog) database.WorkspaceAgentLog {
+	log, err := db.InsertWorkspaceAgentLogs(genCtx, database.InsertWorkspaceAgentLogsParams{
+		AgentID:      takeFirst(orig.AgentID, uuid.New()),
+		CreatedAt:    takeFirst(orig.CreatedAt, dbtime.Now()),
+		LogSourceID:  takeFirst(orig.LogSourceID, uuid.New()),
+		OutputLength: int32(len(orig.Output)),
+		Level:        []database.LogLevel{takeFirst(orig.Level, database.LogLevelInfo)},
+		Output:       []string{takeFirst(orig.Output, "Test agent log")},
+	})
+	require.NoError(t, err, "insert workspace agent log")
+	require.Len(t, log, 1, "incorrect number of agent logs returned")
+	return log[0]
+}
+
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
 	t.Helper()
 
@@ -861,6 +875,20 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	require.NoError(t, err, "get job: %s", jobID.String())
 
 	return job
+}
+
+func ProvisionerJobLog(t testing.TB, db database.Store, orig database.ProvisionerJobLog) database.ProvisionerJobLog {
+	logs, err := db.InsertProvisionerJobLogs(genCtx, database.InsertProvisionerJobLogsParams{
+		JobID:     takeFirst(orig.JobID, uuid.New()),
+		CreatedAt: []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		Source:    []database.LogSource{takeFirst(orig.Source, database.LogSourceProvisioner)},
+		Level:     []database.LogLevel{takeFirst(orig.Level, database.LogLevelInfo)},
+		Stage:     []string{takeFirst(orig.Stage, "Test")},
+		Output:    []string{takeFirst(orig.Output, "Provisioner job log")},
+	})
+	require.NoError(t, err, "insert provisioner job log")
+	require.Len(t, logs, 1, "insert provisioner job log returned incorrect number of logs")
+	return logs[0]
 }
 
 func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKey) database.ProvisionerKey {
