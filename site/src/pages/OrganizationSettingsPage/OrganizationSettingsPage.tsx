@@ -2,13 +2,16 @@ import { getErrorMessage } from "api/errors";
 import {
 	deleteOrganization,
 	updateOrganization,
+	updateWorkspaceSharingSettings,
+	workspaceSharingSettings,
 } from "api/queries/organizations";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
@@ -17,6 +20,10 @@ const OrganizationSettingsPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { experiments } = useDashboard();
+
+	const showWorkspaceSharingSettings =
+		experiments.includes("workspace-sharing");
 
 	const updateOrganizationMutation = useMutation(
 		updateOrganization(queryClient),
@@ -24,6 +31,15 @@ const OrganizationSettingsPage: FC = () => {
 	const deleteOrganizationMutation = useMutation(
 		deleteOrganization(queryClient),
 	);
+
+	const workspaceSharingSettingsQuery = useQuery({
+		...workspaceSharingSettings(organization?.id ?? ""),
+		enabled: showWorkspaceSharingSettings && !!organization,
+	});
+
+	const updateWorkspaceSharingMutation = useMutation({
+		...updateWorkspaceSharingSettings(organization?.id ?? "", queryClient),
+	});
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -45,7 +61,9 @@ const OrganizationSettingsPage: FC = () => {
 	}
 
 	const error =
-		updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
+		updateOrganizationMutation.error ??
+		deleteOrganizationMutation.error ??
+		updateWorkspaceSharingMutation.error;
 
 	return (
 		<>
@@ -73,6 +91,20 @@ const OrganizationSettingsPage: FC = () => {
 						);
 					}
 				}}
+				showWorkspaceSharingSettings={showWorkspaceSharingSettings}
+				workspaceSharingSettings={workspaceSharingSettingsQuery.data}
+				onUpdateWorkspaceSharingSettings={async (settings) => {
+					await updateWorkspaceSharingMutation.mutateAsync(settings);
+					displaySuccess(
+						settings.sharing_disabled
+							? "Workspace sharing disabled."
+							: "Workspace sharing enabled.",
+					);
+				}}
+				isUpdatingWorkspaceSharingSettings={
+					updateWorkspaceSharingMutation.isPending
+				}
+				canEditWorkspaceSharingSettings={organizationPermissions?.editSettings}
 			/>
 		</>
 	);

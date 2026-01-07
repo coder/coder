@@ -1,3 +1,4 @@
+import { workspaceSharingSettings } from "api/queries/organizations";
 import type { Workspace } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
@@ -6,11 +7,13 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { UsersIcon } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { isGroup } from "modules/groups";
 import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
 import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 
 interface ShareButtonProps {
 	workspace: Workspace;
@@ -21,7 +24,26 @@ export const ShareButton: FC<ShareButtonProps> = ({
 	workspace,
 	canUpdatePermissions,
 }) => {
+	const { experiments } = useDashboard();
+	const isWorkspaceSharingExperimentEnabled =
+		experiments.includes("workspace-sharing");
+
+	const workspaceSharingSettingsQuery = useQuery({
+		...workspaceSharingSettings(workspace.organization_id),
+		enabled: isWorkspaceSharingExperimentEnabled,
+	});
+
 	const sharing = useWorkspaceSharing(workspace);
+
+	// Don't show the share button if:
+	// 1. The experiment is not enabled, OR
+	// 2. Workspace sharing is disabled for this organization.
+	if (
+		!isWorkspaceSharingExperimentEnabled ||
+		workspaceSharingSettingsQuery.data?.sharing_disabled
+	) {
+		return null;
+	}
 
 	return (
 		<Popover>

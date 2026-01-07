@@ -860,6 +860,33 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * @param organization Can be the organization's ID or name
+	 */
+	getWorkspaceSharingSettings = async (
+		organization: string,
+	): Promise<TypesGen.WorkspaceSharingSettings> => {
+		const response = await this.axios.get<TypesGen.WorkspaceSharingSettings>(
+			`/api/v2/organizations/${organization}/settings/workspace-sharing`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 * @param settings The workspace sharing settings to update
+	 */
+	patchWorkspaceSharingSettings = async (
+		organization: string,
+		settings: TypesGen.WorkspaceSharingSettings,
+	): Promise<TypesGen.WorkspaceSharingSettings> => {
+		const response = await this.axios.patch<TypesGen.WorkspaceSharingSettings>(
+			`/api/v2/organizations/${organization}/settings/workspace-sharing`,
+			settings,
+		);
+		return response.data;
+	};
+
 	getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
 		const response = await this.axios.get<TypesGen.Template>(
 			`/api/v2/templates/${templateId}`,

@@ -368,3 +368,31 @@ export const organizationIdpSyncClaimFieldValues = (
 			API.getOrganizationIdpSyncClaimFieldValues(organization, field),
 	};
 };
+
+const getWorkspaceSharingSettingsKey = (organization: string) => [
+	"organization",
+	organization,
+	"workspaceSharingSettings",
+];
+
+export const workspaceSharingSettings = (organization: string) => {
+	return {
+		queryKey: getWorkspaceSharingSettingsKey(organization),
+		queryFn: () => API.getWorkspaceSharingSettings(organization),
+	};
+};
+
+export const updateWorkspaceSharingSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (settings: { sharing_disabled: boolean }) =>
+			API.patchWorkspaceSharingSettings(organization, settings),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: getWorkspaceSharingSettingsKey(organization),
+			});
+		},
+	};
+};

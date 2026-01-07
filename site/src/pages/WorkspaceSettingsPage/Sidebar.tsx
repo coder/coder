@@ -1,3 +1,4 @@
+import { workspaceSharingSettings } from "api/queries/organizations";
 import type { Workspace } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 
 interface SidebarProps {
 	username: string;
@@ -21,6 +23,19 @@ interface SidebarProps {
 
 export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
 	const { experiments } = useDashboard();
+	const isWorkspaceSharingExperimentEnabled =
+		experiments.includes("workspace-sharing");
+
+	const workspaceSharingSettingsQuery = useQuery({
+		...workspaceSharingSettings(workspace.organization_id),
+		enabled: isWorkspaceSharingExperimentEnabled,
+	});
+
+	// Show sharing tab only if the experiment is enabled and sharing is not
+	// disabled for this organization.
+	const showSharingTab =
+		isWorkspaceSharingExperimentEnabled &&
+		!workspaceSharingSettingsQuery.data?.sharing_disabled;
 
 	return (
 		<BaseSidebar>
@@ -46,7 +61,7 @@ export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
 			<SidebarNavItem href="schedule" icon={ScheduleIcon}>
 				Schedule
 			</SidebarNavItem>
-			{experiments.includes("workspace-sharing") && (
+			{showSharingTab && (
 				<SidebarNavItem href="sharing" icon={SharingIcon}>
 					Sharing
 				</SidebarNavItem>
