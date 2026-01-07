@@ -1148,7 +1148,6 @@ func TestListRoles(t *testing.T) {
 
 	require.ElementsMatch(t, []string{
 		fmt.Sprintf("organization-admin:%s", orgID.String()),
-		fmt.Sprintf("organization-member:%s", orgID.String()),
 		fmt.Sprintf("organization-auditor:%s", orgID.String()),
 		fmt.Sprintf("organization-user-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
