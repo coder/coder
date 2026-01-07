@@ -491,7 +491,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						isLoading={stopWorkspaceMutation.isPending}
 						label="Stop workspace"
 					>
-						<SquareIcon className="size-icon-xs" />
+						<SquareIcon />
 					</PrimaryAction>
 				)}
 

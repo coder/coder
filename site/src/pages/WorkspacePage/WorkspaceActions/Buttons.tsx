@@ -130,7 +130,7 @@ export const StopButton: FC<ActionButtonProps> = ({
 			onClick={() => handleAction()}
 			data-testid="workspace-stop-button"
 		>
-			<SquareIcon className="!size-icon-xs" />
+			<SquareIcon />
 			{loading ? <>Stopping&hellip;</> : "Stop"}
 		</TopbarButton>
 	);

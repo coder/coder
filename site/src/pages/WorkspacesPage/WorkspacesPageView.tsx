@@ -175,7 +175,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									}
 									onClick={onBatchStopTransition}
 								>
-									<SquareIcon className="size-icon-xs" /> Stop
+									<SquareIcon /> Stop
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>

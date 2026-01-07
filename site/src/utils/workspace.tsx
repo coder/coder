@@ -241,7 +241,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Stopped",
-				icon: <SquareIcon className="size-icon-xs" />,
+				icon: <SquareIcon />,
 			} as const;
 		case "deleting":
 			return {
