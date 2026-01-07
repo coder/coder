@@ -8,14 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
-
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
+	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 )
 
 func (r *RootCmd) logs() *serpent.Command {
