@@ -48,9 +48,7 @@ func TestMetadataBatcher(t *testing.T) {
 
 	flushed := make(chan int, 1)
 
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 		func(b *MetadataBatcher) {
@@ -161,9 +159,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	flushed := make(chan int, 1)
 
 	// Create batcher with very small capacity
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(2),
 		MetadataBatcherWithClock(clock),
@@ -253,9 +249,7 @@ func TestMetadataBatcher_UpdatesExistingKeysAtCapacity(t *testing.T) {
 	flushed := make(chan int, 1)
 
 	// Create batcher with capacity of 2 entries
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(2),
 		MetadataBatcherWithClock(clock),
@@ -393,9 +387,7 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 
 	flushed := make(chan int, 1)
 
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 		func(b *MetadataBatcher) {
@@ -455,9 +447,7 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 
 	flushed := make(chan int, 1)
 
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+		b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 		func(b *MetadataBatcher) {
@@ -516,9 +506,7 @@ func TestMetadataBatcher_EntryCountTracking(t *testing.T) {
 
 	flushed := make(chan int, 1)
 
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(5), // Small size to test capacity
 		MetadataBatcherWithClock(clock),
@@ -596,9 +584,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	flushed := make(chan int, 1)
 
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 		func(b *MetadataBatcher) {
@@ -667,9 +653,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 
 	flushed := make(chan int, 1)
 
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 		func(b *MetadataBatcher) {
@@ -726,9 +710,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	flushed := make(chan int, 10)
 
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 		func(b *MetadataBatcher) {
@@ -805,9 +787,7 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 	flushed := make(chan int, 10)
 
 	batchSize := 100
-	b, closer, err := NewMetadataBatcher(ctx,
-		MetadataBatcherWithStore(store),
-		MetadataBatcherWithPubsub(ps),
+	b, closer, err := NewMetadataBatcher(ctx, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(batchSize),
 		MetadataBatcherWithClock(clock),
