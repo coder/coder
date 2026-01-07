@@ -80,7 +80,7 @@ func (r *RootCmd) logs() *serpent.Command {
 				Name:          "Build Number",
 				Flag:          "build-number",
 				FlagShorthand: "n",
-				Description:   "Only show logs for a specific build number. Defaults to the most recent build. If a negative number is provided, it is treated as an offset from the most recent build. For example, -1 would refer to the previous build.",
+				Description:   "Only show logs for a specific build number. Defaults to 0, which maps to the most recent build (build numbers start at 1). Negative values are treated as offsets—for example, -1 refers to the previous build.",
 				Value:         serpent.Int64Of(&buildNumberArg),
 				Default:       "0",
 			},
