@@ -3,8 +3,6 @@ package agentapi
 import (
 	"context"
 	"encoding/json"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +20,11 @@ const (
 	// With typical agents having 5-15 metadata keys, this accommodates
 	// 30-100 agents per batch.
 	defaultMetadataBatchSize = 500
+
+	// defaultChannelBufferMultiplier is the multiplier for the channel buffer size
+	// relative to the batch size. A 5x multiplier provides significant headroom
+	// for bursts while the batch is being flushed.
+	defaultChannelBufferMultiplier = 5
 
 	// defaultMetadataFlushInterval is how frequently to flush batched metadata
 	// updates to the database and pubsub. 5 seconds provides a good balance
@@ -50,9 +53,24 @@ const (
 	metadataBatchPubsubChannel = "workspace_agent_metadata_batch"
 )
 
+// compositeKey uniquely identifies a metadata entry by agent ID and key name.
+type compositeKey struct {
+	agentID uuid.UUID
+	key     string
+}
+
 // metadataValue holds a single metadata key-value pair with its error state
 // and collection timestamp.
 type metadataValue struct {
+	value       string
+	error       string
+	collectedAt time.Time
+}
+
+// metadataUpdate represents a single metadata update to be batched.
+type metadataUpdate struct {
+	agentID     uuid.UUID
+	key         string
 	value       string
 	error       string
 	collectedAt time.Time
@@ -66,26 +84,18 @@ type MetadataBatcher struct {
 	ps    pubsub.Pubsub
 	log   slog.Logger
 
-	mu sync.Mutex
-	// buf holds pending metadata updates indexed by agent ID and metadata key name.
-	// Structure: map[agentID]map[metadataKeyName]metadataValue
-	// This deduplicates updates to the same metadata key for the same agent within
-	// a flush interval, keeping only the most recent value.
-	buf        map[uuid.UUID]map[string]metadataValue
-	entryCount int // Total number of metadata key-value pairs across all agents
-	batchSize  int // Maximum number of metadata entries before forcing a flush
+	// updateCh is the buffered channel that receives metadata updates from Add() calls.
+	updateCh chan metadataUpdate
+
+	// batch holds the current batch being accumulated. Updates with the same
+	// composite key are deduplicated, keeping only the most recent value.
+	batch     map[compositeKey]metadataValue
+	batchSize int
 
 	// clock is used to create tickers and get the current time.
 	clock    quartz.Clock
 	ticker   *quartz.Ticker
 	interval time.Duration
-
-	// flushLever is used to signal the flusher to flush the buffer immediately.
-	flushLever  chan struct{}
-	flushForced atomic.Bool
-
-	// flushed is used during testing to signal that a flush has completed.
-	flushed chan<- int
 
 	// ctx is the context for the batcher. Used to check if shutdown has begun.
 	ctx context.Context
@@ -136,10 +146,9 @@ func MetadataBatcherWithMetrics(metrics *MetadataBatcherMetrics) MetadataBatcher
 func NewMetadataBatcher(ctx context.Context, store database.Store, ps pubsub.Pubsub, opts ...MetadataBatcherOption) (*MetadataBatcher, func(), error) {
 	b := &MetadataBatcher{
 		store: store,
-		ps: ps,
+		ps:    ps,
 	}
 	b.log = slog.Logger{}
-	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
 	b.clock = quartz.NewReal()
 
 	for _, opt := range opts {
@@ -158,8 +167,12 @@ func NewMetadataBatcher(ctx context.Context, store database.Store, ps pubsub.Pub
 		b.ticker = b.clock.NewTicker(b.interval)
 	}
 
-	b.buf = make(map[uuid.UUID]map[string]metadataValue)
-	b.entryCount = 0
+	// Create buffered channel with 5x batch size capacity
+	channelSize := b.batchSize * defaultChannelBufferMultiplier
+	b.updateCh = make(chan metadataUpdate, channelSize)
+
+	// Initialize batch map
+	b.batch = make(map[compositeKey]metadataValue)
 
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	b.ctx = cancelCtx
@@ -180,9 +193,10 @@ func NewMetadataBatcher(ctx context.Context, store database.Store, ps pubsub.Pub
 	return b, closer, nil
 }
 
-// Add adds metadata updates for an agent to the batcher. Updates to the same metadata key for the same agent are
-// deduplicated, keeping only the value with the most recent collectedAt timestamp. Older updates are silently ignored.
-// If the buffer is at capacity, new keys are dropped. Returns an error if the batcher context is done (shutdown in progress).
+// Add adds metadata updates for an agent to the batcher by writing to a
+// buffered channel. If the channel is full, updates are dropped. Updates
+// to the same metadata key for the same agent are deduplicated in the batch,
+// keeping only the value with the most recent collectedAt timestamp.
 func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) error {
 	// Check if batcher is shutting down
 	select {
@@ -191,66 +205,35 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 	default:
 	}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Ensure agent map exists.
-	if b.buf[agentID] == nil {
-		b.buf[agentID] = make(map[string]metadataValue)
-	}
-
 	if !(len(keys) == len(values) && len(values) == len(errors) && len(errors) == len(collectedAt)) {
 		return nil
 	}
 
-	// Process each key one at a time.
+	// Write each update to the channel. If the channel is full, drop the update.
 	droppedCount := 0
 	for i := range keys {
-		// Check if an entry already exists for this key.
-		existingValue, exists := b.buf[agentID][keys[i]]
-
-		// Always allow updates to existing keys, even if at capacity.
-		if exists {
-			// Only overwrite if the new value has a newer timestamp.
-			if collectedAt[i].Before(existingValue.collectedAt) {
-				continue
-			}
-			// Update existing key (no capacity change).
-			b.buf[agentID][keys[i]] = metadataValue{
-				value:       values[i],
-				error:       errors[i],
-				collectedAt: collectedAt[i],
-			}
-			continue
-		}
-
-		// New key - check capacity before adding.
-		if b.entryCount >= b.batchSize {
-			droppedCount++
-			continue // Skip this new key but continue processing others.
-		}
-
-		// Add new key.
-		b.entryCount++
-		b.buf[agentID][keys[i]] = metadataValue{
+		update := metadataUpdate{
+			agentID:     agentID,
+			key:         keys[i],
 			value:       values[i],
 			error:       errors[i],
 			collectedAt: collectedAt[i],
 		}
 
-		// If we've reached capacity after adding this key, trigger immediate flush.
-		if b.entryCount >= b.batchSize && !b.flushForced.Load() {
-			b.flushLever <- struct{}{}
-			b.flushForced.Store(true)
+		select {
+		case b.updateCh <- update:
+			// Successfully queued
+		default:
+			// Channel is full, drop this update
+			droppedCount++
 		}
 	}
 
-	// Log dropped keys at the end if any were dropped.
+	// Log dropped keys if any were dropped.
 	if droppedCount > 0 {
-		b.log.Warn(context.Background(), "metadata buffer at capacity, dropped new keys",
+		b.log.Warn(context.Background(), "metadata channel at capacity, dropped updates",
 			slog.F("agent_id", agentID),
-			slog.F("entry_count", b.entryCount),
-			slog.F("batch_size", b.batchSize),
+			slog.F("channel_size", cap(b.updateCh)),
 			slog.F("dropped_count", droppedCount),
 		)
 		if b.metrics != nil {
@@ -261,17 +244,51 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 	return nil
 }
 
-// run runs the batcher.
+// processUpdate adds a metadata update to the batch with deduplication based on timestamp.
+func (b *MetadataBatcher) processUpdate(update metadataUpdate) {
+	ck := compositeKey{
+		agentID: update.agentID,
+		key:     update.key,
+	}
+
+	// Check if key already exists and only update if new value is newer
+	if existing, exists := b.batch[ck]; exists {
+		if update.collectedAt.After(existing.collectedAt) {
+			b.batch[ck] = metadataValue{
+				value:       update.value,
+				error:       update.error,
+				collectedAt: update.collectedAt,
+			}
+		}
+		// Else: existing value is newer or same, ignore this update
+	} else {
+		// New key, add to batch
+		b.batch[ck] = metadataValue{
+			value:       update.value,
+			error:       update.error,
+			collectedAt: update.collectedAt,
+		}
+	}
+}
+
+// run runs the batcher loop, reading from the update channel and flushing
+// periodically or when the batch reaches capacity.
 func (b *MetadataBatcher) run(ctx context.Context) {
 	// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
+		case update := <-b.updateCh:
+			b.processUpdate(update)
+
+			// Check if batch has reached capacity
+			if len(b.batch) >= b.batchSize {
+				_, _ = b.flush(authCtx, true, "reaching capacity")
+			}
+
 		case <-b.ticker.C:
-			b.flush(authCtx, false, "scheduled")
-		case <-b.flushLever:
-			// If the flush lever is depressed, flush the buffer immediately.
-			b.flush(authCtx, true, "reaching capacity")
+			_, _ = b.flush(authCtx, false, "scheduled")
+
 		case <-ctx.Done():
 			b.log.Debug(ctx, "context done, flushing before exit")
 
@@ -280,71 +297,52 @@ func (b *MetadataBatcher) run(ctx context.Context) {
 			defer cancel() //nolint:revive // We're returning, defer is fine.
 
 			// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
-			b.flush(dbauthz.AsSystemRestricted(ctxTimeout), true, "exit")
+			_, _ = b.flush(dbauthz.AsSystemRestricted(ctxTimeout), true, "exit")
 			return
 		}
 	}
 }
 
-// flush flushes the batcher's buffer.
-func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string) {
-	b.mu.Lock()
-	b.flushForced.Store(true)
+// flush flushes the current batch to the database and pubsub.
+// Returns the number of entries flushed and any error encountered.
+func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string) (int, error) {
+	count := len(b.batch)
+
+	if count == 0 {
+		return 0, nil
+	}
+
 	start := time.Now()
-	count := b.entryCount
-	defer func() {
-		b.flushForced.Store(false)
-		b.mu.Unlock()
-		if count > 0 {
-			elapsed := time.Since(start)
-			b.log.Debug(ctx, "flush complete",
-				slog.F("count", count),
-				slog.F("elapsed", elapsed),
-				slog.F("forced", forced),
-				slog.F("reason", reason),
-			)
-		}
-		// Notify that a flush has completed. This only happens in tests.
-		if b.flushed != nil {
-			select {
-			case <-ctx.Done():
-				close(b.flushed)
-			default:
-				b.flushed <- count
-			}
-		}
-	}()
-
-	if b.entryCount == 0 {
-		return
-	}
-
-	// Record batch size before flattening.
-	if b.metrics != nil {
-		b.metrics.batchSize.Observe(float64(b.entryCount))
-	}
-
-	// Flatten the buffer into parallel arrays for the batch query.
-	var (
-		agentIDs    = make([]uuid.UUID, 0, b.entryCount)
-		keys        = make([]string, 0, b.entryCount)
-		values      = make([]string, 0, b.entryCount)
-		errors      = make([]string, 0, b.entryCount)
-		collectedAt = make([]time.Time, 0, b.entryCount)
+	b.log.Debug(ctx, "flushing metadata batch",
+		slog.F("reason", reason),
+		slog.F("count", count),
+		slog.F("forced", forced),
 	)
 
-	for agentID, metadataMap := range b.buf {
-		// Record per-agent utilization.
-		if b.metrics != nil {
-			b.metrics.batchUtilization.Observe(float64(len(metadataMap)))
-		}
+	// Convert batch map to parallel arrays for the batch query.
+	// Also build map of agent IDs for per-agent metrics and pubsub.
+	var (
+		agentIDs    = make([]uuid.UUID, 0, count)
+		keys        = make([]string, 0, count)
+		values      = make([]string, 0, count)
+		errors      = make([]string, 0, count)
+		collectedAt = make([]time.Time, 0, count)
+		agentKeys   = make(map[uuid.UUID]int) // Track keys per agent for metrics
+	)
 
-		for key, metadata := range metadataMap {
-			agentIDs = append(agentIDs, agentID)
-			keys = append(keys, key)
-			values = append(values, metadata.value)
-			errors = append(errors, metadata.error)
-			collectedAt = append(collectedAt, metadata.collectedAt)
+	for ck, mv := range b.batch {
+		agentIDs = append(agentIDs, ck.agentID)
+		keys = append(keys, ck.key)
+		values = append(values, mv.value)
+		errors = append(errors, mv.error)
+		collectedAt = append(collectedAt, mv.collectedAt)
+		agentKeys[ck.agentID]++
+	}
+
+	// Record per-agent utilization metrics.
+	if b.metrics != nil {
+		for _, keyCount := range agentKeys {
+			b.metrics.batchUtilization.Observe(float64(keyCount))
 		}
 	}
 
@@ -363,33 +361,47 @@ func (b *MetadataBatcher) flush(ctx context.Context, forced bool, reason string)
 			if b.metrics != nil {
 				b.metrics.batchesTotal.WithLabelValues(reason, "canceled").Inc()
 			}
-			return
+			// Clear batch since we're not retrying
+			b.batch = make(map[compositeKey]metadataValue)
+			return 0, err
 		}
 		b.log.Error(ctx, "error updating workspace agent metadata", slog.Error(err), slog.F("elapsed", elapsed))
 		if b.metrics != nil {
 			b.metrics.batchesTotal.WithLabelValues(reason, "false").Inc()
 		}
-		return
+		// Clear batch - we don't retry on errors
+		b.batch = make(map[compositeKey]metadataValue)
+		return 0, err
 	}
 
-	// Build list of unique agent IDs from the map keys.
-	uniqueAgentIDs := make([]uuid.UUID, 0, len(b.buf))
-	for agentID := range b.buf {
+	// Build list of unique agent IDs for pubsub notification.
+	uniqueAgentIDs := make([]uuid.UUID, 0, len(agentKeys))
+	for agentID := range agentKeys {
 		uniqueAgentIDs = append(uniqueAgentIDs, agentID)
 	}
 
 	// Publish agent IDs in chunks that fit within the pubsub size limit.
 	b.publishAgentIDsInChunks(ctx, uniqueAgentIDs)
 
-	// Record successful batch and flush duration.
+	// Record successful batch size and flush duration after successful send/publish.
 	if b.metrics != nil {
+		b.metrics.batchSize.Observe(float64(count))
 		b.metrics.batchesTotal.WithLabelValues(reason, "true").Inc()
 		b.metrics.flushDuration.WithLabelValues(reason).Observe(time.Since(start).Seconds())
 	}
 
-	// Clear the buffer and reset entry count.
-	b.buf = make(map[uuid.UUID]map[string]metadataValue)
-	b.entryCount = 0
+	// Clear the batch.
+	b.batch = make(map[compositeKey]metadataValue)
+
+	elapsed = time.Since(start)
+	b.log.Debug(ctx, "flush complete",
+		slog.F("count", count),
+		slog.F("elapsed", elapsed),
+		slog.F("forced", forced),
+		slog.F("reason", reason),
+	)
+
+	return count, nil
 }
 
 // buildAndMarshalChunk builds a chunk of agent IDs that fits within the
