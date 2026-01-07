@@ -16,8 +16,7 @@ import {
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
-import { formatDate } from "utils/time";
-import { humanDuration } from "utils/time";
+import { formatDate, humanDuration } from "utils/time";
 import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 type RequestLogsRowProps = {
