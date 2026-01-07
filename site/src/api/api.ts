@@ -2641,6 +2641,31 @@ class ApiMethods {
 		}
 	};
 
+	deleteDevContainer = async ({
+		parentAgentId,
+		devcontainerId,
+	}: {
+		parentAgentId: string;
+		devcontainerId: string;
+	}) => {
+		await this.axios.delete(
+			`/api/v2/workspaceagents/${parentAgentId}/containers/devcontainers/${devcontainerId}`,
+		);
+	};
+
+	recreateDevContainer = async ({
+		parentAgentId,
+		devcontainerId,
+	}: {
+		parentAgentId: string;
+		devcontainerId: string;
+	}) => {
+		const response = await this.axios.post<TypesGen.Response>(
+			`/api/v2/workspaceagents/${parentAgentId}/containers/devcontainers/${devcontainerId}/recreate`,
+		);
+		return response.data;
+	};
+
 	getAgentContainers = async (agentId: string, labels?: string[]) => {
 		const params = new URLSearchParams(
 			labels?.map((label) => ["label", label]),
