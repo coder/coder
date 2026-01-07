@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -1986,6 +1987,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2108,6 +2110,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2230,6 +2233,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2374,6 +2378,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2519,6 +2524,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
