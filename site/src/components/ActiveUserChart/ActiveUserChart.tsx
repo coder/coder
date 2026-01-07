@@ -47,6 +47,10 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
 						formatDate(new Date(value), {
 							month: "short",
 							day: "numeric",
+							year: undefined,
+							hour: undefined,
+							minute: undefined,
+							second: undefined,
 						})
 					}
 				/>

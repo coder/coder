@@ -23,8 +23,8 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { formatDate } from "utils/time";
 import { docs } from "utils/docs";
+import { formatDate } from "utils/time";
 
 const chartConfig = {
 	users: {
@@ -157,6 +157,10 @@ export const LicenseSeatConsumptionChart: FC<
 											formatDate(new Date(value), {
 												month: "short",
 												day: "numeric",
+												year: undefined,
+												hour: undefined,
+												minute: undefined,
+												second: undefined,
 											})
 										}
 									/>
