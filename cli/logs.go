@@ -133,14 +133,12 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 			return xerrors.Errorf("failed to get build logs: %w", err)
 		}
 		defer closer.Close()
-		var sb strings.Builder
 		for log := range buildLogsC {
 			afterID = log.ID
 			logsCh <- logLine{
 				ts:      log.CreatedAt,
 				Content: buildLogToString(log),
 			}
-			sb.Reset()
 		}
 		return nil
 	})
@@ -153,13 +151,11 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 				return xerrors.Errorf("failed to follow build logs: %w", err)
 			}
 			defer closer.Close()
-			var sb strings.Builder
 			for log := range buildLogsC {
 				followCh <- logLine{
 					ts:      log.CreatedAt,
 					Content: buildLogToString(log),
 				}
-				sb.Reset()
 			}
 			return nil
 		})
@@ -185,7 +181,6 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 					return xerrors.Errorf("failed to get agent logs: %w", err)
 				}
 				defer closer.Close()
-				var sb strings.Builder
 				for logChunk := range agentLogsCh {
 					for _, log := range logChunk {
 						afterID = log.ID
@@ -193,7 +188,6 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 							ts:      log.CreatedAt,
 							Content: workspaceAgentLogToString(log, agt.Name, logSrcNames[log.SourceID]),
 						}
-						sb.Reset()
 					}
 				}
 				return nil
@@ -207,14 +201,12 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 						return xerrors.Errorf("failed to follow agent logs: %w", err)
 					}
 					defer closer.Close()
-					var sb strings.Builder
 					for logChunk := range agentLogsCh {
 						for _, log := range logChunk {
 							followCh <- logLine{
 								ts:      log.CreatedAt,
 								Content: workspaceAgentLogToString(log, agt.Name, logSrcNames[log.SourceID]),
 							}
-							sb.Reset()
 						}
 					}
 					return nil
