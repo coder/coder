@@ -9,6 +9,7 @@ import (
 type MetadataBatcherMetrics struct {
 	batchUtilization prometheus.Histogram
 	droppedKeysTotal prometheus.Counter
+	metadataTotal prometheus.Counter
 	batchesTotal     *prometheus.CounterVec
 	batchSize        prometheus.Histogram
 	flushDuration    *prometheus.HistogramVec
@@ -45,7 +46,14 @@ func NewMetadataBatcherMetrics() *MetadataBatcherMetrics {
 			Subsystem: "agentapi",
 			Name:      "metadata_batches_total",
 			Help:      "Total number of metadata batches flushed.",
-		}, []string{"reason", "success"}),
+		}, []string{"reason"}),
+
+		metadataTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "agentapi",
+			Name:      "metadata_flushed_total",
+			Help:      "Total number of unique metadatas flushed.",
+		}),
 
 		batchSize: prometheus.NewHistogram(nativeHistogramOpts(prometheus.HistogramOpts{
 			Namespace: "coderd",
@@ -68,7 +76,19 @@ func (m *MetadataBatcherMetrics) Collectors() []prometheus.Collector {
 		m.batchUtilization,
 		m.droppedKeysTotal,
 		m.batchesTotal,
+		m.metadataTotal,
 		m.batchSize,
 		m.flushDuration,
+	}
+}
+
+func (m * MetadataBatcherMetrics) register(reg prometheus.Registerer) {
+	if reg != nil {
+		reg.MustRegister(m.batchUtilization)
+		reg.MustRegister(m.droppedKeysTotal)
+		reg.MustRegister(m.batchesTotal)
+		reg.MustRegister(m.metadataTotal)
+		reg.MustRegister(m.batchSize)
+		reg.MustRegister(m.flushDuration)
 	}
 }
