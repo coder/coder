@@ -65,9 +65,15 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.13:
 //   - Removed experimental fields `exp_reuse_terraform_workspace`. Caching moved into Coderd
+//
+// API v1.14:
+//   - Added new field `template_version_modules_file` to Metadata
+//   - Added `FailedFile` type for file upload failures.
+//   - Add `DownloadFile` capability for provisioner daemons to fetch files from coderd.
+//   - Moved type `UploadFileRequest` -> `provisioner.FileUpload`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 13
+	CurrentMinor = 14
 )
 
 // CurrentVersion is the current provisionerd API version.

@@ -365,6 +365,7 @@ message Metadata {
   string task_id = 22;
   string task_prompt = 23;
   string template_version_id = 24;
+  string template_version_modules_file = 25;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -399,6 +400,9 @@ message InitRequest {
   // Ideally this boolean would be flipped in its truthy value, however since
   // this is costly, the zero value omitting the module files is preferred.
   bool omit_module_files = 3;
+
+  // initial_module_tar is the hash of the tar of the terraform module files located in .terraform/modules
+  bytes initial_module_tar_hash = 4;
 }
 
 message InitComplete {
@@ -500,6 +504,12 @@ message Request {
     ApplyRequest apply = 5;
     GraphRequest graph = 6;
     CancelRequest cancel = 7;
+
+    // The file upload is used to send over cached modules during the
+    // init step.
+    // This is kept intentionally generic if another step wants to reuse
+    // this.
+    FileUpload file = 8;
   }
 }
 
@@ -522,6 +532,18 @@ enum DataUploadType {
   // These files are located in `.terraform/modules` and are used for dynamic
   // parameters.
   UPLOAD_TYPE_MODULE_FILES = 1;
+}
+
+message FileUpload {
+  oneof type {
+    DataUpload data_upload = 1;
+    ChunkPiece chunk_piece = 2;
+    FailedFile error = 3;
+  }
+}
+
+message FailedFile {
+  string error = 1;
 }
 
 message DataUpload {

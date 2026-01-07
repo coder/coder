@@ -1306,6 +1306,8 @@ func (p *provisionerDaemonTestServer) UploadFile(stream proto.DRPCProvisionerDae
 	return p.uploadFile(stream)
 }
 
+var _ proto.DRPCProvisionerDaemonServer = (*provisionerDaemonTestServer)(nil)
+
 // Fulfills the protobuf interface for a ProvisionerDaemon with
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
@@ -1315,6 +1317,11 @@ type provisionerDaemonTestServer struct {
 	failJob              func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob          func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
 	uploadFile           func(stream proto.DRPCProvisionerDaemon_UploadFileStream) error
+	downloadFile         func(request *proto.FileRequest, stream proto.DRPCProvisionerDaemon_DownloadFileStream) error
+}
+
+func (p *provisionerDaemonTestServer) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvisionerDaemon_DownloadFileStream) error {
+	return p.downloadFile(request, stream)
 }
 
 func (*provisionerDaemonTestServer) AcquireJob(context.Context, *proto.Empty) (*proto.AcquiredJob, error) {
