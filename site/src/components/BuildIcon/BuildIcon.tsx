@@ -1,6 +1,7 @@
 import type { WorkspaceTransition } from "api/typesGenerated";
 import { PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import type { ComponentProps } from "react";
+import { cn } from "utils/cn";
 
 type SVGIcon = typeof PlayIcon;
 
@@ -12,9 +13,16 @@ const iconByTransition: Record<WorkspaceTransition, SVGIcon> = {
 	delete: TrashIcon,
 };
 
-export const BuildIcon = (
-	props: SVGIconProps & { transition: WorkspaceTransition },
-) => {
-	const Icon = iconByTransition[props.transition];
-	return <Icon {...props} />;
+export const BuildIcon = ({
+	transition,
+	className,
+	...props
+}: SVGIconProps & { transition: WorkspaceTransition }) => {
+	const Icon = iconByTransition[transition];
+	return (
+		<Icon
+			className={cn(transition === "stop" && "size-icon-xs", className)}
+			{...props}
+		/>
+	);
 };
