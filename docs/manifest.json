@@ -1437,6 +1437,11 @@
 							"path": "reference/cli/logout.md"
 						},
 						{
+							"title": "logs",
+							"description": "View logs for a workspace",
+							"path": "reference/cli/logs.md"
+						},
+						{
 							"title": "netcheck",
 							"description": "Print network debug information for DERP and STUN",
 							"path": "reference/cli/netcheck.md"
