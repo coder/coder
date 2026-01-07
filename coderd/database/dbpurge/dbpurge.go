@@ -70,136 +70,13 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	ticker := clk.NewTicker(delay)
 	doTick := func(ctx context.Context, start time.Time) {
 		defer ticker.Reset(delay)
-		// Start a transaction to grab advisory lock, we don't want to run
-		// multiple purges at the same time (multiple replicas).
-		if err := db.InTx(func(tx database.Store) error {
-			// Acquire a lock to ensure that only one instance of the
-			// purge is running at a time.
-			ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				logger.Debug(ctx, "unable to acquire lock for purging old database entries, skipping")
-				return nil
-			}
-
-			var purgedWorkspaceAgentLogs int64
-			workspaceAgentLogsRetention := vals.Retention.WorkspaceAgentLogs.Value()
-			if workspaceAgentLogsRetention > 0 {
-				deleteOldWorkspaceAgentLogsBefore := start.Add(-workspaceAgentLogsRetention)
-				purgedWorkspaceAgentLogs, err = tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore)
-				if err != nil {
-					return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
-				}
-			}
-			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
-				return xerrors.Errorf("failed to delete old workspace agent stats: %w", err)
-			}
-			if err := tx.DeleteOldProvisionerDaemons(ctx); err != nil {
-				return xerrors.Errorf("failed to delete old provisioner daemons: %w", err)
-			}
-			if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
-				return xerrors.Errorf("failed to delete old notification messages: %w", err)
-			}
-			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
-				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
-			}
-
-			var expiredAPIKeys int64
-			apiKeysRetention := vals.Retention.APIKeys.Value()
-			if apiKeysRetention > 0 {
-				// Delete keys that have been expired for at least the retention period.
-				// A higher retention period allows the backend to return a more helpful
-				// error message when a user tries to use an expired key.
-				deleteExpiredKeysBefore := start.Add(-apiKeysRetention)
-				expiredAPIKeys, err = tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
-					Before: dbtime.Time(deleteExpiredKeysBefore),
-					// There could be a lot of expired keys here, so set a limit to prevent
-					// this taking too long. This runs every 10 minutes, so it deletes
-					// ~1.5m keys per day at most.
-					LimitCount: 10000,
-				})
-				if err != nil {
-					return xerrors.Errorf("failed to delete expired api keys: %w", err)
-				}
-			}
-			deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
-			if err := tx.DeleteOldTelemetryLocks(ctx, deleteOldTelemetryLocksBefore); err != nil {
-				return xerrors.Errorf("failed to delete old telemetry locks: %w", err)
-			}
-
-			deleteOldAuditLogConnectionEventsBefore := start.Add(-maxAuditLogConnectionEventAge)
-			if err := tx.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
-				BeforeTime: deleteOldAuditLogConnectionEventsBefore,
-				LimitCount: auditLogConnectionEventBatchSize,
-			}); err != nil {
-				return xerrors.Errorf("failed to delete old audit log connection events: %w", err)
-			}
-
-			var purgedAIBridgeRecords int64
-			aibridgeRetention := vals.AI.BridgeConfig.Retention.Value()
-			if aibridgeRetention > 0 {
-				deleteAIBridgeRecordsBefore := start.Add(-aibridgeRetention)
-				// nolint:gocritic // Needs to run as aibridge context.
-				purgedAIBridgeRecords, err = tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
-				if err != nil {
-					return xerrors.Errorf("failed to delete old aibridge records: %w", err)
-				}
-			}
-
-			var purgedConnectionLogs int64
-			connectionLogsRetention := vals.Retention.ConnectionLogs.Value()
-			if connectionLogsRetention > 0 {
-				deleteConnectionLogsBefore := start.Add(-connectionLogsRetention)
-				purgedConnectionLogs, err = tx.DeleteOldConnectionLogs(ctx, database.DeleteOldConnectionLogsParams{
-					BeforeTime: deleteConnectionLogsBefore,
-					LimitCount: connectionLogsBatchSize,
-				})
-				if err != nil {
-					return xerrors.Errorf("failed to delete old connection logs: %w", err)
-				}
-			}
-
-			var purgedAuditLogs int64
-			auditLogsRetention := vals.Retention.AuditLogs.Value()
-			if auditLogsRetention > 0 {
-				deleteAuditLogsBefore := start.Add(-auditLogsRetention)
-				purgedAuditLogs, err = tx.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
-					BeforeTime: deleteAuditLogsBefore,
-					LimitCount: auditLogsBatchSize,
-				})
-				if err != nil {
-					return xerrors.Errorf("failed to delete old audit logs: %w", err)
-				}
-			}
-
-			logger.Debug(ctx, "purged old database entries",
-				slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
-				slog.F("expired_api_keys", expiredAPIKeys),
-				slog.F("aibridge_records", purgedAIBridgeRecords),
-				slog.F("connection_logs", purgedConnectionLogs),
-				slog.F("audit_logs", purgedAuditLogs),
-				slog.F("duration", clk.Since(start)),
-			)
-
-			duration := clk.Since(start)
-			iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
-			recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
-			recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
-			recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
-			recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
-			recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
-
-			return nil
-		}, database.DefaultTXOptions().WithID("db_purge")); err != nil {
+		err := PurgeTick(ctx, db, logger, vals, clk, iterationDuration, recordsPurged, start)
+		if err != nil {
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 
 			// Record metrics for failed purge iteration.
 			duration := clk.Since(start)
 			iterationDuration.WithLabelValues("false").Observe(duration.Seconds())
-
-			return
 		}
 	}
 
@@ -222,6 +99,138 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		cancel: cancelFunc,
 		closed: closed,
 	}
+}
+
+// PurgeTick performs a single purge iteration. It returns an error if the
+// purge fails. This method is extracted for testing purposes.
+func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals *codersdk.DeploymentValues, clk quartz.Clock, iterationDuration *prometheus.HistogramVec, recordsPurged *prometheus.CounterVec, start time.Time) error {
+	// Start a transaction to grab advisory lock, we don't want to run
+	// multiple purges at the same time (multiple replicas).
+	return db.InTx(func(tx database.Store) error {
+		// Acquire a lock to ensure that only one instance of the
+		// purge is running at a time.
+		ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			logger.Debug(ctx, "unable to acquire lock for purging old database entries, skipping")
+			return nil
+		}
+
+		var purgedWorkspaceAgentLogs int64
+		workspaceAgentLogsRetention := vals.Retention.WorkspaceAgentLogs.Value()
+		if workspaceAgentLogsRetention > 0 {
+			deleteOldWorkspaceAgentLogsBefore := start.Add(-workspaceAgentLogsRetention)
+			purgedWorkspaceAgentLogs, err = tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore)
+			if err != nil {
+				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
+			}
+		}
+		if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
+			return xerrors.Errorf("failed to delete old workspace agent stats: %w", err)
+		}
+		if err := tx.DeleteOldProvisionerDaemons(ctx); err != nil {
+			return xerrors.Errorf("failed to delete old provisioner daemons: %w", err)
+		}
+		if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
+			return xerrors.Errorf("failed to delete old notification messages: %w", err)
+		}
+		if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
+			return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
+		}
+
+		var expiredAPIKeys int64
+		apiKeysRetention := vals.Retention.APIKeys.Value()
+		if apiKeysRetention > 0 {
+			// Delete keys that have been expired for at least the retention period.
+			// A higher retention period allows the backend to return a more helpful
+			// error message when a user tries to use an expired key.
+			deleteExpiredKeysBefore := start.Add(-apiKeysRetention)
+			expiredAPIKeys, err = tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+				Before: dbtime.Time(deleteExpiredKeysBefore),
+				// There could be a lot of expired keys here, so set a limit to prevent
+				// this taking too long. This runs every 10 minutes, so it deletes
+				// ~1.5m keys per day at most.
+				LimitCount: 10000,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete expired api keys: %w", err)
+			}
+		}
+		deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
+		if err := tx.DeleteOldTelemetryLocks(ctx, deleteOldTelemetryLocksBefore); err != nil {
+			return xerrors.Errorf("failed to delete old telemetry locks: %w", err)
+		}
+
+		deleteOldAuditLogConnectionEventsBefore := start.Add(-maxAuditLogConnectionEventAge)
+		if err := tx.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
+			BeforeTime: deleteOldAuditLogConnectionEventsBefore,
+			LimitCount: auditLogConnectionEventBatchSize,
+		}); err != nil {
+			return xerrors.Errorf("failed to delete old audit log connection events: %w", err)
+		}
+
+		var purgedAIBridgeRecords int64
+		aibridgeRetention := vals.AI.BridgeConfig.Retention.Value()
+		if aibridgeRetention > 0 {
+			deleteAIBridgeRecordsBefore := start.Add(-aibridgeRetention)
+			// nolint:gocritic // Needs to run as aibridge context.
+			purgedAIBridgeRecords, err = tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
+			if err != nil {
+				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+			}
+		}
+
+		var purgedConnectionLogs int64
+		connectionLogsRetention := vals.Retention.ConnectionLogs.Value()
+		if connectionLogsRetention > 0 {
+			deleteConnectionLogsBefore := start.Add(-connectionLogsRetention)
+			purgedConnectionLogs, err = tx.DeleteOldConnectionLogs(ctx, database.DeleteOldConnectionLogsParams{
+				BeforeTime: deleteConnectionLogsBefore,
+				LimitCount: connectionLogsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old connection logs: %w", err)
+			}
+		}
+
+		var purgedAuditLogs int64
+		auditLogsRetention := vals.Retention.AuditLogs.Value()
+		if auditLogsRetention > 0 {
+			deleteAuditLogsBefore := start.Add(-auditLogsRetention)
+			purgedAuditLogs, err = tx.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
+				BeforeTime: deleteAuditLogsBefore,
+				LimitCount: auditLogsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old audit logs: %w", err)
+			}
+		}
+
+		logger.Debug(ctx, "purged old database entries",
+			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
+			slog.F("expired_api_keys", expiredAPIKeys),
+			slog.F("aibridge_records", purgedAIBridgeRecords),
+			slog.F("connection_logs", purgedConnectionLogs),
+			slog.F("audit_logs", purgedAuditLogs),
+			slog.F("duration", clk.Since(start)),
+		)
+
+		if iterationDuration != nil {
+			duration := clk.Since(start)
+			iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
+		}
+		if recordsPurged != nil {
+			recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
+			recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
+			recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
+			recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
+			recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
+		}
+
+		return nil
+	}, database.DefaultTXOptions().WithID("db_purge"))
 }
 
 type instance struct {

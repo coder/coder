@@ -1654,39 +1654,31 @@ func TestDBPurgeAuthorization(t *testing.T) {
 		require.Contains(t, actor.Roles.Names(), rbac.RoleIdentifier{Name: "dbpurge"},
 			"should have dbpurge role")
 
-		_, err := db.DeleteOldWorkspaceAgentLogs(ctx, time.Now().Add(-24*time.Hour))
-		require.NoError(t, err)
+		clk := quartz.NewMock(t)
+		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+		clk.Set(now)
 
-		err = db.DeleteOldWorkspaceAgentStats(ctx)
-		require.NoError(t, err)
-
-		err = db.DeleteOldProvisionerDaemons(ctx)
-		require.NoError(t, err)
-
-		err = db.DeleteOldNotificationMessages(ctx)
-		require.NoError(t, err)
-
-		err = db.ExpirePrebuildsAPIKeys(ctx, time.Now().Add(-24*time.Hour))
-		require.NoError(t, err)
-
-		params := database.DeleteExpiredAPIKeysParams{
-			Before:     time.Now().Add(-24 * time.Hour),
-			LimitCount: 100,
+		vals := &codersdk.DeploymentValues{
+			Retention: codersdk.RetentionConfig{
+				WorkspaceAgentLogs: serpent.Duration(24 * time.Hour),
+				APIKeys:            serpent.Duration(24 * time.Hour),
+				ConnectionLogs:     serpent.Duration(24 * time.Hour),
+				AuditLogs:          serpent.Duration(24 * time.Hour),
+			},
+			AI: codersdk.AIConfig{
+				BridgeConfig: codersdk.AIBridgeConfig{
+					Retention: serpent.Duration(24 * time.Hour),
+				},
+			},
 		}
-		_, err = db.DeleteExpiredAPIKeys(ctx, params)
-		require.NoError(t, err)
 
-		err = db.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
-			BeforeTime: time.Now().Add(-24 * time.Hour),
-			LimitCount: 100,
-		})
-		require.NoError(t, err)
-
-		_, err = db.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
-			BeforeTime: time.Now().Add(-24 * time.Hour),
-			LimitCount: 100,
-		})
-		require.NoError(t, err)
+		// Call PurgeTick directly to test that all operations have proper RBAC
+		// permissions. This tests the actual dbpurge behavior rather than
+		// reimplementing it. We only check for RBAC errors, not whether the
+		// operations actually delete records (that's tested elsewhere).
+		err := dbpurge.PurgeTick(ctx, db, testutil.Logger(t), vals, clk, nil, nil, now)
+		require.NoError(t, err, "PurgeTick should succeed with DBPurge actor")
+		require.False(t, dbauthz.IsNotAuthorizedError(err), "should not return RBAC authorization error")
 	})
 }
 
