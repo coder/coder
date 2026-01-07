@@ -279,6 +279,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 			},
 		}
 
+		//nolint:gocritic // we want unrestricted permissions for the test
 		_, err := owner.CreateOrganizationRole(ctx, role)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -300,6 +301,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
+		//nolint:gocritic // we want unrestricted permissions for the test
 		err := owner.DeleteOrganizationRole(ctx, first.OrganizationID, rbac.RoleOrgMember())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
