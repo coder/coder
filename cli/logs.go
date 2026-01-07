@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -41,13 +42,22 @@ func (r *RootCmd) logs() *serpent.Command {
 				return xerrors.Errorf("failed to get workspace: %w", err)
 			}
 			bld := ws.LatestBuild
-			if buildNumberArg > 0 {
-				if wb, err := client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx, ws.OwnerName, ws.Name, strconv.FormatInt(buildNumberArg, 10)); err != nil {
+			buildNumber := buildNumberArg
+			if buildNumber < 0 {
+				// User supplied a negative build number, treat it as an offset from the latest build
+				buildNumber = int64(ws.LatestBuild.BuildNumber) + buildNumberArg
+				if buildNumber < 1 {
+					return xerrors.Errorf("invalid build number offset: %d latest build number: %d", buildNumberArg, ws.LatestBuild.BuildNumber)
+				}
+			}
+			if buildNumber > 0 {
+				if wb, err := client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx, ws.OwnerName, ws.Name, strconv.FormatInt(buildNumber, 10)); err != nil {
 					return xerrors.Errorf("failed to get build %d: %w", buildNumberArg, err)
 				} else {
 					bld = wb
 				}
 			}
+			cliui.Infof(inv.Stdout, "--- Logs for workspace build #%d (ID: %s Template Version: %s) ---", bld.BuildNumber, bld.ID, bld.TemplateVersionName)
 			logs, logsCh, err := workspaceLogs(ctx, client, bld, followArg)
 			if err != nil {
 				return err
@@ -68,7 +78,7 @@ func (r *RootCmd) logs() *serpent.Command {
 				Name:          "Build Number",
 				Flag:          "build-number",
 				FlagShorthand: "n",
-				Description:   "Only show logs for a specific build number. Defaults to the most recent build.",
+				Description:   "Only show logs for a specific build number. Defaults to the most recent build. If a negative number is provided, it is treated as an offset from the most recent build. For example, -1 would refer to the previous build.",
 				Value:         serpent.Int64Of(&buildNumberArg),
 				Default:       "0",
 			},
@@ -237,7 +247,6 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 	}
 
 	return logs, followCh, err
-
 }
 
 func buildLogToString(log codersdk.ProvisionerJobLog) string {
