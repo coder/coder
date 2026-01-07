@@ -450,13 +450,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceOrganization.Type: {policy.ActionRead},
 							// Can read available roles.
 							ResourceAssignOrgRole.Type: {policy.ActionRead},
+							// All org members can read other org members. This is
+							// required for shared workspace access where the caller
+							// needs to resolve another user's org membership.
+							ResourceOrganizationMember.Type: {policy.ActionRead},
 						}),
 						Member: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
 							Permissions(map[string][]policy.Action{
 								// Reduced permission set on dormant workspaces. No build, ssh, or exec
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
-								// Can read their own organization member record
-								ResourceOrganizationMember.Type: {policy.ActionRead},
 								// Users can create provisioner daemons scoped to themselves.
 								ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 							})...,

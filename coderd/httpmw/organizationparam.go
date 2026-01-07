@@ -177,7 +177,7 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 		return nil, nil, true
 	}
 
-	organizationMembers, err := db.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
+	organizationMembers, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: orgID,
 		UserID:         user.ID,
 		IncludeSystem:  true,
