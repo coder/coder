@@ -238,6 +238,11 @@ var systemRoles = map[string]struct{}{
 	RoleOrgMember(): {},
 }
 
+func SystemRoleName(name string) bool {
+	_, ok := systemRoles[name]
+	return ok
+}
+
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 }
