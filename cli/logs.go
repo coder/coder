@@ -18,7 +18,6 @@ import (
 	"github.com/coder/serpent"
 )
 
-// TODO: also get agent + script logs
 func (r *RootCmd) logs() *serpent.Command {
 	var (
 		buildNumberArg int64
