@@ -42,19 +42,22 @@ func (r *RootCmd) logs() *serpent.Command {
 			}
 			bld := ws.LatestBuild
 			buildNumber := buildNumberArg
+
+			// User supplied a negative build number, treat it as an offset from the latest build
 			if buildNumber < 0 {
-				// User supplied a negative build number, treat it as an offset from the latest build
 				buildNumber = int64(ws.LatestBuild.BuildNumber) + buildNumberArg
 				if buildNumber < 1 {
 					return xerrors.Errorf("invalid build number offset: %d latest build number: %d", buildNumberArg, ws.LatestBuild.BuildNumber)
 				}
 			}
+
+			// Fetch specific build if requested
 			if buildNumber > 0 {
-				if wb, err := client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx, ws.OwnerName, ws.Name, strconv.FormatInt(buildNumber, 10)); err != nil {
+				wb, err := client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx, ws.OwnerName, ws.Name, strconv.FormatInt(buildNumber, 10))
+				if err != nil {
 					return xerrors.Errorf("failed to get build %d: %w", buildNumberArg, err)
-				} else {
-					bld = wb
 				}
+				bld = wb
 			}
 			cliui.Infof(inv.Stdout, "--- Logs for workspace build #%d (ID: %s Template Version: %s) ---", bld.BuildNumber, bld.ID, bld.TemplateVersionName)
 			logs, logsCh, err := workspaceLogs(ctx, client, bld, followArg)
@@ -109,6 +112,7 @@ func (l *logLine) String() string {
 // workspaceLogs fetches logs for the given workspace build. If follow is true,
 // the returned channel will stream new logs as they are emitted. Otherwise,
 // the channel will be closed immediately.
+// nolint: revive // control flag is appropriate here
 func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.WorkspaceBuild, follow bool) ([]logLine, <-chan logLine, error) {
 	logs := make([]logLine, 0)
 	logsCh := make(chan logLine)

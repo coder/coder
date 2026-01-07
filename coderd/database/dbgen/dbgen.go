@@ -477,7 +477,7 @@ func WorkspaceAgentLog(t testing.TB, db database.Store, orig database.WorkspaceA
 		AgentID:      takeFirst(orig.AgentID, uuid.New()),
 		CreatedAt:    takeFirst(orig.CreatedAt, dbtime.Now()),
 		LogSourceID:  takeFirst(orig.LogSourceID, uuid.New()),
-		OutputLength: int32(len(orig.Output)),
+		OutputLength: int32(len(orig.Output)), // nolint: gosec // integer overflow is not a concern here
 		Level:        []database.LogLevel{takeFirst(orig.Level, database.LogLevelInfo)},
 		Output:       []string{takeFirst(orig.Output, "Test agent log")},
 	})
