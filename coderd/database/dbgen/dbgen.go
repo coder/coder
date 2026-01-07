@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -639,6 +640,28 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
 	})
 	require.NoError(t, err, "insert organization")
+
+	// Populate the placeholder organization-member system role (created by
+	// DB trigger/migration) so org members have expected permissions.
+	//nolint:gocritic // need system auth ctx to manage a system role
+	sysCtx := dbauthz.AsSystemRestricted(genCtx)
+	_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
+		Name: rbac.RoleOrgMember(),
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	}, org.WorkspaceSharingDisabled)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		require.FailNowf(t,
+			"missing organization-member system role for organization",
+			"organization_id=%s: expected DB trigger to create placeholder system role: %v",
+			org.ID, err,
+		)
+	}
+	require.NoError(t, err, "reconcile organization-member role")
+
 	return org
 }
 
