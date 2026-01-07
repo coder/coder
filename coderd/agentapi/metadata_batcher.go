@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -71,9 +72,9 @@ type MetadataBatcher struct {
 	entryCount int // Total number of metadata key-value pairs across all agents
 	batchSize  int // Maximum number of metadata entries before forcing a flush
 
-	// tickCh is used to periodically flush the buffer.
-	tickCh   <-chan time.Time
-	ticker   *time.Ticker
+	// clock is used to create tickers and get the current time.
+	clock    quartz.Clock
+	ticker   *quartz.Ticker
 	interval time.Duration
 
 	// flushLever is used to signal the flusher to flush the buffer immediately.
@@ -128,6 +129,13 @@ func MetadataBatcherWithLogger(log slog.Logger) MetadataBatcherOption {
 	}
 }
 
+// MetadataBatcherWithClock sets the clock to use for time operations.
+func MetadataBatcherWithClock(clock quartz.Clock) MetadataBatcherOption {
+	return func(b *MetadataBatcher) {
+		b.clock = clock
+	}
+}
+
 // MetadataBatcherWithMetrics sets the metrics collector.
 func MetadataBatcherWithMetrics(metrics *MetadataBatcherMetrics) MetadataBatcherOption {
 	return func(b *MetadataBatcher) {
@@ -140,6 +148,7 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 	b := &MetadataBatcher{}
 	b.log = slog.Logger{}
 	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
+	b.clock = quartz.NewReal()
 
 	for _, opt := range opts {
 		opt(b)
@@ -161,9 +170,8 @@ func NewMetadataBatcher(ctx context.Context, opts ...MetadataBatcherOption) (*Me
 		b.batchSize = defaultMetadataBatchSize
 	}
 
-	if b.tickCh == nil {
-		b.ticker = time.NewTicker(b.interval)
-		b.tickCh = b.ticker.C
+	if b.ticker == nil {
+		b.ticker = b.clock.NewTicker(b.interval)
 	}
 
 	b.buf = make(map[uuid.UUID]map[string]metadataValue)
@@ -275,7 +283,7 @@ func (b *MetadataBatcher) run(ctx context.Context) {
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
-		case <-b.tickCh:
+		case <-b.ticker.C:
 			b.flush(authCtx, false, "scheduled")
 		case <-b.flushLever:
 			// If the flush lever is depressed, flush the buffer immediately.
