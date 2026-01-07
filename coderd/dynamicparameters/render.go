@@ -46,6 +46,9 @@ type loader struct {
 	job                    *database.ProvisionerJob
 	terraformValues        *database.TemplateVersionTerraformValue
 	templateVariableValues *[]database.TemplateVersionVariable
+
+	// previewCache is an optional cache for preview.Output results
+	previewCache *PreviewCache
 }
 
 // Prepare is the entrypoint for this package. It loads the necessary objects &
@@ -88,6 +91,18 @@ func WithTerraformValues(values database.TemplateVersionTerraformValue) func(r *
 		if values.TemplateVersionID == r.templateVersionID {
 			r.terraformValues = &values
 		}
+	}
+}
+
+// WithPreviewCache sets an optional cache for preview.Output results.
+// This can significantly reduce CPU usage for repeated renders with the same
+// inputs, such as prebuild reconciliation.
+func WithPreviewCache(cache *PreviewCache) func(r *loader) {
+	return func(r *loader) {
+		if r.previewCache == nil {
+			return
+		}
+		r.previewCache = cache
 	}
 }
 
@@ -204,12 +219,13 @@ func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 
 	closeFiles = false // Caller will have to call close
 	return &dynamicRenderer{
-		data:        r,
-		templateFS:  templateFS,
-		db:          db,
-		ownerErrors: make(map[uuid.UUID]error),
-		close:       cache.Close,
-		tfvarValues: tfVarValues,
+		data:         r,
+		templateFS:   templateFS,
+		db:           db,
+		ownerErrors:  make(map[uuid.UUID]error),
+		close:        cache.Close,
+		tfvarValues:  tfVarValues,
+		previewCache: r.previewCache,
 	}, nil
 }
 
@@ -222,11 +238,27 @@ type dynamicRenderer struct {
 	currentOwner *previewtypes.WorkspaceOwner
 	tfvarValues  map[string]cty.Value
 
+	// previewCache is an optional cache for preview.Output results
+	previewCache *PreviewCache
+
 	once  sync.Once
 	close func()
 }
 
 func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	// Check cache first before doing any expensive work.
+	var cacheKey PreviewCacheKey
+	if r.previewCache != nil {
+		cacheKey = PreviewCacheKey{
+			TemplateVersionID: r.data.templateVersionID,
+			OwnerID:           ownerID,
+			ValuesHash:        HashParameterValues(values),
+		}
+		if cached, ok := r.previewCache.Get(cacheKey); ok {
+			return cached, nil
+		}
+	}
+
 	// Always start with the cached error, if we have one.
 	ownerErr := r.ownerErrors[ownerID]
 	if ownerErr == nil {
@@ -258,7 +290,15 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		Logger: slog.New(slog.DiscardHandler),
 	}
 
-	return preview.Preview(ctx, input, r.templateFS)
+	output, diags := preview.Preview(ctx, input, r.templateFS)
+
+	// Cache successful results to avoid redundant computation.
+	// Errors are not cached to avoid caching transient failures.
+	if r.previewCache != nil && !diags.HasErrors() {
+		r.previewCache.Set(cacheKey, output)
+	}
+
+	return output, diags
 }
 
 func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uuid.UUID) error {

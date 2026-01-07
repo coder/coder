@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -45,6 +46,7 @@ type StoreReconciler struct {
 	cfg               codersdk.PrebuildsConfig
 	pubsub            pubsub.Pubsub
 	fileCache         *files.Cache
+	previewCache      *dynamicparameters.PreviewCache
 	logger            slog.Logger
 	clock             quartz.Clock
 	registerer        prometheus.Registerer
@@ -95,10 +97,16 @@ func NewStoreReconciler(store database.Store,
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 	tracerProvider trace.TracerProvider,
 ) *StoreReconciler {
+	var previewCache *dynamicparameters.PreviewCache
+	if cfg.TagCacheEnabled.Value() {
+		previewCache = dynamicparameters.NewPreviewCache()
+	}
+
 	reconciler := &StoreReconciler{
 		store:             store,
 		pubsub:            ps,
 		fileCache:         fileCache,
+		previewCache:      previewCache,
 		logger:            logger,
 		cfg:               cfg,
 		clock:             clock,
@@ -966,7 +974,8 @@ func (c *StoreReconciler) provision(
 	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
-		MarkPrebuild()
+		MarkPrebuild().
+		PreviewCache(c.previewCache)
 
 	if transition != database.WorkspaceTransitionDelete {
 		// We don't specify the version for a delete transition,

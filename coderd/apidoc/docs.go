@@ -16722,6 +16722,10 @@ const docTemplate = `{
                 "reconciliation_interval": {
                     "description": "ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.",
                     "type": "integer"
+                },
+                "tag_cache_enabled": {
+                    "description": "TagCacheEnabled enables caching of preview tag computations for prebuilds.\nThis reduces CPU usage during prebuild reconciliation but is disabled by default\nas tag expressions may contain dynamic elements.",
+                    "type": "boolean"
                 }
             }
         },

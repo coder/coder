@@ -3481,6 +3481,12 @@ export interface PrebuildsConfig {
 	 * FailureHardLimit is disabled when set to zero.
 	 */
 	readonly failure_hard_limit: number;
+	/**
+	 * TagCacheEnabled enables caching of preview tag computations for prebuilds.
+	 * This reduces CPU usage during prebuild reconciliation but is disabled by default
+	 * as tag expressions may contain dynamic elements.
+	 */
+	readonly tag_cache_enabled: boolean;
 }
 
 // From codersdk/prebuilds.go

@@ -576,7 +576,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "failure_hard_limit": 0,
       "reconciliation_backoff_interval": 0,
       "reconciliation_backoff_lookback": 0,
-      "reconciliation_interval": 0
+      "reconciliation_interval": 0,
+      "tag_cache_enabled": true
     },
     "write_config": true
   },

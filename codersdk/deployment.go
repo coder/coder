@@ -970,6 +970,11 @@ type PrebuildsConfig struct {
 	// no new prebuilds will be created until the limit is reset.
 	// FailureHardLimit is disabled when set to zero.
 	FailureHardLimit serpent.Int64 `json:"failure_hard_limit" typescript:"failure_hard_limit"`
+
+	// TagCacheEnabled enables caching of preview tag computations for prebuilds.
+	// This reduces CPU usage during prebuild reconciliation but is disabled by default
+	// as tag expressions may contain dynamic elements.
+	TagCacheEnabled serpent.Bool `json:"tag_cache_enabled" typescript:",notnull"`
 }
 
 const (
@@ -3301,6 +3306,17 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "3",
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "failure_hard_limit",
+			Hidden:      true,
+		},
+		{
+			Name:        "Tag Cache Enabled",
+			Description: "Enable caching of preview tag computations for prebuilds. Reduces CPU usage but may cache dynamic tag values.",
+			Flag:        "workspace-prebuilds-tag-cache-enabled",
+			Env:         "CODER_WORKSPACE_PREBUILDS_TAG_CACHE_ENABLED",
+			Value:       &c.Prebuilds.TagCacheEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "tag_cache_enabled",
 			Hidden:      true,
 		},
 		{

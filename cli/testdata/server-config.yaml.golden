@@ -728,6 +728,10 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
+  # Enable caching of preview tag computations for prebuilds. Reduces CPU usage but
+  # may cache dynamic tag values.
+  # (default: false, type: bool)
+  tag_cache_enabled: false
 aibridge:
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)

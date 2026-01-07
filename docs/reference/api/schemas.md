@@ -3036,7 +3036,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "failure_hard_limit": 0,
       "reconciliation_backoff_interval": 0,
       "reconciliation_backoff_lookback": 0,
-      "reconciliation_interval": 0
+      "reconciliation_interval": 0,
+      "tag_cache_enabled": true
     },
     "write_config": true
   },
@@ -3575,7 +3576,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "failure_hard_limit": 0,
     "reconciliation_backoff_interval": 0,
     "reconciliation_backoff_lookback": 0,
-    "reconciliation_interval": 0
+    "reconciliation_interval": 0,
+    "tag_cache_enabled": true
   },
   "write_config": true
 }
@@ -6132,7 +6134,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "failure_hard_limit": 0,
   "reconciliation_backoff_interval": 0,
   "reconciliation_backoff_lookback": 0,
-  "reconciliation_interval": 0
+  "reconciliation_interval": 0,
+  "tag_cache_enabled": true
 }
 ```
 
@@ -6144,6 +6147,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `reconciliation_backoff_interval` | integer | false    |              | Reconciliation backoff interval specifies the amount of time to increase the backoff interval when errors occur during reconciliation.                                                                                                                                                            |
 | `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy.                                                                                                                                   |
 | `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                                                                                                                                                     |
+| `tag_cache_enabled`               | boolean | false    |              | Tag cache enabled enables caching of preview tag computations for prebuilds. This reduces CPU usage during prebuild reconciliation but is disabled by default as tag expressions may contain dynamic elements.                                                                                    |
 
 ## codersdk.PrebuildsSettings
 

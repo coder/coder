@@ -66,9 +66,10 @@ type Builder struct {
 	templateVersionPresetID uuid.UUID
 
 	// used during build, makes function arguments less verbose
-	ctx       context.Context
-	store     database.Store
-	fileCache *files.CacheCloser
+	ctx          context.Context
+	store        database.Store
+	fileCache    *files.CacheCloser
+	previewCache *dynamicparameters.PreviewCache
 
 	// cache of objects, so we only fetch once
 	template                             *database.Template
@@ -250,6 +251,14 @@ func (b Builder) SetLastWorkspaceBuildJobInTx(job *database.ProvisionerJob) Buil
 func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
 	// nolint: revive
 	b.templateVersionPresetID = id
+	return b
+}
+
+// PreviewCache sets the cache for preview.Output results, reducing CPU usage
+// for repeated parameter rendering with the same inputs.
+func (b Builder) PreviewCache(cache *dynamicparameters.PreviewCache) Builder {
+	// nolint: revive
+	b.previewCache = cache
 	return b
 }
 
@@ -691,6 +700,7 @@ func (b *Builder) getDynamicParameterRenderer() (dynamicparameters.Renderer, err
 		dynamicparameters.WithProvisionerJob(*job),
 		dynamicparameters.WithTerraformValues(*tfVals),
 		dynamicparameters.WithTemplateVariableValues(variableValues),
+		dynamicparameters.WithPreviewCache(b.previewCache),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version renderer: %w", err)
