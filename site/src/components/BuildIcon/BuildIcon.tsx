@@ -1,5 +1,5 @@
 import type { WorkspaceTransition } from "api/typesGenerated";
-import { PauseIcon, PlayIcon, TrashIcon } from "lucide-react";
+import { PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
 type SVGIcon = typeof PlayIcon;
@@ -8,7 +8,7 @@ type SVGIconProps = ComponentProps<SVGIcon>;
 
 const iconByTransition: Record<WorkspaceTransition, SVGIcon> = {
 	start: PlayIcon,
-	stop: PauseIcon,
+	stop: SquareIcon,
 	delete: TrashIcon,
 };
 

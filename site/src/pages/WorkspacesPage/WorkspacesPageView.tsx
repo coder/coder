@@ -20,8 +20,8 @@ import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import {
 	ChevronDownIcon,
 	CloudIcon,
-	PauseIcon,
 	PlayIcon,
+	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
@@ -175,7 +175,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									}
 									onClick={onBatchStopTransition}
 								>
-									<PauseIcon /> Stop
+									<SquareIcon /> Stop
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>
