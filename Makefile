@@ -464,7 +464,7 @@ ifdef FILE
 	# Format single file
 	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.go ]] && ! grep -q "DO NOT EDIT" "$(FILE)"; then \
 		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET) $(FILE)"; \
-		go run mvdan.cc/gofumpt@v0.8.0 -w -l "$(FILE)"; \
+		./scripts/format_go_file.sh "$(FILE)"; \
 	fi
 else
 	go mod tidy
@@ -473,7 +473,7 @@ else
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
 		xargs -0 grep -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
-		xargs -0 go run mvdan.cc/gofumpt@v0.8.0 -w -l
+		xargs -0 ./scripts/format_go_file.sh
 endif
 .PHONY: fmt/go
 
