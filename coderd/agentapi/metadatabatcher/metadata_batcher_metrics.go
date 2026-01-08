@@ -6,16 +6,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type MetadataBatcherMetrics struct {
+type Metrics struct {
 	batchUtilization prometheus.Histogram
 	droppedKeysTotal prometheus.Counter
-	metadataTotal prometheus.Counter
+	metadataTotal    prometheus.Counter
 	batchesTotal     *prometheus.CounterVec
 	batchSize        prometheus.Histogram
 	flushDuration    *prometheus.HistogramVec
 }
 
-func NewMetadataBatcherMetrics() *MetadataBatcherMetrics {
+func NewMetrics() *Metrics {
 	// Native histogram configuration (matching provisionerdserver pattern).
 	nativeHistogramOpts := func(opts prometheus.HistogramOpts) prometheus.HistogramOpts {
 		opts.NativeHistogramBucketFactor = 1.1
@@ -26,7 +26,7 @@ func NewMetadataBatcherMetrics() *MetadataBatcherMetrics {
 		return opts
 	}
 
-	return &MetadataBatcherMetrics{
+	return &Metrics{
 		batchUtilization: prometheus.NewHistogram(nativeHistogramOpts(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "agentapi",
@@ -71,7 +71,7 @@ func NewMetadataBatcherMetrics() *MetadataBatcherMetrics {
 	}
 }
 
-func (m *MetadataBatcherMetrics) Collectors() []prometheus.Collector {
+func (m *Metrics) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		m.batchUtilization,
 		m.droppedKeysTotal,
@@ -82,7 +82,7 @@ func (m *MetadataBatcherMetrics) Collectors() []prometheus.Collector {
 	}
 }
 
-func (m * MetadataBatcherMetrics) register(reg prometheus.Registerer) {
+func (m *Metrics) register(reg prometheus.Registerer) {
 	if reg != nil {
 		reg.MustRegister(m.batchUtilization)
 		reg.MustRegister(m.droppedKeysTotal)

@@ -582,7 +582,6 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 	}
 
 	// Verify no flush has occurred yet
-	ctx = testutil.Context(t, testutil.WaitShort)
 	require.Equal(t, float64(0), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity)))
 
 	// Add one more entry to reach capacity - this should trigger automatic flush

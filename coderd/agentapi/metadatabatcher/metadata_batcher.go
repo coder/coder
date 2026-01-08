@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
@@ -52,12 +52,12 @@ const (
 
 	// Channel to publish batch metadata updates to, each update contains a list of all Agent IDs that have an update in
 	// the most recent batch
-	metadataBatchPubsubChannel = "workspace_agent_metadata_batch"
+	MetadataBatchPubsubChannel = "workspace_agent_metadata_batch"
 
 	// flush reasons
 	flushCapacity = "capacity"
-	flushTicker = "scheduled"
-	flushExit = "shutdown"
+	flushTicker   = "scheduled"
+	flushExit     = "shutdown"
 )
 
 // WorkspaceAgentMetadataBatchPayload is published to the batched metadata
@@ -115,7 +115,7 @@ type MetadataBatcher struct {
 	ctx context.Context
 
 	// metrics collects Prometheus metrics for the batcher.
-	metrics *MetadataBatcherMetrics
+	metrics *Metrics
 }
 
 // Option is a functional option for configuring a MetadataBatcher.
@@ -146,11 +146,11 @@ func WithClock(clock quartz.Clock) Option {
 }
 
 // NewMetadataBatcher creates a new MetadataBatcher and starts it.
-func NewMetadataBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store,  ps pubsub.Pubsub, opts ...Option) (*MetadataBatcher, func(), error) {
+func NewMetadataBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store, ps pubsub.Pubsub, opts ...Option) (*MetadataBatcher, func(), error) {
 	b := &MetadataBatcher{
-		store: store,
-		ps:    ps,
-		metrics: NewMetadataBatcherMetrics(),
+		store:   store,
+		ps:      ps,
+		metrics: NewMetrics(),
 	}
 	b.log = slog.Logger{}
 	b.clock = quartz.NewReal()
@@ -372,17 +372,11 @@ func (b *MetadataBatcher) flush(ctx context.Context, reason string) (int, error)
 	if err != nil {
 		if database.IsQueryCanceledError(err) {
 			b.log.Debug(ctx, "query canceled, skipping update of workspace agent metadata", slog.F("elapsed", elapsed))
-			// if b.metrics != nil {
-			// 	b.metrics.batchesTotal.WithLabelValues(reason).Inc()
-			// }
 			// Clear batch since we're not retrying
 			b.batch = make(map[compositeKey]metadataValue)
 			return 0, err
 		}
 		b.log.Error(ctx, "error updating workspace agent metadata", slog.Error(err), slog.F("elapsed", elapsed))
-		// if b.metrics != nil {
-		// 	b.metrics.batchesTotal.WithLabelValues(reason).Inc()
-		// }
 		// Clear batch - we don't retry on errors
 		b.batch = make(map[compositeKey]metadataValue)
 		return 0, err
@@ -489,7 +483,7 @@ func (b *MetadataBatcher) publishAgentIDsInChunks(ctx context.Context, agentIDs 
 			)
 		}
 
-		err = b.ps.Publish(metadataBatchPubsubChannel, payload)
+		err = b.ps.Publish(MetadataBatchPubsubChannel, payload)
 		if err != nil {
 			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
 				slog.Error(err),
