@@ -3,15 +3,15 @@ package agentapi
 import (
 	"context"
 	"fmt"
-	// "sync"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -62,7 +62,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// Then: no metadata should be updated (flush() returns 0)
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 	t.Log("flush 1 completed (expected 0 entries)")
-	require.Equal(t, float64(0),	prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
+	require.Equal(t, float64(0), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
 
 	// Given: a single metadata update is added for agent1
 	t2 := clock.Now()
@@ -72,13 +72,15 @@ func TestMetadataBatcher(t *testing.T) {
 	// When: it becomes time to flush
 	// Then: agent1's metadata should be updated (verified by mock expectations)
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
-	time.Sleep(100*time.Millisecond)
 	t.Log("flush 2 completed (expected 2 entries)")
 	ctx = testutil.Context(t, testutil.WaitLong)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool { 
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		val := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		// Check that we've had 1 scheduled flush and 2 metadata entries flushed
+		return float64(1) == val && totalMeta >= float64(2)
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(2),	prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(2), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
 	// Given: metadata updates are added for multiple agents
 	t3 := clock.Now()
@@ -91,11 +93,15 @@ func TestMetadataBatcher(t *testing.T) {
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 	t.Log("flush 3 completed (expected 5 new entries)")
 	ctx = testutil.Context(t, testutil.WaitLong)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool { 
-		fmt.Println("val", prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
-		return float64(2) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
-		}, testutil.IntervalFast)
-	require.Equal(t, float64(7),	prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		val := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		fmt.Printf("val=%v, totalMeta=%v\n", val, totalMeta)
+		// Check that we've had 2 scheduled flushes and that the total metadata count is at least 7
+		// We use Eventually because the flush might not complete immediately after clock advance
+		return float64(2) == val && totalMeta >= float64(7)
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(7), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
 	// Given: a lot of agents are added (to trigger flush at capacity)
 	t4 := clock.Now()
@@ -118,11 +124,11 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("flush 4 completed (capacity flush, expected", defaultMetadataBatchSize, "entries)")
 	t.Log("flush 5 completed (expected 0 entries)")
 	ctx = testutil.Context(t, testutil.WaitLong)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool { 
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		fmt.Println("val", prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
 		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
-		}, testutil.IntervalFast)
-	require.Equal(t, float64(507),	prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(507), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
@@ -154,8 +160,9 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
+	reg := prometheus.NewRegistry()
 	// Create batcher with very small capacity
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(2),
 		MetadataBatcherWithClock(clock),
@@ -170,16 +177,23 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	require.NoError(t, b.Add(agent2, []string{"key1"}, []string{"value2"}, []string{""}, []time.Time{t1}))
 
 	// Buffer should now trigger automatic flush at capacity
-	// Give the flush a moment to complete (it happens asynchronously in run() goroutine)
-	time.Sleep(10 * time.Millisecond)
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(2), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
 	// Try to add another update - buffer is now empty but we'll fill it again
 	t2 := clock.Now()
 	require.NoError(t, b.Add(agent1, []string{"key2"}, []string{"value3"}, []string{""}, []time.Time{t2}))
 	require.NoError(t, b.Add(agent2, []string{"key2"}, []string{"value4"}, []string{""}, []time.Time{t2}))
 
-	// Give the second automatic flush a moment to complete
-	time.Sleep(10 * time.Millisecond)
+	// Wait for the second automatic flush
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return float64(2) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(4), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
@@ -208,7 +222,8 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	reg := prometheus.NewRegistry()
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 	)
@@ -221,12 +236,19 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"first_value"}, []string{""}, []time.Time{t1}))
 
 	// Add second update for same agent+key (should deduplicate)
-	clock.Advance(time.Millisecond)
+	clock.Advance(time.Millisecond).MustWait(ctx)
 	t2 := clock.Now()
 	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"second_value"}, []string{""}, []time.Time{t2}))
 
 	// Flush - advance the remaining time to hit the flush interval
 	clock.Advance(defaultMetadataFlushInterval - time.Millisecond).MustWait(ctx)
+
+	// Verify deduplication - only 1 entry should be flushed
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(1), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
@@ -255,7 +277,8 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	reg := prometheus.NewRegistry()
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 	)
@@ -267,13 +290,20 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 	// Add updates with some duplicate keys and some unique keys
 	require.NoError(t, b.Add(agent, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t1, t1}))
 
-	clock.Advance(time.Millisecond)
+	clock.Advance(time.Millisecond).MustWait(ctx)
 	t2 := clock.Now()
 	// Update key1, add key3 - key2 stays from first update
 	require.NoError(t, b.Add(agent, []string{"key1", "key3"}, []string{"new_value1", "value3"}, []string{"", ""}, []time.Time{t2, t2}))
 
 	// Flush - advance the remaining time to hit the flush interval
 	clock.Advance(defaultMetadataFlushInterval - time.Millisecond).MustWait(ctx)
+
+	// Verify deduplication - 3 unique keys (key1 deduplicated, key2 and key3 unique)
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(3), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
@@ -302,7 +332,8 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	reg := prometheus.NewRegistry()
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 	)
@@ -310,9 +341,9 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	t.Cleanup(closer)
 
 	t1 := clock.Now()
-	clock.Advance(time.Second)
+	clock.Advance(time.Second).MustWait(ctx)
 	t2 := clock.Now()
-	clock.Advance(time.Second)
+	clock.Advance(time.Second).MustWait(ctx)
 	t3 := clock.Now()
 
 	// Add update with t2 timestamp
@@ -327,6 +358,13 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	// Flush and verify entry was sent - advance the remaining time to hit the flush interval
 	// We already advanced by 2 seconds, so we need to advance by 3 more seconds to reach the 5s flush interval
 	clock.Advance(defaultMetadataFlushInterval - 2*time.Second).MustWait(ctx)
+
+	// Verify only 1 entry was flushed (newest timestamp wins)
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(1), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_PubsubChunking(t *testing.T) {
@@ -352,7 +390,8 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	reg := prometheus.NewRegistry()
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 	)
@@ -376,9 +415,16 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// Flush and verify all updates were processed
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 
-	// Verify that the pubsub messages were sent (we can't easily verify
-	// they were chunked without mocking pubsub, but we can verify no errors
-	// occurred during the flush, which would indicate chunking worked)
+	// Verify that all metadata was flushed successfully
+	// Use Eventually to handle async flush completion
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		val := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		// Check that we've had 1 scheduled flush and all metadata was flushed
+		return float64(1) == val && totalMeta >= float64(numAgents)
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(numAgents), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
@@ -402,7 +448,8 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	reg := prometheus.NewRegistry()
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithClock(clock),
 	)
@@ -416,7 +463,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	// Pre-calculate timestamps using clock advances
 	timestamps := make([]time.Time, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
-		clock.Advance(time.Millisecond)
+		clock.Advance(time.Millisecond).MustWait(ctx)
 		timestamps[i] = clock.Now()
 	}
 
@@ -442,6 +489,13 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	// We advanced the clock by numGoroutines milliseconds above, so advance by the remaining time
 	remainingTime := defaultMetadataFlushInterval - time.Duration(numGoroutines)*time.Millisecond
 	clock.Advance(remainingTime).MustWait(ctx)
+
+	// Verify exactly 3 unique keys were flushed
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(3), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
 
 func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
@@ -466,7 +520,8 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 		AnyTimes()
 
 	batchSize := 100
-	b, closer, err := NewMetadataBatcher(ctx, store, ps,
+	reg := prometheus.NewRegistry()
+	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
 		MetadataBatcherWithLogger(log),
 		MetadataBatcherWithBatchSize(batchSize),
 		MetadataBatcherWithClock(clock),
@@ -484,14 +539,19 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 		require.NoError(t, b.Add(agentID, []string{key}, []string{value}, []string{""}, []time.Time{t1}))
 	}
 
-	// Verify no flush has occurred yet (give it a moment for any potential flush)
-	time.Sleep(10 * time.Millisecond)
+	// Verify no flush has occurred yet
+	ctx = testutil.Context(t, testutil.WaitShort)
+	require.Equal(t, float64(0), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity)))
 
 	// Add one more entry to reach capacity - this should trigger automatic flush
 	require.NoError(t, b.Add(agentID, []string{"key_at_capacity"}, []string{"value_at_capacity"}, []string{""}, []time.Time{t1}))
 
-	// Give the automatic flush a moment to complete
-	time.Sleep(10 * time.Millisecond)
+	// Wait for automatic flush
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
+	}, testutil.IntervalFast)
+	require.Equal(t, float64(batchSize), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
 	// Verify we can add new entries after automatic flush
 	require.NoError(t, b.Add(agentID, []string{"key_after_flush"}, []string{"value_after_flush"}, []string{""}, []time.Time{t1}))
