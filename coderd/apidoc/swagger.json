@@ -3332,6 +3332,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -3436,6 +3437,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
