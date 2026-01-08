@@ -12,8 +12,8 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -228,7 +228,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	// If a task was requested, ensure it exists and is associated with this
 	// workspace.
 	if b.taskAppID != uuid.Nil {
-		b.logger.Debug(context.Background(), "creating or updating task", "task_id", b.taskSeed.ID)
+		b.logger.Debug(context.Background(), "creating or updating task", slog.F("task_id", b.taskSeed.ID))
 		b.taskSeed.OrganizationID = takeFirst(b.taskSeed.OrganizationID, b.ws.OrganizationID)
 		b.taskSeed.OwnerID = takeFirst(b.taskSeed.OwnerID, b.ws.OwnerID)
 		b.taskSeed.Name = takeFirst(b.taskSeed.Name, b.ws.Name)
@@ -238,7 +238,9 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// Try to fetch existing task and update its workspace ID.
 		if task, err := b.db.GetTaskByID(ownerCtx, b.taskSeed.ID); err == nil {
 			if !task.WorkspaceID.Valid {
-				b.logger.Info(context.Background(), "updating task workspace id", "task_id", b.taskSeed.ID, "workspace_id", b.ws.ID)
+				b.logger.Info(context.Background(), "updating task workspace id",
+					slog.F("task_id", b.taskSeed.ID),
+					slog.F("workspace_id", b.ws.ID))
 				_, err = b.db.UpdateTaskWorkspaceID(ownerCtx, database.UpdateTaskWorkspaceIDParams{
 					ID:          b.taskSeed.ID,
 					WorkspaceID: uuid.NullUUID{UUID: b.ws.ID, Valid: true},
@@ -250,7 +252,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		} else if errors.Is(err, sql.ErrNoRows) {
 			task := dbgen.Task(b.t, b.db, b.taskSeed)
 			b.taskSeed.ID = task.ID
-			b.logger.Info(context.Background(), "created new task", "task_id", b.taskSeed.ID)
+			b.logger.Info(context.Background(), "created new task", slog.F("task_id", b.taskSeed.ID))
 		} else {
 			require.NoError(b.t, err, "get task by id")
 		}

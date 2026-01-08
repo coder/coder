@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"

@@ -7,7 +7,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 type cspViolation struct {
@@ -39,7 +39,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	fields := make([]any, 0, len(v.Report))
+	fields := make([]slog.Field, 0, len(v.Report))
 	for k, v := range v.Report {
 		fields = append(fields, slog.F(k, v))
 	}

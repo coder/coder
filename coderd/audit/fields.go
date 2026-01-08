@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 type BackgroundSubsystem string

@@ -24,7 +24,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // NOTE: This is duplicated from coderd but we can't import it here without

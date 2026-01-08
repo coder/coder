@@ -12,7 +12,8 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 	"tailscale.com/types/ptr"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"

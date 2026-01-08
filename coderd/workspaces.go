@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -717,7 +717,7 @@ func createWorkspace(
 			if err != nil {
 				isExpectedError := errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) ||
 					errors.Is(err, prebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces)
-				fields := []any{
+				fields := []slog.Field{
 					slog.Error(err),
 					slog.F("workspace_name", req.Name),
 					slog.F("template_version_preset_id", templateVersionPresetID),

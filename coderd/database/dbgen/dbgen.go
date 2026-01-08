@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"

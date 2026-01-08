@@ -19,7 +19,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	strings2 "github.com/coder/coder/v2/coderd/util/strings"
 
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -1173,7 +1174,7 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 }
 
 // logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
-func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...any) {
+func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...slog.Field) {
 	switch logLevel {
 	case sdkproto.LogLevel_TRACE:
 		r.logger.Debug(ctx, msg, fields...) // There's no trace, so we'll just use debug.

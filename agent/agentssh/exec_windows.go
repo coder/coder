@@ -5,7 +5,7 @@ import (
 	"os"
 	"syscall"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 func cmdSysProcAttr() *syscall.SysProcAttr {

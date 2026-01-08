@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 
 	"golang.org/x/xerrors"
 )

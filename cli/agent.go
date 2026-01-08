@@ -21,10 +21,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogjson"
-	"cdr.dev/slog/sloggers/slogstackdriver"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"cdr.dev/slog/v3/sloggers/slogjson"
+	"cdr.dev/slog/v3/sloggers/slogstackdriver"
+
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/agent"

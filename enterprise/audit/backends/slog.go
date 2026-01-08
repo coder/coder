@@ -7,7 +7,8 @@ import (
 	"github.com/fatih/structs"
 	"github.com/sqlc-dev/pqtype"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/enterprise/audit"
 )
@@ -26,14 +27,12 @@ func (e *SlogExporter) ExportStruct(ctx context.Context, data any, message strin
 	// pleasantly format the output. For example, the clean result of
 	// (*NullString).Value() may be printed instead of {String: "foo", Valid: true}.
 	sfs := structs.Fields(data)
-	var fields []any
+	var fields []slog.Field
 	for _, sf := range sfs {
 		fields = append(fields, e.fieldToSlog(sf))
 	}
 
-	for _, field := range extraFields {
-		fields = append(fields, field)
-	}
+	fields = append(fields, extraFields...)
 
 	e.log.Info(ctx, message, fields...)
 	return nil

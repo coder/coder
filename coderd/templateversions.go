@@ -21,7 +21,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	archivefs "github.com/coder/coder/v2/archive/fs"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/preview"

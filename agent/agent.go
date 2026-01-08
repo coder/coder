@@ -36,7 +36,8 @@ import (
 	"tailscale.com/types/netlogtype"
 	"tailscale.com/util/clientmetric"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"

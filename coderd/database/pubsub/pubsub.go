@@ -17,7 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // Listener represents a pubsub handler.

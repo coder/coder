@@ -41,7 +41,8 @@ import (
 	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -1004,7 +1005,7 @@ func (a addr) String() string  { return a.ln.addr }
 // Logger converts the Tailscale logging function to use a slog-compatible
 // logger.
 func Logger(logger interface {
-	Debug(ctx context.Context, str string, args ...any)
+	Debug(ctx context.Context, str string, fields ...slog.Field)
 },
 ) tslogger.Logf {
 	return tslogger.Logf(func(format string, args ...any) {

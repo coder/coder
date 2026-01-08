@@ -6,7 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 type Metrics struct {
@@ -137,12 +137,12 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 	buildTime float64,
 ) {
 	m.logger.Debug(ctx, "update workspace timings metrics",
-		"organizationName", organizationName,
-		"templateName", templateName,
-		"presetName", presetName,
-		"isPrebuild", flags.IsPrebuild,
-		"isClaim", flags.IsClaim,
-		"isWorkspaceFirstBuild", flags.IsFirstBuild)
+		slog.F("organization_name", organizationName),
+		slog.F("template_name", templateName),
+		slog.F("preset_name", presetName),
+		slog.F("is_prebuild", flags.IsPrebuild),
+		slog.F("is_claim", flags.IsClaim),
+		slog.F("is_workspace_first_build", flags.IsFirstBuild))
 
 	workspaceTimingType := getWorkspaceTimingType(flags)
 	switch workspaceTimingType {

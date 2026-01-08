@@ -54,8 +54,9 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"

@@ -20,7 +20,7 @@ import (
 	smtpmocklib "github.com/mocktools/go-smtp-mock/v2"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // Server wraps the SMTP mock server and provides an HTTP API to retrieve emails.

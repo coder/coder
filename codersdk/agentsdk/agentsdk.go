@@ -17,7 +17,8 @@ import (
 	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/retry"
 	"github.com/coder/websocket"
 
