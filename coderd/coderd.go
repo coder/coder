@@ -44,7 +44,7 @@ import (
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -792,17 +792,12 @@ func New(options *Options) *API {
 	// Only enable if the experiment is turned on.
 	metadataBatcherCloser := func() {}
 	if experiments.Enabled(codersdk.ExperimentMetadataBatching) {
-		metadataBatcherMetrics := agentapi.NewMetadataBatcherMetrics()
-		for _, collector := range metadataBatcherMetrics.Collectors() {
-			options.PrometheusRegistry.MustRegister(collector)
-		}
-
-		api.metadataBatcher, metadataBatcherCloser, err = agentapi.NewMetadataBatcher(
+		api.metadataBatcher, metadataBatcherCloser, err = metadatabatcher.NewMetadataBatcher(
 			api.ctx,
-			agentapi.MetadataBatcherWithStore(options.Database),
-			agentapi.MetadataBatcherWithPubsub(options.Pubsub),
-			agentapi.MetadataBatcherWithLogger(options.Logger.Named("metadata_batcher")),
-			agentapi.MetadataBatcherWithMetrics(metadataBatcherMetrics),
+			options.PrometheusRegistry,
+			options.Database,
+			options.Pubsub,
+			metadatabatcher.WithLogger(options.Logger.Named("metadata_batcher")),
 		)
 		if err != nil {
 			api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
@@ -1891,7 +1886,7 @@ type API struct {
 	healthCheckProgress healthcheck.Progress
 
 	statsReporter         *workspacestats.Reporter
-	metadataBatcher       *agentapi.MetadataBatcher
+	metadataBatcher       *metadatabatcher.MetadataBatcher
 	metadataBatcherCloser func()
 
 	Acquirer *provisionerdserver.Acquirer

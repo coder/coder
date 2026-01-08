@@ -25,6 +25,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -1739,12 +1740,12 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 	// Also subscribe to the global batched metadata channel.
 	// The batcher publishes only to this channel to achieve O(1) NOTIFY scaling.
-	cancelBatchSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataBatchChannel(), func(_ context.Context, byt []byte) {
+	cancelBatchSub, err := api.Pubsub.Subscribe(metadatabatcher.MetadataBatchPubsubChannel, func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
 			return
 		}
 
-		var batchPayload agentapi.WorkspaceAgentMetadataBatchPayload
+		var batchPayload metadatabatcher.WorkspaceAgentMetadataBatchPayload
 		err := json.Unmarshal(byt, &batchPayload)
 		if err != nil {
 			log.Error(ctx, "failed to unmarshal batched pubsub message", slog.Error(err))
