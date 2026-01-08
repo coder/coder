@@ -96,7 +96,7 @@ The choice of jail type depends on your security requirements, available Linux c
 
 ## Implementation Comparison: Namespaces+iptables vs Landlock V4
 
-| Aspect                        | Current: Namespaces + veth-pair + iptables                                        | Proposed: Landlock V4                                                   |
+| Aspect                        | Namespace Jail (Namespaces + veth-pair + iptables)                                | Landlock V4 Jail                                                        |
 |-------------------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | **Privileges**                | Requires `CAP_NET_ADMIN`                                                          | ✅ No special capabilities required                                      |
 | **Docker seccomp**            | ❌ Requires seccomp profile modifications or sysbox-runc                           | ✅ Works without seccomp changes                                         |
