@@ -5,17 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	stdslog "log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	aiagentapi "github.com/coder/agentapi-sdk-go"
+	"github.com/coder/acp-go-sdk"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -28,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
 )
 
 // @Summary Create a new AI task
@@ -739,37 +743,21 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
-		if err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to create agentapi client.",
-				Detail:  err.Error(),
-			})
-		}
-
-		statusResp, err := agentAPIClient.GetStatus(ctx)
-		if err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to get status from task app.",
-				Detail:  err.Error(),
-			})
-		}
-
-		if statusResp.Status != aiagentapi.StatusStable {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Task app is not ready to accept input.",
-				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
-			})
-		}
-
-		_, err = agentAPIClient.PostMessage(ctx, aiagentapi.PostMessageParams{
-			Content: req.Input,
-			Type:    aiagentapi.MessageTypeUser,
+	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, sess acp.NewSessionResponse, csc *acp.ClientSideConnection, client *tasksACPClient) error {
+		// Send prompt to ACP session.
+		_, err := csc.Prompt(ctx, acp.PromptRequest{
+			SessionId: sess.SessionId,
+			Prompt:    []acp.ContentBlock{acp.TextBlock(req.Input)},
 		})
 		if err != nil {
+			if re, ok := err.(*acp.RequestError); ok {
+				return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+					Message: "Task app rejected the prompt.",
+					Detail:  re.Message,
+				})
+			}
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Task app rejected the message.",
+				Message: "Failed to send prompt to task app.",
 				Detail:  err.Error(),
 			})
 		}
@@ -797,44 +785,41 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	task := httpmw.TaskParam(r)
 
 	var out codersdk.TaskLogsResponse
-	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
-		if err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to create agentapi client.",
-				Detail:  err.Error(),
-			})
-		}
+	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, sess acp.NewSessionResponse, csc *acp.ClientSideConnection, client *tasksACPClient) error {
+		// Collect session updates accumulated in the client.
+		updates := client.getUpdates()
 
-		messagesResp, err := agentAPIClient.GetMessages(ctx)
-		if err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to get messages from task app.",
-				Detail:  err.Error(),
-			})
-		}
+		logs := make([]codersdk.TaskLogEntry, 0)
+		logID := 0
 
-		logs := make([]codersdk.TaskLogEntry, 0, len(messagesResp.Messages))
-		for _, m := range messagesResp.Messages {
-			var typ codersdk.TaskLogType
-			switch m.Role {
-			case aiagentapi.RoleUser:
-				typ = codersdk.TaskLogTypeInput
-			case aiagentapi.RoleAgent:
-				typ = codersdk.TaskLogTypeOutput
-			default:
-				return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-					Message: "Invalid task app response message role.",
-					Detail:  fmt.Sprintf(`Expected "user" or "agent", got %q.`, m.Role),
-				})
+		// Convert ACP SessionUpdate notifications to TaskLogEntry format.
+		for _, update := range updates {
+			switch {
+			case update.AgentMessageChunk != nil:
+				content := update.AgentMessageChunk.Content
+				if content.Text != nil && content.Text.Text != "" {
+					logs = append(logs, codersdk.TaskLogEntry{
+						ID:      logID,
+						Content: content.Text.Text,
+						Type:    codersdk.TaskLogTypeOutput,
+						Time:    time.Now(), // Use current time for POC.
+					})
+					logID++
+				}
+			case update.UserMessageChunk != nil:
+				content := update.UserMessageChunk.Content
+				if content.Text != nil && content.Text.Text != "" {
+					logs = append(logs, codersdk.TaskLogEntry{
+						ID:      logID,
+						Content: content.Text.Text,
+						Type:    codersdk.TaskLogTypeInput,
+						Time:    time.Now(), // Use current time for POC.
+					})
+					logID++
+				}
 			}
-			logs = append(logs, codersdk.TaskLogEntry{
-				ID:      int(m.Id),
-				Content: m.Content,
-				Type:    typ,
-				Time:    m.Time,
-			})
 		}
+
 		out = codersdk.TaskLogsResponse{Logs: logs}
 		return nil
 	}); err != nil {
@@ -850,14 +835,14 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 //   - Fetch the task workspace
 //   - Authorize ApplicationConnect on the workspace
 //   - Validate the AI task and task app health
-//   - Dial the agent and construct an HTTP client to the apps loopback URL
+//   - Dial the agent and establish ACP WebSocket connection
 //
-// The provided callback receives the context, an HTTP client that dials via the
-// agent, and the base app URL (as a value URL) to perform any request.
+// The provided callback receives the context, an ACP session, and the client
+// to perform any ACP request.
 func (api *API) authAndDoWithTaskAppClient(
 	r *http.Request,
 	task database.Task,
-	do func(ctx context.Context, client *http.Client, appURL *url.URL) error,
+	do func(ctx context.Context, sess acp.NewSessionResponse, csc *acp.ClientSideConnection, client *tasksACPClient) error,
 ) error {
 	ctx := r.Context()
 
@@ -910,7 +895,7 @@ func (api *API) authAndDoWithTaskAppClient(
 		}
 	}
 
-	// Build the direct app URL and dial the agent.
+	// Build the WebSocket URL for the ACP server.
 	appURL := app.Url.String
 	if appURL == "" {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
@@ -924,9 +909,14 @@ func (api *API) authAndDoWithTaskAppClient(
 			Detail:  err.Error(),
 		})
 	}
-	if parsedURL.Scheme != "http" {
+	// Convert http to ws scheme for WebSocket connection.
+	if parsedURL.Scheme == "http" {
+		parsedURL.Scheme = "ws"
+	} else if parsedURL.Scheme == "https" {
+		parsedURL.Scheme = "wss"
+	} else {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Only http scheme is supported for direct agent-dial.",
+			Message: "Invalid URL scheme for ACP connection.",
 		})
 	}
 
@@ -941,12 +931,141 @@ func (api *API) authAndDoWithTaskAppClient(
 	}
 	defer release()
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return agentConn.DialContext(ctx, network, addr)
+	// Establish WebSocket connection over the agent connection.
+	wsConn, _, err := websocket.Dial(ctx, parsedURL.String(), &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return agentConn.DialContext(ctx, network, addr)
+				},
 			},
 		},
+	})
+	if err != nil {
+		return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to establish WebSocket connection to task app.",
+			Detail:  err.Error(),
+		})
 	}
-	return do(ctx, client, parsedURL)
+	defer wsConn.Close(websocket.StatusNormalClosure, "closing connection")
+
+	// Create ACP connection wrapper.
+	_, wnc := codersdk.WebsocketNetConn(ctx, wsConn, websocket.MessageText)
+	defer wnc.Close()
+
+	// Create ACP client.
+	client := &tasksACPClient{}
+	csc := acp.NewClientSideConnection(client, wnc, wnc)
+	csc.SetLogger(stdslog.Default())
+
+	// Initialize ACP connection.
+	initResp, err := csc.Initialize(ctx, acp.InitializeRequest{
+		ProtocolVersion: acp.ProtocolVersionNumber,
+		ClientCapabilities: acp.ClientCapabilities{
+			Fs: acp.FileSystemCapability{
+				ReadTextFile:  false,
+				WriteTextFile: false,
+			},
+			Terminal: false,
+		},
+		ClientInfo: &acp.Implementation{
+			Name:    "coder-tasks",
+			Version: buildinfo.Version(),
+		},
+	})
+	if err != nil {
+		return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to initialize ACP connection.",
+			Detail:  err.Error(),
+		})
+	}
+	_ = initResp // Unused for POC.
+
+	// Create ACP session.
+	sess, err := csc.NewSession(ctx, acp.NewSessionRequest{
+		Cwd:        ".",
+		McpServers: []acp.McpServer{},
+	})
+	if err != nil {
+		if re, ok := err.(*acp.RequestError); ok {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to create ACP session.",
+				Detail:  re.Message,
+			})
+		}
+		return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to create ACP session.",
+			Detail:  err.Error(),
+		})
+	}
+
+	return do(ctx, sess, csc, client)
+}
+
+// tasksACPClient implements the acp.Client interface for task interactions.
+type tasksACPClient struct {
+	mu      sync.Mutex
+	updates []acp.SessionUpdate
+}
+
+var _ acp.Client = (*tasksACPClient)(nil)
+
+func (c *tasksACPClient) RequestPermission(ctx context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+	// For POC, auto-approve all permissions.
+	if len(req.Options) == 0 {
+		return acp.RequestPermissionResponse{
+			Outcome: acp.RequestPermissionOutcome{
+				Cancelled: &acp.RequestPermissionOutcomeCancelled{},
+			},
+		}, nil
+	}
+	return acp.RequestPermissionResponse{
+		Outcome: acp.RequestPermissionOutcome{
+			Selected: &acp.RequestPermissionOutcomeSelected{
+				OptionId: req.Options[0].OptionId,
+			},
+		},
+	}, nil
+}
+
+func (c *tasksACPClient) SessionUpdate(ctx context.Context, req acp.SessionNotification) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.updates = append(c.updates, req.Update)
+	return nil
+}
+
+func (c *tasksACPClient) getUpdates() []acp.SessionUpdate {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]acp.SessionUpdate{}, c.updates...)
+}
+
+// Stub implementations for required methods.
+func (c *tasksACPClient) ReadTextFile(ctx context.Context, req acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
+	return acp.ReadTextFileResponse{}, xerrors.New("not implemented")
+}
+
+func (c *tasksACPClient) WriteTextFile(ctx context.Context, req acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
+	return acp.WriteTextFileResponse{}, xerrors.New("not implemented")
+}
+
+func (c *tasksACPClient) CreateTerminal(ctx context.Context, req acp.CreateTerminalRequest) (acp.CreateTerminalResponse, error) {
+	return acp.CreateTerminalResponse{}, xerrors.New("not implemented")
+}
+
+func (c *tasksACPClient) KillTerminalCommand(ctx context.Context, req acp.KillTerminalCommandRequest) (acp.KillTerminalCommandResponse, error) {
+	return acp.KillTerminalCommandResponse{}, xerrors.New("not implemented")
+}
+
+func (c *tasksACPClient) TerminalOutput(ctx context.Context, req acp.TerminalOutputRequest) (acp.TerminalOutputResponse, error) {
+	return acp.TerminalOutputResponse{}, xerrors.New("not implemented")
+}
+
+func (c *tasksACPClient) ReleaseTerminal(ctx context.Context, req acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {
+	return acp.ReleaseTerminalResponse{}, xerrors.New("not implemented")
+}
+
+func (c *tasksACPClient) WaitForTerminalExit(ctx context.Context, req acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
+	return acp.WaitForTerminalExitResponse{}, xerrors.New("not implemented")
 }
