@@ -21,17 +21,15 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	archivefs "github.com/coder/coder/v2/archive/fs"
-	"github.com/coder/coder/v2/coderd/dynamicparameters"
-	"github.com/coder/preview"
-
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -44,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/preview"
 )
 
 // @Summary Get template version by ID

@@ -462,18 +462,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value       |
-|--------------|-------------|
-| `login_type` | ``          |
-| `login_type` | `password`  |
-| `login_type` | `github`    |
-| `login_type` | `oidc`      |
-| `login_type` | `token`     |
-| `login_type` | `none`      |
-| `status`     | `active`    |
-| `status`     | `suspended` |
-| `source`     | `user`      |
-| `source`     | `oidc`      |
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
+| `source`     | `oidc`, `user`                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -724,6 +717,93 @@ Status Code **200**
 | `» id`          | integer           | false    |              |                                                                                                                                                                                                         |
 | `» uploaded_at` | string(date-time) | false    |              |                                                                                                                                                                                                         |
 | `» uuid`        | string(uuid)      | false    |              |                                                                                                                                                                                                         |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Add new license
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/licenses \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /licenses`
+
+> Body parameter
+
+```json
+{
+  "license": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                               | Required | Description         |
+|--------|------|--------------------------------------------------------------------|----------|---------------------|
+| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | Add license request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "claims": {},
+  "id": 0,
+  "uploaded_at": "2019-08-24T14:15:22Z",
+  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                         |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update license entitlements
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /licenses/refresh-entitlements`
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                           |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1185,9 +1265,9 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&st
 
 #### Enumerated Values
 
-| Parameter       | Value  |
-|-----------------|--------|
-| `response_type` | `code` |
+| Parameter       | Value(s) |
+|-----------------|----------|
+| `response_type` | `code`   |
 
 ### Responses
 
@@ -1221,9 +1301,9 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&s
 
 #### Enumerated Values
 
-| Parameter       | Value  |
-|-----------------|--------|
-| `response_type` | `code` |
+| Parameter       | Value(s) |
+|-----------------|----------|
+| `response_type` | `code`   |
 
 ### Responses
 
@@ -1582,10 +1662,9 @@ grant_type: authorization_code
 
 #### Enumerated Values
 
-| Parameter      | Value                |
-|----------------|----------------------|
-| `» grant_type` | `authorization_code` |
-| `» grant_type` | `refresh_token`      |
+| Parameter      | Value(s)                              |
+|----------------|---------------------------------------|
+| `» grant_type` | `authorization_code`, `refresh_token` |
 
 ### Example responses
 
@@ -1726,18 +1805,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value       |
-|--------------|-------------|
-| `login_type` | ``          |
-| `login_type` | `password`  |
-| `login_type` | `github`    |
-| `login_type` | `oidc`      |
-| `login_type` | `token`     |
-| `login_type` | `none`      |
-| `status`     | `active`    |
-| `status`     | `suspended` |
-| `source`     | `user`      |
-| `source`     | `oidc`      |
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
+| `source`     | `oidc`, `user`                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2158,17 +2230,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value       |
-|----------|-------------|
-| `status` | `pending`   |
-| `status` | `running`   |
-| `status` | `succeeded` |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `failed`    |
-| `status` | `offline`   |
-| `status` | `idle`      |
-| `status` | `busy`      |
+| Property | Value(s)                                                                                        |
+|----------|-------------------------------------------------------------------------------------------------|
+| `status` | `busy`, `canceled`, `canceling`, `failed`, `idle`, `offline`, `pending`, `running`, `succeeded` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3773,18 +3837,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value       |
-|--------------|-------------|
-| `login_type` | ``          |
-| `login_type` | `password`  |
-| `login_type` | `github`    |
-| `login_type` | `oidc`      |
-| `login_type` | `token`     |
-| `login_type` | `none`      |
-| `status`     | `active`    |
-| `status`     | `suspended` |
-| `source`     | `user`      |
-| `source`     | `oidc`      |
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
+| `source`     | `oidc`, `user`                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4084,12 +4141,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value          |
-|----------|----------------|
-| `status` | `ok`           |
-| `status` | `unreachable`  |
-| `status` | `unhealthy`    |
-| `status` | `unregistered` |
+| Property | Value(s)                                         |
+|----------|--------------------------------------------------|
+| `status` | `ok`, `unhealthy`, `unreachable`, `unregistered` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

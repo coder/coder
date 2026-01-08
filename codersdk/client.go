@@ -20,10 +20,9 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/websocket"
-
-	"cdr.dev/slog"
 )
 
 // These cookies are Coder-specific. If a new one is added or changed, the name
@@ -38,6 +37,10 @@ const (
 	SessionTokenHeader = "Coder-Session-Token"
 	// OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
 	OAuth2StateCookie = "oauth_state"
+	// OAuth2PKCEVerifier is the name of the cookie that stores the oauth2 PKCE
+	// verifier. This is the raw verifier that when hashed, will match the challenge
+	// sent in the initial oauth2 request.
+	OAuth2PKCEVerifier = "oauth_pkce_verifier"
 	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
 	OAuth2RedirectCookie = "oauth_redirect"
 
@@ -251,7 +254,7 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 	}
 
 	// Copy the request body so we can log it.
-	var reqLogFields []any
+	var reqLogFields []slog.Field
 	c.mu.RLock()
 	logBodies := c.logBodies
 	c.mu.RUnlock()
@@ -325,7 +328,7 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 	span.SetStatus(httpconv.ClientStatus(resp.StatusCode))
 
 	// Copy the response body so we can log it if it's a loggable mime type.
-	var respLogFields []any
+	var respLogFields []slog.Field
 	if resp.Body != nil && logBodies {
 		mimeType := parseMimeType(resp.Header.Get("Content-Type"))
 		if _, ok := loggableMimeTypes[mimeType]; ok {

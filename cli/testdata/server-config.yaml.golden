@@ -191,6 +191,15 @@ autobuildPollInterval: 1m0s
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
 introspection:
+  statsCollection:
+    usageStats:
+      # Enable the collection of application and workspace usage along with the
+      # associated API endpoints and the template insights page. Disabling this will
+      # also disable traffic and connection insights in the deployment stats shown to
+      # admins in the bottom bar of the Coder UI, and will prevent Prometheus collection
+      # of these values.
+      # (default: true, type: bool)
+      enable: true
   prometheus:
     # Serve prometheus metrics on the address defined by prometheus address.
     # (default: <unset>, type: bool)
@@ -497,6 +506,12 @@ disablePathApps: false
 # workspaces.
 # (default: <unset>, type: bool)
 disableOwnerWorkspaceAccess: false
+# Disable workspace sharing (requires the "workspace-sharing" experiment to be
+# enabled). Workspace ACL checking is disabled and only owners can have ssh, apps
+# and terminal access to workspaces. Access based on the 'owner' role is also
+# allowed unless disabled via --disable-owner-workspace-access.
+# (default: <unset>, type: bool)
+disableWorkspaceSharing: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
@@ -742,6 +757,28 @@ aibridge:
   # (token, prompt, tool use).
   # (default: 60d, type: duration)
   retention: 1440h0m0s
+  # Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
+  # (unlimited).
+  # (default: 0, type: int)
+  maxConcurrency: 0
+  # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
+  # (unlimited).
+  # (default: 0, type: int)
+  rateLimit: 0
+aibridgeproxy:
+  # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
+  # requests.
+  # (default: false, type: bool)
+  enabled: false
+  # The address the AI Bridge Proxy will listen on.
+  # (default: :8888, type: string)
+  listen_addr: :8888
+  # Path to the CA certificate file for AI Bridge Proxy.
+  # (default: <unset>, type: string)
+  cert_file: ""
+  # Path to the CA private key file for AI Bridge Proxy.
+  # (default: <unset>, type: string)
+  key_file: ""
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

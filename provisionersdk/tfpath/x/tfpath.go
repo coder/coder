@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
@@ -140,9 +140,9 @@ func (td Layout) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
 		slog.F("path", path), slog.Error(err))
 }
 
-func (td Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, cfg *proto.Config) error {
+func (td Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, archive []byte) error {
 	logger.Info(ctx, "unpacking template source archive",
-		slog.F("size_bytes", len(cfg.TemplateSourceArchive)),
+		slog.F("size_bytes", len(archive)),
 	)
 
 	err := fs.MkdirAll(td.WorkDirectory(), 0o700)
@@ -163,9 +163,7 @@ func (td Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afer
 		return xerrors.Errorf("select terraform workspace: %w", err)
 	}
 
-	reader := tar.NewReader(bytes.NewBuffer(cfg.TemplateSourceArchive))
-	// for safety, nil out the reference on Config, since the reader now owns it.
-	cfg.TemplateSourceArchive = nil
+	reader := tar.NewReader(bytes.NewBuffer(archive))
 	for {
 		header, err := reader.Next()
 		if err != nil {

@@ -1,9 +1,9 @@
-# The nightly-gauntlet runs tests that are either too flaky or too slow to block
-# every PR.
+# The nightly-gauntlet runs the full test suite on macOS and Windows.
+# This complements ci.yaml which only runs a subset of packages on these platforms.
 name: nightly-gauntlet
 on:
   schedule:
-    # Every day at 4AM
+    # Every day at 4AM UTC on weekdays
     - cron: "0 4 * * 1-5"
   workflow_dispatch:
 
@@ -21,13 +21,14 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
         os:
           - macos-latest
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -53,7 +54,7 @@ jobs:
         uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -80,75 +81,44 @@ jobs:
           key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
           cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
 
-      - name: Test with PostgreSQL Database
-        env:
-          POSTGRES_VERSION: "13"
-          TS_DEBUG_DISCO: "true"
-          LC_CTYPE: "en_US.UTF-8"
-          LC_ALL: "en_US.UTF-8"
+      - name: Setup RAM disk for Embedded Postgres (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: mkdir -p "R:/temp/embedded-pg"
+
+      - name: Setup RAM disk for Embedded Postgres (macOS)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
-          set -o errexit
-          set -o pipefail
+          mkdir -p /tmp/tmpfs
+          sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
 
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            # Create a temp dir on the R: ramdisk drive for Windows. The default
-            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
-            mkdir -p "R:/temp/embedded-pg"
-            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "${EMBEDDED_PG_CACHE_DIR}"
-          elif [ "${{ runner.os }}" == "macOS" ]; then
-            # Postgres runs faster on a ramdisk on macOS too
-            mkdir -p /tmp/tmpfs
-            sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
-            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache "${EMBEDDED_PG_CACHE_DIR}"
-          elif [ "${{ runner.os }}" == "Linux" ]; then
-            make test-postgres-docker
-          fi
+      - name: Test with PostgreSQL Database (macOS)
+        if: runner.os == 'macOS'
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          # Our macOS runners have 8 cores.
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "16"
+          test-count: "1"
+          embedded-pg-path: "/tmp/tmpfs/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
-          # if macOS, install google-chrome for scaletests
-          # As another concern, should we really have this kind of external dependency
-          # requirement on standard CI?
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            brew install google-chrome
-          fi
-
-          # macOS will output "The default interactive shell is now zsh"
-          # intermittently in CI...
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
-          fi
-
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            # Our Windows runners have 16 cores.
-            # On Windows Postgres chokes up when we have 16x16=256 tests
-            # running in parallel, and dbtestutil.NewDB starts to take more than
-            # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
-            # Postgres tends not to choke.
-            NUM_PARALLEL_PACKAGES=8
-            NUM_PARALLEL_TESTS=16
-          elif [ "${{ runner.os }}" == "macOS" ]; then
-            # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
-            # because the tests complete faster and Postgres doesn't choke. It seems
-            # that macOS's tmpfs is faster than the one on Windows.
-            NUM_PARALLEL_PACKAGES=8
-            NUM_PARALLEL_TESTS=16
-          elif [ "${{ runner.os }}" == "Linux" ]; then
-            # Our Linux runners have 8 cores.
-            NUM_PARALLEL_PACKAGES=8
-            NUM_PARALLEL_TESTS=8
-          fi
-
-          # run tests without cache
-          TESTCOUNT="-count=1"
-
-          DB=ci gotestsum \
-            --format standard-quiet --packages "./..." \
-            -- -timeout=20m -v -p "$NUM_PARALLEL_PACKAGES" -parallel="$NUM_PARALLEL_TESTS" "$TESTCOUNT"
+      - name: Test with PostgreSQL Database (Windows)
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          # Our Windows runners have 16 cores.
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "16"
+          test-count: "1"
+          embedded-pg-path: "R:/temp/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Upload Embedded Postgres Cache
         uses: ./.github/actions/embedded-pg-cache/upload
-        # We only use the embedded Postgres cache on macOS and Windows runners.
-        if: runner.OS == 'macOS' || runner.OS == 'Windows'
         with:
           cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
           cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
@@ -165,7 +135,7 @@ jobs:
     needs:
       - test-go-pg
     runs-on: ubuntu-latest
-    if: failure() && github.ref == 'refs/heads/main'
+    if: failure()
 
     steps:
       - name: Send Slack notification

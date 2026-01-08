@@ -14,11 +14,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"

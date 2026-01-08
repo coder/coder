@@ -22,8 +22,8 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -173,7 +173,7 @@ func TestDERP(t *testing.T) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -411,7 +411,7 @@ func TestDERPEndToEnd(t *testing.T) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)

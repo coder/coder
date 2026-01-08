@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
@@ -30,12 +31,16 @@ func WriteWorkspaceApp404(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 	}
 
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusNotFound,
-		Title:        "Application Not Found",
-		Description:  "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
-		RetryEnabled: false,
-		DashboardURL: accessURL.String(),
-		Warnings:     warnings,
+		Status:      http.StatusNotFound,
+		Title:       "Application Not Found",
+		Description: "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
+		Warnings:    warnings,
+		Actions: []site.Action{
+			{
+				URL:  accessURL.String(),
+				Text: "Back to site",
+			},
+		},
 	})
 }
 
@@ -60,11 +65,15 @@ func WriteWorkspaceApp500(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 	)
 
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusInternalServerError,
-		Title:        "Internal Server Error",
-		Description:  "An internal server error occurred.",
-		RetryEnabled: false,
-		DashboardURL: accessURL.String(),
+		Status:      http.StatusInternalServerError,
+		Title:       "Internal Server Error",
+		Description: "An internal server error occurred.",
+		Actions: []site.Action{
+			{
+				URL:  accessURL.String(),
+				Text: "Back to site",
+			},
+		},
 	})
 }
 
@@ -85,11 +94,18 @@ func WriteWorkspaceAppOffline(log slog.Logger, accessURL *url.URL, rw http.Respo
 	}
 
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusBadGateway,
-		Title:        "Application Unavailable",
-		Description:  msg,
-		RetryEnabled: true,
-		DashboardURL: accessURL.String(),
+		Status:      http.StatusBadGateway,
+		Title:       "Application Unavailable",
+		Description: msg,
+		Actions: []site.Action{
+			{
+				Text: "Retry",
+			},
+			{
+				URL:  accessURL.String(),
+				Text: "Back to site",
+			},
+		},
 	})
 }
 
@@ -109,11 +125,26 @@ func WriteWorkspaceOffline(log slog.Logger, accessURL *url.URL, rw http.Response
 		)
 	}
 
+	actions := []site.Action{
+		{
+			URL:  accessURL.String(),
+			Text: "Back to site",
+		},
+	}
+
+	workspaceURL, err := url.Parse(accessURL.String())
+	if err == nil {
+		workspaceURL.Path = path.Join(accessURL.Path, "@"+appReq.UsernameOrID, appReq.WorkspaceNameOrID)
+		actions = append(actions, site.Action{
+			URL:  workspaceURL.String(),
+			Text: "View workspace",
+		})
+	}
+
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusBadRequest,
-		Title:        "Workspace Offline",
-		Description:  fmt.Sprintf("Last workspace transition was to the %q state. Start the workspace to access its applications.", codersdk.WorkspaceTransitionStop),
-		RetryEnabled: false,
-		DashboardURL: accessURL.String(),
+		Status:      http.StatusBadRequest,
+		Title:       "Workspace Offline",
+		Description: fmt.Sprintf("Last workspace transition was to the %q state. Start the workspace to access its applications.", codersdk.WorkspaceTransitionStop),
+		Actions:     actions,
 	})
 }

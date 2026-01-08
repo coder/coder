@@ -84,7 +84,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 	return (
 		<>
 			{disabled && (
-				<Alert severity="warning">
+				<Alert severity="warning" prominent>
 					The template for this workspace requires automatic updates. Update the
 					workspace to edit parameters.
 				</Alert>

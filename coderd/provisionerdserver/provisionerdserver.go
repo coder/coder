@@ -27,7 +27,7 @@ import (
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -2267,6 +2267,13 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update workspace deleted: %w", err)
 		}
+
+		// A user might delete their task workspace directly, instead of
+		// deleting the task. To avoid leaving the Task in a scenario where
+		// it has no workspace, we also attempt to delete the task.
+		//
+		// Deleting the task may fail if it has already been deleted as part
+		// of the typical task deletion workflow, so we explicitly allow that.
 		if workspace.TaskID.Valid {
 			if _, err := db.DeleteTask(ctx, database.DeleteTaskParams{
 				ID:        workspace.TaskID.UUID,

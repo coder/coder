@@ -25,10 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/goleak"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
-
 	"github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
@@ -40,12 +36,14 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -465,7 +463,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 	for _, port := range sshPorts {
 		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
 			command := "sh"
@@ -947,7 +945,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		t.Skip("unix domain sockets are not fully supported on Windows")
 	}
 	ctx := testutil.Context(t, testutil.WaitLong)
-	tmpdir := tempDirUnixSocket(t)
+	tmpdir := testutil.TempDirUnixSocket(t)
 	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
 
 	l, err := net.Listen("unix", remoteSocketPath)
@@ -975,7 +973,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		t.Skip("unix domain sockets are not fully supported on Windows")
 	}
 
-	tmpdir := tempDirUnixSocket(t)
+	tmpdir := testutil.TempDirUnixSocket(t)
 	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -994,42 +992,77 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 func TestAgent_SFTP(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	u, err := user.Current()
-	require.NoError(t, err, "get current user")
-	home := u.HomeDir
-	if runtime.GOOS == "windows" {
-		home = "/" + strings.ReplaceAll(home, "\\", "/")
-	}
-	//nolint:dogsled
-	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-	sshClient, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	defer sshClient.Close()
-	client, err := sftp.NewClient(sshClient)
-	require.NoError(t, err)
-	defer client.Close()
-	wd, err := client.Getwd()
-	require.NoError(t, err, "get working directory")
-	require.Equal(t, home, wd, "working directory should be home user home")
-	tempFile := filepath.Join(t.TempDir(), "sftp")
-	// SFTP only accepts unix-y paths.
-	remoteFile := filepath.ToSlash(tempFile)
-	if !path.IsAbs(remoteFile) {
-		// On Windows, e.g. "/C:/Users/...".
-		remoteFile = path.Join("/", remoteFile)
-	}
-	file, err := client.Create(remoteFile)
-	require.NoError(t, err)
-	err = file.Close()
-	require.NoError(t, err)
-	_, err = os.Stat(tempFile)
-	require.NoError(t, err)
 
-	// Close the client to trigger disconnect event.
-	_ = client.Close()
-	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	t.Run("DefaultWorkingDirectory", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		u, err := user.Current()
+		require.NoError(t, err, "get current user")
+		home := u.HomeDir
+		if runtime.GOOS == "windows" {
+			home = "/" + strings.ReplaceAll(home, "\\", "/")
+		}
+		//nolint:dogsled
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		defer client.Close()
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, home, wd, "working directory should be user home")
+		tempFile := filepath.Join(t.TempDir(), "sftp")
+		// SFTP only accepts unix-y paths.
+		remoteFile := filepath.ToSlash(tempFile)
+		if !path.IsAbs(remoteFile) {
+			// On Windows, e.g. "/C:/Users/...".
+			remoteFile = path.Join("/", remoteFile)
+		}
+		file, err := client.Create(remoteFile)
+		require.NoError(t, err)
+		err = file.Close()
+		require.NoError(t, err)
+		_, err = os.Stat(tempFile)
+		require.NoError(t, err)
+
+		// Close the client to trigger disconnect event.
+		_ = client.Close()
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	})
+
+	t.Run("CustomWorkingDirectory", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create a custom directory for the agent to use.
+		customDir := t.TempDir()
+		expectedDir := customDir
+		if runtime.GOOS == "windows" {
+			expectedDir = "/" + strings.ReplaceAll(customDir, "\\", "/")
+		}
+
+		//nolint:dogsled
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Directory: customDir,
+		}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		defer client.Close()
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, expectedDir, wd, "working directory should be custom directory")
+
+		// Close the client to trigger disconnect event.
+		_ = client.Close()
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	})
 }
 
 func TestAgent_SCP(t *testing.T) {
@@ -3429,29 +3462,6 @@ func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected 
 	if expectedRe != nil {
 		require.Regexp(t, expectedRe, stdout.String())
 	}
-}
-
-// tempDirUnixSocket returns a temporary directory that can safely hold unix
-// sockets (probably).
-//
-// During tests on darwin we hit the max path length limit for unix sockets
-// pretty easily in the default location, so this function uses /tmp instead to
-// get shorter paths.
-func tempDirUnixSocket(t *testing.T) string {
-	t.Helper()
-	if runtime.GOOS == "darwin" {
-		testName := strings.ReplaceAll(t.Name(), "/", "_")
-		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
-		require.NoError(t, err, "create temp dir for gpg test")
-
-		t.Cleanup(func() {
-			err := os.RemoveAll(dir)
-			assert.NoError(t, err, "remove temp dir", dir)
-		})
-		return dir
-	}
-
-	return t.TempDir()
 }
 
 func TestAgent_Metrics_SSH(t *testing.T) {

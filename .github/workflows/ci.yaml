@@ -35,12 +35,12 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -124,7 +124,7 @@ jobs:
   #   runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+  #       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
   #       with:
   #         fetch-depth: 1
   #         # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
@@ -157,12 +157,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -181,7 +181,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
       - name: golangci-lint cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -207,6 +207,22 @@ jobs:
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: v3.9.2
+        continue-on-error: true
+        id: setup-helm
+
+      - name: Install helm (fallback)
+        if: steps.setup-helm.outcome == 'failure'
+        # Fallback to Buildkite's apt repository if get.helm.sh is down.
+        # See: https://github.com/coder/internal/issues/1109
+        run: |
+          set -euo pipefail
+          curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+          sudo apt-get update
+          sudo apt-get install -y helm=3.9.2-1
+
+      - name: Verify helm version
+        run: helm version --short
 
       - name: make lint
         run: |
@@ -235,12 +251,12 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -292,12 +308,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -336,6 +352,7 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
@@ -343,7 +360,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -369,7 +386,7 @@ jobs:
         uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -416,85 +433,90 @@ jobs:
           find . -type f ! -path ./.git/\*\* | mtimehash
           find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
-      - name: Test with PostgreSQL Database
-        env:
-          POSTGRES_VERSION: "13"
-          TS_DEBUG_DISCO: "true"
-          LC_CTYPE: "en_US.UTF-8"
-          LC_ALL: "en_US.UTF-8"
+      - name: Normalize Terraform Path for Caching
         shell: bash
+        # Terraform gets installed in a random directory, so we need to normalize
+        # the path or many cached tests will be invalidated.
         run: |
-          set -o errexit
-          set -o pipefail
-
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            # Create a temp dir on the R: ramdisk drive for Windows. The default
-            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
-            mkdir -p "R:/temp/embedded-pg"
-            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "${EMBEDDED_PG_CACHE_DIR}"
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            # Postgres runs faster on a ramdisk on macOS too
-            mkdir -p /tmp/tmpfs
-            sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
-            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache "${EMBEDDED_PG_CACHE_DIR}"
-          elif [ "$RUNNER_OS" == "Linux" ]; then
-            make test-postgres-docker
-          fi
-
-          # if macOS, install google-chrome for scaletests
-          # As another concern, should we really have this kind of external dependency
-          # requirement on standard CI?
-          if [ "${RUNNER_OS}" == "macOS" ]; then
-            brew install google-chrome
-          fi
-
-          # macOS will output "The default interactive shell is now zsh"
-          # intermittently in CI...
-          if [ "${RUNNER_OS}" == "macOS" ]; then
-            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
-          fi
-
-          if [ "${RUNNER_OS}" == "Windows" ]; then
-            # Our Windows runners have 16 cores.
-            # On Windows Postgres chokes up when we have 16x16=256 tests
-            # running in parallel, and dbtestutil.NewDB starts to take more than
-            # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
-            # Postgres tends not to choke.
-            export TEST_NUM_PARALLEL_PACKAGES=8
-            export TEST_NUM_PARALLEL_TESTS=16
-            # Only the CLI and Agent are officially supported on Windows and the rest are too flaky
-            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
-          elif [ "${RUNNER_OS}" == "macOS" ]; then
-            # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
-            # because the tests complete faster and Postgres doesn't choke. It seems
-            # that macOS's tmpfs is faster than the one on Windows.
-            export TEST_NUM_PARALLEL_PACKAGES=8
-            export TEST_NUM_PARALLEL_TESTS=16
-            # Only the CLI and Agent are officially supported on macOS and the rest are too flaky
-            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
-          elif [ "${RUNNER_OS}" == "Linux" ]; then
-            # Our Linux runners have 8 cores.
-            export TEST_NUM_PARALLEL_PACKAGES=8
-            export TEST_NUM_PARALLEL_TESTS=8
-          fi
-
-          # by default, run tests with cache
-          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-            # on main, run tests without cache
-            export TEST_COUNT="1"
-          fi
-
           mkdir -p "$RUNNER_TEMP/sym"
           source scripts/normalize_path.sh
-          # terraform gets installed in a random directory, so we need to normalize
-          # the path to the terraform binary or a bunch of cached tests will be
-          # invalidated. See scripts/normalize_path.sh for more details.
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
-          make test
+      - name: Setup RAM disk for Embedded Postgres (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        # The default C: drive is extremely slow:
+        # https://github.com/actions/runner-images/issues/8755
+        run: mkdir -p "R:/temp/embedded-pg"
+
+      - name: Setup RAM disk for Embedded Postgres (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Postgres runs faster on a ramdisk on macOS.
+          mkdir -p /tmp/tmpfs
+          sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+
+          # Install google-chrome for scaletests.
+          # As another concern, should we really have this kind of external dependency
+          # requirement on standard CI?
+          brew install google-chrome
+
+          # macOS will output "The default interactive shell is now zsh" intermittently in CI.
+          touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+
+      - name: Test with PostgreSQL Database (Linux)
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          # Our Linux runners have 8 cores.
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "8"
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
+          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+
+      - name: Test with PostgreSQL Database (macOS)
+        if: runner.os == 'macOS'
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          # Our macOS runners have 8 cores.
+          # Even though this parallelism seems high, we've observed relatively low flakiness in the past.
+          # See https://github.com/coder/coder/pull/21091#discussion_r2609891540.
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "16"
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
+          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          # Only the CLI and Agent are officially supported on macOS; the rest are too flaky.
+          test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
+          embedded-pg-path: "/tmp/tmpfs/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
+
+      - name: Test with PostgreSQL Database (Windows)
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          # Our Windows runners have 16 cores.
+          # On Windows Postgres chokes up when we have 16x16=256 tests
+          # running in parallel, and dbtestutil.NewDB starts to take more than
+          # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
+          # Postgres tends not to choke.
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "16"
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
+          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          # Only the CLI and Agent are officially supported on Windows; the rest are too flaky.
+          test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
+          embedded-pg-path: "R:/temp/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Upload failed test db dumps
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: failed-test-db-dump-${{matrix.os}}
           path: "**/*.test.sql"
@@ -532,12 +554,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -554,12 +576,25 @@ jobs:
         with:
           key-prefix: test-go-pg-17-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Test with PostgreSQL Database
-        env:
-          POSTGRES_VERSION: "17"
-          TS_DEBUG_DISCO: "true"
+      - name: Normalize Terraform Path for Caching
+        shell: bash
+        # Terraform gets installed in a random directory, so we need to normalize
+        # the path or many cached tests will be invalidated.
         run: |
-          make test-postgres
+          mkdir -p "$RUNNER_TEMP/sym"
+          source scripts/normalize_path.sh
+          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
+
+      - name: Test with PostgreSQL Database
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "17"
+          # Our Linux runners have 8 cores.
+          test-parallelism-packages: "8"
+          test-parallelism-tests: "8"
+          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
+          # On main, run tests without cache for the inverse.
+          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -581,12 +616,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -603,16 +638,28 @@ jobs:
         with:
           key-prefix: test-go-race-pg-${{ runner.os }}-${{ runner.arch }}
 
+      - name: Normalize Terraform Path for Caching
+        shell: bash
+        # Terraform gets installed in a random directory, so we need to normalize
+        # the path or many cached tests will be invalidated.
+        run: |
+          mkdir -p "$RUNNER_TEMP/sym"
+          source scripts/normalize_path.sh
+          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
+
       # We run race tests with reduced parallelism because they use more CPU and we were finding
       # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
       # short timeouts are used.
       # c.f. discussion on https://github.com/coder/coder/pull/15106
+      # Our Linux runners have 16 cores, but we reduce parallelism since race detection adds a lot of overhead.
+      # We aim to have parallelism match CPU count (4*4=16) to avoid making flakes worse.
       - name: Run Tests
-        env:
-          POSTGRES_VERSION: "17"
-        run: |
-          make test-postgres-docker
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -race -parallel 4 -p 4
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "17"
+          test-parallelism-packages: "4"
+          test-parallelism-tests: "4"
+          race-detection: "true"
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -641,12 +688,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -668,12 +715,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -701,12 +748,12 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -750,7 +797,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
@@ -758,7 +805,7 @@ jobs:
 
       - name: Upload debug log
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: coderd-debug-logs${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/e2e/test-results/debug.log
@@ -766,7 +813,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -781,12 +828,12 @@ jobs:
     if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           # 👇 Ensures Chromatic can read your full git history
           fetch-depth: 0
@@ -862,12 +909,12 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
@@ -933,7 +980,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
@@ -971,7 +1018,7 @@ jobs:
     steps:
       # Harden Runner doesn't work on macOS
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -1032,7 +1079,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dylibs
           path: |
@@ -1053,12 +1100,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -1108,12 +1155,12 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -1154,7 +1201,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
         with:
           distribution: "zulu"
           java-version: "11.0"
@@ -1197,7 +1244,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Download dylibs
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: dylibs
           path: ./build
@@ -1326,7 +1373,7 @@ jobs:
         id: attest_main
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        uses: actions/attest@7667f588f2f73a90cea6c7ac70e78266c4f76616 # v3.1.0
         with:
           subject-name: "ghcr.io/coder/coder-preview:main"
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -1363,7 +1410,7 @@ jobs:
         id: attest_latest
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        uses: actions/attest@7667f588f2f73a90cea6c7ac70e78266c4f76616 # v3.1.0
         with:
           subject-name: "ghcr.io/coder/coder-preview:latest"
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -1400,7 +1447,7 @@ jobs:
         id: attest_version
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        uses: actions/attest@7667f588f2f73a90cea6c7ac70e78266c4f76616 # v3.1.0
         with:
           subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -1464,7 +1511,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: coder
           path: |
@@ -1505,12 +1552,12 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
           persist-credentials: false

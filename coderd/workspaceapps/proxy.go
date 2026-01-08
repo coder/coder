@@ -18,7 +18,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -185,10 +185,14 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 			Status:      http.StatusBadRequest,
 			Title:       "Bad Request",
 			Description: "Could not decrypt API key. Workspace app API key smuggling is not permitted on the primary access URL. Please remove the query parameter and try again.",
-			// Retry is disabled because the user needs to remove the query
+			// No retry is included because the user needs to remove the query
 			// parameter before they try again.
-			RetryEnabled: false,
-			DashboardURL: s.DashboardURL.String(),
+			Actions: []site.Action{
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
 		})
 		return false
 	}
@@ -204,10 +208,14 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 			Status:      http.StatusBadRequest,
 			Title:       "Bad Request",
 			Description: "Could not decrypt API key. Please remove the query parameter and try again.",
-			// Retry is disabled because the user needs to remove the query
+			// No retry is included because the user needs to remove the query
 			// parameter before they try again.
-			RetryEnabled: false,
-			DashboardURL: s.DashboardURL.String(),
+			Actions: []site.Action{
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
 		})
 		return false
 	}
@@ -224,11 +232,15 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 			// startup, but we'll check anyways.
 			s.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", s.Hostname))
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusInternalServerError,
-				Title:        "Internal Server Error",
-				Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
-				RetryEnabled: false,
-				DashboardURL: s.DashboardURL.String(),
+				Status:      http.StatusInternalServerError,
+				Title:       "Internal Server Error",
+				Description: "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
+				Actions: []site.Action{
+					{
+						URL:  s.DashboardURL.String(),
+						Text: "Back to site",
+					},
+				},
 			})
 			return false
 		}
@@ -274,11 +286,15 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	if s.DisablePathApps {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusForbidden,
-			Title:        "Forbidden",
-			Description:  "Path-based applications are disabled on this Coder deployment by the administrator.",
-			RetryEnabled: false,
-			DashboardURL: s.DashboardURL.String(),
+			Status:      http.StatusForbidden,
+			Title:       "Forbidden",
+			Description: "Path-based applications are disabled on this Coder deployment by the administrator.",
+			Actions: []site.Action{
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
 		})
 		return
 	}
@@ -287,11 +303,15 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 	// lookup the username from token. We used to redirect by doing this lookup.
 	if chi.URLParam(r, "user") == codersdk.Me {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusNotFound,
-			Title:        "Application Not Found",
-			Description:  "Applications must be accessed with the full username, not @me.",
-			RetryEnabled: false,
-			DashboardURL: s.DashboardURL.String(),
+			Status:      http.StatusNotFound,
+			Title:       "Application Not Found",
+			Description: "Applications must be accessed with the full username, not @me.",
+			Actions: []site.Action{
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
 		})
 		return
 	}
@@ -519,11 +539,15 @@ func (s *Server) parseHostname(rw http.ResponseWriter, r *http.Request, next htt
 	app, err := appurl.ParseSubdomainAppURL(subdomain)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusBadRequest,
-			Title:        "Invalid Application URL",
-			Description:  fmt.Sprintf("Could not parse subdomain application URL %q: %s", subdomain, err.Error()),
-			RetryEnabled: false,
-			DashboardURL: s.DashboardURL.String(),
+			Status:      http.StatusBadRequest,
+			Title:       "Invalid Application URL",
+			Description: fmt.Sprintf("Could not parse subdomain application URL %q: %s", subdomain, err.Error()),
+			Actions: []site.Action{
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
 		})
 		return appurl.ApplicationURL{}, false
 	}
@@ -547,11 +571,18 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	appURL, err := url.Parse(appToken.AppURL)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusBadRequest,
-			Title:        "Bad Request",
-			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", appToken.AppURL, err.Error()),
-			RetryEnabled: true,
-			DashboardURL: s.DashboardURL.String(),
+			Status:      http.StatusBadRequest,
+			Title:       "Bad Request",
+			Description: fmt.Sprintf("Application has an invalid URL %q: %s", appToken.AppURL, err.Error()),
+			Actions: []site.Action{
+				{
+					Text: "Retry",
+				},
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
 		})
 		return
 	}

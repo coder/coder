@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
@@ -15,9 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestExpRpty(t *testing.T) {
@@ -90,7 +89,6 @@ func TestExpRpty(t *testing.T) {
 		wantLabel := "coder.devcontainers.TestExpRpty.Container"
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
 		pool, err := dockertest.NewPool("")
 		require.NoError(t, err, "Could not connect to docker")
 		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -128,14 +126,15 @@ func TestExpRpty(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch(" #")
+		pty.ExpectMatchContext(ctx, " #")
 		pty.WriteLine("hostname")
-		pty.ExpectMatch(ct.Container.Config.Hostname)
+		pty.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
 		pty.WriteLine("exit")
 		<-cmdDone
 	})

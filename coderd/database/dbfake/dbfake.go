@@ -12,9 +12,8 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -24,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wspubsub"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -39,6 +37,7 @@ var ownerCtx = dbauthz.As(context.Background(), rbac.Subject{
 type WorkspaceResponse struct {
 	Workspace  database.WorkspaceTable
 	Build      database.WorkspaceBuild
+	Agents     []database.WorkspaceAgent
 	AgentToken string
 	TemplateVersionResponse
 	Task database.Task
@@ -130,10 +129,7 @@ func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sd
 	b.taskAppID, err = uuid.Parse(takeFirst(appSeed.Id, uuid.NewString()))
 	require.NoError(b.t, err)
 
-	return b.Params(database.WorkspaceBuildParameter{
-		Name:  codersdk.AITaskPromptParameterName,
-		Value: b.taskSeed.Prompt,
-	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+	return b.WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Apps = []*sdkproto.App{
 			{
 				Id:   b.taskAppID.String(),
@@ -193,6 +189,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 	resp := WorkspaceResponse{
 		AgentToken: b.agentToken,
+		Agents:     make([]database.WorkspaceAgent, 0),
 	}
 	if b.ws.TemplateID == uuid.Nil {
 		b.logger.Debug(context.Background(), "creating template and version")
@@ -232,7 +229,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	// If a task was requested, ensure it exists and is associated with this
 	// workspace.
 	if b.taskAppID != uuid.Nil {
-		b.logger.Debug(context.Background(), "creating or updating task", "task_id", b.taskSeed.ID)
+		b.logger.Debug(context.Background(), "creating or updating task", slog.F("task_id", b.taskSeed.ID))
 		b.taskSeed.OrganizationID = takeFirst(b.taskSeed.OrganizationID, b.ws.OrganizationID)
 		b.taskSeed.OwnerID = takeFirst(b.taskSeed.OwnerID, b.ws.OwnerID)
 		b.taskSeed.Name = takeFirst(b.taskSeed.Name, b.ws.Name)
@@ -242,7 +239,9 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// Try to fetch existing task and update its workspace ID.
 		if task, err := b.db.GetTaskByID(ownerCtx, b.taskSeed.ID); err == nil {
 			if !task.WorkspaceID.Valid {
-				b.logger.Info(context.Background(), "updating task workspace id", "task_id", b.taskSeed.ID, "workspace_id", b.ws.ID)
+				b.logger.Info(context.Background(), "updating task workspace id",
+					slog.F("task_id", b.taskSeed.ID),
+					slog.F("workspace_id", b.ws.ID))
 				_, err = b.db.UpdateTaskWorkspaceID(ownerCtx, database.UpdateTaskWorkspaceIDParams{
 					ID:          b.taskSeed.ID,
 					WorkspaceID: uuid.NullUUID{UUID: b.ws.ID, Valid: true},
@@ -254,7 +253,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		} else if errors.Is(err, sql.ErrNoRows) {
 			task := dbgen.Task(b.t, b.db, b.taskSeed)
 			b.taskSeed.ID = task.ID
-			b.logger.Info(context.Background(), "created new task", "task_id", b.taskSeed.ID)
+			b.logger.Info(context.Background(), "created new task", slog.F("task_id", b.taskSeed.ID))
 		} else {
 			require.NoError(b.t, err, "get task by id")
 		}
@@ -424,6 +423,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// Insert deleted subagent test antagonists for the workspace build.
 		// See also `dbgen.WorkspaceAgent()`.
 		for _, agent := range agents {
+			resp.Agents = append(resp.Agents, agent)
 			subAgent := dbgen.WorkspaceSubAgent(b.t, b.db, agent, database.WorkspaceAgent{
 				TroubleshootingURL: "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
 			})

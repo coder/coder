@@ -1202,7 +1202,8 @@ CREATE TABLE custom_roles (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     organization_id uuid,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    CONSTRAINT organization_id_not_zero CHECK ((organization_id <> '00000000-0000-0000-0000-000000000000'::uuid))
 );
 
 COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';
@@ -2938,7 +2939,13 @@ CREATE VIEW workspaces_expanded AS
     templates.display_name AS template_display_name,
     templates.icon AS template_icon,
     templates.description AS template_description,
-    tasks.id AS task_id
+    tasks.id AS task_id,
+    COALESCE(( SELECT jsonb_object_agg(acl.key, jsonb_build_object('name', COALESCE(g.name, ''::text), 'avatar_url', COALESCE(g.avatar_url, ''::text))) AS jsonb_object_agg
+           FROM (jsonb_each(workspaces.group_acl) acl(key, value)
+             LEFT JOIN groups g ON ((g.id = (acl.key)::uuid)))), '{}'::jsonb) AS group_acl_display_info,
+    COALESCE(( SELECT jsonb_object_agg(acl.key, jsonb_build_object('name', COALESCE(vu.name, ''::text), 'avatar_url', COALESCE(vu.avatar_url, ''::text))) AS jsonb_object_agg
+           FROM (jsonb_each(workspaces.user_acl) acl(key, value)
+             LEFT JOIN visible_users vu ON ((vu.id = (acl.key)::uuid)))), '{}'::jsonb) AS user_acl_display_info
    FROM ((((workspaces
      JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
@@ -3325,7 +3332,7 @@ CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btr
 
 CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
-CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
+CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles USING btree (lower(name), COALESCE(organization_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
 
@@ -3448,6 +3455,8 @@ CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_a
 COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
+
+CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
 
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
 

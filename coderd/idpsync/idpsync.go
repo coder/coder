@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -251,13 +251,16 @@ type HTTPError struct {
 func (e HTTPError) Write(rw http.ResponseWriter, r *http.Request) {
 	if e.RenderStaticPage {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       e.Code,
-			HideStatus:   true,
-			Title:        e.Msg,
-			Description:  e.Detail,
-			RetryEnabled: false,
-			DashboardURL: "/login",
-
+			Status:      e.Code,
+			HideStatus:  true,
+			Title:       e.Msg,
+			Description: e.Detail,
+			Actions: []site.Action{
+				{
+					URL:  "/login",
+					Text: "Back to site",
+				},
+			},
 			RenderDescriptionMarkdown: e.RenderDetailMarkdown,
 		})
 		return

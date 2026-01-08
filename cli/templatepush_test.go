@@ -52,10 +52,9 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
 			match string
@@ -64,11 +63,11 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			pty.ExpectMatchContext(ctx, m.match)
 			pty.WriteLine(m.write)
 		}
 
-		require.NoError(t, <-execDone)
+		w.RequireSuccess()
 
 		// Assert that the template version changed.
 		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
@@ -100,9 +99,7 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
 		w := clitest.StartWithWaiter(t, inv)
 
@@ -111,6 +108,7 @@ func TestTemplatePush(t *testing.T) {
 		w.RequireSuccess()
 
 		// Assert that the template version changed.
+		ctx = testutil.Context(t, testutil.WaitMedium)
 		templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 			TemplateID: template.ID,
 		})
@@ -134,9 +132,6 @@ func TestTemplatePush(t *testing.T) {
 			ProvisionApply: echo.ApplyComplete,
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		for i, tt := range []struct {
 			wantMessage string
 			wantMatch   string
@@ -153,6 +148,7 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
+			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 
@@ -161,6 +157,7 @@ func TestTemplatePush(t *testing.T) {
 			w.RequireSuccess()
 
 			// Assert that the template version changed.
+			ctx = testutil.Context(t, testutil.WaitMedium)
 			templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 				TemplateID: template.ID,
 			})
@@ -196,10 +193,9 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
 			match string
@@ -209,14 +205,14 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "no"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			pty.ExpectMatchContext(ctx, m.match)
 			if m.write != "" {
 				pty.WriteLine(m.write)
 			}
 		}
 
 		// cmd should error once we say no.
-		require.Error(t, <-execDone)
+		w.RequireError()
 	})
 
 	t.Run("NoLockfileIgnored", func(t *testing.T) {
@@ -245,21 +241,19 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
 
 		{
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-			defer cancel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			pty.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
 			pty.WriteLine("no")
 		}
 
 		// cmd should error once we say no.
-		require.Error(t, <-execDone)
+		w.RequireError()
 	})
 
 	t.Run("PushInactiveTemplateVersion", func(t *testing.T) {
@@ -285,6 +279,8 @@ func TestTemplatePush(t *testing.T) {
 		)
 		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
 		w := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
@@ -294,14 +290,15 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			pty.ExpectMatchContext(ctx, m.match)
 			pty.WriteLine(m.write)
 		}
 
 		w.RequireSuccess()
 
 		// Assert that the template version didn't change.
-		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+		ctx = testutil.Context(t, testutil.WaitMedium)
+		templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 			TemplateID: template.ID,
 		})
 		require.NoError(t, err)
@@ -344,7 +341,9 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		waiter := clitest.StartWithWaiter(t, inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
 			match string
@@ -353,14 +352,15 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			pty.ExpectMatchContext(ctx, m.match)
 			pty.WriteLine(m.write)
 		}
 
-		waiter.RequireSuccess()
+		w.RequireSuccess()
 
 		// Assert that the template version changed.
-		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+		ctx = testutil.Context(t, testutil.WaitMedium)
+		templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 			TemplateID: template.ID,
 		})
 		require.NoError(t, err)
@@ -541,16 +541,13 @@ func TestTemplatePush(t *testing.T) {
 					clitest.SetupConfig(t, templateAdmin, root)
 					pty := ptytest.New(t).Attach(inv)
 
-					ctx := testutil.Context(t, testutil.WaitShort)
+					setupCtx := testutil.Context(t, testutil.WaitMedium)
 					now := dbtime.Now()
-					require.NoError(t, tt.setupDaemon(ctx, store, owner, wantTags, now))
+					require.NoError(t, tt.setupDaemon(setupCtx, store, owner, wantTags, now))
 
-					cancelCtx, cancel := context.WithCancel(ctx)
-					t.Cleanup(cancel)
-					done := make(chan error)
-					go func() {
-						done <- inv.WithContext(cancelCtx).Run()
-					}()
+					ctx := testutil.Context(t, testutil.WaitMedium)
+					inv = inv.WithContext(ctx)
+					clitest.Start(t, inv) // Only used for output, disregard exit status.
 
 					require.Eventually(t, func() bool {
 						jobs, err := store.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
@@ -564,11 +561,8 @@ func TestTemplatePush(t *testing.T) {
 					}, testutil.WaitShort, testutil.IntervalFast)
 
 					if tt.expectOutput != "" {
-						pty.ExpectMatch(tt.expectOutput)
+						pty.ExpectMatchContext(ctx, tt.expectOutput)
 					}
-
-					cancel()
-					<-done
 				})
 			}
 		})
@@ -613,10 +607,9 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			matches := []struct {
 				match string
@@ -625,11 +618,11 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatch(m.match)
+				pty.ExpectMatchContext(ctx, m.match)
 				pty.WriteLine(m.write)
 			}
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 
 			// Verify template version tags
 			template, err := client.Template(context.Background(), template.ID)
@@ -642,8 +635,6 @@ func TestTemplatePush(t *testing.T) {
 
 		t.Run("DeleteTags", func(t *testing.T) {
 			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
 
 			// Start the first provisioner with no tags.
 			client, provisionerDocker, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -682,10 +673,9 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.WithContext(ctx).Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			matches := []struct {
 				match string
@@ -694,11 +684,11 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatch(m.match)
+				pty.ExpectMatchContext(ctx, m.match)
 				pty.WriteLine(m.write)
 			}
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 
 			// Verify template version tags
 			template, err := client.Template(ctx, template.ID)
@@ -740,10 +730,9 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			matches := []struct {
 				match string
@@ -752,11 +741,11 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatch(m.match)
+				pty.ExpectMatchContext(ctx, m.match)
 				pty.WriteLine(m.write)
 			}
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 
 			// Verify template version tags
 			template, err := client.Template(context.Background(), template.ID)
@@ -818,10 +807,9 @@ func TestTemplatePush(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			matches := []struct {
 				match string
@@ -830,11 +818,11 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatch(m.match)
+				pty.ExpectMatchContext(ctx, m.match)
 				pty.WriteLine(m.write)
 			}
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 
 			// Assert that the template version changed.
 			templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
@@ -884,10 +872,9 @@ func TestTemplatePush(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			matches := []struct {
 				match string
@@ -896,11 +883,11 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatch(m.match)
+				pty.ExpectMatchContext(ctx, m.match)
 				pty.WriteLine(m.write)
 			}
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 
 			// Assert that the template version changed.
 			templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
@@ -952,10 +939,9 @@ func TestTemplatePush(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			matches := []struct {
 				match string
@@ -964,11 +950,11 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatch(m.match)
+				pty.ExpectMatchContext(ctx, m.match)
 				pty.WriteLine(m.write)
 			}
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 
 			// Assert that the template version changed.
 			templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
@@ -1005,7 +991,9 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			waiter := clitest.StartWithWaiter(t, inv)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			matches := []struct {
 				match string
@@ -1015,13 +1003,13 @@ func TestTemplatePush(t *testing.T) {
 				{match: "template has been created"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatch(m.match)
+				pty.ExpectMatchContext(ctx, m.match)
 				if m.write != "" {
 					pty.WriteLine(m.write)
 				}
 			}
 
-			waiter.RequireSuccess()
+			w.RequireSuccess()
 
 			template, err := client.TemplateByName(context.Background(), owner.OrganizationID, templateName)
 			require.NoError(t, err)
@@ -1054,9 +1042,7 @@ func TestTemplatePush(t *testing.T) {
 
 			inv.Stdin = strings.NewReader("invalid tar content that would cause failure")
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-			defer cancel()
-
+			ctx := testutil.Context(t, testutil.WaitMedium)
 			err := inv.WithContext(ctx).Run()
 			require.NoError(t, err, "Should succeed without reading from stdin")
 
@@ -1107,31 +1093,31 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatch("Upload")
+			pty.ExpectMatchContext(ctx, "Upload")
 			pty.WriteLine("yes")
 
-			pty.ExpectMatch("var.string_var")
-			pty.ExpectMatch("Enter value:")
-			pty.WriteLine("test-string")
+			// Variables are prompted in alphabetical order.
+			// Boolean variable automatically selects the first option ("true")
+			pty.ExpectMatchContext(ctx, "var.bool_var")
 
-			pty.ExpectMatch("var.number_var")
-			pty.ExpectMatch("Enter value:")
+			pty.ExpectMatchContext(ctx, "var.number_var")
+			pty.ExpectMatchContext(ctx, "Enter value:")
 			pty.WriteLine("42")
 
-			// Boolean variable automatically selects the first option ("true")
-			pty.ExpectMatch("var.bool_var")
-
-			pty.ExpectMatch("var.sensitive_var")
-			pty.ExpectMatch("Enter value:")
+			pty.ExpectMatchContext(ctx, "var.sensitive_var")
+			pty.ExpectMatchContext(ctx, "Enter value:")
 			pty.WriteLine("secret-value")
 
-			require.NoError(t, <-execDone)
+			pty.ExpectMatchContext(ctx, "var.string_var")
+			pty.ExpectMatchContext(ctx, "Enter value:")
+			pty.WriteLine("test-string")
+
+			w.RequireSuccess()
 		})
 
 		t.Run("ValidateNumberInput", func(t *testing.T) {
@@ -1154,23 +1140,22 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatch("Upload")
+			pty.ExpectMatchContext(ctx, "Upload")
 			pty.WriteLine("yes")
 
-			pty.ExpectMatch("var.number_var")
+			pty.ExpectMatchContext(ctx, "var.number_var")
 
 			pty.WriteLine("not-a-number")
-			pty.ExpectMatch("must be a valid number")
+			pty.ExpectMatchContext(ctx, "must be a valid number")
 
 			pty.WriteLine("123.45")
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 		})
 
 		t.Run("DontPromptForDefaultValues", func(t *testing.T) {
@@ -1198,19 +1183,18 @@ func TestTemplatePush(t *testing.T) {
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatch("Upload")
+			pty.ExpectMatchContext(ctx, "Upload")
 			pty.WriteLine("yes")
 
-			pty.ExpectMatch("var.without_default")
+			pty.ExpectMatchContext(ctx, "var.without_default")
 			pty.WriteLine("test-value")
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 		})
 
 		t.Run("VariableSourcesPriority", func(t *testing.T) {
@@ -1268,21 +1252,20 @@ cli_overrides_file_var: from-file`)
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatch("Upload")
+			pty.ExpectMatchContext(ctx, "Upload")
 			pty.WriteLine("yes")
 
 			// Only check for prompt_var, other variables should not prompt
-			pty.ExpectMatch("var.prompt_var")
-			pty.ExpectMatch("Enter value:")
+			pty.ExpectMatchContext(ctx, "var.prompt_var")
+			pty.ExpectMatchContext(ctx, "Enter value:")
 			pty.WriteLine("from-prompt")
 
-			require.NoError(t, <-execDone)
+			w.RequireSuccess()
 
 			template, err := client.TemplateByName(context.Background(), owner.OrganizationID, "test-template")
 			require.NoError(t, err)
@@ -1323,31 +1306,10 @@ func createEchoResponsesWithTemplateVariables(templateVariables []*proto.Templat
 func completeWithAgent() *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "compute",

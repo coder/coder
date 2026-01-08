@@ -334,6 +334,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						>
 							<Alert
 								severity="success"
+								prominent
 								dismissible
 								actions={
 									<Button

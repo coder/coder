@@ -1,92 +1,5 @@
 # Organizations
 
-## Add new license
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/licenses \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /licenses`
-
-> Body parameter
-
-```json
-{
-  "license": "string"
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                               | Required | Description         |
-|--------|------|--------------------------------------------------------------------|----------|---------------------|
-| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | Add license request |
-
-### Example responses
-
-> 201 Response
-
-```json
-{
-  "claims": {},
-  "id": 0,
-  "uploaded_at": "2019-08-24T14:15:22Z",
-  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                      | Description | Schema                                         |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Update license entitlements
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /licenses/refresh-entitlements`
-
-### Example responses
-
-> 201 Response
-
-```json
-{
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                      | Description | Schema                                           |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Response](schemas.md#codersdkresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get organizations
 
 ### Code samples
@@ -370,21 +283,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 #### Enumerated Values
 
-| Parameter | Value       |
-|-----------|-------------|
-| `status`  | `pending`   |
-| `status`  | `running`   |
-| `status`  | `succeeded` |
-| `status`  | `canceling` |
-| `status`  | `canceled`  |
-| `status`  | `failed`    |
-| `status`  | `unknown`   |
-| `status`  | `pending`   |
-| `status`  | `running`   |
-| `status`  | `succeeded` |
-| `status`  | `canceling` |
-| `status`  | `canceled`  |
-| `status`  | `failed`    |
+| Parameter | Value(s)                                                                        |
+|-----------|---------------------------------------------------------------------------------|
+| `status`  | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
 
 ### Example responses
 
@@ -483,18 +384,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                         |
-|--------------|-------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
-| `status`     | `pending`                     |
-| `status`     | `running`                     |
-| `status`     | `succeeded`                   |
-| `status`     | `canceling`                   |
-| `status`     | `canceled`                    |
-| `status`     | `failed`                      |
-| `type`       | `template_version_import`     |
-| `type`       | `workspace_build`             |
-| `type`       | `template_version_dry_run`    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                            |
+| `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
+| `type`       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -1,4 +1,9 @@
-// biome-ignore lint/style/noRestrictedImports: createTheme
+/**
+ * @deprecated MUI dark theme is deprecated. Migrate to Tailwind CSS theme system.
+ * This file provides MUI theme configuration for legacy compatibility only.
+ */
+
+/** @deprecated MUI createTheme is deprecated. Migrate to Tailwind CSS theme system. */
 import { createTheme } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import { components } from "../mui";

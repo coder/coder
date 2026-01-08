@@ -4,7 +4,6 @@ package cli
 
 import (
 	"fmt"
-	"net/http"
 	"os/signal"
 	"strconv"
 	"sync"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/prebuilds"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -54,15 +54,6 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 			me, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
-			}
-
-			client.HTTPClient = &http.Client{
-				Transport: &codersdk.HeaderTransport{
-					Transport: http.DefaultTransport,
-					Header: map[string][]string{
-						codersdk.BypassRatelimitHeader: {"true"},
-					},
-				},
 			}
 
 			if numTemplates <= 0 {
@@ -140,7 +131,13 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 					return xerrors.Errorf("validate config: %w", err)
 				}
 
-				var runner harness.Runnable = prebuilds.NewRunner(client, cfg)
+				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
+				// requests being unbalanced among Coder instances.
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				if err != nil {
+					return xerrors.Errorf("create runner client: %w", err)
+				}
+				var runner harness.Runnable = prebuilds.NewRunner(runnerClient, cfg)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,

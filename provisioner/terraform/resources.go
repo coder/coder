@@ -8,22 +8,19 @@ import (
 
 	"github.com/awalterschulze/gographviz"
 	"github.com/google/uuid"
+	tfaddr "github.com/hashicorp/go-terraform-address"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/terraform-provider-coder/v2/provider"
-
-	tfaddr "github.com/hashicorp/go-terraform-address"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 type agentMetadata struct {

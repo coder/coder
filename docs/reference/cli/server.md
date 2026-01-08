@@ -269,6 +269,17 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+### --stats-collection-usage-stats-enable
+
+|             |                                                              |
+|-------------|--------------------------------------------------------------|
+| Type        | <code>bool</code>                                            |
+| Environment | <code>$CODER_STATS_COLLECTION_USAGE_STATS_ENABLE</code>      |
+| YAML        | <code>introspection.statsCollection.usageStats.enable</code> |
+| Default     | <code>true</code>                                            |
+
+Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.
+
 ### --prometheus-enable
 
 |             |                                              |
@@ -1115,6 +1126,16 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.
 
+### --disable-workspace-sharing
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>bool</code>                             |
+| Environment | <code>$CODER_DISABLE_WORKSPACE_SHARING</code> |
+| YAML        | <code>disableWorkspaceSharing</code>          |
+
+Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+
 ### --session-duration
 
 |             |                                              |
@@ -1770,6 +1791,70 @@ Whether to inject Coder's MCP tools into intercepted AI Bridge requests (require
 | Default     | <code>60d</code>                       |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
+
+### --aibridge-max-concurrency
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>int</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_MAX_CONCURRENCY</code> |
+| YAML        | <code>aibridge.maxConcurrency</code>         |
+| Default     | <code>0</code>                               |
+
+Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
+
+### --aibridge-rate-limit
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>int</code>                        |
+| Environment | <code>$CODER_AIBRIDGE_RATE_LIMIT</code> |
+| YAML        | <code>aibridge.rateLimit</code>         |
+| Default     | <code>0</code>                          |
+
+Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
+
+### --aibridge-proxy-enabled
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_ENABLED</code> |
+| YAML        | <code>aibridgeproxy.enabled</code>         |
+| Default     | <code>false</code>                         |
+
+Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.
+
+### --aibridge-proxy-listen-addr
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_LISTEN_ADDR</code> |
+| YAML        | <code>aibridgeproxy.listen_addr</code>         |
+| Default     | <code>:8888</code>                             |
+
+The address the AI Bridge Proxy will listen on.
+
+### --aibridge-proxy-cert-file
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
+| YAML        | <code>aibridgeproxy.cert_file</code>         |
+
+Path to the CA certificate file for AI Bridge Proxy.
+
+### --aibridge-proxy-key-file
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
+| YAML        | <code>aibridgeproxy.key_file</code>         |
+
+Path to the CA private key file for AI Bridge Proxy.
 
 ### --audit-logs-retention
 

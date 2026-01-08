@@ -8,11 +8,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/testutil"

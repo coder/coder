@@ -12,10 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coder/coder/v2/archive"
-	"github.com/coder/coder/v2/provisionersdk"
-	"github.com/coder/coder/v2/provisionersdk/proto"
-
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -24,7 +20,10 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/archive"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // NOTE: This is duplicated from coderd but we can't import it here without

@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -41,7 +41,8 @@ const (
 // @Tags Files
 // @Param Content-Type header string true "Content-Type must be `application/x-tar` or `application/zip`" default(application/x-tar)
 // @Param file formData file true "File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems)."
-// @Success 201 {object} codersdk.UploadResponse
+// @Success 200 {object} codersdk.UploadResponse "Returns existing file if duplicate"
+// @Success 201 {object} codersdk.UploadResponse "Returns newly created file"
 // @Router /files [post]
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

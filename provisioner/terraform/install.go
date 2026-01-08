@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/hc-install/releases"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 var (
@@ -22,10 +22,10 @@ var (
 	// when Terraform is not available on the system.
 	// NOTE: Keep this in sync with the version in scripts/Dockerfile.base.
 	// NOTE: Keep this in sync with the version in install.sh.
-	TerraformVersion = version.Must(version.NewVersion("1.13.4"))
+	TerraformVersion = version.Must(version.NewVersion("1.14.1"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.13.9")) // use .9 to automatically allow patch releases
+	maxTerraformVersion = version.Must(version.NewVersion("1.14.9")) // use .9 to automatically allow patch releases
 
 	errTerraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )

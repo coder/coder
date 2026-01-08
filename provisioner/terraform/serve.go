@@ -13,12 +13,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/provisionersdk/tfpath"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
 
 type ServeOptions struct {

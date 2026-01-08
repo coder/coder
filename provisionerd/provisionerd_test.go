@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/yamux"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -19,8 +20,8 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -131,51 +132,20 @@ func TestProvisionerd(t *testing.T) {
 					}
 					return c
 				},
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					closerMutex.Lock()
+					defer closerMutex.Unlock()
+					err := closer.Close()
+					c := &sdkproto.InitComplete{}
+					if err != nil {
+						c.Error = err.Error()
+					}
+					return c
+				},
 			}),
 		})
 		closerMutex.Unlock()
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		require.NoError(t, closer.Close())
-	})
-
-	t.Run("MaliciousTar", func(t *testing.T) {
-		// Ensures tars with "../../../etc/passwd" as the path
-		// are not allowed to run, and will fail the job.
-		t.Parallel()
-		done := make(chan struct{})
-		t.Cleanup(func() {
-			close(done)
-		})
-		var (
-			completeChan = make(chan struct{})
-			completeOnce sync.Once
-			acq          = newAcquireOne(t, &proto.AcquiredJob{
-				JobId:       "test",
-				Provisioner: "someprovisioner",
-				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
-					"../../../etc/passwd": "content",
-				}),
-				Type: &proto.AcquiredJob_TemplateImport_{
-					TemplateImport: &proto.AcquiredJob_TemplateImport{
-						Metadata: &sdkproto.Metadata{},
-					},
-				},
-			})
-		)
-
-		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJobWithCancel: acq.acquireWithCancel,
-				updateJob:            noopUpdateJob,
-				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
-					completeOnce.Do(func() { close(completeChan) })
-					return &proto.Empty{}, nil
-				},
-			}), nil
-		}, provisionerd.LocalProvisioners{
-			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
-		})
-		require.Condition(t, closedWithin(completeChan, testutil.WaitMedium))
 		require.NoError(t, closer.Close())
 	})
 
@@ -227,14 +197,16 @@ func TestProvisionerd(t *testing.T) {
 						Readme: make([]byte, largeSize),
 					}
 				},
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					_ *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
 					_ <-chan struct{},
 				) *sdkproto.PlanComplete {
 					return &sdkproto.PlanComplete{
-						Resources: []*sdkproto.Resource{},
-						Plan:      make([]byte, largeSize),
+						Plan: make([]byte, largeSize),
 					}
 				},
 				apply: func(
@@ -244,6 +216,11 @@ func TestProvisionerd(t *testing.T) {
 				) *sdkproto.ApplyComplete {
 					return &sdkproto.ApplyComplete{
 						State: make([]byte, largeSize),
+					}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{
+						Resources: []*sdkproto.Resource{},
 					}
 				},
 			}),
@@ -299,6 +276,9 @@ func TestProvisionerd(t *testing.T) {
 					<-cancelOrComplete
 					return &sdkproto.ParseComplete{}
 				},
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
@@ -349,6 +329,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: extractInit(t),
 				parse: func(
 					s *provisionersdk.Session,
 					_ *sdkproto.ParseRequest,
@@ -366,9 +347,7 @@ func TestProvisionerd(t *testing.T) {
 					cancelOrComplete <-chan struct{},
 				) *sdkproto.PlanComplete {
 					s.ProvisionLog(sdkproto.LogLevel_INFO, "hello")
-					return &sdkproto.PlanComplete{
-						Resources: []*sdkproto.Resource{},
-					}
+					return &sdkproto.PlanComplete{}
 				},
 				apply: func(
 					_ *provisionersdk.Session,
@@ -377,6 +356,11 @@ func TestProvisionerd(t *testing.T) {
 				) *sdkproto.ApplyComplete {
 					t.Error("dry run should not apply")
 					return &sdkproto.ApplyComplete{}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{
+						Resources: []*sdkproto.Resource{},
+					}
 				},
 			}),
 		})
@@ -433,14 +417,15 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					_ *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
 					_ <-chan struct{},
 				) *sdkproto.PlanComplete {
-					return &sdkproto.PlanComplete{
-						Resources: []*sdkproto.Resource{},
-					}
+					return &sdkproto.PlanComplete{}
 				},
 				apply: func(
 					_ *provisionersdk.Session,
@@ -449,6 +434,11 @@ func TestProvisionerd(t *testing.T) {
 				) *sdkproto.ApplyComplete {
 					t.Error("dry run should not apply")
 					return &sdkproto.ApplyComplete{}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{
+						Resources: []*sdkproto.Resource{},
+					}
 				},
 			}),
 		})
@@ -498,6 +488,9 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					s *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -512,6 +505,9 @@ func TestProvisionerd(t *testing.T) {
 					_ <-chan struct{},
 				) *sdkproto.ApplyComplete {
 					return &sdkproto.ApplyComplete{}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{}
 				},
 			}),
 		})
@@ -570,6 +566,9 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					s *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -577,14 +576,7 @@ func TestProvisionerd(t *testing.T) {
 				) *sdkproto.PlanComplete {
 					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "wow")
 					return &sdkproto.PlanComplete{
-						Resources: []*sdkproto.Resource{
-							{
-								DailyCost: 10,
-							},
-							{
-								DailyCost: 15,
-							},
-						},
+						DailyCost: 25,
 					}
 				},
 				apply: func(
@@ -593,7 +585,10 @@ func TestProvisionerd(t *testing.T) {
 					_ <-chan struct{},
 				) *sdkproto.ApplyComplete {
 					t.Error("should not apply when resources exceed quota")
-					return &sdkproto.ApplyComplete{
+					return &sdkproto.ApplyComplete{}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{
 						Resources: []*sdkproto.Resource{
 							{
 								DailyCost: 10,
@@ -646,6 +641,12 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{}
+				},
 				plan: func(
 					s *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -756,6 +757,9 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					s *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -844,6 +848,9 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					s *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -938,6 +945,9 @@ func TestProvisionerd(t *testing.T) {
 			return client, nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					_ *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -1031,6 +1041,9 @@ func TestProvisionerd(t *testing.T) {
 			return client, nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
 				plan: func(
 					_ *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -1044,6 +1057,9 @@ func TestProvisionerd(t *testing.T) {
 					_ <-chan struct{},
 				) *sdkproto.ApplyComplete {
 					return &sdkproto.ApplyComplete{}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{}
 				},
 			}),
 		})
@@ -1125,6 +1141,12 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+					return &sdkproto.InitComplete{}
+				},
+				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+					return &sdkproto.GraphComplete{}
+				},
 				plan: func(
 					s *provisionersdk.Session,
 					_ *sdkproto.PlanRequest,
@@ -1253,9 +1275,15 @@ func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisio
 }
 
 type provisionerTestServer struct {
+	init  func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete
 	parse func(s *provisionersdk.Session, r *sdkproto.ParseRequest, canceledOrComplete <-chan struct{}) *sdkproto.ParseComplete
 	plan  func(s *provisionersdk.Session, r *sdkproto.PlanRequest, canceledOrComplete <-chan struct{}) *sdkproto.PlanComplete
 	apply func(s *provisionersdk.Session, r *sdkproto.ApplyRequest, canceledOrComplete <-chan struct{}) *sdkproto.ApplyComplete
+	graph func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete
+}
+
+func (p *provisionerTestServer) Init(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+	return p.init(s, r, canceledOrComplete)
 }
 
 func (p *provisionerTestServer) Parse(s *provisionersdk.Session, r *sdkproto.ParseRequest, canceledOrComplete <-chan struct{}) *sdkproto.ParseComplete {
@@ -1268,6 +1296,10 @@ func (p *provisionerTestServer) Plan(s *provisionersdk.Session, r *sdkproto.Plan
 
 func (p *provisionerTestServer) Apply(s *provisionersdk.Session, r *sdkproto.ApplyRequest, canceledOrComplete <-chan struct{}) *sdkproto.ApplyComplete {
 	return p.apply(s, r, canceledOrComplete)
+}
+
+func (p *provisionerTestServer) Graph(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
+	return p.graph(s, r, canceledOrComplete)
 }
 
 func (p *provisionerDaemonTestServer) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream) error {
@@ -1358,4 +1390,17 @@ func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_Acquir
 		assert.NoError(a.t, err)
 	}
 	return nil
+}
+
+func extractInit(t *testing.T) func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+	logger := slogtest.Make(t, nil)
+	return func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+		err := s.Files.ExtractArchive(s.Context(), logger, afero.NewOsFs(), r.TemplateSourceArchive)
+		if err != nil {
+			return &sdkproto.InitComplete{
+				Error: fmt.Sprintf("failed to extract template source archive: %v", err),
+			}
+		}
+		return &sdkproto.InitComplete{}
+	}
 }

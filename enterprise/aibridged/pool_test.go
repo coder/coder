@@ -8,9 +8,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/aibridge/mcp"
 	"github.com/coder/aibridge/mcpmock"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -30,7 +31,7 @@ func TestPool(t *testing.T) {
 	mcpProxy := mcpmock.NewMockServerProxier(ctrl)
 
 	opts := aibridged.PoolOptions{MaxItems: 1, TTL: time.Second}
-	pool, err := aibridged.NewCachedBridgePool(opts, nil, nil, logger)
+	pool, err := aibridged.NewCachedBridgePool(opts, nil, logger, nil, testTracer)
 	require.NoError(t, err)
 	t.Cleanup(func() { pool.Shutdown(context.Background()) })
 
@@ -120,6 +121,6 @@ func newMockMCPFactory(proxy *mcpmock.MockServerProxier) *mockMCPFactory {
 	return &mockMCPFactory{proxy: proxy}
 }
 
-func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request) (mcp.ServerProxier, error) {
+func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request, tracer trace.Tracer) (mcp.ServerProxier, error) {
 	return m.proxy, nil
 }

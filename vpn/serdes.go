@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // MaxLength is the largest possible CoderVPN Protocol message size. This is set

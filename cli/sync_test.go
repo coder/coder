@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/testutil"
@@ -25,7 +25,7 @@ func setupSocketServer(t *testing.T) (path string, cleanup func()) {
 	t.Helper()
 
 	// Use a temporary socket path for each test
-	socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 
 	// Create parent directory if needed
 	parentDir := filepath.Dir(socketPath)

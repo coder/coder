@@ -510,9 +510,9 @@ resource "kubernetes_pod" "workspace" {
 ## Get help
 
 - **Examples**: Review real-world examples from the [official Coder templates](https://registry.coder.com/contributors/coder?tab=templates):
-  - [AWS EC2 (Devcontainer)](https://registry.coder.com/templates/aws-devcontainer) - AWS EC2 VMs with devcontainer support
-  - [Docker (Devcontainer)](https://registry.coder.com/templates/docker-devcontainer) - Envbuilder containers with dev container support
-  - [Kubernetes (Devcontainer)](https://registry.coder.com/templates/kubernetes-devcontainer) - Envbuilder pods on Kubernetes
+  - [AWS EC2 (Devcontainer)](https://registry.coder.com/templates/aws-devcontainer) - AWS EC2 VMs with Envbuilder
+  - [Docker (Devcontainer)](https://registry.coder.com/templates/docker-devcontainer) - Docker-in-Docker with Dev Containers integration
+  - [Kubernetes (Devcontainer)](https://registry.coder.com/templates/kubernetes-devcontainer) - Kubernetes pods with Envbuilder
   - [Docker Containers](https://registry.coder.com/templates/docker) - Basic Docker container workspaces
   - [AWS EC2 (Linux)](https://registry.coder.com/templates/aws-linux) - AWS EC2 VMs for Linux development
   - [Google Compute Engine (Linux)](https://registry.coder.com/templates/gcp-vm-container) - GCP VM instances

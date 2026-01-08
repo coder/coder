@@ -1290,8 +1290,14 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Returns existing file if duplicate",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadResponse"
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "Returns newly created file",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadResponse"
                         }
@@ -1800,7 +1806,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Add new license",
                 "operationId": "add-new-license",
@@ -1836,7 +1842,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Organizations"
+                    "Enterprise"
                 ],
                 "summary": "Update license entitlements",
                 "operationId": "update-license-entitlements",
@@ -9577,6 +9583,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Delete devcontainer for workspace agent",
+                "operationId": "delete-devcontainer-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Devcontainer ID",
+                        "name": "devcontainer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
                 "security": [
@@ -11877,8 +11919,14 @@ const docTemplate = `{
                 "inject_coder_mcp_tools": {
                     "type": "boolean"
                 },
+                "max_concurrency": {
+                    "type": "integer"
+                },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                },
+                "rate_limit": {
+                    "type": "integer"
                 },
                 "retention": {
                     "type": "integer"
@@ -11957,6 +12005,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeProxyConfig": {
+            "type": "object",
+            "properties": {
+                "cert_file": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "key_file": {
+                    "type": "string"
+                },
+                "listen_addr": {
                     "type": "string"
                 }
             }
@@ -12060,6 +12125,9 @@ const docTemplate = `{
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
+                "aibridge_proxy": {
+                    "$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
+                },
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
                 }
@@ -14208,6 +14276,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_workspace_sharing": {
+                    "type": "boolean"
+                },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
@@ -14313,6 +14384,9 @@ const docTemplate = `{
                 },
                 "ssh_keygen_algorithm": {
                     "type": "string"
+                },
+                "stats_collection": {
+                    "$ref": "#/definitions/codersdk.StatsCollectionConfig"
                 },
                 "strict_transport_security": {
                     "type": "integer"
@@ -14621,6 +14695,13 @@ const docTemplate = `{
                 },
                 "client_id": {
                     "type": "string"
+                },
+                "code_challenge_methods_supported": {
+                    "description": "CodeChallengeMethodsSupported lists the PKCE code challenge methods\nThe only one supported by Coder is \"S256\".",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "device_code_url": {
                     "type": "string"
@@ -17912,6 +17993,50 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SharedWorkspaceActor": {
+            "type": "object",
+            "properties": {
+                "actor_type": {
+                    "enum": [
+                        "group",
+                        "user"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
+                        }
+                    ]
+                },
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
+                }
+            }
+        },
+        "codersdk.SharedWorkspaceActorType": {
+            "type": "string",
+            "enum": [
+                "group",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "SharedWorkspaceActorTypeGroup",
+                "SharedWorkspaceActorTypeUser"
+            ]
+        },
         "codersdk.SlimRole": {
             "type": "object",
             "properties": {
@@ -17923,6 +18048,14 @@ const docTemplate = `{
                 },
                 "organization_id": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.StatsCollectionConfig": {
+            "type": "object",
+            "properties": {
+                "usage_stats": {
+                    "$ref": "#/definitions/codersdk.UsageStatsConfig"
                 }
             }
         },
@@ -19526,6 +19659,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UsageStatsConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.User": {
             "type": "object",
             "required": [
@@ -19987,6 +20128,12 @@ const docTemplate = `{
                     "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 },
+                "shared_with": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SharedWorkspaceActor"
+                    }
+                },
                 "task_id": {
                     "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
                     "allOf": [
@@ -20328,12 +20475,16 @@ const docTemplate = `{
                 "running",
                 "stopped",
                 "starting",
+                "stopping",
+                "deleting",
                 "error"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentDevcontainerStatusRunning",
                 "WorkspaceAgentDevcontainerStatusStopped",
                 "WorkspaceAgentDevcontainerStatusStarting",
+                "WorkspaceAgentDevcontainerStatusStopping",
+                "WorkspaceAgentDevcontainerStatusDeleting",
                 "WorkspaceAgentDevcontainerStatusError"
             ]
         },

@@ -10,13 +10,12 @@ import (
 	"regexp"
 	"strings"
 
-	"cdr.dev/slog"
-
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/aisdk-go"
 	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
@@ -69,6 +68,18 @@ Prompt: "Set up CI/CD pipeline" →
 {
 	"display_name": "CI/CD pipeline setup",
 	"task_name": "setup-cicd"
+}
+
+Prompt: "Work on https://github.com/coder/coder/issues/1234" →
+{
+	"display_name": "Work on coder/coder #1234",
+	"task_name": "coder-1234"
+}
+
+Prompt: "Fix https://github.com/org/repo/pull/567" →
+{
+	"display_name": "Fix org/repo PR #567",
+	"task_name": "repo-pr-567"
 }
 
 If a suitable name cannot be created, output exactly:

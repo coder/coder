@@ -13,9 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -835,6 +834,92 @@ func TestNotifications(t *testing.T) {
 			require.NotContains(t, notification.Targets, deletedDormantWorkspace.ID,
 				"deleted workspace should not receive notifications")
 		}
+	})
+
+	// Disabling dormancy auto-deletion should not send "marked for deletion" notifications.
+	t.Run("DisablingAutoDeleteSendsNoNotifications", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			user  = dbgen.User(t, db, database.User{})
+			file  = dbgen.File(t, db, database.File{
+				CreatedBy: user.ID,
+			})
+			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Tags: database.StringMap{
+					"foo": "bar",
+				},
+			})
+			timeTilDormant           = time.Minute * 2
+			timeTilDormantAutoDelete = time.Minute * 4
+			templateVersion          = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				JobID:          templateJob.ID,
+				OrganizationID: templateJob.OrganizationID,
+			})
+			template = dbgen.Template(t, db, database.Template{
+				ActiveVersionID: templateVersion.ID,
+				CreatedBy:       user.ID,
+				OrganizationID:  templateJob.OrganizationID,
+			})
+		)
+
+		// Given: Dormancy auto deletion is enabled
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:                       template.ID,
+			UpdatedAt:                dbtime.Now(),
+			TimeTilDormant:           int64(timeTilDormant),
+			TimeTilDormantAutoDelete: int64(timeTilDormantAutoDelete),
+		})
+		require.NoError(t, err)
+
+		// Given: A workspace that is marked as dormant
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+			OrganizationID: templateJob.OrganizationID,
+			LastUsedAt:     time.Now().Add(-time.Hour),
+		})
+		dormantAt := workspace.LastUsedAt.Add(timeTilDormant)
+		workspace, err = db.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+			ID: workspace.ID,
+			DormantAt: sql.NullTime{
+				Time:  dormantAt,
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, workspace.DeletingAt.Valid, "deleting_at should be set when marking workspace dormant")
+
+		// Setup dependencies
+		notifyEnq := notificationstest.NewFakeEnqueuer()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+		require.NoError(t, err)
+		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+		userQuietHoursStorePtr.Store(&userQuietHoursStore)
+		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger, nil)
+
+		// When: We disable dormancy auto-delete
+		_, err = templateScheduleStore.Set(dbauthz.AsNotifier(ctx), db, template, agplschedule.TemplateScheduleOptions{
+			TimeTilDormant:           timeTilDormant,
+			TimeTilDormantAutoDelete: 0,
+		})
+		require.NoError(t, err)
+
+		// Then: We expect deleting_at to be removed
+		updated, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.False(t, updated.DeletingAt.Valid, "deleting_at should be cleared when auto-deletion is disabled")
+
+		// Then: We expect no notifications to have been sent
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, 0, "no notifications should be sent when disabling dormancy auto-deletion")
 	})
 }
 

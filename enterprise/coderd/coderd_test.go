@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,41 +22,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd/httpapi"
-	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
-	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/tailnet/tailnettest"
-
-	"github.com/coder/retry"
-	"github.com/coder/serpent"
-
+	agplcoderd "github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/replicasync"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
 )
 
 func TestMain(m *testing.M) {
@@ -635,18 +637,18 @@ func TestManagedAgentLimit(t *testing.T) {
 	})
 
 	// Get entitlements to check that the license is a-ok.
-	entitlements, err := cli.Entitlements(ctx) //nolint:gocritic // we're not testing authz on the entitlements endpoint, so using owner is fine
+	sdkEntitlements, err := cli.Entitlements(ctx) //nolint:gocritic // we're not testing authz on the entitlements endpoint, so using owner is fine
 	require.NoError(t, err)
-	require.True(t, entitlements.HasLicense)
-	agentLimit := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+	require.True(t, sdkEntitlements.HasLicense)
+	agentLimit := sdkEntitlements.Features[codersdk.FeatureManagedAgentLimit]
 	require.True(t, agentLimit.Enabled)
 	require.NotNil(t, agentLimit.Limit)
 	require.EqualValues(t, 1, *agentLimit.Limit)
 	require.NotNil(t, agentLimit.SoftLimit)
 	require.EqualValues(t, 1, *agentLimit.SoftLimit)
-	require.Empty(t, entitlements.Errors)
+	require.Empty(t, sdkEntitlements.Errors)
 	// There should be a warning since we're really close to our agent limit.
-	require.Equal(t, entitlements.Warnings[0], "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
+	require.Equal(t, sdkEntitlements.Warnings[0], "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
 
 	// Create a fake provision response that claims there are agents in the
 	// template and every built workspace.
@@ -655,21 +657,21 @@ func TestManagedAgentLimit(t *testing.T) {
 	// build.
 	appID := uuid.NewString()
 	echoRes := &echo.Responses{
-		Parse: echo.ParseComplete,
+		Parse:         echo.ParseComplete,
+		ProvisionInit: echo.InitComplete,
 		ProvisionPlan: []*proto.Response{
 			{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						Plan:        []byte("{}"),
-						ModuleFiles: []byte{},
-						HasAiTasks:  true,
+						Plan: []byte("{}"),
 					},
 				},
 			},
 		},
-		ProvisionApply: []*proto.Response{{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",
@@ -721,6 +723,69 @@ func TestManagedAgentLimit(t *testing.T) {
 	// Create a third non-AI workspace, which should succeed.
 	workspace = coderdtest.CreateWorkspace(t, cli, noAiTemplate.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
+}
+
+func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Prepare entitlements with a managed agent limit to enforce.
+	entSet := entitlements.New()
+	entSet.Modify(func(e *codersdk.Entitlements) {
+		e.HasLicense = true
+		limit := int64(1)
+		issuedAt := time.Now().Add(-2 * time.Hour)
+		start := time.Now().Add(-time.Hour)
+		end := time.Now().Add(time.Hour)
+		e.Features[codersdk.FeatureManagedAgentLimit] = codersdk.Feature{
+			Enabled:     true,
+			Limit:       &limit,
+			UsagePeriod: &codersdk.UsagePeriod{IssuedAt: issuedAt, Start: start, End: end},
+		}
+	})
+
+	// Enterprise API instance with entitlements injected.
+	agpl := &agplcoderd.API{
+		Options: &agplcoderd.Options{
+			Entitlements: entSet,
+		},
+	}
+	eapi := &coderd.API{
+		AGPL:    agpl,
+		Options: &coderd.Options{Options: agpl.Options},
+	}
+
+	// Template version that has an AI task.
+	tv := &database.TemplateVersion{
+		HasAITask:        sql.NullBool{Valid: true, Bool: true},
+		HasExternalAgent: sql.NullBool{Valid: true, Bool: false},
+	}
+
+	// Mock DB: expect exactly one count call for the "start" transition.
+	mDB := dbmock.NewMockStore(ctrl)
+	mDB.EXPECT().
+		GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+		Times(1).
+		Return(int64(1), nil) // equal to limit -> should breach
+
+	ctx := context.Background()
+
+	// Start transition: should be not permitted due to limit breach.
+	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionStart)
+	require.NoError(t, err)
+	require.False(t, startResp.Permitted)
+	require.Contains(t, startResp.Message, "breached the managed agent limit")
+
+	// Stop transition: should be permitted and must not trigger additional DB calls.
+	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionStop)
+	require.NoError(t, err)
+	require.True(t, stopResp.Permitted)
+
+	// Delete transition: should be permitted and must not trigger additional DB calls.
+	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionDelete)
+	require.NoError(t, err)
+	require.True(t, deleteResp.Permitted)
 }
 
 // testDBAuthzRole returns a context with a subject that has a role

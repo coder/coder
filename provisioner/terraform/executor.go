@@ -20,12 +20,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/provisionersdk/tfpath"
-
-	"github.com/coder/coder/v2/coderd/database"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
 
 var (
@@ -283,7 +281,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uint32 {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		logger.Debug(ctx, "file %s does not exist or can't be read, skip checksum calculation")
+		logger.Debug(ctx, "file does not exist or can't be read, skip checksum calculation", slog.F("path", path))
 		return 0
 	}
 	return crc32.ChecksumIEEE(content)
@@ -325,39 +323,19 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		<-doneErr
 	}()
 
-	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
-	// Capture the duration of the call to `terraform graph`.
-	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
-
-	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
+	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
-		return nil, xerrors.Errorf("plan resources: %w", err)
+		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
+
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal plan: %w", err)
-	}
-
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
-
-	var moduleFiles []byte
-	// Skipping modules archiving is useful if the caller does not need it, eg during
-	// a workspace build. This removes some added costs of sending the modules
-	// payload back to coderd if coderd is just going to ignore it.
-	if !req.OmitModuleFiles {
-		moduleFiles, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
-		if err != nil {
-			// TODO: we probably want to persist this error or make it louder eventually
-			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
-		}
 	}
 
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
@@ -386,18 +364,16 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		}
 	}
 
+	state, err := ConvertPlanState(plan)
+	if err != nil {
+		return nil, xerrors.Errorf("convert plan state: %w", err)
+	}
+
 	msg := &proto.PlanComplete{
-		Parameters:            state.Parameters,
-		Resources:             state.Resources,
-		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
-		Presets:               state.Presets,
-		Plan:                  planJSON,
-		ResourceReplacements:  resReps,
-		ModuleFiles:           moduleFiles,
-		HasAiTasks:            state.HasAITasks,
-		AiTasks:               state.AITasks,
-		HasExternalAgents:     state.HasExternalAgents,
+		Plan:                 planJSON,
+		DailyCost:            state.DailyCost,
+		ResourceReplacements: resReps,
+		AiTaskCount:          state.AITaskCount,
 	}
 
 	return msg, nil
@@ -418,42 +394,6 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 		filtered.ChildModules = append(filtered.ChildModules, &filteredChild)
 	}
 	return filtered
-}
-
-// planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, *tfjson.Plan, error) {
-	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
-	defer span.End()
-
-	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
-	}
-
-	rawGraph, err := e.graph(ctx, killCtx)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("graph: %w", err)
-	}
-	modules := []*tfjson.StateModule{}
-	if plan.PriorState != nil {
-		// We need the data resources for rich parameters. For some reason, they
-		// only show up in the PriorState.
-		//
-		// We don't want all prior resources, because Quotas (and
-		// future features) would never know which resources are getting
-		// deleted by a stop.
-
-		filtered := onlyDataResources(*plan.PriorState.Values.RootModule)
-		modules = append(modules, &filtered)
-	}
-	modules = append(modules, plan.PlannedValues.RootModule)
-
-	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return state, plan, nil
 }
 
 // parsePlan must only be called while the lock is held.
@@ -543,9 +483,11 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 		// TODO: When the plan is present, we should probably use it?
 		// "-plan=" + e.files.PlanFilePath(),
 	}
+
 	if ver.GreaterThanOrEqual(version170) {
 		args = append(args, "-type=plan")
 	}
+
 	var out strings.Builder
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
 	cmd.Stdout = &out
@@ -599,60 +541,20 @@ func (e *executor) apply(
 	}()
 
 	// `terraform apply`
-	endStage := e.timings.startStage(database.ProvisionerJobTimingStageApply)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
 
-	// `terraform show` & `terraform graph`
-	state, err := e.stateResources(ctx, killCtx)
-	if err != nil {
-		return nil, err
-	}
 	statefilePath := e.files.StateFilePath()
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 
-	agg := e.timings.aggregate()
 	return &proto.ApplyComplete{
-		Parameters:            state.Parameters,
-		Resources:             state.Resources,
-		ExternalAuthProviders: state.ExternalAuthProviders,
-		State:                 stateContent,
-		Timings:               agg,
-		AiTasks:               state.AITasks,
+		State: stateContent,
 	}, nil
-}
-
-// stateResources must only be called while the lock is held.
-func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) {
-	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
-	defer span.End()
-
-	state, err := e.state(ctx, killCtx)
-	if err != nil {
-		return nil, err
-	}
-	rawGraph, err := e.graph(ctx, killCtx)
-	if err != nil {
-		return nil, xerrors.Errorf("get terraform graph: %w", err)
-	}
-	converted := &State{}
-	if state.Values == nil {
-		return converted, nil
-	}
-
-	converted, err = ConvertState(ctx, []*tfjson.StateModule{
-		state.Values.RootModule,
-	}, rawGraph, e.server.logger)
-	if err != nil {
-		return nil, err
-	}
-	return converted, nil
 }
 
 // state must only be called while the lock is held.

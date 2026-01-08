@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -34,6 +35,24 @@ import (
 
 func TestExternalAuthByID(t *testing.T) {
 	t.Parallel()
+	t.Run("PKCEMissing", func(t *testing.T) {
+		t.Parallel()
+		const providerID = "fake-github"
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+					cfg.CodeChallengeMethodsSupported = []promoauth.Oauth2PKCEChallengeMethod{}
+				}),
+			},
+		})
+		coderdtest.CreateFirstUser(t, client)
+		auth, err := client.ExternalAuthByID(context.Background(), providerID)
+		require.NoError(t, err)
+		require.False(t, auth.Authenticated)
+	})
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 		const providerID = "fake-github"
@@ -476,7 +495,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -507,7 +526,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -607,7 +626,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -668,7 +687,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -714,7 +733,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -779,7 +798,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 					Parse:          echo.ParseComplete,
 					ProvisionPlan:  echo.PlanComplete,
-					ProvisionApply: echo.ProvisionApplyWithAgentAndAPIKeyScope(authToken, tt.apiKeyScope),
+					ProvisionGraph: echo.ProvisionGraphWithAgentAndAPIKeyScope(authToken, tt.apiKeyScope),
 				})
 				template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)

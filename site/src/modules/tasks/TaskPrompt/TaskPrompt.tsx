@@ -7,7 +7,6 @@ import type {
 	Template,
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
-import { AITaskPromptParameterName } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -162,19 +161,6 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		const defaultPreset = presets?.find((p) => p.Default);
 		setSelectedPresetId(defaultPreset?.ID ?? presets?.[0]?.ID);
 	}, [presets]);
-	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
-
-	// Read-only prompt if defined in preset
-	const presetPrompt = selectedPreset?.Parameters?.find(
-		(param) => param.Name === AITaskPromptParameterName,
-	)?.Value;
-	const isPromptReadOnly = !!presetPrompt;
-	useEffect(() => {
-		if (presetPrompt) {
-			setPrompt(presetPrompt);
-		}
-	}, [presetPrompt]);
-
 	// External Auth
 	const {
 		externalAuth,
@@ -216,7 +202,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		},
 	});
 
-	const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+	const onSubmit = async (e: React.SyntheticEvent) => {
 		e.preventDefault();
 
 		try {
@@ -228,6 +214,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
 			displayError(message, detail);
+		}
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		// Submit form on Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+			onSubmit(e);
 		}
 	};
 
@@ -243,22 +236,15 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary"
 				disabled={createTaskMutation.isPending}
 			>
-				<label
-					htmlFor="prompt"
-					className={
-						isPromptReadOnly
-							? "text-xs font-medium text-content-primary block px-3 pt-2"
-							: "sr-only"
-					}
-				>
-					{isPromptReadOnly ? "Prompt defined by preset" : "Prompt"}
+				<label htmlFor="prompt" className="sr-only">
+					Prompt
 				</label>
 				<PromptTextarea
 					required
 					value={prompt}
 					onChange={(e) => setPrompt(e.target.value)}
-					readOnly={isPromptReadOnly}
 					isSubmitting={createTaskMutation.isPending}
+					onKeyDown={handleKeyDown}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">

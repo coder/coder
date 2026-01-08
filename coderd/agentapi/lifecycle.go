@@ -11,7 +11,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"

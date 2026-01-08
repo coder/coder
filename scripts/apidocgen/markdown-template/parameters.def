@@ -43,11 +43,12 @@
 {{~}}
 
 {{? data.enums && data.enums.length }}
+{{ var groupedEnums = data.functions.groupEnumsByName(data.enums); }}
 #### Enumerated Values
 
-|Parameter|Value|
+|Parameter|Value(s)|
 |---|---|
-{{~ data.enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~ groupedEnums :e}}|`{{=e.name}}`|{{~ e.values :v:idx}}`{{=data.utils.toPrimitive(v)}}`{{? idx < e.values.length - 1}}, {{?}}{{~}}|
 {{~}}
 {{?}}
 {{= data.tags.endSection }}

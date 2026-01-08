@@ -10,10 +10,9 @@ package dcspec
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 )
-
-import "encoding/json"
 
 func UnmarshalDevContainer(data []byte) (DevContainer, error) {
 	var r DevContainer

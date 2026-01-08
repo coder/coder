@@ -7,11 +7,11 @@ import {
 } from "components/Tooltip/Tooltip";
 import {
 	BanIcon,
-	CircleStopIcon,
 	CloudIcon,
 	PlayIcon,
 	PowerIcon,
 	RotateCcwIcon,
+	SquareIcon,
 	StarIcon,
 	StarOffIcon,
 } from "lucide-react";
@@ -130,7 +130,7 @@ export const StopButton: FC<ActionButtonProps> = ({
 			onClick={() => handleAction()}
 			data-testid="workspace-stop-button"
 		>
-			<CircleStopIcon />
+			<SquareIcon />
 			{loading ? <>Stopping&hellip;</> : "Stop"}
 		</TopbarButton>
 	);

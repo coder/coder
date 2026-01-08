@@ -25,13 +25,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/quartz"
-	"github.com/coder/serpent"
-
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -51,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -58,6 +55,8 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {

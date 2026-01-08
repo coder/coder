@@ -13,9 +13,8 @@ import (
 	"github.com/chromedp/chromedp"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/cryptorand"
-
-	"cdr.dev/slog"
 )
 
 // Action is just a function that does something.

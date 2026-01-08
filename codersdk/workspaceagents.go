@@ -401,8 +401,21 @@ const (
 	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
 	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
 	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusStopping WorkspaceAgentDevcontainerStatus = "stopping"
+	WorkspaceAgentDevcontainerStatusDeleting WorkspaceAgentDevcontainerStatus = "deleting"
 	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
 )
+
+func (s WorkspaceAgentDevcontainerStatus) Transitioning() bool {
+	switch s {
+	case WorkspaceAgentDevcontainerStatusStarting,
+		WorkspaceAgentDevcontainerStatusStopping,
+		WorkspaceAgentDevcontainerStatusDeleting:
+		return true
+	default:
+		return false
+	}
+}
 
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
@@ -573,6 +586,19 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 
 	d := wsjson.NewDecoder[WorkspaceAgentListContainersResponse](conn, websocket.MessageText, c.logger)
 	return d.Chan(), d, nil
+}
+
+// WorkspaceAgentDeleteDevcontainer deletes the devcontainer with the given ID.
+func (c *Client) WorkspaceAgentDeleteDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s", agentID, devcontainerID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.

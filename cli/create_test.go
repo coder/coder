@@ -301,11 +301,13 @@ func TestCreate(t *testing.T) {
 
 func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.Preset) *echo.Responses {
 	return &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		Parse:         echo.ParseComplete,
+		ProvisionInit: echo.InitComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: parameters,
 						Presets:    presets,
 					},
@@ -1573,11 +1575,13 @@ func TestCreateValidateRichParameters(t *testing.T) {
 func TestCreateWithGitAuth(t *testing.T) {
 	t.Parallel()
 	echoResponses := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		Parse:         echo.ParseComplete,
+		ProvisionInit: echo.InitComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}},
 					},
 				},

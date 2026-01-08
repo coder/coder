@@ -13,17 +13,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/database/dbtime"
-
-	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/files"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -34,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type storeSpy struct {
@@ -167,7 +166,7 @@ func TestClaimPrebuild(t *testing.T) {
 				defer provisionerCloser.Close()
 
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
 				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -384,10 +383,10 @@ func TestClaimPrebuild(t *testing.T) {
 func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{
 							{
 								Type: "compute",
@@ -435,27 +434,6 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 								},
 								Prebuild: &proto.Prebuild{
 									Instances: desiredInstances,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-									},
 								},
 							},
 						},

@@ -47,6 +47,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>delete</code>](./delete.md)                           | Delete a workspace                                                                                                           |
 | [<code>favorite</code>](./favorite.md)                       | Add a workspace to your favorites                                                                                            |
 | [<code>list</code>](./list.md)                               | List workspaces                                                                                                              |
+| [<code>logs</code>](./logs.md)                               | View logs for a workspace                                                                                                    |
 | [<code>open</code>](./open.md)                               | Open a workspace                                                                                                             |
 | [<code>ping</code>](./ping.md)                               | Ping a workspace                                                                                                             |
 | [<code>rename</code>](./rename.md)                           | Rename a workspace                                                                                                           |

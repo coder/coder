@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -14,9 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_ActivityBumpWorkspace(t *testing.T) {
@@ -25,11 +24,11 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 	// We test the below in multiple timezones specifically
 	// chosen to trigger timezone-related bugs.
 	timezones := []string{
-		"Asia/Kolkata",        // No DST, positive fractional offset
-		"Canada/Newfoundland", // DST, negative fractional offset
-		"Europe/Paris",        // DST, positive offset
-		"US/Arizona",          // No DST, negative offset
-		"UTC",                 // Baseline
+		"Asia/Kolkata",     // No DST, positive fractional offset
+		"America/St_Johns", // DST, negative fractional offset
+		"Europe/Paris",     // DST, positive offset
+		"US/Arizona",       // No DST, negative offset
+		"UTC",              // Baseline
 	}
 
 	for _, tt := range []struct {

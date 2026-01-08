@@ -23,27 +23,25 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/cryptokeys"
-	"github.com/coder/coder/v2/coderd/idpsync"
-	"github.com/coder/coder/v2/coderd/jwtutils"
-	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/util/ptr"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -648,9 +646,10 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 
 		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 		newUser, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        user.ID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+			ID:         user.ID,
+			Status:     database.UserStatusActive,
+			UpdatedAt:  dbtime.Now(),
+			UserIsSeen: true,
 		})
 		if err != nil {
 			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
@@ -768,6 +767,10 @@ type GithubOAuth2Config struct {
 	AllowTeams         []GithubOAuth2Team
 
 	DefaultProviderConfigured bool
+}
+
+func (*GithubOAuth2Config) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	return []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256}
 }
 
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
@@ -1172,6 +1175,15 @@ type OIDCConfig struct {
 	IconURL string
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
+	PKCEMethods         []promoauth.Oauth2PKCEChallengeMethod
+}
+
+// PKCESupported is to prevent nil pointer dereference.
+func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
+	if o == nil {
+		return nil
+	}
+	return o.PKCEMethods
 }
 
 // @Summary OpenID Connect Callback
@@ -1786,9 +1798,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			dormantConvertAudit.Old = user
 			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-				ID:        user.ID,
-				Status:    database.UserStatusActive,
-				UpdatedAt: dbtime.Now(),
+				ID:         user.ID,
+				Status:     database.UserStatusActive,
+				UpdatedAt:  dbtime.Now(),
+				UserIsSeen: true,
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to update user status to active", slog.Error(err))

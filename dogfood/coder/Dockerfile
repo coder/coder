@@ -1,5 +1,5 @@
 # 1.86.0
-FROM rust:slim@sha256:5218a2b4b4cb172f26503ac2b2de8e5ffd629ae1c0d885aff2cbe97fd4d1a409 AS rust-utils
+FROM rust:slim@sha256:6cff8a33b03d328aa58d00dedda6a3c5bbee4b41e21533932bffd90d7d58f9c4 AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
@@ -214,7 +214,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.12.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.14.1/terraform_1.14.1_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \

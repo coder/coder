@@ -8,9 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -33,6 +34,7 @@ type Server struct {
 	requestBridgePool Pooler
 
 	logger slog.Logger
+	tracer trace.Tracer
 	wg     sync.WaitGroup
 
 	// initConnectionCh will receive when the daemon connects to coderd for the
@@ -48,7 +50,7 @@ type Server struct {
 	shutdownOnce sync.Once
 }
 
-func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger) (*Server, error) {
+func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -56,6 +58,7 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger)
 	ctx, cancel := context.WithCancel(ctx)
 	daemon := &Server{
 		logger:           logger,
+		tracer:           tracer,
 		clientDialer:     rpcDialer,
 		clientCh:         make(chan DRPCClient),
 		lifecycleCtx:     ctx,
@@ -143,7 +146,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return nil, xerrors.New("nil requestBridgePool")
 	}
 
-	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.Client))
+	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
 	if err != nil {
 		return nil, xerrors.Errorf("acquire request bridge: %w", err)
 	}

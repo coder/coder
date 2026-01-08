@@ -145,7 +145,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/auggie.svg", "monochrome"],
 	["/icon/auto-dev-server.svg", "monochrome"],
 	["/icon/aws.png", "whiteWithColor&brightness=1.5"],
-	["/icon/aws.svg", "blackWithColor&brightness=1.5"],
+	["/icon/aws.svg", "whiteWithColor&brightness=1.5"],
 	["/icon/aws-monochrome.svg", "monochrome"],
 	["/icon/coder.svg", "monochrome"],
 	["/icon/container.svg", "monochrome"],
@@ -159,6 +159,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/kasmvnc.svg", "whiteWithColor"],
 	["/icon/kiro.svg", "whiteWithColor"],
 	["/icon/memory.svg", "monochrome"],
+	["/icon/mux.svg", "monochrome"],
 	["/icon/nexus-repository.svg", "blackWithColor"],
 	["/icon/okta.svg", "monochrome"],
 	["/icon/openai.svg", "monochrome"],
@@ -168,4 +169,6 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/windsurf.svg", "monochrome"],
 	["/icon/zed.svg", "monochrome"],
 	["/icon/tasks.svg", "monochrome"],
+	["/icon/openwebui.svg", "monochrome"],
+	["/icon/perplexica.svg", "monochrome"],
 ]);

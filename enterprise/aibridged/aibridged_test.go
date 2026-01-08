@@ -15,8 +15,9 @@ import (
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/aibridge"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	mock "github.com/coder/coder/v2/enterprise/aibridged/aibridgedmock"
@@ -41,7 +42,7 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 		pool,
 		func(ctx context.Context) (aibridged.DRPCClient, error) {
 			return client, nil
-		}, logger)
+		}, logger, testTracer)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
@@ -220,7 +221,7 @@ func TestExtractAuthToken(t *testing.T) {
 			for k, v := range tc.headers {
 				headers.Add(k, v)
 			}
-			key := aibridged.ExtractAuthToken(headers)
+			key := agplaibridge.ExtractAuthToken(headers)
 			require.Equal(t, tc.expectedKey, key)
 		})
 	}
@@ -290,7 +291,7 @@ func TestRouting(t *testing.T) {
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL}),
 				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
 			}
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, nil, logger)
+			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 			require.NoError(t, err)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
@@ -309,7 +310,7 @@ func TestRouting(t *testing.T) {
 			// Given: aibridged is started.
 			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 				return client, nil
-			}, logger)
+			}, logger, testTracer)
 			require.NoError(t, err, "create new aibridged")
 			t.Cleanup(func() {
 				_ = srv.Shutdown(testutil.Context(t, testutil.WaitShort))

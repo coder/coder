@@ -7,8 +7,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -147,12 +146,12 @@ type SubAgentClient interface {
 // agent API client.
 type subAgentAPIClient struct {
 	logger slog.Logger
-	api    agentproto.DRPCAgentClient26
+	api    agentproto.DRPCAgentClient27
 }
 
 var _ SubAgentClient = (*subAgentAPIClient)(nil)
 
-func NewSubAgentClientFromAPI(logger slog.Logger, agentAPI agentproto.DRPCAgentClient26) SubAgentClient {
+func NewSubAgentClientFromAPI(logger slog.Logger, agentAPI agentproto.DRPCAgentClient27) SubAgentClient {
 	if agentAPI == nil {
 		panic("developer error: agentAPI cannot be nil")
 	}
