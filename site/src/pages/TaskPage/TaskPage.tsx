@@ -45,7 +45,7 @@ import {
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
-import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskAcpChat } from "./TaskAcpChat";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
 
@@ -169,7 +169,7 @@ const TaskPage = () => {
 			<PanelGroup autoSaveId="task" direction="horizontal">
 				<Panel defaultSize={25} minSize={20}>
 					{chatApp ? (
-						<TaskAppIFrame active workspace={workspace} app={chatApp} />
+						<TaskAcpChat active workspace={workspace} app={chatApp} />
 					) : (
 						<div className="h-full flex items-center justify-center p-6 text-center">
 							<div className="flex flex-col items-center">
