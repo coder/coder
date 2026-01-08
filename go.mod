@@ -580,6 +580,7 @@ tool (
 	github.com/coder/paralleltestctx/cmd/paralleltestctx
 	github.com/daixiang0/gci
 	github.com/swaggo/swag/cmd/swag
+	go.uber.org/mock/mockgen
 	golang.org/x/tools/cmd/goimports
 	mvdan.cc/gofumpt
 	storj.io/drpc/cmd/protoc-gen-go-drpc
