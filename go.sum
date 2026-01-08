@@ -822,8 +822,8 @@ github.com/bep/goportabletext v0.1.0 h1:8dqym2So1cEqVZiBa4ZnMM1R9l/DnC1h4ONg4J5k
 github.com/bep/goportabletext v0.1.0/go.mod h1:6lzSTsSue75bbcyvVc0zqd1CdApuT+xkZQ6Re5DzZFg=
 github.com/bep/helpers v0.6.0 h1:qtqMCK8XPFNM9hp5Ztu9piPjxNNkk8PIyUVjg6v8Bsw=
 github.com/bep/helpers v0.6.0/go.mod h1:IOZlgx5PM/R/2wgyCatfsgg5qQ6rNZJNDpWGXqDR044=
-github.com/bep/imagemeta v0.12.0 h1:ARf+igs5B7pf079LrqRnwzQ/wEB8Q9v4NSDRZO1/F5k=
-github.com/bep/imagemeta v0.12.0/go.mod h1:23AF6O+4fUi9avjiydpKLStUNtJr5hJB4rarG18JpN8=
+github.com/bep/imagemeta v0.12.1 h1:43sIg/XJhXLVOo6troJFj9dyUr1jH+VN2UjO4/l26cQ=
+github.com/bep/imagemeta v0.12.1/go.mod h1:23AF6O+4fUi9avjiydpKLStUNtJr5hJB4rarG18JpN8=
 github.com/bep/lazycache v0.8.0 h1:lE5frnRjxaOFbkPZ1YL6nijzOPPz6zeXasJq8WpG4L8=
 github.com/bep/lazycache v0.8.0/go.mod h1:BQ5WZepss7Ko91CGdWz8GQZi/fFnCcyWupv8gyTeKwk=
 github.com/bep/logg v0.4.0 h1:luAo5mO4ZkhA5M1iDVDqDqnBBnlHjmtZF6VAyTp+nCQ=
@@ -1222,8 +1222,8 @@ github.com/gohugoio/hashstructure v0.6.0 h1:7wMB/2CfXoThFYhdWRGv3u3rUM761Cq29CxU
 github.com/gohugoio/hashstructure v0.6.0/go.mod h1:lapVLk9XidheHG1IQ4ZSbyYrXcaILU1ZEP/+vno5rBQ=
 github.com/gohugoio/httpcache v0.8.0 h1:hNdsmGSELztetYCsPVgjA960zSa4dfEqqF/SficorCU=
 github.com/gohugoio/httpcache v0.8.0/go.mod h1:fMlPrdY/vVJhAriLZnrF5QpN3BNAcoBClgAyQd+lGFI=
-github.com/gohugoio/hugo v0.153.1 h1:2TANvInDLoEAgskFC4AHiPFqM9tNQ9eiETfiipqEBf4=
-github.com/gohugoio/hugo v0.153.1/go.mod h1:qwagavzIztzFYaMep3UPoAW4Pa/5gr1bt61u8Xs/5AI=
+github.com/gohugoio/hugo v0.154.2 h1:KHvcs0qGXwaebyQHIH/JgZbOQlUViffj2HWnWV6v/08=
+github.com/gohugoio/hugo v0.154.2/go.mod h1:/4rqF6hPIBDeyDQaYPsA+ezFvRtWZlUaw2800CW0GNk=
 github.com/gohugoio/hugo-goldmark-extensions/extras v0.5.0 h1:dco+7YiOryRoPOMXwwaf+kktZSCtlFtreNdiJbETvYE=
 github.com/gohugoio/hugo-goldmark-extensions/extras v0.5.0/go.mod h1:CRrxQTKeM3imw+UoS4EHKyrqB7Zp6sAJiqHit+aMGTE=
 github.com/gohugoio/hugo-goldmark-extensions/passthrough v0.3.1 h1:nUzXfRTszLliZuN0JTKeunXTRaiFX6ksaWP0puLLYAY=
@@ -1857,8 +1857,8 @@ github.com/testcontainers/testcontainers-go v0.38.0 h1:d7uEapLcv2P8AvH8ahLqDMMxd
 github.com/testcontainers/testcontainers-go v0.38.0/go.mod h1:C52c9MoHpWO+C4aqmgSU+hxlR5jlEayWtgYrb8Pzz1w=
 github.com/testcontainers/testcontainers-go/modules/localstack v0.38.0 h1:3ljIy6FmHtFhZsZwsaMIj/27nCRm0La7N/dl5Jou8AA=
 github.com/testcontainers/testcontainers-go/modules/localstack v0.38.0/go.mod h1:BTsbqWC9huPV8Jg8k46Jz4x1oRAA9XGxneuuOOIrtKY=
-github.com/tetratelabs/wazero v1.10.1 h1:2DugeJf6VVk58KTPszlNfeeN8AhhpwcZqkJj2wwFuH8=
-github.com/tetratelabs/wazero v1.10.1/go.mod h1:DRm5twOQ5Gr1AoEdSi0CLjDQF1J9ZAuyqFIjl1KKfQU=
+github.com/tetratelabs/wazero v1.11.0 h1:+gKemEuKCTevU4d7ZTzlsvgd1uaToIDtlQlmNbwqYhA=
+github.com/tetratelabs/wazero v1.11.0/go.mod h1:eV28rsN8Q+xwjogd7f4/Pp4xFxO7uOGbLcD/LzB1wiU=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/gjson v1.18.0 h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
 github.com/tidwall/gjson v1.18.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=

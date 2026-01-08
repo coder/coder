@@ -1202,7 +1202,8 @@ CREATE TABLE custom_roles (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     organization_id uuid,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    CONSTRAINT organization_id_not_zero CHECK ((organization_id <> '00000000-0000-0000-0000-000000000000'::uuid))
 );
 
 COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';
@@ -3331,7 +3332,7 @@ CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btr
 
 CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
-CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
+CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles USING btree (lower(name), COALESCE(organization_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
 

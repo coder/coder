@@ -16,6 +16,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -47,6 +50,7 @@ type StoreReconciler struct {
 	registerer        prometheus.Registerer
 	notifEnq          notifications.Enqueuer
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
+	tracer            trace.Tracer
 
 	cancelFn          context.CancelCauseFunc
 	running           atomic.Bool
@@ -89,6 +93,7 @@ func NewStoreReconciler(store database.Store,
 	registerer prometheus.Registerer,
 	notifEnq notifications.Enqueuer,
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
+	tracerProvider trace.TracerProvider,
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
 		store:             store,
@@ -100,6 +105,7 @@ func NewStoreReconciler(store database.Store,
 		registerer:        registerer,
 		notifEnq:          notifEnq,
 		buildUsageChecker: buildUsageChecker,
+		tracer:            tracerProvider.Tracer(tracing.TracerName),
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
@@ -283,6 +289,9 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 // simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
 // extraneous instance and delete it.
 func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.ReconcileStats, err error) {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.ReconcileAll")
+	defer span.End()
+
 	start := c.clock.Now()
 	defer func() {
 		stats.Elapsed = c.clock.Since(start)
@@ -420,6 +429,9 @@ func (c *StoreReconciler) reportHardLimitedPresets(snapshot *prebuilds.GlobalSna
 
 // SnapshotState captures the current state of all prebuilds across templates.
 func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Store) (*prebuilds.GlobalSnapshot, error) {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.SnapshotState")
+	defer span.End()
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -482,13 +494,21 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead, // This mirrors the MVCC snapshotting Postgres does when using CTEs
 		ReadOnly:     true,
-		TxIdentifier: "prebuilds_state_determination",
+		TxIdentifier: "prebuilds.SnapshotState",
 	})
 
 	return &state, err
 }
 
 func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.PresetSnapshot) error {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.ReconcilePreset", trace.WithAttributes(
+		attribute.String("preset_id", ps.Preset.ID.String()),
+		attribute.String("preset_name", ps.Preset.Name),
+		attribute.String("template_id", ps.Preset.TemplateID.String()),
+		attribute.String("template_name", ps.Preset.TemplateName),
+	))
+	defer span.End()
+
 	logger := c.logger.With(
 		slog.F("template_id", ps.Preset.TemplateID.String()),
 		slog.F("template_name", ps.Preset.TemplateName),
@@ -554,6 +574,9 @@ func (c *StoreReconciler) WithReconciliationLock(
 	logger slog.Logger,
 	fn func(ctx context.Context, db database.Store) error,
 ) error {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.WithReconciliationLock")
+	defer span.End()
+
 	// This tx holds a global lock, which prevents any other coderd replica from starting a reconciliation and
 	// possibly getting an inconsistent view of the state.
 	//
@@ -574,8 +597,10 @@ func (c *StoreReconciler) WithReconciliationLock(
 		}
 		if !acquired {
 			// Normal case: another replica has the lock
+			span.SetAttributes(attribute.Bool("lock_acquired", false))
 			return nil
 		}
+		span.SetAttributes(attribute.Bool("lock_acquired", true))
 
 		logger.Debug(ctx,
 			"acquired top-level reconciliation lock",
@@ -586,7 +611,7 @@ func (c *StoreReconciler) WithReconciliationLock(
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead,
 		ReadOnly:     true,
-		TxIdentifier: "prebuilds",
+		TxIdentifier: "prebuilds.WithReconciliationLock",
 	})
 }
 
@@ -599,6 +624,13 @@ func (c *StoreReconciler) WithReconciliationLock(
 // This method handles logging at appropriate levels and performs the necessary operations
 // according to the action type. It returns an error if any part of the action fails.
 func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logger slog.Logger, ps prebuilds.PresetSnapshot, action *prebuilds.ReconciliationActions) error {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.executeReconciliationAction", trace.WithAttributes(
+		attribute.Int("action_type", int(action.ActionType)),
+		attribute.Int("create_count", int(action.Create)),
+		attribute.Int("delete_count", len(action.DeleteIDs)),
+	))
+	defer span.End()
+
 	levelFn := logger.Debug
 
 	// Nothing has to be done.
@@ -692,6 +724,13 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 }
 
 func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltWorkspaceID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.createPrebuiltWorkspace", trace.WithAttributes(
+		attribute.String("prebuild_id", prebuiltWorkspaceID.String()),
+		attribute.String("template_id", templateID.String()),
+		attribute.String("preset_id", presetID.String()),
+	))
+	defer span.End()
+
 	name, err := prebuilds.GenerateName()
 	if err != nil {
 		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
@@ -736,8 +775,9 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 		provisionerJob, err = c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionStart, workspace, DeprovisionModeNormal)
 		return err
 	}, &database.TxOptions{
-		Isolation: sql.LevelRepeatableRead,
-		ReadOnly:  false,
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     false,
+		TxIdentifier: "prebuilds.createPrebuiltWorkspace",
 	})
 	if err != nil {
 		return err
@@ -788,6 +828,13 @@ func (c *StoreReconciler) provisionDelete(ctx context.Context, db database.Store
 // Since these jobs were never processed by a provisioner, no Terraform resources were created,
 // making it safe to orphan-delete the workspaces (skipping Terraform destroy).
 func (c *StoreReconciler) cancelAndOrphanDeletePendingPrebuilds(ctx context.Context, templateID uuid.UUID, templateVersionID uuid.UUID, presetID uuid.UUID) error {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.cancelAndOrphanDeletePendingPrebuilds", trace.WithAttributes(
+		attribute.String("template_id", templateID.String()),
+		attribute.String("template_version_id", templateVersionID.String()),
+		attribute.String("preset_id", presetID.String()),
+	))
+	defer span.End()
+
 	var canceledProvisionerJob *database.ProvisionerJob
 	var canceledWorkspaceID uuid.UUID
 	err := c.store.InTx(func(db database.Store) error {
@@ -832,8 +879,9 @@ func (c *StoreReconciler) cancelAndOrphanDeletePendingPrebuilds(ctx context.Cont
 
 		return multiErr.ErrorOrNil()
 	}, &database.TxOptions{
-		Isolation: sql.LevelRepeatableRead,
-		ReadOnly:  false,
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     false,
+		TxIdentifier: "prebuilds.cancelAndOrphanDeletePendingPrebuilds",
 	})
 	if err != nil {
 		return err
@@ -851,13 +899,21 @@ func (c *StoreReconciler) cancelAndOrphanDeletePendingPrebuilds(ctx context.Cont
 }
 
 func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltWorkspaceID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.deletePrebuiltWorkspace", trace.WithAttributes(
+		attribute.String("prebuild_id", prebuiltWorkspaceID.String()),
+		attribute.String("template_id", templateID.String()),
+		attribute.String("preset_id", presetID.String()),
+	))
+	defer span.End()
+
 	var provisionerJob *database.ProvisionerJob
 	err := c.store.InTx(func(db database.Store) (err error) {
 		provisionerJob, err = c.provisionDelete(ctx, db, prebuiltWorkspaceID, templateID, presetID, DeprovisionModeNormal)
 		return err
 	}, &database.TxOptions{
-		Isolation: sql.LevelRepeatableRead,
-		ReadOnly:  false,
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     false,
+		TxIdentifier: "prebuilds.deletePrebuiltWorkspace",
 	})
 	if err != nil {
 		return err
@@ -879,6 +935,16 @@ func (c *StoreReconciler) provision(
 	workspace database.Workspace,
 	mode DeprovisionMode,
 ) (*database.ProvisionerJob, error) {
+	ctx, span := c.tracer.Start(ctx, "prebuilds.provision", trace.WithAttributes(
+		attribute.String("prebuild_id", prebuildID.String()),
+		attribute.String("template_id", template.ID.String()),
+		attribute.String("preset_id", presetID.String()),
+		attribute.String("transition", string(transition)),
+		attribute.String("workspace_id", workspace.ID.String()),
+		attribute.String("mode", mode.String()),
+	))
+	defer span.End()
+
 	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch preset details: %w", err)
@@ -920,8 +986,12 @@ func (c *StoreReconciler) provision(
 		builder = builder.Orphan()
 	}
 
+	// Strip trace context - provisionerd is a separate service and should
+	// start its own trace rather than continuing the prebuilds trace.
+	buildCtx := trace.ContextWithSpan(ctx, tracing.NoopSpan)
+
 	_, provisionerJob, _, err := builder.Build(
-		ctx,
+		buildCtx,
 		db,
 		c.fileCache,
 		func(_ policy.Action, _ rbac.Objecter) bool {

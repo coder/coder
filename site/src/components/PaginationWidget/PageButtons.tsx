@@ -74,6 +74,7 @@ const BasePageButton: FC<BasePageButtonProps> = ({
 			name={name}
 			disabled={disabled}
 			onClick={onClick}
+			className="min-w-8 w-auto"
 		>
 			{children}
 		</Button>
