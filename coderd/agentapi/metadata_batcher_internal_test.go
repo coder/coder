@@ -69,6 +69,12 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("adding metadata for 1 agent")
 	require.NoError(t, b.Add(agent1, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t2, t2}))
 
+	// Wait for all channel messages to be processed by the run() goroutine
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0
+	}, testutil.IntervalFast)
+
 	// When: it becomes time to flush
 	// Then: agent1's metadata should be updated (verified by mock expectations)
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
@@ -87,6 +93,12 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("adding metadata for 2 agents")
 	require.NoError(t, b.Add(agent1, []string{"key1", "key2", "key3"}, []string{"new_value1", "new_value2", "new_value3"}, []string{"", "", ""}, []time.Time{t3, t3, t3}))
 	require.NoError(t, b.Add(agent2, []string{"key1", "key2"}, []string{"agent2_value1", "agent2_value2"}, []string{"", ""}, []time.Time{t3, t3}))
+
+	// Wait for all channel messages to be processed by the run() goroutine
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0
+	}, testutil.IntervalFast)
 
 	// When: it becomes time to flush
 	// Then: both agents' metadata should be updated (verified by mock expectations)
@@ -240,6 +252,12 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	t2 := clock.Now()
 	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"second_value"}, []string{""}, []time.Time{t2}))
 
+	// Wait for all channel messages to be processed by the run() goroutine
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0
+	}, testutil.IntervalFast)
+
 	// Flush - advance the remaining time to hit the flush interval
 	clock.Advance(defaultMetadataFlushInterval - time.Millisecond).MustWait(ctx)
 
@@ -294,6 +312,12 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 	t2 := clock.Now()
 	// Update key1, add key3 - key2 stays from first update
 	require.NoError(t, b.Add(agent, []string{"key1", "key3"}, []string{"new_value1", "value3"}, []string{"", ""}, []time.Time{t2, t2}))
+
+	// Wait for all channel messages to be processed by the run() goroutine
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0
+	}, testutil.IntervalFast)
 
 	// Flush - advance the remaining time to hit the flush interval
 	clock.Advance(defaultMetadataFlushInterval - time.Millisecond).MustWait(ctx)
@@ -355,6 +379,12 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	// Add even newer update with t3 timestamp - should overwrite
 	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"newest_value"}, []string{""}, []time.Time{t3}))
 
+	// Wait for all channel messages to be processed by the run() goroutine
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0
+	}, testutil.IntervalFast)
+
 	// Flush and verify entry was sent - advance the remaining time to hit the flush interval
 	// We already advanced by 2 seconds, so we need to advance by 3 more seconds to reach the 5s flush interval
 	clock.Advance(defaultMetadataFlushInterval - 2*time.Second).MustWait(ctx)
@@ -411,6 +441,12 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		// Add a single metadata update for each agent
 		require.NoError(t, b.Add(agents[i], []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1}))
 	}
+
+	// Wait for all channel messages to be processed by the run() goroutine
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0
+	}, testutil.IntervalFast)
 
 	// Flush and verify all updates were processed
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
@@ -484,6 +520,12 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	}
 
 	wg.Wait()
+
+	// Wait for all channel messages to be processed by the run() goroutine
+	ctx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0
+	}, testutil.IntervalFast)
 
 	// Flush and check that we have exactly 3 keys (deduplication worked)
 	// We advanced the clock by numGoroutines milliseconds above, so advance by the remaining time
