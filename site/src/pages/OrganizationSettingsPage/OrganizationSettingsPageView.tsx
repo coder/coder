@@ -29,6 +29,7 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
@@ -78,6 +79,8 @@ export const OrganizationSettingsPageView: FC<
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [isDisableSharingDialogOpen, setIsDisableSharingDialogOpen] =
+		useState(false);
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
@@ -152,9 +155,13 @@ export const OrganizationSettingsPageView: FC<
 								id="workspace-sharing"
 								checked={workspaceSharingEnabled}
 								disabled={isTogglingWorkspaceSharing}
-								onCheckedChange={(checked) =>
-									onToggleWorkspaceSharing(checked === true)
-								}
+								onCheckedChange={(checked) => {
+									if (checked) {
+										onToggleWorkspaceSharing(true);
+									} else {
+										setIsDisableSharingDialogOpen(true);
+									}
+								}}
 							/>
 							<div className="flex flex-col">
 								<label
@@ -204,6 +211,17 @@ export const OrganizationSettingsPageView: FC<
 				onCancel={() => setIsDeleting(false)}
 				entity="organization"
 				name={organization.name}
+			/>
+
+			<DisableWorkspaceSharingDialog
+				isOpen={isDisableSharingDialogOpen}
+				organizationId={organization.id}
+				onConfirm={async () => {
+					await onToggleWorkspaceSharing?.(false);
+					setIsDisableSharingDialogOpen(false);
+				}}
+				onCancel={() => setIsDisableSharingDialogOpen(false)}
+				isLoading={isTogglingWorkspaceSharing}
 			/>
 		</div>
 	);

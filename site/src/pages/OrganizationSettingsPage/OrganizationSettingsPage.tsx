@@ -9,18 +9,16 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
-import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const OrganizationSettingsPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const [isDisableDialogOpen, setIsDisableDialogOpen] = useState(false);
 
 	const updateOrganizationMutation = useMutation(
 		updateOrganization(queryClient),
@@ -61,32 +59,21 @@ const OrganizationSettingsPage: FC = () => {
 		updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
 	const handleToggleWorkspaceSharing = async (enabled: boolean) => {
-		if (!enabled) {
-			setIsDisableDialogOpen(true);
-		} else {
-			try {
-				await patchSharingSettingsMutation.mutateAsync({
-					sharing_disabled: false,
-				});
-				displaySuccess("Workspace sharing enabled.");
-			} catch (error) {
-				displayError(
-					getErrorMessage(error, "Failed to enable workspace sharing"),
-				);
-			}
-		}
-	};
-
-	const handleConfirmDisableSharing = async () => {
 		try {
 			await patchSharingSettingsMutation.mutateAsync({
-				sharing_disabled: true,
+				sharing_disabled: !enabled,
 			});
-			displaySuccess("Workspace sharing disabled.");
-			setIsDisableDialogOpen(false);
+			displaySuccess(
+				enabled ? "Workspace sharing enabled." : "Workspace sharing disabled.",
+			);
 		} catch (error) {
 			displayError(
-				getErrorMessage(error, "Failed to disable workspace sharing"),
+				getErrorMessage(
+					error,
+					enabled
+						? "Failed to enable workspace sharing"
+						: "Failed to disable workspace sharing",
+				),
 			);
 		}
 	};
@@ -122,14 +109,6 @@ const OrganizationSettingsPage: FC = () => {
 				}
 				onToggleWorkspaceSharing={handleToggleWorkspaceSharing}
 				isTogglingWorkspaceSharing={patchSharingSettingsMutation.isPending}
-			/>
-
-			<DisableWorkspaceSharingDialog
-				isOpen={isDisableDialogOpen}
-				organizationId={organization.id}
-				onConfirm={handleConfirmDisableSharing}
-				onCancel={() => setIsDisableDialogOpen(false)}
-				isLoading={patchSharingSettingsMutation.isPending}
 			/>
 		</>
 	);
