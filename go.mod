@@ -522,6 +522,7 @@ require (
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f // indirect
+	github.com/coder/paralleltestctx v0.0.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/daixiang0/gci v0.13.7 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.35.0 // indirect
@@ -575,6 +576,7 @@ require (
 )
 
 tool (
+	github.com/coder/paralleltestctx/cmd/paralleltestctx
 	github.com/daixiang0/gci
 	github.com/swaggo/swag/cmd/swag
 	mvdan.cc/gofumpt
