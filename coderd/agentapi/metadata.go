@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -23,7 +24,7 @@ type MetadataAPI struct {
 	Database  database.Store
 	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
-	Batcher   *MetadataBatcher
+	Batcher   *metadatabatcher.MetadataBatcher
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -167,13 +168,6 @@ func ellipse(v string, n int) string {
 type WorkspaceAgentMetadataChannelPayload struct {
 	CollectedAt time.Time `json:"collected_at"`
 	Keys        []string  `json:"keys"`
-}
-
-// WorkspaceAgentMetadataBatchPayload is published to the batched metadata
-// channel with agent IDs that have metadata updates. Listeners should
-// re-fetch metadata for these agents from the database.
-type WorkspaceAgentMetadataBatchPayload struct {
-	AgentIDs []uuid.UUID `json:"agent_ids"`
 }
 
 func WatchWorkspaceAgentMetadataChannel(id uuid.UUID) string {

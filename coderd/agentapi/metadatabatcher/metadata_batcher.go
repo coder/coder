@@ -1,4 +1,4 @@
-package agentapi
+package metadatabatcher
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
@@ -59,6 +60,13 @@ const (
 	flushExit = "shutdown"
 )
 
+// WorkspaceAgentMetadataBatchPayload is published to the batched metadata
+// channel with agent IDs that have metadata updates. Listeners should
+// re-fetch metadata for these agents from the database.
+type WorkspaceAgentMetadataBatchPayload struct {
+	AgentIDs []uuid.UUID `json:"agent_ids"`
+}
+
 // compositeKey uniquely identifies a metadata entry by agent ID and key name.
 type compositeKey struct {
 	agentID uuid.UUID
@@ -110,39 +118,35 @@ type MetadataBatcher struct {
 	metrics *MetadataBatcherMetrics
 }
 
-// MetadataBatcherOption is a functional option for configuring a MetadataBatcher.
-type MetadataBatcherOption func(b *MetadataBatcher)
+// Option is a functional option for configuring a MetadataBatcher.
+type Option func(b *MetadataBatcher)
 
-// MetadataBatcherWithBatchSize sets the maximum number of metadata entries to batch.
-func MetadataBatcherWithBatchSize(size int) MetadataBatcherOption {
+func WithBatchSize(size int) Option {
 	return func(b *MetadataBatcher) {
 		b.batchSize = size
 	}
 }
 
-// MetadataBatcherWithInterval sets the interval for flushes.
-func MetadataBatcherWithInterval(d time.Duration) MetadataBatcherOption {
+func WithInterval(d time.Duration) Option {
 	return func(b *MetadataBatcher) {
 		b.interval = d
 	}
 }
 
-// MetadataBatcherWithLogger sets the logger to use for logging.
-func MetadataBatcherWithLogger(log slog.Logger) MetadataBatcherOption {
+func WithLogger(log slog.Logger) Option {
 	return func(b *MetadataBatcher) {
 		b.log = log
 	}
 }
 
-// MetadataBatcherWithClock sets the clock to use for time operations.
-func MetadataBatcherWithClock(clock quartz.Clock) MetadataBatcherOption {
+func WithClock(clock quartz.Clock) Option {
 	return func(b *MetadataBatcher) {
 		b.clock = clock
 	}
 }
 
 // NewMetadataBatcher creates a new MetadataBatcher and starts it.
-func NewMetadataBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store,  ps pubsub.Pubsub, opts ...MetadataBatcherOption) (*MetadataBatcher, func(), error) {
+func NewMetadataBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store,  ps pubsub.Pubsub, opts ...Option) (*MetadataBatcher, func(), error) {
 	b := &MetadataBatcher{
 		store: store,
 		ps:    ps,
@@ -200,15 +204,8 @@ func NewMetadataBatcher(ctx context.Context, reg prometheus.Registerer, store da
 // to the same metadata key for the same agent are deduplicated in the batch,
 // keeping only the value with the most recent collectedAt timestamp.
 func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) error {
-	// Check if batcher is shutting down
-	select {
-	case <-b.ctx.Done():
-		return b.ctx.Err()
-	default:
-	}
-
 	if !(len(keys) == len(values) && len(values) == len(errors) && len(errors) == len(collectedAt)) {
-		return nil
+		return xerrors.Errorf("invalid Add call, all inputs must have the same number of items; keys: %d, values: %d, errors: %d, collectedAt: %d", len(keys), len(values), len(errors), len(collectedAt))
 	}
 
 	// Write each update to the channel. If the channel is full, drop the update.
