@@ -1,4 +1,4 @@
-package agentapi
+package metadatabatcher
 
 import (
 	"time"

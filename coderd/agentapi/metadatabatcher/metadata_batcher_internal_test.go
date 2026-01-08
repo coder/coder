@@ -1,4 +1,4 @@
-package agentapi
+package metadatabatcher
 
 import (
 	"context"
@@ -51,8 +51,8 @@ func TestMetadataBatcher(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
@@ -175,9 +175,9 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	// Create batcher with very small capacity
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithBatchSize(2),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithBatchSize(2),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
@@ -236,8 +236,8 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
@@ -297,8 +297,8 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
@@ -358,8 +358,8 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
@@ -422,8 +422,8 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
@@ -486,8 +486,8 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
@@ -564,9 +564,9 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 	batchSize := 100
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
-		MetadataBatcherWithLogger(log),
-		MetadataBatcherWithBatchSize(batchSize),
-		MetadataBatcherWithClock(clock),
+		WithLogger(log),
+		WithBatchSize(batchSize),
+		WithClock(clock),
 	)
 	require.NoError(t, err)
 	t.Cleanup(closer)
