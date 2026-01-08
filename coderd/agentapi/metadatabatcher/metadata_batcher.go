@@ -274,6 +274,16 @@ func (b *MetadataBatcher) processUpdate(update metadataUpdate) {
 // run runs the batcher loop, reading from the update channel and flushing
 // periodically or when the batch reaches capacity.
 func (b *MetadataBatcher) run(ctx context.Context) {
+	flush := func(ctx context.Context, reason string) {
+		if _, err := b.flush(ctx, reason); err != nil {
+			// Don't error level log here, database errors here are inconvenient but very much possible.
+			//nolint:gocritic
+			b.log.Warn(context.Background(), "metadata flush failed",
+				slog.F("err_msg", err),
+			)
+		}
+	}
+
 	// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
@@ -283,21 +293,11 @@ func (b *MetadataBatcher) run(ctx context.Context) {
 
 			// Check if batch has reached capacity
 			if len(b.batch) >= b.batchSize {
-				_, err := b.flush(authCtx, flushCapacity)
-				if err != nil {
-					b.log.Warn(context.Background(), "metadata flush failed",
-						slog.F("err_msg", err),
-					)
-				}
+				flush(authCtx, flushCapacity)
 			}
 
 		case <-b.ticker.C:
-			_, err := b.flush(authCtx, flushTicker)
-			if err != nil {
-				b.log.Warn(context.Background(), "metadata flush failed",
-					slog.F("err_msg", err),
-				)
-			}
+			flush(authCtx, flushTicker)
 
 		case <-ctx.Done():
 			b.log.Debug(ctx, "context done, flushing before exit")
@@ -307,12 +307,7 @@ func (b *MetadataBatcher) run(ctx context.Context) {
 			defer cancel() //nolint:revive // We're returning, defer is fine.
 
 			// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
-			_, err := b.flush(dbauthz.AsSystemRestricted(ctxTimeout), flushExit)
-			if err != nil {
-				b.log.Warn(context.Background(), "metadata flush failed",
-					slog.F("err_msg", err),
-				)
-			}
+			flush(dbauthz.AsSystemRestricted(ctxTimeout), flushExit)
 			return
 		}
 	}
