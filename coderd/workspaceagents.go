@@ -1742,7 +1742,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		log.Debug(ctx, "received metadata update", slog.F("payload", payload))
+		log.Debug(ctx, "received metadata update from per-agent channel", slog.F("agent_id", workspaceAgent.ID), slog.F("keys", payload.Keys), slog.F("collected_at", payload.CollectedAt))
 
 		select {
 		case prev := <-update:
@@ -1778,7 +1778,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 				continue
 			}
 
-			log.Info(ctx, "received metadata update from batch channel", slog.F("agent_id", agentID), slog.F("batch_size", len(batchPayload.AgentIDs)))
+			log.Debug(ctx, "received metadata update from batch channel", slog.F("agent_id", agentID), slog.F("batch_size", len(batchPayload.AgentIDs)))
 
 			// Signal to re-fetch all metadata for this agent.
 			// Batch notifications don't include which keys changed, so we

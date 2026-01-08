@@ -145,7 +145,8 @@ func WithClock(clock quartz.Clock) Option {
 	}
 }
 
-// NewBatcher creates a new Batcher and starts it.
+// NewBatcher creates a new Batcher and starts it. Here ctx controls the lifetime of the batcher, canceling it will
+// result in the Batcher exiting it's processing routine (run).
 func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store, ps pubsub.Pubsub, opts ...Option) (*Batcher, func(), error) {
 	b := &Batcher{
 		store:   store,
