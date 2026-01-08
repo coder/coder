@@ -90,10 +90,10 @@ type metadataUpdate struct {
 	collectedAt time.Time
 }
 
-// MetadataBatcher holds a buffer of agent metadata updates and periodically
+// Batcher holds a buffer of agent metadata updates and periodically
 // flushes them to the database and pubsub. This reduces database write
 // frequency and pubsub publish rate.
-type MetadataBatcher struct {
+type Batcher struct {
 	store database.Store
 	ps    pubsub.Pubsub
 	log   slog.Logger
@@ -118,36 +118,36 @@ type MetadataBatcher struct {
 	metrics *Metrics
 }
 
-// Option is a functional option for configuring a MetadataBatcher.
-type Option func(b *MetadataBatcher)
+// Option is a functional option for configuring a Batcher.
+type Option func(b *Batcher)
 
 func WithBatchSize(size int) Option {
-	return func(b *MetadataBatcher) {
+	return func(b *Batcher) {
 		b.batchSize = size
 	}
 }
 
 func WithInterval(d time.Duration) Option {
-	return func(b *MetadataBatcher) {
+	return func(b *Batcher) {
 		b.interval = d
 	}
 }
 
 func WithLogger(log slog.Logger) Option {
-	return func(b *MetadataBatcher) {
+	return func(b *Batcher) {
 		b.log = log
 	}
 }
 
 func WithClock(clock quartz.Clock) Option {
-	return func(b *MetadataBatcher) {
+	return func(b *Batcher) {
 		b.clock = clock
 	}
 }
 
-// NewMetadataBatcher creates a new MetadataBatcher and starts it.
-func NewMetadataBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store, ps pubsub.Pubsub, opts ...Option) (*MetadataBatcher, func(), error) {
-	b := &MetadataBatcher{
+// NewBatcher creates a new Batcher and starts it.
+func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store, ps pubsub.Pubsub, opts ...Option) (*Batcher, func(), error) {
+	b := &Batcher{
 		store:   store,
 		ps:      ps,
 		metrics: NewMetrics(),
@@ -203,7 +203,7 @@ func NewMetadataBatcher(ctx context.Context, reg prometheus.Registerer, store da
 // buffered channel. If the channel is full, updates are dropped. Updates
 // to the same metadata key for the same agent are deduplicated in the batch,
 // keeping only the value with the most recent collectedAt timestamp.
-func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) error {
+func (b *Batcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) error {
 	if !(len(keys) == len(values) && len(values) == len(errors) && len(errors) == len(collectedAt)) {
 		return xerrors.Errorf("invalid Add call, all inputs must have the same number of items; keys: %d, values: %d, errors: %d, collectedAt: %d", len(keys), len(values), len(errors), len(collectedAt))
 	}
@@ -244,7 +244,7 @@ func (b *MetadataBatcher) Add(agentID uuid.UUID, keys []string, values []string,
 }
 
 // processUpdate adds a metadata update to the batch with deduplication based on timestamp.
-func (b *MetadataBatcher) processUpdate(update metadataUpdate) {
+func (b *Batcher) processUpdate(update metadataUpdate) {
 	ck := compositeKey{
 		agentID: update.agentID,
 		key:     update.key,
@@ -273,9 +273,9 @@ func (b *MetadataBatcher) processUpdate(update metadataUpdate) {
 
 // run runs the batcher loop, reading from the update channel and flushing
 // periodically or when the batch reaches capacity.
-func (b *MetadataBatcher) run(ctx context.Context) {
+func (b *Batcher) run(ctx context.Context) {
 	flush := func(ctx context.Context, reason string) {
-		if _, err := b.flush(ctx, reason); err != nil {
+		if err := b.flush(ctx, reason); err != nil {
 			// Don't error level log here, database errors here are inconvenient but very much possible.
 			//nolint:gocritic
 			b.log.Warn(context.Background(), "metadata flush failed",
@@ -314,12 +314,11 @@ func (b *MetadataBatcher) run(ctx context.Context) {
 }
 
 // flush flushes the current batch to the database and pubsub.
-// Returns the number of entries flushed and any error encountered.
-func (b *MetadataBatcher) flush(ctx context.Context, reason string) (int, error) {
+func (b *Batcher) flush(ctx context.Context, reason string) error {
 	count := len(b.batch)
 
 	if count == 0 {
-		return 0, nil
+		return nil
 	}
 
 	start := time.Now()
@@ -369,12 +368,12 @@ func (b *MetadataBatcher) flush(ctx context.Context, reason string) (int, error)
 			b.log.Debug(ctx, "query canceled, skipping update of workspace agent metadata", slog.F("elapsed", elapsed))
 			// Clear batch since we're not retrying
 			b.batch = make(map[compositeKey]metadataValue)
-			return 0, err
+			return err
 		}
 		b.log.Error(ctx, "error updating workspace agent metadata", slog.Error(err), slog.F("elapsed", elapsed))
 		// Clear batch - we don't retry on errors
 		b.batch = make(map[compositeKey]metadataValue)
-		return 0, err
+		return err
 	}
 
 	// Build list of unique agent IDs for pubsub notification.
@@ -404,7 +403,7 @@ func (b *MetadataBatcher) flush(ctx context.Context, reason string) (int, error)
 		slog.F("reason", reason),
 	)
 
-	return count, nil
+	return nil
 }
 
 // buildAndMarshalChunk builds a chunk of agent IDs that fits within the
@@ -454,7 +453,7 @@ func buildAndMarshalChunk(agentIDs []uuid.UUID) ([]byte, int, error) {
 // publishAgentIDsInChunks publishes agent IDs in chunks that fit within the
 // PostgreSQL NOTIFY 8KB payload size limit. Each chunk is published as a
 // separate message.
-func (b *MetadataBatcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.UUID) {
+func (b *Batcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.UUID) {
 	offset := 0
 	for offset < len(agentIDs) {
 		payload, consumed, err := buildAndMarshalChunk(agentIDs[offset:])
