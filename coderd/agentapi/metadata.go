@@ -24,7 +24,7 @@ type MetadataAPI struct {
 	Database  database.Store
 	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
-	Batcher   *metadatabatcher.MetadataBatcher
+	Batcher   *metadatabatcher.Batcher
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }

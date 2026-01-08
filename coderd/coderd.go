@@ -779,7 +779,7 @@ func New(options *Options) *API {
 	// Only enable if the experiment is turned on.
 	metadataBatcherCloser := func() {}
 	if experiments.Enabled(codersdk.ExperimentMetadataBatching) {
-		api.metadataBatcher, metadataBatcherCloser, err = metadatabatcher.NewMetadataBatcher(
+		api.metadataBatcher, metadataBatcherCloser, err = metadatabatcher.NewBatcher(
 			api.ctx,
 			options.PrometheusRegistry,
 			options.Database,
@@ -1873,7 +1873,7 @@ type API struct {
 	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
 	statsReporter         *workspacestats.Reporter
-	metadataBatcher       *metadatabatcher.MetadataBatcher
+	metadataBatcher       *metadatabatcher.Batcher
 	metadataBatcherCloser func()
 
 	Acquirer *provisionerdserver.Acquirer

@@ -81,7 +81,7 @@ type Options struct {
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
-	MetadataBatcher                   *metadatabatcher.MetadataBatcher
+	MetadataBatcher                   *metadatabatcher.Batcher
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, userID uuid.UUID, event wspubsub.WorkspaceEvent)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)

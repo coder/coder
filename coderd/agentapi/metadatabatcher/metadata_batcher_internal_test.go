@@ -50,7 +50,7 @@ func TestMetadataBatcher(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
@@ -174,7 +174,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	// Create batcher with very small capacity
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithBatchSize(2),
 		WithClock(clock),
@@ -235,7 +235,7 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
@@ -296,7 +296,7 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
@@ -357,7 +357,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
@@ -421,7 +421,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
@@ -485,7 +485,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
@@ -563,7 +563,7 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 
 	batchSize := 100
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewMetadataBatcher(ctx, reg, store, ps,
+	b, closer, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithBatchSize(batchSize),
 		WithClock(clock),
