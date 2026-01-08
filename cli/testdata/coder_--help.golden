@@ -28,6 +28,7 @@ SUBCOMMANDS:
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
+    logs              View logs for a workspace
     netcheck          Print network debug information for DERP and STUN
     notifications     Manage Coder notifications
     open              Open a workspace

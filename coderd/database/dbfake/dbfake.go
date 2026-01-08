@@ -38,6 +38,7 @@ var ownerCtx = dbauthz.As(context.Background(), rbac.Subject{
 type WorkspaceResponse struct {
 	Workspace  database.WorkspaceTable
 	Build      database.WorkspaceBuild
+	Agents     []database.WorkspaceAgent
 	AgentToken string
 	TemplateVersionResponse
 	Task database.Task
@@ -189,6 +190,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 	resp := WorkspaceResponse{
 		AgentToken: b.agentToken,
+		Agents:     make([]database.WorkspaceAgent, 0),
 	}
 	if b.ws.TemplateID == uuid.Nil {
 		b.logger.Debug(context.Background(), "creating template and version")
@@ -422,6 +424,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// Insert deleted subagent test antagonists for the workspace build.
 		// See also `dbgen.WorkspaceAgent()`.
 		for _, agent := range agents {
+			resp.Agents = append(resp.Agents, agent)
 			subAgent := dbgen.WorkspaceSubAgent(b.t, b.db, agent, database.WorkspaceAgent{
 				TroubleshootingURL: "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
 			})

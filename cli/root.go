@@ -117,6 +117,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.deleteWorkspace(),
 		r.favorite(),
 		r.list(),
+		r.logs(),
 		r.open(),
 		r.ping(),
 		r.rename(),
