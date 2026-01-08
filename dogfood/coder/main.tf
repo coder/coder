@@ -901,7 +901,7 @@ module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
   version             = "4.2.9"
   enable_boundary     = true
-  boundary_version    = "v0.5.0"
+  boundary_version    = "v0.5.2"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
