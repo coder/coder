@@ -25,9 +25,9 @@ In your Terraform module, enable Boundary with minimal configuration:
 ```tf
 module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.1.0"
+  version             = "4.3.0"
   enable_boundary     = true
-  boundary_version    = "v0.2.0"
+  boundary_version    = "v0.5.2"
 }
 ```
 
