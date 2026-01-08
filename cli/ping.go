@@ -10,25 +10,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
-	"github.com/briandowns/spinner"
-
-	"github.com/coder/pretty"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 type pingSummary struct {

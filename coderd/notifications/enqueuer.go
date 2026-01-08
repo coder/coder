@@ -12,14 +12,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 var (

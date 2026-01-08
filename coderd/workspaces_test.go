@@ -18,9 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/terraform-provider-coder/v2/provider"
-
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -44,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func TestWorkspace(t *testing.T) {

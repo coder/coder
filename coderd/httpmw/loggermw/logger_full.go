@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 

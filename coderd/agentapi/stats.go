@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"cdr.dev/slog/v3"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"

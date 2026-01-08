@@ -11,20 +11,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-
-	"github.com/coder/coder/v2/coderd/dynamicparameters"
-	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
-	"github.com/coder/coder/v2/provisionersdk"
-	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
-	previewtypes "github.com/coder/preview/types"
-
-	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -33,11 +22,20 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	previewtypes "github.com/coder/preview/types"
 )
 
 // Builder encapsulates the business logic of inserting a new workspace build into the database.

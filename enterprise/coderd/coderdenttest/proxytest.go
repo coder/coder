@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"

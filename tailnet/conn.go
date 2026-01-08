@@ -42,7 +42,6 @@ import (
 	"tailscale.com/wgengine/router"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
 )

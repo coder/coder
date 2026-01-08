@@ -24,7 +24,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"

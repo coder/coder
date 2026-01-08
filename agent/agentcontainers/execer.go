@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/pty"

@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogstackdriver"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"

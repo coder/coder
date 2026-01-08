@@ -8,17 +8,16 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/serpent"
-
-	"golang.org/x/xerrors"
 )
 
 func (r *RootCmd) dbcryptCmd() *serpent.Command {

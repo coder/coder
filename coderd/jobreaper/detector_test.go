@@ -15,7 +15,6 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"

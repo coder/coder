@@ -12,7 +12,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/aibridge/mcp"
 	"github.com/coder/aibridge/mcpmock"
 	"github.com/coder/coder/v2/enterprise/aibridged"

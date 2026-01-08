@@ -19,9 +19,6 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/websocket"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -37,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/websocket"
 )
 
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {

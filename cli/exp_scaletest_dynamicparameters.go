@@ -10,15 +10,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/scaletest/loadtestutil"
-
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/scaletest/dynamicparameters"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/serpent"
 )
 
 const (

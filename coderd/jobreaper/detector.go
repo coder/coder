@@ -7,12 +7,10 @@ import (
 	"fmt" //#nosec // this is only used for shuffling an array to pick random jobs to unhang
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
-
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"

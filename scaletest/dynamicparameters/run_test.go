@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/scaletest/dynamicparameters"
 	"github.com/coder/coder/v2/testutil"

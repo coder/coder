@@ -15,7 +15,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/agent/boundarylogproxy/codec"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 )

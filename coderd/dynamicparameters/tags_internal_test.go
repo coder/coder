@@ -11,9 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	archivefs "github.com/coder/coder/v2/archive/fs"
-	"github.com/coder/preview"
-
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/preview"
 )
 
 func Test_DynamicWorkspaceTagDefaultsFromFile(t *testing.T) {

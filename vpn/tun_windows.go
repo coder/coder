@@ -21,7 +21,6 @@ import (
 	"tailscale.com/wgengine/router"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )

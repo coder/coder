@@ -26,7 +26,6 @@ import (
 	"storj.io/drpc/drpcconn"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/echo"

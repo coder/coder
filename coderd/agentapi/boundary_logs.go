@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 )
 

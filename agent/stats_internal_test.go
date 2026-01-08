@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/types/ipproto"
-
 	"tailscale.com/types/netlogtype"
 
 	"github.com/coder/coder/v2/agent/proto"

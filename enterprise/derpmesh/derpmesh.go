@@ -13,7 +13,6 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/tailnet"
 )
 

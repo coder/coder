@@ -6,7 +6,6 @@ import (
 	"runtime/debug"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
 )

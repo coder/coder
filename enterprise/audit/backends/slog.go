@@ -8,7 +8,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/enterprise/audit"
 )

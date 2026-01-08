@@ -16,7 +16,6 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/codersdk"

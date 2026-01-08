@@ -25,10 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/goleak"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
-
 	"github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
@@ -40,13 +36,14 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"

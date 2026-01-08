@@ -15,9 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/apikey"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
