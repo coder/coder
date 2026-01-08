@@ -4,6 +4,7 @@ import {
 	MockOrganization,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const meta: Meta<typeof OrganizationSettingsPageView> = {
@@ -23,5 +24,19 @@ export const Example: Story = {};
 export const DefaultOrg: Story = {
 	args: {
 		organization: MockDefaultOrganization,
+	},
+};
+
+export const WithWorkspaceSharingEnabled: Story = {
+	args: {
+		workspaceSharingEnabled: true,
+		onToggleWorkspaceSharing: action("onToggleWorkspaceSharing"),
+	},
+};
+
+export const WithWorkspaceSharingDisabled: Story = {
+	args: {
+		workspaceSharingEnabled: false,
+		onToggleWorkspaceSharing: action("onToggleWorkspaceSharing"),
 	},
 };
