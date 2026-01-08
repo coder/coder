@@ -220,6 +220,8 @@ For sizing recommendations, see the below reference architectures:
 
 - [Up to 3,000 users](3k-users.md)
 
+- [Up to 10,000 users](10k-users.md)
+
 ### AWS Instance Types
 
 For production AWS deployments, we recommend using non-burstable instance types,

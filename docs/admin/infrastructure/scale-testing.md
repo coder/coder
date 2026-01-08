@@ -100,6 +100,8 @@ Database:
 - [Up to 2,000 users](./validated-architectures/2k-users.md)
 
 - [Up to 3,000 users](./validated-architectures/3k-users.md)
+-
+- [Up to 10,000 users](./validated-architectures/10k-users.md)
 
 ## Hardware recommendation
 
