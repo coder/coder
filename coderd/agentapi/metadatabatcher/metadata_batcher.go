@@ -73,21 +73,18 @@ type compositeKey struct {
 	key     string
 }
 
-// metadataValue holds a single metadata key-value pair with its error state
+// value holds a single metadata key-value pair with its error state
 // and collection timestamp.
-type metadataValue struct {
-	value       string
+type value struct {
+	v           string
 	error       string
 	collectedAt time.Time
 }
 
-// metadataUpdate represents a single metadata update to be batched.
-type metadataUpdate struct {
-	agentID     uuid.UUID
-	key         string
-	value       string
-	error       string
-	collectedAt time.Time
+// update represents a single metadata update to be batched.
+type update struct {
+	compositeKey
+	value
 }
 
 // Batcher holds a buffer of agent metadata updates and periodically
@@ -99,11 +96,11 @@ type Batcher struct {
 	log   slog.Logger
 
 	// updateCh is the buffered channel that receives metadata updates from Add() calls.
-	updateCh chan metadataUpdate
+	updateCh chan update
 
 	// batch holds the current batch being accumulated. Updates with the same
 	// composite key are deduplicated, keeping only the most recent value.
-	batch     map[compositeKey]metadataValue
+	batch     map[compositeKey]value
 	batchSize int
 
 	// clock is used to create tickers and get the current time.
@@ -112,7 +109,8 @@ type Batcher struct {
 	interval time.Duration
 
 	// ctx is the context for the batcher. Used to check if shutdown has begun.
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// metrics collects Prometheus metrics for the batcher.
 	metrics *Metrics
@@ -176,21 +174,20 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 
 	// Create buffered channel with 5x batch size capacity
 	channelSize := b.batchSize * defaultChannelBufferMultiplier
-	b.updateCh = make(chan metadataUpdate, channelSize)
+	b.updateCh = make(chan update, channelSize)
 
 	// Initialize batch map
-	b.batch = make(map[compositeKey]metadataValue)
+	b.batch = make(map[compositeKey]value)
 
-	cancelCtx, cancelFunc := context.WithCancel(ctx)
-	b.ctx = cancelCtx
+	b.ctx, b.cancel = context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
-		b.run(cancelCtx)
+		b.run(b.ctx)
 		close(done)
 	}()
 
 	closer := func() {
-		cancelFunc()
+		b.cancel()
 		if b.ticker != nil {
 			b.ticker.Stop()
 		}
@@ -210,18 +207,17 @@ func (b *Batcher) Add(agentID uuid.UUID, keys []string, values []string, errors 
 	}
 
 	// Write each update to the channel. If the channel is full, drop the update.
+	var u update
 	droppedCount := 0
 	for i := range keys {
-		update := metadataUpdate{
-			agentID:     agentID,
-			key:         keys[i],
-			value:       values[i],
-			error:       errors[i],
-			collectedAt: collectedAt[i],
-		}
+		u.agentID = agentID
+		u.key = keys[i]
+		u.v = values[i]
+		u.error = errors[i]
+		u.collectedAt = collectedAt[i]
 
 		select {
-		case b.updateCh <- update:
+		case b.updateCh <- u:
 			// Successfully queued
 		default:
 			// Channel is full, drop this update
@@ -245,7 +241,7 @@ func (b *Batcher) Add(agentID uuid.UUID, keys []string, values []string, errors 
 }
 
 // processUpdate adds a metadata update to the batch with deduplication based on timestamp.
-func (b *Batcher) processUpdate(update metadataUpdate) {
+func (b *Batcher) processUpdate(update update) {
 	ck := compositeKey{
 		agentID: update.agentID,
 		key:     update.key,
@@ -254,8 +250,8 @@ func (b *Batcher) processUpdate(update metadataUpdate) {
 	// Check if key already exists and only update if new value is newer
 	if existing, exists := b.batch[ck]; exists {
 		if update.collectedAt.After(existing.collectedAt) {
-			b.batch[ck] = metadataValue{
-				value:       update.value,
+			b.batch[ck] = value{
+				v:           update.v,
 				error:       update.error,
 				collectedAt: update.collectedAt,
 			}
@@ -265,8 +261,8 @@ func (b *Batcher) processUpdate(update metadataUpdate) {
 	}
 
 	// New key, add to batch
-	b.batch[ck] = metadataValue{
-		value:       update.value,
+	b.batch[ck] = value{
+		v:           update.v,
 		error:       update.error,
 		collectedAt: update.collectedAt,
 	}
@@ -342,11 +338,14 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 	for ck, mv := range b.batch {
 		agentIDs = append(agentIDs, ck.agentID)
 		keys = append(keys, ck.key)
-		values = append(values, mv.value)
+		values = append(values, mv.v)
 		errors = append(errors, mv.error)
 		collectedAt = append(collectedAt, mv.collectedAt)
 		agentKeys[ck.agentID]++
 	}
+
+	// Batch has been processed into slices for our DB request, so we can clear it.
+	b.batch = make(map[compositeKey]value)
 
 	// Record per-agent utilization metrics.
 	if b.metrics != nil {
@@ -367,13 +366,9 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 	if err != nil {
 		if database.IsQueryCanceledError(err) {
 			b.log.Debug(ctx, "query canceled, skipping update of workspace agent metadata", slog.F("elapsed", elapsed))
-			// Clear batch since we're not retrying
-			b.batch = make(map[compositeKey]metadataValue)
 			return err
 		}
 		b.log.Error(ctx, "error updating workspace agent metadata", slog.Error(err), slog.F("elapsed", elapsed))
-		// Clear batch - we don't retry on errors
-		b.batch = make(map[compositeKey]metadataValue)
 		return err
 	}
 
@@ -393,9 +388,6 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 		b.metrics.batchesTotal.WithLabelValues(reason).Inc()
 		b.metrics.flushDuration.WithLabelValues(reason).Observe(time.Since(start).Seconds())
 	}
-
-	// Clear the batch.
-	b.batch = make(map[compositeKey]metadataValue)
 
 	elapsed = time.Since(start)
 	b.log.Debug(ctx, "flush complete",
