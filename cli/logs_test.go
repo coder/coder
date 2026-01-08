@@ -5,15 +5,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLogsCmd(t *testing.T) {

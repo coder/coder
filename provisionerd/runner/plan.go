@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"

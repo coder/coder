@@ -15,7 +15,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"

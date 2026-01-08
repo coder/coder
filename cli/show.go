@@ -4,9 +4,8 @@ import (
 	"sort"
 	"sync"
 
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/cli/cliui"

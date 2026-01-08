@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"

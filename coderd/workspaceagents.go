@@ -24,9 +24,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/websocket"
-
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -51,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // @Summary Get workspace agent by ID

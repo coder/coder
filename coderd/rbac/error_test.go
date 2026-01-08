@@ -3,10 +3,10 @@ package rbac_test
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/rbac"
-
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 func TestIsUnauthorizedError(t *testing.T) {

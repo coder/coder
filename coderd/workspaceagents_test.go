@@ -29,10 +29,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
-	"github.com/coder/quartz"
-	"github.com/coder/websocket"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
@@ -63,6 +59,8 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 func TestWorkspaceAgent(t *testing.T) {

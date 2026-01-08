@@ -18,13 +18,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/terraform-provider-coder/v2/provider"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 const staleTerraformPluginRetention = 30 * 24 * time.Hour

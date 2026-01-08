@@ -19,9 +19,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -29,6 +26,7 @@ import (
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // UpdateGoldenFiles indicates golden files should be updated.

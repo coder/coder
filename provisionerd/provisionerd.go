@@ -22,15 +22,13 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-	"github.com/coder/retry"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/retry"
 )
 
 // Dialer represents the function to create a daemon client connection.

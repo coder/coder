@@ -9,12 +9,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
-
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"

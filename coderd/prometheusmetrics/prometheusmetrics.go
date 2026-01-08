@@ -16,7 +16,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"

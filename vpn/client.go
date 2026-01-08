@@ -7,19 +7,16 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/xerrors"
-
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
 	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/router"
 
-	"github.com/google/uuid"
-	"github.com/tailscale/wireguard-go/tun"
-
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"

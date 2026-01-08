@@ -12,20 +12,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/capture"
 
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/quartz"
-	"github.com/coder/websocket"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 var ErrSkipClose = xerrors.New("skip tailnet close")

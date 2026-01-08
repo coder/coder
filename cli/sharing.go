@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"

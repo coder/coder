@@ -15,9 +15,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
-
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 // Listener represents a pubsub handler.

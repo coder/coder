@@ -8,13 +8,11 @@ import (
 	"io"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"

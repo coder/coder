@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/websocket"
 )
 

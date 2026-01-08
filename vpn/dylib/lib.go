@@ -10,7 +10,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/vpn"
 )
 

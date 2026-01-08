@@ -1,14 +1,13 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
-
-	_ "embed"
 
 	"github.com/acarl005/stripansi"
 

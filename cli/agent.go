@@ -16,18 +16,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogstackdriver"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -38,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/serpent"
 )
 
 func workspaceAgent() *serpent.Command {

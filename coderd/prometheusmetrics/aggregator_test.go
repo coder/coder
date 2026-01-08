@@ -15,10 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
-	"github.com/coder/coder/v2/coderd/agentmetrics"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"

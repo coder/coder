@@ -9,13 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"

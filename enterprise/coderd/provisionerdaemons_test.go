@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"

@@ -20,10 +20,9 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/websocket"
-
-	"cdr.dev/slog/v3"
 )
 
 // These cookies are Coder-specific. If a new one is added or changed, the name

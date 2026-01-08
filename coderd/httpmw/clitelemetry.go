@@ -11,7 +11,6 @@ import (
 	"tailscale.com/tstime/rate"
 
 	"cdr.dev/slog/v3"
-
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"

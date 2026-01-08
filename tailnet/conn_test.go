@@ -14,7 +14,6 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"

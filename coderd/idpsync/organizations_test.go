@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbfake"

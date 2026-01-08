@@ -15,11 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"tailscale.com/ipn/ipnstate"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/ipn/ipnstate"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"

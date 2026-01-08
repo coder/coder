@@ -42,7 +42,6 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"

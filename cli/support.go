@@ -14,15 +14,13 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/coder/coder/v2/cli/cliutil"
-
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/serpent"

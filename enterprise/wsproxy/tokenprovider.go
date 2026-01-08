@@ -6,7 +6,6 @@ import (
 	"net/url"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"

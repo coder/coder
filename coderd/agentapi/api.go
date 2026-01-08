@@ -16,7 +16,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"

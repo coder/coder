@@ -13,10 +13,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/scaletest/loadtestutil"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/prebuilds"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"

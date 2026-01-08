@@ -12,15 +12,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const (

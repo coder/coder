@@ -16,12 +16,11 @@ import (
 	"github.com/pkg/browser"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 

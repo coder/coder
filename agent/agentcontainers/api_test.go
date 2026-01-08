@@ -28,11 +28,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"

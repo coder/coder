@@ -28,7 +28,6 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"

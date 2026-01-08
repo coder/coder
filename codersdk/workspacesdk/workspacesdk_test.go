@@ -15,13 +15,12 @@ import (
 	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/websocket"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func TestWorkspaceRewriteDERPMap(t *testing.T) {

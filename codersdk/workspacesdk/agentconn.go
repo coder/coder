@@ -22,7 +22,6 @@ import (
 	"tailscale.com/net/speedtest"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"

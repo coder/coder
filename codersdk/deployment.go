@@ -14,19 +14,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/serpent"
 )
 
 // Entitlement represents whether a feature is licensed.
