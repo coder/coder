@@ -569,6 +569,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.38.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	golang.org/x/telemetry v0.0.0-20251203150158-8fff8a5912fc // indirect
 	google.golang.org/genai v1.12.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
@@ -579,6 +580,7 @@ tool (
 	github.com/coder/paralleltestctx/cmd/paralleltestctx
 	github.com/daixiang0/gci
 	github.com/swaggo/swag/cmd/swag
+	golang.org/x/tools/cmd/goimports
 	mvdan.cc/gofumpt
 	storj.io/drpc/cmd/protoc-gen-go-drpc
 )
