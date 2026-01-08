@@ -3,7 +3,14 @@ import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { WorkspaceAppWithAgent } from "modules/tasks/apps";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
 import { useAcpClient } from "use-acp";
 import type { NotificationEvent } from "use-acp";
@@ -82,6 +89,11 @@ export const TaskAcpChat: FC<TaskAcpChatProps> = ({
 
 		void createSession();
 	}, [connectionState.status, acpAgent, activeSessionId, setActiveSessionId]);
+
+	// Merge consecutive message chunks into single messages
+	const mergedMessages = useMemo(() => {
+		return mergeMessageChunks(notifications);
+	}, [notifications]);
 
 	// Auto-scroll to bottom when new messages arrive
 	// biome-ignore lint/correctness/useExhaustiveDependencies: We want to scroll when notifications change
@@ -206,8 +218,8 @@ export const TaskAcpChat: FC<TaskAcpChatProps> = ({
 					</div>
 				)}
 
-				{notifications.map((notification) => (
-					<MessageItem key={notification.id} notification={notification} />
+				{mergedMessages.map((message) => (
+					<MessageItem key={message.id} notification={message.notification} />
 				))}
 				<div ref={messagesEndRef} />
 			</div>
@@ -313,6 +325,115 @@ const MessageItem: FC<{ notification: NotificationEvent }> = ({
 
 	return null;
 };
+
+type MergedMessage = {
+	id: string;
+	notification: NotificationEvent;
+};
+
+function mergeMessageChunks(
+	notifications: NotificationEvent[],
+): MergedMessage[] {
+	const result: MergedMessage[] = [];
+	let currentChunks: NotificationEvent[] = [];
+	let currentType: "agent" | "user" | null = null;
+
+	const flushChunks = () => {
+		if (currentChunks.length === 0) return;
+
+		const firstChunk = currentChunks[0];
+		const accumulatedText = currentChunks
+			.map((n) => {
+				if (n.type === "session_notification") {
+					const update = n.data.update;
+					if (
+						(update.sessionUpdate === "agent_message_chunk" ||
+							update.sessionUpdate === "user_message_chunk") &&
+						"content" in update &&
+						update.content?.type === "text"
+					) {
+						return update.content.text;
+					}
+				}
+				return "";
+			})
+			.join("");
+
+		// Create a merged notification with accumulated text
+		if (firstChunk.type === "session_notification") {
+			const update = firstChunk.data.update;
+			if (
+				(update.sessionUpdate === "agent_message_chunk" ||
+					update.sessionUpdate === "user_message_chunk") &&
+				"content" in update &&
+				update.content?.type === "text"
+			) {
+				const mergedNotification: NotificationEvent = {
+					...firstChunk,
+					id: `${firstChunk.id}-merged`,
+					data: {
+						...firstChunk.data,
+						update: {
+							...update,
+							content: {
+								...update.content,
+								text: accumulatedText,
+							},
+						},
+					},
+				};
+
+				result.push({
+					id: mergedNotification.id,
+					notification: mergedNotification,
+				});
+			}
+		}
+
+		currentChunks = [];
+		currentType = null;
+	};
+
+	for (const notification of notifications) {
+		if (notification.type !== "session_notification") {
+			flushChunks();
+			result.push({ id: notification.id, notification });
+			continue;
+		}
+
+		const update = notification.data.update;
+
+		// Check if this is a message chunk
+		if (
+			update.sessionUpdate === "agent_message_chunk" &&
+			update.content?.type === "text"
+		) {
+			if (currentType !== "agent") {
+				flushChunks();
+				currentType = "agent";
+			}
+			currentChunks.push(notification);
+		} else if (
+			update.sessionUpdate === "user_message_chunk" &&
+			update.content?.type === "text"
+		) {
+			if (currentType !== "user") {
+				flushChunks();
+				currentType = "user";
+			}
+			currentChunks.push(notification);
+		} else {
+			// Different notification type - flush accumulated chunks
+			flushChunks();
+			result.push({ id: notification.id, notification });
+		}
+	}
+
+	// Flush any remaining chunks
+	flushChunks();
+
+	return result;
+}
 
 function constructWsUrl(httpUrl: string): string {
 	try {

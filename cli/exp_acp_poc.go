@@ -426,6 +426,11 @@ func (r *RootCmd) experimentalAcpClientCommand() *serpent.Command {
 
 type acpClient struct {
 	inv *serpent.Invocation
+
+	// Message chunk buffering
+	mu               sync.Mutex
+	currentChunks    []string
+	currentChunkType string // "agent" or "user"
 }
 
 var _ acp.Client = (*acpClient)(nil)
@@ -465,27 +470,76 @@ func (c *acpClient) RequestPermission(ctx context.Context, req acp.RequestPermis
 	}, nil
 }
 
+// flushChunks prints accumulated message chunks as a single message.
+func (c *acpClient) flushChunks() {
+	if len(c.currentChunks) == 0 {
+		return
+	}
+
+	// Join all chunks and print as single message
+	fullMessage := ""
+	for _, chunk := range c.currentChunks {
+		fullMessage += chunk
+	}
+
+	prefix := "[agent_message]"
+	if c.currentChunkType == "user" {
+		prefix = "[user_message]"
+	}
+
+	cliui.Infof(c.inv.Stdout, "%s\n%s\n", prefix, fullMessage)
+
+	// Clear buffer
+	c.currentChunks = nil
+	c.currentChunkType = ""
+}
+
 func (c *acpClient) SessionUpdate(ctx context.Context, req acp.SessionNotification) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	u := req.Update
 	switch {
 	case u.AgentMessageChunk != nil:
 		content := u.AgentMessageChunk.Content
 		if content.Text != nil {
-			cliui.Infof(c.inv.Stdout, "[agent_message_chunk] \n%s\n", content.Text.Text)
-		}
-	case u.ToolCall != nil:
-		cliui.Infof(c.inv.Stdout, "\n🔧 %s (%s)\n", u.ToolCall.Title, u.ToolCall.Status)
-	case u.ToolCallUpdate != nil:
-		cliui.Infof(c.inv.Stdout, "\n🔧 Tool call `%s` updated: %v\n\n", u.ToolCallUpdate.ToolCallId, u.ToolCallUpdate.Status)
-	case u.Plan != nil:
-		cliui.Infof(c.inv.Stdout, "[plan update]")
-	case u.AgentThoughtChunk != nil:
-		thought := u.AgentThoughtChunk.Content
-		if thought.Text != nil {
-			cliui.Infof(c.inv.Stdout, "[agent_thought_chunk] \n%s\n", thought.Text.Text)
+			// If we were buffering a different type, flush first
+			if c.currentChunkType != "" && c.currentChunkType != "agent" {
+				c.flushChunks()
+			}
+			// Buffer this chunk
+			c.currentChunkType = "agent"
+			c.currentChunks = append(c.currentChunks, content.Text.Text)
 		}
 	case u.UserMessageChunk != nil:
-		cliui.Infof(c.inv.Stdout, "[user_message_chunk]")
+		content := u.UserMessageChunk.Content
+		if content.Text != nil {
+			// If we were buffering a different type, flush first
+			if c.currentChunkType != "" && c.currentChunkType != "user" {
+				c.flushChunks()
+			}
+			// Buffer this chunk
+			c.currentChunkType = "user"
+			c.currentChunks = append(c.currentChunks, content.Text.Text)
+		}
+	default:
+		// For any other update type, flush accumulated chunks first
+		c.flushChunks()
+
+		// Then handle the specific update type
+		switch {
+		case u.ToolCall != nil:
+			cliui.Infof(c.inv.Stdout, "\n🔧 %s (%s)\n", u.ToolCall.Title, u.ToolCall.Status)
+		case u.ToolCallUpdate != nil:
+			cliui.Infof(c.inv.Stdout, "\n🔧 Tool call `%s` updated: %v\n\n", u.ToolCallUpdate.ToolCallId, u.ToolCallUpdate.Status)
+		case u.Plan != nil:
+			cliui.Infof(c.inv.Stdout, "[plan update]")
+		case u.AgentThoughtChunk != nil:
+			thought := u.AgentThoughtChunk.Content
+			if thought.Text != nil {
+				cliui.Infof(c.inv.Stdout, "[agent_thought_chunk] \n%s\n", thought.Text.Text)
+			}
+		}
 	}
 	return nil
 }
