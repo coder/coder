@@ -897,18 +897,17 @@ resource "coder_script" "boundary_config_setup" {
 }
 
 module "claude-code" {
-  count                        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  source                       = "dev.registry.coder.com/coder/claude-code/coder"
-  version                      = "4.2.8"
-  enable_boundary              = true
-  compile_boundary_from_source = true
-  boundary_version             = "960680fd4c9a7faf6261880e36ba9f1c3bde323b"
-  agent_id                     = coder_agent.dev.id
-  workdir                      = local.repo_dir
-  claude_code_version          = "latest"
-  order                        = 999
-  claude_api_key               = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
-  agentapi_version             = "latest"
+  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  source              = "dev.registry.coder.com/coder/claude-code/coder"
+  version             = "4.2.9"
+  enable_boundary     = true
+  boundary_version    = "v0.5.0"
+  agent_id            = coder_agent.dev.id
+  workdir             = local.repo_dir
+  claude_code_version = "latest"
+  order               = 999
+  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
+  agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_task.me.prompt

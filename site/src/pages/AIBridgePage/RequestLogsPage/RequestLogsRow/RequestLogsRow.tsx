@@ -16,21 +16,11 @@ import {
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
-import { humanDuration } from "utils/time";
+import { formatDate, humanDuration } from "utils/time";
 import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
-};
-
-const customisedDateLocale: Intl.DateTimeFormatOptions = {
-	second: "2-digit",
-	minute: "2-digit",
-	hour: "2-digit",
-	day: "numeric",
-	// Show the month as a short name
-	month: "short",
-	year: "numeric",
 };
 
 type TokenUsageMetadataMerged =
@@ -161,10 +151,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<ChevronRightIcon className="size-icon-xs" />
 						)}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
-						{new Date(interception.started_at).toLocaleString(
-							undefined,
-							customisedDateLocale,
-						)}
+						{formatDate(new Date(interception.started_at))}
 					</div>
 				</TableCell>
 				<TableCell className="w-48 max-w-48">
@@ -268,20 +255,14 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Start Time:</dt>
 								<dd data-chromatic="ignore">
-									{new Date(interception.started_at).toLocaleString(
-										undefined,
-										customisedDateLocale,
-									)}
+									{formatDate(new Date(interception.started_at))}
 								</dd>
 
 								{interception.ended_at && (
 									<>
 										<dt>End Time:</dt>
 										<dd data-chromatic="ignore">
-											{new Date(interception.ended_at).toLocaleString(
-												undefined,
-												customisedDateLocale,
-											)}
+											{formatDate(new Date(interception.ended_at))}
 										</dd>
 									</>
 								)}

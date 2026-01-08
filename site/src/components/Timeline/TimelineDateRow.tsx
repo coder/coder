@@ -1,6 +1,7 @@
 import { css, useTheme } from "@emotion/react";
 import { TableCell, TableRow } from "components/Table/Table";
 import type { FC } from "react";
+import { formatDate } from "utils/time";
 import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {
@@ -27,7 +28,7 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
 					color: theme.palette.text.secondary,
 					textTransform: "capitalize",
 				}}
-				title={date.toLocaleDateString()}
+				title={formatDate(date)}
 			>
 				{createDisplayDate(date)}
 			</TableCell>

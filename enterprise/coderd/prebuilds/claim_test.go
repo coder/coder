@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -167,7 +168,7 @@ func TestClaimPrebuild(t *testing.T) {
 				defer provisionerCloser.Close()
 
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
 				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 
