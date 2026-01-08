@@ -149,6 +149,13 @@ Example usage in coder_script:
 				stdout: wsOut,
 			}
 
+			// Read from child stdout channel and broadcast to all clients
+			go func() {
+				for line := range wsOut {
+					sb.broadcast(line)
+				}
+			}()
+
 			srv := &http.Server{
 				Addr:    fmt.Sprintf("%s:%d", hostArg, portArg),
 				Handler: sb,
@@ -192,20 +199,33 @@ Example usage in coder_script:
 
 type stdioBridge struct {
 	log    slog.Logger
-	conn   websocket.Conn
-	mu     sync.Mutex // Protects the fields below. NOTE: by design, this limits us to a single client at a time.
 	stdin  chan<- []byte
 	stdout <-chan []byte
+
+	// Multi-client support
+	mu      sync.RWMutex
+	clients map[*websocket.Conn]chan []byte // Each client gets a broadcast channel
+	history [][]byte                        // Store messages from child for replay
+}
+
+func (sb *stdioBridge) broadcast(msg []byte) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+
+	// Store in history
+	sb.history = append(sb.history, append([]byte(nil), msg...))
+
+	// Send to all connected clients
+	for _, clientCh := range sb.clients {
+		select {
+		case clientCh <- msg:
+		default:
+			// Client buffer full, skip
+		}
+	}
 }
 
 func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !sb.mu.TryLock() {
-		sb.log.Error(r.Context(), "multiple clients attempted to connect", slog.F("remote_addr", r.RemoteAddr), slog.F("url", r.URL.String()), slog.F("user_agent", r.UserAgent()))
-		http.Error(w, "only one client supported at a time", http.StatusServiceUnavailable)
-		return
-	}
-	defer sb.mu.Unlock()
-
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		InsecureSkipVerify: buildinfo.IsDev(),
 	})
@@ -213,17 +233,46 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sb.log.Error(r.Context(), "accept WebSocket connection", slog.Error(err))
 		return
 	}
+
+	sb.log.Info(r.Context(), "client connected", slog.F("remote_addr", r.RemoteAddr), slog.F("url", r.URL.String()), slog.F("user_agent", r.UserAgent()))
+
+	// Create a broadcast channel for this client
+	clientCh := make(chan []byte, 100)
+
+	// Register client and get history snapshot
+	sb.mu.Lock()
+	if sb.clients == nil {
+		sb.clients = make(map[*websocket.Conn]chan []byte)
+	}
+	sb.clients[conn] = clientCh
+	history := make([][]byte, len(sb.history))
+	copy(history, sb.history)
+	sb.mu.Unlock()
+
+	// Unregister client on disconnect
 	defer func() {
+		sb.mu.Lock()
+		delete(sb.clients, conn)
+		sb.mu.Unlock()
+		close(clientCh)
 		conn.Close(websocket.StatusNormalClosure, "closing connection")
 		sb.log.Info(r.Context(), "client disconnected", slog.F("remote_addr", r.RemoteAddr), slog.F("url", r.URL.String()), slog.F("user_agent", r.UserAgent()))
 	}()
 
-	sb.log.Info(r.Context(), "client connected", slog.F("remote_addr", r.RemoteAddr), slog.F("url", r.URL.String()), slog.F("user_agent", r.UserAgent()))
-
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+
+	// Send history to new client
+	for _, msg := range history {
+		if err := conn.Write(ctx, websocket.MessageText, msg); err != nil {
+			sb.log.Error(ctx, "sending history", slog.Error(err))
+			return
+		}
+	}
+
 	var wg sync.WaitGroup
 
+	// Read from WebSocket and forward to child
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -257,6 +306,7 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// Read from client channel and write to WebSocket
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -265,7 +315,10 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			case <-ctx.Done():
 				sb.log.Info(ctx, "stopping child->ws bridge")
 				return
-			case line := <-sb.stdout:
+			case line, ok := <-clientCh:
+				if !ok {
+					return
+				}
 				sb.log.Debug(ctx, "got msg", slog.F("src", "child"), slog.F("dst", "ws"), slog.F("msg", string(line)))
 				if err := conn.Write(ctx, websocket.MessageText, line); err != nil {
 					sb.log.Error(ctx, "writing to WebSocket", slog.Error(err))
@@ -280,9 +333,7 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (r *RootCmd) experimentalAcpClientCommand() *serpent.Command {
-	var (
-		url string
-	)
+	var url string
 
 	cmd := &serpent.Command{
 		Use:   "client <command> [args...]",
@@ -441,29 +492,29 @@ func (c *acpClient) SessionUpdate(ctx context.Context, req acp.SessionNotificati
 
 // Below methods not implemented for this POC.
 func (c *acpClient) ReadTextFile(ctx context.Context, req acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
-	return acp.ReadTextFileResponse{}, fmt.Errorf("not implemented")
+	return acp.ReadTextFileResponse{}, xerrors.New("not implemented")
 }
 
 func (c *acpClient) WriteTextFile(ctx context.Context, req acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
-	return acp.WriteTextFileResponse{}, fmt.Errorf("not implemented")
+	return acp.WriteTextFileResponse{}, xerrors.New("not implemented")
 }
 
 func (c *acpClient) CreateTerminal(ctx context.Context, req acp.CreateTerminalRequest) (acp.CreateTerminalResponse, error) {
-	return acp.CreateTerminalResponse{}, fmt.Errorf("not implemented")
+	return acp.CreateTerminalResponse{}, xerrors.New("not implemented")
 }
 
 func (c *acpClient) KillTerminalCommand(ctx context.Context, req acp.KillTerminalCommandRequest) (acp.KillTerminalCommandResponse, error) {
-	return acp.KillTerminalCommandResponse{}, fmt.Errorf("not implemented")
+	return acp.KillTerminalCommandResponse{}, xerrors.New("not implemented")
 }
 
 func (c *acpClient) TerminalOutput(ctx context.Context, req acp.TerminalOutputRequest) (acp.TerminalOutputResponse, error) {
-	return acp.TerminalOutputResponse{}, fmt.Errorf("not implemented")
+	return acp.TerminalOutputResponse{}, xerrors.New("not implemented")
 }
 
 func (c *acpClient) ReleaseTerminal(ctx context.Context, req acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {
-	return acp.ReleaseTerminalResponse{}, fmt.Errorf("not implemented")
+	return acp.ReleaseTerminalResponse{}, xerrors.New("not implemented")
 }
 
 func (c *acpClient) WaitForTerminalExit(ctx context.Context, req acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
-	return acp.WaitForTerminalExitResponse{}, fmt.Errorf("not implemented")
+	return acp.WaitForTerminalExitResponse{}, xerrors.New("not implemented")
 }
