@@ -654,11 +654,18 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	}, org.WorkspaceSharingDisabled)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		require.FailNowf(t,
-			"missing organization-member system role for organization",
-			"organization_id=%s: expected DB trigger to create placeholder system role: %v",
-			org.ID, err,
-		)
+		// The trigger that creates the placeholder role didn't run (e.g.,
+		// triggers were disabled in the test). Create the role manually.
+		err = rolestore.CreateOrgMemberRole(sysCtx, db, org)
+		require.NoError(t, err, "create organization-member role")
+
+		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
+			Name: rbac.RoleOrgMember(),
+			OrganizationID: uuid.NullUUID{
+				UUID:  org.ID,
+				Valid: true,
+			},
+		}, org.WorkspaceSharingDisabled)
 	}
 	require.NoError(t, err, "reconcile organization-member role")
 
