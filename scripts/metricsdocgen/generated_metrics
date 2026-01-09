@@ -93,16 +93,16 @@ coderd_agentapi_metadata_flushed_total 0
 coderd_agentapi_metadata_publish_errors_total 0
 # HELP coderd_agents_apps Agent applications with statuses.
 # TYPE coderd_agents_apps gauge
-coderd_agents_apps{app_name="",health=""} 0
+coderd_agents_apps{agent_name="",username="",workspace_name="",app_name="",health=""} 0
 # HELP coderd_agents_connection_latencies_seconds Agent connection latencies in seconds.
 # TYPE coderd_agents_connection_latencies_seconds gauge
-coderd_agents_connection_latencies_seconds{derp_region="",preferred=""} 0
+coderd_agents_connection_latencies_seconds{agent_name="",username="",workspace_name="",derp_region="",preferred=""} 0
 # HELP coderd_agents_connections Agent connections with statuses.
 # TYPE coderd_agents_connections gauge
-coderd_agents_connections{status="",lifecycle_state="",tailnet_node=""} 0
+coderd_agents_connections{agent_name="",username="",workspace_name="",status="",lifecycle_state="",tailnet_node=""} 0
 # HELP coderd_agents_up The number of active agents per workspace.
 # TYPE coderd_agents_up gauge
-coderd_agents_up{template_version=""} 0
+coderd_agents_up{username="",workspace_name="",template_name="",template_version=""} 0
 # HELP coderd_agentstats_connection_count The number of established connections by agent
 # TYPE coderd_agentstats_connection_count gauge
 coderd_agentstats_connection_count 0

@@ -64,6 +64,10 @@ type declarations struct {
 	stringSlices map[string][]string // []string variables
 }
 
+// packageDeclarations holds exported string constants collected from all scanned files,
+// keyed by package name. This allows resolving cross-file references.
+var packageDeclarations = make(map[string]map[string]string)
+
 func main() {
 	metrics, err := scanAllDirs()
 	if err != nil {
@@ -150,7 +154,10 @@ func scanFile(path string) ([]Metric, error) {
 		return nil, xerrors.Errorf("parsing file: %w", err)
 	}
 
-	// First pass: collect const and var declarations for resolving references.
+	// Collect exported constants into the global package declarations map.
+	collectPackageConsts(file)
+
+	// Collect file-local const and var declarations for resolving references.
 	decls := collectDecls(file)
 
 	var metrics []Metric
@@ -173,10 +180,51 @@ func scanFile(path string) ([]Metric, error) {
 	return metrics, nil
 }
 
+// collectPackageConsts collects exported string constants from a file into
+// the global packageDeclarations map, keyed by package name.
+func collectPackageConsts(file *ast.File) {
+	pkgName := file.Name.Name
+
+	if packageDeclarations[pkgName] == nil {
+		packageDeclarations[pkgName] = make(map[string]string)
+	}
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.CONST {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+
+			for i, name := range valueSpec.Names {
+				if !ast.IsExported(name.Name) {
+					continue
+				}
+
+				if i >= len(valueSpec.Values) {
+					continue
+				}
+
+				if lit, ok := valueSpec.Values[i].(*ast.BasicLit); ok {
+					if lit.Kind == token.STRING {
+						packageDeclarations[pkgName][name.Name] = strings.Trim(lit.Value, `"`)
+					}
+				}
+			}
+		}
+	}
+}
+
 // resolveStringExpr attempts to resolve an expression to a string value.
 // Examples:
 //   - "my_metric": "my_metric" (string literal)
 //   - metricName: resolved value of metricName constant (identifier)
+//   - agentmetrics.LabelUsername: resolved from package constants (selector)
 func resolveStringExpr(expr ast.Expr, decls declarations) string {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
@@ -185,7 +233,15 @@ func resolveStringExpr(expr ast.Expr, decls declarations) string {
 		return decls.strings[e.Name]
 	case *ast.BinaryExpr:
 		return resolveBinaryExpr(e, decls)
+	case *ast.SelectorExpr:
+		// Handle pkg.Const syntax.
+		if ident, ok := e.X.(*ast.Ident); ok {
+			if pkgConsts, ok := packageDeclarations[ident.Name]; ok {
+				return pkgConsts[e.Sel.Name]
+			}
+		}
 	}
+
 	return ""
 }
 
