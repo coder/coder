@@ -43,7 +43,7 @@ architectural tier](./2k-users.md).
 - If deploying on Kubernetes:
   - Set CPU request and limit to `1000m`
   - Set Memory request and limit to `1Gi`
-- If deploying on virtual machines, stack up to 30 provisioners per machine with a cummensurate amount of memory and CPU.
+- If deploying on virtual machines, stack up to 30 provisioners per machine with a commensurate amount of memory and CPU.
 - Provisioners benefit from high performance disks like SSDs.
 - For small deployments (ca. 100 users, 10 concurrent workspace builds), it is
   acceptable to deploy provisioners on `coderd` nodes.

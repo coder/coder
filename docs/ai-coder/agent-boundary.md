@@ -16,44 +16,22 @@ Agent Boundaries offer network policy enforcement, which blocks domains and HTTP
 
 The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
 
-There are two supported ways to configure Boundary today:
+## Configuration
 
-1. **Inline module configuration** – fastest for quick testing.
-2. **External `config.yaml`** – best when you need a large allow list or want everyone who launches Boundary manually to share the same config.
+Boundary is configured using a `config.yaml` file. This allows you to maintain allow lists and share detailed policies with teammates.
 
-### Option 1: Inline module configuration (quick start)
-
-Put every setting directly in the Terraform module when you just want to experiment:
+In your Terraform module, enable Boundary with minimal configuration:
 
 ```tf
 module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.1.0"
+  version             = "4.3.0"
   enable_boundary     = true
-  boundary_version    = "v0.2.0"
-  boundary_log_dir    = "/tmp/boundary_logs"
-  boundary_log_level  = "WARN"
-  boundary_additional_allowed_urls = ["domain=google.com"]
-  boundary_proxy_port = "8087"
+  boundary_version    = "v0.5.2"
 }
 ```
 
-All Boundary knobs live in Terraform, so you can iterate quickly without creating extra files.
-
-### Option 2: Keep policy in `config.yaml` (extensive allow lists)
-
-When you need to maintain a long allow list or share a detailed policy with teammates, keep Terraform minimal and move the rest into `config.yaml`:
-
-```tf
-module "claude-code" {
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.1.0"
-  enable_boundary     = true
-  boundary_version    = "v0.2.0"
-}
-```
-
-Then create a `config.yaml` file in your template directory with your policy:
+Create a `config.yaml` file in your template directory with your policy:
 
 ```yaml
 allowlist:
@@ -84,13 +62,16 @@ resource "coder_script" "boundary_config_setup" {
 
 Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when it starts, so everyone who launches Boundary manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive allow lists in version control.
 
+### Configuration Parameters
+
 - `boundary_version` defines what version of Boundary is being applied. This is set to `v0.2.0`, which points to the v0.2.0 release tag of `coder/boundary`.
-- `boundary_log_dir` is the directory where log files are written to when the workspace spins up.
-- `boundary_log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
+- `log_dir` is the directory where log files are written to when the workspace spins up.
+- `log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
   - `WARN`: logs only requests that have been blocked by Boundary
   - `INFO`: logs all requests at a high level
   - `DEBUG`: logs all requests in detail
-- `boundary_additional_allowed_urls`: defines the URLs that the agent can access, in addition to the default URLs required for the agent to work. Rules use the format `"key=value [key=value ...]"`:
+- `proxy_port` defines the port used by the HTTP proxy.
+- `allowlist` defines the URLs that the agent can access, in addition to the default URLs required for the agent to work. Rules use the format `"key=value [key=value ...]"`:
   - `domain=github.com` - allows the domain and all its subdomains
   - `domain=*.github.com` - allows only subdomains (the specific domain is excluded)
   - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a domain
@@ -115,7 +96,7 @@ The choice of jail type depends on your security requirements, available Linux c
 
 ## Implementation Comparison: Namespaces+iptables vs Landlock V4
 
-| Aspect                        | Current: Namespaces + veth-pair + iptables                                        | Proposed: Landlock V4                                                   |
+| Aspect                        | Namespace Jail (Namespaces + veth-pair + iptables)                                | Landlock V4 Jail                                                        |
 |-------------------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | **Privileges**                | Requires `CAP_NET_ADMIN`                                                          | ✅ No special capabilities required                                      |
 | **Docker seccomp**            | ❌ Requires seccomp profile modifications or sysbox-runc                           | ✅ Works without seccomp changes                                         |
