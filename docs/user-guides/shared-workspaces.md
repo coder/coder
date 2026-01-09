@@ -1,16 +1,16 @@
 # Shared Workspaces
 
-Multiple users can securely connect to a single Coder workspace for programming and debugging. 
+Multiple users can securely connect to a single Coder workspace for programming and debugging.
 
 <!-- Insert screenshot of UI here -->
 
 ## Features
 
-Workspace sharing is available to all Coder users by default, but platform admins with a Premium subscription can choose to disable sharing within their organizations or for their entire deployment. 
+Workspace sharing is available to all Coder users by default, but platform admins with a Premium subscription can choose to disable sharing within their organizations or for their entire deployment.
 
-Owners of a workspace can grant access to other users or groups with scoped roles. 
+Owners of a workspace can grant access to other users or groups with scoped roles.
 
-This is helpful in a number of scenarios, including: 
+This is helpful in a number of scenarios, including:
 
 - Developers can do ad-hoc debugging or pair programming.
 - A workspace can be owned by a group of users for QA, on-call rotations, or shared staging.
@@ -18,7 +18,7 @@ This is helpful in a number of scenarios, including:
 
 ## Getting Started
 
-Workspaces can be shared through either the Coder CLI or UI. 
+Workspaces can be shared through either the Coder CLI or UI.
 
 Before you begin, ensure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces. This is true by default if you are an OSS user, but deployments with Premium licenses may be restricted by admins.
 
@@ -34,14 +34,14 @@ To share a workspace:
 
 To remove sharing from a workspace:
 - `coder sharing remove <workspace> --user alice`
-    - Workspace is no longer shared with the user `alice`. 
+    - Workspace is no longer shared with the user `alice`.
 - `coder sharing remove <workspace> --group contractor`
-    - Workspace is no longer shared with the group `contractor`. 
+    - Workspace is no longer shared with the group `contractor`.
 
 To show who a workspace is shared with:
 - `coder sharing show <workspace>`
 
-To list shared workspaces: 
+To list shared workspaces:
 - `coder list --shared`
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
@@ -50,7 +50,7 @@ To list shared workspaces:
 
 1. Open a workspace that you own.
 
-1. Locate and click the 'Share' button. 
+1. Locate and click the 'Share' button.
 
 1. Add the users or groups that you want to share the workspace with. For each one, select a role.
 
