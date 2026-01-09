@@ -855,20 +855,17 @@ func (*CancelAcquire) Descriptor() ([]byte, []int) {
 	return file_provisionerd_proto_provisionerd_proto_rawDescGZIP(), []int{9}
 }
 
-type UploadFileRequest struct {
+type FileRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Types that are assignable to Type:
-	//
-	//	*UploadFileRequest_DataUpload
-	//	*UploadFileRequest_ChunkPiece
-	Type isUploadFileRequest_Type `protobuf_oneof:"type"`
+	FileId     string               `protobuf:"bytes,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	UploadType proto.DataUploadType `protobuf:"varint,2,opt,name=upload_type,json=uploadType,proto3,enum=provisioner.DataUploadType" json:"upload_type,omitempty"`
 }
 
-func (x *UploadFileRequest) Reset() {
-	*x = UploadFileRequest{}
+func (x *FileRequest) Reset() {
+	*x = FileRequest{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -876,13 +873,13 @@ func (x *UploadFileRequest) Reset() {
 	}
 }
 
-func (x *UploadFileRequest) String() string {
+func (x *FileRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UploadFileRequest) ProtoMessage() {}
+func (*FileRequest) ProtoMessage() {}
 
-func (x *UploadFileRequest) ProtoReflect() protoreflect.Message {
+func (x *FileRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -894,47 +891,24 @@ func (x *UploadFileRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UploadFileRequest.ProtoReflect.Descriptor instead.
-func (*UploadFileRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use FileRequest.ProtoReflect.Descriptor instead.
+func (*FileRequest) Descriptor() ([]byte, []int) {
 	return file_provisionerd_proto_provisionerd_proto_rawDescGZIP(), []int{10}
 }
 
-func (m *UploadFileRequest) GetType() isUploadFileRequest_Type {
-	if m != nil {
-		return m.Type
+func (x *FileRequest) GetFileId() string {
+	if x != nil {
+		return x.FileId
 	}
-	return nil
+	return ""
 }
 
-func (x *UploadFileRequest) GetDataUpload() *proto.DataUpload {
-	if x, ok := x.GetType().(*UploadFileRequest_DataUpload); ok {
-		return x.DataUpload
+func (x *FileRequest) GetUploadType() proto.DataUploadType {
+	if x != nil {
+		return x.UploadType
 	}
-	return nil
+	return proto.DataUploadType(0)
 }
-
-func (x *UploadFileRequest) GetChunkPiece() *proto.ChunkPiece {
-	if x, ok := x.GetType().(*UploadFileRequest_ChunkPiece); ok {
-		return x.ChunkPiece
-	}
-	return nil
-}
-
-type isUploadFileRequest_Type interface {
-	isUploadFileRequest_Type()
-}
-
-type UploadFileRequest_DataUpload struct {
-	DataUpload *proto.DataUpload `protobuf:"bytes,1,opt,name=data_upload,json=dataUpload,proto3,oneof"`
-}
-
-type UploadFileRequest_ChunkPiece struct {
-	ChunkPiece *proto.ChunkPiece `protobuf:"bytes,2,opt,name=chunk_piece,json=chunkPiece,proto3,oneof"`
-}
-
-func (*UploadFileRequest_DataUpload) isUploadFileRequest_Type() {}
-
-func (*UploadFileRequest_ChunkPiece) isUploadFileRequest_Type() {}
 
 type AcquiredJob_WorkspaceBuild struct {
 	state         protoimpl.MessageState
@@ -1868,20 +1842,17 @@ var file_provisionerd_proto_provisionerd_proto_rawDesc = []byte{
 	0x28, 0x05, 0x52, 0x0f, 0x63, 0x72, 0x65, 0x64, 0x69, 0x74, 0x73, 0x43, 0x6f, 0x6e, 0x73, 0x75,
 	0x6d, 0x65, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x62, 0x75, 0x64, 0x67, 0x65, 0x74, 0x18, 0x03, 0x20,
 	0x01, 0x28, 0x05, 0x52, 0x06, 0x62, 0x75, 0x64, 0x67, 0x65, 0x74, 0x22, 0x0f, 0x0a, 0x0d, 0x43,
-	0x61, 0x6e, 0x63, 0x65, 0x6c, 0x41, 0x63, 0x71, 0x75, 0x69, 0x72, 0x65, 0x22, 0x93, 0x01, 0x0a,
-	0x11, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x12, 0x3a, 0x0a, 0x0b, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x75, 0x70, 0x6c, 0x6f, 0x61,
-	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x44, 0x61, 0x74, 0x61, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64,
-	0x48, 0x00, 0x52, 0x0a, 0x64, 0x61, 0x74, 0x61, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x3a,
-	0x0a, 0x0b, 0x63, 0x68, 0x75, 0x6e, 0x6b, 0x5f, 0x70, 0x69, 0x65, 0x63, 0x65, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65,
-	0x72, 0x2e, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x50, 0x69, 0x65, 0x63, 0x65, 0x48, 0x00, 0x52, 0x0a,
-	0x63, 0x68, 0x75, 0x6e, 0x6b, 0x50, 0x69, 0x65, 0x63, 0x65, 0x42, 0x06, 0x0a, 0x04, 0x74, 0x79,
+	0x61, 0x6e, 0x63, 0x65, 0x6c, 0x41, 0x63, 0x71, 0x75, 0x69, 0x72, 0x65, 0x22, 0x64, 0x0a, 0x0b,
+	0x46, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x66,
+	0x69, 0x6c, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x66, 0x69,
+	0x6c, 0x65, 0x49, 0x64, 0x12, 0x3c, 0x0a, 0x0b, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x74,
+	0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1b, 0x2e, 0x70, 0x72, 0x6f, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x44, 0x61, 0x74, 0x61, 0x55, 0x70, 0x6c, 0x6f,
+	0x61, 0x64, 0x54, 0x79, 0x70, 0x65, 0x52, 0x0a, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x54, 0x79,
 	0x70, 0x65, 0x2a, 0x34, 0x0a, 0x09, 0x4c, 0x6f, 0x67, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12,
 	0x16, 0x0a, 0x12, 0x50, 0x52, 0x4f, 0x56, 0x49, 0x53, 0x49, 0x4f, 0x4e, 0x45, 0x52, 0x5f, 0x44,
 	0x41, 0x45, 0x4d, 0x4f, 0x4e, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x50, 0x52, 0x4f, 0x56, 0x49,
-	0x53, 0x49, 0x4f, 0x4e, 0x45, 0x52, 0x10, 0x01, 0x32, 0x8b, 0x04, 0x0a, 0x11, 0x50, 0x72, 0x6f,
+	0x53, 0x49, 0x4f, 0x4e, 0x45, 0x52, 0x10, 0x01, 0x32, 0xc9, 0x04, 0x0a, 0x11, 0x50, 0x72, 0x6f,
 	0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x44, 0x61, 0x65, 0x6d, 0x6f, 0x6e, 0x12, 0x41,
 	0x0a, 0x0a, 0x41, 0x63, 0x71, 0x75, 0x69, 0x72, 0x65, 0x4a, 0x6f, 0x62, 0x12, 0x13, 0x2e, 0x70,
 	0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74,
@@ -1910,14 +1881,18 @@ var file_provisionerd_proto_provisionerd_proto_rawDesc = []byte{
 	0x1a, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x43,
 	0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x4a, 0x6f, 0x62, 0x1a, 0x13, 0x2e, 0x70, 0x72,
 	0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79,
-	0x12, 0x44, 0x0a, 0x0a, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x1f,
-	0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x55, 0x70,
-	0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x13, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x45,
-	0x6d, 0x70, 0x74, 0x79, 0x28, 0x01, 0x42, 0x2e, 0x5a, 0x2c, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72,
-	0x2f, 0x76, 0x32, 0x2f, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64,
-	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x12, 0x3c, 0x0a, 0x0a, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x17,
+	0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x6c,
+	0x65, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x1a, 0x13, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73,
+	0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x28, 0x01, 0x12, 0x44,
+	0x0a, 0x0c, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x19,
+	0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x46, 0x69,
+	0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x17, 0x2e, 0x70, 0x72, 0x6f, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x70, 0x6c, 0x6f,
+	0x61, 0x64, 0x30, 0x01, 0x42, 0x2e, 0x5a, 0x2c, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
+	0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x76,
+	0x32, 0x2f, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2f, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1946,7 +1921,7 @@ var file_provisionerd_proto_provisionerd_proto_goTypes = []interface{}{
 	(*CommitQuotaRequest)(nil),                 // 8: provisionerd.CommitQuotaRequest
 	(*CommitQuotaResponse)(nil),                // 9: provisionerd.CommitQuotaResponse
 	(*CancelAcquire)(nil),                      // 10: provisionerd.CancelAcquire
-	(*UploadFileRequest)(nil),                  // 11: provisionerd.UploadFileRequest
+	(*FileRequest)(nil),                        // 11: provisionerd.FileRequest
 	(*AcquiredJob_WorkspaceBuild)(nil),         // 12: provisionerd.AcquiredJob.WorkspaceBuild
 	(*AcquiredJob_TemplateImport)(nil),         // 13: provisionerd.AcquiredJob.TemplateImport
 	(*AcquiredJob_TemplateDryRun)(nil),         // 14: provisionerd.AcquiredJob.TemplateDryRun
@@ -1961,19 +1936,19 @@ var file_provisionerd_proto_provisionerd_proto_goTypes = []interface{}{
 	(proto.LogLevel)(0),                        // 23: provisioner.LogLevel
 	(*proto.TemplateVariable)(nil),             // 24: provisioner.TemplateVariable
 	(*proto.VariableValue)(nil),                // 25: provisioner.VariableValue
-	(*proto.DataUpload)(nil),                   // 26: provisioner.DataUpload
-	(*proto.ChunkPiece)(nil),                   // 27: provisioner.ChunkPiece
-	(*proto.RichParameterValue)(nil),           // 28: provisioner.RichParameterValue
-	(*proto.ExternalAuthProvider)(nil),         // 29: provisioner.ExternalAuthProvider
-	(*proto.Metadata)(nil),                     // 30: provisioner.Metadata
-	(*proto.Timing)(nil),                       // 31: provisioner.Timing
-	(*proto.Resource)(nil),                     // 32: provisioner.Resource
-	(*proto.Module)(nil),                       // 33: provisioner.Module
-	(*proto.ResourceReplacement)(nil),          // 34: provisioner.ResourceReplacement
-	(*proto.AITask)(nil),                       // 35: provisioner.AITask
-	(*proto.RichParameter)(nil),                // 36: provisioner.RichParameter
-	(*proto.ExternalAuthProviderResource)(nil), // 37: provisioner.ExternalAuthProviderResource
-	(*proto.Preset)(nil),                       // 38: provisioner.Preset
+	(proto.DataUploadType)(0),                  // 26: provisioner.DataUploadType
+	(*proto.RichParameterValue)(nil),           // 27: provisioner.RichParameterValue
+	(*proto.ExternalAuthProvider)(nil),         // 28: provisioner.ExternalAuthProvider
+	(*proto.Metadata)(nil),                     // 29: provisioner.Metadata
+	(*proto.Timing)(nil),                       // 30: provisioner.Timing
+	(*proto.Resource)(nil),                     // 31: provisioner.Resource
+	(*proto.Module)(nil),                       // 32: provisioner.Module
+	(*proto.ResourceReplacement)(nil),          // 33: provisioner.ResourceReplacement
+	(*proto.AITask)(nil),                       // 34: provisioner.AITask
+	(*proto.RichParameter)(nil),                // 35: provisioner.RichParameter
+	(*proto.ExternalAuthProviderResource)(nil), // 36: provisioner.ExternalAuthProviderResource
+	(*proto.Preset)(nil),                       // 37: provisioner.Preset
+	(*proto.FileUpload)(nil),                   // 38: provisioner.FileUpload
 }
 var file_provisionerd_proto_provisionerd_proto_depIdxs = []int32{
 	12, // 0: provisionerd.AcquiredJob.workspace_build:type_name -> provisionerd.AcquiredJob.WorkspaceBuild
@@ -1993,40 +1968,40 @@ var file_provisionerd_proto_provisionerd_proto_depIdxs = []int32{
 	25, // 14: provisionerd.UpdateJobRequest.user_variable_values:type_name -> provisioner.VariableValue
 	22, // 15: provisionerd.UpdateJobRequest.workspace_tags:type_name -> provisionerd.UpdateJobRequest.WorkspaceTagsEntry
 	25, // 16: provisionerd.UpdateJobResponse.variable_values:type_name -> provisioner.VariableValue
-	26, // 17: provisionerd.UploadFileRequest.data_upload:type_name -> provisioner.DataUpload
-	27, // 18: provisionerd.UploadFileRequest.chunk_piece:type_name -> provisioner.ChunkPiece
-	28, // 19: provisionerd.AcquiredJob.WorkspaceBuild.rich_parameter_values:type_name -> provisioner.RichParameterValue
-	25, // 20: provisionerd.AcquiredJob.WorkspaceBuild.variable_values:type_name -> provisioner.VariableValue
-	29, // 21: provisionerd.AcquiredJob.WorkspaceBuild.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
-	30, // 22: provisionerd.AcquiredJob.WorkspaceBuild.metadata:type_name -> provisioner.Metadata
-	28, // 23: provisionerd.AcquiredJob.WorkspaceBuild.previous_parameter_values:type_name -> provisioner.RichParameterValue
-	30, // 24: provisionerd.AcquiredJob.TemplateImport.metadata:type_name -> provisioner.Metadata
-	25, // 25: provisionerd.AcquiredJob.TemplateImport.user_variable_values:type_name -> provisioner.VariableValue
-	28, // 26: provisionerd.AcquiredJob.TemplateDryRun.rich_parameter_values:type_name -> provisioner.RichParameterValue
-	25, // 27: provisionerd.AcquiredJob.TemplateDryRun.variable_values:type_name -> provisioner.VariableValue
-	30, // 28: provisionerd.AcquiredJob.TemplateDryRun.metadata:type_name -> provisioner.Metadata
-	31, // 29: provisionerd.FailedJob.WorkspaceBuild.timings:type_name -> provisioner.Timing
-	32, // 30: provisionerd.CompletedJob.WorkspaceBuild.resources:type_name -> provisioner.Resource
-	31, // 31: provisionerd.CompletedJob.WorkspaceBuild.timings:type_name -> provisioner.Timing
-	33, // 32: provisionerd.CompletedJob.WorkspaceBuild.modules:type_name -> provisioner.Module
-	34, // 33: provisionerd.CompletedJob.WorkspaceBuild.resource_replacements:type_name -> provisioner.ResourceReplacement
-	35, // 34: provisionerd.CompletedJob.WorkspaceBuild.ai_tasks:type_name -> provisioner.AITask
-	32, // 35: provisionerd.CompletedJob.TemplateImport.start_resources:type_name -> provisioner.Resource
-	32, // 36: provisionerd.CompletedJob.TemplateImport.stop_resources:type_name -> provisioner.Resource
-	36, // 37: provisionerd.CompletedJob.TemplateImport.rich_parameters:type_name -> provisioner.RichParameter
-	37, // 38: provisionerd.CompletedJob.TemplateImport.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	33, // 39: provisionerd.CompletedJob.TemplateImport.start_modules:type_name -> provisioner.Module
-	33, // 40: provisionerd.CompletedJob.TemplateImport.stop_modules:type_name -> provisioner.Module
-	38, // 41: provisionerd.CompletedJob.TemplateImport.presets:type_name -> provisioner.Preset
-	32, // 42: provisionerd.CompletedJob.TemplateDryRun.resources:type_name -> provisioner.Resource
-	33, // 43: provisionerd.CompletedJob.TemplateDryRun.modules:type_name -> provisioner.Module
-	1,  // 44: provisionerd.ProvisionerDaemon.AcquireJob:input_type -> provisionerd.Empty
-	10, // 45: provisionerd.ProvisionerDaemon.AcquireJobWithCancel:input_type -> provisionerd.CancelAcquire
-	8,  // 46: provisionerd.ProvisionerDaemon.CommitQuota:input_type -> provisionerd.CommitQuotaRequest
-	6,  // 47: provisionerd.ProvisionerDaemon.UpdateJob:input_type -> provisionerd.UpdateJobRequest
-	3,  // 48: provisionerd.ProvisionerDaemon.FailJob:input_type -> provisionerd.FailedJob
-	4,  // 49: provisionerd.ProvisionerDaemon.CompleteJob:input_type -> provisionerd.CompletedJob
-	11, // 50: provisionerd.ProvisionerDaemon.UploadFile:input_type -> provisionerd.UploadFileRequest
+	26, // 17: provisionerd.FileRequest.upload_type:type_name -> provisioner.DataUploadType
+	27, // 18: provisionerd.AcquiredJob.WorkspaceBuild.rich_parameter_values:type_name -> provisioner.RichParameterValue
+	25, // 19: provisionerd.AcquiredJob.WorkspaceBuild.variable_values:type_name -> provisioner.VariableValue
+	28, // 20: provisionerd.AcquiredJob.WorkspaceBuild.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
+	29, // 21: provisionerd.AcquiredJob.WorkspaceBuild.metadata:type_name -> provisioner.Metadata
+	27, // 22: provisionerd.AcquiredJob.WorkspaceBuild.previous_parameter_values:type_name -> provisioner.RichParameterValue
+	29, // 23: provisionerd.AcquiredJob.TemplateImport.metadata:type_name -> provisioner.Metadata
+	25, // 24: provisionerd.AcquiredJob.TemplateImport.user_variable_values:type_name -> provisioner.VariableValue
+	27, // 25: provisionerd.AcquiredJob.TemplateDryRun.rich_parameter_values:type_name -> provisioner.RichParameterValue
+	25, // 26: provisionerd.AcquiredJob.TemplateDryRun.variable_values:type_name -> provisioner.VariableValue
+	29, // 27: provisionerd.AcquiredJob.TemplateDryRun.metadata:type_name -> provisioner.Metadata
+	30, // 28: provisionerd.FailedJob.WorkspaceBuild.timings:type_name -> provisioner.Timing
+	31, // 29: provisionerd.CompletedJob.WorkspaceBuild.resources:type_name -> provisioner.Resource
+	30, // 30: provisionerd.CompletedJob.WorkspaceBuild.timings:type_name -> provisioner.Timing
+	32, // 31: provisionerd.CompletedJob.WorkspaceBuild.modules:type_name -> provisioner.Module
+	33, // 32: provisionerd.CompletedJob.WorkspaceBuild.resource_replacements:type_name -> provisioner.ResourceReplacement
+	34, // 33: provisionerd.CompletedJob.WorkspaceBuild.ai_tasks:type_name -> provisioner.AITask
+	31, // 34: provisionerd.CompletedJob.TemplateImport.start_resources:type_name -> provisioner.Resource
+	31, // 35: provisionerd.CompletedJob.TemplateImport.stop_resources:type_name -> provisioner.Resource
+	35, // 36: provisionerd.CompletedJob.TemplateImport.rich_parameters:type_name -> provisioner.RichParameter
+	36, // 37: provisionerd.CompletedJob.TemplateImport.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	32, // 38: provisionerd.CompletedJob.TemplateImport.start_modules:type_name -> provisioner.Module
+	32, // 39: provisionerd.CompletedJob.TemplateImport.stop_modules:type_name -> provisioner.Module
+	37, // 40: provisionerd.CompletedJob.TemplateImport.presets:type_name -> provisioner.Preset
+	31, // 41: provisionerd.CompletedJob.TemplateDryRun.resources:type_name -> provisioner.Resource
+	32, // 42: provisionerd.CompletedJob.TemplateDryRun.modules:type_name -> provisioner.Module
+	1,  // 43: provisionerd.ProvisionerDaemon.AcquireJob:input_type -> provisionerd.Empty
+	10, // 44: provisionerd.ProvisionerDaemon.AcquireJobWithCancel:input_type -> provisionerd.CancelAcquire
+	8,  // 45: provisionerd.ProvisionerDaemon.CommitQuota:input_type -> provisionerd.CommitQuotaRequest
+	6,  // 46: provisionerd.ProvisionerDaemon.UpdateJob:input_type -> provisionerd.UpdateJobRequest
+	3,  // 47: provisionerd.ProvisionerDaemon.FailJob:input_type -> provisionerd.FailedJob
+	4,  // 48: provisionerd.ProvisionerDaemon.CompleteJob:input_type -> provisionerd.CompletedJob
+	38, // 49: provisionerd.ProvisionerDaemon.UploadFile:input_type -> provisioner.FileUpload
+	11, // 50: provisionerd.ProvisionerDaemon.DownloadFile:input_type -> provisionerd.FileRequest
 	2,  // 51: provisionerd.ProvisionerDaemon.AcquireJob:output_type -> provisionerd.AcquiredJob
 	2,  // 52: provisionerd.ProvisionerDaemon.AcquireJobWithCancel:output_type -> provisionerd.AcquiredJob
 	9,  // 53: provisionerd.ProvisionerDaemon.CommitQuota:output_type -> provisionerd.CommitQuotaResponse
@@ -2034,11 +2009,12 @@ var file_provisionerd_proto_provisionerd_proto_depIdxs = []int32{
 	1,  // 55: provisionerd.ProvisionerDaemon.FailJob:output_type -> provisionerd.Empty
 	1,  // 56: provisionerd.ProvisionerDaemon.CompleteJob:output_type -> provisionerd.Empty
 	1,  // 57: provisionerd.ProvisionerDaemon.UploadFile:output_type -> provisionerd.Empty
-	51, // [51:58] is the sub-list for method output_type
-	44, // [44:51] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	44, // [44:44] is the sub-list for extension extendee
-	0,  // [0:44] is the sub-list for field type_name
+	38, // 58: provisionerd.ProvisionerDaemon.DownloadFile:output_type -> provisioner.FileUpload
+	51, // [51:59] is the sub-list for method output_type
+	43, // [43:51] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_provisionerd_proto_provisionerd_proto_init() }
@@ -2168,7 +2144,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UploadFileRequest); i {
+			switch v := v.(*FileRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2302,10 +2278,6 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 		(*CompletedJob_WorkspaceBuild_)(nil),
 		(*CompletedJob_TemplateImport_)(nil),
 		(*CompletedJob_TemplateDryRun_)(nil),
-	}
-	file_provisionerd_proto_provisionerd_proto_msgTypes[10].OneofWrappers = []interface{}{
-		(*UploadFileRequest_DataUpload)(nil),
-		(*UploadFileRequest_ChunkPiece)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

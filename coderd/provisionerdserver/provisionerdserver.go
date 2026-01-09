@@ -1433,7 +1433,7 @@ UploadFileStream:
 		}
 
 		switch typed := msg.Type.(type) {
-		case *proto.UploadFileRequest_DataUpload:
+		case *sdkproto.FileUpload_DataUpload:
 			if file != nil {
 				return xerrors.New("unexpected file upload while waiting for file completion")
 			}
@@ -1453,7 +1453,7 @@ UploadFileStream:
 				// This should never really happen in practice, but we handle it gracefully.
 				break UploadFileStream
 			}
-		case *proto.UploadFileRequest_ChunkPiece:
+		case *sdkproto.FileUpload_ChunkPiece:
 			if file == nil {
 				return xerrors.New("unexpected chunk piece while waiting for file upload")
 			}
@@ -1516,6 +1516,11 @@ UploadFileStream:
 	)
 
 	return nil
+}
+
+func (*server) DownloadFile(_ *proto.FileRequest, _ proto.DRPCProvisionerDaemon_DownloadFileStream) error {
+	// TODO implemented in follow up PR
+	panic("implement me")
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
