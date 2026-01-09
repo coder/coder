@@ -25,7 +25,6 @@ import type {
 } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import * as CreateDayString from "utils/createDayString";
-import { vi } from "vitest";
 import WorkspacesPage from "./WorkspacesPage";
 
 describe("WorkspacesPage", () => {
