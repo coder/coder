@@ -67,376 +67,204 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		return <ErrorAlert error="Invalid license usage period" />;
 	}
 
-	// Mock data for Managed AI Users
+	// Mock data for AI Users
 	const mockAIUsersUsage = 20;
 	const mockAIUsersIncluded = 50;
-	const mockAIUsersLimit = 70;
 	const mockAIUsersUsagePercentage = Math.min(
-		(mockAIUsersUsage / mockAIUsersLimit) * 100,
+		(mockAIUsersUsage / mockAIUsersIncluded) * 100,
 		100,
-	);
-	const mockAIUsersIncludedPercentage = Math.min(
-		(mockAIUsersIncluded / mockAIUsersLimit) * 100,
-		100,
-	);
-	const mockAIUsersRemainingPercentage = Math.max(
-		100 - mockAIUsersIncludedPercentage,
-		0,
 	);
 
-	// Mock data for Managed Agentic Workspaces
+	// Mock data for Agentic Workspace Starts
 	const mockWorkspacesUsage = 6347;
 	const mockWorkspacesIncluded = 10000;
-	const mockWorkspacesLimit = 12000;
 	const mockWorkspacesUsagePercentage = Math.min(
-		(mockWorkspacesUsage / mockWorkspacesLimit) * 100,
+		(mockWorkspacesUsage / mockWorkspacesIncluded) * 100,
 		100,
-	);
-	const mockWorkspacesIncludedPercentage = Math.min(
-		(mockWorkspacesIncluded / mockWorkspacesLimit) * 100,
-		100,
-	);
-	const mockWorkspacesRemainingPercentage = Math.max(
-		100 - mockWorkspacesIncludedPercentage,
-		0,
 	);
 
 	return (
-		<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-			{/* Managed AI Users Section */}
-			<section className="border border-solid rounded">
-				<div className="p-4">
-					<Collapsible>
-						<header className="flex flex-col gap-2 items-start">
-							<h3 className="text-md m-0 font-medium">Managed AI Users</h3>
+		<section className="border border-solid rounded">
+			<div className="p-4">
+				<header className="flex flex-col gap-2 items-start">
+					<h3 className="text-md m-0 font-medium">Managed AI Usage</h3>
+				</header>
+			</div>
 
-							<CollapsibleTrigger asChild>
-								<Button
+			<div className="p-6 border-0 border-t border-solid">
+				<div className="space-y-8">
+					{/* AI Users */}
+					<div>
+						<div className="mb-4">
+							<h4 className="text-sm font-medium m-0 mb-2">
+								Users with AI Governance Add-On
+							</h4>
+							<Collapsible>
+								<CollapsibleTrigger asChild>
+									<Button
+										className={`
+                      h-auto p-0 border-0 bg-transparent font-medium text-content-secondary text-xs
+                      hover:bg-transparent hover:text-content-primary
+                      [&[data-state=open]_svg]:rotate-90
+                    `}
+									>
+										<ChevronRightIcon className="w-3 h-3" />
+										Learn more
+									</Button>
+								</CollapsibleTrigger>
+
+								<CollapsibleContent
 									className={`
-                  h-auto p-0 border-0 bg-transparent font-medium text-content-secondary
-                  hover:bg-transparent hover:text-content-primary
-                  [&[data-state=open]_svg]:rotate-90
-                `}
+                    pt-2 pl-5 space-y-4 font-medium max-w-[720px]
+                    text-xs text-content-secondary
+                    [&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none
+                  `}
 								>
-									<ChevronRightIcon />
-									Learn more
-								</Button>
-							</CollapsibleTrigger>
-						</header>
+									<p>
+										Users who are entitled to use AI features like{" "}
+										<MuiLink
+											href={docs("/ai-coder/boundaries")}
+											target="_blank"
+											rel="noreferrer"
+										>
+											Bridge
+										</MuiLink>
+										,{" "}
+										<MuiLink
+											href={docs("/ai-coder/boundaries")}
+											target="_blank"
+											rel="noreferrer"
+										>
+											Boundaries
+										</MuiLink>
+										, or{" "}
+										<MuiLink
+											href={docs("/ai-coder/tasks")}
+											target="_blank"
+											rel="noreferrer"
+										>
+											Tasks
+										</MuiLink>
+										.
+									</p>
+								</CollapsibleContent>
+							</Collapsible>
+						</div>
 
-						<CollapsibleContent
-							className={`
-              pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
-              text-sm text-content-secondary
-              [&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none
-            `}
-						>
-							<p>
-								Managed AI Users are users who consume AI features like{" "}
-								<MuiLink
-									href={docs("/ai-coder/boundaries")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									Bridge
-								</MuiLink>
-								,{" "}
-								<MuiLink
-									href={docs("/ai-coder/boundaries")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									Boundaries
-								</MuiLink>
-								, or{" "}
-								<MuiLink
-									href={docs("/ai-coder/tasks")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									Tasks
-								</MuiLink>
-								.
-							</p>
-							<ul>
-								<li className="flex items-center gap-2">
-									<div className="rounded-[2px] bg-highlight-green size-3 inline-block">
-										<span className="sr-only">Legend for active users</span>
-									</div>
-									Number of users consuming AI features.
-								</li>
-								<li className="flex items-center gap-2">
-									<div className="rounded-[2px] bg-content-disabled size-3 inline-block">
-										<span className="sr-only">
-											Legend for included allowance
-										</span>
-									</div>
-									Included allowance from your current license plan.
-								</li>
-								<li className="flex items-center gap-2">
-									<div className="size-3 inline-flex items-center justify-center">
-										<span className="sr-only">
-											Legend for total limit in the chart
-										</span>
-										<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
-									</div>
-									Total limit after which additional AI users will be blocked.
-								</li>
-							</ul>
-							<p>
-								<MuiLink
-									href={docs("/ai-coder")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									Learn more about managed AI users
-								</MuiLink>
-							</p>
-						</CollapsibleContent>
-					</Collapsible>
-				</div>
-
-				<div className="p-6 border-0 border-t border-solid">
-					<div className="flex justify-between text-sm text-content-secondary mb-4">
-						<span>
-							{startDate ? dayjs(startDate).format("MMMM D, YYYY") : ""}
-						</span>
-						<span>{endDate ? dayjs(endDate).format("MMMM D, YYYY") : ""}</span>
-					</div>
-
-					<div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
-						<div
-							className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
-							style={{ width: `${mockAIUsersUsagePercentage}%` }}
-						/>
-
-						<div
-							className="absolute top-0 h-full bg-content-disabled opacity-30"
-							style={{
-								left: `${mockAIUsersIncludedPercentage}%`,
-								width: `${mockAIUsersRemainingPercentage}%`,
-							}}
-						/>
-					</div>
-
-					<div className="relative hidden lg:flex justify-between mt-4 text-sm">
-						<div className="flex flex-col items-start">
-							<span className="text-content-secondary">Actual:</span>
-							<span className="font-medium">
-								{mockAIUsersUsage.toLocaleString()}
+						<div className="flex justify-between text-sm text-content-secondary mb-4">
+							<span>
+								{startDate ? dayjs(startDate).format("MMMM D, YYYY") : ""}
+							</span>
+							<span>
+								{endDate ? dayjs(endDate).format("MMMM D, YYYY") : ""}
 							</span>
 						</div>
 
-						<div
-							className="absolute flex flex-col items-center transform -translate-x-1/2"
-							style={{
-								left: `${Math.max(Math.min(mockAIUsersIncludedPercentage, 90), 10)}%`,
-							}}
-						>
-							<span className="text-content-secondary">Included:</span>
-							<span className="font-medium">
-								{mockAIUsersIncluded.toLocaleString()}
-							</span>
+						<div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
+							<div
+								className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
+								style={{ width: `${mockAIUsersUsagePercentage}%` }}
+							/>
 						</div>
 
-						<div className="flex flex-col items-end">
-							<span className="text-content-secondary">Limit:</span>
-							<span className="font-medium">
-								{mockAIUsersLimit.toLocaleString()}
-							</span>
-						</div>
-					</div>
-
-					<div className="flex lg:hidden flex-col gap-3 mt-4 text-sm">
-						<div className="flex justify-between">
+						<div className="flex justify-between mt-4 text-sm">
 							<div className="flex flex-col items-start">
 								<span className="text-content-secondary">Actual:</span>
 								<span className="font-medium">
 									{mockAIUsersUsage.toLocaleString()}
 								</span>
 							</div>
-							<div className="flex flex-col items-center">
+							<div className="flex flex-col items-end">
 								<span className="text-content-secondary">Included:</span>
 								<span className="font-medium">
 									{mockAIUsersIncluded.toLocaleString()}
 								</span>
 							</div>
-							<div className="flex flex-col items-end">
-								<span className="text-content-secondary">Limit:</span>
-								<span className="font-medium">
-									{mockAIUsersLimit.toLocaleString()}
-								</span>
-							</div>
 						</div>
 					</div>
-				</div>
-			</section>
 
-			{/* Managed Agentic Workspaces Section */}
-			<section className="border border-solid rounded">
-				<div className="p-4">
-					<Collapsible>
-						<header className="flex flex-col gap-2 items-start">
-							<h3 className="text-md m-0 font-medium">
-								Managed Agentic Workspaces
-							</h3>
+					{/* Agentic Workspace Starts */}
+					<div>
+						<div className="mb-4">
+							<h4 className="text-sm font-medium m-0 mb-2">
+								Agentic Workspace Starts
+							</h4>
+							<Collapsible>
+								<CollapsibleTrigger asChild>
+									<Button
+										className={`
+                      h-auto p-0 border-0 bg-transparent font-medium text-content-secondary text-xs
+                      hover:bg-transparent hover:text-content-primary
+                      [&[data-state=open]_svg]:rotate-90
+                    `}
+									>
+										<ChevronRightIcon className="w-3 h-3" />
+										Learn more
+									</Button>
+								</CollapsibleTrigger>
 
-							<CollapsibleTrigger asChild>
-								<Button
+								<CollapsibleContent
 									className={`
-                  h-auto p-0 border-0 bg-transparent font-medium text-content-secondary
-                  hover:bg-transparent hover:text-content-primary
-                  [&[data-state=open]_svg]:rotate-90
-                `}
+                    pt-2 pl-5 space-y-4 font-medium max-w-[720px]
+                    text-xs text-content-secondary
+                    [&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none
+                  `}
 								>
-									<ChevronRightIcon />
-									Learn more
-								</Button>
-							</CollapsibleTrigger>
-						</header>
+									<p>
+										Agentic Workspace Starts are measured when you start an
+										emphemeral workspace, purely for running an agentic
+										workload. These are not to be confused with workspaces used
+										for day-to-day development, even if AI tooling is involved.
+									</p>
+									<p>
+										Today,{" "}
+										<MuiLink
+											href={docs("/ai-coder/tasks")}
+											target="_blank"
+											rel="noreferrer"
+										>
+											Coder Tasks (via UI, CLI, or API)
+										</MuiLink>{" "}
+										is the only way to create agentic workspaces, but additional
+										protocols and APIs may be supported as standards emerge.
+									</p>
+								</CollapsibleContent>
+							</Collapsible>
+						</div>
 
-						<CollapsibleContent
-							className={`
-              pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
-              text-sm text-content-secondary
-              [&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none
-            `}
-						>
-							<p>
-								Agentic Workspace Starts are measured when you start an
-								emphemeral workspace, purely for running an agentic workload.
-								These are not to be confused with workspaces used for day-to-day
-								development, even if AI tooling is involved.
-							</p>
-							<p>
-								Today,{" "}
-								<MuiLink
-									href={docs("/ai-coder/tasks")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									Coder Tasks
-								</MuiLink>{" "}
-								(via UI, CLI, or API) is the only way to create agentic
-								workspaces. As standards emerge, Coder will support additional
-								protocols and APIs.
-							</p>
-							<ul>
-								<li className="flex items-center gap-2">
-									<div className="rounded-[2px] bg-highlight-green size-3 inline-block">
-										<span className="sr-only">
-											Legend for started workspaces
-										</span>
-									</div>
-									Amount of started workspaces with an AI agent.
-								</li>
-								<li className="flex items-center gap-2">
-									<div className="rounded-[2px] bg-content-disabled size-3 inline-block">
-										<span className="sr-only">
-											Legend for included allowance
-										</span>
-									</div>
-									Included allowance from your current license plan.
-								</li>
-								<li className="flex items-center gap-2">
-									<div className="size-3 inline-flex items-center justify-center">
-										<span className="sr-only">
-											Legend for total limit in the chart
-										</span>
-										<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
-									</div>
-									Total limit after which further AI workspace builds will be
-									blocked.
-								</li>
-							</ul>
-							<p>
-								<MuiLink
-									href={docs("/ai-coder")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									Learn more about agentic workspaces
-								</MuiLink>
-							</p>
-						</CollapsibleContent>
-					</Collapsible>
-				</div>
-
-				<div className="p-6 border-0 border-t border-solid">
-					<div className="flex justify-between text-sm text-content-secondary mb-4">
-						<span>
-							{startDate ? dayjs(startDate).format("MMMM D, YYYY") : ""}
-						</span>
-						<span>{endDate ? dayjs(endDate).format("MMMM D, YYYY") : ""}</span>
-					</div>
-
-					<div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
-						<div
-							className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
-							style={{ width: `${mockWorkspacesUsagePercentage}%` }}
-						/>
-
-						<div
-							className="absolute top-0 h-full bg-content-disabled opacity-30"
-							style={{
-								left: `${mockWorkspacesIncludedPercentage}%`,
-								width: `${mockWorkspacesRemainingPercentage}%`,
-							}}
-						/>
-					</div>
-
-					<div className="relative hidden lg:flex justify-between mt-4 text-sm">
-						<div className="flex flex-col items-start">
-							<span className="text-content-secondary">Actual:</span>
-							<span className="font-medium">
-								{mockWorkspacesUsage.toLocaleString()}
+						<div className="flex justify-between text-sm text-content-secondary mb-4">
+							<span>
+								{startDate ? dayjs(startDate).format("MMMM D, YYYY") : ""}
+							</span>
+							<span>
+								{endDate ? dayjs(endDate).format("MMMM D, YYYY") : ""}
 							</span>
 						</div>
 
-						<div
-							className="absolute flex flex-col items-center transform -translate-x-1/2"
-							style={{
-								left: `${Math.max(Math.min(mockWorkspacesIncludedPercentage, 90), 10)}%`,
-							}}
-						>
-							<span className="text-content-secondary">Included:</span>
-							<span className="font-medium">
-								{mockWorkspacesIncluded.toLocaleString()}
-							</span>
+						<div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
+							<div
+								className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
+								style={{ width: `${mockWorkspacesUsagePercentage}%` }}
+							/>
 						</div>
 
-						<div className="flex flex-col items-end">
-							<span className="text-content-secondary">Limit:</span>
-							<span className="font-medium">
-								{mockWorkspacesLimit.toLocaleString()}
-							</span>
-						</div>
-					</div>
-
-					<div className="flex lg:hidden flex-col gap-3 mt-4 text-sm">
-						<div className="flex justify-between">
+						<div className="flex justify-between mt-4 text-sm">
 							<div className="flex flex-col items-start">
 								<span className="text-content-secondary">Actual:</span>
 								<span className="font-medium">
 									{mockWorkspacesUsage.toLocaleString()}
 								</span>
 							</div>
-							<div className="flex flex-col items-center">
+							<div className="flex flex-col items-end">
 								<span className="text-content-secondary">Included:</span>
 								<span className="font-medium">
 									{mockWorkspacesIncluded.toLocaleString()}
 								</span>
 							</div>
-							<div className="flex flex-col items-end">
-								<span className="text-content-secondary">Limit:</span>
-								<span className="font-medium">
-									{mockWorkspacesLimit.toLocaleString()}
-								</span>
-							</div>
 						</div>
 					</div>
 				</div>
-			</section>
-		</div>
+			</div>
+		</section>
 	);
 };
