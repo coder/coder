@@ -18,22 +18,6 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-type Layouter interface {
-	WorkDirectory() string
-	StateFilePath() string
-	PlanFilePath() string
-	TerraformLockFile() string
-	ReadmeFilePath() string
-	TerraformMetadataDir() string
-	ModulesDirectory() string
-	ModulesFilePath() string
-	ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive []byte) error
-	Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs)
-	CleanStaleSessions(ctx context.Context, logger slog.Logger, fs afero.Fs, now time.Time) error
-}
-
-var _ Layouter = (*Layout)(nil)
-
 const (
 	// ReadmeFile is the location we look for to extract documentation from template versions.
 	ReadmeFile = "README.md"
@@ -48,10 +32,6 @@ const (
 // terraform asserts inside this working directory.
 func Session(parentDirPath, sessionID string) Layout {
 	return Layout(filepath.Join(parentDirPath, sessionDirPrefix+sessionID))
-}
-
-func FromWorkingDirectory(workDir string) Layout {
-	return Layout(workDir)
 }
 
 // Layout is the terraform execution working directory structure.

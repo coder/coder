@@ -513,9 +513,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	defer span.End()
 
 	failedJob := r.configure(&sdkproto.Config{
-		TemplateId:                 strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
-		TemplateVersionId:          strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
-		ExpReuseTerraformWorkspace: ptr.Ref(false),
+		TemplateId:        strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
+		TemplateVersionId: strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
 	})
 	if failedJob != nil {
 		return nil, failedJob
@@ -891,10 +890,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	failedJob := r.configure(&sdkproto.Config{
-		ProvisionerLogLevel:        r.job.GetWorkspaceBuild().LogLevel,
-		TemplateId:                 strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
-		TemplateVersionId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
-		ExpReuseTerraformWorkspace: r.job.GetWorkspaceBuild().ExpReuseTerraformWorkspace,
+		ProvisionerLogLevel: r.job.GetWorkspaceBuild().LogLevel,
+		TemplateId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
+		TemplateVersionId:   strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
 	})
 	if failedJob != nil {
 		return nil, failedJob

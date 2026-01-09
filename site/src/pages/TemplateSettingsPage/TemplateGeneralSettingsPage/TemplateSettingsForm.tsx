@@ -26,7 +26,6 @@ import {
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
 import { type FormikTouched, useFormik } from "formik";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
@@ -97,14 +96,12 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			max_port_share_level: template.max_port_share_level,
 			use_classic_parameter_flow: template.use_classic_parameter_flow,
 			cors_behavior: template.cors_behavior,
-			use_terraform_workspace_cache: template.use_terraform_workspace_cache,
 		},
 		validationSchema,
 		onSubmit,
 		initialTouched,
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
-	const { experiments } = useDashboard();
 
 	return (
 		<HorizontalForm
@@ -273,39 +270,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
-					{experiments.includes("terraform-directory-reuse") && (
-						<FormControlLabel
-							control={
-								<Checkbox
-									size="small"
-									id="use_terraform_workspace_cache"
-									name="use_terraform_workspace_cache"
-									checked={form.values.use_terraform_workspace_cache}
-									onChange={form.handleChange}
-									disabled={false}
-								/>
-							}
-							label={
-								<StackLabel>
-									<span className="flex flex-row gap-2">
-										Enable Terraform directory caching on provisioners
-									</span>
-									<StackLabelHelperText>
-										<div>
-											When enabled, the provisioner reuses the .terraform
-											directory for all workspace builds using the active
-											version. This significantly reduces Terraform init time by
-											caching module and provider downloads.{" "}
-											<strong>
-												Unpinned modules may cause inconsistent builds between
-												provisioners.
-											</strong>
-										</div>
-									</StackLabelHelperText>
-								</StackLabel>
-							}
-						/>
-					)}
 				</FormFields>
 			</FormSection>
 

@@ -1893,7 +1893,6 @@ export type Experiment =
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
-	| "terraform-directory-reuse"
 	| "web-push"
 	| "workspace-sharing"
 	| "workspace-usage";
@@ -1904,7 +1903,6 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
-	"terraform-directory-reuse",
 	"web-push",
 	"workspace-sharing",
 	"workspace-usage",
@@ -4994,7 +4992,6 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
-	readonly use_terraform_workspace_cache: boolean;
 }
 
 // From codersdk/templates.go
@@ -5524,13 +5521,6 @@ export interface UpdateTemplateMeta {
 	 * An "opt-out" is present in case the new feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
-	/**
-	 * UseTerraformWorkspaceCache allows optionally specifying whether to use cached
-	 * terraform directories for workspaces created from this template. This field
-	 * only applies when the correct experiment is enabled. This field is subject to
-	 * being removed in the future.
-	 */
-	readonly use_terraform_workspace_cache?: boolean;
 }
 
 // From codersdk/users.go
