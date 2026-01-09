@@ -600,7 +600,12 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
     # Allow other scripts to wait for agent startup.
-    trap 'coder exp sync complete agent-startup' EXIT
+    function cleanup() {
+      coder exp sync complete agent-startup
+      # Some folks will also use this for their personalize scripts.
+      touch /tmp/.coder-startup-script.done
+    }
+    trap cleanup EXIT
     coder exp sync start agent-startup
 
     # Authenticate GitHub CLI
@@ -894,9 +899,9 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.2.8"
+  version             = "4.3.0"
   enable_boundary     = true
-  boundary_version    = "v0.2.1"
+  boundary_version    = "v0.5.2"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"

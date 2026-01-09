@@ -393,7 +393,7 @@ func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
 // slogFieldNameSnakeCase is a lint rule that ensures naming consistency
 // of logged field names.
 func slogFieldNameSnakeCase(m dsl.Matcher) {
-	m.Import("cdr.dev/slog")
+	m.Import("cdr.dev/slog/v3")
 	m.Match(
 		`slog.F($name, $value)`,
 	).
@@ -404,7 +404,7 @@ func slogFieldNameSnakeCase(m dsl.Matcher) {
 // slogUUIDFieldNameHasIDSuffix ensures that "uuid.UUID" field has ID prefix
 // in the field name.
 func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
-	m.Import("cdr.dev/slog")
+	m.Import("cdr.dev/slog/v3")
 	m.Import("github.com/google/uuid")
 	m.Match(
 		`slog.F($name, $value)`,
@@ -416,7 +416,7 @@ func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
 // slogMessageFormat ensures that the log message starts with lowercase, and does not
 // end with special character.
 func slogMessageFormat(m dsl.Matcher) {
-	m.Import("cdr.dev/slog")
+	m.Import("cdr.dev/slog/v3")
 	m.Match(
 		`logger.Error($ctx, $message, $*args)`,
 		`logger.Warn($ctx, $message, $*args)`,
@@ -454,7 +454,7 @@ func slogMessageFormat(m dsl.Matcher) {
 
 // slogMessageLength ensures that important log messages are meaningful, and must be at least 16 characters long.
 func slogMessageLength(m dsl.Matcher) {
-	m.Import("cdr.dev/slog")
+	m.Import("cdr.dev/slog/v3")
 	m.Match(
 		`logger.Error($ctx, $message, $*args)`,
 		`logger.Warn($ctx, $message, $*args)`,
@@ -484,7 +484,7 @@ func slogMessageLength(m dsl.Matcher) {
 
 // slogErr ensures that errors are logged with "slog.Error" instead of "slog.F"
 func slogError(m dsl.Matcher) {
-	m.Import("cdr.dev/slog")
+	m.Import("cdr.dev/slog/v3")
 	m.Match(
 		`slog.F($name, $value)`,
 	).

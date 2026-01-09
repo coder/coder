@@ -24,6 +24,7 @@ import {
 	YAxis,
 } from "recharts";
 import { docs } from "utils/docs";
+import { formatDate } from "utils/time";
 
 const chartConfig = {
 	users: {
@@ -153,9 +154,13 @@ export const LicenseSeatConsumptionChart: FC<
 										tickMargin={12}
 										minTickGap={24}
 										tickFormatter={(value: string) =>
-											new Date(value).toLocaleDateString(undefined, {
+											formatDate(new Date(value), {
 												month: "short",
 												day: "numeric",
+												year: undefined,
+												hour: undefined,
+												minute: undefined,
+												second: undefined,
 											})
 										}
 									/>

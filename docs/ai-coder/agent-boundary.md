@@ -16,44 +16,22 @@ Agent Boundaries offer network policy enforcement, which blocks domains and HTTP
 
 The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
 
-There are two supported ways to configure Boundary today:
+## Configuration
 
-1. **Inline module configuration** – fastest for quick testing.
-2. **External `config.yaml`** – best when you need a large allow list or want everyone who launches Boundary manually to share the same config.
+Boundary is configured using a `config.yaml` file. This allows you to maintain allow lists and share detailed policies with teammates.
 
-### Option 1: Inline module configuration (quick start)
-
-Put every setting directly in the Terraform module when you just want to experiment:
+In your Terraform module, enable Boundary with minimal configuration:
 
 ```tf
 module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.1.0"
+  version             = "4.3.0"
   enable_boundary     = true
-  boundary_version    = "v0.2.0"
-  boundary_log_dir    = "/tmp/boundary_logs"
-  boundary_log_level  = "WARN"
-  boundary_additional_allowed_urls = ["domain=google.com"]
-  boundary_proxy_port = "8087"
+  boundary_version    = "v0.5.2"
 }
 ```
 
-All Boundary knobs live in Terraform, so you can iterate quickly without creating extra files.
-
-### Option 2: Keep policy in `config.yaml` (extensive allow lists)
-
-When you need to maintain a long allow list or share a detailed policy with teammates, keep Terraform minimal and move the rest into `config.yaml`:
-
-```tf
-module "claude-code" {
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.1.0"
-  enable_boundary     = true
-  boundary_version    = "v0.2.0"
-}
-```
-
-Then create a `config.yaml` file in your template directory with your policy:
+Create a `config.yaml` file in your template directory with your policy:
 
 ```yaml
 allowlist:
@@ -84,13 +62,16 @@ resource "coder_script" "boundary_config_setup" {
 
 Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when it starts, so everyone who launches Boundary manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive allow lists in version control.
 
+### Configuration Parameters
+
 - `boundary_version` defines what version of Boundary is being applied. This is set to `v0.2.0`, which points to the v0.2.0 release tag of `coder/boundary`.
-- `boundary_log_dir` is the directory where log files are written to when the workspace spins up.
-- `boundary_log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
+- `log_dir` is the directory where log files are written to when the workspace spins up.
+- `log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
   - `WARN`: logs only requests that have been blocked by Boundary
   - `INFO`: logs all requests at a high level
   - `DEBUG`: logs all requests in detail
-- `boundary_additional_allowed_urls`: defines the URLs that the agent can access, in addition to the default URLs required for the agent to work. Rules use the format `"key=value [key=value ...]"`:
+- `proxy_port` defines the port used by the HTTP proxy.
+- `allowlist` defines the URLs that the agent can access, in addition to the default URLs required for the agent to work. Rules use the format `"key=value [key=value ...]"`:
   - `domain=github.com` - allows the domain and all its subdomains
   - `domain=*.github.com` - allows only subdomains (the specific domain is excluded)
   - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a domain
@@ -103,74 +84,24 @@ You can also run Agent Boundaries directly in your workspace and configure it pe
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
  ```
 
-## Runtime & Permission Requirements for Running the Boundary in Docker
+## Jail Types
 
-This section describes the Linux capabilities and runtime configurations required to run the Agent Boundary inside a Docker container. Requirements vary depending on the OCI runtime and the seccomp profile in use.
+Boundary supports two different jail types for process isolation, each with different characteristics and requirements:
 
-### 1. Default `runc` runtime with `CAP_NET_ADMIN`
+1. **nsjail** - Uses Linux namespaces for isolation. This is the default jail type and provides network namespace isolation. See [nsjail documentation](./nsjail.md) for detailed information about runtime requirements and Docker configuration.
 
-When using Docker’s default `runc` runtime, the Boundary requires the container to have `CAP_NET_ADMIN`. This is the minimal capability needed for configuring virtual networking inside the container.
+2. **landjail** - Uses Landlock V4 for network isolation. This provides network isolation through the Landlock Linux Security Module (LSM) without requiring network namespace capabilities. See [landjail documentation](./landjail.md) for implementation details.
 
-Docker’s default seccomp profile may also block certain syscalls (such as `clone`) required for creating unprivileged network namespaces. If you encounter these restrictions, you may need to update or override the seccomp profile to allow these syscalls.
+The choice of jail type depends on your security requirements, available Linux capabilities, and runtime environment. Both nsjail and landjail provide network isolation, but they use different underlying mechanisms. nsjail uses Linux namespaces, while landjail uses Landlock V4. Landjail may be preferred in environments where namespace capabilities are limited or unavailable.
 
-[see Docker Seccomp Profile Considerations](#docker-seccomp-profile-considerations)
+## Implementation Comparison: Namespaces+iptables vs Landlock V4
 
-### 2. Default `runc` runtime with `CAP_SYS_ADMIN` (testing only)
-
-For development or testing environments, you may grant the container `CAP_SYS_ADMIN`, which implicitly bypasses many of the restrictions in Docker’s default seccomp profile.
-
-- The Boundary does not require `CAP_SYS_ADMIN` itself.
-- However, Docker’s default seccomp policy commonly blocks namespace-related syscalls unless `CAP_SYS_ADMIN` is present.
-- Granting `CAP_SYS_ADMIN` enables the Boundary to run without modifying the seccomp profile.
-
-⚠️ Warning: `CAP_SYS_ADMIN` is extremely powerful and should not be used in production unless absolutely necessary.
-
-### 3. `sysbox-runc` runtime with `CAP_NET_ADMIN`
-
-When using the `sysbox-runc` runtime (from Nestybox), the Boundary can run with only:
-
-- `CAP_NET_ADMIN`
-
-The sysbox-runc runtime provides more complete support for unprivileged user namespaces and nested containerization, which typically eliminates the need for seccomp profile modifications.
-
-## Docker Seccomp Profile Considerations
-
-Docker’s default seccomp profile frequently blocks the `clone` syscall, which is required by the Boundary when creating unprivileged network namespaces. If the `clone` syscall is denied, the Boundary will fail to start.
-
-To address this, you may need to modify or override the seccomp profile used by your container to explicitly allow the required `clone` variants.
-
-You can find the default Docker seccomp profile for your Docker version here (specify your docker version):
-
-https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
-
-If the profile blocks the necessary `clone` syscall arguments, you can provide a custom seccomp profile that adds an allow rule like the following:
-
-```json
-{
-  "names": [
-    "clone"
-  ],
-  "action": "SCMP_ACT_ALLOW"
-}
-```
-
-This example unblocks the clone syscall entirely.
-
-### Example: Overriding the Docker Seccomp Profile
-
-To use a custom seccomp profile, start by downloading the default profile for your Docker version:
-
-https://github.com/moby/moby/blob/v25.0.13/profiles/seccomp/default.json#L628-L635
-
-Save it locally as seccomp-v25.0.13.json, then insert the clone allow rule shown above (or add "clone" to the list of allowed syscalls).
-
-Once updated, you can run the container with the custom seccomp profile:
-
-```bash
-docker run -it \
-  --cap-add=NET_ADMIN \
-  --security-opt seccomp=seccomp-v25.0.13.json \
-  test bash
-```
-
-This instructs Docker to load your modified seccomp profile while granting only the minimal required capability (`CAP_NET_ADMIN`).
+| Aspect                        | Namespace Jail (Namespaces + veth-pair + iptables)                                | Landlock V4 Jail                                                        |
+|-------------------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| **Privileges**                | Requires `CAP_NET_ADMIN`                                                          | ✅ No special capabilities required                                      |
+| **Docker seccomp**            | ❌ Requires seccomp profile modifications or sysbox-runc                           | ✅ Works without seccomp changes                                         |
+| **Kernel requirements**       | Linux 3.8+ (widely available)                                                     | ❌ Linux 6.7+ (very new, limited adoption)                               |
+| **Bypass resistance**         | ✅ Strong - transparent interception prevents bypass                               | ❌ **Medium - can bypass by connecting to `evil.com:<HTTP_PROXY_PORT>`** |
+| **Process isolation**         | ✅ PID namespace (processes can't see/kill others); **implementation in-progress** | ❌ No PID namespace (agent can kill other processes)                     |
+| **Non-TCP traffic control**   | ✅ Can block/control UDP via iptables; **implementation in-progress**              | ❌ No control over UDP (data can leak via UDP)                           |
+| **Application compatibility** | ✅ Works with ANY application (transparent interception)                           | ❌ Tools without `HTTP_PROXY` support will be blocked                    |

@@ -11,16 +11,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-	"github.com/coder/coder/v2/provisionersdk/tfpath"
-	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
-
 	protobuf "google.golang.org/protobuf/proto"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
+	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
 )
 
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.

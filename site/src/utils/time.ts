@@ -48,6 +48,25 @@ export function formatDateTime(
 	return dayjs(date).format(format);
 }
 
+const defaultDateLocaleOptions: Intl.DateTimeFormatOptions = {
+	second: "2-digit",
+	minute: "2-digit",
+	hour: "2-digit",
+	day: "numeric",
+	month: "short",
+	year: "numeric",
+};
+
+export function formatDate(
+	date: Date,
+	options?: { locale?: Intl.LocalesArgument } & Intl.DateTimeFormatOptions,
+) {
+	return date.toLocaleDateString(options?.locale, {
+		...defaultDateLocaleOptions,
+		...options,
+	});
+}
+
 // Duration functions
 export function humanDuration(durationInMs: number) {
 	return humanizeDuration(durationInMs, {

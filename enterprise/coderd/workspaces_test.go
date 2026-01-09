@@ -18,10 +18,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1986,6 +1986,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2108,6 +2109,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2230,6 +2232,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2374,6 +2377,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2519,6 +2523,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			prometheus.NewRegistry(),
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
+			noop.NewTracerProvider(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2964,6 +2969,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		prometheus.NewRegistry(),
 		notifications.NewNoopEnqueuer(),
 		api.AGPL.BuildUsageChecker,
+		noop.NewTracerProvider(),
 	)
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 	api.AGPL.PrebuildsClaimer.Store(&claimer)

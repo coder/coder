@@ -6,6 +6,9 @@ import type {
 	UsageAppName,
 	Workspace,
 	WorkspaceACL,
+	WorkspaceAgent,
+	WorkspaceAgentDevcontainer,
+	WorkspaceAgentListContainersResponse,
 	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
@@ -489,4 +492,76 @@ export const workspaceAgentCredentials = (
 		queryKey: ["workspaces", workspaceId, "agents", agentName, "credentials"],
 		queryFn: () => API.getWorkspaceAgentCredentials(workspaceId, agentName),
 	};
+};
+
+export const workspaceAgentContainersKey = (agentId: string) => [
+	"agents",
+	agentId,
+	"containers",
+];
+
+export const workspaceAgentContainers = (agent: WorkspaceAgent) => {
+	return {
+		queryKey: workspaceAgentContainersKey(agent.id),
+		queryFn: () => API.getAgentContainers(agent.id),
+		enabled: agent.status === "connected",
+	} satisfies UseQueryOptions<WorkspaceAgentListContainersResponse>;
+};
+
+export const deleteWorkspaceAgentDevcontainer = (
+	parentAgent: WorkspaceAgent,
+	devcontainer: WorkspaceAgentDevcontainer,
+	queryClient: QueryClient,
+) => {
+	const queryKey = workspaceAgentContainersKey(parentAgent.id);
+
+	return {
+		mutationFn: async () => {
+			await API.deleteDevContainer({
+				parentAgentId: parentAgent.id,
+				devcontainerId: devcontainer.id,
+			});
+		},
+		onMutate: async () => {
+			await queryClient.cancelQueries({ queryKey });
+			const previousData = queryClient.getQueryData(queryKey);
+
+			queryClient.setQueryData(
+				queryKey,
+				(oldData?: WorkspaceAgentListContainersResponse) => {
+					if (!oldData?.devcontainers) {
+						return oldData;
+					}
+
+					return {
+						...oldData,
+						devcontainers: oldData.devcontainers.map((dc) => {
+							if (dc.id === devcontainer.id) {
+								return {
+									...dc,
+									status: "stopping",
+									container: undefined,
+								};
+							}
+							return dc;
+						}),
+					};
+				},
+			);
+
+			return { previousData };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousData) {
+				queryClient.setQueryData(queryKey, context.previousData);
+			}
+		},
+	} satisfies UseMutationOptions<
+		void,
+		Error,
+		void,
+		{
+			previousData: unknown;
+		}
+	>;
 };

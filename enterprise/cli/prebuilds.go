@@ -5,10 +5,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) prebuilds() *serpent.Command {

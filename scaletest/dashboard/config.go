@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"time"
 
-	"cdr.dev/slog"
-
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 type Config struct {

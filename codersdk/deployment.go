@@ -14,19 +14,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/serpent"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -511,7 +509,7 @@ type DeploymentValues struct {
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
-	TemplateInsights                TemplateInsightsConfig               `json:"template_insights,omitempty" typescript:",notnull"`
+	StatsCollection                 StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -611,8 +609,12 @@ type DERPConfig struct {
 	Path            serpent.String `json:"path" typescript:",notnull"`
 }
 
-type TemplateInsightsConfig struct {
+type UsageStatsConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
+}
+
+type StatsCollectionConfig struct {
+	UsageStats UsageStatsConfig `json:"usage_stats" tyescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -1080,7 +1082,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
-			Description: `Configure logging, tracing, and metrics exporting.`,
+			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
 			YAML:        "introspection",
 		}
 		deploymentGroupIntrospectionPPROF = serpent.Group{
@@ -1088,10 +1090,15 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "pprof",
 			YAML:   "pprof",
 		}
-		deploymentGroupIntrospectionTemplateInsights = serpent.Group{
+		deploymentGroupIntrospectionStatsCollection = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
-			Name:   "Template Insights",
-			YAML:   "templateInsights",
+			Name:   "Stats Collection",
+			YAML:   "statsCollection",
+		}
+		deploymentGroupIntrospectionStatsCollectionUsageStats = serpent.Group{
+			Parent: &deploymentGroupIntrospectionStatsCollection,
+			Name:   "Usage Stats",
+			YAML:   "usageStats",
 		}
 		deploymentGroupIntrospectionPrometheus = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
@@ -1718,13 +1725,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "configPath",
 		},
 		{
-			Name:        "Enable Template Insights",
-			Description: "Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.",
-			Flag:        "template-insights-enable",
-			Env:         "CODER_TEMPLATE_INSIGHTS_ENABLE",
+			Name:        "Stats Collection Usage Stats Enable",
+			Description: "Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.",
+			Flag:        "stats-collection-usage-stats-enable",
+			Env:         "CODER_STATS_COLLECTION_USAGE_STATS_ENABLE",
 			Default:     "true",
-			Value:       &c.TemplateInsights.Enable,
-			Group:       &deploymentGroupIntrospectionTemplateInsights,
+			Value:       &c.StatsCollection.UsageStats.Enable,
+			Group:       &deploymentGroupIntrospectionStatsCollectionUsageStats,
 			YAML:        "enable",
 		},
 		// TODO: support Git Auth settings.

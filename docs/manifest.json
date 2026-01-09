@@ -411,6 +411,11 @@
 									"title": "Up to 3,000 Users",
 									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
+								},
+								{
+									"title": "Up to 10,000 Users",
+									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
+									"path": "./admin/infrastructure/validated-architectures/10k-users.md"
 								}
 							]
 						},
@@ -961,7 +966,19 @@
 					"title": "Agent Boundaries",
 					"description": "Understanding Agent Boundaries in Coder Tasks",
 					"path": "./ai-coder/agent-boundary.md",
-					"state": ["early access"]
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "nsjail",
+							"description": "Documentation for Namespace Jail",
+							"path": "./ai-coder/nsjail.md"
+						},
+						{
+							"title": "landjail",
+							"description": "Documentation for LandJail",
+							"path": "./ai-coder/landjail.md"
+						}
+					]
 				},
 				{
 					"title": "AI Bridge",
@@ -1423,6 +1440,11 @@
 							"title": "logout",
 							"description": "Unauthenticate your local session",
 							"path": "reference/cli/logout.md"
+						},
+						{
+							"title": "logs",
+							"description": "View logs for a workspace",
+							"path": "reference/cli/logs.md"
 						},
 						{
 							"title": "netcheck",

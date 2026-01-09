@@ -12,7 +12,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/util/singleflight"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/mcp"
 	"github.com/coder/aibridge/tracing"

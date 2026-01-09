@@ -3,9 +3,8 @@ package regosql
 import (
 	"fmt"
 
-	"golang.org/x/xerrors"
-
 	"github.com/open-policy-agent/opa/ast"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 )

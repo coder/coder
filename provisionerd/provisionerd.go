@@ -21,15 +21,14 @@ import (
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-	"github.com/coder/retry"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/retry"
 )
 
 // Dialer represents the function to create a daemon client connection.
@@ -366,7 +365,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) erro
 	))
 	defer span.End()
 
-	fields := []any{
+	fields := []slog.Field{
 		slog.F("initiator_username", job.UserName),
 		slog.F("provisioner", job.Provisioner),
 		slog.F("job_id", job.JobId),

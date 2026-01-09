@@ -8,11 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/xerrors"
-	"gopkg.in/yaml.v3"
-
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
+	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 )
 
 /**

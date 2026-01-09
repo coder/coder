@@ -14,12 +14,11 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"golang.org/x/xerrors"
+	"google.golang.org/grpc/credentials"
 	ddotel "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/opentelemetry"
 	ddtracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	ddprofiler "gopkg.in/DataDog/dd-trace-go.v1/profiler"
-
-	"golang.org/x/xerrors"
-	"google.golang.org/grpc/credentials"
 )
 
 // TracerOpts specifies which telemetry exporters should be configured.
