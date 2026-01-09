@@ -99,6 +99,8 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "CODER_AGENT_SOCKET_SERVER_ENABLED=true",
+    "CODER_TASK_ID=${data.coder_task.me.id}",
+    "CODER_TASK_INITIAL_PROMPT=${data.coder_task.me.prompt}",
   ]
   host {
     host = "host.docker.internal"
