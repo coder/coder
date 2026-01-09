@@ -27,18 +27,18 @@ Before you begin, ensure that you have a version of Coder with workspace sharing
 To share a workspace:
 
 - `coder sharing share <workspace> --user alice`
-    - Shares the workspace with a single user, `alice`, with `use` permissions
+  - Shares the workspace with a single user, `alice`, with `use` permissions
 - `coder sharing share <workspace> --user alice:admin,bob`
-    - Shares the workspace with two users - `alice` with `admin` permissions, and `bob` with `use` permissions
+  - Shares the workspace with two users - `alice` with `admin` permissions, and `bob` with `use` permissions
 - `coder sharing share <workspace> --group contractor`
-    - Shares the workspace with `contractor`, which is a group of users
+  - Shares the workspace with `contractor`, which is a group of users
 
 To remove sharing from a workspace:
 
 - `coder sharing remove <workspace> --user alice`
-    - Workspace is no longer shared with the user `alice`.
+  - Workspace is no longer shared with the user `alice`.
 - `coder sharing remove <workspace> --group contractor`
-    - Workspace is no longer shared with the group `contractor`.
+  - Workspace is no longer shared with the group `contractor`.
 
 To show who a workspace is shared with:
 
@@ -58,6 +58,6 @@ To list shared workspaces:
 
 1. Add the users or groups that you want to share the workspace with. For each one, select a role.
 
-   - `use` allows for connection via SSH and apps, the ability to start and stop the workspace, view logs and stats, and update on start when required.
-   - `admin` allows for all of the above, as well as the ability to rename the workspace, update at any time, and invite others with the `use` role.
-   - Neither role allows for the user to delete the workspace.
+  - `use` allows for connection via SSH and apps, the ability to start and stop the workspace, view logs and stats, and update on start when required.
+  - `admin` allows for all of the above, as well as the ability to rename the workspace, update at any time, and invite others with the `use` role.
+  - Neither role allows for the user to delete the workspace.
