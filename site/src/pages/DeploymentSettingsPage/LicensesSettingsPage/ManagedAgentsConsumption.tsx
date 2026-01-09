@@ -26,9 +26,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="min-h-60 flex items-center justify-center rounded-lg border border-solid p-12">
 				<Stack alignItems="center" spacing={1}>
 					<Stack alignItems="center" spacing={0.5}>
-						<span className="text-base">Managed AI Agents Disabled</span>
+						<span className="text-base">Agentic Workspace Starts Disabled</span>
 						<span className="text-content-secondary text-center max-w-[464px] mt-2">
-							Managed AI agents are not included in your current license.
+							Agentic workspace starts are not included in your current license.
 							Contact <MuiLink href="mailto:sales@coder.com">sales</MuiLink> to
 							upgrade your license and unlock this feature.
 						</span>
@@ -76,7 +76,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
-						<h3 className="text-md m-0 font-medium">Managed AI Agents Usage</h3>
+						<h3 className="text-md m-0 font-medium">
+							Agentic Workspace Starts
+						</h3>
 
 						<CollapsibleTrigger asChild>
 							<Button
@@ -99,16 +101,20 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
               [&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none
             `}
 					>
-						<p>
-							<MuiLink
+					<p>
+							Today, <MuiLink
 								href={docs("/ai-coder/tasks")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								Coder Tasks
-							</MuiLink>{" "}
-							and upcoming managed AI features are included in Coder Premium
-							licenses during beta. Usage limits and pricing subject to change.
+								Coder Tasks</MuiLink> (via UI, CLI, or API)
+							is the only way to create agentic workspaces. As standards emerge, Coder 
+							will support additional protocols and APIs.
+						</p>
+						<p>
+							Agentic Workspace Starts are measured when you start an emphemeral workspace,
+							purely for running an agentic workload. These are not to be confused with
+							workspaces used for day-to-day development, even if AI tooling is involved.
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
@@ -134,6 +140,15 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								blocked.
 							</li>
 						</ul>
+						<p>
+							<MuiLink
+								href={docs("/ai-coder")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Learn more about agentic workspaces
+							</MuiLink>
+						</p>
 					</CollapsibleContent>
 				</Collapsible>
 			</div>
