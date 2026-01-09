@@ -122,9 +122,20 @@ type ExtractAPIKeyConfig struct {
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
 // storing the result in the request context.
+//
+// If an identity already exists in the context (from a previous extraction),
+// this middleware will skip re-extraction to avoid redundant database calls.
 func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if actor, ok := UserAuthorizationOptional(r.Context()); ok {
+				// This branch only triggers if ExtractAPIKeyMW was already run earlier
+				// in the middleware stack (i.e., a second ExtractAPIKeyMW is being
+				// applied deeper in the route tree).
+				next.ServeHTTP(rw, r)
+				return
+			}
+
 			keyPtr, authzPtr, ok := ExtractAPIKey(rw, r, cfg)
 			if !ok {
 				return
@@ -207,6 +218,9 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 // nolint:revive
 func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyConfig) (*database.APIKey, *rbac.Subject, bool) {
 	ctx := r.Context()
+
+	fmt.Printf("ExtractAPIKey: %s\n", r.URL.Path)
+
 	// Write wraps writing a response to redirect if the handler
 	// specified it should. This redirect is used for user-facing pages
 	// like workspace applications.
