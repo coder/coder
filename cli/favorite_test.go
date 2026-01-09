@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestFavoriteUnfavorite(t *testing.T) {

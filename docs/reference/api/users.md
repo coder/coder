@@ -810,56 +810,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value                              |
-|--------------|------------------------------------|
-| `type`       | `*`                                |
-| `type`       | `aibridge_interception`            |
-| `type`       | `api_key`                          |
-| `type`       | `assign_org_role`                  |
-| `type`       | `assign_role`                      |
-| `type`       | `audit_log`                        |
-| `type`       | `connection_log`                   |
-| `type`       | `crypto_key`                       |
-| `type`       | `debug_info`                       |
-| `type`       | `deployment_config`                |
-| `type`       | `deployment_stats`                 |
-| `type`       | `file`                             |
-| `type`       | `group`                            |
-| `type`       | `group_member`                     |
-| `type`       | `idpsync_settings`                 |
-| `type`       | `inbox_notification`               |
-| `type`       | `license`                          |
-| `type`       | `notification_message`             |
-| `type`       | `notification_preference`          |
-| `type`       | `notification_template`            |
-| `type`       | `oauth2_app`                       |
-| `type`       | `oauth2_app_code_token`            |
-| `type`       | `oauth2_app_secret`                |
-| `type`       | `organization`                     |
-| `type`       | `organization_member`              |
-| `type`       | `prebuilt_workspace`               |
-| `type`       | `provisioner_daemon`               |
-| `type`       | `provisioner_jobs`                 |
-| `type`       | `replicas`                         |
-| `type`       | `system`                           |
-| `type`       | `tailnet_coordinator`              |
-| `type`       | `task`                             |
-| `type`       | `template`                         |
-| `type`       | `usage_event`                      |
-| `type`       | `user`                             |
-| `type`       | `user_secret`                      |
-| `type`       | `webpush_subscription`             |
-| `type`       | `workspace`                        |
-| `type`       | `workspace_agent_devcontainers`    |
-| `type`       | `workspace_agent_resource_monitor` |
-| `type`       | `workspace_dormant`                |
-| `type`       | `workspace_proxy`                  |
-| `login_type` | `password`                         |
-| `login_type` | `github`                           |
-| `login_type` | `oidc`                             |
-| `login_type` | `token`                            |
-| `scope`      | `all`                              |
-| `scope`      | `application_connect`              |
+| Property     | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type`       | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| `login_type` | `github`, `oidc`, `password`, `token`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `scope`      | `all`, `application_connect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/hc-install/releases"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 var (

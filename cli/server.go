@@ -54,15 +54,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/pproflabel"
-	"github.com/coder/pretty"
-	"github.com/coder/quartz"
-	"github.com/coder/retry"
-	"github.com/coder/serpent"
-	"github.com/coder/wgtunnel/tunnelsdk"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -86,6 +79,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/oauthpki"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -111,6 +105,11 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/pretty"
+	"github.com/coder/quartz"
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
+	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
 func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
@@ -186,6 +185,14 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		secondaryClaimsSrc = coderd.MergedClaimsSourceAccessToken
 	}
 
+	var pkceSupport struct {
+		CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod `json:"code_challenge_methods_supported"`
+	}
+	err = oidcProvider.Claims(&pkceSupport)
+	if err != nil {
+		return nil, xerrors.Errorf("pkce detect in claims: %w", err)
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -206,6 +213,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
+		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
 	}, nil
 }
 
@@ -1029,7 +1037,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, quartz.NewReal())
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, quartz.NewReal(), options.PrometheusRegistry)
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -2761,6 +2769,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.MCPToolAllowRegex = v.Value
 		case "MCP_TOOL_DENY_REGEX":
 			provider.MCPToolDenyRegex = v.Value
+		case "PKCE_METHODS":
+			provider.CodeChallengeMethodsSupported = strings.Split(v.Value, " ")
 		}
 		providers[providerNum] = provider
 	}

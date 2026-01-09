@@ -26,12 +26,13 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontainers/ignore"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner"
@@ -86,7 +87,8 @@ type API struct {
 	agentDirectory string
 
 	mu                       sync.RWMutex  // Protects the following fields.
-	initDone                 chan struct{} // Closed by Init.
+	initDone                 bool          // Whether Init has been called.
+	initialUpdateDone        chan struct{} // Closed after first updateContainers call in updaterLoop.
 	updateChans              []chan struct{}
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
@@ -324,7 +326,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
-		initDone:                    make(chan struct{}),
+		initialUpdateDone:           make(chan struct{}),
 		updateTrigger:               make(chan chan error),
 		updateInterval:              defaultUpdateInterval,
 		logger:                      logger,
@@ -378,20 +380,15 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	return api
 }
 
-// Init applies a final set of options to the API and then
-// closes initDone. This method can only be called once.
+// Init applies a final set of options to the API and marks
+// initialization as done. This method can only be called once.
 func (api *API) Init(opts ...Option) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
-	if api.closed {
+	if api.closed || api.initDone {
 		return
 	}
-	select {
-	case <-api.initDone:
-		return
-	default:
-	}
-	defer close(api.initDone)
+	api.initDone = true
 
 	for _, opt := range opts {
 		opt(api)
@@ -650,6 +647,7 @@ func (api *API) updaterLoop() {
 	} else {
 		api.logger.Debug(api.ctx, "initial containers update complete")
 	}
+	close(api.initialUpdateDone)
 
 	// We utilize a TickerFunc here instead of a regular Ticker so that
 	// we can guarantee execution of the updateContainers method after
@@ -714,7 +712,7 @@ func (api *API) UpdateSubAgentClient(client SubAgentClient) {
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 
-	ensureInitDoneMW := func(next http.Handler) http.Handler {
+	ensureInitialUpdateDoneMW := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			select {
 			case <-api.ctx.Done():
@@ -725,8 +723,8 @@ func (api *API) Routes() http.Handler {
 				return
 			case <-r.Context().Done():
 				return
-			case <-api.initDone:
-				// API init is done, we can start processing requests.
+			case <-api.initialUpdateDone:
+				// Initial update is done, we can start processing requests.
 			}
 			next.ServeHTTP(rw, r)
 		})
@@ -735,7 +733,7 @@ func (api *API) Routes() http.Handler {
 	// For now, all endpoints require the initial update to be done.
 	// If we want to allow some endpoints to be available before
 	// the initial update, we can enable this per-route.
-	r.Use(ensureInitDoneMW)
+	r.Use(ensureInitialUpdateDoneMW)
 
 	r.Get("/", api.handleList)
 	r.Get("/watch", api.watchContainers)
@@ -743,11 +741,14 @@ func (api *API) Routes() http.Handler {
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
 	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
 		r.Post("/recreate", api.handleDevcontainerRecreate)
+		r.Delete("/", api.handleDevcontainerDelete)
 	})
 
 	return r
 }
 
+// broadcastUpdatesLocked sends the current state to any listening clients.
+// This method assumes that api.mu is held.
 func (api *API) broadcastUpdatesLocked() {
 	// Broadcast state changes to WebSocket listeners.
 	for _, ch := range api.updateChans {
@@ -1019,6 +1020,12 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
 			continue // This state is handled by the recreation routine.
 
+		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopping:
+			continue // This state is handled by the stopping routine.
+
+		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusDeleting:
+			continue // This state is handled by the delete routine.
+
 		case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusError && (dc.Container == nil || dc.Container.CreatedAt.Before(api.recreateErrorTimes[dc.WorkspaceFolder])):
 			continue // The devcontainer needs to be recreated.
 
@@ -1224,6 +1231,155 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 	}, nil
 }
 
+// devcontainerByIDLocked attempts to find a devcontainer by its ID.
+// This method assumes that api.mu is held.
+func (api *API) devcontainerByIDLocked(devcontainerID string) (codersdk.WorkspaceAgentDevcontainer, error) {
+	for _, knownDC := range api.knownDevcontainers {
+		if knownDC.ID.String() == devcontainerID {
+			return knownDC, nil
+		}
+	}
+
+	return codersdk.WorkspaceAgentDevcontainer{}, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{
+		Message: "Devcontainer not found.",
+		Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
+	})
+}
+
+func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx            = r.Context()
+		devcontainerID = chi.URLParam(r, "devcontainer")
+	)
+
+	if devcontainerID == "" {
+		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing devcontainer ID",
+			Detail:  "Devcontainer ID is required to delete a devcontainer.",
+		})
+		return
+	}
+
+	api.mu.Lock()
+
+	dc, err := api.devcontainerByIDLocked(devcontainerID)
+	if err != nil {
+		api.mu.Unlock()
+		httperror.WriteResponseError(ctx, w, err)
+		return
+	}
+
+	// NOTE(DanielleMaywood):
+	// We currently do not support canceling the startup of a dev container.
+	if dc.Status.Transitioning() {
+		api.mu.Unlock()
+
+		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
+			Message: "Unable to delete transitioning devcontainer",
+			Detail:  fmt.Sprintf("Devcontainer %q is currently %s and cannot be deleted.", dc.Name, dc.Status),
+		})
+		return
+	}
+
+	var (
+		containerID string
+		subAgentID  uuid.UUID
+	)
+	if dc.Container != nil {
+		containerID = dc.Container.ID
+	}
+	if proc, hasSubAgent := api.injectedSubAgentProcs[dc.WorkspaceFolder]; hasSubAgent && proc.agent.ID != uuid.Nil {
+		subAgentID = proc.agent.ID
+		proc.stop()
+	}
+
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopping
+	dc.Error = ""
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
+	api.mu.Unlock()
+
+	// Stop and remove the container if it exists.
+	if containerID != "" {
+		if err := api.ccli.Stop(ctx, containerID); err != nil {
+			api.logger.Error(ctx, "unable to stop container", slog.Error(err))
+
+			api.mu.Lock()
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+			dc.Error = err.Error()
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.broadcastUpdatesLocked()
+			api.mu.Unlock()
+
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "An error occurred stopping the container",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	api.mu.Lock()
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusDeleting
+	dc.Error = ""
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
+	api.mu.Unlock()
+
+	if containerID != "" {
+		if err := api.ccli.Remove(ctx, containerID); err != nil {
+			api.logger.Error(ctx, "unable to remove container", slog.Error(err))
+
+			api.mu.Lock()
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+			dc.Error = err.Error()
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.broadcastUpdatesLocked()
+			api.mu.Unlock()
+
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "An error occurred removing the container",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	// Delete the subagent if it exists.
+	if subAgentID != uuid.Nil {
+		client := *api.subAgentClient.Load()
+		if err := client.Delete(ctx, subAgentID); err != nil {
+			api.logger.Error(ctx, "unable to delete agent", slog.Error(err))
+
+			api.mu.Lock()
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+			dc.Error = err.Error()
+			api.knownDevcontainers[dc.WorkspaceFolder] = dc
+			api.broadcastUpdatesLocked()
+			api.mu.Unlock()
+
+			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+				Message: "An error occurred deleting the agent",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	api.mu.Lock()
+	delete(api.devcontainerNames, dc.Name)
+	delete(api.knownDevcontainers, dc.WorkspaceFolder)
+	delete(api.devcontainerLogSourceIDs, dc.WorkspaceFolder)
+	delete(api.recreateSuccessTimes, dc.WorkspaceFolder)
+	delete(api.recreateErrorTimes, dc.WorkspaceFolder)
+	delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
+	delete(api.injectedSubAgentProcs, dc.WorkspaceFolder)
+	api.broadcastUpdatesLocked()
+	api.mu.Unlock()
+
+	httpapi.Write(ctx, w, http.StatusNoContent, nil)
+}
+
 // handleDevcontainerRecreate handles the HTTP request to recreate a
 // devcontainer by referencing the container.
 func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Request) {
@@ -1240,28 +1396,18 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 
 	api.mu.Lock()
 
-	var dc codersdk.WorkspaceAgentDevcontainer
-	for _, knownDC := range api.knownDevcontainers {
-		if knownDC.ID.String() == devcontainerID {
-			dc = knownDC
-			break
-		}
-	}
-	if dc.ID == uuid.Nil {
+	dc, err := api.devcontainerByIDLocked(devcontainerID)
+	if err != nil {
 		api.mu.Unlock()
-
-		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
-			Message: "Devcontainer not found.",
-			Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
-		})
+		httperror.WriteResponseError(ctx, w, err)
 		return
 	}
-	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+	if dc.Status.Transitioning() {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Devcontainer recreation already in progress",
-			Detail:  fmt.Sprintf("Recreation for devcontainer %q is already underway.", dc.Name),
+			Message: "Unable to recreate transitioning devcontainer",
+			Detail:  fmt.Sprintf("Devcontainer %q is currently %s and cannot be restarted.", dc.Name, dc.Status),
 		})
 		return
 	}

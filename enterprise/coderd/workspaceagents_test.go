@@ -12,27 +12,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/provisionersdk"
-	"github.com/coder/serpent"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // App names for each app sharing level.
@@ -134,10 +133,10 @@ func TestReinitializeAgent(t *testing.T) {
 			agentToken := uuid.UUID{3}
 			version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionPlan: []*proto.Response{
+				ProvisionGraph: []*proto.Response{
 					{
-						Type: &proto.Response_Plan{
-							Plan: &proto.PlanComplete{
+						Type: &proto.Response_Graph{
+							Graph: &proto.GraphComplete{
 								Presets: []*proto.Preset{
 									{
 										Name: "test-preset",
@@ -146,25 +145,6 @@ func TestReinitializeAgent(t *testing.T) {
 										},
 									},
 								},
-								Resources: []*proto.Resource{
-									{
-										Agents: []*proto.Agent{
-											{
-												Name:            "smith",
-												OperatingSystem: "linux",
-												Architecture:    "i386",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-				ProvisionApply: []*proto.Response{
-					{
-						Type: &proto.Response_Apply{
-							Apply: &proto.ApplyComplete{
 								Resources: []*proto.Resource{
 									{
 										Type: "compute",
@@ -188,6 +168,13 @@ func TestReinitializeAgent(t *testing.T) {
 									},
 								},
 							},
+						},
+					},
+				},
+				ProvisionApply: []*proto.Response{
+					{
+						Type: &proto.Response_Apply{
+							Apply: &proto.ApplyComplete{},
 						},
 					},
 				},
@@ -273,9 +260,9 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionApply: []*proto.Response{{
-			Type: &proto.Response_Apply{
-				Apply: &proto.ApplyComplete{
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",

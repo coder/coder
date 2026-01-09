@@ -13,9 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -147,7 +146,7 @@ func TestTemplates(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
 			ProvisionPlan: echo.PlanComplete,
-			ProvisionApply: []*proto.Response{{
+			ProvisionGraph: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_INFO,
@@ -155,8 +154,8 @@ func TestTemplates(t *testing.T) {
 					},
 				},
 			}, {
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
@@ -2161,10 +2160,10 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 	})
 	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-	buildPlanResponse := func(presets ...*proto.Preset) *proto.Response {
+	buildGraphResponse := func(presets ...*proto.Preset) *proto.Response {
 		return &proto.Response{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
 					Presets:    presets,
 					Parameters: templateVersionParameters,
 				},
@@ -2174,8 +2173,8 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 
 	version1 := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters1, presetWithParameters2)},
 		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: []*proto.Response{buildGraphResponse(presetWithParameters1, presetWithParameters2)},
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version1.ID)
 	template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version1.ID)
@@ -2193,7 +2192,7 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 	// Given the template is updated...
 	version2 := coderdtest.UpdateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters2, presetWithParameters3)},
+		ProvisionGraph: []*proto.Response{buildGraphResponse(presetWithParameters2, presetWithParameters3)},
 		ProvisionApply: echo.ApplyComplete,
 	}, template.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version2.ID)
@@ -2239,10 +2238,10 @@ func TestInvalidateTemplatePrebuilds_RegularUser(t *testing.T) {
 	// Given
 	version1 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Presets:    []*proto.Preset{presetWithParameters1},
 						Parameters: templateVersionParameters,
 					},

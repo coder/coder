@@ -7,15 +7,22 @@ import {
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import type { FC } from "react";
+import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 	{
 		label: "OpenAI",
 		value: "openai",
+		startIcon: (
+			<AIBridgeProviderIcon provider="openai" className="size-icon-sm" />
+		),
 	},
 	{
 		label: "Anthropic",
 		value: "anthropic",
+		startIcon: (
+			<AIBridgeProviderIcon provider="anthropic" className="size-icon-sm" />
+		),
 	},
 ];
 
@@ -46,8 +53,8 @@ interface ProviderFilterProps {
 export const ProviderFilter: FC<ProviderFilterProps> = ({ menu }) => {
 	return (
 		<SelectFilter
-			label={"Select provider"}
-			placeholder={"All providers"}
+			label="Select provider"
+			placeholder="All providers"
 			emptyText="No providers found"
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}

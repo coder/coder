@@ -10,7 +10,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/proto"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 type SpeakerRole string

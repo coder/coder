@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -6082,8 +6082,6 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	t.Run("NilParentDoesNotReturnAllParentAgents", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-
 		// Given: A workspace agent
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
@@ -6097,6 +6095,8 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// When: We attempt to select agents with a null parent id
 		agents, err := db.GetWorkspaceAgentsByParentID(ctx, uuid.Nil)

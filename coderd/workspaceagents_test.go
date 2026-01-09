@@ -27,11 +27,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/quartz"
-	"github.com/coder/websocket"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
@@ -62,6 +59,8 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -495,7 +494,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -506,9 +505,9 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
 			ProvisionPlan: echo.PlanComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name: "example",
 							Type: "aws_instance",
@@ -1569,6 +1568,158 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workspaceFolder = "/home/coder/coder"
+	)
+	configFile := filepath.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
+
+	setupDevcontainerMocks := func(t *testing.T) (
+		*gomock.Controller,
+		*acmock.MockContainerCLI,
+		*acmock.MockDevcontainerCLI,
+		codersdk.WorkspaceAgentContainer,
+		codersdk.WorkspaceAgentDevcontainer,
+		[]agentcontainers.Option,
+	) {
+		devcontainerID := uuid.New()
+		devContainer := codersdk.WorkspaceAgentContainer{
+			ID:           uuid.NewString(),
+			CreatedAt:    dbtime.Now(),
+			FriendlyName: testutil.GetRandomName(t),
+			Image:        "busybox:latest",
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+				agentcontainers.DevcontainerConfigFileLabel:  configFile,
+			},
+			Running: true,
+			Status:  "running",
+		}
+		devcontainer := codersdk.WorkspaceAgentDevcontainer{
+			ID:              devcontainerID,
+			Name:            "test-devcontainer",
+			WorkspaceFolder: workspaceFolder,
+			ConfigPath:      configFile,
+			Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+			Container:       &devContainer,
+		}
+
+		mCtrl := gomock.NewController(t)
+		mCCLI := acmock.NewMockContainerCLI(mCtrl)
+		mDCCLI := acmock.NewMockDevcontainerCLI(mCtrl)
+
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{devContainer},
+		}, nil).AnyTimes()
+		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
+		mDCCLI.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
+
+		devcontainerAPIOptions := []agentcontainers.Option{
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithDevcontainerCLI(mDCCLI),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+			agentcontainers.WithDevcontainers([]codersdk.WorkspaceAgentDevcontainer{devcontainer}, nil),
+		}
+
+		return mCtrl, mCCLI, mDCCLI, devContainer, devcontainer, devcontainerAPIOptions
+	}
+
+	tests := []struct {
+		name           string
+		startAgent     bool
+		useAnotherUser bool
+		expectError    bool
+		expectedStatus int
+	}{
+		{
+			name:           "OK",
+			startAgent:     true,
+			useAnotherUser: false,
+			expectError:    false,
+		},
+		{
+			name:           "Forbidden",
+			startAgent:     true,
+			useAnotherUser: true,
+			expectError:    true,
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "AgentNotConnected",
+			startAgent:     false,
+			useAnotherUser: false,
+			expectError:    true,
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				Logger: &logger,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+				return agents
+			}).Do()
+
+			_, mCCLI, _, devContainer, devcontainer, devcontainerAPIOptions := setupDevcontainerMocks(t)
+
+			var agentID uuid.UUID
+			if tc.startAgent {
+				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+					o.Logger = logger.Named("agent")
+					o.Devcontainers = true
+					o.DevcontainerAPIOptions = devcontainerAPIOptions
+				})
+				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+				require.Len(t, resources, 1, "expected one resource")
+				require.Len(t, resources[0].Agents, 1, "expected one agent")
+				agentID = resources[0].Agents[0].ID
+
+				if !tc.expectError {
+					// Set up expectations for Stop and Remove when expecting success.
+					mCCLI.EXPECT().Stop(gomock.Any(), devContainer.ID).Return(nil).Times(1)
+					mCCLI.EXPECT().Remove(gomock.Any(), devContainer.ID).Return(nil).Times(1)
+				}
+			} else {
+				// When not starting an agent, get the agent ID from the workspace resources.
+				ws, err := client.Workspace(ctx, r.Workspace.ID)
+				require.NoError(t, err, "failed to get workspace")
+				require.Len(t, ws.LatestBuild.Resources, 1, "expected one resource")
+				require.Len(t, ws.LatestBuild.Resources[0].Agents, 1, "expected one agent")
+				agentID = ws.LatestBuild.Resources[0].Agents[0].ID
+			}
+
+			testClient := client
+			if tc.useAnotherUser {
+				testClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			}
+
+			err := testClient.WorkspaceAgentDeleteDevcontainer(ctx, agentID, devcontainer.ID.String())
+
+			if tc.expectError {
+				require.Error(t, err)
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, tc.expectedStatus, sdkErr.StatusCode())
+			} else {
+				require.NoError(t, err, "failed to delete devcontainer")
+			}
+		})
+	}
 }
 
 func TestWorkspaceAgentAppHealth(t *testing.T) {
@@ -2679,7 +2830,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC26(ctx)
+	aAPI, _, err := client.ConnectRPC27(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

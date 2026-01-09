@@ -23,9 +23,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"github.com/coder/websocket"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -50,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // @Summary Get workspace agent by ID
@@ -1122,6 +1121,96 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, cts)
 }
 
+// @Summary Delete devcontainer for workspace agent
+// @ID delete-devcontainer-for-workspace-agent
+// @Security CoderSessionToken
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param devcontainer path string true "Devcontainer ID"
+// @Success 204
+// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer} [delete]
+func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	devcontainer := chi.URLParam(r, "devcontainer")
+	if devcontainer == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Devcontainer ID is required.",
+			Validations: []codersdk.ValidationError{
+				{Field: "devcontainer", Detail: "Devcontainer ID is required."},
+			},
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		workspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	if err = agentConn.DeleteDevcontainer(ctx, devcontainer); err != nil {
+		if errors.Is(err, context.Canceled) {
+			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
+				Message: "Failed to delete devcontainer from agent.",
+				Detail:  "Request timed out.",
+			})
+			return
+		}
+		// If the agent returns a codersdk.Error, we can return that directly.
+		if cerr, ok := codersdk.AsError(err); ok {
+			httpapi.Write(ctx, rw, cerr.StatusCode(), cerr.Response)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting devcontainer.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // @Summary Recreate devcontainer for workspace agent
 // @ID recreate-devcontainer-for-workspace-agent
 // @Security CoderSessionToken
@@ -1650,7 +1739,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		log.Debug(ctx, "received metadata update", "payload", payload)
+		log.Debug(ctx, "received metadata update", slog.F("payload", payload))
 
 		select {
 		case prev := <-update:
@@ -1680,7 +1769,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 		return
 	}
 
-	log.Debug(ctx, "got initial metadata", "num", len(initialMD))
+	log.Debug(ctx, "got initial metadata", slog.F("num", len(initialMD)))
 
 	metadataMap := make(map[string]database.WorkspaceAgentMetadatum, len(initialMD))
 	for _, datum := range initialMD {
@@ -1717,7 +1806,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 		lastSend = time.Now()
 		values := maps.Values(metadataMap)
 
-		log.Debug(ctx, "sending metadata", "num", len(values))
+		log.Debug(ctx, "sending metadata", slog.F("num", len(values)))
 
 		_ = sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
@@ -1772,7 +1861,9 @@ func (api *API) watchWorkspaceAgentMetadata(
 				// We want to block here to avoid constantly pinging the
 				// database when the metadata isn't being processed.
 				case fetchedMetadata <- md:
-					log.Debug(ctx, "fetched metadata update for keys", "keys", payload.Keys, "num", len(md))
+					log.Debug(ctx, "fetched metadata update for keys",
+						slog.F("keys", payload.Keys),
+						slog.F("num", len(md)))
 				}
 			}
 		}

@@ -116,10 +116,8 @@ func TestGitSSH(t *testing.T) {
 	t.Run("Dial", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		client, token, pubkey := prepareTestGitSSH(ctx, t)
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		client, token, pubkey := prepareTestGitSSH(setupCtx, t)
 		var inc int64
 		errC := make(chan error, 1)
 		addr := serveSSHForGitSSH(t, func(s ssh.Session) {
@@ -143,6 +141,7 @@ func TestGitSSH(t *testing.T) {
 			"-o", "IdentitiesOnly=yes",
 			"127.0.0.1",
 		)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
@@ -166,10 +165,8 @@ func TestGitSSH(t *testing.T) {
 		require.NoError(t, err)
 		writePrivateKeyToFile(t, idFile, privkey)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		client, token, coderPubkey := prepareTestGitSSH(ctx, t)
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		client, token, coderPubkey := prepareTestGitSSH(setupCtx, t)
 
 		authkey := make(chan gossh.PublicKey, 1)
 		addr := serveSSHForGitSSH(t, func(s ssh.Session) {
@@ -208,6 +205,7 @@ func TestGitSSH(t *testing.T) {
 		inv, _ := clitest.New(t, cmdArgs...)
 		inv.Stdout = pty.Output()
 		inv.Stderr = pty.Output()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {
@@ -225,6 +223,7 @@ func TestGitSSH(t *testing.T) {
 		inv, _ = clitest.New(t, cmdArgs...)
 		inv.Stdout = pty.Output()
 		inv.Stderr = pty.Output()
+		ctx = testutil.Context(t, testutil.WaitMedium) // Reset context for second cmd test.
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {

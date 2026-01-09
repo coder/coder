@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/aibridge/mcp"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )

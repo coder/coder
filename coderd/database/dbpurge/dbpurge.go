@@ -5,10 +5,10 @@ import (
 	"io"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -40,12 +40,29 @@ const (
 // It is the caller's responsibility to call Close on the returned instance.
 //
 // This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	//nolint:gocritic // The system purges old db records without user input.
-	ctx = dbauthz.AsSystemRestricted(ctx)
+	//nolint:gocritic // Use dbpurge-specific subject with minimal permissions.
+	ctx = dbauthz.AsDBPurge(ctx)
+
+	iterationDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "dbpurge",
+		Name:      "iteration_duration_seconds",
+		Help:      "Duration of each dbpurge iteration in seconds.",
+		Buckets:   []float64{1, 5, 10, 30, 60, 300, 600}, // 1s to 10min
+	}, []string{"success"})
+	reg.MustRegister(iterationDuration)
+
+	recordsPurged := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "dbpurge",
+		Name:      "records_purged_total",
+		Help:      "Total number of records purged by type.",
+	}, []string{"record_type"})
+	reg.MustRegister(recordsPurged)
 
 	// Start the ticker with the initial delay.
 	ticker := clk.NewTicker(delay)
@@ -164,9 +181,22 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				slog.F("duration", clk.Since(start)),
 			)
 
+			duration := clk.Since(start)
+			iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
+			recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
+			recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
+			recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
+			recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
+			recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
+
 			return nil
 		}, database.DefaultTXOptions().WithID("db_purge")); err != nil {
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
+
+			// Record metrics for failed purge iteration.
+			duration := clk.Since(start)
+			iterationDuration.WithLabelValues("false").Observe(duration.Seconds())
+
 			return
 		}
 	}

@@ -12,7 +12,7 @@ import {
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
+import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
@@ -20,8 +20,8 @@ import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import {
 	ChevronDownIcon,
 	CloudIcon,
-	PauseIcon,
 	PlayIcon,
+	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
@@ -175,7 +175,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									}
 									onClick={onBatchStopTransition}
 								>
-									<PauseIcon /> Stop
+									<SquareIcon /> Stop
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>
@@ -196,12 +196,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					</>
 				) : (
 					!pageNumberIsInvalid && (
-						<PaginationHeader
+						<PaginationAmount
 							paginationUnitLabel="workspaces"
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}
-							css={{ paddingBottom: "0" }}
 						/>
 					)
 				)}

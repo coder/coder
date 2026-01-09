@@ -1,4 +1,22 @@
-import type { Group } from "api/typesGenerated";
+import type {
+	Group,
+	ReducedUser,
+	User,
+	WorkspaceUser,
+} from "api/typesGenerated";
+
+/**
+ * Union of all user-like types that can be distinguished from Group.
+ */
+type UserLike = User | ReducedUser | WorkspaceUser;
+
+/**
+ * Type guard to check if the value is a Group.
+ * Groups have a "members" property that users don't have.
+ */
+export const isGroup = (value: UserLike | Group): value is Group => {
+	return "members" in value;
+};
 
 /**
  * Returns true if the provided group is the 'Everyone' group.

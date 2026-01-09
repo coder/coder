@@ -39,6 +39,24 @@ locals {
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
+data "coder_workspace_preset" "pittsburgh" {
+  name        = "Pittsburgh"
+  default     = true
+  description = "Development workspace hosted in United States with 2 prebuild instances"
+  icon        = "/emojis/1f1fa-1f1f8.png"
+  parameters = {
+    (data.coder_parameter.region.name)                   = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.repo_base_dir.name)            = "~"
+    (data.coder_parameter.res_mon_memory_threshold.name) = 80
+    (data.coder_parameter.res_mon_volume_threshold.name) = 90
+    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+  }
+  prebuilds {
+    instances = 2
+  }
+}
+
 data "coder_workspace_preset" "cpt" {
   name        = "Cape Town"
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
@@ -53,23 +71,6 @@ data "coder_workspace_preset" "cpt" {
   }
   prebuilds {
     instances = 1
-  }
-}
-
-data "coder_workspace_preset" "pittsburgh" {
-  name        = "Pittsburgh"
-  description = "Development workspace hosted in United States with 2 prebuild instances"
-  icon        = "/emojis/1f1fa-1f1f8.png"
-  parameters = {
-    (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
-  }
-  prebuilds {
-    instances = 2
   }
 }
 
@@ -355,12 +356,18 @@ module "git-config" {
 }
 
 module "git-clone" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.2.2"
-  agent_id = coder_agent.dev.id
-  url      = "https://github.com/coder/coder"
-  base_dir = local.repo_base_dir
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/git-clone/coder"
+  version           = "1.2.3"
+  agent_id          = coder_agent.dev.id
+  url               = "https://github.com/coder/coder"
+  base_dir          = local.repo_base_dir
+  post_clone_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+    coder exp sync start git-clone
+    coder exp sync complete git-clone
+  EOT
 }
 
 module "personalize" {
@@ -381,7 +388,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.1"
+  version                 = "1.4.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -445,7 +452,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.2"
+  version    = "1.1.4"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -592,9 +599,14 @@ resource "coder_agent" "dev" {
   startup_script = <<-EOT
     #!/usr/bin/env bash
     set -eux -o pipefail
-
-    # Allow synchronization between scripts.
-    trap 'touch /tmp/.coder-startup-script.done' EXIT
+    # Allow other scripts to wait for agent startup.
+    function cleanup() {
+      coder exp sync complete agent-startup
+      # Some folks will also use this for their personalize scripts.
+      touch /tmp/.coder-startup-script.done
+    }
+    trap cleanup EXIT
+    coder exp sync start agent-startup
 
     # Authenticate GitHub CLI
     if ! gh auth status >/dev/null 2>&1; then
@@ -610,14 +622,6 @@ resource "coder_agent" "dev" {
     sudo sh -c 'jq ". += {\"shutdown-timeout\": 240}" /etc/docker/daemon.json > /tmp/daemon.json.new && mv /tmp/daemon.json.new /etc/docker/daemon.json'
     # Start Docker service
     sudo service docker start
-    # Install playwright dependencies
-    # We want to use the playwright version from site/package.json
-    # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.
-    while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
-      sleep 1
-    done
-    cd "${local.repo_dir}" && make clean
-    cd "${local.repo_dir}/site" && pnpm install
   EOT
 
   shutdown_script = <<-EOT
@@ -639,6 +643,26 @@ resource "coder_agent" "dev" {
 
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
+  EOT
+}
+
+resource "coder_script" "install-deps" {
+  agent_id           = coder_agent.dev.id
+  display_name       = "Installing Dependencies"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    trap 'coder exp sync complete install-deps' EXIT
+    coder exp sync want install-deps git-clone
+    coder exp sync start install-deps
+
+    # Install playwright dependencies
+    # We want to use the playwright version from site/package.json
+    cd "${local.repo_dir}" && make clean
+    cd "${local.repo_dir}/site" && pnpm install
   EOT
 }
 
@@ -766,6 +790,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
+    "CODER_AGENT_SOCKET_SERVER_ENABLED=true",
   ]
   host {
     host = "host.docker.internal"
@@ -861,6 +886,10 @@ resource "coder_script" "boundary_config_setup" {
 
   script = <<-EOF
     #!/bin/sh
+
+    trap 'coder exp sync complete boundary-config-setup' EXIT
+    coder exp sync start boundary-config-setup
+
     mkdir -p ~/.config/coder_boundary
     echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
     chmod 600 ~/.config/coder_boundary/config.yaml
@@ -870,9 +899,9 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.2.3"
+  version             = "4.3.0"
   enable_boundary     = true
-  boundary_version    = "v0.2.1"
+  boundary_version    = "v0.5.2"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
@@ -883,6 +912,7 @@ module "claude-code" {
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_task.me.prompt
   post_install_script = <<-EOT
+    cd $HOME/coder
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
   EOT
 }
@@ -916,14 +946,10 @@ resource "coder_script" "develop_sh" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
-    # Wait for the agent startup script to finish.
-    for attempt in {1..60}; do
-      if [[ -f /tmp/.coder-startup-script.done ]]; then
-        break
-      fi
-      echo "Waiting for agent startup script to finish... ($attempt/60)"
-      sleep 10
-    done
+    trap 'coder exp sync complete develop-sh' EXIT
+    coder exp sync want develop-sh install-deps
+    coder exp sync start develop-sh
+
     cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
   EOT
 }

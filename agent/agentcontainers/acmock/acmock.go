@@ -106,6 +106,34 @@ func (mr *MockContainerCLIMockRecorder) List(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockContainerCLI)(nil).List), ctx)
 }
 
+// Remove mocks base method.
+func (m *MockContainerCLI) Remove(ctx context.Context, containerName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Remove", ctx, containerName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Remove indicates an expected call of Remove.
+func (mr *MockContainerCLIMockRecorder) Remove(ctx, containerName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockContainerCLI)(nil).Remove), ctx, containerName)
+}
+
+// Stop mocks base method.
+func (m *MockContainerCLI) Stop(ctx context.Context, containerName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stop", ctx, containerName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockContainerCLIMockRecorder) Stop(ctx, containerName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockContainerCLI)(nil).Stop), ctx, containerName)
+}
+
 // MockDevcontainerCLI is a mock of DevcontainerCLI interface.
 type MockDevcontainerCLI struct {
 	ctrl     *gomock.Controller

@@ -3,6 +3,7 @@ package workspacetraffic
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -12,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
@@ -131,8 +132,11 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	closeConn := func() error {
 		closeOnce.Do(func() {
 			closeErr = conn.Close()
-			if closeErr != nil {
+			if errors.Is(closeErr, io.EOF) {
+				closeErr = nil
+			} else if closeErr != nil {
 				logger.Error(ctx, "close agent connection", slog.Error(closeErr))
+				closeErr = xerrors.Errorf("close agent connection: %w", closeErr)
 			}
 		})
 		return closeErr

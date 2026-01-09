@@ -18,12 +18,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/serpent"
 )
@@ -64,15 +64,6 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			me, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
-			}
-
-			client.HTTPClient = &http.Client{
-				Transport: &codersdk.HeaderTransport{
-					Transport: http.DefaultTransport,
-					Header: map[string][]string{
-						codersdk.BypassRatelimitHeader: {"true"},
-					},
-				},
 			}
 
 			if userCount <= 0 {
@@ -206,7 +197,13 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			for i, config := range configs {
 				id := strconv.Itoa(i)
 				name := fmt.Sprintf("notifications-%s", id)
-				var runner harness.Runnable = notifications.NewRunner(client, config)
+				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
+				// requests being unbalanced among Coder instances.
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				if err != nil {
+					return xerrors.Errorf("create runner client: %w", err)
+				}
+				var runner harness.Runnable = notifications.NewRunner(runnerClient, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,

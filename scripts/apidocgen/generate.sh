@@ -18,7 +18,7 @@ trap cleanup EXIT
 log "Use temporary file: ${API_MD_TMP_FILE}"
 
 pushd "${PROJECT_ROOT}"
-go run github.com/swaggo/swag/cmd/swag@v1.8.9 init \
+go tool github.com/swaggo/swag/cmd/swag init \
 	--generalInfo="coderd.go" \
 	--dir="./coderd,./codersdk,./enterprise/coderd,./enterprise/wsproxy/wsproxysdk" \
 	--output="./coderd/apidoc" \

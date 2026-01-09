@@ -14,19 +14,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/serpent"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -511,6 +509,7 @@ type DeploymentValues struct {
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
+	StatsCollection                 StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -608,6 +607,14 @@ type DERPConfig struct {
 	ForceWebSockets serpent.Bool   `json:"force_websockets" typescript:",notnull"`
 	URL             serpent.String `json:"url" typescript:",notnull"`
 	Path            serpent.String `json:"path" typescript:",notnull"`
+}
+
+type UsageStatsConfig struct {
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
+}
+
+type StatsCollectionConfig struct {
+	UsageStats UsageStatsConfig `json:"usage_stats" tyescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -767,6 +774,9 @@ type ExternalAuthConfig struct {
 	DisplayName string `json:"display_name" yaml:"display_name"`
 	// DisplayIcon is a URL to an icon to display in the UI.
 	DisplayIcon string `json:"display_icon" yaml:"display_icon"`
+	// CodeChallengeMethodsSupported lists the PKCE code challenge methods
+	// The only one supported by Coder is "S256".
+	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported" yaml:"code_challenge_methods_supported"`
 }
 
 type ProvisionerConfig struct {
@@ -1072,13 +1082,23 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
-			Description: `Configure logging, tracing, and metrics exporting.`,
+			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
 			YAML:        "introspection",
 		}
 		deploymentGroupIntrospectionPPROF = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "pprof",
 			YAML:   "pprof",
+		}
+		deploymentGroupIntrospectionStatsCollection = serpent.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Stats Collection",
+			YAML:   "statsCollection",
+		}
+		deploymentGroupIntrospectionStatsCollectionUsageStats = serpent.Group{
+			Parent: &deploymentGroupIntrospectionStatsCollection,
+			Name:   "Usage Stats",
+			YAML:   "usageStats",
 		}
 		deploymentGroupIntrospectionPrometheus = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
@@ -1203,6 +1223,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge",
 			YAML: "aibridge",
+		}
+		deploymentGroupAIBridgeProxy = serpent.Group{
+			Name: "AI Bridge Proxy",
+			YAML: "aibridgeproxy",
 		}
 		deploymentGroupRetention = serpent.Group{
 			Name:        "Retention",
@@ -1671,8 +1695,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Env:   "CODER_BLOCK_DIRECT",
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
-			YAML:  "blockDirect", Annotations: serpent.Annotations{}.
-				Mark(annotationExternalProxies, "true"),
+			YAML:  "blockDirect", Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Force WebSockets",
@@ -1700,6 +1723,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.DERP.Config.Path,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "configPath",
+		},
+		{
+			Name:        "Stats Collection Usage Stats Enable",
+			Description: "Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.",
+			Flag:        "stats-collection-usage-stats-enable",
+			Env:         "CODER_STATS_COLLECTION_USAGE_STATS_ENABLE",
+			Default:     "true",
+			Value:       &c.StatsCollection.UsageStats.Enable,
+			Group:       &deploymentGroupIntrospectionStatsCollectionUsageStats,
+			YAML:        "enable",
 		},
 		// TODO: support Git Auth settings.
 		// Prometheus settings
@@ -3421,6 +3454,49 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rateLimit",
 		},
+
+		// AI Bridge Proxy Options
+		{
+			Name:        "AI Bridge Proxy Enabled",
+			Description: "Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.",
+			Flag:        "aibridge-proxy-enabled",
+			Env:         "CODER_AIBRIDGE_PROXY_ENABLED",
+			Value:       &c.AI.BridgeProxyConfig.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "enabled",
+		},
+		{
+			Name:        "AI Bridge Proxy Listen Address",
+			Description: "The address the AI Bridge Proxy will listen on.",
+			Flag:        "aibridge-proxy-listen-addr",
+			Env:         "CODER_AIBRIDGE_PROXY_LISTEN_ADDR",
+			Value:       &c.AI.BridgeProxyConfig.ListenAddr,
+			Default:     ":8888",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "listen_addr",
+		},
+		{
+			Name:        "AI Bridge Proxy Certificate File",
+			Description: "Path to the CA certificate file for AI Bridge Proxy.",
+			Flag:        "aibridge-proxy-cert-file",
+			Env:         "CODER_AIBRIDGE_PROXY_CERT_FILE",
+			Value:       &c.AI.BridgeProxyConfig.CertFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "cert_file",
+		},
+		{
+			Name:        "AI Bridge Proxy Key File",
+			Description: "Path to the CA private key file for AI Bridge Proxy.",
+			Flag:        "aibridge-proxy-key-file",
+			Env:         "CODER_AIBRIDGE_PROXY_KEY_FILE",
+			Value:       &c.AI.BridgeProxyConfig.KeyFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "key_file",
+		},
+
 		// Retention settings
 		{
 			Name:        "Audit Logs Retention",
@@ -3513,8 +3589,16 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
+type AIBridgeProxyConfig struct {
+	Enabled    serpent.Bool   `json:"enabled" typescript:",notnull"`
+	ListenAddr serpent.String `json:"listen_addr" typescript:",notnull"`
+	CertFile   serpent.String `json:"cert_file" typescript:",notnull"`
+	KeyFile    serpent.String `json:"key_file" typescript:",notnull"`
+}
+
 type AIConfig struct {
-	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
+	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
+	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 }
 
 type SupportConfig struct {
@@ -3766,8 +3850,6 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
-	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
 
 func (e Experiment) DisplayName() string {
@@ -3788,8 +3870,6 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
-	case ExperimentTerraformWorkspace:
-		return "Terraform Directory Reuse"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"

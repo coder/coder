@@ -17,10 +17,7 @@ import (
 	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"github.com/coder/retry"
-	"github.com/coder/websocket"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -28,6 +25,8 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/retry"
+	"github.com/coder/websocket"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that
@@ -244,12 +243,24 @@ func (c *Client) ConnectRPC25(ctx context.Context) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-// ConnectRPC25 returns a dRPC client to the Agent API v2.5.  It is useful when you want to be
+// ConnectRPC26 returns a dRPC client to the Agent API v2.6.  It is useful when you want to be
 // maximally compatible with Coderd Release Versions from 2.24+
 func (c *Client) ConnectRPC26(ctx context.Context) (
 	proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC27 returns a dRPC client to the Agent API v2.7.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.30+
+func (c *Client) ConnectRPC27(ctx context.Context) (
+	proto.DRPCAgentClient27, tailnetproto.DRPCTailnetClient27, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 7))
 	if err != nil {
 		return nil, nil, err
 	}

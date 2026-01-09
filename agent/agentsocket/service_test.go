@@ -2,46 +2,17 @@ package agentsocket_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/testutil"
 )
-
-// tempDirUnixSocket returns a temporary directory that can safely hold unix
-// sockets (probably).
-//
-// During tests on darwin we hit the max path length limit for unix sockets
-// pretty easily in the default location, so this function uses /tmp instead to
-// get shorter paths. To keep paths short, we use a hash of the test name
-// instead of the full test name.
-func tempDirUnixSocket(t *testing.T) string {
-	t.Helper()
-	if runtime.GOOS == "darwin" {
-		// Use a short hash of the test name to keep the path under 104 chars
-		hash := sha256.Sum256([]byte(t.Name()))
-		hashStr := hex.EncodeToString(hash[:])[:8] // Use first 8 chars of hash
-		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("c-%s-", hashStr))
-		require.NoError(t, err, "create temp dir for unix socket test")
-		t.Cleanup(func() {
-			err := os.RemoveAll(dir)
-			assert.NoError(t, err, "remove temp dir", dir)
-		})
-		return dir
-	}
-	return t.TempDir()
-}
 
 // newSocketClient creates a DRPC client connected to the Unix socket at the given path.
 func newSocketClient(ctx context.Context, t *testing.T, socketPath string) *agentsocket.Client {
@@ -66,7 +37,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 	t.Run("Ping", func(t *testing.T) {
 		t.Parallel()
 
-		socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+		socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := agentsocket.NewServer(
 			slog.Make().Leveled(slog.LevelDebug),
@@ -86,7 +57,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 		t.Run("NewUnit", func(t *testing.T) {
 			t.Parallel()
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -108,7 +79,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitAlreadyStarted", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -138,7 +109,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitAlreadyCompleted", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -177,7 +148,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitNotReady", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -207,7 +178,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("NewUnits", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -232,7 +203,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("DependencyAlreadyRegistered", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -267,7 +238,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("DependencyAddedAfterDependentStarted", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -309,7 +280,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnregisteredUnit", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -328,7 +299,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitNotReady", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
@@ -352,7 +323,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitReady", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),

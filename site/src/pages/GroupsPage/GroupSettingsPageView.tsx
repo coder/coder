@@ -12,13 +12,13 @@ import { Loader } from "components/Loader/Loader";
 import { ResourcePageHeader } from "components/PageHeader/PageHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
+import { isEveryoneGroup } from "modules/groups";
 import type { FC } from "react";
 import {
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
 } from "utils/formUtils";
-import { isEveryoneGroup } from "utils/groups";
 import * as Yup from "yup";
 
 type FormData = {

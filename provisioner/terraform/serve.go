@@ -13,12 +13,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/provisionersdk/tfpath"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
 
 type ServeOptions struct {
@@ -161,7 +160,7 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-func (s *server) executor(files tfpath.Layouter, stage database.ProvisionerJobTimingStage) *executor {
+func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
 		server:        s,
 		mut:           s.execMut,

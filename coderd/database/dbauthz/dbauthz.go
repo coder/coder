@@ -15,8 +15,7 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	slog "cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
@@ -616,6 +615,27 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectDBPurge = rbac.Subject{
+		Type:         rbac.SubjectTypeDBPurge,
+		FriendlyName: "DB Purge",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "dbpurge"},
+				DisplayName: "DB Purge Daemon",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceSystem.Type:               {policy.ActionDelete},
+					rbac.ResourceNotificationMessage.Type:  {policy.ActionDelete},
+					rbac.ResourceApiKey.Type:               {policy.ActionDelete},
+					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -708,6 +728,12 @@ func AsUsagePublisher(ctx context.Context) context.Context {
 // required for creating, reading, and updating aibridge-related resources.
 func AsAIBridged(ctx context.Context) context.Context {
 	return As(ctx, subjectAibridged)
+}
+
+// AsDBPurge returns a context with an actor that has permissions required
+// for dbpurge to delete old database records.
+func AsDBPurge(ctx context.Context) context.Context {
+	return As(ctx, subjectDBPurge)
 }
 
 var AsRemoveActor = rbac.Subject{

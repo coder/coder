@@ -21,9 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/aisdk-go"
-
 	agentapi "github.com/coder/agentapi-sdk-go"
+	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1015,9 +1014,8 @@ func TestTools(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
 					HasAiTasks: true,
 				}}},
 			},

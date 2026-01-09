@@ -210,10 +210,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
 
 #### Enumerated Values
 
-| Parameter | Value       |
-|-----------|-------------|
-| `format`  | `plaintext` |
-| `format`  | `markdown`  |
+| Parameter | Value(s)                |
+|-----------|-------------------------|
+| `format`  | `markdown`, `plaintext` |
 
 ### Example responses
 

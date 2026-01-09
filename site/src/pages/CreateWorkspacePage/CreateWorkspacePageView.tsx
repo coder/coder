@@ -520,7 +520,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							</hgroup>
 							<div className="flex flex-col gap-4">
 								{Boolean(error) && !hasAllRequiredExternalAuth && (
-									<Alert severity="error">
+									<Alert severity="error" prominent>
 										To create a workspace using this template, please connect to
 										all required external authentication providers listed below.
 									</Alert>

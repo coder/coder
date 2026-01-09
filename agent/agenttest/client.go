@@ -21,7 +21,7 @@ import (
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -124,8 +124,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC26(ctx context.Context) (
-	agentproto.DRPCAgentClient26, proto.DRPCTailnetClient26, error,
+func (c *Client) ConnectRPC27(ctx context.Context) (
+	agentproto.DRPCAgentClient27, proto.DRPCTailnetClient27, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -403,6 +403,10 @@ func (f *FakeAgentAPI) ReportConnection(_ context.Context, req *agentproto.Repor
 	f.Unlock()
 
 	return &emptypb.Empty{}, nil
+}
+
+func (*FakeAgentAPI) ReportBoundaryLogs(_ context.Context, _ *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
+	return &agentproto.ReportBoundaryLogsResponse{}, nil
 }
 
 func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequest {

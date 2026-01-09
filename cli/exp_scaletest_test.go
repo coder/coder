@@ -7,8 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -54,6 +53,7 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 		"--output", "json:"+outputFile,
 		"--parameter", "foo=baz",
 		"--rich-parameter-file", "/path/to/some/parameter/file.ext",
+		"--max-failures", "1",
 	)
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)

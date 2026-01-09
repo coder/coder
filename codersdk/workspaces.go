@@ -11,8 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -73,7 +72,8 @@ type Workspace struct {
 	// and IsPrebuild returns false.
 	IsPrebuild bool `json:"is_prebuild"`
 	// TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
-	TaskID uuid.NullUUID `json:"task_id,omitempty"`
+	TaskID     uuid.NullUUID          `json:"task_id,omitempty"`
+	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty"`
 }
 
 func (w Workspace) FullName() string {
@@ -695,12 +695,27 @@ type WorkspaceUser struct {
 	Role WorkspaceRole `json:"role" enums:"admin,use"`
 }
 
+type SharedWorkspaceActor struct {
+	ID        uuid.UUID                `json:"id" format:"uuid"`
+	ActorType SharedWorkspaceActorType `json:"actor_type" enums:"group,user"`
+	Name      string                   `json:"name"`
+	AvatarURL string                   `json:"avatar_url,omitempty" format:"uri"`
+	Roles     []WorkspaceRole          `json:"roles"`
+}
+
 type WorkspaceRole string
 
 const (
 	WorkspaceRoleAdmin   WorkspaceRole = "admin"
 	WorkspaceRoleUse     WorkspaceRole = "use"
 	WorkspaceRoleDeleted WorkspaceRole = ""
+)
+
+type SharedWorkspaceActorType string
+
+const (
+	SharedWorkspaceActorTypeGroup SharedWorkspaceActorType = "group"
+	SharedWorkspaceActorTypeUser  SharedWorkspaceActorType = "user"
 )
 
 func (c *Client) WorkspaceACL(ctx context.Context, workspaceID uuid.UUID) (WorkspaceACL, error) {

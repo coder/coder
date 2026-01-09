@@ -27,9 +27,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1016,6 +1015,10 @@ func TestUserOAuth2Github(t *testing.T) {
 		req.AddCookie(&http.Cookie{
 			Name:  "oauth_state",
 			Value: "somestate",
+		})
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.OAuth2PKCEVerifier,
+			Value: oauth2.GenerateVerifier(),
 		})
 		require.NoError(t, err)
 		res, err = client.HTTPClient.Do(req)
@@ -2459,6 +2462,10 @@ func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Re
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateCookie,
 		Value: state,
+	})
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.OAuth2PKCEVerifier,
+		Value: oauth2.GenerateVerifier(),
 	})
 	res, err := client.HTTPClient.Do(req)
 	require.NoError(t, err)

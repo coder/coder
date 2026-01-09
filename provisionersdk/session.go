@@ -11,16 +11,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-	"github.com/coder/coder/v2/provisionersdk/tfpath"
-	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
-
 	protobuf "google.golang.org/protobuf/proto"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
 
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.
@@ -56,20 +52,12 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
 
-	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
-		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
-	}
-
 	// Cleanup any previously left stale sessions.
 	err = s.Files.CleanStaleSessions(s.Context(), s.Logger, afero.NewOsFs(), time.Now())
 	if err != nil {
 		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.Files, err)
 	}
 
-	err = s.Files.ExtractArchive(s.Context(), s.Logger, afero.NewOsFs(), s.Config)
-	if err != nil {
-		return xerrors.Errorf("extract archive: %w", err)
-	}
 	return s.handleRequests()
 }
 
@@ -110,6 +98,10 @@ func (s *Session) handleRequests() error {
 		}
 		resp := &proto.Response{}
 		if parse := req.GetParse(); parse != nil {
+			if !s.initialized {
+				// Files must be initialized before parsing.
+				return xerrors.New("cannot parse before successful init")
+			}
 			r := &request[*proto.ParseRequest, *proto.ParseComplete]{
 				req:      parse,
 				session:  s,
@@ -129,48 +121,29 @@ func (s *Session) handleRequests() error {
 			}
 			resp.Type = &proto.Response_Parse{Parse: complete}
 		}
-		if plan := req.GetPlan(); plan != nil {
-			r := &request[*proto.PlanRequest, *proto.PlanComplete]{
-				req:      plan,
-				session:  s,
-				serverFn: s.server.Plan,
-				cancels:  requests,
+		if init := req.GetInit(); init != nil {
+			if s.initialized {
+				return xerrors.New("cannot init more than once per session")
 			}
-			complete, err := r.do()
+
+			initResp, err := s.handleInitRequest(init, requests)
 			if err != nil {
 				return err
 			}
-			resp.Type = &proto.Response_Plan{Plan: complete}
-
-			if protobuf.Size(resp) > drpcsdk.MaxMessageSize {
-				// It is likely the modules that is pushing the message size over the limit.
-				// Send the modules over a stream of messages instead.
-				s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
-					slog.F("size_bytes", len(complete.ModuleFiles)),
-				)
-				dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
-
-				complete.ModuleFiles = nil // sent over the stream
-				complete.ModuleFilesHash = dataUp.DataHash
-				resp.Type = &proto.Response_Plan{Plan: complete}
-
-				err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})
-				if err != nil {
-					complete.Error = fmt.Sprintf("send data upload: %s", err.Error())
-				} else {
-					for i, chunk := range chunks {
-						err := s.stream.Send(&proto.Response{Type: &proto.Response_ChunkPiece{ChunkPiece: chunk}})
-						if err != nil {
-							complete.Error = fmt.Sprintf("send data piece upload %d/%d: %s", i, dataUp.Chunks, err.Error())
-							break
-						}
-					}
-				}
+			resp.Type = &proto.Response_Init{Init: initResp}
+		}
+		if plan := req.GetPlan(); plan != nil {
+			if !s.initialized {
+				return xerrors.New("cannot plan before successful init")
 			}
-
-			if complete.Error == "" {
+			planResp, err := s.handlePlanRequest(plan, requests)
+			if err != nil {
+				return err
+			}
+			if planResp.Error == "" {
 				planned = true
 			}
+			resp.Type = &proto.Response_Plan{Plan: planResp}
 		}
 		if apply := req.GetApply(); apply != nil {
 			if !planned {
@@ -188,6 +161,23 @@ func (s *Session) handleRequests() error {
 			}
 			resp.Type = &proto.Response_Apply{Apply: complete}
 		}
+		if graph := req.GetGraph(); graph != nil {
+			if !s.initialized {
+				return xerrors.New("cannot graph before successful init")
+			}
+
+			r := &request[*proto.GraphRequest, *proto.GraphComplete]{
+				req:      graph,
+				session:  s,
+				serverFn: s.server.Graph,
+				cancels:  requests,
+			}
+			complete, err := r.do()
+			if err != nil {
+				return err
+			}
+			resp.Type = &proto.Response_Graph{Graph: complete}
+		}
 		err := s.stream.Send(resp)
 		if err != nil {
 			return xerrors.Errorf("send response: %w", err)
@@ -196,10 +186,112 @@ func (s *Session) handleRequests() error {
 	return nil
 }
 
+// fromChannel implements the `Recv` api using an underlying channel for
+// downloading files.
+type fromChannel struct {
+	requests <-chan *proto.Request
+}
+
+func (f *fromChannel) Recv() (*proto.FileUpload, error) {
+	next, ok := <-f.requests
+	if !ok {
+		return nil, xerrors.New("channel closed")
+	}
+
+	// Only file download messages are expected here.
+	file := next.GetFile()
+	if file == nil {
+		return nil, xerrors.Errorf("expected file upload")
+	}
+
+	return file, nil
+}
+
+func (s *Session) handleInitRequest(init *proto.InitRequest, requests <-chan *proto.Request) (*proto.InitComplete, error) {
+	req := &InitRequest{
+		InitRequest:   init,
+		ModuleArchive: nil,
+	}
+	if len(init.GetInitialModuleTarHash()) > 0 {
+		file, err := HandleReceivingDataUpload(&fromChannel{requests: requests})
+		if err != nil {
+			return nil, err
+		}
+
+		data, err := file.Complete()
+		if err != nil {
+			return nil, err
+		}
+		req.ModuleArchive = data
+	}
+
+	r := &request[*InitRequest, *proto.InitComplete]{
+		req:      req,
+		session:  s,
+		serverFn: s.server.Init,
+		cancels:  requests,
+	}
+	complete, err := r.do()
+	if err != nil {
+		return nil, err
+	}
+	if complete.Error != "" {
+		return complete, nil
+	}
+
+	// If the size of the complete message is too large, we need to stream the module files separately.
+	if protobuf.Size(&proto.Response{Type: &proto.Response_Init{Init: complete}}) > drpcsdk.MaxMessageSize {
+		// It is likely the modules that is pushing the message size over the limit.
+		// Send the modules over a stream of messages instead.
+		s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
+			slog.F("size_bytes", len(complete.ModuleFiles)),
+		)
+		dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
+
+		complete.ModuleFiles = nil // sent over the stream
+		complete.ModuleFilesHash = dataUp.DataHash
+
+		err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})
+		if err != nil {
+			complete.Error = fmt.Sprintf("send data upload: %s", err.Error())
+		} else {
+			for i, chunk := range chunks {
+				err := s.stream.Send(&proto.Response{Type: &proto.Response_ChunkPiece{ChunkPiece: chunk}})
+				if err != nil {
+					complete.Error = fmt.Sprintf("send data piece upload %d/%d: %s", i, dataUp.Chunks, err.Error())
+					break
+				}
+			}
+		}
+	}
+	s.initialized = true
+
+	return complete, nil
+}
+
+func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *proto.Request) (*proto.PlanComplete, error) {
+	r := &request[*proto.PlanRequest, *proto.PlanComplete]{
+		req:      plan,
+		session:  s,
+		serverFn: s.server.Plan,
+		cancels:  requests,
+	}
+	complete, err := r.do()
+	if err != nil {
+		return nil, err
+	}
+
+	return complete, nil
+}
+
 type Session struct {
 	Logger slog.Logger
-	Files  tfpath.Layouter
+	Files  tfpath.Layout
 	Config *proto.Config
+
+	// initialized indicates if an init was run.
+	// Required for plan/apply.
+	initialized bool
 
 	server   Server
 	stream   proto.DRPCProvisioner_SessionStream
@@ -226,11 +318,11 @@ func (s *Session) ProvisionLog(level proto.LogLevel, output string) {
 }
 
 type pRequest interface {
-	*proto.ParseRequest | *proto.PlanRequest | *proto.ApplyRequest
+	*proto.ParseRequest | *InitRequest | *proto.PlanRequest | *proto.ApplyRequest | *proto.GraphRequest
 }
 
 type pComplete interface {
-	*proto.ParseComplete | *proto.PlanComplete | *proto.ApplyComplete
+	*proto.ParseComplete | *proto.InitComplete | *proto.PlanComplete | *proto.ApplyComplete | *proto.GraphComplete
 }
 
 // request processes a single request call to the Server and returns its complete result, while also processing cancel

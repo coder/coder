@@ -325,7 +325,9 @@ UPDATE
 	users
 SET
 	status = $2,
-	updated_at = $3
+	updated_at = $3,
+	-- If the user is logging in, set last_seen_at to updated_at.
+	last_seen_at = CASE WHEN @user_is_seen :: boolean THEN $3 :: timestamptz ELSE last_seen_at END
 WHERE
 	id = $1 RETURNING *;
 

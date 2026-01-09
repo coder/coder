@@ -13,7 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	slog "cdr.dev/slog"
+	slog "cdr.dev/slog/v3"
+
 	rbac "github.com/coder/coder/v2/coderd/rbac"
 	gomock "go.uber.org/mock/gomock"
 )

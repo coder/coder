@@ -14,11 +14,10 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
-
-	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -34,10 +33,19 @@ type ServeOptions struct {
 	Experiments         codersdk.Experiments
 }
 
+// InitRequest wraps the InitRequest proto with the module archive bytes, which
+// is downloaded by the SDK from the hash field in the InitRequest proto.
+type InitRequest struct {
+	*proto.InitRequest
+	ModuleArchive []byte
+}
+
 type Server interface {
+	Init(s *Session, r *InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete
 	Parse(s *Session, r *proto.ParseRequest, canceledOrComplete <-chan struct{}) *proto.ParseComplete
 	Plan(s *Session, r *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete
 	Apply(s *Session, r *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete
+	Graph(s *Session, r *proto.GraphRequest, canceledOrComplete <-chan struct{}) *proto.GraphComplete
 }
 
 // Serve starts a dRPC connection for the provisioner and transport provided.

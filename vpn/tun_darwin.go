@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 func GetNetworkingStack(t *Tunnel, req *StartRequest, _ slog.Logger) (NetworkStack, error) {
