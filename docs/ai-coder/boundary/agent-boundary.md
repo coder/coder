@@ -2,7 +2,7 @@
 
 Agent Boundaries are process-level firewalls that restrict and audit what autonomous programs, such as AI agents, can access and use.
 
-![Screenshot of Agent Boundaries blocking a process](../images/guides/ai-agents/boundary.png)Example of Agent Boundaries blocking a process.
+![Screenshot of Agent Boundaries blocking a process](../../images/guides/ai-agents/boundary.png)Example of Agent Boundaries blocking a process.
 
 ## Supported Agents
 
@@ -77,6 +77,8 @@ Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when
   - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a domain
   - `method=POST domain=api.example.com path=/users,/posts` - allows specific methods, domain, and paths
   - `path=/api/v1/*,/api/v2/*` - allows specific URL paths
+
+For detailed information about the rules engine and how to construct allowlist rules, see the [rules engine documentation](./rules-engine.md).
 
 You can also run Agent Boundaries directly in your workspace and configure it per template. You can do so by installing the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
