@@ -1061,6 +1061,9 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
+			// Always attempt to extract the API key (optional) before rate limiting
+			// so the limiter can key by user when available.
+			apiKeyMiddlewareOptional,
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
