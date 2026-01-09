@@ -103,6 +103,7 @@ type Batcher struct {
 	// ctx is the context for the batcher. Used to check if shutdown has begun.
 	ctx    context.Context
 	cancel context.CancelFunc
+	done   chan struct{}
 
 	// metrics collects Prometheus metrics for the batcher.
 	metrics *Metrics
@@ -137,11 +138,12 @@ func WithClock(clock quartz.Clock) Option {
 
 // NewBatcher creates a new Batcher and starts it. Here ctx controls the lifetime of the batcher, canceling it will
 // result in the Batcher exiting it's processing routine (run).
-func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store, ps pubsub.Pubsub, opts ...Option) (*Batcher, func(), error) {
+func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.Store, ps pubsub.Pubsub, opts ...Option) (*Batcher, error) {
 	b := &Batcher{
 		store:   store,
 		ps:      ps,
 		metrics: NewMetrics(),
+		done:    make(chan struct{}),
 	}
 	b.log = slog.Logger{}
 	b.clock = quartz.NewReal()
@@ -172,21 +174,21 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 	b.batch = make(map[compositeKey]value)
 
 	b.ctx, b.cancel = context.WithCancel(ctx)
-	done := make(chan struct{})
 	go func() {
 		b.run(b.ctx)
-		close(done)
+		close(b.done)
 	}()
 
-	closer := func() {
-		b.cancel()
-		if b.ticker != nil {
-			b.ticker.Stop()
-		}
-		<-done
-	}
+	return b, nil
+}
 
-	return b, closer, nil
+func (b *Batcher) Close() {
+	b.cancel()
+	if b.ticker != nil {
+		b.ticker.Stop()
+	}
+	// Wait for the run function to end, it may be sending one last batch.
+	<-b.done
 }
 
 // Add adds metadata updates for an agent to the batcher by writing to a
