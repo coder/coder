@@ -10,6 +10,7 @@ import (
 	"io"
 	stdslog "log/slog"
 	"net/http"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -87,7 +88,7 @@ Example usage in coder_script:
 			stderrReader := bufio.NewScanner(childStderr)
 			go func() {
 				for stderrReader.Scan() {
-					logger.Info(ctx, "child stderr", slog.F("msg", stderrReader.Text()))
+					logger.Info(ctx, "received stderr from child process", slog.F("msg", stderrReader.Text()))
 				}
 				if err := stderrReader.Err(); err != nil {
 					logger.Error(ctx, "reading child stderr", slog.Error(err))
@@ -117,6 +118,7 @@ Example usage in coder_script:
 
 			wsIn := make(chan []byte)
 			wsOut := make(chan []byte)
+			sessionReady := make(chan struct{})
 
 			// Read from child stdout and send to wsOut
 			go func() {
@@ -124,6 +126,7 @@ Example usage in coder_script:
 				childReader := bufio.NewScanner(childStdout)
 				for childReader.Scan() {
 					line := childReader.Bytes()
+					logger.Debug(ctx, "received from child stdout", slog.F("msg", string(line)))
 					if !bytes.HasSuffix(line, []byte("\n")) {
 						line = append(line, '\n')
 					}
@@ -144,27 +147,44 @@ Example usage in coder_script:
 				}
 			}()
 
-			sb := &stdioBridge{
-				log:    logger,
-				stdin:  wsIn,
-				stdout: wsOut,
+			sb := &sharedSessionBridge{
+				log:          logger,
+				stdin:        wsIn,
+				stdout:       wsOut,
+				sessionReady: sessionReady,
+				// TODO: fetch dynamically from Coder API. Requires task identity.
+				initialPrompt: os.Getenv("CODER_TASK_INITIAL_PROMPT"),
 			}
+
+			// Initialize ACP and create shared session in background.
+			go func() {
+				if err := sb.initializeSharedSession(ctx); err != nil {
+					logger.Error(ctx, "failed to initialize shared session", slog.Error(err))
+					sb.sessionErr = err
+					cancel()
+					return
+				}
+
+				logger.Info(ctx, "shared session ready", slog.F("session_id", sb.sharedSessionID))
+			}()
 
 			// Read from child stdout channel and broadcast to all clients
 			go func() {
+				<-sessionReady
 				for line := range wsOut {
 					sb.broadcast(line)
 				}
 			}()
 
 			srv := &http.Server{
-				Addr:    fmt.Sprintf("%s:%d", hostArg, portArg),
-				Handler: sb,
+				Addr:              fmt.Sprintf("%s:%d", hostArg, portArg),
+				Handler:           sb,
+				ReadHeaderTimeout: 30 * time.Second,
 			}
 
 			go func() {
 				<-ctx.Done()
-				srv.Close()
+				_ = srv.Close()
 			}()
 
 			logger.Info(ctx, "starting WebSocket server",
@@ -172,7 +192,7 @@ Example usage in coder_script:
 				slog.F("port", portArg),
 			)
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				logger.Error(ctx, "WebSocket server error", slog.Error(err))
+				logger.Error(ctx, "websocket server error", slog.Error(err))
 			}
 			return nil
 		},
@@ -198,7 +218,7 @@ Example usage in coder_script:
 	return cmd
 }
 
-type stdioBridge struct {
+type sharedSessionBridge struct {
 	log    slog.Logger
 	stdin  chan<- []byte
 	stdout <-chan []byte
@@ -207,9 +227,15 @@ type stdioBridge struct {
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]chan []byte // Each client gets a broadcast channel
 	history [][]byte                        // Store a history of message for the client
+
+	// Shared session management
+	sharedSessionID string        // The ONE session ID for all clients
+	sessionReady    chan struct{} // Signals when session is ready
+	sessionErr      error         // Stores initialization error
+	initialPrompt   string        // Task initial prompt
 }
 
-func (sb *stdioBridge) broadcast(msg []byte) {
+func (sb *sharedSessionBridge) broadcast(msg []byte) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 
@@ -227,7 +253,9 @@ func (sb *stdioBridge) broadcast(msg []byte) {
 	}
 }
 
-func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (sb *sharedSessionBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Wait for session to be ready before accepting connections.
+	<-sb.sessionReady
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		InsecureSkipVerify: buildinfo.IsDev(),
 	})
@@ -307,6 +335,42 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					sb.log.Error(ctx, "invalid JSON message from WebSocket")
 					continue
 				}
+
+				// Intercept session/new requests if we have a shared session.
+				if sb.sharedSessionID != "" {
+					var req map[string]any
+					if err := json.Unmarshal(data, &req); err == nil {
+						if method, ok := req["method"].(string); ok && method == "session/new" {
+							// Return existing session ID instead of creating new one.
+							sb.log.Info(ctx, "intercepting session/new request, returning shared session")
+
+							if reqID, ok := req["id"]; ok {
+								response := map[string]any{
+									"jsonrpc": "2.0",
+									"id":      reqID,
+									"result": map[string]any{
+										"sessionId": sb.sharedSessionID,
+									},
+								}
+
+								respJSON, err := json.Marshal(response)
+								if err != nil {
+									sb.log.Error(ctx, "failed to marshal session response", slog.Error(err))
+									continue
+								}
+
+								// Send response directly to this client.
+								select {
+								case clientCh <- respJSON:
+								case <-ctx.Done():
+									return
+								}
+							}
+							continue // Don't forward to agent.
+						}
+					}
+				}
+
 				sb.log.Debug(ctx, "got msg", slog.F("src", "ws"), slog.F("dst", "child"), slog.F("msg", string(data)))
 				select {
 				case <-ctx.Done():
@@ -341,6 +405,96 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	wg.Wait()
+}
+
+// initializeSharedSession connects to the ACP agent and creates the shared session.
+// This sends initialize, session/new, and the initial prompt (if available) to the agent.
+func (sb *sharedSessionBridge) initializeSharedSession(ctx context.Context) error {
+	defer close(sb.sessionReady)
+	sb.log.Debug(ctx, "initializing shared ACP session")
+	// Step 1: Send Initialize request to agent.
+	initJSON := []byte(fmt.Sprintf(`{"jsonrpc": "2.0", "method": "initialize", "id": 0, "params": {"protocolVersion": %d, "clientCapabilities": {"fs": {"readTextFile": true, "writeTextFile": true}, "terminal": false}, "clientInfo": {"name": "coder-cli", "version": "%s"}}}`, acp.ProtocolVersionNumber, buildinfo.Version()))
+
+	// Send initialize request.
+	select {
+	case sb.stdin <- initJSON:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+		return xerrors.New("timeout sending initialize")
+	}
+	sb.log.Debug(ctx, "sent initialize request", slog.F("msg", string(initJSON)))
+
+	// Make sure we get an initialize response back.
+	select {
+	case line := <-sb.stdout:
+		if !bytes.Contains(line, []byte(`"protocolVersion"`)) {
+			return xerrors.Errorf("expected initialize response, got: %s", string(line))
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+		return xerrors.New("timeout waiting for initialize response")
+	}
+
+	// Step 2: Create new session.
+	sessionJSON := []byte(`{"jsonrpc": "2.0", "id": 1, "method": "session/new", "params": {"cwd": ".", "mcpServers": []}}`)
+
+	select {
+	case sb.stdin <- sessionJSON:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+		return xerrors.New("timeout sending session/new")
+	}
+
+	// Wait for session/new response
+	select {
+	case line := <-sb.stdout:
+		if !bytes.Contains(line, []byte(`"sessionId"`)) {
+			return xerrors.Errorf("expected session/new response, got: %s", string(line))
+		}
+		// Step 3: Store session ID from response
+		var newResp struct {
+			Result struct {
+				SessionId string `json:"sessionId"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(line, &newResp); err != nil {
+			return xerrors.Errorf("unmarshaling session/new response: %w", err)
+		}
+		if newResp.Result.SessionId == "" {
+			return xerrors.Errorf("empty session ID in session/new response")
+		}
+		sb.mu.Lock()
+		sb.sharedSessionID = newResp.Result.SessionId
+		sb.mu.Unlock()
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+		return xerrors.New("timeout waiting for session/new response")
+	}
+
+	// Step 4: Send initial prompt (fire-and-forget).
+	if sb.initialPrompt == "" {
+		sb.log.Warn(ctx, "no initial prompt configured, skipping prompt send")
+		return nil
+	}
+
+	promptJSON := []byte(fmt.Sprintf(`{"jsonrpc": "2.0", "id": 2, "method": "session/prompt", "params": {"sessionId": "%s", "prompt": [{"type": "text", "text": %q}]}}`, sb.sharedSessionID, sb.initialPrompt))
+
+	select {
+	case sb.stdin <- promptJSON:
+		sb.log.Info(ctx, "sent initial prompt",
+			slog.F("session_id", sb.sharedSessionID),
+			slog.F("prompt_length", len(sb.initialPrompt)))
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+		return xerrors.New("timeout sending initial prompt")
+	}
+
+	return nil
 }
 
 func (r *RootCmd) experimentalAcpClientCommand() *serpent.Command {
