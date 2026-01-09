@@ -71,6 +71,7 @@ export interface AIBridgeProxyConfig {
 	readonly listen_addr: string;
 	readonly cert_file: string;
 	readonly key_file: string;
+	readonly domain_allowlist: string;
 }
 
 // From codersdk/aibridge.go

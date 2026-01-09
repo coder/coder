@@ -3496,6 +3496,17 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "key_file",
 		},
+		{
+			Name:        "AI Bridge Proxy Domain Allowlist",
+			Description: "Comma-separated list of domains to intercept and route through AI Bridge. Requests to other domains will be tunneled directly.",
+			Flag:        "aibridge-proxy-domain-allowlist",
+			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default:     "api.anthropic.com,api.openai.com",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "domain_allowlist",
+		},
 
 		// Retention settings
 		{
@@ -3590,10 +3601,11 @@ type AIBridgeBedrockConfig struct {
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled    serpent.Bool   `json:"enabled" typescript:",notnull"`
-	ListenAddr serpent.String `json:"listen_addr" typescript:",notnull"`
-	CertFile   serpent.String `json:"cert_file" typescript:",notnull"`
-	KeyFile    serpent.String `json:"key_file" typescript:",notnull"`
+	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
+	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
 }
 
 type AIConfig struct {

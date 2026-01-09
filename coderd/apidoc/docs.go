@@ -12016,6 +12016,12 @@ const docTemplate = `{
                 "cert_file": {
                     "type": "string"
                 },
+                "domain_allowlist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "enabled": {
                     "type": "boolean"
                 },

@@ -779,6 +779,12 @@ aibridgeproxy:
   # Path to the CA private key file for AI Bridge Proxy.
   # (default: <unset>, type: string)
   key_file: ""
+  # Comma-separated list of domains to intercept and route through AI Bridge.
+  # Requests to other domains will be tunneled directly.
+  # (default: api.anthropic.com,api.openai.com, type: string-array)
+  domain_allowlist:
+    - api.anthropic.com
+    - api.openai.com
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for
