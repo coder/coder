@@ -130,7 +130,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
                   `}
 								>
 									<p>
-										Users who are entitled to use AI features like{" "}
+										Users entitled to use AI features like{" "}
 										<MuiLink
 											href={docs("/ai-coder/boundaries")}
 											target="_blank"
@@ -193,9 +193,17 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 
 						{/* Group breakdown */}
 						<div className="mt-6 space-y-3">
-							<h5 className="text-xs font-medium text-content-secondary uppercase tracking-wider m-0">
-								By Group
-							</h5>
+							<div className="flex items-center justify-between">
+								<h5 className="text-xs font-medium text-content-secondary uppercase tracking-wider m-0">
+									By Group
+								</h5>
+								<MuiLink
+									href="#"
+									className="text-xs"
+								>
+									Manage Group Entitlements
+								</MuiLink>
+							</div>
 							<div className="space-y-2">
 								{mockGroups.map((group) => (
 									<div
