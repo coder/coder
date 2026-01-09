@@ -57,5 +57,3 @@ To list shared workspaces:
     -  `use` allows for connection via SSH and apps, the ability to start and stop the workspace, view logs and stats, and update on start when required.
     -  `admin` allows for all of the above, as well as the ability to rename the workspace, update at any time, and invite others with the `use` role.
     - Neither role allows for the user to delete the workspace.
-
-
