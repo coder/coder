@@ -235,7 +235,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 | Name           | In   | Type                                                               | Required | Description         |
 |----------------|------|--------------------------------------------------------------------|----------|---------------------|
 | `organization` | path | string(uuid)                                                       | true     | Organization ID     |
-| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Upsert role request |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Update role request |
 
 ### Example responses
 

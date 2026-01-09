@@ -2936,7 +2936,7 @@
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Update a custom organization role",
-				"operationId": "upsert-a-custom-organization-role",
+				"operationId": "update-a-custom-organization-role",
 				"parameters": [
 					{
 						"type": "string",
@@ -2947,7 +2947,7 @@
 						"required": true
 					},
 					{
-						"description": "Upsert role request",
+						"description": "Update role request",
 						"name": "request",
 						"in": "body",
 						"required": true,

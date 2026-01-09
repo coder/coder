@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
@@ -225,7 +225,9 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 					org.ID, err)
 			}
 			if didUpdate {
-				log.Info(ctx, "organization-member system role updated", "organization_id", org.ID)
+				log.Info(ctx, "organization-member system role updated",
+					slog.F("organization_id", org.ID))
+
 			}
 		}
 

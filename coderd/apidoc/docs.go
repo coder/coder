@@ -3350,7 +3350,7 @@ const docTemplate = `{
                     "Members"
                 ],
                 "summary": "Update a custom organization role",
-                "operationId": "upsert-a-custom-organization-role",
+                "operationId": "update-a-custom-organization-role",
                 "parameters": [
                     {
                         "type": "string",
@@ -3361,7 +3361,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Upsert role request",
+                        "description": "Update role request",
                         "name": "request",
                         "in": "body",
                         "required": true,
