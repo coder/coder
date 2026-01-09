@@ -170,7 +170,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Consumed shouldn't bump
 		verifyQuota(ctx, t, client, user.OrganizationID.String(), 4, 4)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, build.Status)
 		require.Contains(t, build.Job.Error, "quota")
 
 		// Delete one random workspace, then quota should recover.
@@ -259,7 +259,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Consumed shouldn't bump
 		verifyQuota(ctx, t, client, user.OrganizationID.String(), 4, 4)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, build.Status)
 
 		build = coderdtest.CreateWorkspaceBuild(t, client, workspaces[0], database.WorkspaceTransitionStop)
 		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
@@ -469,7 +469,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Verify the build failed due to quota
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, build.Status)
 		require.Contains(t, build.Job.Error, "quota")
 
 		// Verify quota consumption remains at 0
@@ -650,7 +650,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Try to create another workspace in the first org - should fail
 		workspace := coderdtest.CreateWorkspace(t, user, template1.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, workspace.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, build.Status)
 		require.Contains(t, build.Job.Error, "quota")
 
 		// Verify first org quota consumption didn't increase
@@ -672,7 +672,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Try to create another workspace in the second org - should fail
 		workspace = coderdtest.CreateWorkspace(t, user, template2.ID)
 		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, user, workspace.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, build.Status)
 		require.Contains(t, build.Job.Error, "quota")
 
 		// Verify second org quota consumption didn't increase

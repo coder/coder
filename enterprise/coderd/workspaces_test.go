@@ -639,7 +639,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, build.Status)
 		tickTime := build.Job.CompletedAt.Add(failureTTL * 2)
 
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
@@ -692,7 +692,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, build.Status)
 		// Make it impossible to trigger the failure TTL.
 		tickTime := build.Job.CompletedAt.Add(-failureTTL * 2)
 
@@ -2556,7 +2556,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 		// Given: a failed prebuilt workspace
 		prebuild := coderdtest.MustWorkspace(t, client, failedWorkspaceBuilds[0].WorkspaceID)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, prebuild.LatestBuild.Status)
+		require.Equal(t, codersdk.WorkspaceStatusFailedStart, prebuild.LatestBuild.Status)
 
 		// When: the autobuild executor ticks *after* the failure TTL
 		go func() {

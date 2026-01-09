@@ -1602,7 +1602,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 
 	// failed -- delete
 	makeWorkspace(database.WorkspaceTable{
-		Name: string(database.WorkspaceStatusFailed) + "-deleted",
+		Name: string(database.WorkspaceStatusFailedDelete) + "-deleted",
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
@@ -1611,7 +1611,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 
 	// failed -- stop
 	makeWorkspace(database.WorkspaceTable{
-		Name: string(database.WorkspaceStatusFailed) + "-stopped",
+		Name: string(database.WorkspaceStatusFailedStop) + "-stopped",
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
@@ -3499,7 +3499,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 		switch w.LatestBuild.Status {
 		case codersdk.WorkspaceStatusPending:
 			return true
-		case codersdk.WorkspaceStatusFailed:
+		case codersdk.WorkspaceStatusFailedStart:
 			sawFailed = true
 			return true
 		default:
@@ -3508,7 +3508,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	})
 	if !sawFailed {
 		wait("workspace build failed", func(w codersdk.Workspace) bool {
-			return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
+			return w.LatestBuild.Status == codersdk.WorkspaceStatusFailedStart
 		})
 	}
 

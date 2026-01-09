@@ -288,6 +288,12 @@ func WorkspaceStatusToProto(status codersdk.WorkspaceStatus) proto.Workspace_Sta
 		return proto.Workspace_DELETING
 	case codersdk.WorkspaceStatusFailed:
 		return proto.Workspace_FAILED
+	case codersdk.WorkspaceStatusFailedStart:
+		return proto.Workspace_FAILED
+	case codersdk.WorkspaceStatusFailedStop:
+		return proto.Workspace_FAILED
+	case codersdk.WorkspaceStatusFailedDelete:
+		return proto.Workspace_FAILED
 	case codersdk.WorkspaceStatusPending:
 		return proto.Workspace_PENDING
 	case codersdk.WorkspaceStatusRunning:
