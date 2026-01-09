@@ -96,12 +96,3 @@ allowlist:
 
 `NOTE`: The pattern `/api/*` does not include the base path `/api`.
 To match both, use `path=/api,/api/*`.
-
----
-
-## Rule Evaluation
-
-1. **All specified constraints must match**: If a rule specifies `method`, `domain`, and `path`, all three must match
-2. **Omitted keys match everything**: If a key is not specified, it matches all values
-3. **Multiple rules are OR'd**: A request is allowed if **any** rule matches
-4. **Default deny**: If no rule matches, the request is denied
