@@ -182,7 +182,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		admin, err := client.User(ctx, user.UserID.String())
 		require.NoError(t, err)
-		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), version.ID)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin)), version.ID)
 		require.NoError(t, err)
 		require.False(t, tvDB.SourceExampleID.Valid)
 	})
@@ -232,7 +232,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		admin, err := client.User(ctx, user.UserID.String())
 		require.NoError(t, err)
-		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), tv.ID)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin)), tv.ID)
 		require.NoError(t, err)
 		require.Equal(t, ls[0].ID, tvDB.SourceExampleID.String)
 

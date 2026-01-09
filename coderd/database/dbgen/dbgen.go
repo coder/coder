@@ -42,8 +42,16 @@ import (
 
 // genCtx is to give all generator functions permission if the db is a dbauthz db.
 var genCtx = dbauthz.As(context.Background(), rbac.Subject{
-	ID:     "owner",
-	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
+	ID: "owner",
+	Roles: rbac.Roles(append(
+		must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()),
+		rbac.Role{
+			Identifier: rbac.RoleIdentifier{Name: "dbgen-workspace-sharer"},
+			Site: rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceWorkspace.Type: {policy.ActionShare},
+			}),
+		},
+	)),
 	Groups: []string{},
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
