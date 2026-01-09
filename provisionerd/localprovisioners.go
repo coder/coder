@@ -6,7 +6,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/provisionerd/proto"
-
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 

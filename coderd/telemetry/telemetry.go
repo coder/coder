@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
@@ -521,7 +521,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		if err != nil {
 			return xerrors.Errorf("get workspaces: %w", err)
 		}
-		workspaces := database.ConvertWorkspaceRows(workspaceRows)
+		workspaces, err := database.ConvertWorkspaceRows(workspaceRows)
+		if err != nil {
+			return xerrors.Errorf("convert workspace rows: %w", err)
+		}
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
 		for _, dbWorkspace := range workspaces {
 			snapshot.Workspaces = append(snapshot.Workspaces, ConvertWorkspace(dbWorkspace))

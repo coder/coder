@@ -7,9 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"golang.org/x/xerrors"
-
 	"golang.org/x/mod/semver"
+	"golang.org/x/xerrors"
 )
 
 // main will print out the number of migrations added between each release.

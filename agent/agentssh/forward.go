@@ -15,7 +15,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // streamLocalForwardPayload describes the extra data sent in a

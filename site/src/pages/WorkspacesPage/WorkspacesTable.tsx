@@ -51,9 +51,9 @@ import {
 	EllipsisVertical,
 	ExternalLinkIcon,
 	FileIcon,
-	PauseIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	SquareIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
@@ -84,6 +84,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
+import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
 interface WorkspacesTableProps {
@@ -216,9 +217,18 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											</Stack>
 										}
 										subtitle={
-											<div>
+											<div className="flex items-center gap-1">
 												<span className="sr-only">Owner: </span>
-												{workspace.owner_name}
+												<div className="flex gap-2">
+													{workspace.owner_name}
+													{workspace.shared_with &&
+														workspace.shared_with.length > 0 && (
+															<WorkspaceSharingIndicator
+																sharedWith={workspace.shared_with}
+																settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
+															/>
+														)}
+												</div>
 											</div>
 										}
 										avatar={
@@ -481,7 +491,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						isLoading={stopWorkspaceMutation.isPending}
 						label="Stop workspace"
 					>
-						<PauseIcon />
+						<SquareIcon />
 					</PrimaryAction>
 				)}
 
@@ -726,7 +736,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				}}
 				label="Open Terminal"
 			>
-				<SquareTerminalIcon />
+				<SquareTerminalIcon className="!size-7" />
 			</BaseIconLink>,
 		);
 	}

@@ -3332,6 +3332,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -3436,6 +3437,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -8472,6 +8474,40 @@
 				}
 			}
 		},
+		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
+			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Agents"],
+				"summary": "Delete devcontainer for workspace agent",
+				"operationId": "delete-devcontainer-for-workspace-agent",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Devcontainer ID",
+						"name": "devcontainer",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
 		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
 			"post": {
 				"security": [
@@ -10639,6 +10675,23 @@
 				}
 			}
 		},
+		"codersdk.AIBridgeProxyConfig": {
+			"type": "object",
+			"properties": {
+				"cert_file": {
+					"type": "string"
+				},
+				"enabled": {
+					"type": "boolean"
+				},
+				"key_file": {
+					"type": "string"
+				},
+				"listen_addr": {
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.AIBridgeTokenUsage": {
 			"type": "object",
 			"properties": {
@@ -10738,6 +10791,9 @@
 		"codersdk.AIConfig": {
 			"type": "object",
 			"properties": {
+				"aibridge_proxy": {
+					"$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
+				},
 				"bridge": {
 					"$ref": "#/definitions/codersdk.AIBridgeConfig"
 				}
@@ -12913,6 +12969,9 @@
 				"ssh_keygen_algorithm": {
 					"type": "string"
 				},
+				"stats_collection": {
+					"$ref": "#/definitions/codersdk.StatsCollectionConfig"
+				},
 				"strict_transport_security": {
 					"type": "integer"
 				},
@@ -13097,8 +13156,7 @@
 				"web-push",
 				"oauth2",
 				"mcp-server-http",
-				"workspace-sharing",
-				"terraform-directory-reuse"
+				"workspace-sharing"
 			],
 			"x-enum-comments": {
 				"ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -13106,7 +13164,6 @@
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
 				"ExperimentOAuth2": "Enables OAuth2 provider functionality.",
-				"ExperimentTerraformWorkspace": "Enables reuse of existing terraform directory for builds",
 				"ExperimentWebPush": "Enables web push notifications through the browser.",
 				"ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
 				"ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -13119,8 +13176,7 @@
 				"ExperimentWebPush",
 				"ExperimentOAuth2",
 				"ExperimentMCPServerHTTP",
-				"ExperimentWorkspaceSharing",
-				"ExperimentTerraformWorkspace"
+				"ExperimentWorkspaceSharing"
 			]
 		},
 		"codersdk.ExternalAPIKeyScopes": {
@@ -13213,6 +13269,13 @@
 				},
 				"client_id": {
 					"type": "string"
+				},
+				"code_challenge_methods_supported": {
+					"description": "CodeChallengeMethodsSupported lists the PKCE code challenge methods\nThe only one supported by Coder is \"S256\".",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				},
 				"device_code_url": {
 					"type": "string"
@@ -16385,6 +16448,44 @@
 				}
 			}
 		},
+		"codersdk.SharedWorkspaceActor": {
+			"type": "object",
+			"properties": {
+				"actor_type": {
+					"enum": ["group", "user"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.SharedWorkspaceActorType"
+						}
+					]
+				},
+				"avatar_url": {
+					"type": "string",
+					"format": "uri"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
+				},
+				"roles": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkspaceRole"
+					}
+				}
+			}
+		},
+		"codersdk.SharedWorkspaceActorType": {
+			"type": "string",
+			"enum": ["group", "user"],
+			"x-enum-varnames": [
+				"SharedWorkspaceActorTypeGroup",
+				"SharedWorkspaceActorTypeUser"
+			]
+		},
 		"codersdk.SlimRole": {
 			"type": "object",
 			"properties": {
@@ -16396,6 +16497,14 @@
 				},
 				"organization_id": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.StatsCollectionConfig": {
+			"type": "object",
+			"properties": {
+				"usage_stats": {
+					"$ref": "#/definitions/codersdk.UsageStatsConfig"
 				}
 			}
 		},
@@ -16829,9 +16938,6 @@
 					"format": "date-time"
 				},
 				"use_classic_parameter_flow": {
-					"type": "boolean"
-				},
-				"use_terraform_workspace_cache": {
 					"type": "boolean"
 				}
 			}
@@ -17725,10 +17831,6 @@
 				"use_classic_parameter_flow": {
 					"description": "UseClassicParameterFlow is a flag that switches the default behavior to use the classic\nparameter flow when creating a workspace. This only affects deployments with the experiment\n\"dynamic-parameters\" enabled. This setting will live for a period after the experiment is\nmade the default.\nAn \"opt-out\" is present in case the new feature breaks some existing templates.",
 					"type": "boolean"
-				},
-				"use_terraform_workspace_cache": {
-					"description": "UseTerraformWorkspaceCache allows optionally specifying whether to use cached\nterraform directories for workspaces created from this template. This field\nonly applies when the correct experiment is enabled. This field is subject to\nbeing removed in the future.",
-					"type": "boolean"
 				}
 			}
 		},
@@ -17917,6 +18019,14 @@
 				"start": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"codersdk.UsageStatsConfig": {
+			"type": "object",
+			"properties": {
+				"enable": {
+					"type": "boolean"
 				}
 			}
 		},
@@ -18358,6 +18468,12 @@
 					"description": "OwnerName is the username of the owner of the workspace.",
 					"type": "string"
 				},
+				"shared_with": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.SharedWorkspaceActor"
+					}
+				},
 				"task_id": {
 					"description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
 					"allOf": [
@@ -18695,11 +18811,20 @@
 		},
 		"codersdk.WorkspaceAgentDevcontainerStatus": {
 			"type": "string",
-			"enum": ["running", "stopped", "starting", "error"],
+			"enum": [
+				"running",
+				"stopped",
+				"starting",
+				"stopping",
+				"deleting",
+				"error"
+			],
 			"x-enum-varnames": [
 				"WorkspaceAgentDevcontainerStatusRunning",
 				"WorkspaceAgentDevcontainerStatusStopped",
 				"WorkspaceAgentDevcontainerStatusStarting",
+				"WorkspaceAgentDevcontainerStatusStopping",
+				"WorkspaceAgentDevcontainerStatusDeleting",
 				"WorkspaceAgentDevcontainerStatusError"
 			]
 		},

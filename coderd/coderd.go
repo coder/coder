@@ -21,12 +21,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/oauth2provider"
-	"github.com/coder/coder/v2/coderd/pproflabel"
-	"github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/usage"
-	"github.com/coder/coder/v2/coderd/wsbuilder"
-
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -46,21 +40,7 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"github.com/coder/coder/v2/provisionerd/proto"
-
-	"cdr.dev/slog"
-	"github.com/coder/quartz"
-	"github.com/coder/serpent"
-
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-
-	"github.com/coder/coder/v2/coderd/cryptokeys"
-	"github.com/coder/coder/v2/coderd/entitlements"
-	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/coder/v2/coderd/idpsync"
-	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/coder/v2/coderd/webpush"
-
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
@@ -68,41 +48,56 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/coderd/pproflabel"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/proxyhealth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	sharedhttpmw "github.com/coder/coder/v2/httpmw"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 // We must only ever instantiate one httpSwagger.Handler because of a data race
@@ -768,14 +763,15 @@ func New(options *Options) *API {
 	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
-		Database:              options.Database,
-		Logger:                options.Logger.Named("workspacestats"),
-		Pubsub:                options.Pubsub,
-		TemplateScheduleStore: options.TemplateScheduleStore,
-		StatsBatcher:          options.StatsBatcher,
-		UsageTracker:          options.WorkspaceUsageTracker,
-		UpdateAgentMetricsFn:  options.UpdateAgentMetrics,
-		AppStatBatchSize:      workspaceapps.DefaultStatsDBReporterBatchSize,
+		Database:               options.Database,
+		Logger:                 options.Logger.Named("workspacestats"),
+		Pubsub:                 options.Pubsub,
+		TemplateScheduleStore:  options.TemplateScheduleStore,
+		StatsBatcher:           options.StatsBatcher,
+		UsageTracker:           options.WorkspaceUsageTracker,
+		UpdateAgentMetricsFn:   options.UpdateAgentMetrics,
+		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
+		DisableDatabaseInserts: !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value(),
 	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
@@ -940,7 +936,7 @@ func New(options *Options) *API {
 				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
-						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, externalAuthConfig.CodeChallengeMethodsSupported),
 					)
 					r.Get("/", api.externalAuthCallback(externalAuthConfig))
 				})
@@ -1289,14 +1285,15 @@ func New(options *Options) *API {
 					r.Get("/github/device", api.userOAuth2GithubDevice)
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
+							// Github supports PKCE S256
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, options.GithubOAuth2Config.PKCESupported()),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
-						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams),
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams, options.OIDCConfig.PKCESupported()),
 					)
 					r.Get("/", api.userOIDC)
 				})
@@ -1440,6 +1437,7 @@ func New(options *Options) *API {
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/containers", api.workspaceAgentListContainers)
 				r.Get("/containers/watch", api.watchWorkspaceAgentContainers)
+				r.Delete("/containers/devcontainers/{devcontainer}", api.workspaceAgentDeleteDevcontainer)
 				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
@@ -1528,11 +1526,29 @@ func New(options *Options) *API {
 		})
 		r.Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/daus", api.deploymentDAUs)
-			r.Get("/user-activity", api.insightsUserActivity)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					func(next http.Handler) http.Handler {
+						return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+							// Template insights depend on the usage stats.
+							if !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value() {
+								httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
+									Message: "Not Found.",
+									Detail:  "Template insights are disabled.",
+								})
+								return
+							}
+
+							next.ServeHTTP(rw, r)
+						})
+					},
+				)
+				r.Get("/daus", api.deploymentDAUs)
+				r.Get("/user-activity", api.insightsUserActivity)
+				r.Get("/user-latency", api.insightsUserLatency)
+				r.Get("/templates", api.insightsTemplates)
+			})
 			r.Get("/user-status-counts", api.insightsUserStatusCounts)
-			r.Get("/user-latency", api.insightsUserLatency)
-			r.Get("/templates", api.insightsTemplates)
 		})
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(

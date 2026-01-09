@@ -29,10 +29,6 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
@@ -41,6 +37,8 @@ import (
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 var (
@@ -117,6 +115,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.deleteWorkspace(),
 		r.favorite(),
 		r.list(),
+		r.logs(),
 		r.open(),
 		r.ping(),
 		r.rename(),

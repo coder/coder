@@ -16,7 +16,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	slog "cdr.dev/slog"
+	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -124,6 +124,20 @@ func (m *MockAgentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 func (mr *MockAgentConnMockRecorder) DebugManifest(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugManifest", reflect.TypeOf((*MockAgentConn)(nil).DebugManifest), ctx)
+}
+
+// DeleteDevcontainer mocks base method.
+func (m *MockAgentConn) DeleteDevcontainer(ctx context.Context, devcontainerID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteDevcontainer", ctx, devcontainerID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteDevcontainer indicates an expected call of DeleteDevcontainer.
+func (mr *MockAgentConnMockRecorder) DeleteDevcontainer(ctx, devcontainerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).DeleteDevcontainer), ctx, devcontainerID)
 }
 
 // DialContext mocks base method.

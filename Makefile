@@ -464,7 +464,7 @@ ifdef FILE
 	# Format single file
 	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.go ]] && ! grep -q "DO NOT EDIT" "$(FILE)"; then \
 		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET) $(FILE)"; \
-		go run mvdan.cc/gofumpt@v0.8.0 -w -l "$(FILE)"; \
+		./scripts/format_go_file.sh "$(FILE)"; \
 	fi
 else
 	go mod tidy
@@ -473,7 +473,7 @@ else
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
 		xargs -0 grep -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
-		xargs -0 go run mvdan.cc/gofumpt@v0.8.0 -w -l
+		xargs -0 ./scripts/format_go_file.sh
 endif
 .PHONY: fmt/go
 
@@ -578,7 +578,7 @@ lint/go:
 	./scripts/check_codersdk_imports.sh
 	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go run github.com/coder/paralleltestctx/cmd/paralleltestctx@v0.0.1 -custom-funcs="testutil.Context" ./...
+	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
 .PHONY: lint/go
 
 lint/examples:
@@ -604,7 +604,7 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+	go tool github.com/rhysd/actionlint/cmd/actionlint
 .PHONY: lint/actions/actionlint
 
 lint/actions/zizmor:

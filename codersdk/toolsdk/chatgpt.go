@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/codersdk"

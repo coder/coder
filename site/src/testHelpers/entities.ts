@@ -855,7 +855,6 @@ export const MockTemplate: TypesGen.Template = {
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
-	use_terraform_workspace_cache: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1451,6 +1450,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 	dormant_at: null,
 	next_start_at: null,
 	is_prebuild: false,
+	shared_with: [],
 };
 
 export const MockPrebuiltWorkspace = {
@@ -4502,6 +4502,7 @@ export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
 	allow_refresh: true,
 	allow_validate: true,
 	supports_revocation: false,
+	code_challenge_methods_supported: ["S256"],
 };
 
 export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
@@ -4975,14 +4976,13 @@ export const MockPresets: TypesGen.Preset[] = [
 	},
 ];
 
-export const MockAIPromptPresets: TypesGen.Preset[] = [
+export const MockTaskPresets: TypesGen.Preset[] = [
 	{
 		ID: "ai-preset-1",
 		Name: "Code Review",
 		Description: "",
 		Icon: "",
 		Parameters: [
-			{ Name: "AI Prompt", Value: "Review the code for best practices" },
 			{ Name: "cpu", Value: "4" },
 			{ Name: "memory", Value: "8GB" },
 		],

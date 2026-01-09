@@ -9,11 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/net/tsaddr"
 
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestConnectExists_Running(t *testing.T) {

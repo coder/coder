@@ -12,8 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -885,9 +884,10 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 
 		targetUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
-			ID:        user.ID,
-			Status:    status,
-			UpdatedAt: dbtime.Now(),
+			ID:         user.ID,
+			Status:     status,
+			UpdatedAt:  dbtime.Now(),
+			UserIsSeen: false,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

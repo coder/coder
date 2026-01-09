@@ -1925,6 +1925,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceACL = async (
+		workspaceId: string,
+	): Promise<TypesGen.WorkspaceACL> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaces/${workspaceId}/acl`,
+		);
+
+		return response.data;
+	};
+
 	updateWorkspaceACL = async (
 		workspaceId: string,
 		data: TypesGen.UpdateWorkspaceACL,
@@ -2631,6 +2641,31 @@ class ApiMethods {
 		}
 	};
 
+	deleteDevContainer = async ({
+		parentAgentId,
+		devcontainerId,
+	}: {
+		parentAgentId: string;
+		devcontainerId: string;
+	}) => {
+		await this.axios.delete(
+			`/api/v2/workspaceagents/${parentAgentId}/containers/devcontainers/${devcontainerId}`,
+		);
+	};
+
+	recreateDevContainer = async ({
+		parentAgentId,
+		devcontainerId,
+	}: {
+		parentAgentId: string;
+		devcontainerId: string;
+	}) => {
+		const response = await this.axios.post<TypesGen.Response>(
+			`/api/v2/workspaceagents/${parentAgentId}/containers/devcontainers/${devcontainerId}/recreate`,
+		);
+		return response.data;
+	};
+
 	getAgentContainers = async (agentId: string, labels?: string[]) => {
 		const params = new URLSearchParams(
 			labels?.map((label) => ["label", label]),
@@ -2716,6 +2751,16 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
 	};
 
+	updateTaskInput = async (
+		user: string,
+		id: string,
+		input: string,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/tasks/${user}/${id}/input`, {
+			input,
+		} satisfies TypesGen.UpdateTaskInputRequest);
+	};
+
 	createTaskFeedback = async (
 		_taskId: string,
 		_req: CreateTaskFeedbackRequest,
@@ -2723,6 +2768,16 @@ class ApiMethods {
 		return new Promise<void>((res) => {
 			setTimeout(() => res(), 500);
 		});
+	};
+
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			"/api/v2/aibridge/interceptions",
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
 	};
 }
 
@@ -2740,16 +2795,6 @@ export type CreateTaskFeedbackRequest = {
 // above the ApiMethods class for a full explanation.
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
-
-	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/aibridge/interceptions",
-			options,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
-		return response.data;
-	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

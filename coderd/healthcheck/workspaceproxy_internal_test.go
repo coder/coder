@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func Test_WorkspaceProxyReport_appendErrors(t *testing.T) {

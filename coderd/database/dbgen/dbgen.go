@@ -14,13 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog"
-
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -440,10 +439,18 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		workspace.DormantAt = orig.DormantAt
 	}
 	if len(orig.UserACL) > 0 || len(orig.GroupACL) > 0 {
+		userACL := orig.UserACL
+		if userACL == nil {
+			userACL = database.WorkspaceACL{}
+		}
+		groupACL := orig.GroupACL
+		if groupACL == nil {
+			groupACL = database.WorkspaceACL{}
+		}
 		err = db.UpdateWorkspaceACLByID(genCtx, database.UpdateWorkspaceACLByIDParams{
 			ID:       workspace.ID,
-			UserACL:  orig.UserACL,
-			GroupACL: orig.GroupACL,
+			UserACL:  userACL,
+			GroupACL: groupACL,
 		})
 		require.NoError(t, err, "set workspace ACL")
 		workspace.UserACL = orig.UserACL
@@ -462,6 +469,20 @@ func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.Work
 	})
 	require.NoError(t, err, "insert workspace agent log source")
 	return sources[0]
+}
+
+func WorkspaceAgentLog(t testing.TB, db database.Store, orig database.WorkspaceAgentLog) database.WorkspaceAgentLog {
+	log, err := db.InsertWorkspaceAgentLogs(genCtx, database.InsertWorkspaceAgentLogsParams{
+		AgentID:      takeFirst(orig.AgentID, uuid.New()),
+		CreatedAt:    takeFirst(orig.CreatedAt, dbtime.Now()),
+		LogSourceID:  takeFirst(orig.LogSourceID, uuid.New()),
+		OutputLength: int32(len(orig.Output)), // nolint: gosec // integer overflow is not a concern here
+		Level:        []database.LogLevel{takeFirst(orig.Level, database.LogLevelInfo)},
+		Output:       []string{takeFirst(orig.Output, "Test agent log")},
+	})
+	require.NoError(t, err, "insert workspace agent log")
+	require.Len(t, log, 1, "incorrect number of agent logs returned")
+	return log[0]
 }
 
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
@@ -572,9 +593,10 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	require.NoError(t, err, "insert user")
 
 	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
-		ID:        user.ID,
-		Status:    takeFirst(orig.Status, database.UserStatusActive),
-		UpdatedAt: dbtime.Now(),
+		ID:         user.ID,
+		Status:     takeFirst(orig.Status, database.UserStatusActive),
+		UpdatedAt:  dbtime.Now(),
+		UserIsSeen: false,
 	})
 	require.NoError(t, err, "insert user")
 
@@ -852,6 +874,20 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	require.NoError(t, err, "get job: %s", jobID.String())
 
 	return job
+}
+
+func ProvisionerJobLog(t testing.TB, db database.Store, orig database.ProvisionerJobLog) database.ProvisionerJobLog {
+	logs, err := db.InsertProvisionerJobLogs(genCtx, database.InsertProvisionerJobLogsParams{
+		JobID:     takeFirst(orig.JobID, uuid.New()),
+		CreatedAt: []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		Source:    []database.LogSource{takeFirst(orig.Source, database.LogSourceProvisioner)},
+		Level:     []database.LogLevel{takeFirst(orig.Level, database.LogLevelInfo)},
+		Stage:     []string{takeFirst(orig.Stage, "Test")},
+		Output:    []string{takeFirst(orig.Output, "Provisioner job log")},
+	})
+	require.NoError(t, err, "insert provisioner job log")
+	require.Len(t, logs, 1, "insert provisioner job log returned incorrect number of logs")
+	return logs[0]
 }
 
 func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKey) database.ProvisionerKey {

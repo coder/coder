@@ -272,10 +272,7 @@ const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
 				className="inline-block"
 			>
 				{icon && (
-					<SupportIcon
-						icon={icon}
-						className={"size-5 text-content-secondary"}
-					/>
+					<SupportIcon icon={icon} className="size-5 text-content-secondary" />
 				)}
 				{name}
 				<span className="sr-only"> (link opens in new tab)</span>

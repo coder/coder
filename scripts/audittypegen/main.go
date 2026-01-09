@@ -12,8 +12,8 @@ import (
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 )
 
 func main() {

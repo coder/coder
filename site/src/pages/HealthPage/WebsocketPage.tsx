@@ -38,11 +38,15 @@ const WebsocketPage = () => {
 			</Header>
 
 			<Main>
-				{websocket.error && <Alert severity="error">{websocket.error}</Alert>}
+				{websocket.error && (
+					<Alert severity="error" prominent>
+						{websocket.error}
+					</Alert>
+				)}
 
 				{websocket.warnings.map((warning) => {
 					return (
-						<Alert key={warning.code} severity="warning">
+						<Alert key={warning.code} severity="warning" prominent>
 							{warning.message}
 						</Alert>
 					);

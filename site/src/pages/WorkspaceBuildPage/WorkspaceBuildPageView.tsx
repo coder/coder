@@ -34,6 +34,7 @@ import {
 } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
+import { formatDate } from "utils/time";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
@@ -118,7 +119,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 						{displayWorkspaceBuildDuration(build)}
 					</BuildStatsItem>
 					<BuildStatsItem label="Started at">
-						{new Date(build.created_at).toLocaleString()}
+						{formatDate(new Date(build.created_at))}
 					</BuildStatsItem>
 					<BuildStatsItem label="Action">
 						<span className="capitalize">{build.transition}</span>
@@ -174,6 +175,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					{build.transition === "delete" && build.job.status === "failed" && (
 						<Alert
 							severity="error"
+							prominent
 							className="rounded-none border-0 border-b border-solid border-border"
 						>
 							<div>
@@ -190,6 +192,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					{build?.job?.logs_overflowed && (
 						<Alert
 							severity="warning"
+							prominent
 							className="rounded-none border-0 border-b border-solid border-border"
 						>
 							Provisioner logs exceeded the max size of 1MB. Will not continue

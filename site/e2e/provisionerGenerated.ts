@@ -69,6 +69,13 @@ export enum PrebuiltWorkspaceBuildStage {
   UNRECOGNIZED = -1,
 }
 
+export enum GraphSource {
+  SOURCE_UNKNOWN = 0,
+  SOURCE_PLAN = 1,
+  SOURCE_STATE = 2,
+  UNRECOGNIZED = -1,
+}
+
 export enum TimingState {
   STARTED = 0,
   COMPLETED = 1,
@@ -406,25 +413,18 @@ export interface Metadata {
   taskId: string;
   taskPrompt: string;
   templateVersionId: string;
+  templateVersionModulesFile: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
 export interface Config {
-  /** template_source_archive is a tar of the template source files */
-  templateSourceArchive: Uint8Array;
-  /** state is the provisioner state (if any) */
-  state: Uint8Array;
   provisionerLogLevel: string;
   /** Template imports can omit template id */
   templateId?:
     | string
     | undefined;
   /** Dry runs omit version id */
-  templateVersionId?:
-    | string
-    | undefined;
-  /** Whether to reuse existing terraform workspaces if they exist. */
-  expReuseTerraformWorkspace?: boolean | undefined;
+  templateVersionId?: string | undefined;
 }
 
 /** ParseRequest consumes source-code to produce inputs. */
@@ -444,6 +444,28 @@ export interface ParseComplete_WorkspaceTagsEntry {
   value: string;
 }
 
+export interface InitRequest {
+  /** template_source_archive is a tar of the template source files */
+  templateSourceArchive: Uint8Array;
+  /**
+   * If true, the provisioner can safely assume the caller does not need the
+   * module files downloaded by the `terraform init` command.
+   * Ideally this boolean would be flipped in its truthy value, however since
+   * this is costly, the zero value omitting the module files is preferred.
+   */
+  omitModuleFiles: boolean;
+  /** initial_module_tar is the hash of the tar of the terraform module files located in .terraform/modules */
+  initialModuleTarHash: Uint8Array;
+}
+
+export interface InitComplete {
+  error: string;
+  timings: Timing[];
+  modules: Module[];
+  moduleFiles: Uint8Array;
+  moduleFilesHash: Uint8Array;
+}
+
 /** PlanRequest asks the provisioner to plan what resources & parameters it will create */
 export interface PlanRequest {
   metadata: Metadata | undefined;
@@ -451,39 +473,18 @@ export interface PlanRequest {
   variableValues: VariableValue[];
   externalAuthProviders: ExternalAuthProvider[];
   previousParameterValues: RichParameterValue[];
-  /**
-   * If true, the provisioner can safely assume the caller does not need the
-   * module files downloaded by the `terraform init` command.
-   * Ideally this boolean would be flipped in its truthy value, however for
-   * backwards compatibility reasons, the zero value should be the previous
-   * behavior of downloading the module files.
-   */
-  omitModuleFiles: boolean;
+  /** state is the provisioner state (if any) */
+  state: Uint8Array;
 }
 
 /** PlanComplete indicates a request to plan completed. */
 export interface PlanComplete {
   error: string;
-  resources: Resource[];
-  parameters: RichParameter[];
-  externalAuthProviders: ExternalAuthProviderResource[];
   timings: Timing[];
-  modules: Module[];
-  presets: Preset[];
   plan: Uint8Array;
+  dailyCost: number;
   resourceReplacements: ResourceReplacement[];
-  moduleFiles: Uint8Array;
-  moduleFilesHash: Uint8Array;
-  /**
-   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-   * still need to know that such resources are defined.
-   *
-   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
-   */
-  hasAiTasks: boolean;
-  aiTasks: AITask[];
-  hasExternalAgents: boolean;
+  aiTaskCount: number;
 }
 
 /**
@@ -498,11 +499,31 @@ export interface ApplyRequest {
 export interface ApplyComplete {
   state: Uint8Array;
   error: string;
+  timings: Timing[];
+}
+
+export interface GraphRequest {
+  metadata: Metadata | undefined;
+  source: GraphSource;
+}
+
+export interface GraphComplete {
+  error: string;
+  timings: Timing[];
   resources: Resource[];
   parameters: RichParameter[];
   externalAuthProviders: ExternalAuthProviderResource[];
-  timings: Timing[];
+  presets: Preset[];
+  /**
+   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+   * still need to know that such resources are defined.
+   *
+   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+   */
+  hasAiTasks: boolean;
   aiTasks: AITask[];
+  hasExternalAgents: boolean;
 }
 
 export interface Timing {
@@ -522,18 +543,41 @@ export interface CancelRequest {
 export interface Request {
   config?: Config | undefined;
   parse?: ParseRequest | undefined;
+  init?: InitRequest | undefined;
   plan?: PlanRequest | undefined;
   apply?: ApplyRequest | undefined;
-  cancel?: CancelRequest | undefined;
+  graph?: GraphRequest | undefined;
+  cancel?:
+    | CancelRequest
+    | undefined;
+  /**
+   * The file upload is used to send over cached modules during the
+   * init step.
+   * This is kept intentionally generic if another step wants to reuse
+   * this.
+   */
+  file?: FileUpload | undefined;
 }
 
 export interface Response {
   log?: Log | undefined;
   parse?: ParseComplete | undefined;
+  init?: InitComplete | undefined;
   plan?: PlanComplete | undefined;
   apply?: ApplyComplete | undefined;
+  graph?: GraphComplete | undefined;
   dataUpload?: DataUpload | undefined;
   chunkPiece?: ChunkPiece | undefined;
+}
+
+export interface FileUpload {
+  dataUpload?: DataUpload | undefined;
+  chunkPiece?: ChunkPiece | undefined;
+  error?: FailedFile | undefined;
+}
+
+export interface FailedFile {
+  error: string;
 }
 
 export interface DataUpload {
@@ -1312,29 +1356,23 @@ export const Metadata = {
     if (message.templateVersionId !== "") {
       writer.uint32(194).string(message.templateVersionId);
     }
+    if (message.templateVersionModulesFile !== "") {
+      writer.uint32(202).string(message.templateVersionModulesFile);
+    }
     return writer;
   },
 };
 
 export const Config = {
   encode(message: Config, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.templateSourceArchive.length !== 0) {
-      writer.uint32(10).bytes(message.templateSourceArchive);
-    }
-    if (message.state.length !== 0) {
-      writer.uint32(18).bytes(message.state);
-    }
     if (message.provisionerLogLevel !== "") {
-      writer.uint32(26).string(message.provisionerLogLevel);
+      writer.uint32(10).string(message.provisionerLogLevel);
     }
     if (message.templateId !== undefined) {
-      writer.uint32(34).string(message.templateId);
+      writer.uint32(18).string(message.templateId);
     }
     if (message.templateVersionId !== undefined) {
-      writer.uint32(42).string(message.templateVersionId);
-    }
-    if (message.expReuseTerraformWorkspace !== undefined) {
-      writer.uint32(48).bool(message.expReuseTerraformWorkspace);
+      writer.uint32(26).string(message.templateVersionId);
     }
     return writer;
   },
@@ -1376,6 +1414,42 @@ export const ParseComplete_WorkspaceTagsEntry = {
   },
 };
 
+export const InitRequest = {
+  encode(message: InitRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.templateSourceArchive.length !== 0) {
+      writer.uint32(10).bytes(message.templateSourceArchive);
+    }
+    if (message.omitModuleFiles !== false) {
+      writer.uint32(24).bool(message.omitModuleFiles);
+    }
+    if (message.initialModuleTarHash.length !== 0) {
+      writer.uint32(34).bytes(message.initialModuleTarHash);
+    }
+    return writer;
+  },
+};
+
+export const InitComplete = {
+  encode(message: InitComplete, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error);
+    }
+    for (const v of message.timings) {
+      Timing.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    for (const v of message.modules) {
+      Module.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.moduleFiles.length !== 0) {
+      writer.uint32(34).bytes(message.moduleFiles);
+    }
+    if (message.moduleFilesHash.length !== 0) {
+      writer.uint32(42).bytes(message.moduleFilesHash);
+    }
+    return writer;
+  },
+};
+
 export const PlanRequest = {
   encode(message: PlanRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.metadata !== undefined) {
@@ -1393,8 +1467,8 @@ export const PlanRequest = {
     for (const v of message.previousParameterValues) {
       RichParameterValue.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    if (message.omitModuleFiles !== false) {
-      writer.uint32(48).bool(message.omitModuleFiles);
+    if (message.state.length !== 0) {
+      writer.uint32(50).bytes(message.state);
     }
     return writer;
   },
@@ -1405,44 +1479,20 @@ export const PlanComplete = {
     if (message.error !== "") {
       writer.uint32(10).string(message.error);
     }
-    for (const v of message.resources) {
-      Resource.encode(v!, writer.uint32(18).fork()).ldelim();
-    }
-    for (const v of message.parameters) {
-      RichParameter.encode(v!, writer.uint32(26).fork()).ldelim();
-    }
-    for (const v of message.externalAuthProviders) {
-      ExternalAuthProviderResource.encode(v!, writer.uint32(34).fork()).ldelim();
-    }
     for (const v of message.timings) {
-      Timing.encode(v!, writer.uint32(50).fork()).ldelim();
-    }
-    for (const v of message.modules) {
-      Module.encode(v!, writer.uint32(58).fork()).ldelim();
-    }
-    for (const v of message.presets) {
-      Preset.encode(v!, writer.uint32(66).fork()).ldelim();
+      Timing.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     if (message.plan.length !== 0) {
-      writer.uint32(74).bytes(message.plan);
+      writer.uint32(26).bytes(message.plan);
+    }
+    if (message.dailyCost !== 0) {
+      writer.uint32(32).int32(message.dailyCost);
     }
     for (const v of message.resourceReplacements) {
-      ResourceReplacement.encode(v!, writer.uint32(82).fork()).ldelim();
+      ResourceReplacement.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    if (message.moduleFiles.length !== 0) {
-      writer.uint32(90).bytes(message.moduleFiles);
-    }
-    if (message.moduleFilesHash.length !== 0) {
-      writer.uint32(98).bytes(message.moduleFilesHash);
-    }
-    if (message.hasAiTasks !== false) {
-      writer.uint32(104).bool(message.hasAiTasks);
-    }
-    for (const v of message.aiTasks) {
-      AITask.encode(v!, writer.uint32(114).fork()).ldelim();
-    }
-    if (message.hasExternalAgents !== false) {
-      writer.uint32(120).bool(message.hasExternalAgents);
+    if (message.aiTaskCount !== 0) {
+      writer.uint32(48).int32(message.aiTaskCount);
     }
     return writer;
   },
@@ -1465,6 +1515,33 @@ export const ApplyComplete = {
     if (message.error !== "") {
       writer.uint32(18).string(message.error);
     }
+    for (const v of message.timings) {
+      Timing.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const GraphRequest = {
+  encode(message: GraphRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.source !== 0) {
+      writer.uint32(16).int32(message.source);
+    }
+    return writer;
+  },
+};
+
+export const GraphComplete = {
+  encode(message: GraphComplete, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error);
+    }
+    for (const v of message.timings) {
+      Timing.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
     for (const v of message.resources) {
       Resource.encode(v!, writer.uint32(26).fork()).ldelim();
     }
@@ -1474,11 +1551,17 @@ export const ApplyComplete = {
     for (const v of message.externalAuthProviders) {
       ExternalAuthProviderResource.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    for (const v of message.timings) {
-      Timing.encode(v!, writer.uint32(50).fork()).ldelim();
+    for (const v of message.presets) {
+      Preset.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.hasAiTasks !== false) {
+      writer.uint32(56).bool(message.hasAiTasks);
     }
     for (const v of message.aiTasks) {
-      AITask.encode(v!, writer.uint32(58).fork()).ldelim();
+      AITask.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.hasExternalAgents !== false) {
+      writer.uint32(72).bool(message.hasExternalAgents);
     }
     return writer;
   },
@@ -1525,14 +1608,23 @@ export const Request = {
     if (message.parse !== undefined) {
       ParseRequest.encode(message.parse, writer.uint32(18).fork()).ldelim();
     }
+    if (message.init !== undefined) {
+      InitRequest.encode(message.init, writer.uint32(26).fork()).ldelim();
+    }
     if (message.plan !== undefined) {
-      PlanRequest.encode(message.plan, writer.uint32(26).fork()).ldelim();
+      PlanRequest.encode(message.plan, writer.uint32(34).fork()).ldelim();
     }
     if (message.apply !== undefined) {
-      ApplyRequest.encode(message.apply, writer.uint32(34).fork()).ldelim();
+      ApplyRequest.encode(message.apply, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.graph !== undefined) {
+      GraphRequest.encode(message.graph, writer.uint32(50).fork()).ldelim();
     }
     if (message.cancel !== undefined) {
-      CancelRequest.encode(message.cancel, writer.uint32(42).fork()).ldelim();
+      CancelRequest.encode(message.cancel, writer.uint32(58).fork()).ldelim();
+    }
+    if (message.file !== undefined) {
+      FileUpload.encode(message.file, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },
@@ -1546,17 +1638,47 @@ export const Response = {
     if (message.parse !== undefined) {
       ParseComplete.encode(message.parse, writer.uint32(18).fork()).ldelim();
     }
+    if (message.init !== undefined) {
+      InitComplete.encode(message.init, writer.uint32(26).fork()).ldelim();
+    }
     if (message.plan !== undefined) {
-      PlanComplete.encode(message.plan, writer.uint32(26).fork()).ldelim();
+      PlanComplete.encode(message.plan, writer.uint32(34).fork()).ldelim();
     }
     if (message.apply !== undefined) {
-      ApplyComplete.encode(message.apply, writer.uint32(34).fork()).ldelim();
+      ApplyComplete.encode(message.apply, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.graph !== undefined) {
+      GraphComplete.encode(message.graph, writer.uint32(50).fork()).ldelim();
     }
     if (message.dataUpload !== undefined) {
-      DataUpload.encode(message.dataUpload, writer.uint32(42).fork()).ldelim();
+      DataUpload.encode(message.dataUpload, writer.uint32(58).fork()).ldelim();
     }
     if (message.chunkPiece !== undefined) {
-      ChunkPiece.encode(message.chunkPiece, writer.uint32(50).fork()).ldelim();
+      ChunkPiece.encode(message.chunkPiece, writer.uint32(66).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const FileUpload = {
+  encode(message: FileUpload, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.dataUpload !== undefined) {
+      DataUpload.encode(message.dataUpload, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.chunkPiece !== undefined) {
+      ChunkPiece.encode(message.chunkPiece, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.error !== undefined) {
+      FailedFile.encode(message.error, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const FailedFile = {
+  encode(message: FailedFile, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error);
     }
     return writer;
   },
@@ -1598,15 +1720,29 @@ export const ChunkPiece = {
 export interface Provisioner {
   /**
    * Session represents provisioning a single template import or workspace.  The daemon always sends Config followed
-   * by one of the requests (ParseRequest, PlanRequest, ApplyRequest).  The provisioner should respond with a stream
-   * of zero or more Logs, followed by the corresponding complete message (ParseComplete, PlanComplete,
-   * ApplyComplete).  The daemon may then send a new request.  A request to apply MUST be preceded by a request plan,
-   * and the provisioner should store the plan data on the Session after a successful plan, so that the daemon may
-   * request an apply.  If the daemon closes the Session without an apply, the plan data may be safely discarded.
+   * by one of the requests (InitRequest, ParseRequest, PlanRequest, ApplyRequest, GraphRequest).  The provisioner
+   * should respond with a stream of zero or more Logs, followed by the corresponding complete message
+   * (InitComplete, ParseComplete, PlanComplete, ApplyComplete, GraphComplete).
+   * The daemon may then send a new request.
    *
-   * The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous ParseRequest,
-   * PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
-   * that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
+   * A request to Parse or Plan MUST be preceded by a request init. The provisioner should store the init data on
+   * the session after a successful init. If the daemon closes the session, the init data may be safely discarded.
+   *
+   * A request to apply MUST be preceded by a request plan, and the provisioner should store the plan data on the
+   * Session after a successful plan, so that the daemon may request an apply.  If the daemon closes
+   * the Session without an apply, the plan data may be safely discarded.
+   *
+   * A request to graph MUST be preceded by a plan or an apply.
+   *
+   * The order of requests is then one of the following:
+   * 1. Init -> Parse
+   * 2. Init -> Plan -> Graph
+   * 3. Init -> Plan -> Apply -> Graph
+   *
+   * The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous InitRequest,
+   * ParseRequest, PlanRequest, ApplyRequest, or GraphRequest.  The provisioner MUST reply with a complete message
+   * corresponding to the request that was canceled.  If the provisioner has already completed the request,
+   * it may ignore the CancelRequest.
    */
   Session(request: Observable<Request>): Observable<Response>;
 }

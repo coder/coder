@@ -12,7 +12,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/util/singleflight"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/mcp"
 	"github.com/coder/aibridge/tracing"
@@ -41,7 +41,7 @@ type PoolOptions struct {
 	TTL      time.Duration
 }
 
-var DefaultPoolOptions = PoolOptions{MaxItems: 100, TTL: time.Minute * 15}
+var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
 
 var _ Pooler = &CachedBridgePool{}
 

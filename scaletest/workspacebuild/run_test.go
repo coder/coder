@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -58,7 +58,14 @@ func Test_Runner(t *testing.T) {
 				},
 				{
 					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+						Apply: &proto.ApplyComplete{},
+					},
+				},
+			},
+			ProvisionGraph: []*proto.Response{
+				{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{
 								{
 									Name: "example1",
@@ -245,8 +252,10 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionGraph: echo.GraphComplete,
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Apply{

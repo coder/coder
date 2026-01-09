@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -58,15 +57,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
-				// Strip either the experimental or stable prefix.
-				// TODO: experimental route is deprecated and must be removed with Beta.
-				prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
-				for _, prefix := range prefixes {
-					if strings.Contains(r.URL.String(), prefix) {
-						http.StripPrefix(prefix, api.aibridgedHandler).ServeHTTP(rw, r)
-						break
-					}
-				}
+				http.StripPrefix("/api/v2/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
 			})
 		})
 	}

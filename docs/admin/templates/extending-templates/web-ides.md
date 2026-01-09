@@ -145,7 +145,7 @@ command. To add VS Code web as a web IDE, you have two options.
      display_name = "VS Code Web"
      icon         = "/icon/code.svg"
      url          = "http://localhost:13338?folder=/home/coder"
-     subdomain    = true  # VS Code Web does currently does not work with a subpath https://github.com/microsoft/vscode/issues/192947
+     subdomain    = true  # Subdomain is recommended for best compatibility. Subpath mode now works via --server-base-path (added in VS Code 1.88, March 2024)
      share        = "owner"
    }
    ```

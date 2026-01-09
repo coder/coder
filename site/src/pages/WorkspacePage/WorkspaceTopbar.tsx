@@ -31,6 +31,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { displayDormantDeletion } from "utils/dormant";
+import { formatDate } from "utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
@@ -201,9 +202,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							css={{ color: "inherit" }}
 						>
 							{workspace.deleting_at ? (
-								<>
-									Deletion on {new Date(workspace.deleting_at).toLocaleString()}
-								</>
+								<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
 							) : (
 								"Deletion soon"
 							)}
@@ -266,7 +265,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 		<HelpTooltip>
 			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
-					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
+					<Avatar size="md" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</HelpTooltipTrigger>
@@ -294,7 +293,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar
-						size="sm"
+						size="md"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
@@ -321,7 +320,12 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<Avatar variant="icon" src={orgIconUrl} fallback={orgName} />
+							<Avatar
+								variant="icon"
+								src={orgIconUrl}
+								fallback={orgName}
+								size="md"
+							/>
 						)
 					}
 					imgFallbackText={orgName}
@@ -389,6 +393,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 								variant="icon"
 								src={templateIconUrl}
 								fallback={templateDisplayName}
+								size="md"
 							/>
 						}
 						imgFallbackText={templateDisplayName}

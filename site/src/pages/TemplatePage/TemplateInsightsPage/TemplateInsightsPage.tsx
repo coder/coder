@@ -1,14 +1,13 @@
 import { useTheme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
-import { entitlements } from "api/queries/entitlements";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	insightsTemplate,
 	insightsUserActivity,
 	insightsUserLatency,
 } from "api/queries/insights";
 import type {
-	Entitlements,
 	Template,
 	TemplateAppUsage,
 	TemplateInsightsResponse,
@@ -38,7 +37,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	CircleCheck as CircleCheckIcon,
 	CircleXIcon,
@@ -95,14 +93,9 @@ export default function TemplateInsightsPage() {
 	};
 
 	const insightsFilter = { ...commonFilters, interval };
-	const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
-	const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
-	const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
-
-	const { metadata } = useEmbeddedMetadata();
-	const { data: entitlementsQuery } = useQuery(
-		entitlements(metadata.entitlements),
-	);
+	const templateInsights = useQuery(insightsTemplate(insightsFilter));
+	const userLatency = useQuery(insightsUserLatency(commonFilters));
+	const userActivity = useQuery(insightsUserActivity(commonFilters));
 
 	return (
 		<>
@@ -122,7 +115,6 @@ export default function TemplateInsightsPage() {
 				userLatency={userLatency}
 				userActivity={userActivity}
 				interval={interval}
-				entitlements={entitlementsQuery}
 			/>
 		</>
 	);
@@ -202,10 +194,18 @@ const getDateRange = (
 };
 
 interface TemplateInsightsPageViewProps {
-	templateInsights: TemplateInsightsResponse | undefined;
-	userLatency: UserLatencyInsightsResponse | undefined;
-	userActivity: UserActivityInsightsResponse | undefined;
-	entitlements: Entitlements | undefined;
+	templateInsights: {
+		data: TemplateInsightsResponse | undefined;
+		error: unknown;
+	};
+	userLatency: {
+		data: UserLatencyInsightsResponse | undefined;
+		error: unknown;
+	};
+	userActivity: {
+		data: UserActivityInsightsResponse | undefined;
+		error: unknown;
+	};
 	controls: ReactNode;
 	interval: InsightsInterval;
 }
@@ -214,7 +214,6 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	templateInsights,
 	userLatency,
 	userActivity,
-	entitlements,
 	controls,
 	interval,
 }) => {
@@ -241,22 +240,23 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 				<ActiveUsersPanel
 					css={{ gridColumn: "span 2" }}
 					interval={interval}
-					userLimit={
-						entitlements?.features.user_limit.enabled
-							? entitlements?.features.user_limit.limit
-							: undefined
-					}
-					data={templateInsights?.interval_reports}
+					data={templateInsights.data?.interval_reports}
+					error={templateInsights.error}
 				/>
-				<UsersLatencyPanel data={userLatency} />
+				<UsersLatencyPanel data={userLatency.data} error={userLatency.error} />
 				<TemplateUsagePanel
 					css={{ gridColumn: "span 2" }}
-					data={templateInsights?.report?.apps_usage}
+					data={templateInsights.data?.report?.apps_usage}
+					error={templateInsights.error}
 				/>
-				<UsersActivityPanel data={userActivity} />
+				<UsersActivityPanel
+					data={userActivity.data}
+					error={userActivity.error}
+				/>
 				<TemplateParametersUsagePanel
 					css={{ gridColumn: "span 3" }}
-					data={templateInsights?.report?.parameters_usage}
+					data={templateInsights.data?.report?.parameters_usage}
+					error={templateInsights.error}
 				/>
 			</div>
 		</>
@@ -265,14 +265,14 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 
 interface ActiveUsersPanelProps extends PanelProps {
 	data: TemplateInsightsResponse["interval_reports"] | undefined;
+	error: unknown;
 	interval: InsightsInterval;
-	userLimit: number | undefined;
 }
 
 const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	data,
+	error,
 	interval,
-	userLimit,
 	...panelProps
 }) => {
 	return (
@@ -283,8 +283,8 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent>
-				{!data && <Loader css={{ height: "100%" }} />}
-				{data && data.length === 0 && <NoDataAvailable />}
+				{!error && !data && <Loader css={{ height: "100%" }} />}
+				{(error || data?.length === 0) && <NoDataAvailable error={error} />}
 				{data && data.length > 0 && (
 					<ActiveUserChart
 						data={data.map((d) => ({
@@ -300,10 +300,12 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 
 interface UsersLatencyPanelProps extends PanelProps {
 	data: UserLatencyInsightsResponse | undefined;
+	error: unknown;
 }
 
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	data,
+	error,
 	...panelProps
 }) => {
 	const theme = useTheme();
@@ -327,8 +329,8 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 			</PanelHeader>
 
 			<PanelContent>
-				{!data && <Loader css={{ height: "100%" }} />}
-				{users && users.length === 0 && <NoDataAvailable />}
+				{!error && !users && <Loader css={{ height: "100%" }} />}
+				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
 				{users &&
 					[...users]
 						.sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
@@ -367,10 +369,12 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 
 interface UsersActivityPanelProps extends PanelProps {
 	data: UserActivityInsightsResponse | undefined;
+	error: unknown;
 }
 
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	data,
+	error,
 	...panelProps
 }) => {
 	const theme = useTheme();
@@ -395,8 +399,8 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent>
-				{!data && <Loader css={{ height: "100%" }} />}
-				{users && users.length === 0 && <NoDataAvailable />}
+				{!error && !users && <Loader css={{ height: "100%" }} />}
+				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
 				{users &&
 					[...users]
 						.sort((a, b) => b.seconds - a.seconds)
@@ -434,13 +438,16 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 
 interface TemplateUsagePanelProps extends PanelProps {
 	data: readonly TemplateAppUsage[] | undefined;
+	error: unknown;
 }
 
 const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	data,
+	error,
 	...panelProps
 }) => {
 	const theme = useTheme();
+	// The API returns a row for each app, even if the user didn't use it.
 	const validUsage = data
 		?.filter((u) => u.seconds > 0)
 		.sort((a, b) => b.seconds - a.seconds);
@@ -450,8 +457,6 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.scale([theme.roles.success.fill.solid, theme.roles.warning.fill.solid])
 		.mode("lch")
 		.colors(validUsage?.length ?? 0);
-	// The API returns a row for each app, even if the user didn't use it.
-	const hasDataAvailable = validUsage && validUsage.length > 0;
 
 	return (
 		<Panel {...panelProps} css={{ overflowY: "auto" }}>
@@ -459,9 +464,11 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
 			<PanelContent>
-				{!data && <Loader css={{ height: "100%" }} />}
-				{data && !hasDataAvailable && <NoDataAvailable />}
-				{data && hasDataAvailable && (
+				{!error && !data && <Loader css={{ height: "100%" }} />}
+				{(error || validUsage?.length === 0) && (
+					<NoDataAvailable error={error} />
+				)}
+				{validUsage && validUsage.length > 0 && (
 					<div
 						css={{
 							display: "flex",
@@ -556,10 +563,12 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 
 interface TemplateParametersUsagePanelProps extends PanelProps {
 	data: readonly TemplateParameterUsage[] | undefined;
+	error: unknown;
 }
 
 const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 	data,
+	error,
 	...panelProps
 }) => {
 	const theme = useTheme();
@@ -570,82 +579,80 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 				<PanelTitle>Parameters usage</PanelTitle>
 			</PanelHeader>
 			<PanelContent>
-				{!data && <Loader css={{ height: 200 }} />}
-				{data && data.length === 0 && <NoDataAvailable css={{ height: 200 }} />}
-				{data &&
-					data.length > 0 &&
-					data.map((parameter, parameterIndex) => {
-						const label =
-							parameter.display_name !== ""
-								? parameter.display_name
-								: parameter.name;
-						return (
-							<div
-								key={parameter.name}
-								css={{
-									display: "flex",
-									alignItems: "start",
-									padding: 24,
-									marginLeft: -24,
-									marginRight: -24,
-									borderTop: `1px solid ${theme.palette.divider}`,
-									width: "calc(100% + 48px)",
-									"&:first-of-type": {
-										borderTop: 0,
-									},
-									gap: 24,
-								}}
-							>
-								<div css={{ flex: 1 }}>
-									<div css={{ fontWeight: 500 }}>{label}</div>
-									<p
-										css={{
-											fontSize: 14,
-											color: theme.palette.text.secondary,
-											maxWidth: 400,
-											margin: 0,
-										}}
-									>
-										{parameter.description}
-									</p>
-								</div>
-								<div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
-									<ParameterUsageRow
-										css={{
-											color: theme.palette.text.secondary,
-											fontWeight: 500,
-											fontSize: 13,
-											cursor: "default",
-										}}
-									>
-										<div>Value</div>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<div>Count</div>
-											</TooltipTrigger>
-											<TooltipContent>
-												The number of workspaces using this value
-											</TooltipContent>
-										</Tooltip>
-									</ParameterUsageRow>
-									{[...parameter.values]
-										.sort((a, b) => b.count - a.count)
-										.filter((usage) => filterOrphanValues(usage, parameter))
-										.map((usage, usageIndex) => (
-											<ParameterUsageRow
-												key={`${parameterIndex}-${usageIndex}`}
-											>
-												<ParameterUsageLabel
-													usage={usage}
-													parameter={parameter}
-												/>
-												<div css={{ textAlign: "right" }}>{usage.count}</div>
-											</ParameterUsageRow>
-										))}
-								</div>
+				{!error && !data && <Loader css={{ height: 200 }} />}
+				{(error || data?.length === 0) && (
+					<NoDataAvailable error={error} css={{ height: 200 }} />
+				)}
+				{data?.map((parameter, parameterIndex) => {
+					const label =
+						parameter.display_name !== ""
+							? parameter.display_name
+							: parameter.name;
+					return (
+						<div
+							key={parameter.name}
+							css={{
+								display: "flex",
+								alignItems: "start",
+								padding: 24,
+								marginLeft: -24,
+								marginRight: -24,
+								borderTop: `1px solid ${theme.palette.divider}`,
+								width: "calc(100% + 48px)",
+								"&:first-of-type": {
+									borderTop: 0,
+								},
+								gap: 24,
+							}}
+						>
+							<div css={{ flex: 1 }}>
+								<div css={{ fontWeight: 500 }}>{label}</div>
+								<p
+									css={{
+										fontSize: 14,
+										color: theme.palette.text.secondary,
+										maxWidth: 400,
+										margin: 0,
+									}}
+								>
+									{parameter.description}
+								</p>
 							</div>
-						);
-					})}
+							<div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
+								<ParameterUsageRow
+									css={{
+										color: theme.palette.text.secondary,
+										fontWeight: 500,
+										fontSize: 13,
+										cursor: "default",
+									}}
+								>
+									<div>Value</div>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<div>Count</div>
+										</TooltipTrigger>
+										<TooltipContent>
+											The number of workspaces using this value
+										</TooltipContent>
+									</Tooltip>
+								</ParameterUsageRow>
+								{[...parameter.values]
+									.sort((a, b) => b.count - a.count)
+									.filter((usage) => filterOrphanValues(usage, parameter))
+									.map((usage, usageIndex) => (
+										<ParameterUsageRow key={`${parameterIndex}-${usageIndex}`}>
+											<ParameterUsageLabel
+												usage={usage}
+												parameter={parameter}
+											/>
+											<div css={{ textAlign: "right" }}>{usage.count}</div>
+										</ParameterUsageRow>
+									))}
+							</div>
+						</div>
+					);
+				})}
 			</PanelContent>
 		</Panel>
 	);
@@ -850,7 +857,11 @@ const PanelContent: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-const NoDataAvailable = (props: HTMLAttributes<HTMLDivElement>) => {
+interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
+	error: unknown;
+}
+
+const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	const theme = useTheme();
 
 	return (
@@ -866,7 +877,10 @@ const NoDataAvailable = (props: HTMLAttributes<HTMLDivElement>) => {
 				justifyContent: "center",
 			}}
 		>
-			No data available
+			{error
+				? getErrorDetail(error) ||
+					getErrorMessage(error, "Unable to fetch insights")
+				: "No data available"}
 		</div>
 	);
 };

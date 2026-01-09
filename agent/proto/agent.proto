@@ -460,6 +460,37 @@ message ListSubAgentsResponse {
 	repeated SubAgent agents = 1;
 }
 
+// BoundaryLog represents a log for a single resource access processed
+// by boundary.
+message BoundaryLog {
+	message HttpRequest {
+		string method = 1;
+		string url = 2;
+		// The rule that resulted in this HTTP request being allowed. Only populated
+		// when allowed = true because boundary denies requests by default and
+		// requires rule(s) that allow requests.
+		string matched_rule = 3;
+	}
+
+	// Whether boundary allowed this resource access.
+	bool allowed = 1;
+
+	// The timestamp when boundary processed this resource access.
+	google.protobuf.Timestamp time = 2;
+
+	// The resource being accessed by boundary.
+	oneof resource {
+		HttpRequest http_request = 3;
+	}
+}
+
+// ReportBoundaryLogsRequest is a request to re-emit the given BoundaryLogs.
+message ReportBoundaryLogsRequest {
+	repeated BoundaryLog logs = 1;
+}
+
+message ReportBoundaryLogsResponse {}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -477,4 +508,5 @@ service Agent {
 	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
+	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 }

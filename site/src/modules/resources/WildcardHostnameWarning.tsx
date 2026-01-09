@@ -40,6 +40,7 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 	return (
 		<Alert
 			severity="warning"
+			prominent
 			className={
 				hasResources
 					? "rounded-none border-0 border-l-2 border-l-warning border-b-divider"

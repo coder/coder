@@ -29,9 +29,9 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { isEveryoneGroup } from "modules/groups";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import { docs } from "utils/docs";
-import { isEveryoneGroup } from "utils/groups";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
@@ -194,7 +194,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 					</div>
 					{form.errors.field ||
 						(form.errors.regex_filter && (
-							<p className="text-content-danger text-sm m-0">
+							<p className="text-content-destructive text-sm m-0">
 								{form.errors.field || form.errors.regex_filter}
 							</p>
 						))}
@@ -302,7 +302,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 					</div>
 				</div>
 				{form.errors.mapping && (
-					<p className="text-content-danger text-sm m-0">
+					<p className="text-content-destructive text-sm m-0">
 						{Object.values(form.errors.mapping || {})}
 					</p>
 				)}

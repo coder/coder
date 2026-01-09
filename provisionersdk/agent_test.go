@@ -23,9 +23,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/testutil"
-
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // mimicking the --version output which we use to test the binary (see provisionersdk/scripts/bootstrap_*).

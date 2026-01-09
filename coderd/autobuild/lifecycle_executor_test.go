@@ -7,27 +7,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/quartz"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -35,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMain(m *testing.M) {
@@ -233,9 +231,9 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				// Since initial version has no parameters, any parameters in the new version will be incompatible
 				res = &echo.Responses{
 					Parse: echo.ParseComplete,
-					ProvisionApply: []*proto.Response{{
-						Type: &proto.Response_Apply{
-							Apply: &proto.ApplyComplete{
+					ProvisionGraph: []*proto.Response{{
+						Type: &proto.Response_Graph{
+							Graph: &proto.GraphComplete{
 								Parameters: []*proto.RichParameter{
 									{
 										Name:     "new",
@@ -1105,8 +1103,10 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyFailed,
+			ProvisionGraph: echo.GraphComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -1644,10 +1644,10 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
+		ProvisionGraph: []*proto.Response{
 			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
 						Parameters: richParameters,
 					},
 				},
@@ -1774,17 +1774,10 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		taskAppID := uuid.New()
 		version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
+			ProvisionGraph: []*proto.Response{
 				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{HasAiTasks: true},
-					},
-				},
-			},
-			ProvisionApply: []*proto.Response{
-				{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
 							Resources: []*proto.Resource{
 								{
 									Agents: []*proto.Agent{
@@ -1804,6 +1797,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 									},
 								},
 							},
+							HasAiTasks: true,
 							AiTasks: []*proto.AITask{
 								{
 									AppId: taskAppID.String(),
