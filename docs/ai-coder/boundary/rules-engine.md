@@ -8,7 +8,7 @@ The `rulesengine` package provides a flexible rule-based filtering system for HT
 
 Rules follow the format: `key=value [key=value ...]` with three supported keys:
 
-- **`method`**: HTTP method(s) - `GET`, `POST`, `PUT`, `DELETE`, `*` (all methods), or comma-separated list
+- **`method`**: HTTP method(s) - Any HTTP method (e.g., `GET`, `POST`, `PUT`, `DELETE`), `*` (all methods), or comma-separated list
 - **`domain`**: Domain/hostname pattern - `github.com`, `*.example.com`, `*` (all domains)
 - **`path`**: URL path pattern - `/api/users`, `/api/*/users`, `*` (all paths), or comma-separated list
 
