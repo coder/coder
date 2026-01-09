@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os/exec"
 	"sync"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -205,23 +206,24 @@ type stdioBridge struct {
 	// Multi-client support
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]chan []byte // Each client gets a broadcast channel
-	history [][]byte                        // Store messages from child for replay
+	history [][]byte                        // Store a history of message for the client
 }
 
 func (sb *stdioBridge) broadcast(msg []byte) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 
-	// Store in history
-	sb.history = append(sb.history, append([]byte(nil), msg...))
+	sb.history = append(sb.history, msg)
 
 	// Send to all connected clients
 	for _, clientCh := range sb.clients {
-		select {
-		case clientCh <- msg:
-		default:
-			// Client buffer full, skip
-		}
+		go func() {
+			select {
+			case clientCh <- msg:
+			case <-time.After(time.Second):
+				sb.log.Warn(context.Background(), "dropping message to slow client", slog.F("msg", string(msg)))
+			}
+		}()
 	}
 }
 
@@ -239,14 +241,16 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Create a broadcast channel for this client
 	clientCh := make(chan []byte, 100)
 
-	// Register client and get history snapshot
+	// Register client
 	sb.mu.Lock()
 	if sb.clients == nil {
 		sb.clients = make(map[*websocket.Conn]chan []byte)
 	}
 	sb.clients[conn] = clientCh
-	history := make([][]byte, len(sb.history))
-	copy(history, sb.history)
+	history := make([][]byte, 0)
+	for _, h := range sb.history {
+		history = append(history, append([]byte(nil), h...))
+	}
 	sb.mu.Unlock()
 
 	// Unregister client on disconnect
@@ -262,20 +266,27 @@ func (sb *stdioBridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	// Send history to new client
-	for _, msg := range history {
-		if err := conn.Write(ctx, websocket.MessageText, msg); err != nil {
-			sb.log.Error(ctx, "sending history", slog.Error(err))
-			return
-		}
-	}
-
 	var wg sync.WaitGroup
 
 	// Read from WebSocket and forward to child
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
+		// Send history to client
+		if len(history) > 0 {
+			for _, h := range history {
+				select {
+				case <-ctx.Done():
+					sb.log.Warn(ctx, "timed out while sending history to client")
+					return
+				case clientCh <- h:
+					sb.log.Debug(ctx, "replayed message to client", slog.F("msg", string(h)))
+				}
+			}
+			// Send a session/load response to the client
+			clientCh <- []byte(`{"jsonrpc": "2.0", "method": "session/load", "params": {}}`)
+		}
 		for {
 			select {
 			case <-ctx.Done():
@@ -377,7 +388,9 @@ func (r *RootCmd) experimentalAcpClientCommand() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("initializing ACP connection: %w", err)
 			}
-			cliui.Infof(inv.Stdout, "Connected to ACP server (protocol version %d)", initResp.ProtocolVersion)
+			cliui.Infof(inv.Stdout, "Connected to ACP (protocol version %d)", initResp.ProtocolVersion)
+			cliui.Infof(inv.Stdout, "Agent Info: %+v", initResp.AgentInfo)
+			cliui.Infof(inv.Stdout, "Agent Capabilities: %+v", initResp.AgentCapabilities)
 			sess, err := csc.NewSession(ctx, acp.NewSessionRequest{
 				Cwd:        ".",
 				McpServers: []acp.McpServer{},
@@ -521,6 +534,8 @@ func (c *acpClient) SessionUpdate(ctx context.Context, req acp.SessionNotificati
 			// Buffer this chunk
 			c.currentChunkType = "user"
 			c.currentChunks = append(c.currentChunks, content.Text.Text)
+			// User messages are typically complete, so flush immediately
+			c.flushChunks()
 		}
 	default:
 		// For any other update type, flush accumulated chunks first
@@ -539,6 +554,13 @@ func (c *acpClient) SessionUpdate(ctx context.Context, req acp.SessionNotificati
 			if thought.Text != nil {
 				cliui.Infof(c.inv.Stdout, "[agent_thought_chunk] \n%s\n", thought.Text.Text)
 			}
+		case u.AvailableCommandsUpdate != nil:
+			cliui.Infof(c.inv.Stdout, "[available commands updated]")
+		case u.CurrentModeUpdate != nil:
+			cliui.Infof(c.inv.Stdout, "[mode changed to: %s]", u.CurrentModeUpdate.CurrentModeId)
+		default:
+			// Log if we receive an update type we're not handling
+			cliui.Infof(c.inv.Stdout, "[unhandled session update type]")
 		}
 	}
 	return nil
