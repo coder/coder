@@ -1,15 +1,14 @@
-# Reference Architecture: up to 3,000 users
+# Reference Architecture: up to 10,000 users
 
-The 3,000 users architecture targets large-scale enterprises, possibly with
-on-premises network and cloud deployments.
+The 10,000 users architecture targets enterprises with an extremely large global workforce of technical professionals or
+applications requiring lots of simultaneous workspaces (for example, Agentic AI).
 
 The recommendations on this page apply to deployments with up to the following limits. If your needs
-exceed any of these limits, consider increasing deployment resources or moving to the [next-higher
-architectural tier](./10k-users.md).
+exceed any of these limits, consider increasing deployment resources.
 
 | Users | Concurrent Running Workspaces | Concurrent Builds |
 |-------|-------------------------------|-------------------|
-| 3000  | 1800                          | 180               |
+| 10000 | 6000                          | 600               |
 
 **Observability**: Deploy monitoring solutions to gather Prometheus metrics and
 visualize them with Grafana to gain detailed insights into infrastructure and
@@ -22,7 +21,7 @@ continuously improve the reliability and performance of the platform.
 
 | vCPU | Memory | Replicas |
 |------|--------|----------|
-| 4    | 12 GB  | 4        |
+| 4    | 12 GB  | 10       |
 
 **Notes**:
 
@@ -40,7 +39,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision
 
 | vCPU | Memory | Replicas |
 |------|--------|----------|
-| 4    | 12 GB  | 4        |
+| 4    | 12 GB  | 10       |
 
 **Notes**:
 
@@ -72,7 +71,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision
 
 | vCPU | Memory | Replicas |
 |------|--------|----------|
-| 32   | 120 GB | 1        |
+| 64   | 240 GB | 1        |
 
 **Notes**:
 
