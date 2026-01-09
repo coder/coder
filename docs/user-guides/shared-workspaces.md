@@ -25,6 +25,7 @@ Before you begin, ensure that you have a version of Coder with workspace sharing
 ### CLI
 
 To share a workspace:
+
 - `coder sharing share <workspace> --user alice`
     - Shares the workspace with a single user, `alice`, with `use` permissions
 - `coder sharing share <workspace> --user alice:admin,bob`
@@ -33,15 +34,18 @@ To share a workspace:
     - Shares the workspace with `contractor`, which is a group of users
 
 To remove sharing from a workspace:
+
 - `coder sharing remove <workspace> --user alice`
     - Workspace is no longer shared with the user `alice`.
 - `coder sharing remove <workspace> --group contractor`
     - Workspace is no longer shared with the group `contractor`.
 
 To show who a workspace is shared with:
+
 - `coder sharing show <workspace>`
 
 To list shared workspaces:
+
 - `coder list --shared`
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
