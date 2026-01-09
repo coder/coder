@@ -75,9 +75,18 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		100,
 	);
 
+	// Mock group data
+	const mockGroups = [
+		{ name: "DevOps", using: 8, total: 14 },
+		{ name: "Service Engineering", using: 7, total: 18 },
+		{ name: "Platform Team", using: 3, total: 9 },
+		{ name: "Backend", using: 2, total: 4 },
+	];
+	const mockFreeSeats = 5;
+
 	// Mock data for Agentic Workspace Starts
 	const mockWorkspacesUsage = 6347;
-	const mockWorkspacesIncluded = 10000;
+	const mockWorkspacesIncluded = 35000;
 	const mockWorkspacesUsagePercentage = Math.min(
 		(mockWorkspacesUsage / mockWorkspacesIncluded) * 100,
 		100,
@@ -179,6 +188,36 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								<span className="font-medium">
 									{mockAIUsersIncluded.toLocaleString()}
 								</span>
+							</div>
+						</div>
+
+						{/* Group breakdown */}
+						<div className="mt-6 space-y-3">
+							<h5 className="text-xs font-medium text-content-secondary uppercase tracking-wider m-0">
+								By Group
+							</h5>
+							<div className="space-y-2">
+								{mockGroups.map((group) => (
+									<div
+										key={group.name}
+										className="flex items-center justify-between p-3 bg-surface-secondary rounded"
+									>
+										<div className="flex-1">
+											<div className="text-sm font-medium">{group.name}</div>
+											<div className="text-xs text-content-secondary mt-1">
+												{group.using} using / {group.total} total
+											</div>
+										</div>
+									</div>
+								))}
+								<div className="flex items-center justify-between p-3 border border-dashed border-highlight-green rounded">
+									<div className="flex-1">
+										<div className="text-sm font-medium">Free Seats</div>
+										<div className="text-xs text-content-secondary mt-1">
+											{mockFreeSeats} available
+										</div>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
