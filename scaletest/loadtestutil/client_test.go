@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
 
-func TestDupClientCopyingHeaders(t *testing.T) {
+func TestAddHeadersToClient(t *testing.T) {
 	t.Parallel()
 	httpClient := &http.Client{
 		Transport: &codersdk.HeaderTransport{
@@ -33,18 +33,17 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 	sdkClient := codersdk.New(serverURL,
 		codersdk.WithSessionToken("test-token"), codersdk.WithHTTPClient(httpClient))
 
-	dup, err := loadtestutil.DupClientCopyingHeaders(sdkClient, map[string][]string{
+	loadtestutil.AddHeadersToClient(sdkClient, map[string][]string{
 		"X-Coder-Test3": {"clocks"},
 		"X-Coder-Test4": {"bears"},
 	})
 	require.NoError(t, err)
-	require.Equal(t, "http://coder.example.com", dup.URL.String())
-	require.Equal(t, "test-token", dup.SessionToken())
-	ht, ok := dup.HTTPClient.Transport.(*codersdk.HeaderTransport)
+	require.Equal(t, "http://coder.example.com", sdkClient.URL.String())
+	require.Equal(t, "test-token", sdkClient.SessionToken())
+	ht, ok := sdkClient.HTTPClient.Transport.(*codersdk.HeaderTransport)
 	require.True(t, ok)
 	require.Equal(t, "bar", ht.Header.Get("X-Coder-Test"))
 	require.Equal(t, "baz", ht.Header.Get("X-Coder-Test2"))
 	require.Equal(t, "clocks", ht.Header.Get("X-Coder-Test3"))
 	require.Equal(t, "bears", ht.Header.Get("X-Coder-Test4"))
-	require.NotEqual(t, http.DefaultTransport, ht.Transport)
 }

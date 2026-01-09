@@ -145,10 +145,11 @@ After all runners connect, it waits for the baseline duration before triggering 
 
 				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
 				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				runnerClient, err := r.InitClient(inv)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}
+				loadtestutil.AddHeadersToClient(runnerClient, BypassHeader)
 				var runner harness.Runnable = taskstatus.NewRunner(runnerClient, cfg)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
