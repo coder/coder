@@ -277,47 +277,47 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 		tests := []struct {
 			name        string
-			grantTypes  []string
+			grantTypes  []codersdk.OAuth2ProviderGrantType
 			expectError bool
 		}{
 			{
 				name:        "DefaultEmpty",
-				grantTypes:  []string{},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{},
 				expectError: false,
 			},
 			{
 				name:        "ValidAuthorizationCode",
-				grantTypes:  []string{"authorization_code"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
 				expectError: false,
 			},
 			{
 				name:        "InvalidRefreshTokenAlone",
-				grantTypes:  []string{"refresh_token"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeRefreshToken},
 				expectError: true, // refresh_token requires authorization_code to be present
 			},
 			{
 				name:        "ValidMultiple",
-				grantTypes:  []string{"authorization_code", "refresh_token"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, codersdk.OAuth2ProviderGrantTypeRefreshToken},
 				expectError: false,
 			},
 			{
 				name:        "InvalidUnsupported",
-				grantTypes:  []string{"client_credentials"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"client_credentials"},
 				expectError: true,
 			},
 			{
 				name:        "InvalidPassword",
-				grantTypes:  []string{"password"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"password"},
 				expectError: true,
 			},
 			{
 				name:        "InvalidImplicit",
-				grantTypes:  []string{"implicit"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"implicit"},
 				expectError: true,
 			},
 			{
 				name:        "MixedValidInvalid",
-				grantTypes:  []string{"authorization_code", "client_credentials"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, "client_credentials"},
 				expectError: true,
 			},
 		}
@@ -352,32 +352,32 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 		tests := []struct {
 			name          string
-			responseTypes []string
+			responseTypes []codersdk.OAuth2ProviderResponseType
 			expectError   bool
 		}{
 			{
 				name:          "DefaultEmpty",
-				responseTypes: []string{},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{},
 				expectError:   false,
 			},
 			{
 				name:          "ValidCode",
-				responseTypes: []string{"code"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode},
 				expectError:   false,
 			},
 			{
 				name:          "InvalidToken",
-				responseTypes: []string{"token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{"token"},
 				expectError:   true,
 			},
 			{
 				name:          "InvalidImplicit",
-				responseTypes: []string{"id_token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{"id_token"},
 				expectError:   true,
 			},
 			{
 				name:          "InvalidMultiple",
-				responseTypes: []string{"code", "token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode, "token"},
 				expectError:   true,
 			},
 		}
@@ -412,7 +412,7 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 		tests := []struct {
 			name        string
-			authMethod  string
+			authMethod  codersdk.OAuth2TokenEndpointAuthMethod
 			expectError bool
 		}{
 			{
@@ -422,17 +422,17 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 			},
 			{
 				name:        "ValidClientSecretBasic",
-				authMethod:  "client_secret_basic",
+				authMethod:  codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
 				expectError: false,
 			},
 			{
 				name:        "ValidClientSecretPost",
-				authMethod:  "client_secret_post",
+				authMethod:  codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
 				expectError: false,
 			},
 			{
 				name:        "ValidNone",
-				authMethod:  "none",
+				authMethod:  codersdk.OAuth2TokenEndpointAuthMethodNone,
 				expectError: false, // "none" is valid for public clients per RFC 7591
 			},
 			{
@@ -659,14 +659,14 @@ func TestOAuth2ClientMetadataDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should default to authorization_code
-	require.Contains(t, config.GrantTypes, "authorization_code")
+	require.Contains(t, config.GrantTypes, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
 
 	// Should default to code
-	require.Contains(t, config.ResponseTypes, "code")
+	require.Contains(t, config.ResponseTypes, codersdk.OAuth2ProviderResponseTypeCode)
 
 	// Should default to client_secret_basic or client_secret_post
-	require.True(t, config.TokenEndpointAuthMethod == "client_secret_basic" ||
-		config.TokenEndpointAuthMethod == "client_secret_post" ||
+	require.True(t, config.TokenEndpointAuthMethod == codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic ||
+		config.TokenEndpointAuthMethod == codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost ||
 		config.TokenEndpointAuthMethod == "")
 
 	// Client secret should be generated

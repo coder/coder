@@ -277,47 +277,47 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 		tests := []struct {
 			name        string
-			grantTypes  []string
+			grantTypes  []codersdk.OAuth2ProviderGrantType
 			expectError bool
 		}{
 			{
 				name:        "DefaultEmpty",
-				grantTypes:  []string{},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{},
 				expectError: false,
 			},
 			{
 				name:        "ValidAuthorizationCode",
-				grantTypes:  []string{"authorization_code"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"authorization_code"},
 				expectError: false,
 			},
 			{
 				name:        "InvalidRefreshTokenAlone",
-				grantTypes:  []string{"refresh_token"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"refresh_token"},
 				expectError: true, // refresh_token requires authorization_code to be present
 			},
 			{
 				name:        "ValidMultiple",
-				grantTypes:  []string{"authorization_code", "refresh_token"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"authorization_code", "refresh_token"},
 				expectError: false,
 			},
 			{
 				name:        "InvalidUnsupported",
-				grantTypes:  []string{"client_credentials"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"client_credentials"},
 				expectError: true,
 			},
 			{
 				name:        "InvalidPassword",
-				grantTypes:  []string{"password"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"password"},
 				expectError: true,
 			},
 			{
 				name:        "InvalidImplicit",
-				grantTypes:  []string{"implicit"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"implicit"},
 				expectError: true,
 			},
 			{
 				name:        "MixedValidInvalid",
-				grantTypes:  []string{"authorization_code", "client_credentials"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{"authorization_code", "client_credentials"},
 				expectError: true,
 			},
 		}
@@ -352,32 +352,32 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 		tests := []struct {
 			name          string
-			responseTypes []string
+			responseTypes []codersdk.OAuth2ProviderResponseType
 			expectError   bool
 		}{
 			{
 				name:          "DefaultEmpty",
-				responseTypes: []string{},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{},
 				expectError:   false,
 			},
 			{
 				name:          "ValidCode",
-				responseTypes: []string{"code"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{"code"},
 				expectError:   false,
 			},
 			{
 				name:          "InvalidToken",
-				responseTypes: []string{"token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{"token"},
 				expectError:   true,
 			},
 			{
 				name:          "InvalidImplicit",
-				responseTypes: []string{"id_token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{"id_token"},
 				expectError:   true,
 			},
 			{
 				name:          "InvalidMultiple",
-				responseTypes: []string{"code", "token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{"code", "token"},
 				expectError:   true,
 			},
 		}
@@ -412,7 +412,7 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 		tests := []struct {
 			name        string
-			authMethod  string
+			authMethod  codersdk.OAuth2TokenEndpointAuthMethod
 			expectError bool
 		}{
 			{

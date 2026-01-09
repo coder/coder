@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
@@ -41,35 +42,42 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		// RFC 7009 requires POST method with application/x-www-form-urlencoded
 		if r.Method != http.MethodPost {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusMethodNotAllowed, "invalid_request", "Method not allowed")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusMethodNotAllowed, codersdk.OAuth2ErrorCodeInvalidRequest, "Method not allowed")
 			return
 		}
 
 		if err := r.ParseForm(); err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid form data")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Invalid form data")
 			return
 		}
 
+		// Parse into SDK type (source of truth)
+		req := codersdk.OAuth2TokenRevocationRequest{
+			Token:         r.Form.Get("token"),
+			TokenTypeHint: codersdk.OAuth2RevocationTokenTypeHint(r.Form.Get("token_type_hint")),
+			ClientID:      r.Form.Get("client_id"),
+			ClientSecret:  r.Form.Get("client_secret"),
+		}
+
 		// RFC 7009 requires 'token' parameter
-		token := r.Form.Get("token")
-		if token == "" {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Missing token parameter")
+		if req.Token == "" {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Missing token parameter")
 			return
 		}
 
 		// Determine if this is a refresh token (starts with "coder_") or API key
 		// APIKeys do not have the SecretIdentifier prefix.
 		const coderPrefix = SecretIdentifier + "_"
-		isRefreshToken := strings.HasPrefix(token, coderPrefix)
+		isRefreshToken := strings.HasPrefix(req.Token, coderPrefix)
 
 		// Revoke the token with ownership verification
 		err := db.InTx(func(tx database.Store) error {
 			if isRefreshToken {
 				// Handle refresh token revocation
-				return revokeRefreshTokenInTx(ctx, tx, token, app.ID)
+				return revokeRefreshTokenInTx(ctx, tx, req.Token, app.ID)
 			}
 			// Handle API key revocation
-			return revokeAPIKeyInTx(ctx, tx, token, app.ID)
+			return revokeAPIKeyInTx(ctx, tx, req.Token, app.ID)
 		}, nil)
 		if err != nil {
 			if errors.Is(err, ErrTokenNotBelongsToClient) {
@@ -85,14 +93,14 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 				logger.Debug(ctx, "token revocation failed: invalid token format",
 					slog.F("client_id", app.ID.String()),
 					slog.F("app_name", app.Name))
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid token format")
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Invalid token format")
 				return
 			}
 			logger.Error(ctx, "token revocation failed with internal server error",
 				slog.Error(err),
 				slog.F("client_id", app.ID.String()),
 				slog.F("app_name", app.Name))
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, "server_error", "Internal server error")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Internal server error")
 			return
 		}
 

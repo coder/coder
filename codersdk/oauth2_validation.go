@@ -76,7 +76,7 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 }
 
 // validateRedirectURIs validates redirect URIs according to RFC 7591, 8252
-func validateRedirectURIs(uris []string, tokenEndpointAuthMethod string) error {
+func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndpointAuthMethod) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}
@@ -115,7 +115,7 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod string) error {
 		}
 
 		// Determine if this is a public client based on token endpoint auth method
-		isPublicClient := tokenEndpointAuthMethod == "none"
+		isPublicClient := tokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone
 
 		// Handle different validation for public vs confidential clients
 		if uri.Scheme == "http" || uri.Scheme == "https" {
@@ -155,23 +155,15 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod string) error {
 }
 
 // validateGrantTypes validates OAuth2 grant types
-func validateGrantTypes(grantTypes []string) error {
-	validGrants := []string{
-		string(OAuth2ProviderGrantTypeAuthorizationCode),
-		string(OAuth2ProviderGrantTypeRefreshToken),
-		// Add more grant types as they are implemented
-		// "client_credentials",
-		// "urn:ietf:params:oauth:grant-type:device_code",
-	}
-
+func validateGrantTypes(grantTypes []OAuth2ProviderGrantType) error {
 	for _, grant := range grantTypes {
-		if !slices.Contains(validGrants, grant) {
+		if !grant.Valid() {
 			return xerrors.Errorf("unsupported grant type: %s", grant)
 		}
 	}
 
 	// Ensure authorization_code is present if redirect_uris are specified
-	hasAuthCode := slices.Contains(grantTypes, string(OAuth2ProviderGrantTypeAuthorizationCode))
+	hasAuthCode := slices.Contains(grantTypes, OAuth2ProviderGrantTypeAuthorizationCode)
 	if !hasAuthCode {
 		return xerrors.New("authorization_code grant type is required when redirect_uris are specified")
 	}
@@ -180,14 +172,9 @@ func validateGrantTypes(grantTypes []string) error {
 }
 
 // validateResponseTypes validates OAuth2 response types
-func validateResponseTypes(responseTypes []string) error {
-	validResponses := []string{
-		string(OAuth2ProviderResponseTypeCode),
-		// Add more response types as they are implemented
-	}
-
+func validateResponseTypes(responseTypes []OAuth2ProviderResponseType) error {
 	for _, responseType := range responseTypes {
-		if !slices.Contains(validResponses, responseType) {
+		if !responseType.Valid() {
 			return xerrors.Errorf("unsupported response type: %s", responseType)
 		}
 	}
@@ -196,17 +183,8 @@ func validateResponseTypes(responseTypes []string) error {
 }
 
 // validateTokenEndpointAuthMethod validates token endpoint authentication method
-func validateTokenEndpointAuthMethod(method string) error {
-	validMethods := []string{
-		"client_secret_post",
-		"client_secret_basic",
-		"none", // for public clients (RFC 7591)
-		// Add more methods as they are implemented
-		// "private_key_jwt",
-		// "client_secret_jwt",
-	}
-
-	if !slices.Contains(validMethods, method) {
+func validateTokenEndpointAuthMethod(method OAuth2TokenEndpointAuthMethod) error {
+	if !method.Valid() {
 		return xerrors.Errorf("unsupported token endpoint auth method: %s", method)
 	}
 

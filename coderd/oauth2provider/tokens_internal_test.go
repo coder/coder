@@ -358,6 +358,6 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)
-	require.Equal(t, codersdk.OAuth2ProviderGrantTypeRefreshToken, params.grantType)
+	require.Equal(t, codersdk.OAuth2ProviderGrantTypeRefreshToken, params.req.GrantType)
 	require.Equal(t, []string{"reduced:scope", "subset:scope"}, params.scopes)
 }
