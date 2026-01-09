@@ -225,7 +225,9 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 					org.ID, err)
 			}
 			if didUpdate {
-				log.Info(ctx, "organization-member system role updated", "organization_id", org.ID)
+				log.Info(ctx, "organization-member system role updated",
+					slog.F("organization_id", org.ID))
+
 			}
 		}
 
