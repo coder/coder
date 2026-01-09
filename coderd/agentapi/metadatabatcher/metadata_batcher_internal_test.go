@@ -50,12 +50,12 @@ func TestMetadataBatcher(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	// Given: no metadata updates are added
 	// When: it becomes time to flush
@@ -174,13 +174,13 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	// Create batcher with very small capacity
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithBatchSize(2),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	t1 := clock.Now()
 
@@ -235,12 +235,12 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	t1 := clock.Now()
 
@@ -296,12 +296,12 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	t1 := clock.Now()
 
@@ -357,12 +357,12 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	t1 := clock.Now()
 	clock.Advance(time.Second).MustWait(ctx)
@@ -422,12 +422,12 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		Times(2)
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	t1 := clock.Now()
 
@@ -485,12 +485,12 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 		AnyTimes()
 
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	// Single agent, multiple goroutines updating same keys concurrently
 	agentID := uuid.New()
@@ -563,13 +563,13 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 
 	batchSize := 100
 	reg := prometheus.NewRegistry()
-	b, closer, err := NewBatcher(ctx, reg, store, ps,
+	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithBatchSize(batchSize),
 		WithClock(clock),
 	)
 	require.NoError(t, err)
-	t.Cleanup(closer)
+	t.Cleanup(b.Close)
 
 	agentID := uuid.New()
 	t1 := clock.Now()

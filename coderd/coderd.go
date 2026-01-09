@@ -790,9 +790,8 @@ func New(options *Options) *API {
 
 	// Initialize the metadata batcher for batching agent metadata updates.
 	// Only enable if the experiment is turned on.
-	metadataBatcherCloser := func() {}
 	if experiments.Enabled(codersdk.ExperimentMetadataBatching) {
-		api.metadataBatcher, metadataBatcherCloser, err = metadatabatcher.NewBatcher(
+		api.metadataBatcher, err = metadatabatcher.NewBatcher(
 			api.ctx,
 			options.PrometheusRegistry,
 			options.Database,
@@ -803,8 +802,6 @@ func New(options *Options) *API {
 			api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
 		}
 	}
-	// Store the closer so we can call it in Close().
-	api.metadataBatcherCloser = metadataBatcherCloser
 
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
@@ -1885,9 +1882,8 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter         *workspacestats.Reporter
-	metadataBatcher       *metadatabatcher.Batcher
-	metadataBatcherCloser func()
+	statsReporter   *workspacestats.Reporter
+	metadataBatcher *metadatabatcher.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
@@ -1939,8 +1935,8 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.statsReporter.Close()
-	if api.metadataBatcherCloser != nil {
-		api.metadataBatcherCloser()
+	if api.metadataBatcher != nil {
+		api.metadataBatcher.Close()
 	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
