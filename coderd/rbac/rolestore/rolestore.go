@@ -241,6 +241,10 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 // comparison to avoid unnecessary database writes when permissions
 // haven't changed. Returns the correct role and a boolean indicating
 // whether the reconciliation was necessary.
+// NOTE: Callers must acquire `database.LockIDReconcileSystemRoles` at
+// the start of the transaction and hold it for the transaction’s
+// duration. This prevents concurrent org-member reconciliation from
+// racing and producing inconsistent writes.
 func ReconcileOrgMemberRole(
 	ctx context.Context,
 	tx database.Store,
