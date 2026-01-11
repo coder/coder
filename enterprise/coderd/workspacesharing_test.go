@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -34,7 +35,8 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		settings, err := client.WorkspaceSharingSettings(ctx, first.OrganizationID.String())
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		settings, err := memberClient.WorkspaceSharingSettings(ctx, first.OrganizationID.String())
 		require.NoError(t, err)
 		require.False(t, settings.SharingDisabled)
 	})
@@ -53,17 +55,18 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		settings, err := client.PatchWorkspaceSharingSettings(ctx, first.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
+		settings, err := orgAdminClient.PatchWorkspaceSharingSettings(ctx, first.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
 			SharingDisabled: true,
 		})
 		require.NoError(t, err)
 		require.True(t, settings.SharingDisabled)
 
-		settings, err = client.WorkspaceSharingSettings(ctx, first.OrganizationID.String())
+		settings, err = orgAdminClient.WorkspaceSharingSettings(ctx, first.OrganizationID.String())
 		require.NoError(t, err)
 		require.True(t, settings.SharingDisabled)
 
-		settings, err = client.PatchWorkspaceSharingSettings(ctx, first.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
+		settings, err = orgAdminClient.PatchWorkspaceSharingSettings(ctx, first.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
 			SharingDisabled: false,
 		})
 		require.NoError(t, err)
@@ -115,8 +118,9 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
 		auditor.ResetLogs()
-		_, err := client.PatchWorkspaceSharingSettings(ctx, first.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
+		_, err := orgAdminClient.PatchWorkspaceSharingSettings(ctx, first.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
 			SharingDisabled: true,
 		})
 		require.NoError(t, err)
@@ -136,7 +140,8 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		_, err := client.WorkspaceSharingSettings(ctx, first.OrganizationID.String())
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		_, err := memberClient.WorkspaceSharingSettings(ctx, first.OrganizationID.String())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
@@ -168,7 +173,8 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		_, err := client.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+		_, err := orgAdminClient.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
 			SharingDisabled: true,
 		})
 		require.NoError(t, err)
@@ -246,12 +252,13 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		require.Equal(t, group.ID, acl.Groups[0].ID)
 		require.Equal(t, codersdk.WorkspaceRoleUse, acl.Groups[0].Role)
 
-		_, err = client.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+		_, err = orgAdminClient.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
 			SharingDisabled: true,
 		})
 		require.NoError(t, err)
 
-		_, err = client.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
+		_, err = orgAdminClient.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.WorkspaceSharingSettings{
 			SharingDisabled: false,
 		})
 		require.NoError(t, err)

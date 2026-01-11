@@ -29,7 +29,6 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	// TODO(geokat): Do we need an rbac.ResourceWorkspaceSharingSettings?
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceOrganization.InOrg(org.ID)) {
 		httpapi.Forbidden(rw)
 		return
@@ -75,7 +74,8 @@ func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Re
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		//nolint:gocritic // We need to manage a system role.
+		//nolint:gocritic // System context required to look up and reconcile the
+		// organization-member system role; callers only need `organization:update`
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 
 		// Serialize organization workspace-sharing updates with system role

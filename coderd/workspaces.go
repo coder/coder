@@ -2475,12 +2475,13 @@ func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// allowWorkspaceSharing reports whether workspace sharing is enabled
-// for an organization. Even if sharing is disabled, we still expose
-// the ACL endpoints (behind an experiment), but ACLs are not meaninful
-// and must not be modified or queried.
+// allowWorkspaceSharing enforces the workspace-sharing gate for an
+// organization. It writes an HTTP error response and returns false if
+// sharing is disabled or the org lookup fails; otherwise it returns
+// true.
 func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWriter, organizationID uuid.UUID) bool {
-	// nolint:gocritic // Need system context to fetch org.
+	//nolint:gocritic // Use system context so this check doesn’t
+	// depend on the caller having organization:read.
 	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), organizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
