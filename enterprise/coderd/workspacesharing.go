@@ -18,7 +18,7 @@ import (
 )
 
 // @Summary Get workspace sharing settings for organization
-// @ID get-workspace-sharing-settings
+// @ID get-workspace-sharing-settings-for-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
@@ -40,7 +40,7 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Update workspace sharing settings for organization
-// @ID update-workspace-sharing-settings
+// @ID update-workspace-sharing-settings-for-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
