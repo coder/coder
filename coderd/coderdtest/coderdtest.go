@@ -810,7 +810,7 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 	roles = append(roles, rbac.ScopedRoleOrgMember(orgID))
 
 	//nolint:gocritic // System needs to lookup db-backed roles for authz subjects.
-	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), db, []rbac.RoleIdentifier(roles))
+	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), db, roles)
 	require.NoError(t, err)
 
 	return rbac.Subject{

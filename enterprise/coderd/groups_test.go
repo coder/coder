@@ -1002,22 +1002,30 @@ func TestGroups(t *testing.T) {
 		// Query from the user's perspective
 		user5View, err := user5Client.Groups(ctx, codersdk.GroupArguments{})
 		require.NoError(t, err)
-		normalizeAllGroups(user5Groups)
+		normalizeAllGroups(user5View)
 
-		// Everyone group and group 2
-		require.Len(t, user5View, 2)
+		// Org members can read all groups when workspace sharing is not
+		// disabled, but group membership is limited to the requesting user.
+		// TODO(geokat): add another test with workspace sharing disabled.
+		require.Len(t, user5View, 3)
 		user5ViewIDs := db2sdk.List(user5View, func(g codersdk.Group) uuid.UUID {
 			return g.ID
 		})
 
 		require.ElementsMatch(t, []uuid.UUID{
 			everyoneGroup.ID,
+			group1.ID,
 			group2.ID,
 		}, user5ViewIDs)
 		for _, g := range user5View {
-			// Only expect the 1 member, themselves
-			require.Len(t, g.Members, 1)
-			require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
+			if g.ID == everyoneGroup.ID || g.ID == group2.ID {
+				// Only expect the 1 member, themselves.
+				require.Len(t, g.Members, 1)
+				require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
+				continue
+			}
+
+			require.Empty(t, g.Members)
 		}
 	})
 }
