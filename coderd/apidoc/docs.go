@@ -4580,7 +4580,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Get workspace sharing settings for organization",
-                "operationId": "get-workspace-sharing-settings",
+                "operationId": "get-workspace-sharing-settings-for-organization",
                 "parameters": [
                     {
                         "type": "string",
@@ -4616,7 +4616,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Update workspace sharing settings for organization",
-                "operationId": "update-workspace-sharing-settings",
+                "operationId": "update-workspace-sharing-settings-for-organization",
                 "parameters": [
                     {
                         "type": "string",
