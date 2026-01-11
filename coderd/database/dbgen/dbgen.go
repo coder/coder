@@ -651,7 +651,8 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 
 	// Populate the placeholder organization-member system role (created by
 	// DB trigger/migration) so org members have expected permissions.
-	//nolint:gocritic // need system auth ctx to manage a system role
+	//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
+	// permission that `genCtx` does not have.
 	sysCtx := dbauthz.AsSystemRestricted(genCtx)
 	_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
 		Name: rbac.RoleOrgMember(),

@@ -569,7 +569,8 @@ func New(options *Options) *API {
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
 	// Ensure all system role permissions are current.
-	//nolint:gocritic // We need to manage system roles
+	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
+	// no user request context here, so use a system-restricted context.
 	err = rolestore.ReconcileSystemRoles(dbauthz.AsSystemRestricted(ctx), options.Logger, options.Database)
 	if err != nil {
 		// Not ideal, but not using Fatal here and just continuing
