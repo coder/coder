@@ -82,7 +82,7 @@ func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Re
 		// reconciliation across coderd instances (e.g. during rolling restarts).
 		// This prevents conflicting writes to the organization-member system role.
 		// TODO(geokat): Consider finer-grained locks as we add more system roles.
-		err := tx.AcquireLock(sysCtx, database.LockIDReconcileSystemRoles)
+		err := tx.AcquireLock(ctx, database.LockIDReconcileSystemRoles)
 		if err != nil {
 			return xerrors.Errorf("acquire system roles reconciliation lock: %w", err)
 		}
