@@ -2222,10 +2222,6 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		workspace = httpmw.WorkspaceParam(r)
 	)
 
-	if !api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID) {
-		return
-	}
-
 	// Fetch the ACL data.
 	workspaceACL, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
 	if err != nil {
