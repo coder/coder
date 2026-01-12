@@ -16,7 +16,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
@@ -37,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
@@ -1699,7 +1699,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 
 		if req.Name == "" {
-			req.Name = namesgenerator.GetRandomName(1)
+			req.Name = namesgenerator.NameDigitWith("_")
 		}
 
 		err = tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{

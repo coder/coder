@@ -132,7 +132,7 @@ func TestProvisionerd(t *testing.T) {
 					}
 					return c
 				},
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					closerMutex.Lock()
 					defer closerMutex.Unlock()
 					err := closer.Close()
@@ -197,7 +197,7 @@ func TestProvisionerd(t *testing.T) {
 						Readme: make([]byte, largeSize),
 					}
 				},
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -276,7 +276,7 @@ func TestProvisionerd(t *testing.T) {
 					<-cancelOrComplete
 					return &sdkproto.ParseComplete{}
 				},
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 			}),
@@ -417,7 +417,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -488,7 +488,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -566,7 +566,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -641,7 +641,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
@@ -757,7 +757,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -848,7 +848,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -945,7 +945,7 @@ func TestProvisionerd(t *testing.T) {
 			return client, nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -1041,7 +1041,7 @@ func TestProvisionerd(t *testing.T) {
 			return client, nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				plan: func(
@@ -1141,7 +1141,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				init: func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+				init: func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 					return &sdkproto.InitComplete{}
 				},
 				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
@@ -1275,14 +1275,14 @@ func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisio
 }
 
 type provisionerTestServer struct {
-	init  func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete
+	init  func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete
 	parse func(s *provisionersdk.Session, r *sdkproto.ParseRequest, canceledOrComplete <-chan struct{}) *sdkproto.ParseComplete
 	plan  func(s *provisionersdk.Session, r *sdkproto.PlanRequest, canceledOrComplete <-chan struct{}) *sdkproto.PlanComplete
 	apply func(s *provisionersdk.Session, r *sdkproto.ApplyRequest, canceledOrComplete <-chan struct{}) *sdkproto.ApplyComplete
 	graph func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete
 }
 
-func (p *provisionerTestServer) Init(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+func (p *provisionerTestServer) Init(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 	return p.init(s, r, canceledOrComplete)
 }
 
@@ -1306,6 +1306,8 @@ func (p *provisionerDaemonTestServer) UploadFile(stream proto.DRPCProvisionerDae
 	return p.uploadFile(stream)
 }
 
+var _ proto.DRPCProvisionerDaemonServer = (*provisionerDaemonTestServer)(nil)
+
 // Fulfills the protobuf interface for a ProvisionerDaemon with
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
@@ -1315,6 +1317,11 @@ type provisionerDaemonTestServer struct {
 	failJob              func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob          func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
 	uploadFile           func(stream proto.DRPCProvisionerDaemon_UploadFileStream) error
+	downloadFile         func(request *proto.FileRequest, stream proto.DRPCProvisionerDaemon_DownloadFileStream) error
+}
+
+func (p *provisionerDaemonTestServer) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvisionerDaemon_DownloadFileStream) error {
+	return p.downloadFile(request, stream)
 }
 
 func (*provisionerDaemonTestServer) AcquireJob(context.Context, *proto.Empty) (*proto.AcquiredJob, error) {
@@ -1392,10 +1399,10 @@ func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_Acquir
 	return nil
 }
 
-func extractInit(t *testing.T) func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+func extractInit(t *testing.T) func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 	logger := slogtest.Make(t, nil)
-	return func(s *provisionersdk.Session, r *sdkproto.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
-		err := s.Files.ExtractArchive(s.Context(), logger, afero.NewOsFs(), r.TemplateSourceArchive)
+	return func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
+		err := s.Files.ExtractArchive(s.Context(), logger, afero.NewOsFs(), r.TemplateSourceArchive, nil)
 		if err != nil {
 			return &sdkproto.InitComplete{
 				Error: fmt.Sprintf("failed to extract template source archive: %v", err),

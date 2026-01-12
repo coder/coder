@@ -18,22 +18,6 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-type Layouter interface {
-	WorkDirectory() string
-	StateFilePath() string
-	PlanFilePath() string
-	TerraformLockFile() string
-	ReadmeFilePath() string
-	TerraformMetadataDir() string
-	ModulesDirectory() string
-	ModulesFilePath() string
-	ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive []byte) error
-	Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs)
-	CleanStaleSessions(ctx context.Context, logger slog.Logger, fs afero.Fs, now time.Time) error
-}
-
-var _ Layouter = (*Layout)(nil)
-
 const (
 	// ReadmeFile is the location we look for to extract documentation from template versions.
 	ReadmeFile = "README.md"
@@ -48,10 +32,6 @@ const (
 // terraform asserts inside this working directory.
 func Session(parentDirPath, sessionID string) Layout {
 	return Layout(filepath.Join(parentDirPath, sessionDirPrefix+sessionID))
-}
-
-func FromWorkingDirectory(workDir string) Layout {
-	return Layout(workDir)
 }
 
 // Layout is the terraform execution working directory structure.
@@ -92,17 +72,39 @@ func (l Layout) ModulesFilePath() string {
 	return filepath.Join(l.ModulesDirectory(), "modules.json")
 }
 
-func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive []byte) error {
-	logger.Info(ctx, "unpacking template source archive",
-		slog.F("size_bytes", len(templateSourceArchive)),
-	)
-
-	err := fs.MkdirAll(l.WorkDirectory(), 0o700)
+// ExtractArchive extracts the provided template source archive and modules archive into the working directory.
+// `modulesArchive` is optional and can be nil or empty.
+func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, templateSourceArchive, modulesArchive []byte) error {
+	err := extractArchive(ctx, logger, fs, l.WorkDirectory(), templateSourceArchive)
 	if err != nil {
-		return xerrors.Errorf("create work directory %q: %w", l.WorkDirectory(), err)
+		return xerrors.Errorf("extract template source archive: %w", err)
 	}
 
-	reader := tar.NewReader(bytes.NewBuffer(templateSourceArchive))
+	if len(modulesArchive) > 0 {
+		err = extractArchive(ctx, logger, fs, l.WorkDirectory(), modulesArchive)
+		if err != nil {
+			return xerrors.Errorf("extract modules archive: %w", err)
+		}
+	}
+	return nil
+}
+
+func isValidSessionDir(dirName string) bool {
+	match, err := filepath.Match(sessionDirPrefix+"*", dirName)
+	return err == nil && match
+}
+
+func extractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, directory string, archive []byte) error {
+	logger.Info(ctx, "unpacking source archive",
+		slog.F("size_bytes", len(archive)),
+	)
+
+	err := fs.MkdirAll(directory, 0o700)
+	if err != nil {
+		return xerrors.Errorf("create work directory %q: %w", directory, err)
+	}
+
+	reader := tar.NewReader(bytes.NewBuffer(archive))
 	for {
 		header, err := reader.Next()
 		if err != nil {
@@ -123,8 +125,8 @@ func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero
 		}
 
 		// nolint: gosec // Safe to no-lint because the filepath.IsLocal check above.
-		headerPath := filepath.Join(l.WorkDirectory(), header.Name)
-		if !strings.HasPrefix(headerPath, filepath.Clean(l.WorkDirectory())) {
+		headerPath := filepath.Join(directory, header.Name)
+		if !strings.HasPrefix(headerPath, filepath.Clean(directory)) {
 			return xerrors.New("tar attempts to target relative upper directory")
 		}
 		mode := header.FileInfo().Mode()
@@ -239,9 +241,4 @@ func (l Layout) CleanStaleSessions(ctx context.Context, logger slog.Logger, fs a
 		}
 	}
 	return nil
-}
-
-func isValidSessionDir(dirName string) bool {
-	match, err := filepath.Match(sessionDirPrefix+"*", dirName)
-	return err == nil && match
 }

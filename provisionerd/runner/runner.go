@@ -48,6 +48,7 @@ type Runner struct {
 	job                 *proto.AcquiredJob
 	sender              JobUpdater
 	quotaCommitter      QuotaCommitter
+	fileDownloader      FileDownloader
 	logger              slog.Logger
 	provisioner         sdkproto.DRPCProvisionerClient
 	lastUpdate          atomic.Pointer[time.Time]
@@ -96,13 +97,19 @@ type JobUpdater interface {
 	FailJob(ctx context.Context, in *proto.FailedJob) error
 	CompleteJob(ctx context.Context, in *proto.CompletedJob) error
 }
+
 type QuotaCommitter interface {
 	CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
+}
+
+type FileDownloader interface {
+	DownloadFile(ctx context.Context, req *proto.FileRequest) ([]byte, error)
 }
 
 type Options struct {
 	Updater             JobUpdater
 	QuotaCommitter      QuotaCommitter
+	FileDownloader      FileDownloader
 	Logger              slog.Logger
 	Provisioner         sdkproto.DRPCProvisionerClient
 	UpdateInterval      time.Duration
@@ -142,6 +149,7 @@ func New(
 		job:                 job,
 		sender:              opts.Updater,
 		quotaCommitter:      opts.QuotaCommitter,
+		fileDownloader:      opts.FileDownloader,
 		logger:              logger,
 		provisioner:         opts.Provisioner,
 		updateInterval:      opts.UpdateInterval,
@@ -513,16 +521,15 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	defer span.End()
 
 	failedJob := r.configure(&sdkproto.Config{
-		TemplateId:                 strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
-		TemplateVersionId:          strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
-		ExpReuseTerraformWorkspace: ptr.Ref(false),
+		TemplateId:        strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
+		TemplateVersionId: strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
 	})
 	if failedJob != nil {
 		return nil, failedJob
 	}
 
 	// Initialize the Terraform working directory
-	initResp, failedInit := r.init(ctx, false, r.job.GetTemplateSourceArchive())
+	initResp, failedInit := r.init(ctx, false, r.job.GetTemplateSourceArchive(), nil)
 	if failedInit != nil {
 		return nil, failedInit
 	}
@@ -788,7 +795,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	// Initialize the Terraform working directory
-	initResp, failedJob := r.init(ctx, false, r.job.GetTemplateSourceArchive())
+	initResp, failedJob := r.init(ctx, false, r.job.GetTemplateSourceArchive(), nil)
 	if failedJob != nil {
 		return nil, failedJob
 	}
@@ -891,10 +898,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	failedJob := r.configure(&sdkproto.Config{
-		ProvisionerLogLevel:        r.job.GetWorkspaceBuild().LogLevel,
-		TemplateId:                 strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
-		TemplateVersionId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
-		ExpReuseTerraformWorkspace: r.job.GetWorkspaceBuild().ExpReuseTerraformWorkspace,
+		ProvisionerLogLevel: r.job.GetWorkspaceBuild().LogLevel,
+		TemplateId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
+		TemplateVersionId:   strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
 	})
 	if failedJob != nil {
 		return nil, failedJob
@@ -903,8 +909,25 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	// timings collects all timings from each phase of the build
 	timings := make([]*sdkproto.Timing, 0)
 
+	var cachedModulesTar []byte
+	// Download modules if cached in coderd
+	if r.job.GetWorkspaceBuild().Metadata.TemplateVersionModulesFile != "" {
+		fileID, err := uuid.Parse(r.job.GetWorkspaceBuild().Metadata.TemplateVersionModulesFile)
+		if err != nil {
+			return nil, r.failedWorkspaceBuildf("invalid template version modules file ID: %s", err)
+		}
+		// Download the module tar file
+		cachedModulesTar, err = r.fileDownloader.DownloadFile(ctx, &proto.FileRequest{
+			FileId:     fileID.String(),
+			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		if err != nil {
+			return nil, r.failedWorkspaceBuildf("failed to download template version modules file: %s", err)
+		}
+	}
+
 	// Initialize the Terraform working directory
-	initComplete, failedJob := r.init(ctx, true, r.job.GetTemplateSourceArchive())
+	initComplete, failedJob := r.init(ctx, true, r.job.GetTemplateSourceArchive(), cachedModulesTar)
 	if failedJob != nil {
 		return nil, failedJob
 	}

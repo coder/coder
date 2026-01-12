@@ -380,7 +380,7 @@ module "personalize" {
 module "mux" {
   count     = data.coder_workspace.me.start_count
   source    = "registry.coder.com/coder/mux/coder"
-  version   = "1.0.5"
+  version   = "1.0.7"
   agent_id  = coder_agent.dev.id
   subdomain = true
 }
@@ -410,7 +410,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.2.1"
+  version       = "1.3.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -421,7 +421,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.3"
+  version    = "1.1.4"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }

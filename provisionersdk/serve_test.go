@@ -149,7 +149,7 @@ var _ provisionersdk.Server = unimplementedServer{}
 
 type unimplementedServer struct{}
 
-func (unimplementedServer) Init(s *provisionersdk.Session, r *proto.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
+func (unimplementedServer) Init(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *proto.InitComplete {
 	return &proto.InitComplete{}
 }
 

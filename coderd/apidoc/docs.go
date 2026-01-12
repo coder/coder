@@ -14622,8 +14622,7 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing",
-                "terraform-directory-reuse"
+                "workspace-sharing"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -14631,7 +14630,6 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
-                "ExperimentTerraformWorkspace": "Enables reuse of existing terraform directory for builds",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -14644,8 +14642,7 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing",
-                "ExperimentTerraformWorkspace"
+                "ExperimentWorkspaceSharing"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -18546,9 +18543,6 @@ const docTemplate = `{
                 },
                 "use_classic_parameter_flow": {
                     "type": "boolean"
-                },
-                "use_terraform_workspace_cache": {
-                    "type": "boolean"
                 }
             }
         },
@@ -19484,10 +19478,6 @@ const docTemplate = `{
                 },
                 "use_classic_parameter_flow": {
                     "description": "UseClassicParameterFlow is a flag that switches the default behavior to use the classic\nparameter flow when creating a workspace. This only affects deployments with the experiment\n\"dynamic-parameters\" enabled. This setting will live for a period after the experiment is\nmade the default.\nAn \"opt-out\" is present in case the new feature breaks some existing templates.",
-                    "type": "boolean"
-                },
-                "use_terraform_workspace_cache": {
-                    "description": "UseTerraformWorkspaceCache allows optionally specifying whether to use cached\nterraform directories for workspaces created from this template. This field\nonly applies when the correct experiment is enabled. This field is subject to\nbeing removed in the future.",
                     "type": "boolean"
                 }
             }

@@ -14,11 +14,9 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
-	"github.com/coder/coder/v2/provisionersdk/tfpath/x"
 )
 
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.
@@ -52,10 +50,6 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	s.Config = config
 	if s.Config.ProvisionerLogLevel != "" {
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
-	}
-
-	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
-		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
 	}
 
 	// Cleanup any previously left stale sessions.
@@ -131,6 +125,7 @@ func (s *Session) handleRequests() error {
 			if s.initialized {
 				return xerrors.New("cannot init more than once per session")
 			}
+
 			initResp, err := s.handleInitRequest(init, requests)
 			if err != nil {
 				return err
@@ -191,9 +186,47 @@ func (s *Session) handleRequests() error {
 	return nil
 }
 
+// fromChannel implements the `Recv` api using an underlying channel for
+// downloading files.
+type fromChannel struct {
+	requests <-chan *proto.Request
+}
+
+func (f *fromChannel) Recv() (*proto.FileUpload, error) {
+	next, ok := <-f.requests
+	if !ok {
+		return nil, xerrors.New("channel closed")
+	}
+
+	// Only file download messages are expected here.
+	file := next.GetFile()
+	if file == nil {
+		return nil, xerrors.Errorf("expected file upload")
+	}
+
+	return file, nil
+}
+
 func (s *Session) handleInitRequest(init *proto.InitRequest, requests <-chan *proto.Request) (*proto.InitComplete, error) {
-	r := &request[*proto.InitRequest, *proto.InitComplete]{
-		req:      init,
+	req := &InitRequest{
+		InitRequest:   init,
+		ModuleArchive: nil,
+	}
+	if len(init.GetInitialModuleTarHash()) > 0 {
+		file, err := HandleReceivingDataUpload(&fromChannel{requests: requests})
+		if err != nil {
+			return nil, err
+		}
+
+		data, err := file.Complete()
+		if err != nil {
+			return nil, err
+		}
+		req.ModuleArchive = data
+	}
+
+	r := &request[*InitRequest, *proto.InitComplete]{
+		req:      req,
 		session:  s,
 		serverFn: s.server.Init,
 		cancels:  requests,
@@ -253,7 +286,7 @@ func (s *Session) handlePlanRequest(plan *proto.PlanRequest, requests <-chan *pr
 
 type Session struct {
 	Logger slog.Logger
-	Files  tfpath.Layouter
+	Files  tfpath.Layout
 	Config *proto.Config
 
 	// initialized indicates if an init was run.
@@ -285,7 +318,7 @@ func (s *Session) ProvisionLog(level proto.LogLevel, output string) {
 }
 
 type pRequest interface {
-	*proto.ParseRequest | *proto.InitRequest | *proto.PlanRequest | *proto.ApplyRequest | *proto.GraphRequest
+	*proto.ParseRequest | *InitRequest | *proto.PlanRequest | *proto.ApplyRequest | *proto.GraphRequest
 }
 
 type pComplete interface {
