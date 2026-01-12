@@ -3889,7 +3889,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
 	ExperimentTerraformWorkspace,
-	ExperimentMetadataBatching,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
