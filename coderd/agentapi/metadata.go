@@ -2,11 +2,9 @@ package agentapi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -15,14 +13,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 type MetadataAPI struct {
 	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
 	Workspace *CachedWorkspaceFields
 	Database  database.Store
-	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
 	Batcher   *metadatabatcher.Batcher
 
@@ -124,29 +120,10 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		)
 	}
 
-	// Use batcher if available, otherwise fall back to direct database write.
-	if a.Batcher != nil {
-		err = a.Batcher.Add(workspaceAgent.ID, dbUpdate.Key, dbUpdate.Value, dbUpdate.Error, dbUpdate.CollectedAt)
-		if err != nil {
-			return nil, xerrors.Errorf("add metadata to batcher: %w", err)
-		}
-	} else {
-		err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
-		if err != nil {
-			return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
-		}
-
-		payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
-			CollectedAt: collectedAt,
-			Keys:        dbUpdate.Key,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
-		}
-		err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
-		if err != nil {
-			return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
-		}
+	// Use batcher to batch metadata updates.
+	err = a.Batcher.Add(workspaceAgent.ID, dbUpdate.Key, dbUpdate.Value, dbUpdate.Error, dbUpdate.CollectedAt)
+	if err != nil {
+		return nil, xerrors.Errorf("add metadata to batcher: %w", err)
 	}
 
 	// If the metadata keys were too large, we return an error so the agent can
@@ -163,13 +140,4 @@ func ellipse(v string, n int) string {
 		return v[:n] + "..."
 	}
 	return v
-}
-
-type WorkspaceAgentMetadataChannelPayload struct {
-	CollectedAt time.Time `json:"collected_at"`
-	Keys        []string  `json:"keys"`
-}
-
-func WatchWorkspaceAgentMetadataChannel(id uuid.UUID) string {
-	return "workspace_agent_metadata:" + id.String()
 }

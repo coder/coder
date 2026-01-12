@@ -776,18 +776,15 @@ func New(options *Options) *API {
 	})
 
 	// Initialize the metadata batcher for batching agent metadata updates.
-	// Only enable if the experiment is turned on.
-	if experiments.Enabled(codersdk.ExperimentMetadataBatching) {
-		api.metadataBatcher, err = metadatabatcher.NewBatcher(
-			api.ctx,
-			options.PrometheusRegistry,
-			options.Database,
-			options.Pubsub,
-			metadatabatcher.WithLogger(options.Logger.Named("metadata_batcher")),
-		)
-		if err != nil {
-			api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
-		}
+	api.metadataBatcher, err = metadatabatcher.NewBatcher(
+		api.ctx,
+		options.PrometheusRegistry,
+		options.Database,
+		options.Pubsub,
+		metadatabatcher.WithLogger(options.Logger.Named("metadata_batcher")),
+	)
+	if err != nil {
+		api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
 	}
 
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
