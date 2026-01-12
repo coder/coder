@@ -380,3 +380,59 @@ func agentClientCommand(clientRef **agentsdk.Client) *serpent.Command {
 	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
+
+func TestWrapTransportWithUserAgentHeader(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                    string
+		cmdArgs                 []string
+		cmdEnv                  map[string]string
+		expectedUserAgentHeader string
+	}{
+		{
+			name:                    "top-level command",
+			cmdArgs:                 []string{"login"},
+			expectedUserAgentHeader: fmt.Sprintf("coder-cli/%s (%s/%s; coder login)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH),
+		},
+		{
+			name:                    "nested commands",
+			cmdArgs:                 []string{"templates", "list"},
+			expectedUserAgentHeader: fmt.Sprintf("coder-cli/%s (%s/%s; coder templates list)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH),
+		},
+		{
+			name:                    "does not include positional args, flags, or env",
+			cmdArgs:                 []string{"templates", "push", "my-template", "-d", "/path/to/template", "--yes", "--var", "myvar=myvalue"},
+			cmdEnv:                  map[string]string{"SECRET_KEY": "secret_value"},
+			expectedUserAgentHeader: fmt.Sprintf("coder-cli/%s (%s/%s; coder templates push)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ch := make(chan string, 1)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				select {
+				case ch <- r.Header.Get("User-Agent"):
+				default: // already sent
+				}
+			}))
+			t.Cleanup(srv.Close)
+
+			args := append([]string{}, tc.cmdArgs...)
+			inv, _ := clitest.New(t, args...)
+			inv.Environ.Set("CODER_URL", srv.URL)
+			for k, v := range tc.cmdEnv {
+				inv.Environ.Set(k, v)
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			_ = inv.WithContext(ctx).Run() // Ignore error as we only care about headers.
+
+			actual := testutil.RequireReceive(ctx, t, ch)
+			require.Equal(t, tc.expectedUserAgentHeader, actual, "User-Agent should match expected format exactly")
+		})
+	}
+}

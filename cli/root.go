@@ -684,6 +684,7 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
 	transport := http.DefaultTransport
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
+	transport = wrapTransportWithUserAgentHeader(transport, inv)
 	if !r.noVersionCheck {
 		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
@@ -1493,6 +1494,32 @@ func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.
 		if value != "" {
 			req.Header.Add(codersdk.CLITelemetryHeader, value)
 		}
+		return transport.RoundTrip(req)
+	})
+}
+
+// wrapTransportWithUserAgentHeader sets a User-Agent header for all CLI requests
+// that includes the CLI version, os/arch, and the specific command being run.
+func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.Invocation) http.RoundTripper {
+	var (
+		userAgent string
+		once      sync.Once
+	)
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		once.Do(func() {
+			var b strings.Builder
+			_, _ = b.WriteString("coder-cli/")
+			_, _ = b.WriteString(buildinfo.Version())
+			_, _ = b.WriteString(" (")
+			_, _ = b.WriteString(runtime.GOOS)
+			_ = b.WriteByte('/')
+			_, _ = b.WriteString(runtime.GOARCH)
+			_, _ = b.WriteString("; ")
+			_, _ = b.WriteString(inv.Command.FullName())
+			_ = b.WriteByte(')')
+			userAgent = b.String()
+		})
+		req.Header.Set("User-Agent", userAgent)
 		return transport.RoundTrip(req)
 	})
 }
