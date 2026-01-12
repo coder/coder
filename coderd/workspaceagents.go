@@ -1709,36 +1709,9 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
-	update := make(chan agentapi.WorkspaceAgentMetadataChannelPayload, 1)
-	cancelSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(waws.WorkspaceAgent.ID), func(_ context.Context, byt []byte) {
-		if ctx.Err() != nil {
-			return
-		}
+	update := make(chan []string, 1)
 
-		var payload agentapi.WorkspaceAgentMetadataChannelPayload
-		err := json.Unmarshal(byt, &payload)
-		if err != nil {
-			log.Error(ctx, "failed to unmarshal pubsub message", slog.Error(err))
-			return
-		}
-
-		log.Debug(ctx, "received metadata update from per-agent channel", slog.F("agent_id", workspaceAgent.ID), slog.F("keys", payload.Keys), slog.F("collected_at", payload.CollectedAt))
-
-		select {
-		case prev := <-update:
-			payload.Keys = appendUnique(prev.Keys, payload.Keys)
-		default:
-		}
-		// This can never block since we pop and merge beforehand.
-		update <- payload
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	defer cancelSub()
-
-	// Also subscribe to the global batched metadata channel.
+	// Subscribe to the global batched metadata channel.
 	// The batcher publishes only to this channel to achieve O(1) NOTIFY scaling.
 	cancelBatchSub, err := api.Pubsub.Subscribe(metadatabatcher.MetadataBatchPubsubChannel, func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
@@ -1767,10 +1740,6 @@ func (api *API) watchWorkspaceAgentMetadata(
 			// Batch notifications don't include which keys changed, so we
 			// must fetch all keys. Don't merge with pending updates - just
 			// replace with "fetch all" since that's the most complete action.
-			payload := agentapi.WorkspaceAgentMetadataChannelPayload{
-				CollectedAt: time.Now(),
-				Keys:        nil, // nil = fetch all keys
-			}
 
 			// Clear any pending partial fetches - batch always means "fetch all".
 			select {
@@ -1778,7 +1747,8 @@ func (api *API) watchWorkspaceAgentMetadata(
 			default:
 			}
 			// This can never block since we drained beforehand.
-			update <- payload
+			// nil keys means "fetch all keys".
+			update <- nil
 			break
 		}
 	})
@@ -1870,10 +1840,15 @@ func (api *API) watchWorkspaceAgentMetadata(
 			select {
 			case <-ctx.Done():
 				return
-			case payload := <-update:
+			case keys := <-update:
 				md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+<<<<<<< HEAD
 					WorkspaceAgentID: waws.WorkspaceAgent.ID,
 					Keys:             payload.Keys,
+=======
+					WorkspaceAgentID: workspaceAgent.ID,
+					Keys:             keys,
+>>>>>>> 271f48e42 (chore: remove experimental flag for metadata batching)
 				})
 				if err != nil {
 					if !database.IsQueryCanceledError(err) {

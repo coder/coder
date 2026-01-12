@@ -181,7 +181,6 @@ func New(opts Options, workspace database.Workspace) *API {
 		AgentFn:   api.agent,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
-		Pubsub:    opts.Pubsub,
 		Log:       opts.Log,
 		Batcher:   opts.MetadataBatcher,
 	}
