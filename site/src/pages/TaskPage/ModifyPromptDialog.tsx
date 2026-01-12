@@ -96,7 +96,7 @@ export const ModifyPromptDialog: FC<ModifyPromptDialogProps> = ({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-2xl">
 				<DialogHeader>
-					<DialogTitle>Modify Task Prompt</DialogTitle>
+					<DialogTitle>Modify task prompt</DialogTitle>
 					<DialogDescription>
 						Modifying the prompt will cancel the current workspace build and
 						restart it with the updated prompt.

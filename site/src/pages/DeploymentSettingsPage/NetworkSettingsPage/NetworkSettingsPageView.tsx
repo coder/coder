@@ -58,7 +58,7 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 			</SettingsHeader>
 
 			<Badges>
-				{useDeploymentOptions(options, "Wildcard Access URL")[0].value !==
+				{useDeploymentOptions(options, "wildcard-access-url")[0].value !==
 				"" ? (
 					<EnabledBadge />
 				) : (

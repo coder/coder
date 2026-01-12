@@ -54,7 +54,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 					setLicenseIDMarkedForRemoval(undefined);
 				}}
 				onClose={() => setLicenseIDMarkedForRemoval(undefined)}
-				title="Confirm License Removal"
+				title="Confirm license removal"
 				confirmLoading={isRemoving}
 				confirmText="Remove"
 				description="Removing this license will disable all Premium features. You add a new license at any time."
@@ -92,7 +92,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 							alignItems="center"
 							width="134px" // standardize width of date column
 						>
-							<span css={styles.secondaryMaincolor}>Valid From</span>
+							<span css={styles.secondaryMaincolor}>Valid from</span>
 							<span css={styles.licenseExpires} className="license-valid-from">
 								{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
 							</span>
@@ -109,7 +109,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 								Expired
 							</Pill>
 						) : (
-							<span css={styles.secondaryMaincolor}>Valid Until</span>
+							<span css={styles.secondaryMaincolor}>Valid until</span>
 						)}
 						<span css={styles.licenseExpires} className="license-expires">
 							{dayjs

@@ -60,7 +60,7 @@ const CustomRolesPage: FC = () => {
 		<div className="w-full max-w-screen-2xl pb-10">
 			<title>
 				{pageTitle(
-					"Custom Roles",
+					"Custom roles",
 					organization.display_name || organization.name,
 				)}
 			</title>

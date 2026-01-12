@@ -109,7 +109,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 						}}
 					>
 						<Spinner loading={isLoading} />
-						{role !== undefined ? "Save" : "Create Role"}
+						{role !== undefined ? "Save" : "Create role"}
 					</Button>
 				</div>
 			</Stack>
@@ -135,7 +135,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 							helperText: "Optional: keep empty to default to the name.",
 						})}
 						fullWidth
-						label="Display Name"
+						label="Display name"
 					/>
 					<ActionCheckboxes
 						permissions={role?.organization_permissions || []}
@@ -150,7 +150,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 
 					<Button type="submit" disabled={isLoading}>
 						<Spinner loading={isLoading} />
-						{role ? "Save role" : "Create Role"}
+						{role ? "Save role" : "Create role"}
 					</Button>
 				</FormFooter>
 			</VerticalForm>

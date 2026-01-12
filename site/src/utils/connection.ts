@@ -5,15 +5,15 @@ export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 		case "jetbrains":
 			return "JetBrains";
 		case "reconnecting_pty":
-			return "Web Terminal";
+			return "Web terminal";
 		case "ssh":
 			return "SSH";
 		case "vscode":
 			return "VS Code";
 		case "port_forwarding":
-			return "Port Forwarding";
+			return "Port forwarding";
 		case "workspace_app":
-			return "Workspace App";
+			return "Workspace app";
 	}
 };
 

@@ -24,7 +24,7 @@ const ExternalAuthPage: FC = () => {
 	const validateAppMutation = useMutation(validateExternalAuth(queryClient));
 
 	return (
-		<Section title="External Authentication" layout="fluid">
+		<Section title="External authentication" layout="fluid">
 			<ExternalAuthPageView
 				isLoading={externalAuthsQuery.isLoading}
 				getAuthsError={externalAuthsQuery.error}
@@ -52,7 +52,7 @@ const ExternalAuthPage: FC = () => {
 			/>
 			<DeleteDialog
 				key={appToUnlink?.id}
-				title="Unlink Application"
+				title="Unlink application"
 				verb="Unlinking"
 				info={
 					appToUnlink?.supports_revocation

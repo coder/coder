@@ -95,7 +95,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						/>
 					</>
 				) : (
-					"Select Proxy"
+					"Select proxy"
 				)}
 
 				<ChevronDownIcon className="text-content-primary !size-icon-sm" />

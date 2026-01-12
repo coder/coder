@@ -87,15 +87,15 @@ function getNumberedButtonLabel(
 	highlighted: boolean,
 ): string {
 	if (highlighted) {
-		return "Current Page";
+		return "Current page";
 	}
 
 	if (page === 1) {
-		return "First Page";
+		return "First page";
 	}
 
 	if (page === totalPages) {
-		return "Last Page";
+		return "Last page";
 	}
 
 	return `Page ${page}`;

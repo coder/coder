@@ -32,7 +32,7 @@ export const castNotificationMethod = (value: string) => {
 };
 
 export function isTaskNotification(tmpl: NotificationTemplate): boolean {
-	return tmpl.group === "Task Events";
+	return tmpl.group?.toLowerCase() === "task events";
 }
 
 // Determines if a notification is disabled based on user preferences and system defaults

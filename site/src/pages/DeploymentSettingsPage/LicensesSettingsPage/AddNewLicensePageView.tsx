@@ -74,8 +74,8 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 			<FileUpload
 				isUploading={isUploading}
 				onUpload={onUpload}
-				removeLabel="Remove File"
-				title="Upload Your License"
+				removeLabel="Remove file"
+				title="Upload your license"
 				description="Select a text file that contains your license key."
 			/>
 
@@ -83,7 +83,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 				<DividerWithText>or</DividerWithText>
 
 				<Fieldset
-					title="Paste Your License"
+					title="Paste your license"
 					onSubmit={(e) => {
 						e.preventDefault();
 

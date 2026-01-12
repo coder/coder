@@ -104,7 +104,7 @@ const DERPRegionPage: FC = () => {
 									{region!.RegionCode}
 								</Pill>
 							</TooltipTrigger>
-							<TooltipContent side="bottom">Region Code</TooltipContent>
+							<TooltipContent side="bottom">Region code</TooltipContent>
 						</Tooltip>
 						<BooleanPill value={region!.EmbeddedRelay}>
 							Embedded Relay

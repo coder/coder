@@ -26,7 +26,7 @@ export const TaskWildcardWarning = () => {
 							flag when starting the Coder server.
 						</>
 					) : (
-						", which requires a Coder deployment with a Wildcard Access URL configured. Please contact your administrator."
+						", which requires a Coder deployment with a Wildcard access URL configured. Please contact your administrator."
 					)}
 				</div>
 				<Button size="sm" variant="outline" asChild>

@@ -27,7 +27,7 @@ import * as Yup from "yup";
 export const Language = {
 	emailLabel: "Email",
 	passwordLabel: "Password",
-	nameLabel: "Full Name",
+	nameLabel: "Full name",
 	usernameLabel: "Username",
 	emailInvalid: "Please enter a valid email address.",
 	emailRequired: "Please enter an email address.",

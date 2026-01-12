@@ -31,7 +31,7 @@ export const ExternalAuthSettingsPageView: FC<
 			<SettingsHeader
 				actions={<SettingsHeaderDocsLink href={docs("/admin/external-auth")} />}
 			>
-				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
+				<SettingsHeaderTitle>External authentication</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Coder integrates with GitHub, GitLab, BitBucket, Azure Repos, and
 					OpenID Connect to authenticate developers with external services.

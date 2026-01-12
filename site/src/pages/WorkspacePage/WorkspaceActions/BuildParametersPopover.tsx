@@ -157,7 +157,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 								borderBottom: `1px solid ${theme.palette.divider}`,
 							}}
 						>
-							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
+							<HelpTooltipTitle>Build options</HelpTooltipTitle>
 							<HelpTooltipText>
 								These parameters only apply for a single workspace start.
 							</HelpTooltipText>
@@ -186,7 +186,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 							borderBottom: `1px solid ${theme.palette.divider}`,
 						}}
 					>
-						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
+						<HelpTooltipTitle>Build options</HelpTooltipTitle>
 						<HelpTooltipText>
 							This template has no ephemeral build options.
 						</HelpTooltipText>

@@ -60,9 +60,9 @@ export const Language = {
 	ttlLabel: "Time until shutdown (hours)",
 	formTitle: "Workspace schedule",
 	startSection: "Start",
-	startSwitch: "Enable Autostart",
+	startSwitch: "Enable autostart",
 	stopSection: "Stop",
-	stopSwitch: "Enable Autostop",
+	stopSwitch: "Enable autostop",
 };
 
 export interface WorkspaceScheduleFormProps {

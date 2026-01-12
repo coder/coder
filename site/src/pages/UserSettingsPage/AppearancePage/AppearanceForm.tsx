@@ -93,7 +93,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 			<Section
 				title={
 					<div className="flex flex-row items-center gap-2">
-						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
+						<span id="fonts-radio-buttons-group-label">Terminal font</span>
 						<Spinner loading={isUpdating} size="sm" />
 					</div>
 				}

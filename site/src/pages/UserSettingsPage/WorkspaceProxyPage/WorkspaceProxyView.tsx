@@ -41,7 +41,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	return (
 		<Stack>
 			<SettingsHeader>
-				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Workspace proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Workspace proxies improve terminal and web app connections to
 					workspaces.

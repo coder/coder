@@ -63,7 +63,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			type="delete"
 			hideCancel={false}
 			open={isOpen}
-			title="Delete Workspace"
+			title="Delete workspace"
 			onConfirm={() => onConfirm(orphanWorkspace)}
 			onClose={onCancel}
 			disabled={!deletionConfirmed}
@@ -144,7 +144,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 									/>
 								</div>
 								<div css={{ flexDirection: "column" }}>
-									<p className="info">Orphan Resources</p>
+									<p className="info">Orphan resources</p>
 									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
 										As a Template Admin, you may skip resource cleanup to delete
 										a failed workspace. Resources such as volumes and virtual

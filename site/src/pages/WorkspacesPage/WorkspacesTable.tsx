@@ -737,7 +737,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 					e.preventDefault();
 					openAppInNewWindow(href);
 				}}
-				label="Open Terminal"
+				label="Open terminal"
 			>
 				<SquareTerminalIcon className="!size-7" />
 			</BaseIconLink>,

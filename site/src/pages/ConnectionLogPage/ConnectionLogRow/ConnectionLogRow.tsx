@@ -88,7 +88,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 									<StatusPill
 										code={code}
 										isHttpCode={isWeb}
-										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
+										label={isWeb ? "HTTP status code" : "SSH exit code"}
 									/>
 								)}
 								<Tooltip>

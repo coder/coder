@@ -97,7 +97,7 @@ export const TasksSidebar: FC = () => {
 								})}
 							>
 								<RouterLink to="/tasks">
-									<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
+									<span className={isCollapsed ? "hidden" : ""}>New task</span>{" "}
 									<EditIcon />
 								</RouterLink>
 							</Button>

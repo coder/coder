@@ -46,9 +46,9 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 				<OptionsTable
 					options={useDeploymentOptions(
 						options,
-						"SSH Keygen Algorithm",
-						"Secure Auth Cookie",
-						"Disable Owner Workspace Access",
+						"ssh-keygen-algorithm",
+						"secure-auth-cookie",
+						"disable-owner-workspace-access",
 					)}
 				/>
 			</div>

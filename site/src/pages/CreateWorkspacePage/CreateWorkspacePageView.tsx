@@ -137,7 +137,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			},
 			initialTouched,
 			validationSchema: Yup.object({
-				name: nameValidator("Workspace Name"),
+				name: nameValidator("Workspace name"),
 				rich_parameter_values:
 					useValidationSchemaForDynamicParameters(parameters),
 			}),

@@ -26,7 +26,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="min-h-60 flex items-center justify-center rounded-lg border border-solid p-12">
 				<Stack alignItems="center" spacing={1}>
 					<Stack alignItems="center" spacing={0.5}>
-						<span className="text-base">Managed AI Agents Disabled</span>
+						<span className="text-base">Managed AI agents disabled</span>
 						<span className="text-content-secondary text-center max-w-[464px] mt-2">
 							Managed AI agents are not included in your current license.
 							Contact <MuiLink href="mailto:sales@coder.com">sales</MuiLink> to
@@ -76,7 +76,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
-						<h3 className="text-md m-0 font-medium">Managed AI Agents Usage</h3>
+						<h3 className="text-md m-0 font-medium">Managed AI agents usage</h3>
 
 						<CollapsibleTrigger asChild>
 							<Button

@@ -47,8 +47,8 @@ export const HealthLayout: FC = () => {
 		access_url: "Access URL",
 		websocket: "Websocket",
 		database: "Database",
-		workspace_proxy: "Workspace Proxy",
-		provisioner_daemons: "Provisioner Daemons",
+		workspace_proxy: "Workspace proxy",
+		provisioner_daemons: "Provisioner daemons",
 	} as const;
 	const visibleSections = filterVisibleSections(sections);
 

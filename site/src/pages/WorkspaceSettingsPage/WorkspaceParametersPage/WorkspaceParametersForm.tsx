@@ -131,7 +131,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 				)}
 				{hasEphemeralParameters && (
 					<FormSection
-						title="Ephemeral Parameters"
+						title="Ephemeral parameters"
 						description="These parameters only apply for a single workspace start."
 					>
 						<FormFields>

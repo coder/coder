@@ -43,7 +43,7 @@ export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
 		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Ephemeral Parameters Detected</DialogTitle>
+					<DialogTitle>Ephemeral parameters detected</DialogTitle>
 					<DialogDescription>
 						This workspace template has{" "}
 						<strong className="text-content-primary">

@@ -53,7 +53,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 		<Stack spacing={4}>
 			{!isCustomRolesEnabled && (
 				<Paywall
-					message="Custom Roles"
+					message="Custom roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
 					documentationLink={docs("/admin/users/groups-roles")}
 				/>
@@ -64,7 +64,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				justifyContent="space-between"
 			>
 				<span>
-					<h2 css={styles.tableHeader}>Custom Roles</h2>
+					<h2 css={styles.tableHeader}>Custom roles</h2>
 					<span css={styles.tableDescription}>
 						Create custom roles to grant users a tailored set of granular
 						permissions.

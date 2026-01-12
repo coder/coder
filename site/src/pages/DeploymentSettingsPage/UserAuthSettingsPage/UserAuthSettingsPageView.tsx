@@ -23,17 +23,17 @@ export const UserAuthSettingsPageView = ({
 	options,
 }: UserAuthSettingsPageViewProps): JSX.Element => {
 	const oidcEnabled = Boolean(
-		useDeploymentOptions(options, "OIDC Client ID")[0].value,
+		useDeploymentOptions(options, "oidc-client-id")[0].value,
 	);
 	const githubEnabled = Boolean(
-		useDeploymentOptions(options, "OAuth2 GitHub Client ID")[0].value,
+		useDeploymentOptions(options, "oauth2-github-client-id")[0].value,
 	);
 
 	return (
 		<Stack direction="column" spacing={6}>
 			<div>
 				<SettingsHeader>
-					<SettingsHeaderTitle>User Authentication</SettingsHeaderTitle>
+					<SettingsHeaderTitle>User authentication</SettingsHeaderTitle>
 				</SettingsHeader>
 
 				<SettingsHeader

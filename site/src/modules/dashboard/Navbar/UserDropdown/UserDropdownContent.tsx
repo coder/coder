@@ -27,7 +27,7 @@ import { SupportIcon } from "../SupportIcon";
 
 export const Language = {
 	accountLabel: "Account",
-	signOutLabel: "Sign Out",
+	signOutLabel: "Sign out",
 	copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
 };
 

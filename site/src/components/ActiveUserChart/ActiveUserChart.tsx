@@ -17,7 +17,7 @@ import { formatDate } from "utils/time";
 
 const chartConfig = {
 	amount: {
-		label: "Active Users",
+		label: "Active users",
 		color: "hsl(var(--highlight-purple))",
 	},
 } satisfies ChartConfig;

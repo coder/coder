@@ -79,7 +79,7 @@ export const CreateTemplateGalleryPageView: FC<
 											/>
 										</div>
 										<div>
-											<h4 css={styles.cardTitle}>Upload Template</h4>
+											<h4 css={styles.cardTitle}>Upload template</h4>
 											<span css={styles.cardDescription}>
 												Get started by uploading an existing template
 											</span>
