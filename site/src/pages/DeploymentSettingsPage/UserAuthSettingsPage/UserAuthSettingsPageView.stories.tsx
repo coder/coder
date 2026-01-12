@@ -22,7 +22,7 @@ const meta: Meta<typeof UserAuthSettingsPageView> = {
 				description: "Client ID to use for Login with OIDC.",
 				value: "1234",
 				group: oidcGroup,
-				flag: "oidc",
+				flag: "oidc-client-id",
 				flag_shorthand: "o",
 				hidden: false,
 			},

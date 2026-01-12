@@ -17,7 +17,7 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
 				description: "something",
 				value: "1234",
 				group,
-				flag: "derp",
+				flag: "ssh-keygen-algorithm",
 				flag_shorthand: "d",
 				hidden: false,
 			},
