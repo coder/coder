@@ -25,7 +25,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1881,7 +1880,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 				// We want to block here to avoid constantly pinging the
 				// database when the metadata isn't being processed.
 				case fetchedMetadata <- md:
-					log.Debug(ctx, "fetched all metadata after batch update", "num", len(md))
+					log.Debug(ctx, "fetched all metadata after batch update", slog.F("num", len(md)))
 				}
 			}
 		}
@@ -1915,21 +1914,6 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 		sendMetadata()
 	}
-}
-
-// appendUnique is like append and adds elements from src to dst,
-// skipping any elements that already exist in dst.
-func appendUnique[T comparable](dst, src []T) []T {
-	exists := make(map[T]struct{}, len(dst))
-	for _, key := range dst {
-		exists[key] = struct{}{}
-	}
-	for _, key := range src {
-		if _, ok := exists[key]; !ok {
-			dst = append(dst, key)
-		}
-	}
-	return dst
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
