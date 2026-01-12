@@ -9365,6 +9365,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `schedule` | string | false    |              | Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>` Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present. |
 
+## codersdk.UpdateWorkspaceBuildStateRequest
+
+```json
+{
+  "state": [
+    0
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type             | Required | Restrictions | Description |
+|---------|------------------|----------|--------------|-------------|
+| `state` | array of integer | false    |              |             |
+
 ## codersdk.UpdateWorkspaceDormancy
 
 ```json
