@@ -63,7 +63,7 @@ func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Re
 	aReq.Old = org
 	defer commitAudit()
 
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceOrganization.InOrg(org.ID)) {
+	if !api.Authorize(r, policy.ActionUpdate, org) {
 		httpapi.Forbidden(rw)
 		return
 	}
