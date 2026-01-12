@@ -2,6 +2,7 @@ package metadatabatcher
 
 import (
 	"context"
+	"encoding/base64"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,14 +38,15 @@ const (
 	// PostgreSQL NOTIFY has an 8KB limit for the payload.
 	maxPubsubPayloadSize = 8000 // Leave some headroom below 8192 bytes
 
-	// uuidByteSize is the size of a UUID in bytes when converted to a byte slice.
-	// Each UUID is exactly 16 bytes.
-	uuidByteSize = 16
+	// uuidBase64Size is the size of a base64-encoded UUID without padding.
+	// A UUID is 16 bytes, which encodes to 22 base64 characters (16 * 4 / 3 rounded up).
+	// We use RawStdEncoding (no padding) to maximize space efficiency.
+	uuidBase64Size = 22
 
 	// maxAgentIDsPerChunk is the maximum number of agent IDs that can fit in a
-	// single pubsub message. With 16 bytes per UUID and 8KB limit, we can fit
-	// 500 agent IDs per chunk (8000 / 16 = 500).
-	maxAgentIDsPerChunk = maxPubsubPayloadSize / uuidByteSize
+	// single pubsub message. With 22 bytes per base64-encoded UUID and 8KB limit,
+	// we can fit ~363 agent IDs per chunk (8000 / 22 = 363.6).
+	maxAgentIDsPerChunk = maxPubsubPayloadSize / uuidBase64Size
 
 	// Timeout to use for the context created when flushing the final batch due to the top level context being 'Done'
 	finalFlushTimeout = 15 * time.Second
@@ -394,8 +396,8 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 }
 
 // publishAgentIDsInChunks publishes agent IDs in chunks that fit within the
-// PostgreSQL NOTIFY 8KB payload size limit. Each chunk is published as a
-// byte slice containing concatenated UUIDs (16 bytes each).
+// PostgreSQL NOTIFY 8KB payload size limit. Each UUID is base64-encoded
+// (without padding) and concatenated into a single string.
 func (b *Batcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.UUID) {
 	for i := 0; i < len(agentIDs); i += maxAgentIDsPerChunk {
 		end := i + maxAgentIDsPerChunk
@@ -405,10 +407,14 @@ func (b *Batcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.U
 
 		chunk := agentIDs[i:end]
 
-		// Build byte slice by concatenating UUID bytes (16 bytes each).
-		payload := make([]byte, 0, len(chunk)*uuidByteSize)
+		// Build payload by base64-encoding each UUID (without padding) and
+		// concatenating them. This is UTF-8 safe for PostgreSQL NOTIFY.
+		payload := make([]byte, 0, len(chunk)*uuidBase64Size)
 		for _, agentID := range chunk {
-			payload = append(payload, agentID[:]...)
+			// Encode UUID bytes to base64 without padding (RawStdEncoding).
+			// This produces exactly 22 characters per UUID.
+			encoded := base64.RawStdEncoding.AppendEncode(payload, agentID[:])
+			payload = encoded
 		}
 
 		err := b.ps.Publish(MetadataBatchPubsubChannel, payload)
