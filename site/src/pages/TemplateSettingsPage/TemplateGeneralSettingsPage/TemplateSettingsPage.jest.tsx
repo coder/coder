@@ -210,7 +210,7 @@ describe("TemplateSettingsPage", () => {
 });
 
 async function deprecateTemplate(message: string) {
-	const deprecationField = screen.getByLabelText("Deprecation Message");
+	const deprecationField = screen.getByLabelText("Deprecation message");
 	await userEvent.type(deprecationField, message);
 	const submitButton = await screen.findByRole("button", { name: /save/i });
 	await userEvent.click(submitButton);
