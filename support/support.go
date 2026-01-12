@@ -14,12 +14,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/mod/semver"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/netcheck"
-
-	"golang.org/x/mod/semver"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
