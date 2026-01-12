@@ -20,6 +20,7 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 				Header: map[string][]string{
 					"X-Coder-Test":  {"foo"},
 					"X-Coder-Test3": {"socks"},
+					"X-Coder-Test5": {"ninjas"},
 				},
 			},
 			Header: map[string][]string{
@@ -46,5 +47,6 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 	require.Equal(t, "baz", ht.Header.Get("X-Coder-Test2"))
 	require.Equal(t, "clocks", ht.Header.Get("X-Coder-Test3"))
 	require.Equal(t, "bears", ht.Header.Get("X-Coder-Test4"))
+	require.Equal(t, "ninjas", ht.Header.Get("X-Coder-Test5"))
 	require.NotEqual(t, http.DefaultTransport, ht.Transport)
 }
