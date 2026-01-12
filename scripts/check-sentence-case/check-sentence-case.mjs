@@ -64,6 +64,8 @@ const PROPER_NOUNS = new Set([
   "Code Insiders",
   "Dev Container",
   "Git Clone",
+	"VS Code Desktop",
+	"VS Code Insiders",
 
   // Geographic names (countries, territories, regions)
   "British Indian Ocean Territory",
