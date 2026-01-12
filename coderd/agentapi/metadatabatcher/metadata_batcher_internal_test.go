@@ -15,8 +15,8 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
@@ -413,7 +413,6 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(b.Close)
-
 
 	// --- FLUSH 1: First capacity flush with 2 entries ---
 	t1 := clock.Now()
@@ -854,7 +853,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		scheduled := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
 		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
 		// Check that we've had 1 capacity flush and 1 scheduled flush
-		return float64(1) == capacity && float64(1) == scheduled && totalMeta >= float64(numAgents)
+		return capacity == float64(1) && scheduled == float64(1) && totalMeta == float64(600)
 	}, testutil.IntervalFast)
 	require.Equal(t, float64(numAgents), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }
@@ -885,7 +884,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	timestamps := make([]time.Time, numGoroutines)
 	initialTS := clock.Now()
 	for i := 0; i < numGoroutines; i++ {
-		timestamps[i] = initialTS.Add(time.Duration(i)*time.Millisecond)
+		timestamps[i] = initialTS.Add(time.Duration(i) * time.Millisecond)
 	}
 
 	// The latest timestamp will have the final values, since deduplication
@@ -979,7 +978,7 @@ func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(b.Close)
-	
+
 	agentID := uuid.New()
 	t1 := clock.Now()
 
