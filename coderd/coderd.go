@@ -242,6 +242,8 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	MetadataBatcherOptions []metadatabatcher.Option
+
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
 
 	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
@@ -789,12 +791,16 @@ func New(options *Options) *API {
 	})
 
 	// Initialize the metadata batcher for batching agent metadata updates.
+	batcherOpts := []metadatabatcher.Option{
+		metadatabatcher.WithLogger(options.Logger.Named("metadata_batcher")),
+	}
+	batcherOpts = append(batcherOpts, options.MetadataBatcherOptions...)
 	api.metadataBatcher, err = metadatabatcher.NewBatcher(
 		api.ctx,
 		options.PrometheusRegistry,
 		options.Database,
 		options.Pubsub,
-		metadatabatcher.WithLogger(options.Logger.Named("metadata_batcher")),
+		batcherOpts...,
 	)
 	if err != nil {
 		api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
