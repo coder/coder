@@ -60,7 +60,7 @@ export const WithOpenBuildParameters: Story = {
 		await step("open popover", async () => {
 			await userEvent.click(screen.getByText("Retry with build parameters"));
 			await waitFor(() =>
-				expect(screen.getByText("Build Options")).toBeInTheDocument(),
+				expect(screen.getByText("Build options")).toBeInTheDocument(),
 			);
 		});
 	},
