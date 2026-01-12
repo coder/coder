@@ -24,11 +24,13 @@ import (
 )
 
 type options struct {
-	fixedTimezone string
-	dumpOnFailure bool
-	returnSQLDB   func(*sql.DB)
-	logger        slog.Logger
-	url           string
+	fixedTimezone    string
+	dumpOnFailure    bool
+	returnSQLDB      func(*sql.DB)
+	logger           slog.Logger
+	url              string
+	queryTrackingCh  chan struct{}
+	queryTrackingSet bool
 }
 
 type Option func(*options)
@@ -62,6 +64,28 @@ func WithURL(u string) Option {
 func withReturnSQLDB(f func(*sql.DB)) Option {
 	return func(o *options) {
 		o.returnSQLDB = f
+	}
+}
+
+// WithQueryTracking enables query tracking and writes a TSV report of query
+// counts when the test completes. The report is written to the test's package
+// directory.
+//
+// If resetCh is non-nil, sending on the channel resets the query counts,
+// allowing you to exclude setup queries from the report:
+//
+//	resetCh := make(chan struct{})
+//	db, _ := dbtestutil.NewDB(t, dbtestutil.WithQueryTracking(resetCh))
+//	// Setup queries...
+//	resetCh <- struct{}{} // Reset counts
+//	// Test queries (these are reported)
+//
+// The channel is closed automatically during test cleanup.
+// If resetCh is nil, all queries are reported.
+func WithQueryTracking(resetCh chan struct{}) Option {
+	return func(o *options) {
+		o.queryTrackingCh = resetCh
+		o.queryTrackingSet = true
 	}
 }
 
@@ -140,6 +164,18 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Cleanup(func() {
 		_ = ps.Close()
 	})
+
+	// Setting DBTRACKER_REPORT_DIR enables query tracking.
+	if os.Getenv("DBTRACKER_REPORT_DIR") != "" {
+		o.queryTrackingSet = true
+	}
+
+	// Wrap with query tracking if enabled.
+	if o.queryTrackingSet {
+		var cleanup func()
+		db, cleanup = wrapWithQueryTracking(t, db, o.logger, o.queryTrackingCh)
+		t.Cleanup(cleanup)
+	}
 
 	return db, ps
 }
