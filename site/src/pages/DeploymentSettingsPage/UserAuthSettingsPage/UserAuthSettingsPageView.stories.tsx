@@ -68,7 +68,7 @@ const meta: Meta<typeof UserAuthSettingsPageView> = {
 				description: "Client ID for Login with GitHub.",
 				value: "1224",
 				group: ghGroup,
-				flag: "oidc",
+				flag: "oauth2-github-client-id",
 				flag_shorthand: "o",
 				hidden: false,
 			},
