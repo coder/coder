@@ -529,7 +529,7 @@ describe("WorkspacePage", () => {
 			name: "Retry with build parameters",
 		});
 		await user.click(retryWithBuildParametersButton);
-		await screen.findByText("Build Options");
+		await screen.findByText("Build options");
 		const parameterField = screen.getByLabelText(parameter.display_name, {
 			exact: false,
 		});
@@ -575,7 +575,7 @@ describe("WorkspacePage", () => {
 			name: "Debug with build parameters",
 		});
 		await user.click(retryWithBuildParametersButton);
-		await screen.findByText("Build Options");
+		await screen.findByText("Build options");
 		const parameterField = screen.getByLabelText(parameter.display_name, {
 			exact: false,
 		});
