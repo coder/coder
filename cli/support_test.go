@@ -203,6 +203,10 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			var v codersdk.DeploymentConfig
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "deployment config should not be empty")
+		case "deployment/entitlements.json":
+			var v codersdk.Entitlements
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "entitlements should not be nil")
 		case "deployment/experiments.json":
 			var v codersdk.Experiments
 			decodeJSONFromZip(t, f, &v)
@@ -211,6 +215,21 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			var v healthsdk.HealthcheckReport
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "health report should not be empty")
+		case "deployment/health_settings.json":
+			var v healthsdk.HealthSettings
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "health settings should not be empty")
+		case "deployment/stats.json":
+			var v codersdk.DeploymentStats
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "deployment stats should not be nil")
+		case "deployment/workspaces.json":
+			var v codersdk.Workspace
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "deployment workspaces should not be nil")
+		case "deployment/prometheus.txt":
+			// Prometheus metrics may or may not be present depending on config.
+			_ = readBytesFromZip(t, f)
 		case "network/connection_info.json":
 			var v workspacesdk.AgentConnectionInfo
 			decodeJSONFromZip(t, f, &v)

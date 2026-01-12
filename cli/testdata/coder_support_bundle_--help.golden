@@ -14,9 +14,22 @@ OPTIONS:
           File path for writing the generated support bundle. Defaults to
           coder-support-$(date +%s).zip.
 
+      --pprof bool, $CODER_SUPPORT_BUNDLE_PPROF
+          Collect pprof profiling data from the Coder server and agent. Requires
+          Coder server version 2.28.0 or newer.
+
+      --template string, $CODER_SUPPORT_BUNDLE_TEMPLATE
+          Template name to include in the support bundle. Use
+          org_name/template_name if template name is reused across multiple
+          organizations.
+
       --url-override string, $CODER_SUPPORT_BUNDLE_URL_OVERRIDE
           Override the URL to your Coder deployment. This may be useful, for
           example, if you need to troubleshoot a specific Coder replica.
+
+      --workspaces-total-cap int, $CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP
+          Maximum number of workspaces to include in the support bundle. Set to
+          0 or negative value to disable the cap. Defaults to 10.
 
   -y, --yes bool
           Bypass prompts.
