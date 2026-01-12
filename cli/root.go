@@ -1507,17 +1507,7 @@ func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.
 	)
 	return roundTripper(func(req *http.Request) (*http.Response, error) {
 		once.Do(func() {
-			var b strings.Builder
-			_, _ = b.WriteString("coder-cli/")
-			_, _ = b.WriteString(buildinfo.Version())
-			_, _ = b.WriteString(" (")
-			_, _ = b.WriteString(runtime.GOOS)
-			_ = b.WriteByte('/')
-			_, _ = b.WriteString(runtime.GOARCH)
-			_, _ = b.WriteString("; ")
-			_, _ = b.WriteString(inv.Command.FullName())
-			_ = b.WriteByte(')')
-			userAgent = b.String()
+			userAgent = fmt.Sprintf("coder-cli/%s (%s/%s; %s)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH, inv.Command.FullName())
 		})
 		req.Header.Set("User-Agent", userAgent)
 		return transport.RoundTrip(req)
