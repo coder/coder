@@ -793,7 +793,7 @@ func AuthzUserSubject(user codersdk.User) rbac.Subject {
 
 // AuthzUserSubjectWithDB is like AuthzUserSubject but adds db-backed roles
 // (like organization-member).
-func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store, user codersdk.User, orgID uuid.UUID) rbac.Subject {
+func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store, user codersdk.User) rbac.Subject {
 	t.Helper()
 
 	roles := make(rbac.RoleIdentifiers, 0, len(user.Roles)+2)
@@ -806,8 +806,22 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 			OrganizationID: parsedOrgID,
 		})
 	}
-	// We assume only 1 org exists.
-	roles = append(roles, rbac.ScopedRoleOrgMember(orgID))
+
+	//nolint:gocritic // We’re constructing the subject. The incoming ctx
+	// typically has no dbauthz actor yet, and using AuthzUserSubject(user)
+	// here would be circular (it lacks DB-backed org-member roles needed for
+	// organization:read). Use system-restricted ctx for the membership lookup.
+	orgs, err := db.GetOrganizationsByUserID(dbauthz.AsSystemRestricted(ctx), database.GetOrganizationsByUserIDParams{
+		UserID: user.ID,
+		Deleted: sql.NullBool{
+			Valid: true,
+			Bool:  false,
+		},
+	})
+	require.NoError(t, err)
+	for _, org := range orgs {
+		roles = append(roles, rbac.ScopedRoleOrgMember(org.ID))
+	}
 
 	//nolint:gocritic // We need to expand DB-backed/system roles. The caller
 	// ctx may not have permission to read system roles, so use system-restricted

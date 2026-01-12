@@ -31,7 +31,7 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 		agents[0].Directory = tmpDir
 		return agents
 	}).Do()
-	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user, owner.OrganizationID)), r.Workspace.ID)
+	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user)), r.Workspace.ID)
 	require.NoError(t, err)
 
 	// owner level should fail
@@ -148,7 +148,7 @@ func TestGetWorkspaceAgentPortShares(t *testing.T) {
 		agents[0].Directory = tmpDir
 		return agents
 	}).Do()
-	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user, owner.OrganizationID)), r.Workspace.ID)
+	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user)), r.Workspace.ID)
 	require.NoError(t, err)
 
 	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
@@ -184,7 +184,7 @@ func TestDeleteWorkspaceAgentPortShare(t *testing.T) {
 		agents[0].Directory = tmpDir
 		return agents
 	}).Do()
-	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user, owner.OrganizationID)), r.Workspace.ID)
+	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user)), r.Workspace.ID)
 	require.NoError(t, err)
 
 	// create
@@ -211,7 +211,7 @@ func TestDeleteWorkspaceAgentPortShare(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, err = db.GetWorkspaceAgentPortShare(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user, owner.OrganizationID)), database.GetWorkspaceAgentPortShareParams{
+	_, err = db.GetWorkspaceAgentPortShare(dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, user)), database.GetWorkspaceAgentPortShareParams{
 		WorkspaceID: r.Workspace.ID,
 		AgentName:   agents[0].Name,
 		Port:        8080,
