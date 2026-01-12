@@ -80,8 +80,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
-    "use_classic_parameter_flow": true,
-    "use_terraform_workspace_cache": true
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -139,7 +138,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
 |`» use_classic_parameter_flow`|boolean|false|||
-|`» use_terraform_workspace_cache`|boolean|false|||
 
 #### Enumerated Values
 
@@ -264,8 +262,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -415,8 +412,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -832,8 +828,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
-    "use_classic_parameter_flow": true,
-    "use_terraform_workspace_cache": true
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -891,7 +886,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
 |`» use_classic_parameter_flow`|boolean|false|||
-|`» use_terraform_workspace_cache`|boolean|false|||
 
 #### Enumerated Values
 
@@ -1034,8 +1028,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -1139,8 +1132,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
   "update_workspace_last_used_at": true,
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -1207,8 +1199,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 

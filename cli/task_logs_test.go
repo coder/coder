@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentapisdk "github.com/coder/agentapi-sdk-go"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"

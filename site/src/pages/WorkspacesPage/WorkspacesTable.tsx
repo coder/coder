@@ -51,9 +51,9 @@ import {
 	EllipsisVertical,
 	ExternalLinkIcon,
 	FileIcon,
-	PauseIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	SquareIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
@@ -491,7 +491,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						isLoading={stopWorkspaceMutation.isPending}
 						label="Stop workspace"
 					>
-						<PauseIcon />
+						<SquareIcon />
 					</PrimaryAction>
 				)}
 
@@ -736,7 +736,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				}}
 				label="Open Terminal"
 			>
-				<SquareTerminalIcon />
+				<SquareTerminalIcon className="!size-7" />
 			</BaseIconLink>,
 		);
 	}

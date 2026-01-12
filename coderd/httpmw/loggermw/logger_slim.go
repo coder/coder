@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 type RequestLogger interface {

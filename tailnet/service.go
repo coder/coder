@@ -15,7 +15,7 @@ import (
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/tailnet/proto"

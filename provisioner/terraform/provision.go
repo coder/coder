@@ -17,13 +17,12 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/terraform-provider-coder/v2/provider"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 const staleTerraformPluginRetention = 30 * 24 * time.Hour
@@ -70,7 +69,7 @@ func (s *server) setupContexts(parent context.Context, canceledOrComplete <-chan
 }
 
 func (s *server) Init(
-	sess *provisionersdk.Session, request *proto.InitRequest, canceledOrComplete <-chan struct{},
+	sess *provisionersdk.Session, request *provisionersdk.InitRequest, canceledOrComplete <-chan struct{},
 ) *proto.InitComplete {
 	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
 	defer span.End()
@@ -85,7 +84,7 @@ func (s *server) Init(
 	logTerraformEnvVars(sess)
 
 	// TODO: These logs should probably be streamed back to the provisioner runner.
-	err := sess.Files.ExtractArchive(ctx, s.logger, afero.NewOsFs(), request.GetTemplateSourceArchive())
+	err := sess.Files.ExtractArchive(ctx, s.logger, afero.NewOsFs(), request.GetTemplateSourceArchive(), request.ModuleArchive)
 	if err != nil {
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}

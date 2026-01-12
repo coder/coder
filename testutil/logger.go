@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 )
 
 // Logger returns a "standard" testing logger, with debug level and common flaky

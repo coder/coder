@@ -30,17 +30,17 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-	"unicode"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -50,15 +50,10 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/types/nettype"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
-	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
-	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
@@ -72,22 +67,26 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -100,6 +99,7 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 const defaultTestDaemonName = "test-daemon"
@@ -793,7 +793,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 
 func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationIDs []uuid.UUID, retries int, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequestWithOrgs)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequestWithOrgs{
-		Email:           namesgenerator.GetRandomName(10) + "@coder.com",
+		Email:           namesgenerator.UniqueName() + "@coder.com",
 		Username:        RandomUsername(t),
 		Name:            RandomName(t),
 		Password:        "SomeSecurePassword!",
@@ -1557,37 +1557,15 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 		}
 }
 
-func RandomUsername(t testing.TB) string {
-	suffix, err := cryptorand.String(3)
-	require.NoError(t, err)
-	suffix = "-" + suffix
-	n := strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + suffix
-	if len(n) > 32 {
-		n = n[:32-len(suffix)] + suffix
-	}
-	return n
+func RandomUsername(_ testing.TB) string {
+	return namesgenerator.UniqueNameWith("-")
 }
 
-func RandomName(t testing.TB) string {
-	var sb strings.Builder
-	var err error
-	ss := strings.Split(namesgenerator.GetRandomName(10), "_")
-	for si, s := range ss {
-		for ri, r := range s {
-			if ri == 0 {
-				_, err = sb.WriteRune(unicode.ToTitle(r))
-				require.NoError(t, err)
-			} else {
-				_, err = sb.WriteRune(r)
-				require.NoError(t, err)
-			}
-		}
-		if si < len(ss)-1 {
-			_, err = sb.WriteRune(' ')
-			require.NoError(t, err)
-		}
-	}
-	return sb.String()
+// RandomName returns a random name in title case (e.g. "Happy Einstein").
+func RandomName(_ testing.TB) string {
+	return cases.Title(language.English).String(
+		namesgenerator.NameWith(" "),
+	)
 }
 
 // Used to easily create an HTTP transport!

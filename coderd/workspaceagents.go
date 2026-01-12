@@ -23,9 +23,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"github.com/coder/websocket"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -50,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // @Summary Get workspace agent by ID
@@ -1740,7 +1739,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		log.Debug(ctx, "received metadata update", "payload", payload)
+		log.Debug(ctx, "received metadata update", slog.F("payload", payload))
 
 		select {
 		case prev := <-update:
@@ -1770,7 +1769,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 		return
 	}
 
-	log.Debug(ctx, "got initial metadata", "num", len(initialMD))
+	log.Debug(ctx, "got initial metadata", slog.F("num", len(initialMD)))
 
 	metadataMap := make(map[string]database.WorkspaceAgentMetadatum, len(initialMD))
 	for _, datum := range initialMD {
@@ -1807,7 +1806,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 		lastSend = time.Now()
 		values := maps.Values(metadataMap)
 
-		log.Debug(ctx, "sending metadata", "num", len(values))
+		log.Debug(ctx, "sending metadata", slog.F("num", len(values)))
 
 		_ = sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
@@ -1862,7 +1861,9 @@ func (api *API) watchWorkspaceAgentMetadata(
 				// We want to block here to avoid constantly pinging the
 				// database when the metadata isn't being processed.
 				case fetchedMetadata <- md:
-					log.Debug(ctx, "fetched metadata update for keys", "keys", payload.Keys, "num", len(md))
+					log.Debug(ctx, "fetched metadata update for keys",
+						slog.F("keys", payload.Keys),
+						slog.F("num", len(md)))
 				}
 			}
 		}

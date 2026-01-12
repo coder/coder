@@ -21,8 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -540,7 +539,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		return err
 	}
 
-	fields := []any{
+	fields := []slog.Field{
 		slog.F("desired", state.Desired), slog.F("actual", state.Actual),
 		slog.F("extraneous", state.Extraneous), slog.F("starting", state.Starting),
 		slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
@@ -554,7 +553,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	for _, action := range actions {
 		err = c.executeReconciliationAction(ctx, logger, ps, action)
 		if err != nil {
-			logger.Error(ctx, "failed to execute action", "type", action.ActionType, slog.Error(err))
+			logger.Error(ctx, "failed to execute action", slog.F("type", action.ActionType), slog.Error(err))
 			multiErr.Errors = append(multiErr.Errors, err)
 		}
 	}
@@ -645,7 +644,7 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 	// nolint:gocritic // ReconcilePreset needs Prebuilds Orchestrator permissions.
 	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
-	fields := []any{
+	fields := []slog.Field{
 		slog.F("action_type", action.ActionType), slog.F("create_count", action.Create),
 		slog.F("delete_count", len(action.DeleteIDs)), slog.F("to_delete", action.DeleteIDs),
 	}

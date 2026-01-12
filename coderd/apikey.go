@@ -9,11 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -23,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -102,7 +101,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tokenName := namesgenerator.GetRandomName(1)
+	tokenName := namesgenerator.NameDigitWith("_")
 
 	if len(createToken.TokenName) != 0 {
 		tokenName = createToken.TokenName

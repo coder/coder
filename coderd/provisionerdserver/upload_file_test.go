@@ -110,17 +110,17 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 
 		stream := &mockUploadStream{
 			done:     make(chan struct{}),
-			messages: make(chan *proto.UploadFileRequest, 2),
+			messages: make(chan *sdkproto.FileUpload, 2),
 		}
 
-		up := &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: upload}}
+		up := &sdkproto.FileUpload{Type: &sdkproto.FileUpload_DataUpload{DataUpload: upload}}
 
 		// Send it twice
 		stream.messages <- up
 		stream.messages <- up
 
 		err := server.UploadFile(stream)
-		require.ErrorContains(t, err, "unexpected file upload while waiting for file completion")
+		require.ErrorContains(t, err, "unexpected file download while waiting for file completion")
 		require.True(t, stream.isDone(), "stream should be done after error")
 	})
 
@@ -140,7 +140,7 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 
 type mockUploadStream struct {
 	done     chan struct{}
-	messages chan *proto.UploadFileRequest
+	messages chan *sdkproto.FileUpload
 }
 
 func (m mockUploadStream) SendAndClose(empty *proto.Empty) error {
@@ -148,7 +148,7 @@ func (m mockUploadStream) SendAndClose(empty *proto.Empty) error {
 	return nil
 }
 
-func (m mockUploadStream) Recv() (*proto.UploadFileRequest, error) {
+func (m mockUploadStream) Recv() (*sdkproto.FileUpload, error) {
 	msg, ok := <-m.messages
 	if !ok {
 		return nil, xerrors.New("no more messages to receive")
@@ -177,14 +177,14 @@ func (m *mockUploadStream) isDone() bool {
 func newMockUploadStream(up *sdkproto.DataUpload, chunks ...*sdkproto.ChunkPiece) *mockUploadStream {
 	stream := &mockUploadStream{
 		done:     make(chan struct{}),
-		messages: make(chan *proto.UploadFileRequest, 1+len(chunks)),
+		messages: make(chan *sdkproto.FileUpload, 1+len(chunks)),
 	}
 	if up != nil {
-		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: up}}
+		stream.messages <- &sdkproto.FileUpload{Type: &sdkproto.FileUpload_DataUpload{DataUpload: up}}
 	}
 
 	for _, chunk := range chunks {
-		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: chunk}}
+		stream.messages <- &sdkproto.FileUpload{Type: &sdkproto.FileUpload_ChunkPiece{ChunkPiece: chunk}}
 	}
 	close(stream.messages)
 	return stream
