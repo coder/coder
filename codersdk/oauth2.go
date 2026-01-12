@@ -336,7 +336,7 @@ type OAuth2TokenResponse struct {
 	Scope        string          `json:"scope,omitempty"`
 	// Expiry is not part of RFC 6749 but is included for compatibility with
 	// golang.org/x/oauth2.Token and clients that expect a timestamp.
-	Expiry time.Time `json:"expiry,omitempty"`
+	Expiry *time.Time `json:"expiry,omitempty" format:"date-time"`
 }
 
 // OAuth2TokenRevocationRequest represents a token revocation request per RFC 7009.

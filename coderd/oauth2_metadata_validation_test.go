@@ -659,14 +659,14 @@ func TestOAuth2ClientMetadataDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should default to authorization_code
-	require.Contains(t, config.GrantTypes, "authorization_code")
+	require.Contains(t, config.GrantTypes, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
 
 	// Should default to code
-	require.Contains(t, config.ResponseTypes, "code")
+	require.Contains(t, config.ResponseTypes, codersdk.OAuth2ProviderResponseTypeCode)
 
 	// Should default to client_secret_basic or client_secret_post
-	require.True(t, config.TokenEndpointAuthMethod == "client_secret_basic" ||
-		config.TokenEndpointAuthMethod == "client_secret_post" ||
+	require.True(t, config.TokenEndpointAuthMethod == codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic ||
+		config.TokenEndpointAuthMethod == codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost ||
 		config.TokenEndpointAuthMethod == "")
 
 	// Client secret should be generated
