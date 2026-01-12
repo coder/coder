@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"slices"
@@ -886,10 +885,10 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update workspace build state
 // @ID update-workspace-build-state
 // @Security CoderSessionToken
-// @Accept application/octet-stream
+// @Accept json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
-// @Param request body []byte true "New Terraform state"
+// @Param request body codersdk.UpdateWorkspaceBuildStateRequest true "Request body"
 // @Success 204
 // @Router /workspacebuilds/{workspacebuild}/state [put]
 func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Request) {
@@ -917,12 +916,8 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	state, err := io.ReadAll(r.Body)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read request body.",
-			Detail:  err.Error(),
-		})
+	var req codersdk.UpdateWorkspaceBuildStateRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -930,7 +925,7 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 	// nolint:gocritic // System access required for provisioner state update.
 	err = api.Database.UpdateWorkspaceBuildProvisionerStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 		ID:               workspaceBuild.ID,
-		ProvisionerState: state,
+		ProvisionerState: req.State,
 		UpdatedAt:        dbtime.Now(),
 	})
 	if err != nil {

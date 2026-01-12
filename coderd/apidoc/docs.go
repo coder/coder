@@ -10233,7 +10233,7 @@ const docTemplate = `{
                     }
                 ],
                 "consumes": [
-                    "application/octet-stream"
+                    "application/json"
                 ],
                 "tags": [
                     "Builds"
@@ -10250,15 +10250,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "New Terraform state",
+                        "description": "Request body",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "integer"
-                            }
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceBuildStateRequest"
                         }
                     }
                 ],
@@ -19589,6 +19586,17 @@ const docTemplate = `{
                 "schedule": {
                     "description": "Schedule is expected to be of the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `\nExample: ` + "`" + `CRON_TZ=US/Central 30 9 * * 1-5` + "`" + ` represents 0930 in the timezone US/Central\non weekdays (Mon-Fri). ` + "`" + `CRON_TZ` + "`" + ` defaults to UTC if not present.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateWorkspaceBuildStateRequest": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },

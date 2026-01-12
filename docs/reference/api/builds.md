@@ -1190,7 +1190,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/state \
-  -H 'Content-Type: application/octet-stream' \
+  -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1198,17 +1198,20 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 > Body parameter
 
-```yaml
-- 0
-
+```json
+{
+  "state": [
+    0
+  ]
+}
 ```
 
 ### Parameters
 
-| Name             | In   | Type           | Required | Description         |
-|------------------|------|----------------|----------|---------------------|
-| `workspacebuild` | path | string(uuid)   | true     | Workspace build ID  |
-| `body`           | body | array[integer] | true     | New Terraform state |
+| Name             | In   | Type                                                                                             | Required | Description        |
+|------------------|------|--------------------------------------------------------------------------------------------------|----------|--------------------|
+| `workspacebuild` | path | string(uuid)                                                                                     | true     | Workspace build ID |
+| `body`           | body | [codersdk.UpdateWorkspaceBuildStateRequest](schemas.md#codersdkupdateworkspacebuildstaterequest) | true     | Request body       |
 
 ### Responses
 

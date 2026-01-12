@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -178,7 +180,7 @@ func TestStatePush(t *testing.T) {
 		err = stateFile.Close()
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "state", "push", "--no-build", "--yes", r.Workspace.Name, stateFile.Name())
+		inv, root := clitest.New(t, "state", "push", "--no-build", r.Workspace.Name, stateFile.Name())
 		clitest.SetupConfig(t, templateAdmin, root)
 		var stdout bytes.Buffer
 		inv.Stdout = &stdout
@@ -194,5 +196,12 @@ func TestStatePush(t *testing.T) {
 		err = inv.Run()
 		require.NoError(t, err)
 		require.Equal(t, wantState, bytes.TrimSpace(gotState.Bytes()))
+
+		// Verify no new build was created.
+		builds, err := store.GetWorkspaceBuildsByWorkspaceID(dbauthz.AsSystemRestricted(context.Background()), database.GetWorkspaceBuildsByWorkspaceIDParams{
+			WorkspaceID: r.Workspace.ID,
+		})
+		require.NoError(t, err)
+		require.Len(t, builds, 1, "expected only the initial build, no new build should be created")
 	})
 }

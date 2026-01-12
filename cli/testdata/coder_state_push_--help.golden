@@ -13,8 +13,5 @@ OPTIONS:
           Update the state without triggering a workspace build. Useful for
           state-only migrations.
 
-  -y, --yes bool
-          Bypass prompts.
-
 ———
 Run `coder --help` for a list of global options.
