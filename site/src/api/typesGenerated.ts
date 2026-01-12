@@ -1907,7 +1907,6 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
-	| "metadata-batching"
 	| "notifications"
 	| "oauth2"
 	| "web-push"
@@ -1918,7 +1917,6 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
-	"metadata-batching",
 	"notifications",
 	"oauth2",
 	"web-push",
