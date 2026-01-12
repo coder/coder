@@ -1727,7 +1727,8 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
-	update := make(chan []string, 1)
+	// The channel carries no data - it's just a signal to fetch all metadata.
+	update := make(chan struct{}, 1)
 
 	// Subscribe to the global batched metadata channel.
 	// The batcher publishes only to this channel to achieve O(1) NOTIFY scaling.
@@ -1756,17 +1757,16 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 			// Signal to re-fetch all metadata for this agent.
 			// Batch notifications don't include which keys changed, so we
-			// must fetch all keys. Don't merge with pending updates - just
-			// replace with "fetch all" since that's the most complete action.
+			// always fetch all keys for this agent.
 
-			// Clear any pending partial fetches - batch always means "fetch all".
+			// Clear any pending signals - batch always means "fetch all".
 			select {
 			case <-update:
 			default:
 			}
 			// This can never block since we drained beforehand.
-			// nil keys means "fetch all keys".
-			update <- nil
+			// Send empty struct as signal to fetch all metadata.
+			update <- struct{}{}
 			break
 		}
 	})
@@ -1858,10 +1858,11 @@ func (api *API) watchWorkspaceAgentMetadata(
 			select {
 			case <-ctx.Done():
 				return
-			case keys := <-update:
+			case <-update:
+				// Batch notification received - fetch all metadata for this agent.
 				md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
 					WorkspaceAgentID: workspaceAgent.ID,
-					Keys:             keys,
+					Keys:             nil, // nil means fetch all keys
 				})
 				if err != nil {
 					if !database.IsQueryCanceledError(err) {
@@ -1882,9 +1883,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 				// We want to block here to avoid constantly pinging the
 				// database when the metadata isn't being processed.
 				case fetchedMetadata <- md:
-					log.Debug(ctx, "fetched metadata update for keys",
-						slog.F("keys", payload.Keys),
-						slog.F("num", len(md)))
+					log.Debug(ctx, "fetched all metadata after batch update", "num", len(md))
 				}
 			}
 		}
