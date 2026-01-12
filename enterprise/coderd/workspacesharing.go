@@ -29,7 +29,7 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceOrganization.InOrg(org.ID)) {
+	if !api.Authorize(r, policy.ActionRead, org) {
 		httpapi.Forbidden(rw)
 		return
 	}
