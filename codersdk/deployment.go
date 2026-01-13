@@ -2625,7 +2625,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name:        "Postgres Connection Max Open",
 			Description: "Maximum number of open connections to the database. Defaults to 10.",
-			Flag:        "pg-conn-max-open",
+			Flag:        "postgres-conn-max-open",
 			Env:         "CODER_PG_CONN_MAX_OPEN",
 			Default:     "10",
 			Value: serpent.Validate(&c.PostgresConnMaxOpen, func(value *serpent.Int64) error {
@@ -2639,7 +2639,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name:        "Postgres Connection Max Idle",
 			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3.",
-			Flag:        "pg-conn-max-idle",
+			Flag:        "postgres-conn-max-idle",
 			Env:         "CODER_PG_CONN_MAX_IDLE",
 			Default:     PostgresConnMaxIdleAuto,
 			Value: serpent.Validate(&c.PostgresConnMaxIdle, func(value *serpent.String) error {
@@ -4165,4 +4165,28 @@ func (c CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := c.Secret != ""
 	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
 	return hasSecret && beforeDelete
+}
+
+// ComputeMaxIdleConns calculates the effective maxIdleConns value. If
+// configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
+// configuredIdle exceeds maxOpen, it returns an error.
+func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
+	if configuredIdle == PostgresConnMaxIdleAuto {
+		computed := maxOpen / 3
+		if computed < 1 {
+			return 1, nil
+		}
+		return computed, nil
+	}
+	idle, err := strconv.Atoi(configuredIdle)
+	if err != nil {
+		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or a positive integer", configuredIdle, PostgresConnMaxIdleAuto)
+	}
+	if idle < 1 {
+		return 0, xerrors.Errorf("max idle connections must be %q or a positive integer", PostgresConnMaxIdleAuto)
+	}
+	if idle > maxOpen {
+		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
+	}
+	return idle, nil
 }

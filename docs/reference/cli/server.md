@@ -1015,7 +1015,7 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
-### --pg-conn-max-open
+### --postgres-conn-max-open
 
 |             |                                      |
 |-------------|--------------------------------------|
@@ -1026,7 +1026,7 @@ Type of auth to use when connecting to postgres. For AWS RDS, using IAM authenti
 
 Maximum number of open connections to the database. Defaults to 10.
 
-### --pg-conn-max-idle
+### --postgres-conn-max-idle
 
 |             |                                      |
 |-------------|--------------------------------------|

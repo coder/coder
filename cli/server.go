@@ -749,10 +749,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var pubsubWatchdogTimeout <-chan struct{}
 
 			maxOpenConns := int(vals.PostgresConnMaxOpen.Value())
-			maxIdleConns, err := ComputeMaxIdleConns(maxOpenConns, vals.PostgresConnMaxIdle.Value())
+			maxIdleConns, err := codersdk.ComputeMaxIdleConns(maxOpenConns, vals.PostgresConnMaxIdle.Value())
 			if err != nil {
 				return xerrors.Errorf("compute max idle connections: %w", err)
 			}
+			logger.Info(ctx, "creating database connection pool", slog.F("max_open_conns", maxOpenConns), slog.F("max_idle_conns", maxIdleConns))
 			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver,
 				WithMaxOpenConns(maxOpenConns),
 				WithMaxIdleConns(maxIdleConns),
@@ -2331,30 +2332,6 @@ func isDERPPath(p string) bool {
 // be called with `u.Hostname()`.
 func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
-}
-
-// ComputeMaxIdleConns calculates the effective maxIdleConns value. If
-// configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
-// configuredIdle exceeds maxOpen, it returns an error.
-func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
-	if configuredIdle == codersdk.PostgresConnMaxIdleAuto {
-		computed := maxOpen / 3
-		if computed < 1 {
-			return 1, nil
-		}
-		return computed, nil
-	}
-	idle, err := strconv.Atoi(configuredIdle)
-	if err != nil {
-		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or a positive integer", configuredIdle, codersdk.PostgresConnMaxIdleAuto)
-	}
-	if idle < 1 {
-		return 0, xerrors.Errorf("max idle connections must be %q or a positive integer", codersdk.PostgresConnMaxIdleAuto)
-	}
-	if idle > maxOpen {
-		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
-	}
-	return idle, nil
 }
 
 // PostgresConnectOptions contains options for connecting to Postgres.

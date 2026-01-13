@@ -238,7 +238,16 @@ connection pool behavior:
 
 - **Capacity**: `go_sql_max_open_connections - go_sql_in_use_connections` shows
   how many connections are available for new requests. If this is 0, Coder
-  Server performance will start to degrade.
+  Server performance will start to degrade. This just provides a point-in-time view
+  of the connections, however.
+
+  For a more systematic view, consider running
+  `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long
+  each Coder replica spent waiting on the connection pool (i.e. no free connections);
+  `sum by(pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many
+  connections were waited for.
+
+  If either of these values seem unacceptably high, try tuning the above settings.
 - **Churn**: `sum(rate(go_sql_max_idle_closed_total[$__rate_interval]))` shows
   how many connections are being closed because the idle pool is full.
 
