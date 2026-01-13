@@ -231,9 +231,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
-			// TODO: Don't include any limit features in the premium feature set.
-			// TODO: We don't want `ai_bridge` or `boundary`.
-			return f.UsesLimit()
+			return f.UsesLimit() || f == FeatureAIBridge || f == FeatureBoundaries
 		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures
