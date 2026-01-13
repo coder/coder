@@ -2644,13 +2644,14 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML: "pgConnMaxOpen",
 		},
 		{
-			Name:        "Postgres Connection Max Idle",
-			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3.",
-			Flag:        "postgres-conn-max-idle",
-			Env:         "CODER_PG_CONN_MAX_IDLE",
-			Default:     PostgresConnMaxIdleAuto,
-			Value:       &c.PostgresConnMaxIdle,
-			YAML:        "pgConnMaxIdle",
+			Name: "Postgres Connection Max Idle",
+			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3. " +
+				"Value must be greater or equal to 0; 0 means explicitly no idle connections.",
+			Flag:    "postgres-conn-max-idle",
+			Env:     "CODER_PG_CONN_MAX_IDLE",
+			Default: PostgresConnMaxIdleAuto,
+			Value:   &c.PostgresConnMaxIdle,
+			YAML:    "pgConnMaxIdle",
 		},
 		{
 			Name:        "Secure Auth Cookie",

@@ -1035,7 +1035,7 @@ Maximum number of open connections to the database. Defaults to 10.
 | YAML        | <code>pgConnMaxIdle</code>           |
 | Default     | <code>auto</code>                    |
 
-Maximum number of idle connections to the database. Set to "auto" (the default) to use max open / 3.
+Maximum number of idle connections to the database. Set to "auto" (the default) to use max open / 3. Value must be greater or equal to 0; 0 means explicitly no idle connections.
 
 ### --secure-auth-cookie
 

@@ -68,7 +68,8 @@ OPTIONS:
 
       --postgres-conn-max-idle string, $CODER_PG_CONN_MAX_IDLE (default: auto)
           Maximum number of idle connections to the database. Set to "auto" (the
-          default) to use max open / 3.
+          default) to use max open / 3. Value must be greater or equal to 0; 0
+          means explicitly no idle connections.
 
       --postgres-conn-max-open int, $CODER_PG_CONN_MAX_OPEN (default: 10)
           Maximum number of open connections to the database. Defaults to 10.
