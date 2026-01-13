@@ -191,7 +191,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "key": "string"
         },
         "rate_limit": 0,
-        "retention": 0
+        "retention": 0,
+        "structured_logging": true
       }
     },
     "allow_workspace_renames": true,

@@ -396,7 +396,8 @@
     "key": "string"
   },
   "rate_limit": 0,
-  "retention": 0
+  "retention": 0,
+  "structured_logging": true
 }
 ```
 
@@ -412,6 +413,7 @@
 | `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 | `rate_limit`             | integer                                                              | false    |              |             |
 | `retention`              | integer                                                              | false    |              |             |
+| `structured_logging`     | boolean                                                              | false    |              |             |
 
 ## codersdk.AIBridgeInterception
 
@@ -743,7 +745,8 @@
       "key": "string"
     },
     "rate_limit": 0,
-    "retention": 0
+    "retention": 0,
+    "structured_logging": true
   }
 }
 ```
@@ -2658,7 +2661,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "key": "string"
         },
         "rate_limit": 0,
-        "retention": 0
+        "retention": 0,
+        "structured_logging": true
       }
     },
     "allow_workspace_renames": true,
@@ -3202,7 +3206,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "key": "string"
       },
       "rate_limit": 0,
-      "retention": 0
+      "retention": 0,
+      "structured_logging": true
     }
   },
   "allow_workspace_renames": true,

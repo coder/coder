@@ -35,6 +35,7 @@ export interface AIBridgeConfig {
 	readonly retention: number;
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
+	readonly structured_logging: boolean;
 }
 
 // From codersdk/aibridge.go
