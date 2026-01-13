@@ -705,38 +705,6 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-resource "coder_metadata" "docker_volume" {
-  resource_id = docker_volume.docker_volume.id
-  hide        = true # Hide it as it is not useful to see in the UI.
-}
-
-resource "docker_volume" "docker_volume" {
-  name = "coder-${data.coder_workspace.me.id}-docker"
-  # Protect the volume from being deleted due to changes in attributes.
-  lifecycle {
-    ignore_changes = all
-  }
-  # Add labels in Docker to keep track of orphan resources.
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace_owner.me.name
-  }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace_owner.me.id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  # This field becomes outdated if the workspace is renamed but can
-  # be useful for debugging or cleaning out dangling volumes.
-  labels {
-    label = "coder.workspace_name_at_creation"
-    value = data.coder_workspace.me.name
-  }
-}
-
 data "docker_registry_image" "dogfood" {
   name = data.coder_parameter.image_type.value
 }
@@ -799,11 +767,6 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
-    read_only      = false
-  }
-  volumes {
-    container_path = "/var/lib/docker/"
-    volume_name    = docker_volume.docker_volume.name
     read_only      = false
   }
   capabilities {
