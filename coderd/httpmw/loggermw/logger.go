@@ -80,6 +80,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			}
 
 			httplog := log.With(
+				slog.F("user_agent", r.Header.Get("User-Agent")),
 				slog.F("host", httpapi.RequestHost(r)),
 				slog.F("path", r.URL.Path),
 				slog.F("proto", r.Proto),
