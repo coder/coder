@@ -12,10 +12,9 @@ import (
 	"encoding/pem"
 	"flag"
 	"io"
+	insecurerand "math/rand"
 	"strings"
 	"time"
-
-	insecurerand "math/rand"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"

@@ -6,9 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/xerrors"
-
 	"github.com/hinshun/vt10x"
+	"golang.org/x/xerrors"
 )
 
 // TerminalReader emulates a terminal and allows matching output.  It's important in cases where we

@@ -2953,6 +2953,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
+    "stats_collection": {
+      "usage_stats": {
+        "enable": true
+      }
+    },
     "strict_transport_security": 0,
     "strict_transport_security_options": [
       "string"
@@ -2988,9 +2993,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       }
-    },
-    "template_insights": {
-      "enable": true
     },
     "terms_of_service_url": "string",
     "tls": {
@@ -3492,6 +3494,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh_default_duration": 0
   },
   "ssh_keygen_algorithm": "string",
+  "stats_collection": {
+    "usage_stats": {
+      "enable": true
+    }
+  },
   "strict_transport_security": 0,
   "strict_transport_security_options": [
     "string"
@@ -3527,9 +3534,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     }
-  },
-  "template_insights": {
-    "enable": true
   },
   "terms_of_service_url": "string",
   "tls": {
@@ -3637,12 +3641,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `scim_api_key`                       | string                                                                                               | false    |              |                                                                    |
 | `session_lifetime`                   | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
 | `ssh_keygen_algorithm`               | string                                                                                               | false    |              |                                                                    |
+| `stats_collection`                   | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                    |
 | `strict_transport_security`          | integer                                                                                              | false    |              |                                                                    |
 | `strict_transport_security_options`  | array of string                                                                                      | false    |              |                                                                    |
 | `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
-| `template_insights`                  | [codersdk.TemplateInsightsConfig](#codersdktemplateinsightsconfig)                                   | false    |              |                                                                    |
 | `terms_of_service_url`               | string                                                                                               | false    |              |                                                                    |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
@@ -3884,9 +3888,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                         |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `terraform-directory-reuse`, `web-push`, `workspace-sharing`, `workspace-usage` |
+| Value(s)                                                                                                                            |
+|-------------------------------------------------------------------------------------------------------------------------------------|
+| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-sharing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7451,6 +7455,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `name`            | string | false    |              |             |
 | `organization_id` | string | false    |              |             |
 
+## codersdk.StatsCollectionConfig
+
+```json
+{
+  "usage_stats": {
+    "enable": true
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                                   | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------|----------|--------------|-------------|
+| `usage_stats` | [codersdk.UsageStatsConfig](#codersdkusagestatsconfig) | false    |              |             |
+
 ## codersdk.SupportConfig
 
 ```json
@@ -7881,8 +7901,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -7923,7 +7942,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
-| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -8182,20 +8200,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Property | Value(s)       |
 |----------|----------------|
 | `role`   | `admin`, `use` |
-
-## codersdk.TemplateInsightsConfig
-
-```json
-{
-  "enable": true
-}
-```
-
-### Properties
-
-| Name     | Type    | Required | Restrictions | Description |
-|----------|---------|----------|--------------|-------------|
-| `enable` | boolean | false    |              |             |
 
 ## codersdk.TemplateInsightsIntervalReport
 
@@ -8970,8 +8974,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
   "update_workspace_last_used_at": true,
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -9001,7 +9004,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |
 | `update_workspace_last_used_at`    | boolean                                                                        | false    |              | Update workspace last used at updates the last_used_at field of workspaces spawned from the template. This is useful for preventing workspaces being immediately locked when updating the inactivity_ttl field to a new, shorter value.                                                                                                                                            |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              | Use classic parameter flow is a flag that switches the default behavior to use the classic parameter flow when creating a workspace. This only affects deployments with the experiment "dynamic-parameters" enabled. This setting will live for a period after the experiment is made the default. An "opt-out" is present in case the new feature breaks some existing templates. |
-| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              | Use terraform workspace cache allows optionally specifying whether to use cached terraform directories for workspaces created from this template. This field only applies when the correct experiment is enabled. This field is subject to being removed in the future.                                                                                                            |
 
 ## codersdk.UpdateUserAppearanceSettingsRequest
 
@@ -9151,6 +9153,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `schedule` | string | false    |              | Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>` Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present. |
 
+## codersdk.UpdateWorkspaceBuildStateRequest
+
+```json
+{
+  "state": [
+    0
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type             | Required | Restrictions | Description |
+|---------|------------------|----------|--------------|-------------|
+| `state` | array of integer | false    |              |             |
+
 ## codersdk.UpdateWorkspaceDormancy
 
 ```json
@@ -9265,6 +9283,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `end`       | string | false    |              |             |
 | `issued_at` | string | false    |              |             |
 | `start`     | string | false    |              |             |
+
+## codersdk.UsageStatsConfig
+
+```json
+{
+  "enable": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `enable` | boolean | false    |              |             |
 
 ## codersdk.User
 

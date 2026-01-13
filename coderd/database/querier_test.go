@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -2226,6 +2226,82 @@ func TestReadCustomRoles(t *testing.T) {
 			require.Equal(t, a, b)
 		})
 	}
+}
+
+func TestDeleteCustomRoleDoesNotDeleteSystemRole(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	systemRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:        "test-system-role",
+		DisplayName: "",
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+		SitePermissions:   database.CustomRolePermissions{},
+		OrgPermissions:    database.CustomRolePermissions{},
+		UserPermissions:   database.CustomRolePermissions{},
+		MemberPermissions: database.CustomRolePermissions{},
+		IsSystem:          true,
+	})
+	require.NoError(t, err)
+
+	nonSystemRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:        "test-custom-role",
+		DisplayName: "",
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+		SitePermissions:   database.CustomRolePermissions{},
+		OrgPermissions:    database.CustomRolePermissions{},
+		UserPermissions:   database.CustomRolePermissions{},
+		MemberPermissions: database.CustomRolePermissions{},
+		IsSystem:          false,
+	})
+	require.NoError(t, err)
+
+	err = db.DeleteCustomRole(ctx, database.DeleteCustomRoleParams{
+		Name: systemRole.Name,
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	err = db.DeleteCustomRole(ctx, database.DeleteCustomRoleParams{
+		Name: nonSystemRole.Name,
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	roles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           systemRole.Name,
+				OrganizationID: org.ID,
+			},
+			{
+				Name:           nonSystemRole.Name,
+				OrganizationID: org.ID,
+			},
+		},
+		IncludeSystemRoles: true,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, roles, 1)
+	require.Equal(t, systemRole.Name, roles[0].Name)
+	require.True(t, roles[0].IsSystem)
 }
 
 func TestAuthorizedAuditLogs(t *testing.T) {

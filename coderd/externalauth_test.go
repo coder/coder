@@ -307,13 +307,13 @@ func TestExternalAuthManagement(t *testing.T) {
 		gitlab.ExternalLogin(t, client)
 
 		links, err := db.GetExternalAuthLinksByUserID(
-			dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, ownerUser.OrganizationID)), user.ID)
+			dbauthz.As(ctx, coderdtest.AuthzUserSubject(user)), user.ID)
 		require.NoError(t, err)
 		require.Len(t, links, 2)
 
 		// Expire the links
 		for _, l := range links {
-			_, err := db.UpdateExternalAuthLink(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, ownerUser.OrganizationID)), database.UpdateExternalAuthLinkParams{
+			_, err := db.UpdateExternalAuthLink(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user)), database.UpdateExternalAuthLinkParams{
 				ProviderID:        l.ProviderID,
 				UserID:            l.UserID,
 				UpdatedAt:         dbtime.Now(),

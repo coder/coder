@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
@@ -18,8 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
-
-	"github.com/hashicorp/hcl/v2"
 )
 
 // Renderer is able to execute and evaluate terraform with the given inputs.

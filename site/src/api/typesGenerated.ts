@@ -1785,7 +1785,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
-	readonly template_insights?: TemplateInsightsConfig;
+	readonly stats_collection?: StatsCollectionConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -1895,7 +1895,6 @@ export type Experiment =
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
-	| "terraform-directory-reuse"
 	| "web-push"
 	| "workspace-sharing"
 	| "workspace-usage";
@@ -1906,7 +1905,6 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
-	"terraform-directory-reuse",
 	"web-push",
 	"workspace-sharing",
 	"workspace-usage",
@@ -4602,6 +4600,11 @@ export interface SlimRole {
 	readonly organization_id?: string;
 }
 
+// From codersdk/deployment.go
+export interface StatsCollectionConfig {
+	readonly usage_stats: UsageStatsConfig;
+}
+
 // From codersdk/client.go
 /**
  * SubdomainAppSessionTokenCookie is the name of the cookie that stores an
@@ -4998,7 +5001,6 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
-	readonly use_terraform_workspace_cache: boolean;
 }
 
 // From codersdk/templates.go
@@ -5112,11 +5114,6 @@ export interface TemplateFilter {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
 	readonly role: TemplateRole;
-}
-
-// From codersdk/deployment.go
-export interface TemplateInsightsConfig {
-	readonly enable: boolean;
 }
 
 // From codersdk/insights.go
@@ -5533,13 +5530,6 @@ export interface UpdateTemplateMeta {
 	 * An "opt-out" is present in case the new feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
-	/**
-	 * UseTerraformWorkspaceCache allows optionally specifying whether to use cached
-	 * terraform directories for workspaces created from this template. This field
-	 * only applies when the correct experiment is enabled. This field is subject to
-	 * being removed in the future.
-	 */
-	readonly use_terraform_workspace_cache?: boolean;
 }
 
 // From codersdk/users.go
@@ -5625,6 +5615,15 @@ export interface UpdateWorkspaceAutostartRequest {
 	readonly schedule?: string;
 }
 
+// From codersdk/workspacebuilds.go
+/**
+ * UpdateWorkspaceBuildStateRequest is the request body for updating the
+ * provisioner state of a workspace build.
+ */
+export interface UpdateWorkspaceBuildStateRequest {
+	readonly state: string;
+}
+
 // From codersdk/workspaces.go
 /**
  * UpdateWorkspaceDormancy is a request to activate or make a workspace dormant.
@@ -5684,6 +5683,11 @@ export interface UsagePeriod {
 	readonly issued_at: string;
 	readonly start: string;
 	readonly end: string;
+}
+
+// From codersdk/deployment.go
+export interface UsageStatsConfig {
+	readonly enable: boolean;
 }
 
 // From codersdk/users.go

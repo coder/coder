@@ -2,7 +2,7 @@
 
 package vpn
 
-import "cdr.dev/slog"
+import "cdr.dev/slog/v3"
 
 // This is a no-op on every platform except Darwin and Windows.
 func GetNetworkingStack(_ *Tunnel, _ *StartRequest, _ slog.Logger) (NetworkStack, error) {

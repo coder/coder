@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -80,14 +80,15 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 // start begins the process of rotating keys.
 // Canceling the context will stop the rotation process.
 func (k *rotator) start(ctx context.Context) {
-	k.clock.TickerFunc(ctx, defaultRotationInterval, func() error {
+	w := k.clock.TickerFunc(ctx, defaultRotationInterval, func() error {
 		err := k.rotateKeys(ctx)
 		if err != nil {
 			k.logger.Error(ctx, "failed to rotate keys", slog.Error(err))
 		}
 		return nil
 	})
-	k.logger.Debug(ctx, "ctx canceled, stopping key rotation")
+	err := w.Wait()
+	k.logger.Debug(ctx, "stopping key rotation", slog.Error(err))
 }
 
 // rotateKeys checks for any keys needing rotation or deletion and
@@ -194,7 +195,7 @@ func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature d
 		return database.CryptoKey{}, xerrors.Errorf("inserting new key: %w", err)
 	}
 
-	k.logger.Debug(ctx, "inserted new key for feature", slog.F("feature", feature))
+	k.logger.Debug(ctx, "inserted new key for feature", slog.F("feature", feature), slog.F("sequence", newKey.Sequence))
 	return newKey, nil
 }
 

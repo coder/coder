@@ -51,9 +51,9 @@ import {
 	EllipsisVertical,
 	ExternalLinkIcon,
 	FileIcon,
-	PauseIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	SquareIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
@@ -491,7 +491,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						isLoading={stopWorkspaceMutation.isPending}
 						label="Stop workspace"
 					>
-						<PauseIcon />
+						<SquareIcon />
 					</PrimaryAction>
 				)}
 
@@ -666,7 +666,10 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 
 	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
 	const userApps = agent.apps
-		.filter((app) => app.health === "healthy" && !app.hidden)
+		.filter(
+			(app) =>
+				(app.health === "healthy" || app.health === "disabled") && !app.hidden,
+		)
 		.slice(0, remainingSlots);
 
 	const buttons: ReactNode[] = [];
@@ -736,7 +739,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				}}
 				label="Open Terminal"
 			>
-				<SquareTerminalIcon />
+				<SquareTerminalIcon className="!size-7" />
 			</BaseIconLink>,
 		);
 	}

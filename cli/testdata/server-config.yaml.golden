@@ -191,15 +191,15 @@ autobuildPollInterval: 1m0s
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
 introspection:
-  templateInsights:
-    # Enable the collection and display of template insights along with the associated
-    # API endpoints. This will also enable aggregating these insights into daily
-    # active users, application usage, and transmission rates for overall deployment
-    # stats. When disabled, these values will be zero, which will also affect what the
-    # bottom deployment overview bar displays. Disabling will also prevent Prometheus
-    # collection of these values.
-    # (default: true, type: bool)
-    enable: true
+  statsCollection:
+    usageStats:
+      # Enable the collection of application and workspace usage along with the
+      # associated API endpoints and the template insights page. Disabling this will
+      # also disable traffic and connection insights in the deployment stats shown to
+      # admins in the bottom bar of the Coder UI, and will prevent Prometheus collection
+      # of these values.
+      # (default: true, type: bool)
+      enable: true
   prometheus:
     # Serve prometheus metrics on the address defined by prometheus address.
     # (default: <unset>, type: bool)

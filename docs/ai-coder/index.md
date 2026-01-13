@@ -22,6 +22,6 @@ In cases where the IDE is secondary, such as prototyping or long-running backgro
 
 AI agents can be powerful teammates, but must be treated as untrusted and unpredictable interns as opposed to tools. Without the right controls, they can go rogue.
 
-[Agent Boundaries](./agent-boundary.md) is a new tool that offers process-level safeguards that detect and prevent destructive actions. Unlike traditional mitigation methods like firewalls, service meshes, and RBAC systems, Agent Boundaries is an agent-aware, centralized control point that can either be embedded in the same secure Coder Workspaces that enterprises already trust, or used through an open source CLI.
+[Agent Boundaries](./boundary/agent-boundary.md) is a new tool that offers process-level safeguards that detect and prevent destructive actions. Unlike traditional mitigation methods like firewalls, service meshes, and RBAC systems, Agent Boundaries is an agent-aware, centralized control point that can either be embedded in the same secure Coder Workspaces that enterprises already trust, or used through an open source CLI.
 
-To learn more about features, implementation details, and how to get started, check out the [Agent Boundary documentation](./agent-boundary.md).
+To learn more about features, implementation details, and how to get started, check out the [Agent Boundary documentation](./boundary/agent-boundary.md).

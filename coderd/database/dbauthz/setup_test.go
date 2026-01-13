@@ -20,8 +20,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -106,12 +105,51 @@ func (s *MethodTestSuite) TearDownSuite() {
 
 var testActorID = uuid.New()
 
+type includeSystemRolesMatcher struct{}
+
+func (includeSystemRolesMatcher) Matches(x any) bool {
+	p, ok := x.(database.CustomRolesParams)
+	if !ok {
+		return false
+	}
+	return p.IncludeSystemRoles
+}
+
+func (includeSystemRolesMatcher) String() string {
+	return "CustomRolesParams with IncludeSystemRoles=true"
+}
+
 // Mocked runs a subtest with a mocked database. Removing the overhead of a real
 // postgres database resulting in much faster tests.
 func (s *MethodTestSuite) Mocked(testCaseF func(dmb *dbmock.MockStore, faker *gofakeit.Faker, check *expects)) func() {
 	t := s.T()
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 	mDB.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	// dbauthz now expands DB-backed system roles (e.g. organization-member)
+	// during role-assignment validation, which triggers a CustomRoles lookup
+	// with IncludeSystemRoles=true.
+	mDB.EXPECT().CustomRoles(gomock.Any(), includeSystemRolesMatcher{}).DoAndReturn(func(_ context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
+		if len(arg.LookupRoles) == 0 {
+			return []database.CustomRole{}, nil
+		}
+
+		out := make([]database.CustomRole, 0, len(arg.LookupRoles))
+
+		for _, pair := range arg.LookupRoles {
+			// Minimal set of fields that the tested code uses.
+			out = append(out, database.CustomRole{
+				Name: pair.Name,
+				OrganizationID: uuid.NullUUID{
+					UUID:  pair.OrganizationID,
+					Valid: pair.OrganizationID != uuid.Nil,
+				},
+				IsSystem: rbac.SystemRoleName(pair.Name),
+				ID:       uuid.New(),
+			})
+		}
+
+		return out, nil
+	}).AnyTimes()
 
 	// Use a constant seed to prevent flakes from random data generation.
 	faker := gofakeit.New(0)

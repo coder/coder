@@ -269,16 +269,16 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
-### --template-insights-enable
+### --stats-collection-usage-stats-enable
 
-|             |                                                    |
-|-------------|----------------------------------------------------|
-| Type        | <code>bool</code>                                  |
-| Environment | <code>$CODER_TEMPLATE_INSIGHTS_ENABLE</code>       |
-| YAML        | <code>introspection.templateInsights.enable</code> |
-| Default     | <code>true</code>                                  |
+|             |                                                              |
+|-------------|--------------------------------------------------------------|
+| Type        | <code>bool</code>                                            |
+| Environment | <code>$CODER_STATS_COLLECTION_USAGE_STATS_ENABLE</code>      |
+| YAML        | <code>introspection.statsCollection.usageStats.enable</code> |
+| Default     | <code>true</code>                                            |
 
-Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.
+Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.
 
 ### --prometheus-enable
 

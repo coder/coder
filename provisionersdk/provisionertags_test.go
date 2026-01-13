@@ -3,10 +3,10 @@ package provisionersdk_test
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/provisionersdk"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 func TestMutateTags(t *testing.T) {

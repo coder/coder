@@ -15,7 +15,7 @@ import (
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -220,7 +220,10 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database:       opts.Database,
 	}
 
-	api.BoundaryLogsAPI = &BoundaryLogsAPI{}
+	api.BoundaryLogsAPI = &BoundaryLogsAPI{
+		Log:         opts.Log,
+		WorkspaceID: opts.WorkspaceID,
+	}
 
 	// Start background cache refresh loop to handle workspace changes
 	// like prebuild claims where owner_id and other fields may be modified in the DB.

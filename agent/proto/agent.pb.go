@@ -4538,8 +4538,9 @@ type BoundaryLog_HttpRequest struct {
 
 	Method string `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
 	Url    string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	// The rule that resulted in this HTTP request not being allowed.
-	// Only populated when allowed = false.
+	// The rule that resulted in this HTTP request being allowed. Only populated
+	// when allowed = true because boundary denies requests by default and
+	// requires rule(s) that allow requests.
 	MatchedRule string `protobuf:"bytes,3,opt,name=matched_rule,json=matchedRule,proto3" json:"matched_rule,omitempty"`
 }
 

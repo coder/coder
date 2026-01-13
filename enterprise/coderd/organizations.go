@@ -12,9 +12,12 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -265,6 +268,14 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 	var organization database.Organization
 	err = api.Database.InTx(func(tx database.Store) error {
+		// Serialize creation and reconciliation of the org-member
+		// system role across coderd instances (e.g. during rolling
+		// restarts).
+		err := tx.AcquireLock(ctx, database.LockIDReconcileSystemRoles)
+		if err != nil {
+			return xerrors.Errorf("acquire system roles reconciliation lock: %w", err)
+		}
+
 		if req.DisplayName == "" {
 			req.DisplayName = req.Name
 		}
@@ -281,6 +292,24 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
 		}
+
+		// Populate the placeholder system role(s) that the DB trigger
+		// created for us.
+		//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
+		// permission that user doesn't have.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
+			Name: rbac.RoleOrgMember(),
+			OrganizationID: uuid.NullUUID{
+				UUID:  organizationID,
+				Valid: true,
+			},
+		}, organization.WorkspaceSharingDisabled)
+		if err != nil {
+			return xerrors.Errorf("reconcile organization-member role for organization %s: %w",
+				organizationID, err)
+		}
+
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         apiKey.UserID,

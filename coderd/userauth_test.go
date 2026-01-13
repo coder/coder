@@ -27,9 +27,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -874,7 +873,8 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		first := coderdtest.CreateFirstUser(t, owner)
+
+		coderdtest.CreateFirstUser(t, owner)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ownerUser, err := owner.User(context.Background(), "me")
@@ -891,7 +891,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		err = owner.DeleteUser(ctx, deleted.ID)
 		require.NoError(t, err)
 		// Check no user links for the user
-		links, err := db.GetUserLinksByUserID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(ownerUser, first.OrganizationID)), deleted.ID)
+		links, err := db.GetUserLinksByUserID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(ownerUser)), deleted.ID)
 		require.NoError(t, err)
 		require.Empty(t, links)
 

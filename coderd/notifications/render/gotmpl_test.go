@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/notifications/render"
-
 	"github.com/coder/coder/v2/coderd/notifications/types"
 )
 

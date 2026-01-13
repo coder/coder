@@ -17,10 +17,7 @@ import (
 	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"github.com/coder/retry"
-	"github.com/coder/websocket"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -28,6 +25,8 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/retry"
+	"github.com/coder/websocket"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that

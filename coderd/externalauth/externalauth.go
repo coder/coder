@@ -15,12 +15,11 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
-
 	"github.com/google/go-github/v43/github"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"

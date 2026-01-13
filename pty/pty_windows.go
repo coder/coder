@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-
 	"golang.org/x/xerrors"
 )
 
