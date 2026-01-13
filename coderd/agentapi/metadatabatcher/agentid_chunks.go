@@ -15,7 +15,7 @@ const (
 	// single pubsub message. PostgreSQL NOTIFY has an 8KB limit.
 	// With base64 encoding, each UUID is 22 characters, so we can fit
 	// ~363 agent IDs per chunk (8000 / 22 = 363.6).
-	maxAgentIDsPerChunk = 363
+	maxAgentIDsPerChunk = maxPubsubPayloadSize / uuidBase64Size
 )
 
 // EncodeAgentIDChunks encodes agent IDs into chunks that fit within the
