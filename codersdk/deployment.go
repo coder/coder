@@ -3498,7 +3498,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of domains to intercept and route through AI Bridge. Requests to other domains will be tunneled directly.",
+			Description: "Comma-separated list of domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption.",
 			Flag:        "aibridge-proxy-domain-allowlist",
 			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
 			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
