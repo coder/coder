@@ -3,10 +3,8 @@ package httpmw
 import (
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -71,7 +69,7 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 			var (
 				dist     *prometheus.HistogramVec
 				distOpts []string
-				path     = getRoutePattern(r)
+				path     = ExtractHTTPRoute(r.Context())
 			)
 
 			// We want to count WebSockets separately.
@@ -97,30 +95,4 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 			dist.WithLabelValues(distOpts...).Observe(time.Since(start).Seconds())
 		})
 	}
-}
-
-func getRoutePattern(r *http.Request) string {
-	rctx := chi.RouteContext(r.Context())
-	if rctx == nil {
-		return ""
-	}
-
-	routePath := r.URL.Path
-	if r.URL.RawPath != "" {
-		routePath = r.URL.RawPath
-	}
-
-	tctx := chi.NewRouteContext()
-	routes := rctx.Routes
-	if routes != nil && !routes.Match(tctx, r.Method, routePath) {
-		// No matching pattern. /api/* requests will be matched as "UNKNOWN"
-		// All other ones will be matched as "STATIC".
-		if strings.HasPrefix(routePath, "/api/") {
-			return "UNKNOWN"
-		}
-		return "STATIC"
-	}
-
-	// tctx has the updated pattern, since Match mutates it
-	return tctx.RoutePattern()
 }

@@ -29,9 +29,9 @@ func TestPrometheus(t *testing.T) {
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
 		res := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
 		reg := prometheus.NewRegistry()
-		httpmw.Prometheus(reg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpmw.HTTPRoute(httpmw.Prometheus(reg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-		})).ServeHTTP(res, req)
+		}))).ServeHTTP(res, req)
 		metrics, err := reg.Gather()
 		require.NoError(t, err)
 		require.Greater(t, len(metrics), 0)
@@ -57,7 +57,7 @@ func TestPrometheus(t *testing.T) {
 		wrappedHandler := promMW(testHandler)
 
 		r := chi.NewRouter()
-		r.Use(tracing.StatusWriterMiddleware, promMW)
+		r.Use(tracing.StatusWriterMiddleware, httpmw.HTTPRoute, promMW)
 		r.Get("/api/v2/build/{build}/logs", func(rw http.ResponseWriter, r *http.Request) {
 			wrappedHandler.ServeHTTP(rw, r)
 		})
@@ -85,7 +85,7 @@ func TestPrometheus(t *testing.T) {
 		promMW := httpmw.Prometheus(reg)
 
 		r := chi.NewRouter()
-		r.With(promMW).Get("/api/v2/users/{user}", func(w http.ResponseWriter, r *http.Request) {})
+		r.With(httpmw.HTTPRoute).With(promMW).Get("/api/v2/users/{user}", func(w http.ResponseWriter, r *http.Request) {})
 
 		req := httptest.NewRequest("GET", "/api/v2/users/john", nil)
 
@@ -115,6 +115,7 @@ func TestPrometheus(t *testing.T) {
 		promMW := httpmw.Prometheus(reg)
 
 		r := chi.NewRouter()
+		r.Use(httpmw.HTTPRoute)
 		r.Use(promMW)
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -145,6 +146,7 @@ func TestPrometheus(t *testing.T) {
 		promMW := httpmw.Prometheus(reg)
 
 		r := chi.NewRouter()
+		r.Use(httpmw.HTTPRoute)
 		r.Use(promMW)
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -173,6 +175,7 @@ func TestPrometheus(t *testing.T) {
 		promMW := httpmw.Prometheus(reg)
 
 		r := chi.NewRouter()
+		r.Use(httpmw.HTTPRoute)
 		r.Use(promMW)
 		r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", func(w http.ResponseWriter, r *http.Request) {})
 
