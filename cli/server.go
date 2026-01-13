@@ -752,7 +752,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("compute max idle connections: %w", err)
 			}
-			logger.Info(ctx, "creating database connection pool", slog.F("max_open_conns", maxOpenConns), slog.F("max_idle_conns", maxIdleConns))
+			logger.Debug(ctx, "creating database connection pool", slog.F("max_open_conns", maxOpenConns), slog.F("max_idle_conns", maxIdleConns))
 			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver,
 				WithMaxOpenConns(maxOpenConns),
 				WithMaxIdleConns(maxIdleConns),
