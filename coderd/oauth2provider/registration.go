@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -85,8 +86,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{Time: now, Valid: true},
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
-			GrantTypes:              enumSliceToStrings(req.GrantTypes),
-			ResponseTypes:           enumSliceToStrings(req.ResponseTypes),
+			GrantTypes:              slice.ToStrings(req.GrantTypes),
+			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
 			Scope:                   sql.NullString{String: req.Scope, Valid: true},
 			Contacts:                req.Contacts,
@@ -154,8 +155,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			JWKS:                    app.Jwks.RawMessage,
 			SoftwareID:              app.SoftwareID.String,
 			SoftwareVersion:         app.SoftwareVersion.String,
-			GrantTypes:              stringsToEnumSlice[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
-			ResponseTypes:           stringsToEnumSlice[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
+			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
+			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
 			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String),
 			Scope:                   app.Scope.String,
 			Contacts:                app.Contacts,
@@ -217,8 +218,8 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 			JWKS:                    app.Jwks.RawMessage,
 			SoftwareID:              app.SoftwareID.String,
 			SoftwareVersion:         app.SoftwareVersion.String,
-			GrantTypes:              stringsToEnumSlice[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
-			ResponseTypes:           stringsToEnumSlice[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
+			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
+			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
 			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String),
 			Scope:                   app.Scope.String,
 			Contacts:                app.Contacts,
@@ -303,8 +304,8 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			RedirectUris:            req.RedirectURIs,
 			ClientType:              sql.NullString{String: req.DetermineClientType(), Valid: true},
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
-			GrantTypes:              enumSliceToStrings(req.GrantTypes),
-			ResponseTypes:           enumSliceToStrings(req.ResponseTypes),
+			GrantTypes:              slice.ToStrings(req.GrantTypes),
+			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
 			Scope:                   sql.NullString{String: req.Scope, Valid: true},
 			Contacts:                req.Contacts,
@@ -341,8 +342,8 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			JWKS:                    updatedApp.Jwks.RawMessage,
 			SoftwareID:              updatedApp.SoftwareID.String,
 			SoftwareVersion:         updatedApp.SoftwareVersion.String,
-			GrantTypes:              stringsToEnumSlice[codersdk.OAuth2ProviderGrantType](updatedApp.GrantTypes),
-			ResponseTypes:           stringsToEnumSlice[codersdk.OAuth2ProviderResponseType](updatedApp.ResponseTypes),
+			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](updatedApp.GrantTypes),
+			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](updatedApp.ResponseTypes),
 			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(updatedApp.TokenEndpointAuthMethod.String),
 			Scope:                   updatedApp.Scope.String,
 			Contacts:                updatedApp.Contacts,
@@ -535,20 +536,4 @@ func createDisplaySecret(secret string) string {
 	visiblePart := secret[len(secret)-displaySecretLength:]
 	hiddenLength := len(secret) - displaySecretLength
 	return strings.Repeat("*", hiddenLength) + visiblePart
-}
-
-func enumSliceToStrings[T ~string](enums []T) []string {
-	result := make([]string, len(enums))
-	for i, e := range enums {
-		result[i] = string(e)
-	}
-	return result
-}
-
-func stringsToEnumSlice[T ~string](strs []string) []T {
-	result := make([]T, len(strs))
-	for i, s := range strs {
-		result[i] = T(s)
-	}
-	return result
 }
