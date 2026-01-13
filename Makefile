@@ -1033,6 +1033,14 @@ ifdef RUN
 GOTEST_FLAGS += -run $(RUN)
 endif
 
+ifdef TEST_CPUPROFILE
+GOTEST_FLAGS += -cpuprofile=$(TEST_CPUPROFILE)
+endif
+
+ifdef TEST_MEMPROFILE
+GOTEST_FLAGS += -memprofile=$(TEST_MEMPROFILE)
+endif
+
 TEST_PACKAGES ?= ./...
 
 test:
