@@ -28,6 +28,26 @@ var (
 	ErrInvalidTokenFormat = xerrors.New("invalid token format")
 )
 
+func extractRevocationRequest(r *http.Request) (codersdk.OAuth2TokenRevocationRequest, error) {
+	if err := r.ParseForm(); err != nil {
+		return codersdk.OAuth2TokenRevocationRequest{}, xerrors.Errorf("invalid form data: %w", err)
+	}
+
+	req := codersdk.OAuth2TokenRevocationRequest{
+		Token:         r.Form.Get("token"),
+		TokenTypeHint: codersdk.OAuth2RevocationTokenTypeHint(r.Form.Get("token_type_hint")),
+		ClientID:      r.Form.Get("client_id"),
+		ClientSecret:  r.Form.Get("client_secret"),
+	}
+
+	// RFC 7009 requires 'token' parameter.
+	if req.Token == "" {
+		return codersdk.OAuth2TokenRevocationRequest{}, xerrors.New("missing token parameter")
+	}
+
+	return req, nil
+}
+
 // RevokeToken implements RFC 7009 OAuth2 Token Revocation
 // Authentication is unique for this endpoint in that it does not use the
 // standard token authentication middleware. Instead, it expects the token that
@@ -46,22 +66,9 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		if err := r.ParseForm(); err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Invalid form data")
-			return
-		}
-
-		// Parse into SDK type (source of truth)
-		req := codersdk.OAuth2TokenRevocationRequest{
-			Token:         r.Form.Get("token"),
-			TokenTypeHint: codersdk.OAuth2RevocationTokenTypeHint(r.Form.Get("token_type_hint")),
-			ClientID:      r.Form.Get("client_id"),
-			ClientSecret:  r.Form.Get("client_secret"),
-		}
-
-		// RFC 7009 requires 'token' parameter
-		if req.Token == "" {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Missing token parameter")
+		req, err := extractRevocationRequest(r)
+		if err != nil {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 
@@ -71,7 +78,7 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 		isRefreshToken := strings.HasPrefix(req.Token, coderPrefix)
 
 		// Revoke the token with ownership verification
-		err := db.InTx(func(tx database.Store) error {
+		err = db.InTx(func(tx database.Store) error {
 			if isRefreshToken {
 				// Handle refresh token revocation
 				return revokeRefreshTokenInTx(ctx, tx, req.Token, app.ID)
