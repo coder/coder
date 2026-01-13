@@ -124,6 +124,78 @@ property in your `devcontainer.json`:
 This maps container ports to the parent workspace, which can then be forwarded
 using the main workspace agent.
 
+## Docker Compose devcontainers
+
+Dev containers support Docker Compose for multi-container environments. When you
+define a dev container with `dockerComposeFile` and `service` properties, the
+devcontainer CLI orchestrates all services defined in your Compose file.
+
+### Configuration
+
+To use Docker Compose, your `devcontainer.json` must specify:
+
+- `dockerComposeFile`: Path to your Docker Compose file(s)
+- `service`: The container Coder connects to (becomes the dev container sub-agent)
+
+```json
+{
+  "name": "My Project",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace"
+}
+```
+
+With a corresponding `docker-compose.yml`:
+
+```yaml
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/base:ubuntu
+    volumes:
+      - .:/workspace
+    command: sleep infinity
+  database:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+```
+
+The `app` service becomes your dev container with full Coder integration (SSH,
+web terminal, VS Code). The `database` service runs as a sidecar container.
+
+### Container communication
+
+Containers in a Compose setup communicate via Docker's internal DNS. From the
+primary container, reach sidecar services by their service name:
+
+```console
+psql -h database -U postgres
+curl http://api:3000
+```
+
+### Accessing sidecar services
+
+Since only the primary service container runs as a Coder sub-agent, you cannot
+SSH or port-forward directly to sidecar containers. Instead:
+
+1. **From the dev container**: Connect to sidecars using their service name
+   (e.g., `psql -h database`).
+
+1. **From your local machine**: Access sidecar services through the primary
+   container. For example, run a proxy command in the dev container, then
+   port-forward that port.
+
+### Limitations
+
+- The `forwardPorts` property with `host:port` syntax (e.g., `"database:5432"`)
+  for forwarding ports from sidecar containers to your local machine is not yet
+  supported.
+- Only the primary service container has Coder agent integration.
+
+For more details on Docker Compose dev containers, see the
+[Dev Container specification](https://containers.dev/implementors/spec/#docker-compose-based).
+
 ## Dev container features
 
 You can use standard [dev container features](https://containers.dev/features)
