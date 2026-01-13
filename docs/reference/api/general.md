@@ -164,6 +164,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "ai": {
       "aibridge_proxy": {
         "cert_file": "string",
+        "domain_allowlist": [
+          "string"
+        ],
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string"

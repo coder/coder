@@ -597,6 +597,9 @@
 ```json
 {
   "cert_file": "string",
+  "domain_allowlist": [
+    "string"
+  ],
   "enabled": true,
   "key_file": "string",
   "listen_addr": "string"
@@ -605,12 +608,13 @@
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `cert_file`   | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `key_file`    | string  | false    |              |             |
-| `listen_addr` | string  | false    |              |             |
+| Name               | Type            | Required | Restrictions | Description |
+|--------------------|-----------------|----------|--------------|-------------|
+| `cert_file`        | string          | false    |              |             |
+| `domain_allowlist` | array of string | false    |              |             |
+| `enabled`          | boolean         | false    |              |             |
+| `key_file`         | string          | false    |              |             |
+| `listen_addr`      | string          | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -712,6 +716,9 @@
 {
   "aibridge_proxy": {
     "cert_file": "string",
+    "domain_allowlist": [
+      "string"
+    ],
     "enabled": true,
     "key_file": "string",
     "listen_addr": "string"
@@ -2624,6 +2631,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "ai": {
       "aibridge_proxy": {
         "cert_file": "string",
+        "domain_allowlist": [
+          "string"
+        ],
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string"
@@ -3165,6 +3175,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "ai": {
     "aibridge_proxy": {
       "cert_file": "string",
+      "domain_allowlist": [
+        "string"
+      ],
       "enabled": true,
       "key_file": "string",
       "listen_addr": "string"
