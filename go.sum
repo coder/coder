@@ -974,8 +974,8 @@ github.com/coder/websocket v1.8.13 h1:f3QZdXy7uGVz+4uCJy2nTZyM0yTBj8yANEHhqlXZ9F
 github.com/coder/websocket v1.8.13/go.mod h1:LNVeNrXQZfe5qhS9ALED3uA+l5pPqvwXg3CKoDBB2gs=
 github.com/coder/wgtunnel v0.2.0 h1:yy9dE9ntoNdx/q98CH9uV2cQk1UEKSwPgITy3Xx+Wiw=
 github.com/coder/wgtunnel v0.2.0/go.mod h1:4Ne8vzzdHwkM9BnPW2zDvidvFi5IfEbkecx5JH+0zjY=
-github.com/coder/wireguard-go v0.0.0-20240522052547-769cdd7f7818 h1:bNhUTaKl3q0bFn78bBRq7iIwo72kNTvUD9Ll5TTzDDk=
-github.com/coder/wireguard-go v0.0.0-20240522052547-769cdd7f7818/go.mod h1:fAlLM6hUgnf4Sagxn2Uy5Us0PBgOYWz+63HwHUVGEbw=
+github.com/coder/wireguard-go v0.0.0-20260113101225-9b7a56210e49 h1:go72mN+u8M26ji5XE3N2qV+h136Ie0ZBjq+Ccf4wig0=
+github.com/coder/wireguard-go v0.0.0-20260113101225-9b7a56210e49/go.mod h1:fAlLM6hUgnf4Sagxn2Uy5Us0PBgOYWz+63HwHUVGEbw=
 github.com/containerd/continuity v0.4.5 h1:ZRoN1sXq9u7V6QoHMcVWGhOwDFqZ4B9i5H6un1Wh0x4=
 github.com/containerd/continuity v0.4.5/go.mod h1:/lNJvtJKUQStBzpVQ1+rasXO1LAWtUQssk28EZvJ3nE=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
