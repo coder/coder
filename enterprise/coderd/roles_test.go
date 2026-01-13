@@ -256,6 +256,59 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.ErrorContains(t, err, "not allowed to assign user permissions")
 	})
 
+	// Attempt to add org member permissions, which is not allowed.
+	t.Run("MemberPermissions", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		role := templateAdminCustom(first.OrganizationID)
+		role.Name = "test-role-member-perms"
+		role.OrganizationMemberPermissions = []codersdk.Permission{
+			{
+				ResourceType: codersdk.ResourceWorkspace,
+				Action:       codersdk.ActionRead,
+			},
+		}
+
+		//nolint:gocritic // we want unrestricted permissions for the test
+		_, err := owner.CreateOrganizationRole(ctx, role)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.ErrorContains(t, err, "not allowed to assign organization member permissions for an organization role")
+	})
+
+	// Attempt to delete a system role, which is not allowed.
+	t.Run("DeleteSystemRole", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		//nolint:gocritic // we want unrestricted permissions for the test
+		err := owner.DeleteOrganizationRole(ctx, first.OrganizationID, rbac.RoleOrgMember())
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.ErrorContains(t, err, "Reserved role name")
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{

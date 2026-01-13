@@ -1037,7 +1037,7 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 
 	//nolint We need to set this in the database directly, because the API will return an error
 	// letting you know that this feature requires an enterprise license.
-	err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(me, owner.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+	err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(me)), database.UpdateTemplateAccessControlByIDParams{
 		ID:                   template.ID,
 		RequireActiveVersion: true,
 	})

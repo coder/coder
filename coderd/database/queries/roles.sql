@@ -23,6 +23,14 @@ WHERE
 		organization_id = @organization_id
 	ELSE true
 	END
+	-- Filter system roles. By default, system roles are excluded.
+	-- System roles are managed by Coder and should be hidden from user-facing APIs.
+	-- The authorization system uses @include_system_roles = true to load them.
+	AND CASE WHEN @include_system_roles :: boolean THEN
+		true
+	ELSE
+		is_system = false
+	END
 ;
 
 -- name: DeleteCustomRole :exec
@@ -31,6 +39,9 @@ DELETE FROM
 WHERE
 	name = lower(@name)
 	AND organization_id = @organization_id
+	-- Prevents accidental deletion of system roles even if the API
+	-- layer check is bypassed due to a bug.
+	AND is_system = false
 ;
 
 -- name: InsertCustomRole :one
@@ -42,6 +53,8 @@ INSERT INTO
 	site_permissions,
 	org_permissions,
 	user_permissions,
+	member_permissions,
+	is_system,
 	created_at,
 	updated_at
 )
@@ -53,6 +66,8 @@ VALUES (
 	@site_permissions,
 	@org_permissions,
 	@user_permissions,
+	@member_permissions,
+	@is_system,
 	now(),
 	now()
 )
@@ -66,6 +81,7 @@ SET
 	site_permissions = @site_permissions,
 	org_permissions = @org_permissions,
 	user_permissions = @user_permissions,
+	member_permissions = @member_permissions,
 	updated_at = now()
 WHERE
 	name = lower(@name)

@@ -3349,8 +3349,8 @@ const docTemplate = `{
                 "tags": [
                     "Members"
                 ],
-                "summary": "Upsert a custom organization role",
-                "operationId": "upsert-a-custom-organization-role",
+                "summary": "Update a custom organization role",
+                "operationId": "update-a-custom-organization-role",
                 "parameters": [
                     {
                         "type": "string",
@@ -3361,7 +3361,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Upsert role request",
+                        "description": "Update role request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10225,6 +10225,45 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Update workspace build state",
+                "operationId": "update-workspace-build-state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceBuildStateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/timings": {
@@ -14340,6 +14379,12 @@ const docTemplate = `{
                 },
                 "pg_auth": {
                     "type": "string"
+                },
+                "pg_conn_max_idle": {
+                    "type": "string"
+                },
+                "pg_conn_max_open": {
+                    "type": "integer"
                 },
                 "pg_connection_url": {
                     "type": "string"
@@ -19547,6 +19592,17 @@ const docTemplate = `{
                 "schedule": {
                     "description": "Schedule is expected to be of the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `\nExample: ` + "`" + `CRON_TZ=US/Central 30 9 * * 1-5` + "`" + ` represents 0930 in the timezone US/Central\non weekdays (Mon-Fri). ` + "`" + `CRON_TZ` + "`" + ` defaults to UTC if not present.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateWorkspaceBuildStateRequest": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },

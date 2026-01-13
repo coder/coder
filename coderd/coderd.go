@@ -568,6 +568,16 @@ func New(options *Options) *API {
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
+	// Ensure all system role permissions are current.
+	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
+	// no user request context here, so use a system-restricted context.
+	err = rolestore.ReconcileSystemRoles(dbauthz.AsSystemRestricted(ctx), options.Logger, options.Database)
+	if err != nil {
+		// Not ideal, but not using Fatal here and just continuing
+		// after logging the error would be a potential security hole.
+		options.Logger.Fatal(ctx, "failed to reconcile system role permissions", slog.Error(err))
+	}
+
 	// AGPL uses a no-op build usage checker as there are no license
 	// entitlements to enforce. This is swapped out in
 	// enterprise/coderd/coderd.go.
@@ -1503,6 +1513,7 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
 			r.Get("/state", api.workspaceBuildState)
+			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)
 		})
 		r.Route("/authcheck", func(r chi.Router) {

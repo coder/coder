@@ -41,5 +41,11 @@ func extractHeaderAndInnerTransport(rt http.RoundTripper) (http.Header, *http.Tr
 		maps.Copy(headers, ht.Header)
 		return headers, t, nil
 	}
-	return nil, nil, xerrors.New("round tripper is neither HeaderTransport nor Transport")
+	// unrecognized RoundTripper. Just return a default transport, since we only care about preserving headers.
+	t, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		// unhittable, unless the Go stdlib changes.
+		return nil, nil, xerrors.New("DefaultTransport is not *http.Transport")
+	}
+	return make(http.Header), t, nil
 }

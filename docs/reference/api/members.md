@@ -179,7 +179,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Upsert a custom organization role
+## Update a custom organization role
 
 ### Code samples
 
@@ -235,7 +235,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 | Name           | In   | Type                                                               | Required | Description         |
 |----------------|------|--------------------------------------------------------------------|----------|---------------------|
 | `organization` | path | string(uuid)                                                       | true     | Organization ID     |
-| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Upsert role request |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Update role request |
 
 ### Example responses
 
@@ -285,7 +285,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 |--------|---------------------------------------------------------|-------------|---------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
 
-<h3 id="upsert-a-custom-organization-role-responseschema">Response Schema</h3>
+<h3 id="update-a-custom-organization-role-responseschema">Response Schema</h3>
 
 Status Code **200**
 
