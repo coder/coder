@@ -262,14 +262,18 @@ const TaskRow: FC<TaskRowProps> = ({
 				<TableCell className="text-right">
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button size="icon-lg" variant="subtle">
+							<Button
+								size="icon-lg"
+								variant="subtle"
+								onClick={(e) => e.stopPropagation()}
+							>
 								<EllipsisVertical aria-hidden="true" />
 								<span className="sr-only">Open task actions</span>
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem
-								onClick={() => {
+								onSelect={() => {
 									navigate(
 										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
 									);
@@ -280,7 +284,8 @@ const TaskRow: FC<TaskRowProps> = ({
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								className="text-content-destructive focus:text-content-destructive"
-								onClick={() => {
+								onClick={(e) => {
+									e.stopPropagation();
 									setIsDeleteDialogOpen(true);
 								}}
 							>
