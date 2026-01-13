@@ -311,6 +311,7 @@ func LicensesEntitlements(
 				// any effect.
 				continue
 			}
+			// TODO: Add support for FeatureAgentSeatCount
 
 			entitlements.AddFeature(featureName, codersdk.Feature{
 				Entitlement: entitlement,
@@ -357,16 +358,19 @@ func LicensesEntitlements(
 
 			// Handling for non-grouped features.
 			switch featureName {
+			// TODO: Add support for is_limit_feature
 			case codersdk.FeatureUserLimit:
 				if featureValue <= 0 {
 					// 0 user count doesn't make sense, so we skip it.
 					continue
 				}
+				// TODO: Add support for is_limit_feature by using the featureValue as the feature.
 				entitlements.AddFeature(codersdk.FeatureUserLimit, codersdk.Feature{
 					Enabled:     true,
 					Entitlement: entitlement,
 					Limit:       &featureValue,
-					Actual:      &featureArguments.ActiveUserCount,
+					// TODO: Update this too.
+					Actual: &featureArguments.ActiveUserCount,
 				})
 			default:
 				if featureValue <= 0 {
