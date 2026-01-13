@@ -14380,6 +14380,12 @@ const docTemplate = `{
                 "pg_auth": {
                     "type": "string"
                 },
+                "pg_conn_max_idle": {
+                    "type": "string"
+                },
+                "pg_conn_max_open": {
+                    "type": "integer"
+                },
                 "pg_connection_url": {
                     "type": "string"
                 },

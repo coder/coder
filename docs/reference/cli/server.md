@@ -1015,6 +1015,28 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
+### --postgres-conn-max-open
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>int</code>                     |
+| Environment | <code>$CODER_PG_CONN_MAX_OPEN</code> |
+| YAML        | <code>pgConnMaxOpen</code>           |
+| Default     | <code>10</code>                      |
+
+Maximum number of open connections to the database. Defaults to 10.
+
+### --postgres-conn-max-idle
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_PG_CONN_MAX_IDLE</code> |
+| YAML        | <code>pgConnMaxIdle</code>           |
+| Default     | <code>auto</code>                    |
+
+Maximum number of idle connections to the database. Set to "auto" (the default) to use max open / 3. Value must be greater or equal to 0; 0 means explicitly no idle connections.
+
 ### --secure-auth-cookie
 
 |             |                                          |
