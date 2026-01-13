@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/createusers"
 )
 
@@ -39,9 +40,6 @@ type Config struct {
 	// RequestCount is the number of requests to make per runner.
 	RequestCount int `json:"request_count"`
 
-	// Model is the model to use for requests.
-	Model string `json:"model"`
-
 	// Stream indicates whether to use streaming requests.
 	Stream bool `json:"stream"`
 
@@ -64,9 +62,6 @@ func (c Config) Validate() error {
 
 	if c.RequestCount <= 0 {
 		return xerrors.New("request_count must be greater than 0")
-	}
-	if c.Model == "" {
-		return xerrors.New("model must be set")
 	}
 
 	// Validate provider
@@ -92,4 +87,21 @@ func (c Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (c Config) NewStrategy(client *codersdk.Client) requestModeStrategy {
+	if c.Mode == RequestModeDirect {
+		return newDirectStrategy(directStrategyConfig{
+			UpstreamURL: c.UpstreamURL,
+			Token:       c.DirectToken,
+			ClientToken: client.SessionToken(),
+		})
+	}
+
+	return newBridgeStrategy(bridgeStrategyConfig{
+		Client:   client,
+		Provider: c.Provider,
+		Metrics:  c.Metrics,
+		User:     c.User,
+	})
 }

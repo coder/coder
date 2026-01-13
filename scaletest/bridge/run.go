@@ -23,7 +23,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/quartz"
@@ -81,10 +80,9 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 type Runner struct {
-	client *codersdk.Client
-	cfg    Config
-
-	createUserRunner *createusers.Runner
+	client   *codersdk.Client
+	cfg      Config
+	strategy requestModeStrategy
 
 	clock      quartz.Clock
 	httpClient *http.Client
@@ -98,9 +96,10 @@ type Runner struct {
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client: client,
-		cfg:    cfg,
-		clock:  quartz.NewReal(),
+		client:   client,
+		cfg:      cfg,
+		strategy: cfg.NewStrategy(client),
+		clock:    quartz.NewReal(),
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,
 			Transport: newTracingTransport(cfg, http.DefaultTransport),
@@ -126,50 +125,22 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 
-	var token string
-	var requestURL string
-
-	if r.cfg.Mode == RequestModeDirect {
-		// Direct mode: skip user creation, use upstream URL directly
-		requestURL = r.cfg.UpstreamURL
-		if r.cfg.DirectToken != "" {
-			token = r.cfg.DirectToken
-		} else if r.client.SessionToken() != "" {
-			token = r.client.SessionToken()
-		}
-		logger.Info(ctx, "bridge runner in direct mode", slog.F("url", requestURL))
-	} else {
-		// Bridge mode: create user and use AI Bridge endpoint
-		r.client.SetLogger(logger)
-		r.client.SetLogBodies(true)
-
-		r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
-		newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
-		if err != nil {
-			r.cfg.Metrics.AddError("create_user")
-			return xerrors.Errorf("create user: %w", err)
-		}
-		newUser := newUserAndToken.User
-		token = newUserAndToken.SessionToken
-
-		logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
-
-		// Construct AI Bridge URL based on provider
-		if r.cfg.Provider == "anthropic" {
-			requestURL = fmt.Sprintf("%s/api/v2/aibridge/anthropic/v1/messages", r.client.URL)
-		} else {
-			requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/chat/completions", r.client.URL)
-		}
-		logger.Info(ctx, "bridge runner in bridge mode", slog.F("url", requestURL), slog.F("provider", r.cfg.Provider))
+	requestURL, token, err := r.strategy.Setup(ctx, id, logs)
+	if err != nil {
+		return xerrors.Errorf("strategy setup: %w", err)
 	}
 
 	requestCount := r.cfg.RequestCount
 	if requestCount <= 0 {
 		requestCount = 1
 	}
-	model := r.cfg.Model
-	if model == "" {
+
+	var model string
+	switch r.cfg.Provider {
+	case "openai":
 		model = "gpt-4"
+	case "anthropic":
+		model = "claude-3-opus-20240229"
 	}
 
 	logger.Info(ctx, "bridge runner is ready",
@@ -454,15 +425,7 @@ func (*Runner) handleStreamingResponse(ctx context.Context, logger slog.Logger, 
 }
 
 func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
-	// Only cleanup user in bridge mode
-	if r.cfg.Mode == RequestModeBridge && r.createUserRunner != nil {
-		_, _ = fmt.Fprintln(logs, "Cleaning up user...")
-		if err := r.createUserRunner.Cleanup(ctx, id, logs); err != nil {
-			return xerrors.Errorf("cleanup user: %w", err)
-		}
-	}
-
-	return nil
+	return r.strategy.Cleanup(ctx, id, logs)
 }
 
 func (r *Runner) GetMetrics() map[string]any {
