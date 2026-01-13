@@ -76,6 +76,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -768,8 +769,9 @@ func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizati
 	return createAnotherUserRetry(t, client, []uuid.UUID{organizationID}, 5, roles, mutators...)
 }
 
-// AuthzUserSubject does not include the user's groups.
-func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
+// AuthzUserSubject does not include the user's groups or the org-member role
+// (which is a db-backed system role).
+func AuthzUserSubject(user codersdk.User) rbac.Subject {
 	roles := make(rbac.RoleIdentifiers, 0, len(user.Roles))
 	// Member role is always implied
 	roles = append(roles, rbac.RoleMember())
@@ -780,8 +782,6 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 			OrganizationID: orgID,
 		})
 	}
-	// We assume only 1 org exists
-	roles = append(roles, rbac.ScopedRoleOrgMember(orgID))
 
 	return rbac.Subject{
 		ID:     user.ID.String(),
@@ -789,6 +789,52 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 		Groups: []string{},
 		Scope:  rbac.ScopeAll,
 	}
+}
+
+// AuthzUserSubjectWithDB is like AuthzUserSubject but adds db-backed roles
+// (like organization-member).
+func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store, user codersdk.User) rbac.Subject {
+	t.Helper()
+
+	roles := make(rbac.RoleIdentifiers, 0, len(user.Roles)+2)
+	// Member role is always implied
+	roles = append(roles, rbac.RoleMember())
+	for _, r := range user.Roles {
+		parsedOrgID, _ := uuid.Parse(r.OrganizationID) // defaults to nil
+		roles = append(roles, rbac.RoleIdentifier{
+			Name:           r.Name,
+			OrganizationID: parsedOrgID,
+		})
+	}
+
+	//nolint:gocritic // We’re constructing the subject. The incoming ctx
+	// typically has no dbauthz actor yet, and using AuthzUserSubject(user)
+	// here would be circular (it lacks DB-backed org-member roles needed for
+	// organization:read). Use system-restricted ctx for the membership lookup.
+	orgs, err := db.GetOrganizationsByUserID(dbauthz.AsSystemRestricted(ctx), database.GetOrganizationsByUserIDParams{
+		UserID: user.ID,
+		Deleted: sql.NullBool{
+			Valid: true,
+			Bool:  false,
+		},
+	})
+	require.NoError(t, err)
+	for _, org := range orgs {
+		roles = append(roles, rbac.ScopedRoleOrgMember(org.ID))
+	}
+
+	//nolint:gocritic // We need to expand DB-backed/system roles. The caller
+	// ctx may not have permission to read system roles, so use system-restricted
+	// context for the internal role lookup.
+	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), db, roles)
+	require.NoError(t, err)
+
+	return rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  rbacRoles,
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}.WithCachedASTValue()
 }
 
 func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationIDs []uuid.UUID, retries int, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequestWithOrgs)) (*codersdk.Client, codersdk.User) {

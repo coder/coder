@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -41,8 +42,16 @@ import (
 
 // genCtx is to give all generator functions permission if the db is a dbauthz db.
 var genCtx = dbauthz.As(context.Background(), rbac.Subject{
-	ID:     "owner",
-	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
+	ID: "owner",
+	Roles: rbac.Roles(append(
+		must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()),
+		rbac.Role{
+			Identifier: rbac.RoleIdentifier{Name: "dbgen-workspace-sharer"},
+			Site: rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceWorkspace.Type: {policy.ActionShare},
+			}),
+		},
+	)),
 	Groups: []string{},
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
@@ -639,6 +648,36 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
 	})
 	require.NoError(t, err, "insert organization")
+
+	// Populate the placeholder organization-member system role (created by
+	// DB trigger/migration) so org members have expected permissions.
+	//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
+	// permission that `genCtx` does not have.
+	sysCtx := dbauthz.AsSystemRestricted(genCtx)
+	_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
+		Name: rbac.RoleOrgMember(),
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	}, org.WorkspaceSharingDisabled)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		// The trigger that creates the placeholder role didn't run (e.g.,
+		// triggers were disabled in the test). Create the role manually.
+		err = rolestore.CreateOrgMemberRole(sysCtx, db, org)
+		require.NoError(t, err, "create organization-member role")
+
+		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
+			Name: rbac.RoleOrgMember(),
+			OrganizationID: uuid.NullUUID{
+				UUID:  org.ID,
+				Valid: true,
+			},
+		}, org.WorkspaceSharingDisabled)
+	}
+	require.NoError(t, err, "reconcile organization-member role")
+
 	return org
 }
 
@@ -1395,12 +1434,14 @@ func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed d
 
 func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
 	role, err := db.InsertCustomRole(genCtx, database.InsertCustomRoleParams{
-		Name:            takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),
-		DisplayName:     testutil.GetRandomName(t),
-		OrganizationID:  seed.OrganizationID,
-		SitePermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
-		OrgPermissions:  takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
-		UserPermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		Name:              takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),
+		DisplayName:       testutil.GetRandomName(t),
+		OrganizationID:    seed.OrganizationID,
+		SitePermissions:   takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		OrgPermissions:    takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		UserPermissions:   takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		MemberPermissions: takeFirstSlice(seed.MemberPermissions, []database.CustomRolePermission{}),
+		IsSystem:          seed.IsSystem,
 	})
 	require.NoError(t, err, "insert custom role")
 	return role

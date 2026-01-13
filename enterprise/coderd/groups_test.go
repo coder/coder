@@ -13,7 +13,10 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -694,22 +697,75 @@ func TestGroup(t *testing.T) {
 	t.Run("RegularUserReadGroup", func(t *testing.T) {
 		t.Parallel()
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureTemplateRBAC: 1,
-			},
-		}})
-		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		t.Run("WorkspaceSharingEnabled", func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // test setup
-		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "hi",
+			client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			}})
+			client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			//nolint:gocritic // test setup
+			group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+				Name: "hi",
+			})
+			require.NoError(t, err)
+
+			ggroup, err := client1.Group(ctx, group.ID)
+			require.NoError(t, err, "regular users can read groups unless workspace sharing is disabled")
+			normalizeGroupMembers(&group)
+			normalizeGroupMembers(&ggroup)
+			require.Equal(t, group, ggroup)
 		})
-		require.NoError(t, err)
 
-		_, err = client1.Group(ctx, group.ID)
-		require.Error(t, err, "regular users cannot read groups")
+		t.Run("WorkspaceSharingDisabled", func(t *testing.T) {
+			t.Parallel()
+
+			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			client, _, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Database: db,
+					Pubsub:   ps,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET workspace_sharing_disabled = true WHERE id = $1", user.OrganizationID)
+			require.NoError(t, err)
+
+			//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
+			// permission that the test context doesn't have.
+			sysCtx := dbauthz.AsSystemRestricted(ctx)
+			_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, api.Database, database.CustomRole{
+				Name: rbac.RoleOrgMember(),
+				OrganizationID: uuid.NullUUID{
+					UUID:  user.OrganizationID,
+					Valid: true,
+				},
+			}, true)
+			require.NoError(t, err)
+
+			client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+			//nolint:gocritic // test setup
+			group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+				Name: "hi",
+			})
+			require.NoError(t, err)
+
+			_, err = client1.Group(ctx, group.ID)
+			require.Error(t, err, "regular users cannot read groups when workspace sharing is disabled")
+			cerr, ok := codersdk.AsError(err)
+			require.True(t, ok)
+			require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+		})
 	})
 
 	t.Run("FilterDeletedUsers", func(t *testing.T) {
@@ -947,22 +1003,30 @@ func TestGroups(t *testing.T) {
 		// Query from the user's perspective
 		user5View, err := user5Client.Groups(ctx, codersdk.GroupArguments{})
 		require.NoError(t, err)
-		normalizeAllGroups(user5Groups)
+		normalizeAllGroups(user5View)
 
-		// Everyone group and group 2
-		require.Len(t, user5View, 2)
+		// Org members can read all groups when workspace sharing is not
+		// disabled, but group membership is limited to the requesting user.
+		// TODO(geokat): add another test with workspace sharing disabled.
+		require.Len(t, user5View, 3)
 		user5ViewIDs := db2sdk.List(user5View, func(g codersdk.Group) uuid.UUID {
 			return g.ID
 		})
 
 		require.ElementsMatch(t, []uuid.UUID{
 			everyoneGroup.ID,
+			group1.ID,
 			group2.ID,
 		}, user5ViewIDs)
 		for _, g := range user5View {
-			// Only expect the 1 member, themselves
-			require.Len(t, g.Members, 1)
-			require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
+			if g.ID == everyoneGroup.ID || g.ID == group2.ID {
+				// Only expect the 1 member, themselves.
+				require.Len(t, g.Members, 1)
+				require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
+				continue
+			}
+
+			require.Empty(t, g.Members)
 		}
 	})
 }

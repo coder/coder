@@ -5,6 +5,8 @@ import {
 	MockRunningOutdatedWorkspace,
 	MockStoppedWorkspace,
 	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
 	MockWorkspacesResponse,
 } from "testHelpers/entities";
 import {
@@ -15,7 +17,12 @@ import { server } from "testHelpers/server";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
-import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceApp,
+	WorkspaceAppHealth,
+	WorkspacesResponse,
+} from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import * as CreateDayString from "utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
@@ -23,7 +30,7 @@ import WorkspacesPage from "./WorkspacesPage";
 describe("WorkspacesPage", () => {
 	beforeEach(() => {
 		// Mocking the dayjs module within the createDayString file
-		const mock = jest.spyOn(CreateDayString, "createDayString");
+		const mock = vi.spyOn(CreateDayString, "createDayString");
 		mock.mockImplementation(() => "a minute ago");
 	});
 
@@ -56,10 +63,11 @@ describe("WorkspacesPage", () => {
 			{ ...MockWorkspace, id: "2" },
 			{ ...MockWorkspace, id: "3" },
 		];
-		jest
-			.spyOn(API, "getWorkspaces")
-			.mockResolvedValue({ workspaces, count: workspaces.length });
-		const deleteWorkspace = jest.spyOn(API, "deleteWorkspace");
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces,
+			count: workspaces.length,
+		});
+		const deleteWorkspace = vi.spyOn(API, "deleteWorkspace");
 		const user = userEvent.setup();
 		renderWithAuth(<WorkspacesPage />);
 		await waitForLoaderToBeRemoved();
@@ -104,11 +112,12 @@ describe("WorkspacesPage", () => {
 					},
 				},
 			];
-			jest
-				.spyOn(API, "getWorkspaces")
-				.mockResolvedValue({ workspaces, count: workspaces.length });
+			vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+				workspaces,
+				count: workspaces.length,
+			});
 
-			const updateWorkspace = jest.spyOn(API, "updateWorkspace");
+			const updateWorkspace = vi.spyOn(API, "updateWorkspace");
 			const user = userEvent.setup();
 			renderWithAuth(<WorkspacesPage />);
 			await waitForLoaderToBeRemoved();
@@ -148,11 +157,12 @@ describe("WorkspacesPage", () => {
 				{ ...MockOutdatedWorkspace, id: "2" },
 				{ ...MockOutdatedWorkspace, id: "3" },
 			];
-			jest
-				.spyOn(API, "getWorkspaces")
-				.mockResolvedValue({ workspaces, count: workspaces.length });
+			vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+				workspaces,
+				count: workspaces.length,
+			});
 
-			const updateWorkspace = jest.spyOn(API, "updateWorkspace");
+			const updateWorkspace = vi.spyOn(API, "updateWorkspace");
 			const user = userEvent.setup();
 			renderWithAuth(<WorkspacesPage />);
 			await waitForLoaderToBeRemoved();
@@ -191,10 +201,11 @@ describe("WorkspacesPage", () => {
 				{ ...MockOutdatedWorkspace, id: "2" },
 				{ ...MockOutdatedWorkspace, id: "3" },
 			];
-			jest
-				.spyOn(API, "getWorkspaces")
-				.mockResolvedValue({ workspaces, count: workspaces.length });
-			const updateWorkspace = jest.spyOn(API, "updateWorkspace");
+			vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+				workspaces,
+				count: workspaces.length,
+			});
+			const updateWorkspace = vi.spyOn(API, "updateWorkspace");
 			const user = userEvent.setup();
 			renderWithAuth(<WorkspacesPage />);
 			await waitForLoaderToBeRemoved();
@@ -230,10 +241,11 @@ describe("WorkspacesPage", () => {
 			{ ...MockWorkspace, id: "2" },
 			{ ...MockWorkspace, id: "3" },
 		];
-		jest
-			.spyOn(API, "getWorkspaces")
-			.mockResolvedValue({ workspaces, count: workspaces.length });
-		const stopWorkspace = jest.spyOn(API, "stopWorkspace");
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces,
+			count: workspaces.length,
+		});
+		const stopWorkspace = vi.spyOn(API, "stopWorkspace");
 		const user = userEvent.setup();
 		renderWithAuth(<WorkspacesPage />);
 		await waitForLoaderToBeRemoved();
@@ -257,10 +269,11 @@ describe("WorkspacesPage", () => {
 			{ ...MockStoppedWorkspace, id: "2" },
 			{ ...MockStoppedWorkspace, id: "3" },
 		];
-		jest
-			.spyOn(API, "getWorkspaces")
-			.mockResolvedValue({ workspaces, count: workspaces.length });
-		const startWorkspace = jest.spyOn(API, "startWorkspace");
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces,
+			count: workspaces.length,
+		});
+		const startWorkspace = vi.spyOn(API, "startWorkspace");
 		const user = userEvent.setup();
 		renderWithAuth(<WorkspacesPage />);
 		await waitForLoaderToBeRemoved();
@@ -297,7 +310,7 @@ describe("WorkspacesPage", () => {
 			name: `page2-workspace-${i}`,
 		}));
 
-		const getWorkspacesSpy = jest.spyOn(API, "getWorkspaces");
+		const getWorkspacesSpy = vi.spyOn(API, "getWorkspaces");
 
 		getWorkspacesSpy.mockImplementation(({ offset }) => {
 			switch (offset) {
@@ -351,3 +364,100 @@ const getWorkspaceCheckbox = (workspace: Workspace) => {
 		"checkbox",
 	);
 };
+
+describe("WorkspaceApps filtering", () => {
+	it.each<[WorkspaceAppHealth, boolean]>([
+		["healthy", true],
+		["disabled", true],
+		["unhealthy", false],
+		["initializing", false],
+	])(
+		"apps with '%s' health status should be shown: %s",
+		async (health, shouldBeVisible) => {
+			const app: WorkspaceApp = {
+				...MockWorkspaceApp,
+				id: `${health}-app`,
+				display_name: `${health} App`,
+				health,
+				hidden: false,
+			};
+			const workspace: Workspace = {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					status: "running",
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									apps: [app],
+								},
+							],
+						},
+					],
+				},
+			};
+			vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+				workspaces: [workspace],
+				count: 1,
+			});
+
+			renderWithAuth(<WorkspacesPage />);
+			await waitForLoaderToBeRemoved();
+
+			const appLink = screen.queryByRole("link", {
+				name: (name) =>
+					name.toLowerCase().includes(app.display_name!.toLowerCase()),
+			});
+			if (shouldBeVisible) {
+				expect(appLink).toBeInTheDocument();
+			} else {
+				expect(appLink).not.toBeInTheDocument();
+			}
+		},
+	);
+
+	it("does not show hidden apps regardless of health status", async () => {
+		const hiddenApp: WorkspaceApp = {
+			...MockWorkspaceApp,
+			id: "hidden-app",
+			display_name: "Hidden App",
+			health: "healthy",
+			hidden: true,
+		};
+		const workspace: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				status: "running",
+				resources: [
+					{
+						...MockWorkspace.latest_build.resources[0],
+						agents: [
+							{
+								...MockWorkspaceAgent,
+								apps: [hiddenApp],
+							},
+						],
+					},
+				],
+			},
+		};
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [workspace],
+			count: 1,
+		});
+
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		expect(
+			screen.queryByRole("link", {
+				name: (name) =>
+					name.toLowerCase().includes(hiddenApp.display_name!.toLowerCase()),
+			}),
+		).not.toBeInTheDocument();
+	});
+});
