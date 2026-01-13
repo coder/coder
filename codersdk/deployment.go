@@ -121,8 +121,8 @@ var (
 		FeatureManagedAgentLimit,
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
-		// FeatureBoundaries
-		// FeatureAgentSeatCount
+		FeatureBoundaries,
+		FeatureAgentSeatCount,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
