@@ -3600,7 +3600,7 @@ func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (databa
 	if err != nil {
 		return database.GetWorkspaceACLByIDRow{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionShare, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
 		return database.GetWorkspaceACLByIDRow{}, err
 	}
 	return q.db.GetWorkspaceACLByID(ctx, id)

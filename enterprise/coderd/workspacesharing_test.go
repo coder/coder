@@ -179,14 +179,10 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// We don't disallow reading the ACL, but the response should still be
-		// an authz error due to the lack of workspace:share permission.
+		// Reading the ACL list remains allowed even when workspace sharing is
+		// disabled, but mutating it is forbidden.
 		_, err = workspaceOwnerClient.WorkspaceACL(ctx, ws.ID)
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode())
-		require.Contains(t, apiErr.Detail, "unauthorized")
+		require.NoError(t, err)
 
 		// We don't allow mutating the ACL.
 		assertSharingDisabled := func(t *testing.T, err error) {
