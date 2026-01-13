@@ -2649,20 +2649,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Flag:        "postgres-conn-max-idle",
 			Env:         "CODER_PG_CONN_MAX_IDLE",
 			Default:     PostgresConnMaxIdleAuto,
-			Value: serpent.Validate(&c.PostgresConnMaxIdle, func(value *serpent.String) error {
-				if value.Value() == PostgresConnMaxIdleAuto {
-					return nil
-				}
-				n, err := strconv.Atoi(value.Value())
-				if err != nil {
-					return xerrors.Errorf("must be %q or a positive integer: %w", PostgresConnMaxIdleAuto, err)
-				}
-				if n < 1 {
-					return xerrors.Errorf("must be %q or a positive integer", PostgresConnMaxIdleAuto)
-				}
-				return nil
-			}),
-			YAML: "pgConnMaxIdle",
+			Value:       &c.PostgresConnMaxIdle,
+			YAML:        "pgConnMaxIdle",
 		},
 		{
 			Name:        "Secure Auth Cookie",
@@ -4174,6 +4162,7 @@ func (c CryptoKey) CanVerify(now time.Time) bool {
 // configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
 // configuredIdle exceeds maxOpen, it returns an error.
 func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
+	configuredIdle = strings.TrimSpace(configuredIdle)
 	if configuredIdle == PostgresConnMaxIdleAuto {
 		computed := maxOpen / 3
 		if computed < 1 {
@@ -4183,10 +4172,10 @@ func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
 	}
 	idle, err := strconv.Atoi(configuredIdle)
 	if err != nil {
-		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or a positive integer", configuredIdle, PostgresConnMaxIdleAuto)
+		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or >= 0", configuredIdle, PostgresConnMaxIdleAuto)
 	}
-	if idle < 1 {
-		return 0, xerrors.Errorf("max idle connections must be %q or a positive integer", PostgresConnMaxIdleAuto)
+	if idle < 0 {
+		return 0, xerrors.Errorf("max idle connections must be %q or >= 0", PostgresConnMaxIdleAuto)
 	}
 	if idle > maxOpen {
 		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)

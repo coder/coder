@@ -784,6 +784,12 @@ func TestComputeMaxIdleConns(t *testing.T) {
 			expectedIdle:   3, // 10/3 = 3
 		},
 		{
+			name:           "auto_with_whitespace",
+			maxOpen:        10,
+			configuredIdle: " auto ",
+			expectedIdle:   3, // 10/3 = 3
+		},
+		{
 			name:           "auto_30_open",
 			maxOpen:        30,
 			configuredIdle: "auto",
@@ -820,10 +826,16 @@ func TestComputeMaxIdleConns(t *testing.T) {
 			expectedIdle:   5,
 		},
 		{
-			name:           "explicit_1",
+			name:           "explicit_with_whitespace",
 			maxOpen:        10,
-			configuredIdle: "1",
-			expectedIdle:   1,
+			configuredIdle: " 5 ",
+			expectedIdle:   5,
+		},
+		{
+			name:           "explicit_0",
+			maxOpen:        10,
+			configuredIdle: "0",
+			expectedIdle:   0,
 		},
 		{
 			name:           "error_exceeds_max",
@@ -844,21 +856,14 @@ func TestComputeMaxIdleConns(t *testing.T) {
 			maxOpen:        10,
 			configuredIdle: "invalid",
 			expectError:    true,
-			errorContains:  "must be \"auto\" or a positive integer",
+			errorContains:  "must be \"auto\" or >= 0",
 		},
 		{
 			name:           "error_negative",
 			maxOpen:        10,
 			configuredIdle: "-1",
 			expectError:    true,
-			errorContains:  "must be \"auto\" or a positive integer",
-		},
-		{
-			name:           "error_zero",
-			maxOpen:        10,
-			configuredIdle: "0",
-			expectError:    true,
-			errorContains:  "must be \"auto\" or a positive integer",
+			errorContains:  "must be \"auto\" or >= 0",
 		},
 	}
 

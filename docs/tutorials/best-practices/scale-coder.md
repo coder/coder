@@ -244,7 +244,7 @@ connection pool behavior:
   For a more systematic view, consider running
   `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long
   each Coder replica spent waiting on the connection pool (i.e. no free connections);
-  `sum by(pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many
+  `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many
   connections were waited for.
 
   If either of these values seem unacceptably high, try tuning the above settings.
