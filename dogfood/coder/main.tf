@@ -633,7 +633,7 @@ resource "coder_agent" "dev" {
     go clean -cache
 
     # Clean up the coder build directory as this can get quite large
-    rm -rf ${local.repo_dir}/build
+    rm -rf "${local.repo_dir}/build"
 
     # Clean up the unused resources to keep storage usage low.
     #
