@@ -271,8 +271,8 @@ func (b *Batcher) run(ctx context.Context) {
 		if err := b.flush(ctx, reason); err != nil {
 			// Don't error level log here, database errors here are inconvenient but very much possible.
 			//nolint:gocritic
-			b.log.Warn(context.Background(), "metadata flush failed",
-				slog.F("err_msg", err),
+			b.log.Error(context.Background(), "metadata flush failed",
+				slog.Error(err),
 			)
 		}
 	}
