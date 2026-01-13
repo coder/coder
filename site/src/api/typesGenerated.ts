@@ -2092,8 +2092,10 @@ export type FeatureName =
 	| "aibridge"
 	| "access_control"
 	| "advanced_template_scheduling"
+	| "agent_seat_count"
 	| "appearance"
 	| "audit_log"
+	| "boundaries"
 	| "browser_only"
 	| "connection_log"
 	| "control_shared_ports"
@@ -2118,8 +2120,10 @@ export const FeatureNames: FeatureName[] = [
 	"aibridge",
 	"access_control",
 	"advanced_template_scheduling",
+	"agent_seat_count",
 	"appearance",
 	"audit_log",
+	"boundaries",
 	"browser_only",
 	"connection_log",
 	"control_shared_ports",
