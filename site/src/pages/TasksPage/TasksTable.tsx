@@ -5,6 +5,12 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Table,
@@ -18,14 +24,13 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useClickableTableRow } from "hooks";
-import { RotateCcwIcon, TrashIcon } from "lucide-react";
+import {
+	EllipsisVertical,
+	RotateCcwIcon,
+	Share2Icon,
+	TrashIcon,
+} from "lucide-react";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
 import { type FC, type ReactNode, useState } from "react";
@@ -255,24 +260,35 @@ const TaskRow: FC<TaskRowProps> = ({
 					/>
 				</TableCell>
 				<TableCell className="text-right">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									size="icon"
-									variant="outline"
-									onClick={(e) => {
-										e.stopPropagation();
-										setIsDeleteDialogOpen(true);
-									}}
-								>
-									<span className="sr-only">Delete task</span>
-									<TrashIcon />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Delete task</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button size="icon-lg" variant="subtle">
+								<EllipsisVertical aria-hidden="true" />
+								<span className="sr-only">Open task actions</span>
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								onClick={() => {
+									navigate(
+										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
+									);
+								}}
+							>
+								<Share2Icon />
+								Share workspace
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={() => {
+									setIsDeleteDialogOpen(true);
+								}}
+							>
+								<TrashIcon />
+								Delete workspace
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</TableCell>
 			</TableRow>
 
