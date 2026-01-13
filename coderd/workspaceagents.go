@@ -1755,14 +1755,6 @@ func (api *API) watchWorkspaceAgentMetadata(
 			// Signal to re-fetch all metadata for this agent.
 			// Batch notifications don't include which keys changed, so we
 			// always fetch all keys for this agent.
-
-			// Clear any pending signals - batch always means "fetch all".
-			select {
-			case <-update:
-			default:
-			}
-			// This can never block since we drained beforehand.
-			// Send empty struct as signal to fetch all metadata.
 			update <- struct{}{}
 			break
 		}
