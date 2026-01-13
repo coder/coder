@@ -1346,17 +1346,12 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole,
 
 	// System roles are managed internally and may include permissions
 	// (including negative ones) that user-facing custom role APIs
-	// should reject.  Still validate that the role shape and
-	// permissions are internally consistent via rbacRole.Valid()
-	// above.
+	// should reject. Still validate that the role shape and perms
+	// are internally consistent via rbacRole.Valid() above.
 	if role.IsSystem {
 		// Defensive programming: the caller should have checked that
 		// the action is authorized, but we double-check.
-		if err := q.authorizeContext(ctx, action, rbac.ResourceSystem); err != nil {
-			return err
-		}
-
-		return nil
+		return q.authorizeContext(ctx, action, rbac.ResourceSystem)
 	}
 
 	// Prevent escalation
