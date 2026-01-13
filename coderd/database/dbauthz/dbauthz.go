@@ -1289,7 +1289,7 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 // - Check the custom role does not grant perms the actor does not have
 // - Prevent negative perms for non-system roles
 // - Prevent roles that have both organization scoped and non-organization scoped permissions
-func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole) error {
+func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole, action policy.Action) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return ErrNoActor
@@ -1350,6 +1350,12 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	// permissions are internally consistent via rbacRole.Valid()
 	// above.
 	if role.IsSystem {
+		// Defensive programming: the caller should have checked that
+		// the action is authorized, but we double-check.
+		if err := q.authorizeContext(ctx, action, rbac.ResourceSystem); err != nil {
+			return err
+		}
+
 		return nil
 	}
 
@@ -4178,7 +4184,7 @@ func (q *querier) InsertCustomRole(ctx context.Context, arg database.InsertCusto
 		OrganizationID:    arg.OrganizationID,
 		ID:                uuid.New(),
 		IsSystem:          arg.IsSystem,
-	}); err != nil {
+	}, policy.ActionCreate); err != nil {
 		return database.CustomRole{}, err
 	}
 	return q.db.InsertCustomRole(ctx, arg)
@@ -4959,7 +4965,7 @@ func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCusto
 		OrganizationID:    arg.OrganizationID,
 		ID:                uuid.New(),
 		IsSystem:          existing.IsSystem,
-	}); err != nil {
+	}, policy.ActionUpdate); err != nil {
 		return database.CustomRole{}, err
 	}
 	return q.db.UpdateCustomRole(ctx, arg)
