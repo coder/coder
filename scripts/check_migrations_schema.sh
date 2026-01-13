@@ -9,50 +9,57 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
-# Only check actual migrations, not test fixtures or dumps
-MIGRATIONS_DIR="coderd/database/migrations"
-
 failed=0
 
-# Search for hardcoded public. schema references in migration files
-# Exclude testdata directory which contains fixtures that use public.
-set +e
-matches=$(
-	find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' -type f -print0 |
-		xargs -0 grep -l 'public\.' 2>/dev/null
-)
-set -e
+# check_public_schema_references checks for hardcoded public. schema references
+# in SQL files within a directory.
+# Arguments:
+#   $1 - directory to check
+#   $2 - description for error message (e.g., "migration" or "fixture")
+#   $3 - find maxdepth (optional, defaults to no limit)
+check_public_schema_references() {
+	local dir=$1
+	local desc=$2
+	local maxdepth=${3:-}
 
-if [[ -n "$matches" ]]; then
-	error "Migrations must not hardcode the 'public' schema. Use unqualified table names instead."
-	echo "The following migration files contain 'public.' references:"
-	echo "$matches" | while read -r file; do
-		echo "  $file"
-		grep -n 'public\.' "$file" | sed 's/^/    /'
-	done
-	failed=1
-fi
+	if [[ ! -d "$dir" ]]; then
+		return 0
+	fi
 
-# Also check fixtures (testdata) for consistency
-FIXTURES_DIR="coderd/database/migrations/testdata/fixtures"
-if [[ -d "$FIXTURES_DIR" ]]; then
+	local find_args=("$dir")
+	if [[ -n "$maxdepth" ]]; then
+		find_args+=(-maxdepth "$maxdepth")
+	fi
+	find_args+=(-name '*.sql' -type f -print0)
+
 	set +e
-	fixture_matches=$(
-		find "$FIXTURES_DIR" -name '*.sql' -type f -print0 |
+	local matches
+	matches=$(
+		find "${find_args[@]}" |
 			xargs -0 grep -l 'public\.' 2>/dev/null
 	)
 	set -e
 
-	if [[ -n "$fixture_matches" ]]; then
-		error "Test fixtures should not hardcode the 'public' schema for consistency."
-		echo "The following fixture files contain 'public.' references:"
-		echo "$fixture_matches" | while read -r file; do
+	if [[ -n "$matches" ]]; then
+		error "${desc} files must not hardcode the 'public' schema. Use unqualified table names instead."
+		echo "The following ${desc} files contain 'public.' references:"
+		echo "$matches" | while read -r file; do
 			echo "  $file"
 			grep -n 'public\.' "$file" | sed 's/^/    /' | head -5
-			echo "    ..."
 		done
-		failed=1
+		return 1
 	fi
+	return 0
+}
+
+# Check migrations (top-level only, not testdata)
+if ! check_public_schema_references "coderd/database/migrations" "Migration" 1; then
+	failed=1
+fi
+
+# Check fixtures for consistency
+if ! check_public_schema_references "coderd/database/migrations/testdata/fixtures" "Fixture"; then
+	failed=1
 fi
 
 if [[ $failed -eq 1 ]]; then
