@@ -1,8 +1,6 @@
 package metadatabatcher
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -16,23 +14,14 @@ type Metrics struct {
 }
 
 func NewMetrics() *Metrics {
-	// Native histogram configuration (matching provisionerdserver pattern).
-	nativeHistogramOpts := func(opts prometheus.HistogramOpts) prometheus.HistogramOpts {
-		opts.NativeHistogramBucketFactor = 1.1
-		opts.NativeHistogramMaxBucketNumber = 100
-		opts.NativeHistogramMinResetDuration = time.Hour
-		opts.NativeHistogramZeroThreshold = 0
-		opts.NativeHistogramMaxZeroThreshold = 0
-		return opts
-	}
-
 	return &Metrics{
-		batchUtilization: prometheus.NewHistogram(nativeHistogramOpts(prometheus.HistogramOpts{
+		batchUtilization: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "agentapi",
 			Name:      "metadata_batch_utilization",
 			Help:      "Number of metadata keys per agent in each flushed batch.",
-		})),
+			Buckets:   []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 40, 80, 160},
+		}),
 
 		droppedKeysTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
@@ -55,19 +44,21 @@ func NewMetrics() *Metrics {
 			Help:      "Total number of unique metadatas flushed.",
 		}),
 
-		batchSize: prometheus.NewHistogram(nativeHistogramOpts(prometheus.HistogramOpts{
+		batchSize: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "agentapi",
 			Name:      "metadata_batch_size",
 			Help:      "Total number of metadata entries in each flushed batch.",
-		})),
+			Buckets:   []float64{10, 25, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500},
+		}),
 
-		flushDuration: prometheus.NewHistogramVec(nativeHistogramOpts(prometheus.HistogramOpts{
+		flushDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "agentapi",
 			Name:      "metadata_flush_duration_seconds",
 			Help:      "Time taken to flush metadata batch to database and pubsub.",
-		}), []string{"reason"}),
+			Buckets:   []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0},
+		}, []string{"reason"}),
 	}
 }
 
