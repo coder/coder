@@ -660,6 +660,7 @@
 									"title": "Startup Dependencies",
 									"description": "Coordinate workspace startup with dependency management",
 									"path": "./admin/templates/startup-coordination/index.md",
+									"state": ["early access"],
 									"children": [
 										{
 											"title": "Usage",
