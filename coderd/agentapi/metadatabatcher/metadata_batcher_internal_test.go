@@ -244,7 +244,7 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Wait for all channel messages to be processed into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 2
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 2
 	}, testutil.IntervalFast)
 
 	// When: it becomes time to flush
@@ -300,7 +300,7 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Wait for all channel messages to be processed into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 5
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 5
 	}, testutil.IntervalFast)
 
 	// When: it becomes time to flush
@@ -557,7 +557,7 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 
 	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 1
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 1
 	}, testutil.IntervalFast)
 
 	// Flush - advance the full flush interval from when the batcher was created.
@@ -634,7 +634,7 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 
 	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 3
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 3
 	}, testutil.IntervalFast)
 
 	// Flush - advance the full flush interval from when the batcher was created.
@@ -716,7 +716,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 1
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 1
 	}, testutil.IntervalFast)
 
 	// Flush and verify entry was sent.
@@ -835,7 +835,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// Wait for all channel messages to be processed into the batch.
 	// Batch should have 499 entries, no capacity flush yet.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 499
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 499
 	}, testutil.IntervalFast)
 
 	// Add next 101 metadata updates (will trigger capacity flush at 500)
@@ -846,7 +846,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// Wait for all channel messages to be processed. The 500th entry should have
 	// triggered an automatic capacity flush, leaving 100 entries in the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 100
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 100
 	}, testutil.IntervalFast)
 
 	// Verify capacity flush metrics and total metadata count.
@@ -959,7 +959,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0 && len(b.batch) == 3
+		return len(b.updateCh) == 0 && int(b.currentBatchLen.Load()) == 3
 	}, testutil.IntervalFast)
 
 	// Flush and check that we have exactly 3 keys (deduplication worked).

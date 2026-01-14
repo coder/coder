@@ -2,6 +2,7 @@ package metadatabatcher
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,8 +84,9 @@ type Batcher struct {
 
 	// batch holds the current batch being accumulated. Updates with the same
 	// composite key are deduplicated, keeping only the most recent value.
-	batch     map[compositeKey]value
-	batchSize int
+	batch           map[compositeKey]value
+	currentBatchLen atomic.Int64
+	maxBatchSize    int
 
 	// clock is used to create tickers and get the current time.
 	clock    quartz.Clock
@@ -105,7 +107,7 @@ type Option func(b *Batcher)
 
 func WithBatchSize(size int) Option {
 	return func(b *Batcher) {
-		b.batchSize = size
+		b.maxBatchSize = size
 	}
 }
 
@@ -149,8 +151,8 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 		b.interval = defaultMetadataFlushInterval
 	}
 
-	if b.batchSize == 0 {
-		b.batchSize = defaultMetadataBatchSize
+	if b.maxBatchSize == 0 {
+		b.maxBatchSize = defaultMetadataBatchSize
 	}
 
 	if b.ticker == nil {
@@ -158,7 +160,7 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 	}
 
 	// Create buffered channel with 5x batch size capacity
-	channelSize := b.batchSize * defaultChannelBufferMultiplier
+	channelSize := b.maxBatchSize * defaultChannelBufferMultiplier
 	b.updateCh = make(chan update, channelSize)
 
 	// Initialize batch map
@@ -245,12 +247,13 @@ func (b *Batcher) processUpdate(update update) {
 		return
 	}
 
-	// New key, add to batch
+	// New key, add to batch and increment counter
 	b.batch[ck] = value{
 		v:           update.v,
 		error:       update.error,
 		collectedAt: update.collectedAt,
 	}
+	b.currentBatchLen.Add(1)
 }
 
 // run runs the batcher loop, reading from the update channel and flushing
@@ -274,7 +277,7 @@ func (b *Batcher) run(ctx context.Context) {
 			b.processUpdate(update)
 
 			// Check if batch has reached capacity
-			if len(b.batch) >= b.batchSize {
+			if int(b.currentBatchLen.Load()) >= b.maxBatchSize {
 				flush(authCtx, flushCapacity)
 			}
 
@@ -331,6 +334,7 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 
 	// Batch has been processed into slices for our DB request, so we can clear it.
 	b.batch = make(map[compositeKey]value)
+	b.currentBatchLen.Store(0)
 
 	// Record per-agent utilization metrics.
 	if b.metrics != nil {
