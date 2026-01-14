@@ -1,4 +1,5 @@
 -- Workspace Runtime Audit Report
+-- CAUTION: This script may take a long time to run depending on the number of workspaces and builds in your database.
 --
 -- This script calculates total workspace runtime within a specified date range.
 -- It tracks workspace state transitions (start/stop/delete) and sums up the time
