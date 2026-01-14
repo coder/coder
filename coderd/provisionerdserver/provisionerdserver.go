@@ -2897,6 +2897,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				devcontainerNames            = make([]string, 0, len(devcontainers))
 				devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
 				devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
+				devcontainerSubagentIDs      = make([]uuid.UUID, 0, len(devcontainers))
 			)
 			for _, dc := range devcontainers {
 				id := uuid.New()
@@ -2904,6 +2905,9 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				devcontainerNames = append(devcontainerNames, dc.Name)
 				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
 				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
+				var subagentID uuid.UUID
+				copy(subagentID[:], dc.GetSubagentId())
+				devcontainerSubagentIDs = append(devcontainerSubagentIDs, subagentID)
 
 				// Add a log source and script for each devcontainer so we can
 				// track logs and timings for each devcontainer.
@@ -2932,6 +2936,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Name:             devcontainerNames,
 				WorkspaceFolder:  devcontainerWorkspaceFolders,
 				ConfigPath:       devcontainerConfigPaths,
+				SubagentID:       devcontainerSubagentIDs,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert agent devcontainer: %w", err)
