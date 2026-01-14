@@ -15,7 +15,8 @@
 --   2. Run: psql -f workspace-runtime-audit.sql
 --   3. A file called 'workspace_usage.csv' will be generated with the results.
 BEGIN;
--- 1) Temp table to hold the data aggregated from the anonymous function
+-- Temp table to hold the data aggregated from the anonymous function.
+-- It is dropped automatically at the end of the transaction.
 CREATE TEMP TABLE _workspace_usage_results (
    workspace_id uuid,
    workspace_created_at timestamptz,
@@ -47,7 +48,7 @@ BEGIN
 		    workspaces
 		-- Adding a WHERE clause here to limit the workspaces is helpful during testing.
 	LOOP
-		-- Initialize variables for each workspace.
+		-- Initialize variables for each workspace and prevent variable carry-over between workspaces.
 		workspace_turned_on = '0001-01-01 00:00:00+00';
 		workspace_usage_duration = 0;
 		IF debug_mode THEN
@@ -69,6 +70,9 @@ BEGIN
 		;
 
 		-- If the latest build is a stop/delete before our start time, this workspace had no activity in our audit period.
+		-- This is an optimization to skip processing workspaces that are clearly before the audit period. Workspaces created
+		-- after the audit period are still processed. Since this is expected to be run periodically, optimizing out old workspaces
+		-- is likely to be more beneficial than future workspaces.
 		IF
 			latest_build_created_at < start_time AND latest_build_transition != 'start'
 		THEN
@@ -88,6 +92,13 @@ BEGIN
 			    WHERE workspace_id = workspace.id
 			    ORDER BY workspace_builds.build_number ASC
 		LOOP
+			-- Algorithm summary:
+			-- LOOP:
+			--   1. When a successful start is found, set 'workspace_turned_on'
+			--     1a. If already turned on, ignore (multiple starts without stops)
+			--   2. Any other transition (stop/delete/failed) will calculate the duration from 'workspace_turned_on' to this point
+			-- 3. After the loop, if still turned on, calculate duration from 'workspace_turned_on' to 'end_time'
+
 			-- Usage only counts from workspaces that successfully started
 			IF workspace_build.transition = 'start' AND
 			   workspace_build.job_status IN ('succeeded') THEN
@@ -139,6 +150,8 @@ BEGIN
 			END IF;
 		END LOOP;
 
+		-- After processing all builds, if the workspace is still turned on, accumulate time until end_time.
+		-- This handles workspaces that were started but never stopped/deleted.
 		IF workspace_turned_on != '0001-01-01 00:00:00+00' THEN
 			IF workspace_turned_on < start_time THEN
 				workspace_turned_on = start_time;
