@@ -92,6 +92,7 @@ type Batcher struct {
 	clock    quartz.Clock
 	ticker   *quartz.Ticker
 	interval time.Duration
+	warnTicker *quartz.Ticker // used to only log at warn level infrequently
 
 	// ctx is the context for the batcher. Used to check if shutdown has begun.
 	ctx    context.Context
@@ -99,7 +100,7 @@ type Batcher struct {
 	done   chan struct{}
 
 	// metrics collects Prometheus metrics for the batcher.
-	metrics *Metrics
+	metrics Metrics
 }
 
 // Option is a functional option for configuring a Batcher.
@@ -137,9 +138,10 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 		ps:      ps,
 		metrics: NewMetrics(),
 		done:    make(chan struct{}),
+		log: slog.Logger{},
+		clock: quartz.NewReal(),
 	}
-	b.log = slog.Logger{}
-	b.clock = quartz.NewReal()
+	b.warnTicker = b.clock.NewTicker(10*time.Second)
 
 	for _, opt := range opts {
 		opt(b)
@@ -214,14 +216,20 @@ func (b *Batcher) Add(agentID uuid.UUID, keys []string, values []string, errors 
 
 	// Log dropped keys if any were dropped.
 	if droppedCount > 0 {
-		b.log.Warn(context.Background(), "metadata channel at capacity, dropped updates",
+		msg := "metadata channel at capacity, dropped updates"
+		fields := []slog.Field{
 			slog.F("agent_id", agentID),
 			slog.F("channel_size", cap(b.updateCh)),
 			slog.F("dropped_count", droppedCount),
-		)
-		if b.metrics != nil {
-			b.metrics.droppedKeysTotal.Add(float64(droppedCount))
 		}
+		select {
+		case <- b.warnTicker.C:
+				b.log.Warn(context.Background(), msg, fields...)
+		default:
+				b.log.Debug(context.Background(), msg, fields...)
+		}
+		
+		b.metrics.droppedKeysTotal.Add(float64(droppedCount))
 	}
 
 	return nil
@@ -259,16 +267,6 @@ func (b *Batcher) processUpdate(update update) {
 // run runs the batcher loop, reading from the update channel and flushing
 // periodically or when the batch reaches capacity.
 func (b *Batcher) run(ctx context.Context) {
-	flush := func(ctx context.Context, reason string) {
-		if err := b.flush(ctx, reason); err != nil {
-			// Don't error level log here, database errors here are inconvenient but very much possible.
-			//nolint:gocritic
-			b.log.Error(context.Background(), "metadata flush failed",
-				slog.Error(err),
-			)
-		}
-	}
-
 	// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
@@ -278,11 +276,11 @@ func (b *Batcher) run(ctx context.Context) {
 
 			// Check if batch has reached capacity
 			if int(b.currentBatchLen.Load()) >= b.maxBatchSize {
-				flush(authCtx, flushCapacity)
+				b.flush(authCtx, flushCapacity)
 			}
 
 		case <-b.ticker.C:
-			flush(authCtx, flushTicker)
+			b.flush(authCtx, flushTicker)
 
 		case <-ctx.Done():
 			b.log.Debug(ctx, "context done, flushing before exit")
@@ -292,21 +290,21 @@ func (b *Batcher) run(ctx context.Context) {
 			defer cancel() //nolint:revive // We're returning, defer is fine.
 
 			// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
-			flush(dbauthz.AsSystemRestricted(ctxTimeout), flushExit)
+			b.flush(dbauthz.AsSystemRestricted(ctxTimeout), flushExit)
 			return
 		}
 	}
 }
 
 // flush flushes the current batch to the database and pubsub.
-func (b *Batcher) flush(ctx context.Context, reason string) error {
+func (b *Batcher) flush(ctx context.Context, reason string) {
 	count := len(b.batch)
 
 	if count == 0 {
-		return nil
+		return
 	}
 
-	start := time.Now()
+	start := b.clock.Now()
 	b.log.Debug(ctx, "flushing metadata batch",
 		slog.F("reason", reason),
 		slog.F("count", count),
@@ -337,10 +335,8 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 	b.currentBatchLen.Store(0)
 
 	// Record per-agent utilization metrics.
-	if b.metrics != nil {
-		for _, keyCount := range agentKeys {
-			b.metrics.batchUtilization.Observe(float64(keyCount))
-		}
+	for _, keyCount := range agentKeys {
+		b.metrics.batchUtilization.Observe(float64(keyCount))
 	}
 
 	// Update the database with all metadata updates in a single query.
@@ -351,14 +347,15 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 		Error:            errors,
 		CollectedAt:      collectedAt,
 	})
-	elapsed := time.Since(start)
+	elapsed := b.clock.Since(start)
+
 	if err != nil {
 		if database.IsQueryCanceledError(err) {
 			b.log.Debug(ctx, "query canceled, skipping update of workspace agent metadata", slog.F("elapsed", elapsed))
-			return err
+			return
 		}
 		b.log.Error(ctx, "error updating workspace agent metadata", slog.Error(err), slog.F("elapsed", elapsed))
-		return err
+		return
 	}
 
 	// Build list of unique agent IDs for pubsub notification.
@@ -370,23 +367,21 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 	// Encode agent IDs into chunks and publish them.
 	chunks := EncodeAgentIDChunks(uniqueAgentIDs)
 	for _, chunk := range chunks {
-		err := b.ps.Publish(MetadataBatchPubsubChannel, chunk)
-		if err != nil {
+		if err := b.ps.Publish(MetadataBatchPubsubChannel, chunk); err != nil {
 			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
 				slog.Error(err),
 				slog.F("chunk_size", len(chunk)/uuidBase64Size),
 				slog.F("payload_size", len(chunk)),
 			)
+			b.metrics.publishErrors.Inc()
 		}
 	}
 
 	// Record successful batch size and flush duration after successful send/publish.
-	if b.metrics != nil {
-		b.metrics.batchSize.Observe(float64(count))
-		b.metrics.metadataTotal.Add(float64(count))
-		b.metrics.batchesTotal.WithLabelValues(reason).Inc()
-		b.metrics.flushDuration.WithLabelValues(reason).Observe(time.Since(start).Seconds())
-	}
+	b.metrics.batchSize.Observe(float64(count))
+	b.metrics.metadataTotal.Add(float64(count))
+	b.metrics.batchesTotal.WithLabelValues(reason).Inc()
+	b.metrics.flushDuration.WithLabelValues(reason).Observe(time.Since(start).Seconds())
 
 	elapsed = time.Since(start)
 	b.log.Debug(ctx, "flush complete",
@@ -395,5 +390,5 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 		slog.F("reason", reason),
 	)
 
-	return nil
+	return
 }
