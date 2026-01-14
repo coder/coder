@@ -1765,20 +1765,23 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		var batchPayload metadatabatcher.WorkspaceAgentMetadataBatchPayload
-		err := json.Unmarshal(byt, &batchPayload)
-		if err != nil {
-			log.Error(ctx, "failed to unmarshal batched pubsub message", slog.Error(err))
+		// Parse the byte slice as concatenated UUIDs (16 bytes each).
+		// Each UUID is exactly 16 bytes, so we read 16 bytes at a time.
+		if len(byt)%16 != 0 {
+			log.Error(ctx, "invalid batched pubsub message size", slog.F("size", len(byt)))
 			return
 		}
 
 		// Check if this agent is in the batch update.
-		for _, agentID := range batchPayload.AgentIDs {
+		for i := 0; i < len(byt); i += 16 {
+			var agentID uuid.UUID
+			copy(agentID[:], byt[i:i+16])
+
 			if agentID != workspaceAgent.ID {
 				continue
 			}
 
-			log.Debug(ctx, "received metadata update from batch channel", slog.F("agent_id", agentID), slog.F("batch_size", len(batchPayload.AgentIDs)))
+			log.Debug(ctx, "received metadata update from batch channel", slog.F("agent_id", agentID), slog.F("batch_size", len(byt)/16))
 
 			// Signal to re-fetch all metadata for this agent.
 			// Batch notifications don't include which keys changed, so we

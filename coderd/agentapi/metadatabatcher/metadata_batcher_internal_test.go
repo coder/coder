@@ -415,10 +415,11 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		AnyTimes()
 
 	// Expect pubsub publish to be called when flush happens.
+	// With 600 agents and 500 agents per chunk, we expect 2 publishes.
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
 		Return(nil).
-		AnyTimes()
+		Times(2)
 
 	reg := prometheus.NewRegistry()
 	b, closer, err := NewBatcher(ctx, reg, store, ps,
@@ -430,11 +431,10 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 
 	t1 := clock.Now()
 
-	// Create enough agents to exceed the 8KB pubsub limit.
-	// A UUID in JSON is ~38 bytes (36 chars + quotes), plus JSON overhead.
-	// 8000 / 38 ≈ 210 agents should fit in one message.
-	// Let's create 250 agents to force chunking.
-	numAgents := 250
+	// Create enough agents to exceed maxAgentIDsPerChunk (500).
+	// With 16 bytes per UUID and 8KB limit, we can fit 500 agent IDs per chunk.
+	// Let's create 600 agents to force chunking into 2 messages.
+	numAgents := 600
 	agents := make([]uuid.UUID, numAgents)
 	for i := 0; i < numAgents; i++ {
 		agents[i] = uuid.New()
