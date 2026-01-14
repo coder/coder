@@ -18,21 +18,21 @@ type httpRouteInfo struct {
 }
 
 // ExtractHTTPRoute retrieves just the HTTP route pattern from context.
-// Returns empty string if not set (e.g., for non-HTTP database calls).
+// Returns empty string if not set.
 func ExtractHTTPRoute(ctx context.Context) string {
 	ri, _ := ctx.Value(httpRouteInfoKey{}).(httpRouteInfo)
 	return ri.Route
 }
 
 // ExtractHTTPMethod retrieves just the HTTP method from context.
-// Returns empty string if not set (e.g., for non-HTTP database calls).
+// Returns empty string if not set.
 func ExtractHTTPMethod(ctx context.Context) string {
 	ri, _ := ctx.Value(httpRouteInfoKey{}).(httpRouteInfo)
 	return ri.Method
 }
 
 // HTTPRoute is middleware that stores the HTTP route pattern and method in
-// context for use by downstream handlers and services (e.g., dbmetrics).
+// context for use by downstream handlers and services (e.g. prometheus).
 func HTTPRoute(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route := getRoutePattern(r)
