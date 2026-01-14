@@ -9,6 +9,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -282,6 +283,7 @@ const TaskRow: FC<TaskRowProps> = ({
 								<Share2Icon />
 								Share workspace
 							</DropdownMenuItem>
+							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								className="text-content-destructive focus:text-content-destructive"
 								onClick={(e) => {
@@ -290,7 +292,7 @@ const TaskRow: FC<TaskRowProps> = ({
 								}}
 							>
 								<TrashIcon />
-								Delete workspace
+								Delete&hellip;
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>

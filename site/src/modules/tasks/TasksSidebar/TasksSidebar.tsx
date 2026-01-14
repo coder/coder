@@ -7,6 +7,7 @@ import {
 	DropdownMenuContent,
 	DropdownMenuGroup,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { CoderIcon } from "components/Icons/CoderIcon";
@@ -241,6 +242,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 										Share workspace
 									</RouterLink>
 								</DropdownMenuItem>
+								<DropdownMenuSeparator />
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									onClick={(e) => {
@@ -249,7 +251,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 									}}
 								>
 									<TrashIcon />
-									Delete
+									Delete&hellip;
 								</DropdownMenuItem>
 							</DropdownMenuGroup>
 						</DropdownMenuContent>
