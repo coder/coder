@@ -306,6 +306,16 @@ export interface Devcontainer {
   workspaceFolder: string;
   configPath: string;
   name: string;
+  /** Pre-computed devcontainer ID from Terraform. */
+  id: Uint8Array;
+  /** Pre-computed subagent ID from Terraform. */
+  subagentId: Uint8Array;
+  /** Apps to attach to the subagent. */
+  apps: App[];
+  /** Scripts to run in the subagent. */
+  scripts: Script[];
+  /** Environment variables for the subagent. */
+  envs: Env[];
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -1094,6 +1104,21 @@ export const Devcontainer = {
     }
     if (message.name !== "") {
       writer.uint32(26).string(message.name);
+    }
+    if (message.id.length !== 0) {
+      writer.uint32(34).bytes(message.id);
+    }
+    if (message.subagentId.length !== 0) {
+      writer.uint32(42).bytes(message.subagentId);
+    }
+    for (const v of message.apps) {
+      App.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    for (const v of message.scripts) {
+      Script.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    for (const v of message.envs) {
+      Env.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },
