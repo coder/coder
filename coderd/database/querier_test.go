@@ -7994,7 +7994,6 @@ func TestWorkspaceAgentDevcontainersSubagentID(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
 
 	// Setup: create workspace agent
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -8036,6 +8035,7 @@ func TestWorkspaceAgentDevcontainersSubagentID(t *testing.T) {
 
 	t.Run("InsertWithSubagentID", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		devcontainers, err := db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
 			WorkspaceAgentID: agent.ID,
@@ -8061,6 +8061,7 @@ func TestWorkspaceAgentDevcontainersSubagentID(t *testing.T) {
 
 	t.Run("InsertWithNilSubagentID", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Create a separate agent for this subtest
 		agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
