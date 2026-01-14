@@ -827,19 +827,37 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		Return(nil).
 		Times(3)
 
-	// Add a single metadata update for each agent
-	for i := 0; i < numAgents; i++ {
+	// Add first 499 metadata updates (just under the capacity threshold of 500)
+	for i := 0; i < 499; i++ {
 		require.NoError(t, b.Add(agents[i], []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1}))
 	}
 
-	// Wait for all channel messages to be processed. Since numAgents (600) exceeds
-	// the batch size (500), a capacity flush will occur automatically at 500 entries,
-	// leaving 100 entries in the batch.
+	// Wait for all channel messages to be processed into the batch.
+	// Batch should have 499 entries, no capacity flush yet.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(b.updateCh) == 0 && len(b.batch) == 499
+	}, testutil.IntervalFast)
+
+	// Add next 101 metadata updates (will trigger capacity flush at 500)
+	for i := 499; i < numAgents; i++ {
+		require.NoError(t, b.Add(agents[i], []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1}))
+	}
+
+	// Wait for all channel messages to be processed. The 500th entry should have
+	// triggered an automatic capacity flush, leaving 100 entries in the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return len(b.updateCh) == 0 && len(b.batch) == 100
 	}, testutil.IntervalFast)
 
-	// Flush and verify all updates were processed
+	// Verify capacity flush metrics and total metadata count.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		capacity := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
+		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		// Should have 1 capacity flush (500 entries) so far
+		return capacity == float64(1) && totalMeta == float64(500)
+	}, testutil.IntervalFast)
+
+	// Flush remaining entries and verify all updates were processed
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
