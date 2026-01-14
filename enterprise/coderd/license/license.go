@@ -304,14 +304,13 @@ func LicensesEntitlements(
 				// multiple feature values into a single SDK feature.
 				continue
 			}
-			if featureName == codersdk.FeatureUserLimit || featureName.UsesUsagePeriod() {
-				// FeatureUserLimit and usage period features are handled below.
+			if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
+				// Limit and usage period features are handled below.
 				// They don't provide default values as they are always enabled
 				// and require a limit to be specified in the license to have
 				// any effect.
 				continue
 			}
-			// TODO: Add support for FeatureAgentSeatCount
 
 			entitlements.AddFeature(featureName, codersdk.Feature{
 				Entitlement: entitlement,
@@ -356,20 +355,10 @@ func LicensesEntitlements(
 				continue
 			}
 
-			isLimitFeature := func(featureName codersdk.FeatureName) bool {
-				switch featureName {
-				case
-					codersdk.FeatureUserLimit,
-					codersdk.FeatureAgentSeatCount:
-					return true
-				default:
-					return false
-				}
-			}
-
 			// Handling for limit features.
 			switch {
-			case isLimitFeature(featureName):
+			case featureName.UsesLimit():
+				// TODO: Do we want to support FeatureManagedAgentLimit here?
 				if featureValue <= 0 {
 					// 0 user count doesn't make sense, so we skip it.
 					continue

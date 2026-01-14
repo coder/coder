@@ -187,6 +187,7 @@ func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
 		FeatureUserLimit:         true,
 		FeatureManagedAgentLimit: true,
+		FeatureAgentSeatCount:    true,
 	}[n]
 }
 
