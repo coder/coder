@@ -89,9 +89,9 @@ type Batcher struct {
 	maxBatchSize    int
 
 	// clock is used to create tickers and get the current time.
-	clock    quartz.Clock
-	ticker   *quartz.Ticker
-	interval time.Duration
+	clock      quartz.Clock
+	ticker     *quartz.Ticker
+	interval   time.Duration
 	warnTicker *quartz.Ticker // used to only log at warn level infrequently
 
 	// ctx is the context for the batcher. Used to check if shutdown has begun.
@@ -138,10 +138,10 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 		ps:      ps,
 		metrics: NewMetrics(),
 		done:    make(chan struct{}),
-		log: slog.Logger{},
-		clock: quartz.NewReal(),
+		log:     slog.Logger{},
+		clock:   quartz.NewReal(),
 	}
-	b.warnTicker = b.clock.NewTicker(10*time.Second)
+	b.warnTicker = b.clock.NewTicker(10 * time.Second)
 
 	for _, opt := range opts {
 		opt(b)
@@ -223,12 +223,12 @@ func (b *Batcher) Add(agentID uuid.UUID, keys []string, values []string, errors 
 			slog.F("dropped_count", droppedCount),
 		}
 		select {
-		case <- b.warnTicker.C:
-				b.log.Warn(context.Background(), msg, fields...)
+		case <-b.warnTicker.C:
+			b.log.Warn(context.Background(), msg, fields...)
 		default:
-				b.log.Debug(context.Background(), msg, fields...)
+			b.log.Debug(context.Background(), msg, fields...)
 		}
-		
+
 		b.metrics.droppedKeysTotal.Add(float64(droppedCount))
 	}
 
@@ -365,12 +365,16 @@ func (b *Batcher) flush(ctx context.Context, reason string) {
 	}
 
 	// Encode agent IDs into chunks and publish them.
-	chunks := EncodeAgentIDChunks(uniqueAgentIDs)
+	chunks, err := EncodeAgentIDChunks(uniqueAgentIDs)
+	if err != nil {
+		b.log.Error(ctx, "Agent ID chunk encoding for pubsub failed",
+			slog.Error(err))
+	}
 	for _, chunk := range chunks {
 		if err := b.ps.Publish(MetadataBatchPubsubChannel, chunk); err != nil {
 			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
 				slog.Error(err),
-				slog.F("chunk_size", len(chunk)/uuidBase64Size),
+				slog.F("chunk_size", len(chunk)/UUIDBase64Size),
 				slog.F("payload_size", len(chunk)),
 			)
 			b.metrics.publishErrors.Inc()
@@ -389,6 +393,4 @@ func (b *Batcher) flush(ctx context.Context, reason string) {
 		slog.F("elapsed", elapsed),
 		slog.F("reason", reason),
 	)
-
-	return
 }
