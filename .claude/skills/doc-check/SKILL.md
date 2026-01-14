@@ -8,6 +8,23 @@ description: Checks if code changes require documentation updates
 Review code changes and determine if documentation updates or new documentation
 is needed.
 
+## Setup for PR Review
+
+When given a PR number, get the PR info and changes:
+
+```bash
+cd ~/coder
+
+# Get PR details (title, description, author)
+gh pr view <PR_NUMBER> --repo coder/coder
+
+# View changed files
+gh pr diff <PR_NUMBER> --repo coder/coder --name-only
+
+# View the full diff
+gh pr diff <PR_NUMBER> --repo coder/coder
+```
+
 ## Workflow
 
 1. **Check the PR title first** - If it's clearly not user-facing (refactor, test,

@@ -102,11 +102,7 @@ jobs:
           # Build task prompt - skill contains doc-check instructions
           TASK_PROMPT=$(cat <<EOF
           Use the doc-check skill to review PR #${PR_NUMBER} for documentation needs.
-
-          Setup:
-            cd ~/coder
-            git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
-            git checkout pr-${PR_NUMBER}
+          Repository: coder/coder
           EOF
           )
 
