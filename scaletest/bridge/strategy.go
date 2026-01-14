@@ -92,34 +92,23 @@ func (s *bridgeStrategy) Cleanup(ctx context.Context, id string, logs io.Writer)
 // directStrategy makes requests directly to an upstream URL.
 type directStrategy struct {
 	upstreamURL string
-	token       string
-	clientToken string
 }
 
 type directStrategyConfig struct {
 	UpstreamURL string
-	Token       string
-	ClientToken string // Fallback token from client if Token is not set.
 }
 
 func newDirectStrategy(cfg directStrategyConfig) *directStrategy {
 	return &directStrategy{
 		upstreamURL: cfg.UpstreamURL,
-		token:       cfg.Token,
-		clientToken: cfg.ClientToken,
 	}
 }
 
-func (s *directStrategy) Setup(ctx context.Context, _ string, logs io.Writer) (string, string, error) {
+func (s *directStrategy) Setup(ctx context.Context, _ string, logs io.Writer) (requestURL string, _ string, err error) {
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 
-	token := s.token
-	if token == "" {
-		token = s.clientToken
-	}
-
 	logger.Info(ctx, "bridge runner in direct mode", slog.F("url", s.upstreamURL))
-	return s.upstreamURL, token, nil
+	return s.upstreamURL, "", err
 }
 
 func (*directStrategy) Cleanup(_ context.Context, _ string, _ io.Writer) error {

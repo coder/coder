@@ -29,10 +29,6 @@ type Config struct {
 	// Only used in direct mode.
 	UpstreamURL string `json:"upstream_url"`
 
-	// DirectToken is the Bearer token for direct mode.
-	// If not set in direct mode, uses the client's token.
-	DirectToken string `json:"direct_token"`
-
 	// Provider is the API provider to use: "openai" or "anthropic".
 	Provider string `json:"provider"`
 
@@ -92,8 +88,6 @@ func (c Config) NewStrategy(client *codersdk.Client) requestModeStrategy {
 	if c.Mode == RequestModeDirect {
 		return newDirectStrategy(directStrategyConfig{
 			UpstreamURL: c.UpstreamURL,
-			Token:       c.DirectToken,
-			ClientToken: client.SessionToken(),
 		})
 	}
 

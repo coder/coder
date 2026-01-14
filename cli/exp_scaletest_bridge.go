@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os/signal"
 	"strconv"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -24,15 +26,15 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 		noCleanup          bool
 		mode               string
 		upstreamURL        string
-		directToken        string
 		provider           string
-		requestCount       int64
-		stream             bool
+		requestsPerUser    int64
+		useStreamingAPI    bool
 		requestPayloadSize int64
 
 		timeoutStrategy = &timeoutFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
 		output          = &scaletestOutputFlags{}
+		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
 	cmd := &serpent.Command{
@@ -69,6 +71,15 @@ all previous messages in the conversation.`,
 			reg := prometheus.NewRegistry()
 			metrics := bridge.NewMetrics(reg)
 
+			logger := inv.Logger
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+
+			defer func() {
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
+			}()
+
 			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...)
 			defer stop()
 			ctx = notifyCtx
@@ -99,11 +110,10 @@ all previous messages in the conversation.`,
 				Mode:               bridge.RequestMode(mode),
 				Metrics:            metrics,
 				Provider:           provider,
-				RequestCount:       int(requestCount),
-				Stream:             stream,
+				RequestCount:       int(requestsPerUser),
+				Stream:             useStreamingAPI,
 				RequestPayloadSize: int(requestPayloadSize),
 				UpstreamURL:        upstreamURL,
-				DirectToken:        directToken,
 				User:               userConfig,
 			}
 			if err := config.Validate(); err != nil {
@@ -187,12 +197,6 @@ all previous messages in the conversation.`,
 			Value:       serpent.StringOf(&upstreamURL),
 		},
 		{
-			Flag:        "direct-token",
-			Env:         "CODER_SCALETEST_BRIDGE_DIRECT_TOKEN",
-			Description: "Bearer token for direct mode (optional, uses client token if not set).",
-			Value:       serpent.StringOf(&directToken),
-		},
-		{
 			Flag:        "provider",
 			Env:         "CODER_SCALETEST_BRIDGE_PROVIDER",
 			Default:     "openai",
@@ -204,7 +208,7 @@ all previous messages in the conversation.`,
 			Env:         "CODER_SCALETEST_BRIDGE_REQUEST_COUNT",
 			Default:     "1",
 			Description: "Number of sequential requests to make per runner.",
-			Value: serpent.Validate(serpent.Int64Of(&requestCount), func(value *serpent.Int64) error {
+			Value: serpent.Validate(serpent.Int64Of(&requestsPerUser), func(value *serpent.Int64) error {
 				if value == nil || value.Value() <= 0 {
 					return xerrors.Errorf("--request-count must be greater than 0")
 				}
@@ -215,7 +219,7 @@ all previous messages in the conversation.`,
 			Flag:        "stream",
 			Env:         "CODER_SCALETEST_BRIDGE_STREAM",
 			Description: "Enable streaming requests.",
-			Value:       serpent.BoolOf(&stream),
+			Value:       serpent.BoolOf(&useStreamingAPI),
 		},
 		{
 			Flag:        "request-payload-size",
@@ -235,5 +239,6 @@ all previous messages in the conversation.`,
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	output.attach(&cmd.Options)
+	prometheusFlags.attach(&cmd.Options)
 	return cmd
 }
