@@ -2,13 +2,19 @@
 # It creates a Coder Task that uses AI to analyze the PR changes,
 # search existing docs, and comment with recommendations.
 #
-# Triggered by: Adding the "doc-check" label to a PR, or manual dispatch.
+# Triggers:
+#   - New PR opened: Initial documentation review
+#   - PR updated (synchronize): Re-review after changes
+#   - Label "doc-check" added: Manual trigger for review
+#   - Workflow dispatch: Manual run with PR URL
 
 name: AI Documentation Check
 
 on:
   pull_request:
     types:
+      - opened
+      - synchronize
       - labeled
   workflow_dispatch:
     inputs:
@@ -26,8 +32,15 @@ jobs:
   doc-check:
     name: Analyze PR for Documentation Updates Needed
     runs-on: ubuntu-latest
+    # Run on: opened, synchronize, labeled (with doc-check label), or workflow_dispatch
+    # Skip draft PRs unless manually triggered
     if: |
-      (github.event.label.name == 'doc-check' || github.event_name == 'workflow_dispatch') &&
+      (
+        github.event.action == 'opened' ||
+        github.event.action == 'synchronize' ||
+        github.event.label.name == 'doc-check' ||
+        github.event_name == 'workflow_dispatch'
+      ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
     env:
@@ -42,66 +55,85 @@ jobs:
       - name: Determine PR Context
         id: determine-context
         env:
-          GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action }}
           GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_EVENT_SENDER_ID: ${{ github.event.sender.id }}
-          GITHUB_EVENT_SENDER_LOGIN: ${{ github.event.sender.login }}
           INPUTS_PR_URL: ${{ inputs.pr_url }}
           INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
           echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
+          echo "coder_user=doc-check-bot" >> "${GITHUB_OUTPUT}"
 
-          # For workflow_dispatch, use the provided PR URL
+          # Determine trigger type for task context
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
-              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
-              exit 1
-            fi
-            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
-            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
-            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
-
+            echo "trigger_type=manual" >> "${GITHUB_OUTPUT}"
             echo "Using PR URL: ${INPUTS_PR_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
-
-            # Extract PR number from URL for later use
             PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
-            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
-            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
-            echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
-
             echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
             echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            # Set trigger type based on action
+            case "${GITHUB_EVENT_ACTION}" in
+              opened)
+                echo "trigger_type=new_pr" >> "${GITHUB_OUTPUT}"
+                ;;
+              synchronize)
+                echo "trigger_type=pr_updated" >> "${GITHUB_OUTPUT}"
+                ;;
+              labeled)
+                echo "trigger_type=label_requested" >> "${GITHUB_OUTPUT}"
+                ;;
+              *)
+                echo "trigger_type=unknown" >> "${GITHUB_OUTPUT}"
+                ;;
+            esac
 
           else
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
             exit 1
           fi
 
-      - name: Extract changed files and build prompt
+      - name: Build task prompt
         id: extract-context
         env:
-          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+          TRIGGER_TYPE: ${{ steps.determine-context.outputs.trigger_type }}
         run: |
-          echo "Analyzing PR #${PR_NUMBER}"
+          echo "Analyzing PR #${PR_NUMBER} (trigger: ${TRIGGER_TYPE})"
 
-          # Build task prompt - skill contains doc-check instructions
+          # Build context message based on trigger type
+          case "${TRIGGER_TYPE}" in
+            new_pr)
+              CONTEXT="This is a NEW PR. Perform an initial documentation review."
+              ;;
+            pr_updated)
+              CONTEXT="This PR was UPDATED with new commits. Re-review for any documentation changes needed based on the latest changes."
+              ;;
+            label_requested)
+              CONTEXT="A documentation review was REQUESTED via label. Perform a thorough review."
+              ;;
+            manual)
+              CONTEXT="This is a MANUAL review request. Perform a thorough documentation review."
+              ;;
+            *)
+              CONTEXT="Perform a documentation review."
+              ;;
+          esac
+
+          # Build task prompt with context
           TASK_PROMPT=$(cat <<EOF
           Use the doc-check skill to review PR #${PR_NUMBER} for documentation needs.
+
+          Context: ${CONTEXT}
           Repository: coder/coder
           EOF
           )
@@ -129,11 +161,11 @@ jobs:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
           coder-organization: "default"
-          coder-template-name: coder
+          coder-template-name: doc-check-bot
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
           coder-task-name-prefix: doc-check
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
-          github-user-id: ${{ steps.determine-context.outputs.github_user_id }}
+          coder-user: doc-check-bot
           github-token: ${{ github.token }}
           github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
           comment-on-issue: true

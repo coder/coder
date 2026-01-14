@@ -38,6 +38,21 @@ gh pr diff <PR_NUMBER> --repo coder/coder
    - Or is everything already covered?
 5. **Post a comment** on the PR with your findings
 
+## Trigger Context
+
+The task prompt will include context about why the review was triggered:
+
+- **NEW PR**: First review of this PR. Do a full initial review.
+- **PR UPDATED**: New commits were pushed. Focus on what changed since last
+  review - check if previous recommendations were addressed or if new changes
+  need documentation.
+- **REQUESTED via label**: Someone manually requested a review. Do a thorough
+  review.
+- **MANUAL**: Workflow was manually triggered. Do a thorough review.
+
+Adjust your comment accordingly - for PR updates, acknowledge if previous
+feedback was addressed.
+
 ### Skip doc-check for
 
 - Refactors with no behavior change
@@ -89,6 +104,21 @@ If skipped based on PR title:
 
 **Skipped** - This PR appears to be [refactor/test/chore] based on the title
 and is unlikely to need documentation updates.
+```
+
+For PR updates (re-review after new commits):
+
+```markdown
+## Documentation Check (Update)
+
+Reviewed latest changes to PR.
+
+**Previous feedback status:**
+- ✅ docs/admin/users.md update - addressed in latest commit
+- ⏳ docs/cli/server.md - still needs --timeout flag documented
+
+**New changes:**
+- No additional documentation updates needed from latest commits
 ```
 
 ## Common Issues
