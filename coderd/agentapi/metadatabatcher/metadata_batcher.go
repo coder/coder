@@ -2,7 +2,6 @@ package metadatabatcher
 
 import (
 	"context"
-	"encoding/base64"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,16 +36,6 @@ const (
 	// maxPubsubPayloadSize is the maximum size of a single pubsub message.
 	// PostgreSQL NOTIFY has an 8KB limit for the payload.
 	maxPubsubPayloadSize = 8000 // Leave some headroom below 8192 bytes
-
-	// uuidBase64Size is the size of a base64-encoded UUID without padding.
-	// A UUID is 16 bytes, which encodes to 22 base64 characters (16 * 4 / 3 rounded up).
-	// We use RawStdEncoding (no padding) to maximize space efficiency.
-	uuidBase64Size = 22
-
-	// maxAgentIDsPerChunk is the maximum number of agent IDs that can fit in a
-	// single pubsub message. With 22 bytes per base64-encoded UUID and 8KB limit,
-	// we can fit ~363 agent IDs per chunk (8000 / 22 = 363.6).
-	maxAgentIDsPerChunk = maxPubsubPayloadSize / uuidBase64Size
 
 	// Timeout to use for the context created when flushing the final batch due to the top level context being 'Done'
 	finalFlushTimeout = 15 * time.Second
@@ -374,8 +363,18 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 		uniqueAgentIDs = append(uniqueAgentIDs, agentID)
 	}
 
-	// Publish agent IDs in chunks that fit within the pubsub size limit.
-	b.publishAgentIDsInChunks(ctx, uniqueAgentIDs)
+	// Encode agent IDs into chunks and publish them.
+	chunks := EncodeAgentIDChunks(uniqueAgentIDs)
+	for _, chunk := range chunks {
+		err := b.ps.Publish(MetadataBatchPubsubChannel, chunk)
+		if err != nil {
+			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
+				slog.Error(err),
+				slog.F("chunk_size", len(chunk)/uuidBase64Size),
+				slog.F("payload_size", len(chunk)),
+			)
+		}
+	}
 
 	// Record successful batch size and flush duration after successful send/publish.
 	if b.metrics != nil {
@@ -393,37 +392,4 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 	)
 
 	return nil
-}
-
-// publishAgentIDsInChunks publishes agent IDs in chunks that fit within the
-// PostgreSQL NOTIFY 8KB payload size limit. Each UUID is base64-encoded
-// (without padding) and concatenated into a single string.
-func (b *Batcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.UUID) {
-	for i := 0; i < len(agentIDs); i += maxAgentIDsPerChunk {
-		end := i + maxAgentIDsPerChunk
-		if end > len(agentIDs) {
-			end = len(agentIDs)
-		}
-
-		chunk := agentIDs[i:end]
-
-		// Build payload by base64-encoding each UUID (without padding) and
-		// concatenating them. This is UTF-8 safe for PostgreSQL NOTIFY.
-		payload := make([]byte, 0, len(chunk)*uuidBase64Size)
-		for _, agentID := range chunk {
-			// Encode UUID bytes to base64 without padding (RawStdEncoding).
-			// This produces exactly 22 characters per UUID.
-			encoded := base64.RawStdEncoding.AppendEncode(payload, agentID[:])
-			payload = encoded
-		}
-
-		err := b.ps.Publish(MetadataBatchPubsubChannel, payload)
-		if err != nil {
-			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
-				slog.Error(err),
-				slog.F("chunk_size", len(chunk)),
-				slog.F("payload_size", len(payload)),
-			)
-		}
-	}
 }
