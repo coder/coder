@@ -161,7 +161,8 @@ BEGIN
 		VALUES (
 		   workspace.id,
 		   workspace.created_at,
-		   (EXTRACT(EPOCH FROM workspace_usage_duration) / 3600.0)
+		   -- Only tracking whole hours for simplicity. Always rounding up to the next hour.
+		   CEIL((EXTRACT(EPOCH FROM workspace_usage_duration) / 3600.0))
 	   	);
 
 		IF debug_mode THEN
