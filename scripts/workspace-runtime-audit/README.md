@@ -16,13 +16,13 @@ start_time TIMESTAMPTZ := '2025-12-01 00:00:00+00';
 end_time TIMESTAMPTZ := '2025-12-31 23:59:59+00';
 ```
 
-2. Run against your Coder database:
+1. Run against your Coder database:
 
 ```bash
 psql -d coder -f scripts/workspace-runtime-audit/workspace-runtime-audit.sql
 ```
 
-3. Review the output csv at `workspace_usage.csv`.
+1. Review the output csv at `workspace_usage.csv`.
 
 ## Output
 
