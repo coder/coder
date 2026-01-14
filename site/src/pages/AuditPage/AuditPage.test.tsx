@@ -48,7 +48,7 @@ const renderPage = async ({ filter, page }: RenderPageOptions = {}) => {
 describe("AuditPage", () => {
 	beforeEach(() => {
 		// Mocking the dayjs module within the createDayString file
-		const mock = jest.spyOn(CreateDayString, "createDayString");
+		const mock = vi.spyOn(CreateDayString, "createDayString");
 		mock.mockImplementation(() => "a minute ago");
 
 		// Mock the entitlements
@@ -62,7 +62,7 @@ describe("AuditPage", () => {
 	it("renders page 5", async () => {
 		// Given
 		const page = 5;
-		const getAuditLogsSpy = jest.spyOn(API, "getAuditLogs").mockResolvedValue({
+		const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog, MockAuditLog2],
 			count: 2,
 		});
@@ -82,7 +82,7 @@ describe("AuditPage", () => {
 
 	describe("Filtering", () => {
 		it("filters by URL", async () => {
-			const getAuditLogsSpy = jest
+			const getAuditLogsSpy = vi
 				.spyOn(API, "getAuditLogs")
 				.mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 });
 
@@ -99,7 +99,7 @@ describe("AuditPage", () => {
 		it("resets page to 1 when filter is changed", async () => {
 			await renderPage({ page: 2 });
 
-			const getAuditLogsSpy = jest.spyOn(API, "getAuditLogs");
+			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs");
 			getAuditLogsSpy.mockClear();
 
 			const filterField = screen.getByLabelText("Filter");
