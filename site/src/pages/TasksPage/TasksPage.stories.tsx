@@ -267,7 +267,7 @@ export const OpenDeleteDialog: Story = {
 		await userEvent.click(kebabButtons[0]);
 
 		const deleteMenuItem = await screen.findByRole("menuitem", {
-			name: /delete workspace/i,
+			name: /delete/i,
 		});
 		fireEvent.click(deleteMenuItem);
 	},
