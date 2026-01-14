@@ -667,6 +667,29 @@
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
 									"state": ["premium"]
+								},
+								{
+									"title": "Startup Dependencies",
+									"description": "Coordinate workspace startup with dependency management",
+									"path": "./admin/templates/startup-coordination/index.md",
+									"state": ["early access"],
+									"children": [
+										{
+											"title": "Usage",
+											"description": "How to use startup coordination",
+											"path": "./admin/templates/startup-coordination/usage.md"
+										},
+										{
+											"title": "Troubleshooting",
+											"description": "Troubleshoot startup coordination",
+											"path": "./admin/templates/startup-coordination/troubleshooting.md"
+										},
+										{
+											"title": "Examples",
+											"description": "Examples of startup coordination",
+											"path": "./admin/templates/startup-coordination/example.md"
+										}
+									]
 								}
 							]
 						},
