@@ -101,8 +101,8 @@ BEGIN
 
 			-- Usage only counts from workspaces that successfully started
 			IF workspace_build.transition = 'start' AND
-			   workspace_build.job_status IN ('succeeded') THEN
-
+			   workspace_build.job_status IN ('succeeded')
+			THEN
 			    -- If the workspace is already turned on (e.g., multiple starts without stops),
 			    -- we consider the previous start time as usage time. So ignore this start.
 			    IF workspace_turned_on = '0001-01-01 00:00:00+00' THEN
@@ -114,15 +114,18 @@ BEGIN
 			ELSE
 				-- All other transitions and job status are treated as a workspace stopping.
 				-- Only accumulate time from the last successful start to this point.
-				IF workspace_turned_on != '0001-01-01 00:00:00+00' THEN
+				-- You could imagine a workspace that was only failing builds and never accumulating time.
+				IF workspace_turned_on != '0001-01-01 00:00:00+00'
+				THEN
 					workspace_turned_off = COALESCE(workspace_build.completed_at, workspace_build.created_at);
-
 					-- We only track usage within the start_time and end_time range.
 					IF
 						-- Turned off before the start time, so this workspace lived and died before our audit period.
 						workspace_turned_off > start_time AND
+						-- Turned on before the end time. If this is in the future, then it didn't run during our audit period.
 						workspace_turned_on < end_time
 					THEN
+						-- Fix the on/off times to be within the audit period. Ignore any time outside the period.
 						IF workspace_turned_on < start_time THEN
 							-- Started before the audit period, so move the turned_on to start_time.
 							workspace_turned_on = start_time;
@@ -132,6 +135,7 @@ BEGIN
 							-- Turned off after the audit period, so move the turned_off to end_time.
 							workspace_turned_off = end_time;
 						END IF;
+
 						workspace_usage_duration = workspace_usage_duration + (workspace_turned_off - workspace_turned_on);
 						IF debug_mode THEN
 							RAISE NOTICE 'Workspace (build %) turning OFF at % with % duration accumulated',
