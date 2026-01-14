@@ -145,7 +145,7 @@ func (s *Server) Stop() error {
 }
 
 func (s *Server) APIAddress() string {
-	return fmt.Sprintf("http://%s", s.address)
+	return fmt.Sprintf("http://%s", s.httpListener.Addr().String())
 }
 
 func (s *Server) startAPIServer(ctx context.Context) error {
