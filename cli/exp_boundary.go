@@ -1,12 +1,18 @@
 package cli
 
 import (
-	boundarycli "github.com/coder/boundary/cli"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/serpent"
 )
 
 func (*RootCmd) boundary() *serpent.Command {
-	cmd := boundarycli.BaseCommand() // Package coder/boundary/cli exports a "base command" designed to be integrated as a subcommand.
-	cmd.Use += " [args...]"          // The base command looks like `boundary -- command`. Serpent adds the flags piece, but we need to add the args.
-	return cmd
+	return &serpent.Command{
+		Use:   "boundary",
+		Short: "Network isolation tool for monitoring and restricting HTTP/HTTPS requests (enterprise)",
+		Long:  `boundary creates an isolated network environment for target processes. This is an enterprise feature.`,
+		Handler: func(_ *serpent.Invocation) error {
+			return xerrors.New("boundary is an enterprise feature; upgrade to use this command")
+		},
+	}
 }

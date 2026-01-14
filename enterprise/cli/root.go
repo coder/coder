@@ -29,8 +29,10 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 	}
 }
 
-func (*RootCmd) enterpriseExperimental() []*serpent.Command {
-	return []*serpent.Command{}
+func (r *RootCmd) enterpriseExperimental() []*serpent.Command {
+	return []*serpent.Command{
+		r.boundary(),
+	}
 }
 
 func (r *RootCmd) EnterpriseSubcommands() []*serpent.Command {
