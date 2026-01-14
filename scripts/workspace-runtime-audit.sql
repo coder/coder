@@ -2,11 +2,13 @@
 --
 -- This script calculates total workspace runtime within a specified date range.
 -- It tracks workspace state transitions (start/stop/delete) and sums up the time
--- each workspace spent in a "running" state.
+-- each workspace spent in a "running" state. A "running" state is considered to be
+-- any workspace that has been started successfully and not yet stopped, deleted, or failed.
 --
 -- Usage:
---   1. Edit the start_time and end_time in the params CTE below
+--   1. Edit the start_time and end_time in the params below
 --   2. Run: psql -f workspace-runtime-audit.sql
+--   3. A file called 'workspace_usage.csv' will be generated with the results.
 BEGIN;
 -- 1) Temp table to hold the data aggregated from the anonymous function
 CREATE TEMP TABLE _workspace_usage_results (
@@ -153,8 +155,7 @@ BEGIN
 	END IF;
 END$$ LANGUAGE plpgsql;
 
-SELECT *
-FROM _workspace_usage_results
-ORDER BY usage_hours DESC, workspace_id;
+-- Export the results to a CSV file
+\copy (SELECT * FROM _workspace_usage_results WHERE usage_hours > 0 ORDER BY usage_hours DESC) TO 'workspace_usage.csv' WITH (FORMAT CSV, HEADER TRUE);
 
 COMMIT;
