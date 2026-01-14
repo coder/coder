@@ -10,7 +10,7 @@ pyroscope.scrape "coderd" {
   ]
 
 	authorization {
-		credentials = ""
+		credentials = sys.env("CODER_AUTH_TOKEN")
 		type = "Bearer"
 	}
 

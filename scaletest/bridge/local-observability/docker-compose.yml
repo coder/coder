@@ -63,6 +63,8 @@ services:
     container_name: grafana-alloy
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+    environment:
+      - CODER_AUTH_TOKEN=${CODER_AUTH_TOKEN}
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
