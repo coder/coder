@@ -22,13 +22,17 @@ DECLARE
 	-- CHANGE THE START/END TIME HERE FOR YOUR AUDIT
 	start_time TIMESTAMPTZ := '2025-12-01 00:00:00+00';
 	end_time TIMESTAMPTZ := '2025-12-31 23:59:59+00';
-	debug_mode BOOLEAN := FALSE;
+	-- 'debug_mode' emits logging to help trace processing for each workspace
+	debug_mode BOOLEAN := TRUE;
+	-- temporary variables
 	workspace RECORD;
 	workspace_build RECORD;
 	workspace_turned_on TIMESTAMPTZ;
 	workspace_turned_off TIMESTAMPTZ;
 	workspace_usage_duration INTERVAL;
 	latest_build_created_at TIMESTAMPTZ;
+	latest_build_transition workspace_transition;
+	-- Counter for skipped workspaces that are outside the window, used for debugging
 	skipped_workspaces INTEGER := 0;
 BEGIN
 	FOR workspace IN
@@ -36,6 +40,7 @@ BEGIN
 			workspaces.*
 		FROM
 		    workspaces
+		-- Adding a WHERE clause here to limit the workspaces is helpful during testing.
 	LOOP
 		-- Initialize variables for each workspace.
 		workspace_turned_on = '0001-01-01 00:00:00+00';
@@ -44,14 +49,24 @@ BEGIN
 			RAISE NOTICE 'Processing Workspace ID: %, Created At: %', workspace.id, workspace.created_at;
 		end if;
 
-		latest_build_created_at := (
-			SELECT wb.created_at
-			FROM workspace_builds wb
-			WHERE wb.workspace_id = workspace.id
-			ORDER BY wb.build_number DESC
-			LIMIT 1
-		);
-		IF latest_build_created_at < start_time THEN
+		-- Fetch the latest build for the workspace to determine if we can skip it entirely.
+		SELECT
+			wb.created_at, wb.transition
+		FROM
+			workspace_builds wb
+		WHERE
+			wb.workspace_id = workspace.id
+		ORDER BY wb.build_number DESC
+		LIMIT 1
+		INTO
+			latest_build_created_at,
+			latest_build_transition
+		;
+
+		-- If the latest build is a stop/delete before our start time, this workspace had no activity in our audit period.
+		IF
+			latest_build_created_at < start_time AND latest_build_transition != 'start'
+		THEN
 			skipped_workspaces = skipped_workspaces + 1;
 			CONTINUE;
 		END IF;
@@ -126,12 +141,15 @@ BEGIN
 		END LOOP;
 
 		IF workspace_turned_on != '0001-01-01 00:00:00+00' THEN
+			IF workspace_turned_on < start_time THEN
+				workspace_turned_on = start_time;
+			END IF;
 			IF workspace_turned_on < end_time THEN
 				IF debug_mode THEN
 					RAISE NOTICE 'Workspace still on at end of period, adding %', (end_time - workspace_turned_on);
 				END IF;
 				workspace_usage_duration = workspace_usage_duration + (end_time - workspace_turned_on);
-			end if;
+			END IF;
 			workspace_turned_on = '0001-01-01 00:00:00+00';
 		END IF;
 
@@ -157,5 +175,8 @@ END$$ LANGUAGE plpgsql;
 
 -- Export the results to a CSV file
 \copy (SELECT * FROM _workspace_usage_results WHERE usage_hours > 0 ORDER BY usage_hours DESC) TO 'workspace_usage.csv' WITH (FORMAT CSV, HEADER TRUE);
+
+-- Optionally use a select to view results as a table output
+-- SELECT * FROM _workspace_usage_results WHERE usage_hours > 0 ORDER BY usage_hours DESC;
 
 COMMIT;
