@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -1701,6 +1702,12 @@ func (api *API) watchWorkspaceAgentMetadata(
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+	agentIDEncoded := make([]byte, metadatabatcher.UUIDBase64Size)
+	err := metadatabatcher.EncodeAgentID(workspaceAgent.ID, agentIDEncoded)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	log := api.Logger.Named("workspace_metadata_watcher").With(
 		slog.F("workspace_agent_id", waws.WorkspaceAgent.ID),
 		slog.F("workspace_id", waws.WorkspaceTable.ID),
@@ -1718,31 +1725,20 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		// Create an iterator for lazy decoding of agent IDs.
-		iter, err := metadatabatcher.NewAgentIDIterator(byt)
-		if err != nil {
-			log.Error(ctx, "invalid batched pubsub message", slog.Error(err))
+		if len(byt)%metadatabatcher.UUIDBase64Size != 0 {
+			log.Error(ctx, "invalid batched pubsub message, pubsub message length was not a multiple of encoded agent UUID length", slog.Error(err))
 			return
 		}
 
 		// Lazily decode and check each agent ID until we find ours.
-		for {
-			agentID, ok := iter.Next()
-			if !ok {
-				// Check for decoding errors.
-				if err := iter.Err(); err != nil {
-					log.Error(ctx, "failed to decode agent ID from batch message", slog.Error(err))
-				}
-				break
-			}
-
-			if agentID != workspaceAgent.ID {
+		for i := 0; i < len(byt); i += metadatabatcher.UUIDBase64Size {
+			if !bytes.Equal(byt[i:i+metadatabatcher.UUIDBase64Size], agentIDEncoded) {
 				continue
 			}
 
 			log.Debug(ctx, "received metadata update from batch channel",
-				slog.F("agent_id", agentID),
-				slog.F("batch_size", iter.Count()),
+				slog.F("agent_id", workspaceAgent.ID),
+				slog.F("batch_size", len(byt)/metadatabatcher.UUIDBase64Size),
 			)
 
 			// Signal to re-fetch all metadata for this agent.

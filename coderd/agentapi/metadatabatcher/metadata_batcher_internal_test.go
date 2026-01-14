@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3"
@@ -112,13 +112,13 @@ func matchMetadata(agentIDs []uuid.UUID, keys, values, errors []string, times []
 type pubsubCapture struct {
 	mu       sync.Mutex
 	agentIDs map[uuid.UUID]bool
-	t *testing.T
+	t        *testing.T
 }
 
 func newPubsubCapture(t *testing.T) *pubsubCapture {
 	return &pubsubCapture{
 		agentIDs: make(map[uuid.UUID]bool),
-		t: t,
+		t:        t,
 	}
 }
 
@@ -128,35 +128,23 @@ func (c *pubsubCapture) capture(event string, message []byte) {
 
 	// Verify correct event.
 	assert.Equal(c.t, event, MetadataBatchPubsubChannel)
-	// if event != MetadataBatchPubsubChannel {
-	// 	return xerrors.Errorf("unexpected event: %s", event)
-	// }
 
 	// Decode base64-encoded agent IDs from payload.
-	assert.Equal(c.t, len(message)%uuidBase64Size, 0)
-	// if len(message)%uuidBase64Size != 0 {
-	// 	return xerrors.Errorf("invalid payload size: %d", len(message))
-	// }
+	assert.Equal(c.t, len(message)%UUIDBase64Size, 0)
 
-	numAgents := len(message) / uuidBase64Size
+	numAgents := len(message) / UUIDBase64Size
 	for i := 0; i < numAgents; i++ {
-		start := i * uuidBase64Size
-		end := start + uuidBase64Size
+		start := i * UUIDBase64Size
+		end := start + UUIDBase64Size
 		encoded := message[start:end]
 
 		var uuidBytes [16]byte
 		n, err := base64.RawStdEncoding.Decode(uuidBytes[:], encoded)
 		assert.NoError(c.t, err)
 		assert.Equal(c.t, n, 16)
-		// if err != nil || n != 16 {
-		// 	return xerrors.Errorf("failed to decode UUID: %w", err)
-		// }
 
 		agentID, err := uuid.FromBytes(uuidBytes[:])
 		assert.NoError(c.t, err)
-		// if err != nil {
-		// 	return xerrors.Errorf("failed to parse UUID: %w", err)
-		// }
 
 		c.agentIDs[agentID] = true
 	}

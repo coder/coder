@@ -1,6 +1,7 @@
 package metadatabatcher_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/google/uuid"
@@ -69,21 +70,17 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 			t.Parallel()
 
 			// Encode the agent IDs into chunks.
-			chunks := metadatabatcher.EncodeAgentIDChunks(tt.agentIDs)
+			chunks, err := metadatabatcher.EncodeAgentIDChunks(tt.agentIDs)
+			require.NoError(t, err)
 
 			// Decode all chunks and collect the agent IDs.
 			var decoded []uuid.UUID
 			for _, chunk := range chunks {
-				iter, err := metadatabatcher.NewAgentIDIterator(chunk)
-				require.NoError(t, err)
-
-				for {
-					agentID, ok := iter.Next()
-					if !ok {
-						require.NoError(t, iter.Err())
-						break
-					}
-					decoded = append(decoded, agentID)
+				for i := 0; i < len(chunk); i += metadatabatcher.UUIDBase64Size {
+					var u uuid.UUID
+					_, err := base64.RawStdEncoding.Decode(u[:], chunk[i:i+metadatabatcher.UUIDBase64Size])
+					require.NoError(t, err)
+					decoded = append(decoded, u)
 				}
 			}
 
@@ -109,7 +106,8 @@ func TestEncodeAgentIDChunks(t *testing.T) {
 			agentIDs[i] = uuid.New()
 		}
 
-		chunks := metadatabatcher.EncodeAgentIDChunks(agentIDs)
+		chunks, err := metadatabatcher.EncodeAgentIDChunks(agentIDs)
+		require.NoError(t, err)
 		require.Len(t, chunks, 2)
 
 		// First chunk should have 363 IDs (363 * 22 = 7986 bytes).
@@ -122,81 +120,5 @@ func TestEncodeAgentIDChunks(t *testing.T) {
 		for i, chunk := range chunks {
 			require.LessOrEqual(t, len(chunk), 8000, "chunk %d exceeds 8KB limit", i)
 		}
-	})
-}
-
-func TestAgentIDIterator(t *testing.T) {
-	t.Parallel()
-
-	t.Run("InvalidSize", func(t *testing.T) {
-		t.Parallel()
-
-		// Data that's not a multiple of 22 bytes should fail.
-		_, err := metadatabatcher.NewAgentIDIterator([]byte("invalid"))
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "must be multiple of 22")
-	})
-
-	t.Run("Count", func(t *testing.T) {
-		t.Parallel()
-
-		agentIDs := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
-		chunks := metadatabatcher.EncodeAgentIDChunks(agentIDs)
-		require.Len(t, chunks, 1)
-
-		iter, err := metadatabatcher.NewAgentIDIterator(chunks[0])
-		require.NoError(t, err)
-		require.Equal(t, 3, iter.Count())
-	})
-
-	t.Run("LazyDecoding", func(t *testing.T) {
-		t.Parallel()
-
-		// Create a batch with multiple agent IDs.
-		targetID := uuid.New()
-		agentIDs := []uuid.UUID{
-			uuid.New(),
-			uuid.New(),
-			targetID, // Our target is in the middle.
-			uuid.New(),
-			uuid.New(),
-		}
-
-		chunks := metadatabatcher.EncodeAgentIDChunks(agentIDs)
-		require.Len(t, chunks, 1)
-
-		iter, err := metadatabatcher.NewAgentIDIterator(chunks[0])
-		require.NoError(t, err)
-
-		// Iterate until we find our target, then stop.
-		found := false
-		iterCount := 0
-		for {
-			agentID, ok := iter.Next()
-			if !ok {
-				break
-			}
-			iterCount++
-
-			if agentID == targetID {
-				found = true
-				break
-			}
-		}
-
-		require.True(t, found)
-		require.Equal(t, 3, iterCount, "should stop after finding target")
-	})
-
-	t.Run("EmptyData", func(t *testing.T) {
-		t.Parallel()
-
-		iter, err := metadatabatcher.NewAgentIDIterator([]byte{})
-		require.NoError(t, err)
-		require.Equal(t, 0, iter.Count())
-
-		_, ok := iter.Next()
-		require.False(t, ok)
-		require.NoError(t, iter.Err())
 	})
 }
