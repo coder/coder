@@ -10,17 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
-
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
