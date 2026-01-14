@@ -57,9 +57,10 @@ if ! check_public_schema_references "coderd/database/migrations" "Migration" 1; 
 	failed=1
 fi
 
-# NOTE: Fixtures (testdata) are not checked because they contain historical data
-# that uses hardcoded public. schema references. Cleaning these up would be a
-# separate effort.
+# Check fixtures for consistency
+if ! check_public_schema_references "coderd/database/migrations/testdata/fixtures" "Fixture"; then
+	failed=1
+fi
 
 if [[ $failed -eq 1 ]]; then
 	exit 1
