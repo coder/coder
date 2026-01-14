@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -78,12 +78,14 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 type Runner struct {
-	client   *codersdk.Client
-	cfg      Config
-	strategy requestModeStrategy
+	client           *codersdk.Client
+	cfg              Config
+	strategy         requestModeStrategy
+	providerStrategy ProviderStrategy
 
 	clock      quartz.Clock
 	httpClient *http.Client
+	rng        *rand.Rand
 
 	requestCount  int64
 	successCount  int64
@@ -94,14 +96,17 @@ type Runner struct {
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client:   client,
-		cfg:      cfg,
-		strategy: cfg.NewStrategy(client),
-		clock:    quartz.NewReal(),
+		client:           client,
+		cfg:              cfg,
+		strategy:         cfg.NewStrategy(client),
+		providerStrategy: NewProviderStrategy(cfg.Provider),
+		clock:            quartz.NewReal(),
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,
 			Transport: newTracingTransport(cfg, http.DefaultTransport),
 		},
+		//nolint:gosec // G404: Use of weak random number generator is acceptable for load testing.
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -133,13 +138,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		requestCount = 1
 	}
 
-	var model string
-	switch r.cfg.Provider {
-	case "openai":
-		model = "gpt-4"
-	case "anthropic":
-		model = "claude-3-opus-20240229"
-	}
+	model := r.providerStrategy.DefaultModel()
 
 	logger.Info(ctx, "bridge runner is ready",
 		slog.F("request_count", requestCount),
@@ -191,49 +190,22 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 		mode:       r.cfg.Mode,
 	})
 
-	var content string
+	var formattedMessages []any
 	if r.cfg.RequestPayloadSize > 0 {
-		pattern := "x"
-		repeated := strings.Repeat(pattern, r.cfg.RequestPayloadSize)
-		content = repeated[:r.cfg.RequestPayloadSize]
-	} else {
-		content = fmt.Sprintf("Hello, this is test request #%d from the bridge load generator.", requestNum+1)
-	}
-
-	newUserMessage := map[string]string{
-		"role":    "user",
-		"content": content,
-	}
-	messages := make([]map[string]string, 0)
-	messages = append(messages, newUserMessage)
-
-	var reqBody map[string]interface{}
-	if r.cfg.Provider == "anthropic" {
-		anthropicMessages := make([]map[string]interface{}, 0, len(messages))
-		for _, msg := range messages {
-			anthropicMessages = append(anthropicMessages, map[string]interface{}{
-				"role": msg["role"],
-				"content": []map[string]string{
-					{
-						"type": "text",
-						"text": msg["content"],
-					},
-				},
-			})
-		}
-		reqBody = map[string]interface{}{
-			"model":      model,
-			"messages":   anthropicMessages,
-			"max_tokens": 1024,
-			"stream":     r.cfg.Stream,
+		var err error
+		formattedMessages, err = generateConversation(r.rng, r.providerStrategy, r.cfg.RequestPayloadSize)
+		if err != nil {
+			return xerrors.Errorf("generate conversation: %w", err)
 		}
 	} else {
-		reqBody = map[string]interface{}{
-			"model":    model,
-			"messages": messages,
-			"stream":   r.cfg.Stream,
-		}
+		messages := []message{{
+			Role:    "user",
+			Content: fmt.Sprintf("Hello, this is test request #%d from the bridge load generator.", requestNum+1),
+		}}
+		formattedMessages = r.providerStrategy.formatMessages(messages)
 	}
+
+	reqBody := r.providerStrategy.buildRequestBody(model, formattedMessages, r.cfg.Stream)
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
