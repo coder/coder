@@ -22,7 +22,6 @@ func TestHTTPRoute(t *testing.T) {
 		mws            []func(http.Handler) http.Handler
 		expectedRoute  string
 		expectedMethod string
-		expectNotFound bool
 	}{
 		{
 			name: "without middleware",
@@ -73,7 +72,6 @@ func TestHTTPRoute(t *testing.T) {
 			mws:            []func(http.Handler) http.Handler{httpmw.HTTPRoute},
 			expectedRoute:  "STATIC",
 			expectedMethod: http.MethodGet,
-			expectNotFound: false,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
