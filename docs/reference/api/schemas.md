@@ -5470,9 +5470,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s) |
-|----------|
-| `S256`   |
+| Value(s)        |
+|-----------------|
+| `S256`, `plain` |
 
 ## codersdk.OAuth2ProtectedResourceMetadata
 
@@ -5571,9 +5571,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                              |
-|---------------------------------------|
-| `authorization_code`, `refresh_token` |
+| Value(s)                                                                            |
+|-------------------------------------------------------------------------------------|
+| `authorization_code`, `client_credentials`, `implicit`, `password`, `refresh_token` |
 
 ## codersdk.OAuth2ProviderResponseType
 
@@ -5585,9 +5585,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s) |
-|----------|
-| `code`   |
+| Value(s)        |
+|-----------------|
+| `code`, `token` |
 
 ## codersdk.OAuth2TokenEndpointAuthMethod
 

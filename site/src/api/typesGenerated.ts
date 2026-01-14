@@ -3049,6 +3049,7 @@ export interface OAuth2Error {
 
 // From codersdk/oauth2.go
 export type OAuth2ErrorCode =
+	| "access_denied"
 	| "invalid_client"
 	| "invalid_grant"
 	| "invalid_request"
@@ -3058,9 +3059,11 @@ export type OAuth2ErrorCode =
 	| "temporarily_unavailable"
 	| "unauthorized_client"
 	| "unsupported_grant_type"
+	| "unsupported_response_type"
 	| "unsupported_token_type";
 
 export const OAuth2ErrorCodes: OAuth2ErrorCode[] = [
+	"access_denied",
 	"invalid_client",
 	"invalid_grant",
 	"invalid_request",
@@ -3070,6 +3073,7 @@ export const OAuth2ErrorCodes: OAuth2ErrorCode[] = [
 	"temporarily_unavailable",
 	"unauthorized_client",
 	"unsupported_grant_type",
+	"unsupported_response_type",
 	"unsupported_token_type",
 ];
 
@@ -3087,9 +3091,10 @@ export interface OAuth2GithubConfig {
 }
 
 // From codersdk/oauth2.go
-export type OAuth2PKCECodeChallengeMethod = "S256";
+export type OAuth2PKCECodeChallengeMethod = "plain" | "S256";
 
 export const OAuth2PKCECodeChallengeMethods: OAuth2PKCECodeChallengeMethod[] = [
+	"plain",
 	"S256",
 ];
 
@@ -3145,18 +3150,27 @@ export interface OAuth2ProviderAppSecretFull {
 }
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderGrantType = "authorization_code" | "refresh_token";
+export type OAuth2ProviderGrantType =
+	| "authorization_code"
+	| "client_credentials"
+	| "implicit"
+	| "password"
+	| "refresh_token";
 
 export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
 	"authorization_code",
+	"client_credentials",
+	"implicit",
+	"password",
 	"refresh_token",
 ];
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderResponseType = "code";
+export type OAuth2ProviderResponseType = "code" | "token";
 
 export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 	"code",
+	"token",
 ];
 
 // From codersdk/client.go
@@ -3237,9 +3251,9 @@ export interface OAuth2TokenRevocationRequest {
 }
 
 // From codersdk/oauth2.go
-export type OAuth2TokenType = "Bearer";
+export type OAuth2TokenType = "Bearer" | "DPoP";
 
-export const OAuth2TokenTypes: OAuth2TokenType[] = ["Bearer"];
+export const OAuth2TokenTypes: OAuth2TokenType[] = ["Bearer", "DPoP"];
 
 // From codersdk/users.go
 export interface OAuthConversionResponse {

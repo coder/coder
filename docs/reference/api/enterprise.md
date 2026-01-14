@@ -1265,9 +1265,9 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&st
 
 #### Enumerated Values
 
-| Parameter       | Value(s) |
-|-----------------|----------|
-| `response_type` | `code`   |
+| Parameter       | Value(s)        |
+|-----------------|-----------------|
+| `response_type` | `code`, `token` |
 
 ### Responses
 
@@ -1301,9 +1301,9 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&s
 
 #### Enumerated Values
 
-| Parameter       | Value(s) |
-|-----------------|----------|
-| `response_type` | `code`   |
+| Parameter       | Value(s)        |
+|-----------------|-----------------|
+| `response_type` | `code`, `token` |
 
 ### Responses
 
@@ -1658,9 +1658,9 @@ grant_type: authorization_code
 
 #### Enumerated Values
 
-| Parameter      | Value(s)                              |
-|----------------|---------------------------------------|
-| `» grant_type` | `authorization_code`, `refresh_token` |
+| Parameter      | Value(s)                                                                            |
+|----------------|-------------------------------------------------------------------------------------|
+| `» grant_type` | `authorization_code`, `client_credentials`, `implicit`, `password`, `refresh_token` |
 
 ### Example responses
 

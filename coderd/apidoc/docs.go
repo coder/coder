@@ -2628,7 +2628,8 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "code"
+                            "code",
+                            "token"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -2683,7 +2684,8 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "code"
+                            "code",
+                            "token"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -2914,7 +2916,10 @@ const docTemplate = `{
                     {
                         "enum": [
                             "authorization_code",
-                            "refresh_token"
+                            "refresh_token",
+                            "password",
+                            "client_credentials",
+                            "implicit"
                         ],
                         "type": "string",
                         "description": "Grant type",
@@ -16156,10 +16161,12 @@ const docTemplate = `{
         "codersdk.OAuth2PKCECodeChallengeMethod": {
             "type": "string",
             "enum": [
-                "S256"
+                "S256",
+                "plain"
             ],
             "x-enum-varnames": [
-                "OAuth2PKCECodeChallengeMethodS256"
+                "OAuth2PKCECodeChallengeMethodS256",
+                "OAuth2PKCECodeChallengeMethodPlain"
             ]
         },
         "codersdk.OAuth2ProtectedResourceMetadata": {
@@ -16245,20 +16252,28 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "authorization_code",
-                "refresh_token"
+                "refresh_token",
+                "password",
+                "client_credentials",
+                "implicit"
             ],
             "x-enum-varnames": [
                 "OAuth2ProviderGrantTypeAuthorizationCode",
-                "OAuth2ProviderGrantTypeRefreshToken"
+                "OAuth2ProviderGrantTypeRefreshToken",
+                "OAuth2ProviderGrantTypePassword",
+                "OAuth2ProviderGrantTypeClientCredentials",
+                "OAuth2ProviderGrantTypeImplicit"
             ]
         },
         "codersdk.OAuth2ProviderResponseType": {
             "type": "string",
             "enum": [
-                "code"
+                "code",
+                "token"
             ],
             "x-enum-varnames": [
-                "OAuth2ProviderResponseTypeCode"
+                "OAuth2ProviderResponseTypeCode",
+                "OAuth2ProviderResponseTypeToken"
             ]
         },
         "codersdk.OAuth2TokenEndpointAuthMethod": {

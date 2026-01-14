@@ -2304,7 +2304,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code"],
+						"enum": ["code", "token"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
@@ -2355,7 +2355,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code"],
+						"enum": ["code", "token"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
@@ -2555,7 +2555,13 @@
 						"in": "formData"
 					},
 					{
-						"enum": ["authorization_code", "refresh_token"],
+						"enum": [
+							"authorization_code",
+							"refresh_token",
+							"password",
+							"client_credentials",
+							"implicit"
+						],
 						"type": "string",
 						"description": "Grant type",
 						"name": "grant_type",
@@ -14664,8 +14670,11 @@
 		},
 		"codersdk.OAuth2PKCECodeChallengeMethod": {
 			"type": "string",
-			"enum": ["S256"],
-			"x-enum-varnames": ["OAuth2PKCECodeChallengeMethodS256"]
+			"enum": ["S256", "plain"],
+			"x-enum-varnames": [
+				"OAuth2PKCECodeChallengeMethodS256",
+				"OAuth2PKCECodeChallengeMethodPlain"
+			]
 		},
 		"codersdk.OAuth2ProtectedResourceMetadata": {
 			"type": "object",
@@ -14748,16 +14757,28 @@
 		},
 		"codersdk.OAuth2ProviderGrantType": {
 			"type": "string",
-			"enum": ["authorization_code", "refresh_token"],
+			"enum": [
+				"authorization_code",
+				"refresh_token",
+				"password",
+				"client_credentials",
+				"implicit"
+			],
 			"x-enum-varnames": [
 				"OAuth2ProviderGrantTypeAuthorizationCode",
-				"OAuth2ProviderGrantTypeRefreshToken"
+				"OAuth2ProviderGrantTypeRefreshToken",
+				"OAuth2ProviderGrantTypePassword",
+				"OAuth2ProviderGrantTypeClientCredentials",
+				"OAuth2ProviderGrantTypeImplicit"
 			]
 		},
 		"codersdk.OAuth2ProviderResponseType": {
 			"type": "string",
-			"enum": ["code"],
-			"x-enum-varnames": ["OAuth2ProviderResponseTypeCode"]
+			"enum": ["code", "token"],
+			"x-enum-varnames": [
+				"OAuth2ProviderResponseTypeCode",
+				"OAuth2ProviderResponseTypeToken"
+			]
 		},
 		"codersdk.OAuth2TokenEndpointAuthMethod": {
 			"type": "string",

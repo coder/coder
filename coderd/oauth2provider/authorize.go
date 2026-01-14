@@ -151,10 +151,10 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		if params.codeChallenge != "" {
 			// If code_challenge is provided but method is not, default to S256
 			if params.codeChallengeMethod == "" {
-				params.codeChallengeMethod = "S256"
+				params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
 			}
-			if params.codeChallengeMethod != "S256" {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Invalid code_challenge_method: only S256 is supported")
+			if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 				return
 			}
 		}

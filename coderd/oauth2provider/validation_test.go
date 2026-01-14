@@ -302,22 +302,22 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 			},
 			{
 				name:        "InvalidUnsupported",
-				grantTypes:  []codersdk.OAuth2ProviderGrantType{"client_credentials"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
 				expectError: true,
 			},
 			{
 				name:        "InvalidPassword",
-				grantTypes:  []codersdk.OAuth2ProviderGrantType{"password"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypePassword},
 				expectError: true,
 			},
 			{
 				name:        "InvalidImplicit",
-				grantTypes:  []codersdk.OAuth2ProviderGrantType{"implicit"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeImplicit},
 				expectError: true,
 			},
 			{
 				name:        "MixedValidInvalid",
-				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, "client_credentials"},
+				grantTypes:  []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, codersdk.OAuth2ProviderGrantTypeClientCredentials},
 				expectError: true,
 			},
 		}
@@ -367,17 +367,17 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 			},
 			{
 				name:          "InvalidToken",
-				responseTypes: []codersdk.OAuth2ProviderResponseType{"token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeToken},
 				expectError:   true,
 			},
 			{
-				name:          "InvalidImplicit",
-				responseTypes: []codersdk.OAuth2ProviderResponseType{"id_token"},
+				name:          "InvalidIDToken",
+				responseTypes: []codersdk.OAuth2ProviderResponseType{"id_token"}, // OIDC-specific, no constant
 				expectError:   true,
 			},
 			{
 				name:          "InvalidMultiple",
-				responseTypes: []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode, "token"},
+				responseTypes: []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode, codersdk.OAuth2ProviderResponseTypeToken},
 				expectError:   true,
 			},
 		}
@@ -437,12 +437,12 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 			},
 			{
 				name:        "InvalidPrivateKeyJWT",
-				authMethod:  "private_key_jwt",
+				authMethod:  "private_key_jwt", // OIDC-specific, no constant defined
 				expectError: true,
 			},
 			{
 				name:        "InvalidClientSecretJWT",
-				authMethod:  "client_secret_jwt",
+				authMethod:  "client_secret_jwt", // OIDC-specific, no constant defined
 				expectError: true,
 			},
 			{

@@ -187,14 +187,22 @@ func (c *Client) DeleteOAuth2ProviderAppSecret(ctx context.Context, appID uuid.U
 
 type OAuth2ProviderGrantType string
 
+// OAuth2ProviderGrantType values (RFC 6749).
 const (
 	OAuth2ProviderGrantTypeAuthorizationCode OAuth2ProviderGrantType = "authorization_code"
 	OAuth2ProviderGrantTypeRefreshToken      OAuth2ProviderGrantType = "refresh_token"
+	OAuth2ProviderGrantTypePassword          OAuth2ProviderGrantType = "password"
+	OAuth2ProviderGrantTypeClientCredentials OAuth2ProviderGrantType = "client_credentials"
+	OAuth2ProviderGrantTypeImplicit          OAuth2ProviderGrantType = "implicit"
 )
 
 func (e OAuth2ProviderGrantType) Valid() bool {
 	switch e {
-	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken:
+	case OAuth2ProviderGrantTypeAuthorizationCode,
+		OAuth2ProviderGrantTypeRefreshToken,
+		OAuth2ProviderGrantTypePassword,
+		OAuth2ProviderGrantTypeClientCredentials,
+		OAuth2ProviderGrantTypeImplicit:
 		return true
 	}
 	return false
@@ -202,14 +210,15 @@ func (e OAuth2ProviderGrantType) Valid() bool {
 
 type OAuth2ProviderResponseType string
 
+// OAuth2ProviderResponseType values (RFC 6749).
 const (
-	OAuth2ProviderResponseTypeCode OAuth2ProviderResponseType = "code"
+	OAuth2ProviderResponseTypeCode  OAuth2ProviderResponseType = "code"
+	OAuth2ProviderResponseTypeToken OAuth2ProviderResponseType = "token"
 )
 
 func (e OAuth2ProviderResponseType) Valid() bool {
-	//nolint:gocritic,revive // More cases might be added later.
 	switch e {
-	case OAuth2ProviderResponseTypeCode:
+	case OAuth2ProviderResponseTypeCode, OAuth2ProviderResponseTypeToken:
 		return true
 	}
 	return false
@@ -233,27 +242,33 @@ func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
 	return false
 }
 
-// OAuth 2.1 only supports S256 (plain is rejected).
 type OAuth2PKCECodeChallengeMethod string
 
+// OAuth2PKCECodeChallengeMethod values (RFC 7636).
 const (
-	OAuth2PKCECodeChallengeMethodS256 OAuth2PKCECodeChallengeMethod = "S256"
+	OAuth2PKCECodeChallengeMethodS256  OAuth2PKCECodeChallengeMethod = "S256"
+	OAuth2PKCECodeChallengeMethodPlain OAuth2PKCECodeChallengeMethod = "plain"
 )
 
 func (m OAuth2PKCECodeChallengeMethod) Valid() bool {
-	return m == OAuth2PKCECodeChallengeMethodS256
+	switch m {
+	case OAuth2PKCECodeChallengeMethodS256, OAuth2PKCECodeChallengeMethodPlain:
+		return true
+	}
+	return false
 }
 
 type OAuth2TokenType string
 
+// OAuth2TokenType values (RFC 6749, RFC 9449).
 const (
 	OAuth2TokenTypeBearer OAuth2TokenType = "Bearer"
+	OAuth2TokenTypeDPoP   OAuth2TokenType = "DPoP"
 )
 
 func (t OAuth2TokenType) Valid() bool {
-	//nolint:gocritic,revive // More cases might be added later.
 	switch t {
-	case OAuth2TokenTypeBearer:
+	case OAuth2TokenTypeBearer, OAuth2TokenTypeDPoP:
 		return true
 	}
 	return false
@@ -276,17 +291,28 @@ func (h OAuth2RevocationTokenTypeHint) Valid() bool {
 
 type OAuth2ErrorCode string
 
+// OAuth2 error codes per RFC 6749, RFC 7009, RFC 8707.
+// This is not comprehensive; it includes only codes relevant to this implementation.
 const (
-	OAuth2ErrorCodeInvalidRequest         OAuth2ErrorCode = "invalid_request"
-	OAuth2ErrorCodeInvalidClient          OAuth2ErrorCode = "invalid_client"
-	OAuth2ErrorCodeInvalidGrant           OAuth2ErrorCode = "invalid_grant"
-	OAuth2ErrorCodeUnauthorizedClient     OAuth2ErrorCode = "unauthorized_client"
-	OAuth2ErrorCodeUnsupportedGrantType   OAuth2ErrorCode = "unsupported_grant_type"
-	OAuth2ErrorCodeInvalidScope           OAuth2ErrorCode = "invalid_scope"
-	OAuth2ErrorCodeInvalidTarget          OAuth2ErrorCode = "invalid_target"         // RFC 8707
-	OAuth2ErrorCodeUnsupportedTokenType   OAuth2ErrorCode = "unsupported_token_type" // RFC 7009
-	OAuth2ErrorCodeServerError            OAuth2ErrorCode = "server_error"
-	OAuth2ErrorCodeTemporarilyUnavailable OAuth2ErrorCode = "temporarily_unavailable"
+	// RFC 6749 - Token endpoint errors.
+	OAuth2ErrorCodeInvalidRequest       OAuth2ErrorCode = "invalid_request"
+	OAuth2ErrorCodeInvalidClient        OAuth2ErrorCode = "invalid_client"
+	OAuth2ErrorCodeInvalidGrant         OAuth2ErrorCode = "invalid_grant"
+	OAuth2ErrorCodeUnauthorizedClient   OAuth2ErrorCode = "unauthorized_client"
+	OAuth2ErrorCodeUnsupportedGrantType OAuth2ErrorCode = "unsupported_grant_type"
+	OAuth2ErrorCodeInvalidScope         OAuth2ErrorCode = "invalid_scope"
+
+	// RFC 6749 - Authorization endpoint errors.
+	OAuth2ErrorCodeAccessDenied            OAuth2ErrorCode = "access_denied"
+	OAuth2ErrorCodeUnsupportedResponseType OAuth2ErrorCode = "unsupported_response_type"
+	OAuth2ErrorCodeServerError             OAuth2ErrorCode = "server_error"
+	OAuth2ErrorCodeTemporarilyUnavailable  OAuth2ErrorCode = "temporarily_unavailable"
+
+	// RFC 7009 - Token revocation errors.
+	OAuth2ErrorCodeUnsupportedTokenType OAuth2ErrorCode = "unsupported_token_type"
+
+	// RFC 8707 - Resource indicator errors.
+	OAuth2ErrorCodeInvalidTarget OAuth2ErrorCode = "invalid_target"
 )
 
 func (c OAuth2ErrorCode) Valid() bool {
@@ -297,10 +323,12 @@ func (c OAuth2ErrorCode) Valid() bool {
 		OAuth2ErrorCodeUnauthorizedClient,
 		OAuth2ErrorCodeUnsupportedGrantType,
 		OAuth2ErrorCodeInvalidScope,
-		OAuth2ErrorCodeInvalidTarget,
-		OAuth2ErrorCodeUnsupportedTokenType,
+		OAuth2ErrorCodeAccessDenied,
+		OAuth2ErrorCodeUnsupportedResponseType,
 		OAuth2ErrorCodeServerError,
-		OAuth2ErrorCodeTemporarilyUnavailable:
+		OAuth2ErrorCodeTemporarilyUnavailable,
+		OAuth2ErrorCodeUnsupportedTokenType,
+		OAuth2ErrorCodeInvalidTarget:
 		return true
 	}
 	return false

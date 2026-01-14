@@ -157,7 +157,7 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 // validateGrantTypes validates OAuth2 grant types
 func validateGrantTypes(grantTypes []OAuth2ProviderGrantType) error {
 	for _, grant := range grantTypes {
-		if !grant.Valid() {
+		if !isSupportedGrantType(grant) {
 			return xerrors.Errorf("unsupported grant type: %s", grant)
 		}
 	}
@@ -171,10 +171,18 @@ func validateGrantTypes(grantTypes []OAuth2ProviderGrantType) error {
 	return nil
 }
 
+func isSupportedGrantType(grant OAuth2ProviderGrantType) bool {
+	switch grant {
+	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken:
+		return true
+	}
+	return false
+}
+
 // validateResponseTypes validates OAuth2 response types
 func validateResponseTypes(responseTypes []OAuth2ProviderResponseType) error {
 	for _, responseType := range responseTypes {
-		if !responseType.Valid() {
+		if !isSupportedResponseType(responseType) {
 			return xerrors.Errorf("unsupported response type: %s", responseType)
 		}
 	}
@@ -182,10 +190,34 @@ func validateResponseTypes(responseTypes []OAuth2ProviderResponseType) error {
 	return nil
 }
 
+func isSupportedResponseType(responseType OAuth2ProviderResponseType) bool {
+	return responseType == OAuth2ProviderResponseTypeCode
+}
+
 // validateTokenEndpointAuthMethod validates token endpoint authentication method
 func validateTokenEndpointAuthMethod(method OAuth2TokenEndpointAuthMethod) error {
 	if !method.Valid() {
 		return xerrors.Errorf("unsupported token endpoint auth method: %s", method)
+	}
+
+	return nil
+}
+
+// ValidatePKCECodeChallengeMethod validates PKCE code_challenge_method parameter.
+// Per OAuth 2.1, only S256 is supported; plain is rejected for security reasons.
+func ValidatePKCECodeChallengeMethod(method string) error {
+	if method == "" {
+		return nil // Optional, defaults to S256 if code_challenge is provided
+	}
+
+	m := OAuth2PKCECodeChallengeMethod(method)
+
+	if m == OAuth2PKCECodeChallengeMethodPlain {
+		return xerrors.New("code_challenge_method 'plain' is not supported; use 'S256'")
+	}
+
+	if m != OAuth2PKCECodeChallengeMethodS256 {
+		return xerrors.Errorf("unsupported code_challenge_method: %s", method)
 	}
 
 	return nil
