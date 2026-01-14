@@ -242,9 +242,9 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("adding metadata for 1 agent")
 	require.NoError(t, b.Add(agent1, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t2, t2}))
 
-	// Wait for all channel messages to be processed.
+	// Wait for all channel messages to be processed into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
+		return len(b.updateCh) == 0 && len(b.batch) == 2
 	}, testutil.IntervalFast)
 
 	// When: it becomes time to flush
@@ -298,9 +298,9 @@ func TestMetadataBatcher(t *testing.T) {
 	require.NoError(t, b.Add(agent1, []string{"key1", "key2", "key3"}, []string{"new_value1", "new_value2", "new_value3"}, []string{"", "", ""}, []time.Time{t3, t3, t3}))
 	require.NoError(t, b.Add(agent2, []string{"key1", "key2"}, []string{"agent2_value1", "agent2_value2"}, []string{"", ""}, []time.Time{t3, t3}))
 
-	// Wait for all channel messages to be processed.
+	// Wait for all channel messages to be processed into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
+		return len(b.updateCh) == 0 && len(b.batch) == 5
 	}, testutil.IntervalFast)
 
 	// When: it becomes time to flush
@@ -555,9 +555,9 @@ func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
 	// Add second update for same agent+key (should deduplicate)
 	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"second_value"}, []string{""}, []time.Time{t2}))
 
-	// Wait for all channel messages to be processed by the run() goroutine
+	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
+		return len(b.updateCh) == 0 && len(b.batch) == 1
 	}, testutil.IntervalFast)
 
 	// Flush - advance the full flush interval from when the batcher was created.
@@ -632,9 +632,9 @@ func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
 	// Update key1, add key3 - key2 stays from first update
 	require.NoError(t, b.Add(agent, []string{"key1", "key3"}, []string{"new_value1", "value3"}, []string{"", ""}, []time.Time{t2, t2}))
 
-	// Wait for all channel messages to be processed by the run() goroutine
+	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
+		return len(b.updateCh) == 0 && len(b.batch) == 3
 	}, testutil.IntervalFast)
 
 	// Flush - advance the full flush interval from when the batcher was created.
@@ -714,9 +714,9 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	// Add even newer update with t3 timestamp - should overwrite
 	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"newest_value"}, []string{""}, []time.Time{t3}))
 
-	// Wait for all channel messages to be processed by the run() goroutine
+	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
+		return len(b.updateCh) == 0 && len(b.batch) == 1
 	}, testutil.IntervalFast)
 
 	// Flush and verify entry was sent.
@@ -832,9 +832,11 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 		require.NoError(t, b.Add(agents[i], []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1}))
 	}
 
-	// Wait for all channel messages to be processed by the run() goroutine
+	// Wait for all channel messages to be processed. Since numAgents (600) exceeds
+	// the batch size (500), a capacity flush will occur automatically at 500 entries,
+	// leaving 100 entries in the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
+		return len(b.updateCh) == 0 && len(b.batch) == 100
 	}, testutil.IntervalFast)
 
 	// Flush and verify all updates were processed
@@ -937,9 +939,9 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	wg.Wait()
 
-	// Wait for all channel messages to be processed by the run() goroutine
+	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
+		return len(b.updateCh) == 0 && len(b.batch) == 3
 	}, testutil.IntervalFast)
 
 	// Flush and check that we have exactly 3 keys (deduplication worked).
