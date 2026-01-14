@@ -148,6 +148,10 @@ AI BRIDGE OPTIONS:
           Maximum number of AI Bridge requests per second per replica. Set to 0
           to disable (unlimited).
 
+      --aibridge-structured-logging bool, $CODER_AIBRIDGE_STRUCTURED_LOGGING (default: false)
+          Emit structured logs for AI Bridge interception records. Use this for
+          exporting these records to external SIEM or observability systems.
+
 AI BRIDGE PROXY OPTIONS: 
       --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
           Path to the CA certificate file for AI Bridge Proxy.
