@@ -23,7 +23,7 @@ DECLARE
 	start_time TIMESTAMPTZ := '2025-12-01 00:00:00+00';
 	end_time TIMESTAMPTZ := '2025-12-31 23:59:59+00';
 	-- 'debug_mode' emits logging to help trace processing for each workspace
-	debug_mode BOOLEAN := TRUE;
+	debug_mode BOOLEAN := FALSE;
 	-- temporary variables
 	workspace RECORD;
 	workspace_build RECORD;
