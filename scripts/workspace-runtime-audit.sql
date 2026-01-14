@@ -88,12 +88,6 @@ BEGIN
 			    WHERE workspace_id = workspace.id
 			    ORDER BY workspace_builds.build_number ASC
 		LOOP
-			-- Initialize last_transition state for duration accumulation.
-
--- 			IF workspace_build.build_number = 1 THEN
--- 				workspace_turned_on = workspace_build.created_at;
--- 			END IF;
-
 			-- Usage only counts from workspaces that successfully started
 			IF workspace_build.transition = 'start' AND
 			   workspace_build.job_status IN ('succeeded') THEN
