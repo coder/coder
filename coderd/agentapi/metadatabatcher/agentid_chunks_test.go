@@ -117,18 +117,6 @@ func TestEncodeAgentIDChunks(t *testing.T) {
 
 		// Second chunk should have 237 IDs (237 * 22 = 5214 bytes).
 		require.Equal(t, 237*22, len(chunks[1]))
-	})
-
-	t.Run("PayloadSizeLimit", func(t *testing.T) {
-		t.Parallel()
-
-		// Create enough agents to test the 8KB limit.
-		agentIDs := make([]uuid.UUID, 1000)
-		for i := range agentIDs {
-			agentIDs[i] = uuid.New()
-		}
-
-		chunks := metadatabatcher.EncodeAgentIDChunks(agentIDs)
 
 		// Each chunk should be under 8KB.
 		for i, chunk := range chunks {

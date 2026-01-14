@@ -8,13 +8,14 @@ type Metrics struct {
 	batchUtilization prometheus.Histogram
 	droppedKeysTotal prometheus.Counter
 	metadataTotal    prometheus.Counter
+	publishErrors    prometheus.Counter
 	batchesTotal     *prometheus.CounterVec
 	batchSize        prometheus.Histogram
 	flushDuration    *prometheus.HistogramVec
 }
 
-func NewMetrics() *Metrics {
-	return &Metrics{
+func NewMetrics() Metrics {
+	return Metrics{
 		batchUtilization: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "agentapi",
@@ -44,6 +45,13 @@ func NewMetrics() *Metrics {
 			Help:      "Total number of unique metadatas flushed.",
 		}),
 
+		publishErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "agentapi",
+			Name:      "metadata_publish_errors_total",
+			Help:      "Total number of metadata batch pubsub publish calls that have resulted in an error.",
+		}),
+
 		batchSize: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "agentapi",
@@ -62,7 +70,7 @@ func NewMetrics() *Metrics {
 	}
 }
 
-func (m *Metrics) Collectors() []prometheus.Collector {
+func (m Metrics) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		m.batchUtilization,
 		m.droppedKeysTotal,
@@ -73,7 +81,7 @@ func (m *Metrics) Collectors() []prometheus.Collector {
 	}
 }
 
-func (m *Metrics) register(reg prometheus.Registerer) {
+func (m Metrics) register(reg prometheus.Registerer) {
 	if reg != nil {
 		reg.MustRegister(m.batchUtilization)
 		reg.MustRegister(m.droppedKeysTotal)
@@ -81,5 +89,6 @@ func (m *Metrics) register(reg prometheus.Registerer) {
 		reg.MustRegister(m.metadataTotal)
 		reg.MustRegister(m.batchSize)
 		reg.MustRegister(m.flushDuration)
+		reg.MustRegister(m.publishErrors)
 	}
 }
