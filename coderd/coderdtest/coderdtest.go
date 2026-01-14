@@ -69,6 +69,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -131,7 +132,7 @@ type Options struct {
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 	ConnectionLogger               connectionlog.ConnectionLogger
 
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
+	HealthcheckFunc    func(ctx context.Context, apiKey string, progress *healthcheck.CheckProgress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 

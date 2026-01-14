@@ -2,14 +2,18 @@ package healthcheck_test
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/quartz"
 )
 
 type testChecker struct {
@@ -532,4 +536,106 @@ func TestHealthcheck(t *testing.T) {
 			assert.NotZero(t, report.CoderVersion)
 		})
 	}
+}
+
+func TestCheckProgress(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Summary", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.NewCheckProgressWithClock(mClock)
+
+		// Start some checks
+		progress.Start("Database")
+		progress.Start("DERP")
+		progress.Start("AccessURL")
+
+		// Advance time to simulate check duration
+		mClock.Advance(100 * time.Millisecond)
+
+		// Complete some checks
+		progress.Complete("Database")
+		progress.Complete("AccessURL")
+
+		summary := progress.Summary()
+
+		// Verify completed checks are listed with duration
+		assert.Contains(t, summary, "Completed:")
+		assert.Contains(t, summary, "Database (100ms)")
+		assert.Contains(t, summary, "AccessURL (100ms)")
+
+		// Verify running checks are listed
+		assert.Contains(t, summary, "Still running:")
+		assert.Contains(t, summary, "DERP")
+	})
+
+	t.Run("EmptyProgress", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.NewCheckProgressWithClock(mClock)
+		summary := progress.Summary()
+
+		// Should be empty string when nothing tracked
+		assert.Empty(t, summary)
+	})
+
+	t.Run("AllCompleted", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.NewCheckProgressWithClock(mClock)
+		progress.Start("Database")
+		progress.Start("DERP")
+		mClock.Advance(50 * time.Millisecond)
+		progress.Complete("Database")
+		progress.Complete("DERP")
+
+		summary := progress.Summary()
+
+		assert.Contains(t, summary, "Completed:")
+		assert.NotContains(t, summary, "Still running")
+	})
+
+	t.Run("AllRunning", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.NewCheckProgressWithClock(mClock)
+		progress.Start("Database")
+		progress.Start("DERP")
+
+		summary := progress.Summary()
+
+		assert.NotContains(t, summary, "Completed")
+		assert.Contains(t, summary, "Still running:")
+		assert.Contains(t, summary, "Database")
+		assert.Contains(t, summary, "DERP")
+	})
+
+	t.Run("SortedOutput", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.NewCheckProgressWithClock(mClock)
+		// Add in reverse alphabetical order
+		progress.Start("Websocket")
+		progress.Start("DERP")
+		progress.Start("AccessURL")
+
+		summary := progress.Summary()
+
+		// Verify alphabetically sorted (AccessURL before DERP before Websocket)
+		accessIdx := strings.Index(summary, "AccessURL")
+		derpIdx := strings.Index(summary, "DERP")
+		websocketIdx := strings.Index(summary, "Websocket")
+
+		require.NotEqual(t, -1, accessIdx)
+		require.NotEqual(t, -1, derpIdx)
+		require.NotEqual(t, -1, websocketIdx)
+		assert.Less(t, accessIdx, derpIdx)
+		assert.Less(t, derpIdx, websocketIdx)
+	})
 }

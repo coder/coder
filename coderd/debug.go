@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -83,7 +84,11 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
 
-		report := api.HealthcheckFunc(ctx, apiKey)
+		// Create and store progress tracker for timeout diagnostics.
+		progress := healthcheck.NewCheckProgress()
+		api.healthCheckProgress.Store(progress)
+
+		report := api.HealthcheckFunc(ctx, apiKey, progress)
 		if report != nil { // Only store non-nil reports.
 			api.healthCheckCache.Store(report)
 		}
@@ -92,8 +97,13 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 
 	select {
 	case <-ctx.Done():
+		var detail string
+		if progress := api.healthCheckProgress.Load(); progress != nil {
+			detail = progress.Summary()
+		}
 		httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
-			Message: "Healthcheck is in progress and did not complete in time. Try again in a few seconds.",
+			Message: "Healthcheck timed out.",
+			Detail:  detail,
 		})
 		return
 	case res := <-resChan:
