@@ -12157,6 +12157,12 @@ const docTemplate = `{
                 },
                 "listen_addr": {
                     "type": "string"
+                },
+                "upstream_proxy": {
+                    "type": "string"
+                },
+                "upstream_proxy_ca": {
+                    "type": "string"
                 }
             }
         },
