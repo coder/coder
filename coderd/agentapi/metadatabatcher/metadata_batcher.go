@@ -2,7 +2,6 @@ package metadatabatcher
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,14 +37,14 @@ const (
 	// PostgreSQL NOTIFY has an 8KB limit for the payload.
 	maxPubsubPayloadSize = 8000 // Leave some headroom below 8192 bytes
 
-	// estimatedUUIDJSONSize is the approximate size of a UUID in JSON format.
-	// A UUID string is 36 characters, plus quotes (38), plus comma separator (1).
-	// We use 40 bytes as a conservative estimate including JSON overhead.
-	estimatedUUIDJSONSize = 40
+	// uuidByteSize is the size of a UUID in bytes when converted to a byte slice.
+	// Each UUID is exactly 16 bytes.
+	uuidByteSize = 16
 
-	// pubsubBaseOverhead is the estimated JSON overhead for the pubsub payload
-	// structure: {"agent_ids":[]}
-	pubsubBaseOverhead = 20
+	// maxAgentIDsPerChunk is the maximum number of agent IDs that can fit in a
+	// single pubsub message. With 16 bytes per UUID and 8KB limit, we can fit
+	// 500 agent IDs per chunk (8000 / 16 = 500).
+	maxAgentIDsPerChunk = maxPubsubPayloadSize / uuidByteSize
 
 	// Timeout to use for the context created when flushing the final batch due to the top level context being 'Done'
 	finalFlushTimeout = 15 * time.Second
@@ -59,13 +58,6 @@ const (
 	flushTicker   = "scheduled"
 	flushExit     = "shutdown"
 )
-
-// WorkspaceAgentMetadataBatchPayload is published to the batched metadata
-// channel with agent IDs that have metadata updates. Listeners should
-// re-fetch metadata for these agents from the database.
-type WorkspaceAgentMetadataBatchPayload struct {
-	AgentIDs []uuid.UUID `json:"agent_ids"`
-}
 
 // compositeKey uniquely identifies a metadata entry by agent ID and key name.
 type compositeKey struct {
@@ -399,86 +391,31 @@ func (b *Batcher) flush(ctx context.Context, reason string) error {
 	return nil
 }
 
-// buildAndMarshalChunk builds a chunk of agent IDs that fits within the
-// maxPubsubPayloadSize limit and marshals it to JSON. Returns the marshaled
-// payload and the number of agent IDs consumed from the input slice.
-// This function is separated for testing payload size assumptions.
-func buildAndMarshalChunk(agentIDs []uuid.UUID) ([]byte, int, error) {
-	if len(agentIDs) == 0 {
-		return nil, 0, nil
-	}
-
-	// Use size estimation to determine initial chunk size.
-	estimatedCapacity := (maxPubsubPayloadSize - pubsubBaseOverhead) / estimatedUUIDJSONSize
-	if estimatedCapacity > len(agentIDs) {
-		estimatedCapacity = len(agentIDs)
-	}
-
-	chunk := make([]uuid.UUID, 0, estimatedCapacity)
-	estimatedSize := pubsubBaseOverhead
-
-	for i, agentID := range agentIDs {
-		newEstimatedSize := estimatedSize + estimatedUUIDJSONSize
-		if newEstimatedSize > maxPubsubPayloadSize && len(chunk) > 0 {
-			// Would exceed limit, marshal current chunk.
-			break
-		}
-
-		chunk = append(chunk, agentID)
-		estimatedSize = newEstimatedSize
-
-		// If this is the last agent ID, no need to continue.
-		if i == len(agentIDs)-1 {
-			break
-		}
-	}
-
-	payload, err := json.Marshal(WorkspaceAgentMetadataBatchPayload{
-		AgentIDs: chunk,
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return payload, len(chunk), nil
-}
-
 // publishAgentIDsInChunks publishes agent IDs in chunks that fit within the
 // PostgreSQL NOTIFY 8KB payload size limit. Each chunk is published as a
-// separate message.
+// byte slice containing concatenated UUIDs (16 bytes each).
 func (b *Batcher) publishAgentIDsInChunks(ctx context.Context, agentIDs []uuid.UUID) {
-	offset := 0
-	for offset < len(agentIDs) {
-		payload, consumed, err := buildAndMarshalChunk(agentIDs[offset:])
-		if err != nil {
-			b.log.Error(ctx, "failed to marshal workspace agent metadata chunk", slog.Error(err))
-			return
+	for i := 0; i < len(agentIDs); i += maxAgentIDsPerChunk {
+		end := i + maxAgentIDsPerChunk
+		if end > len(agentIDs) {
+			end = len(agentIDs)
 		}
 
-		if consumed == 0 {
-			// Should never happen, but protect against infinite loop.
-			b.log.Error(ctx, "failed to make progress chunking agent IDs")
-			return
+		chunk := agentIDs[i:end]
+
+		// Build byte slice by concatenating UUID bytes (16 bytes each).
+		payload := make([]byte, 0, len(chunk)*uuidByteSize)
+		for _, agentID := range chunk {
+			payload = append(payload, agentID[:]...)
 		}
 
-		// Verify our size estimate was correct (for debugging/monitoring).
-		if len(payload) > maxPubsubPayloadSize {
-			b.log.Warn(ctx, "pubsub payload exceeded size limit despite estimation",
-				slog.F("payload_size", len(payload)),
-				slog.F("limit", maxPubsubPayloadSize),
-				slog.F("chunk_size", consumed),
-			)
-		}
-
-		err = b.ps.Publish(MetadataBatchPubsubChannel, payload)
+		err := b.ps.Publish(MetadataBatchPubsubChannel, payload)
 		if err != nil {
 			b.log.Error(ctx, "failed to publish workspace agent metadata batch",
 				slog.Error(err),
-				slog.F("chunk_size", consumed),
+				slog.F("chunk_size", len(chunk)),
 				slog.F("payload_size", len(payload)),
 			)
 		}
-
-		offset += consumed
 	}
 }
