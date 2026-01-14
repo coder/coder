@@ -773,6 +773,10 @@ aibridge:
   # (unlimited).
   # (default: 0, type: int)
   rateLimit: 0
+  # Emit structured logs for AI Bridge interception records. Use this for exporting
+  # these records to external SIEM or observability systems.
+  # (default: false, type: bool)
+  structuredLogging: false
 aibridgeproxy:
   # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
   # requests.

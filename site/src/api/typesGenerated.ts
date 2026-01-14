@@ -35,6 +35,7 @@ export interface AIBridgeConfig {
 	readonly retention: number;
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
+	readonly structured_logging: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -6678,6 +6679,14 @@ export interface WorkspaceResourceMetadata {
 export type WorkspaceRole = "admin" | "" | "use";
 
 export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
+
+// From codersdk/workspacesharing.go
+/**
+ * WorkspaceSharingSettings represents workspace sharing settings for an organization.
+ */
+export interface WorkspaceSharingSettings {
+	readonly sharing_disabled: boolean;
+}
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =

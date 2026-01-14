@@ -3494,6 +3494,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rateLimit",
 		},
+		{
+			Name:        "AI Bridge Structured Logging",
+			Description: "Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.",
+			Flag:        "aibridge-structured-logging",
+			Env:         "CODER_AIBRIDGE_STRUCTURED_LOGGING",
+			Value:       &c.AI.BridgeConfig.StructuredLogging,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "structuredLogging",
+		},
 
 		// AI Bridge Proxy Options
 		{
@@ -3620,6 +3630,7 @@ type AIBridgeConfig struct {
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
