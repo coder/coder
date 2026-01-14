@@ -92,7 +92,7 @@ all previous messages in the conversation.`,
 
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return xerrors.Errorf("parse output flags: %w", err)
 			}
 
 			config := bridge.Config{
