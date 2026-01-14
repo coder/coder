@@ -56,7 +56,7 @@ gh pr diff <PR_NUMBER> --repo coder/coder
 ## Output Format
 
 ```markdown
-## 📚 Documentation Check
+## Documentation Check
 
 Reviewed docs related to [brief description of code changes].
 
@@ -74,20 +74,20 @@ Reviewed docs related to [brief description of code changes].
 If no changes needed:
 
 ```markdown
-## 📚 Documentation Check
+## Documentation Check
 
 Reviewed docs related to [brief description].
 
-✅ **No documentation updates needed** - existing docs accurately reflect the
+**No documentation updates needed** - existing docs accurately reflect the
 code changes.
 ```
 
 If skipped based on PR title:
 
 ```markdown
-## 📚 Documentation Check
+## Documentation Check
 
-⏭️ **Skipped** - This PR appears to be [refactor/test/chore] based on the title
+**Skipped** - This PR appears to be [refactor/test/chore] based on the title
 and is unlikely to need documentation updates.
 ```
 
