@@ -5,6 +5,11 @@
 -- each workspace spent in a "running" state. A "running" state is considered to be
 -- any workspace that has been started successfully and not yet stopped, deleted, or failed.
 --
+-- All usage (per workspace) is rounded up to the nearest hour. So usage is accumulated for the time period
+-- per workspace, then rounded up to the next hour.
+-- So a workspace that runs for 40s, will be 1 hour of usage.
+-- If a workspace runs for 40s, then stops, then runs for another 40s will still be 1 hour.
+--
 -- Usage:
 --   1. Edit the start_time and end_time in the params below
 --   2. Run: psql -f workspace-runtime-audit.sql
