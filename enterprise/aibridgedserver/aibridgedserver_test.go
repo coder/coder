@@ -878,9 +878,9 @@ func TestStructuredLogging(t *testing.T) {
 	type testCase struct {
 		name              string
 		structuredLogging bool
-		dbError           error
+		expectedErr       error
 		setupMocks        func(db *dbmock.MockStore, interceptionID uuid.UUID)
-		callMethod        func(srv *aibridgedserver.Server, ctx context.Context, interceptionID uuid.UUID) error
+		recordFn          func(srv *aibridgedserver.Server, ctx context.Context, interceptionID uuid.UUID) error
 		expectedLogMsg    string
 		expectedFields    map[string]any
 	}
@@ -899,7 +899,7 @@ func TestStructuredLogging(t *testing.T) {
 					InitiatorID: initiatorID,
 				}, nil)
 			},
-			callMethod: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 					Id:          intcID.String(),
 					ApiKeyId:    "api-key-123",
@@ -929,7 +929,7 @@ func TestStructuredLogging(t *testing.T) {
 					InitiatorID: initiatorID,
 				}, nil)
 			},
-			callMethod: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 					Id:          intcID.String(),
 					ApiKeyId:    "api-key-123",
@@ -945,11 +945,11 @@ func TestStructuredLogging(t *testing.T) {
 		{
 			name:              "RecordInterception_no_log_on_db_error",
 			structuredLogging: true,
-			dbError:           sql.ErrConnDone,
+			expectedErr:       sql.ErrConnDone,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
 				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
 			},
-			callMethod: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 					Id:          intcID.String(),
 					ApiKeyId:    "api-key-123",
@@ -970,7 +970,7 @@ func TestStructuredLogging(t *testing.T) {
 					ID: intcID,
 				}, nil)
 			},
-			callMethod: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
 					Id:      intcID.String(),
 					EndedAt: timestamppb.Now(),
@@ -992,7 +992,7 @@ func TestStructuredLogging(t *testing.T) {
 					InterceptionID: intcID,
 				}, nil)
 			},
-			callMethod: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 					InterceptionId: intcID.String(),
 					MsgId:          "msg_123",
@@ -1020,7 +1020,7 @@ func TestStructuredLogging(t *testing.T) {
 					InterceptionID: intcID,
 				}, nil)
 			},
-			callMethod: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
 					InterceptionId: intcID.String(),
 					MsgId:          "msg_123",
@@ -1046,7 +1046,7 @@ func TestStructuredLogging(t *testing.T) {
 					InterceptionID: intcID,
 				}, nil)
 			},
-			callMethod: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 					InterceptionId:  intcID.String(),
 					MsgId:           "msg_123",
@@ -1089,8 +1089,8 @@ func TestStructuredLogging(t *testing.T) {
 			}, nil, requiredExperiments)
 			require.NoError(t, err)
 
-			err = tc.callMethod(srv, ctx, interceptionID)
-			if tc.dbError != nil {
+			err = tc.recordFn(srv, ctx, interceptionID)
+			if tc.expectedErr != nil {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
