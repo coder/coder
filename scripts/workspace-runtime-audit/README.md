@@ -1,5 +1,10 @@
 # Workspace Runtime Audit
 
+> [!WARNING]
+> Do not run this script unless specifically instructed to do so by Coder support or engineering.
+>
+> Always run this script from a postgres user with read-only access to the database.
+
 A SQL script that analyzes workspace builds to determine how long each workspace spent in a "running" state. It tracks state transitions (start/stop/delete) and calculates the cumulative runtime, only counting time spent inside the audit window period.
 
 ## Usage
