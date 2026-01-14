@@ -1836,6 +1836,17 @@ Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
 
 Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
 
+### --aibridge-structured-logging
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_STRUCTURED_LOGGING</code> |
+| YAML        | <code>aibridge.structuredLogging</code>         |
+| Default     | <code>false</code>                              |
+
+Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
+
 ### --aibridge-proxy-enabled
 
 |             |                                            |

@@ -11970,6 +11970,9 @@ const docTemplate = `{
                 },
                 "retention": {
                     "type": "integer"
+                },
+                "structured_logging": {
+                    "type": "boolean"
                 }
             }
         },
