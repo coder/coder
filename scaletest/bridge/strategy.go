@@ -44,7 +44,7 @@ func newBridgeStrategy(cfg bridgeStrategyConfig) *bridgeStrategy {
 	}
 }
 
-func (s *bridgeStrategy) Setup(ctx context.Context, id string, logs io.Writer) (string, string, error) {
+func (s *bridgeStrategy) Setup(ctx context.Context, id string, logs io.Writer) (requestURL string, token string, err error) {
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 
 	s.client.SetLogger(logger)
@@ -57,15 +57,13 @@ func (s *bridgeStrategy) Setup(ctx context.Context, id string, logs io.Writer) (
 		return "", "", xerrors.Errorf("create user: %w", err)
 	}
 	newUser := newUserAndToken.User
-	token := newUserAndToken.SessionToken
+	token = newUserAndToken.SessionToken
 
 	logger.Info(ctx, "runner user created",
 		slog.F("username", newUser.Username),
 		slog.F("user_id", newUser.ID.String()),
 	)
 
-	// Construct AI Bridge URL based on provider.
-	var requestURL string
 	if s.provider == "anthropic" {
 		requestURL = fmt.Sprintf("%s/api/v2/aibridge/anthropic/v1/messages", s.client.URL)
 	} else {
