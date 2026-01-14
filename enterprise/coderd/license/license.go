@@ -358,12 +358,12 @@ func LicensesEntitlements(
 			// Handling for limit features.
 			switch {
 			case featureName.UsesLimit():
-				// TODO: Do we want to support FeatureManagedAgentLimit here?
 				if featureValue <= 0 {
 					// 0 user count doesn't make sense, so we skip it.
 					continue
 				}
 
+				// When we have a limit feature, we need to set the actual value (if available).
 				var actual *int64
 				if featureName == codersdk.FeatureUserLimit {
 					actual = &featureArguments.ActiveUserCount
