@@ -3,6 +3,9 @@
 # This script checks that database migrations do not hardcode the "public" schema.
 # Migrations should rely on search_path instead to support deployments using
 # non-public schemas.
+#
+# Usage: check_migrations_schema.sh [files...]
+# If no files are provided, it will check the default migration and fixture paths.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -11,38 +14,21 @@ cdroot
 
 failed=0
 
-# check_public_schema_references checks for hardcoded public. schema references
-# in SQL files within a directory.
-# Arguments:
-#   $1 - directory to check
-#   $2 - description for error message (e.g., "migration" or "fixture")
-#   $3 - find maxdepth (optional, defaults to no limit)
-check_public_schema_references() {
-	local dir=$1
-	local desc=$2
-	local maxdepth=${3:-}
+check_files() {
+	local files=("$@")
 
-	if [[ ! -d "$dir" ]]; then
+	if [[ ${#files[@]} -eq 0 ]]; then
 		return 0
 	fi
 
-	local find_args=("$dir")
-	if [[ -n "$maxdepth" ]]; then
-		find_args+=(-maxdepth "$maxdepth")
-	fi
-	find_args+=(-name '*.sql' -type f -print0)
-
 	set +e
 	local matches
-	matches=$(
-		find "${find_args[@]}" |
-			xargs -0 grep -l 'public\.' 2>/dev/null
-	)
+	matches=$(grep -l 'public\.' "${files[@]}" 2>/dev/null)
 	set -e
 
 	if [[ -n "$matches" ]]; then
-		error "${desc} files must not hardcode the 'public' schema. Use unqualified table names instead."
-		echo "The following ${desc} files contain 'public.' references:"
+		error "SQL files must not hardcode the 'public' schema. Use unqualified table names instead."
+		echo "The following files contain 'public.' references:"
 		echo "$matches" | while read -r file; do
 			echo "  $file"
 			grep -n 'public\.' "$file" | sed 's/^/    /' | head -5
@@ -52,18 +38,26 @@ check_public_schema_references() {
 	return 0
 }
 
-# Check migrations (top-level only, not testdata)
-if ! check_public_schema_references "coderd/database/migrations" "Migration" 1; then
-	failed=1
+if [[ $# -gt 0 ]]; then
+	# Files provided as arguments
+	check_files "$@" || failed=1
+else
+	# Default behavior: check migrations and fixtures
+	migration_files=$(find coderd/database/migrations -maxdepth 1 -name '*.sql' -type f 2>/dev/null)
+	if [[ -n "$migration_files" ]]; then
+		# shellcheck disable=SC2086
+		check_files $migration_files || failed=1
+	fi
+
+	fixture_files=$(find coderd/database/migrations/testdata/fixtures -name '*.sql' -type f 2>/dev/null)
+	if [[ -n "$fixture_files" ]]; then
+		# shellcheck disable=SC2086
+		check_files $fixture_files || failed=1
+	fi
 fi
 
-# Check fixtures for consistency
-if ! check_public_schema_references "coderd/database/migrations/testdata/fixtures" "Fixture"; then
-	failed=1
+if [[ $failed -eq 0 ]]; then
+	log "Migration schema references OK"
 fi
 
-if [[ $failed -eq 1 ]]; then
-	exit 1
-fi
-
-log "Migration schema references OK"
+exit "$failed"
