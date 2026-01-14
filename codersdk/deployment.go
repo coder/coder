@@ -267,8 +267,6 @@ type Feature struct {
 	// Only certain features set these fields:
 	// - FeatureManagedAgentLimit
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
-
-	// Maybe: Add is_limit_feature ?? We can use this to determine if the feature is a limit feature or not in license.go.
 }
 
 type UsagePeriod struct {
