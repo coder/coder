@@ -720,7 +720,7 @@ const createTemplateVersionTar = async (
 						devcontainers: [],
 						apiKeyScope: "all",
 						...agent,
-					} as unknown as Agent;
+					} as Agent;
 
 					try {
 						Agent.encode(agentResource);
@@ -779,7 +779,7 @@ const createTemplateVersionTar = async (
 			resourceReplacements: [],
 			aiTasks: [],
 			...response.graph,
-		} as unknown as GraphComplete;
+		} as GraphComplete;
 		response.graph.resources = response.graph.resources?.map(fillResource);
 
 		tar.addFile(

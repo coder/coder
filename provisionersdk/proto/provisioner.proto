@@ -244,11 +244,11 @@ message Devcontainer {
   string workspace_folder = 1;
   string config_path = 2;
   string name = 3;
-  bytes id = 4;                // Pre-computed devcontainer ID from Terraform.
-  bytes subagent_id = 5;       // Pre-computed subagent ID from Terraform.
-  repeated App apps = 6;       // Apps to attach to the subagent.
-  repeated Script scripts = 7; // Scripts to run in the subagent.
-  repeated Env envs = 8;       // Environment variables for the subagent.
+  optional bytes id = 4;
+  optional bytes subagent_id = 5;
+  repeated App apps = 6;
+  repeated Script scripts = 7;
+  repeated Env envs = 8;
 }
 
 enum AppOpenIn {
