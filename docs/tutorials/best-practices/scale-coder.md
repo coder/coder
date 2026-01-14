@@ -218,6 +218,43 @@ performance. Coder's
 [validated architectures](../../admin/infrastructure/validated-architectures/index.md)
 give specific sizing recommendations for various user scales.
 
+### Connection pool tuning
+
+Coder Server maintains a pool of connections to PostgreSQL. You can tune the
+pool size with these settings:
+
+- `--postgres-conn-max-open` (env: `CODER_PG_CONN_MAX_OPEN`): Maximum number of open
+  connections. Default: 10. Ensure that your PostgreSQL Server has `max_connections`
+  set appropriately to accommodate all Coder Server replicas multiplied by the
+  maximum number of open connections. We recommend configuring an additional 20%
+  of connections to account for churn and other clients.
+- `--postgres-conn-max-idle` (env: `CODER_PG_CONN_MAX_IDLE`): Maximum number of idle
+  connections kept in the pool. Default: "auto", which uses max open / 3.
+
+When a connection is returned to the pool and the idle pool is already full, the
+connection is closed immediately. This can cause connection establishment
+overhead (churn) when load fluctuates. Monitor these metrics to understand your
+connection pool behavior:
+
+- **Capacity**: `go_sql_max_open_connections - go_sql_in_use_connections` shows
+  how many connections are available for new requests. If this is 0, Coder
+  Server performance will start to degrade. This just provides a point-in-time view
+  of the connections, however.
+
+  For a more systematic view, consider running
+  `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long
+  each Coder replica spent waiting on the connection pool (i.e. no free connections);
+  `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many
+  connections were waited for.
+
+  If either of these values seem unacceptably high, try tuning the above settings.
+- **Churn**: `sum(rate(go_sql_max_idle_closed_total[$__rate_interval]))` shows
+  how many connections are being closed because the idle pool is full.
+
+If you see high churn, consider increasing `--pg-conn-max-idle` to keep more
+connections ready for reuse. If you see capacity consistently near zero,
+consider increasing `--pg-conn-max-open`.
+
 ## Workspace proxies
 
 Workspace proxies proxy HTTP traffic from end users to workspaces for Coder apps

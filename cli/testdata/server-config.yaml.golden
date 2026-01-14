@@ -483,6 +483,14 @@ ephemeralDeployment: false
 # authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
+# Maximum number of open connections to the database. Defaults to 10.
+# (default: 10, type: int)
+pgConnMaxOpen: 10
+# Maximum number of idle connections to the database. Set to "auto" (the default)
+# to use max open / 3. Value must be greater or equal to 0; 0 means explicitly no
+# idle connections.
+# (default: auto, type: string)
+pgConnMaxIdle: auto
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)
@@ -779,6 +787,13 @@ aibridgeproxy:
   # Path to the CA private key file for AI Bridge Proxy.
   # (default: <unset>, type: string)
   key_file: ""
+  # Comma-separated list of domains for which HTTPS traffic will be decrypted and
+  # routed through AI Bridge. Requests to other domains will be tunneled directly
+  # without decryption.
+  # (default: api.anthropic.com,api.openai.com, type: string-array)
+  domain_allowlist:
+    - api.anthropic.com
+    - api.openai.com
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

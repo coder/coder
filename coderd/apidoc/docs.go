@@ -12055,6 +12055,12 @@ const docTemplate = `{
                 "cert_file": {
                     "type": "string"
                 },
+                "domain_allowlist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -14379,6 +14385,12 @@ const docTemplate = `{
                 },
                 "pg_auth": {
                     "type": "string"
+                },
+                "pg_conn_max_idle": {
+                    "type": "string"
+                },
+                "pg_conn_max_open": {
+                    "type": "integer"
                 },
                 "pg_connection_url": {
                     "type": "string"

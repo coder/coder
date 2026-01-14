@@ -71,6 +71,7 @@ export interface AIBridgeProxyConfig {
 	readonly listen_addr: string;
 	readonly cert_file: string;
 	readonly key_file: string;
+	readonly domain_allowlist: string;
 }
 
 // From codersdk/aibridge.go
@@ -1736,6 +1737,8 @@ export interface DeploymentValues {
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
+	readonly pg_conn_max_open?: number;
+	readonly pg_conn_max_idle?: string;
 	readonly oauth2?: OAuth2Config;
 	readonly oidc?: OIDCConfig;
 	readonly telemetry?: TelemetryConfig;
@@ -3453,6 +3456,13 @@ export interface PostWorkspaceUsageRequest {
 export type PostgresAuth = "awsiamrds" | "password";
 
 export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
+
+// From codersdk/deployment.go
+/**
+ * PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
+ * based on max open connections.
+ */
+export const PostgresConnMaxIdleAuto = "auto";
 
 // From codersdk/deployment.go
 export interface PprofConfig {

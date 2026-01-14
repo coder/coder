@@ -597,6 +597,9 @@
 ```json
 {
   "cert_file": "string",
+  "domain_allowlist": [
+    "string"
+  ],
   "enabled": true,
   "key_file": "string",
   "listen_addr": "string"
@@ -605,12 +608,13 @@
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `cert_file`   | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `key_file`    | string  | false    |              |             |
-| `listen_addr` | string  | false    |              |             |
+| Name               | Type            | Required | Restrictions | Description |
+|--------------------|-----------------|----------|--------------|-------------|
+| `cert_file`        | string          | false    |              |             |
+| `domain_allowlist` | array of string | false    |              |             |
+| `enabled`          | boolean         | false    |              |             |
+| `key_file`         | string          | false    |              |             |
+| `listen_addr`      | string          | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -712,6 +716,9 @@
 {
   "aibridge_proxy": {
     "cert_file": "string",
+    "domain_allowlist": [
+      "string"
+    ],
     "enabled": true,
     "key_file": "string",
     "listen_addr": "string"
@@ -2624,6 +2631,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "ai": {
       "aibridge_proxy": {
         "cert_file": "string",
+        "domain_allowlist": [
+          "string"
+        ],
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string"
@@ -2893,6 +2903,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "username_field": "string"
     },
     "pg_auth": "string",
+    "pg_conn_max_idle": "string",
+    "pg_conn_max_open": 0,
     "pg_connection_url": "string",
     "pprof": {
       "address": {
@@ -3163,6 +3175,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "ai": {
     "aibridge_proxy": {
       "cert_file": "string",
+      "domain_allowlist": [
+        "string"
+      ],
       "enabled": true,
       "key_file": "string",
       "listen_addr": "string"
@@ -3432,6 +3447,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "username_field": "string"
   },
   "pg_auth": "string",
+  "pg_conn_max_idle": "string",
+  "pg_conn_max_open": 0,
   "pg_connection_url": "string",
   "pprof": {
     "address": {
@@ -3622,6 +3639,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
 | `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_idle`                   | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_open`                   | integer                                                                                              | false    |              |                                                                    |
 | `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |

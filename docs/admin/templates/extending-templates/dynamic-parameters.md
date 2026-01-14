@@ -5,7 +5,7 @@ enriched input types, and user identity awareness.
 This allows template authors to create interactive workspace creation forms with more environment customization,
 and that means fewer templates to maintain.
 
-![Dynamic Parameters in Action](https://i.imgur.com/uR8mpRJ.gif)
+![Dynamic Parameters in Action](../../../images/admin/templates/extend-templates/dyn-params/dynamic-parameters-in-action.gif)
 
 All parameters are parsed from Terraform, so your workspace creation forms live in the same location as your provisioning code.
 You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template.
