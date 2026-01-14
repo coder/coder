@@ -7989,3 +7989,98 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, remaining, len(unexpiredTimes))
 }
+
+func TestWorkspaceAgentDevcontainersSubagentID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Setup: create workspace agent
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		CreatedBy:      user.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     tpl.ID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		JobID:             job.ID,
+		TemplateVersionID: tv.ID,
+	})
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: build.JobID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+
+	// Create a subagent that will be referenced
+	subagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+		ParentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+
+	t.Run("InsertWithSubagentID", func(t *testing.T) {
+		t.Parallel()
+
+		devcontainers, err := db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+			WorkspaceAgentID: agent.ID,
+			CreatedAt:        dbtime.Now(),
+			ID:               []uuid.UUID{uuid.New()},
+			Name:             []string{"test-devcontainer"},
+			WorkspaceFolder:  []string{"/workspace"},
+			ConfigPath:       []string{"/workspace/.devcontainer/devcontainer.json"},
+			SubagentID:       []uuid.UUID{subagent.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, devcontainers, 1)
+		require.True(t, devcontainers[0].SubagentID.Valid)
+		require.Equal(t, subagent.ID, devcontainers[0].SubagentID.UUID)
+
+		// Verify retrieval
+		retrieved, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		require.Len(t, retrieved, 1)
+		require.True(t, retrieved[0].SubagentID.Valid)
+		require.Equal(t, subagent.ID, retrieved[0].SubagentID.UUID)
+	})
+
+	t.Run("InsertWithNilSubagentID", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a separate agent for this subtest
+		agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: res.ID,
+		})
+
+		// When uuid.Nil is passed, it stores the zero UUID (not NULL).
+		// This matches the provisionerdserver behavior.
+		devcontainers, err := db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+			WorkspaceAgentID: agent2.ID,
+			CreatedAt:        dbtime.Now(),
+			ID:               []uuid.UUID{uuid.New()},
+			Name:             []string{"no-subagent"},
+			WorkspaceFolder:  []string{"/workspace"},
+			ConfigPath:       []string{""},
+			SubagentID:       []uuid.UUID{uuid.Nil},
+		})
+		require.NoError(t, err)
+		require.Len(t, devcontainers, 1)
+		// uuid.Nil is stored as a zero UUID, not NULL.
+		require.Equal(t, uuid.Nil, devcontainers[0].SubagentID.UUID)
+	})
+}

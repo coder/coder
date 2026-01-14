@@ -3706,6 +3706,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		subagentID := uuid.New()
 		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
@@ -3714,6 +3715,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Devcontainers: []*sdkproto.Devcontainer{
 					{Name: "foo", WorkspaceFolder: "/workspace1"},
 					{Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+					{Name: "baz", WorkspaceFolder: "/workspace3", SubagentId: subagentID[:]},
 				},
 			}},
 		})
@@ -3730,13 +3732,17 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			return devcontainers[i].Name > devcontainers[j].Name
 		})
 		require.NoError(t, err)
-		require.Len(t, devcontainers, 2)
+		require.Len(t, devcontainers, 3)
 		require.Equal(t, "foo", devcontainers[0].Name)
 		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
 		require.Equal(t, "", devcontainers[0].ConfigPath)
-		require.Equal(t, "bar", devcontainers[1].Name)
-		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
-		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
+		require.Equal(t, uuid.Nil, devcontainers[0].SubagentID.UUID)
+		require.Equal(t, "baz", devcontainers[1].Name)
+		require.Equal(t, "/workspace3", devcontainers[1].WorkspaceFolder)
+		require.Equal(t, subagentID, devcontainers[1].SubagentID.UUID)
+		require.Equal(t, "bar", devcontainers[2].Name)
+		require.Equal(t, "/workspace2", devcontainers[2].WorkspaceFolder)
+		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[2].ConfigPath)
 	})
 }
 
