@@ -806,6 +806,14 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
 	}
 
+	// If CODER_AGENT_TOKEN is set, use it directly. This allows subprocesses
+	// (like gitaskpass) to reuse the parent agent's session token instead of
+	// re-authenticating via instance identity. The agent sets CODER_AGENT_TOKEN
+	// for subprocesses that need it (see agent/agent.go).
+	if a.agentToken != "" {
+		return agentsdk.New(&a.agentURL, agentsdk.WithFixedToken(a.agentToken)), nil
+	}
+
 	switch a.agentAuth {
 	case "token":
 		token := a.agentToken
