@@ -6676,6 +6676,14 @@ export type WorkspaceRole = "admin" | "" | "use";
 
 export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
 
+// From codersdk/workspacesharing.go
+/**
+ * WorkspaceSharingSettings represents workspace sharing settings for an organization.
+ */
+export interface WorkspaceSharingSettings {
+	readonly sharing_disabled: boolean;
+}
+
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
 	| "canceled"

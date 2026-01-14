@@ -1607,6 +1607,11 @@
 							"path": "reference/cli/organizations_settings_set_role-sync.md"
 						},
 						{
+							"title": "organizations settings set workspace-sharing",
+							"description": "Workspace sharing settings for the organization.",
+							"path": "reference/cli/organizations_settings_set_workspace-sharing.md"
+						},
+						{
 							"title": "organizations settings show",
 							"description": "Outputs specified organization setting.",
 							"path": "reference/cli/organizations_settings_show.md"
@@ -1625,6 +1630,11 @@
 							"title": "organizations settings show role-sync",
 							"description": "Role sync settings to sync organization roles from an IdP.",
 							"path": "reference/cli/organizations_settings_show_role-sync.md"
+						},
+						{
+							"title": "organizations settings show workspace-sharing",
+							"description": "Workspace sharing settings for the organization.",
+							"path": "reference/cli/organizations_settings_show_workspace-sharing.md"
 						},
 						{
 							"title": "organizations show",

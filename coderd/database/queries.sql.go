@@ -8197,6 +8197,41 @@ func (q *sqlQuerier) UpdateOrganizationDeletedByID(ctx context.Context, arg Upda
 	return err
 }
 
+const updateOrganizationWorkspaceSharingSettings = `-- name: UpdateOrganizationWorkspaceSharingSettings :one
+UPDATE
+    organizations
+SET
+    workspace_sharing_disabled = $1,
+    updated_at = $2
+WHERE
+    id = $3
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+`
+
+type UpdateOrganizationWorkspaceSharingSettingsParams struct {
+	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
+	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
+	ID                       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationWorkspaceSharingSettings, arg.WorkspaceSharingDisabled, arg.UpdatedAt, arg.ID)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Deleted,
+		&i.WorkspaceSharingDisabled,
+	)
+	return i, err
+}
+
 const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
 SELECT
 	id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index
@@ -22148,6 +22183,21 @@ WHERE
 
 func (q *sqlQuerier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteWorkspaceACLByID, id)
+	return err
+}
+
+const deleteWorkspaceACLsByOrganization = `-- name: DeleteWorkspaceACLsByOrganization :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::jsonb,
+	user_acl = '{}'::jsonb
+WHERE
+	organization_id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceACLsByOrganization, organizationID)
 	return err
 }
 
