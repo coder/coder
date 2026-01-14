@@ -124,7 +124,7 @@ property in your `devcontainer.json`:
 This maps container ports to the parent workspace, which can then be forwarded
 using the main workspace agent.
 
-## Docker Compose devcontainers
+## Docker Compose dev containers
 
 Dev containers support Docker Compose for multi-container environments. When you
 define a dev container with `dockerComposeFile` and `service` properties, the
@@ -171,7 +171,6 @@ primary container, reach sidecar services by their service name:
 
 ```console
 psql -h database -U postgres
-curl http://api:3000
 ```
 
 ### Accessing sidecar services
