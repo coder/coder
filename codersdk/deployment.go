@@ -197,6 +197,11 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
+// IsAIGovernance returns true if the feature is an AI governance feature.
+func (n FeatureName) IsAIGovernance() bool {
+	return n == FeatureAIBridge || n == FeatureBoundaries
+}
+
 // FeatureSet represents a grouping of features. Rather than manually
 // assigning features al-la-carte when making a license, a set can be specified.
 // Sets are dynamic in the sense a feature can be added to a set, granting the
@@ -212,7 +217,6 @@ const (
 )
 
 func (set FeatureSet) Features() []FeatureName {
-	// TODO: Add support for `is_ai_governance`.
 	switch FeatureSet(strings.ToLower(string(set))) {
 	case FeatureSetEnterprise:
 		// Enterprise is the set 'AllFeatures' minus some select features.
@@ -231,7 +235,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
-			return f.UsesLimit() || f == FeatureAIBridge || f == FeatureBoundaries
+			return f.UsesLimit() || f.IsAIGovernance()
 		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures
