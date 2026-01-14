@@ -881,11 +881,9 @@ func TestStructuredLogging(t *testing.T) {
 		expectedErr       error
 		setupMocks        func(db *dbmock.MockStore, interceptionID uuid.UUID)
 		recordFn          func(srv *aibridgedserver.Server, ctx context.Context, interceptionID uuid.UUID) error
-		expectedLogMsg    string
 		expectedFields    map[string]any
 	}
 
-	// Use fixed UUIDs for deterministic field checks.
 	interceptionID := uuid.UUID{1}
 	initiatorID := uuid.UUID{2}
 
@@ -911,7 +909,6 @@ func TestStructuredLogging(t *testing.T) {
 				})
 				return err
 			},
-			expectedLogMsg: "interception started",
 			expectedFields: map[string]any{
 				"record_type":     "interception_start",
 				"interception_id": interceptionID.String(),
@@ -940,10 +937,10 @@ func TestStructuredLogging(t *testing.T) {
 				})
 				return err
 			},
-			expectedLogMsg: "", // No log expected.
+			expectedFields: nil, // No log expected.
 		},
 		{
-			name:              "RecordInterception_no_log_on_db_error",
+			name:              "RecordInterception_log_on_db_error",
 			structuredLogging: true,
 			expectedErr:       sql.ErrConnDone,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
@@ -960,7 +957,14 @@ func TestStructuredLogging(t *testing.T) {
 				})
 				return err
 			},
-			expectedLogMsg: "", // No log on error.
+			// Even though the database call errored, we must still write the logs.
+			expectedFields: map[string]any{
+				"record_type":     "interception_start",
+				"interception_id": interceptionID.String(),
+				"initiator_id":    initiatorID.String(),
+				"provider":        "anthropic",
+				"model":           "claude-4-opus",
+			},
 		},
 		{
 			name:              "RecordInterceptionEnded_logs_when_enabled",
@@ -977,7 +981,6 @@ func TestStructuredLogging(t *testing.T) {
 				})
 				return err
 			},
-			expectedLogMsg: "interception ended",
 			expectedFields: map[string]any{
 				"record_type":     "interception_end",
 				"interception_id": interceptionID.String(),
@@ -1003,7 +1006,6 @@ func TestStructuredLogging(t *testing.T) {
 				})
 				return err
 			},
-			expectedLogMsg: "token usage recorded",
 			expectedFields: map[string]any{
 				"record_type":     "token_usage",
 				"interception_id": interceptionID.String(),
@@ -1030,7 +1032,6 @@ func TestStructuredLogging(t *testing.T) {
 				})
 				return err
 			},
-			expectedLogMsg: "prompt usage recorded",
 			expectedFields: map[string]any{
 				"record_type":     "prompt_usage",
 				"interception_id": interceptionID.String(),
@@ -1060,7 +1061,6 @@ func TestStructuredLogging(t *testing.T) {
 				})
 				return err
 			},
-			expectedLogMsg: "tool usage recorded",
 			expectedFields: map[string]any{
 				"record_type":      "tool_usage",
 				"interception_id":  interceptionID.String(),
@@ -1097,13 +1097,12 @@ func TestStructuredLogging(t *testing.T) {
 			}
 
 			lines := parseLogLines(buf)
-			if tc.expectedLogMsg == "" {
+			if tc.expectedFields == nil {
 				// No log expected (disabled or error case).
-				matchedLines := getLogLinesWithMessage(lines, tc.expectedLogMsg)
-				require.Empty(t, matchedLines)
+				require.Empty(t, lines)
 			} else {
-				matchedLines := getLogLinesWithMessage(lines, tc.expectedLogMsg)
-				require.Len(t, matchedLines, 1, "expected exactly one log line with message %q", tc.expectedLogMsg)
+				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
+				require.Len(t, matchedLines, 1, "expected exactly one log line with message %q", aibridgedserver.InterceptionLogMarker)
 
 				fields := matchedLines[0].Fields
 				for key, expected := range tc.expectedFields {

@@ -46,6 +46,10 @@ var (
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
 
+const (
+	InterceptionLogMarker = "interception log"
+)
+
 var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
@@ -95,7 +99,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		store:               store,
 		logger:              logger,
 		externalAuthConfigs: eac,
-		structuredLogging:   bool(bridgeCfg.StructuredLogging),
+		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
@@ -126,6 +130,20 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 
 	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "interception_start"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("initiator_id", initID.String()),
+			slog.F("api_key_id", in.ApiKeyId),
+			slog.F("provider", in.Provider),
+			slog.F("model", in.Model),
+			slog.F("started_at", in.StartedAt.AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
 	out, err := json.Marshal(metadata)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
@@ -144,19 +162,6 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	if s.structuredLogging {
-		s.logger.Info(ctx, "interception started",
-			slog.F("record_type", "interception_start"),
-			slog.F("interception_id", intcID.String()),
-			slog.F("initiator_id", initID.String()),
-			slog.F("api_key_id", in.ApiKeyId),
-			slog.F("provider", in.Provider),
-			slog.F("model", in.Model),
-			slog.F("started_at", in.StartedAt.AsTime()),
-			slog.F("metadata", metadata),
-		)
-	}
-
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
@@ -169,20 +174,20 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		return nil, xerrors.Errorf("invalid interception ID %q: %w", in.GetId(), err)
 	}
 
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "interception_end"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("ended_at", in.EndedAt.AsTime()),
+		)
+	}
+
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:      intcID,
 		EndedAt: in.EndedAt.AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
-	}
-
-	if s.structuredLogging {
-		s.logger.Info(ctx, "interception ended",
-			slog.F("record_type", "interception_end"),
-			slog.F("interception_id", intcID.String()),
-			slog.F("ended_at", in.EndedAt.AsTime()),
-		)
 	}
 
 	return &proto.RecordInterceptionEndedResponse{}, nil
@@ -198,6 +203,19 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	}
 
 	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "token_usage"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("msg_id", in.GetMsgId()),
+			slog.F("input_tokens", in.GetInputTokens()),
+			slog.F("output_tokens", in.GetOutputTokens()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
 	out, err := json.Marshal(metadata)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
@@ -216,18 +234,6 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		return nil, xerrors.Errorf("insert token usage: %w", err)
 	}
 
-	if s.structuredLogging {
-		s.logger.Info(ctx, "token usage recorded",
-			slog.F("record_type", "token_usage"),
-			slog.F("interception_id", intcID.String()),
-			slog.F("msg_id", in.GetMsgId()),
-			slog.F("input_tokens", in.GetInputTokens()),
-			slog.F("output_tokens", in.GetOutputTokens()),
-			slog.F("created_at", in.GetCreatedAt().AsTime()),
-			slog.F("metadata", metadata),
-		)
-	}
-
 	return &proto.RecordTokenUsageResponse{}, nil
 }
 
@@ -241,6 +247,18 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 	}
 
 	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "prompt_usage"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("msg_id", in.GetMsgId()),
+			slog.F("prompt", in.GetPrompt()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
 	out, err := json.Marshal(metadata)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
@@ -258,17 +276,6 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
 	}
 
-	if s.structuredLogging {
-		s.logger.Info(ctx, "prompt usage recorded",
-			slog.F("record_type", "prompt_usage"),
-			slog.F("interception_id", intcID.String()),
-			slog.F("msg_id", in.GetMsgId()),
-			slog.F("prompt", in.GetPrompt()),
-			slog.F("created_at", in.GetCreatedAt().AsTime()),
-			slog.F("metadata", metadata),
-		)
-	}
-
 	return &proto.RecordPromptUsageResponse{}, nil
 }
 
@@ -282,6 +289,22 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	}
 
 	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "tool_usage"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("msg_id", in.GetMsgId()),
+			slog.F("tool", in.GetTool()),
+			slog.F("input", in.GetInput()),
+			slog.F("server_url", in.GetServerUrl()),
+			slog.F("injected", in.GetInjected()),
+			slog.F("invocation_error", in.GetInvocationError()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
 	out, err := json.Marshal(metadata)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
@@ -301,21 +324,6 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
-	}
-
-	if s.structuredLogging {
-		s.logger.Info(ctx, "tool usage recorded",
-			slog.F("record_type", "tool_usage"),
-			slog.F("interception_id", intcID.String()),
-			slog.F("msg_id", in.GetMsgId()),
-			slog.F("tool", in.GetTool()),
-			slog.F("input", in.GetInput()),
-			slog.F("server_url", in.GetServerUrl()),
-			slog.F("injected", in.GetInjected()),
-			slog.F("invocation_error", in.GetInvocationError()),
-			slog.F("created_at", in.GetCreatedAt().AsTime()),
-			slog.F("metadata", metadata),
-		)
 	}
 
 	return &proto.RecordToolUsageResponse{}, nil
