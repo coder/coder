@@ -110,29 +110,27 @@ const fillAndSubmitForm = async ({
 	await user.click(confirmButton);
 };
 
-// One problem with the waitFor function is that if no additional config options
-// are passed in, it will hang indefinitely as it keeps retrying an assertion.
-// Even if Jest runs out of time and kills the test, you won't get a good error
-// message. Adding options to force test to give up before test timeout
+// By default, waitFor will lock until it succeeds or the test times out, and
+// won't give a very informative error if the test times out. Setting a timeout
+// slightly shorter than the test timeout helps give a more informative error
+// because Vitest will act as if something specific went wrong rather than
+// vaguely handwaving about something taking too long.
 function waitForWithCutoff(callback: () => void | Promise<void>) {
 	return waitFor(callback, {
-		// Defined to end 500ms before global cut-off time of 20s. Wanted to define
-		// this in terms of an exported constant from jest.config, but since Jest
-		// is CJS-based, that would've involved weird CJS-ESM interop issues
-		timeout: 19_500,
+		timeout: 4_500,
 	});
 }
 
 describe("TemplateSchedulePage", () => {
 	beforeEach(() => {
-		jest
-			.spyOn(API, "getEntitlements")
-			.mockResolvedValue(MockEntitlementsWithScheduling);
+		vi.spyOn(API, "getEntitlements").mockResolvedValue(
+			MockEntitlementsWithScheduling,
+		);
 	});
 
 	it("Calls the API when user fills in and submits a form", async () => {
 		await renderTemplateSchedulePage();
-		jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
 			...MockTemplate,
 			...validFormValues,
 		});
@@ -146,7 +144,7 @@ describe("TemplateSchedulePage", () => {
 	test("default is converted to and from hours", async () => {
 		await renderTemplateSchedulePage();
 
-		jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
 			...MockTemplate,
 			...validFormValues,
 		});
@@ -169,7 +167,7 @@ describe("TemplateSchedulePage", () => {
 	test("failure, dormancy, and dormancy auto-deletion converted to and from days", async () => {
 		await renderTemplateSchedulePage();
 
-		jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
 			...MockTemplate,
 			...validFormValues,
 		});

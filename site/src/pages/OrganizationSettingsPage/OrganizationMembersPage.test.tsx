@@ -16,7 +16,7 @@ import type { SlimRole } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import OrganizationMembersPage from "./OrganizationMembersPage";
 
-jest.spyOn(console, "error").mockImplementation(() => {});
+vi.spyOn(console, "error").mockImplementation(() => {});
 
 beforeEach(() => {
 	server.use(
