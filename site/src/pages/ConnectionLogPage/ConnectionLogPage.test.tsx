@@ -47,7 +47,7 @@ const renderPage = async ({ filter, page }: RenderPageOptions = {}) => {
 describe("ConnectionLogPage", () => {
 	beforeEach(() => {
 		// Mocking the dayjs module within the createDayString file
-		const mock = jest.spyOn(CreateDayString, "createDayString");
+		const mock = vi.spyOn(CreateDayString, "createDayString");
 		mock.mockImplementation(() => "a minute ago");
 
 		// Mock the entitlements
@@ -61,7 +61,7 @@ describe("ConnectionLogPage", () => {
 	it("renders page 5", async () => {
 		// Given
 		const page = 5;
-		const getConnectionLogsSpy = jest
+		const getConnectionLogsSpy = vi
 			.spyOn(API, "getConnectionLogs")
 			.mockResolvedValue({
 				connection_logs: [
@@ -90,7 +90,7 @@ describe("ConnectionLogPage", () => {
 
 	describe("Filtering", () => {
 		it("filters by URL", async () => {
-			const getConnectionLogsSpy = jest
+			const getConnectionLogsSpy = vi
 				.spyOn(API, "getConnectionLogs")
 				.mockResolvedValue({
 					connection_logs: [MockConnectedSSHConnectionLog],
@@ -110,7 +110,7 @@ describe("ConnectionLogPage", () => {
 		it("resets page to 1 when filter is changed", async () => {
 			await renderPage({ page: 2 });
 
-			const getConnectionLogsSpy = jest.spyOn(API, "getConnectionLogs");
+			const getConnectionLogsSpy = vi.spyOn(API, "getConnectionLogs");
 			getConnectionLogsSpy.mockClear();
 
 			const filterField = screen.getByLabelText("Filter");
