@@ -270,7 +270,7 @@ const defaultFormProps: WorkspaceScheduleFormProps = {
 
 describe("templateInheritance", () => {
 	it("disables the entire autostart feature appropriately", async () => {
-		jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 		const props = {
 			...defaultFormProps,
 			template: {
@@ -300,7 +300,7 @@ describe("templateInheritance", () => {
 	it("disables the autostart days of the week appropriately", async () => {
 		const enabledDayLabels = ["Sat", "Sun"];
 
-		jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 		const props = {
 			...defaultFormProps,
 			template: {
@@ -346,7 +346,7 @@ describe("templateInheritance", () => {
 				allow_user_autostop: false,
 			},
 		};
-		jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 		render(<WorkspaceScheduleForm {...props} />);
 
 		const autoStopToggle = await screen.findByLabelText("Enable Autostop", {
@@ -360,7 +360,7 @@ describe("templateInheritance", () => {
 		expect(ttlInput).toBeDisabled();
 	});
 	it("disables secondary autostart fields if main feature switch is toggled off", async () => {
-		jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 		render(
 			<WorkspaceScheduleForm
 				{...defaultFormProps}
@@ -384,7 +384,7 @@ describe("templateInheritance", () => {
 		}
 	});
 	it("disables secondary autostop fields if main feature switch is toggled off", async () => {
-		jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 		render(
 			<WorkspaceScheduleForm
 				{...defaultFormProps}
@@ -403,7 +403,7 @@ describe("templateInheritance", () => {
 });
 
 test("form should be enabled when both auto stop and auto start features are disabled, given that the template permits these actions", async () => {
-	jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+	vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 	render(
 		<WorkspaceScheduleForm
 			{...defaultFormProps}
@@ -430,7 +430,7 @@ test("form should be disabled when both auto stop and auto start features are di
 			allow_user_autostop: false,
 		},
 	};
-	jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+	vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 	render(<WorkspaceScheduleForm {...props} />);
 
 	const submitButton = await screen.findByRole("button", {

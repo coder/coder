@@ -12,7 +12,7 @@ import { screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import OrganizationRedirect from "./OrganizationRedirect";
 
-jest.spyOn(console, "error").mockImplementation(() => {});
+vi.spyOn(console, "error").mockImplementation(() => {});
 
 const renderPage = async () => {
 	const { router } = renderWithOrganizationSettingsLayout(

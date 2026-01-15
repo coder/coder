@@ -10,13 +10,11 @@ import WorkspaceSettingsPage from "./WorkspaceSettingsPage";
 
 test("Submit the workspace settings page successfully", async () => {
 	// Mock the API calls that loads data
-	jest
-		.spyOn(API, "getWorkspaceByOwnerAndName")
-		.mockResolvedValueOnce({ ...MockWorkspace });
+	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce({
+		...MockWorkspace,
+	});
 	// Mock the API calls that submit data
-	const patchWorkspaceSpy = jest
-		.spyOn(API, "patchWorkspace")
-		.mockResolvedValue();
+	const patchWorkspaceSpy = vi.spyOn(API, "patchWorkspace").mockResolvedValue();
 	// Setup event and rendering
 	const user = userEvent.setup();
 	renderWithWorkspaceSettingsLayout(<WorkspaceSettingsPage />, {
@@ -42,9 +40,10 @@ test("Submit the workspace settings page successfully", async () => {
 
 test("Name field is disabled if renames are disabled", async () => {
 	// Mock the API calls that loads data
-	jest
-		.spyOn(API, "getWorkspaceByOwnerAndName")
-		.mockResolvedValueOnce({ ...MockWorkspace, allow_renames: false });
+	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce({
+		...MockWorkspace,
+		allow_renames: false,
+	});
 	renderWithWorkspaceSettingsLayout(<WorkspaceSettingsPage />, {
 		route: "/@test-user/test-workspace/settings",
 		path: "/:username/:workspace/settings",

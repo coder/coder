@@ -12,7 +12,7 @@ interface TestType {
 	maxLengthOver: string;
 }
 
-const mockHandleChange = jest.fn();
+const mockHandleChange = vi.fn();
 
 const form = {
 	errors: {
@@ -43,12 +43,12 @@ const form = {
 		maxLengthOver: "a".repeat(33),
 	},
 	handleChange: mockHandleChange,
-	handleBlur: jest.fn(),
+	handleBlur: vi.fn(),
 	getFieldProps: (name: keyof TestType) => {
 		return {
 			name,
-			onBlur: jest.fn(),
-			onChange: jest.fn(),
+			onBlur: vi.fn(),
+			onChange: vi.fn(),
 			value: form.values[name] ?? "",
 		};
 	},

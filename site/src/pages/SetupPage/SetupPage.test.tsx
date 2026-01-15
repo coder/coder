@@ -124,7 +124,7 @@ describe("Setup Page", () => {
 	});
 
 	it("calls sendBeacon with telemetry", async () => {
-		const sendBeacon = jest.fn();
+		const sendBeacon = vi.fn();
 		Object.defineProperty(window.navigator, "sendBeacon", {
 			value: sendBeacon,
 		});

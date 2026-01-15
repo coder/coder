@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { ClassicParameterFlowDeprecationWarning } from "./ClassicParameterFlowDeprecationWarning";
 
-jest.mock("modules/navigation", () => ({
+vi.mock("modules/navigation", () => ({
 	useLinks: () => () => "/mock-link",
 	linkToTemplate: () => "/mock-template-link",
 }));

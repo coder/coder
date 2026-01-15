@@ -48,9 +48,9 @@ const createAuthWrapper = (override: Partial<AuthContextValue>) => {
 		organizationIds: undefined,
 		signInError: undefined,
 		updateProfileError: undefined,
-		signOut: jest.fn(),
-		signIn: jest.fn(),
-		updateProfile: jest.fn(),
+		signOut: vi.fn(),
+		signIn: vi.fn(),
+		updateProfile: vi.fn(),
 		...override,
 	};
 	const Wrapper: FC<PropsWithChildren> = ({ children }) => {
@@ -66,7 +66,7 @@ const createAuthWrapper = (override: Partial<AuthContextValue>) => {
 
 describe("useAuthenticated", () => {
 	it("throws an error if it is used outside of a context with user", () => {
-		jest.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => {});
 
 		expect(() => {
 			renderHook(() => useAuthenticated(), {
@@ -74,11 +74,11 @@ describe("useAuthenticated", () => {
 			});
 		}).toThrow("User is not authenticated.");
 
-		jest.restoreAllMocks();
+		vi.restoreAllMocks();
 	});
 
 	it("throws an error if it is used outside of a context with permissions", () => {
-		jest.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => {});
 
 		expect(() => {
 			renderHook(() => useAuthenticated(), {
@@ -86,7 +86,7 @@ describe("useAuthenticated", () => {
 			});
 		}).toThrow("Permissions are not available.");
 
-		jest.restoreAllMocks();
+		vi.restoreAllMocks();
 	});
 
 	it("returns auth context values for authenticated context", () => {

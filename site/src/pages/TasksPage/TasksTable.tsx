@@ -274,7 +274,8 @@ const TaskRow: FC<TaskRowProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem
-								onSelect={() => {
+								onClick={(e) => {
+									e.stopPropagation();
 									navigate(
 										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
 									);

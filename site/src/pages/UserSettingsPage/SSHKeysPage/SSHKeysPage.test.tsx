@@ -28,7 +28,7 @@ describe("SSH keys Page", () => {
 
 				const newUserSSHKey =
 					"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66";
-				jest.spyOn(API, "regenerateUserSSHKey").mockResolvedValueOnce({
+				vi.spyOn(API, "regenerateUserSSHKey").mockResolvedValueOnce({
 					...MockGitSSHKey,
 					public_key: newUserSSHKey,
 				});
@@ -57,7 +57,7 @@ describe("SSH keys Page", () => {
 				// Wait to the ssh be rendered on the screen
 				await screen.findByText(MockGitSSHKey.public_key);
 
-				jest.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce(
+				vi.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce(
 					mockApiError({
 						message: SSHKeysPageLanguage.regenerationError,
 					}),

@@ -742,6 +742,32 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * @param organization Can be the organization's ID or name
+	 */
+	getWorkspaceSharingSettings = async (
+		organization: string,
+	): Promise<TypesGen.WorkspaceSharingSettings> => {
+		const response = await this.axios.get<TypesGen.WorkspaceSharingSettings>(
+			`/api/v2/organizations/${organization}/settings/workspace-sharing`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 */
+	patchWorkspaceSharingSettings = async (
+		organization: string,
+		data: TypesGen.WorkspaceSharingSettings,
+	): Promise<TypesGen.WorkspaceSharingSettings> => {
+		const response = await this.axios.patch<TypesGen.WorkspaceSharingSettings>(
+			`/api/v2/organizations/${organization}/settings/workspace-sharing`,
+			data,
+		);
+		return response.data;
+	};
+
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
 		params?: GetProvisionerDaemonsParams,
