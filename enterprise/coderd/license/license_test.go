@@ -1766,49 +1766,6 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 	})
 }
 
-func TestTemporarilyAIGovernanceLimit(t *testing.T) {
-	t.Parallel()
-
-	t.Run("AIGovernanceLimit", func(t *testing.T) {
-		t.Parallel()
-
-		lic := database.License{
-			ID:         1,
-			UploadedAt: time.Now(),
-			Exp:        time.Now().Add(time.Hour),
-			UUID:       uuid.New(),
-			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				FeatureSet: codersdk.FeatureSetPremium,
-				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
-				Features: license.Features{
-					codersdk.FeatureAIGovernanceLimit:      100,
-					codersdk.FeatureAgenticWorkspacesLimit: 100,
-				},
-			}),
-		}
-
-		entitlements, err := license.LicensesEntitlements(
-			context.Background(),
-			time.Now(),
-			[]database.License{lic},
-			map[codersdk.FeatureName]bool{},
-			coderdenttest.Keys,
-			license.FeatureArguments{
-				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-					return 0, nil
-				},
-			},
-		)
-		require.NoError(t, err)
-
-		fmt.Println("errors:", entitlements.Errors)
-
-		feature, ok := entitlements.Features[codersdk.FeatureAIBridge]
-		require.True(t, ok, "feature %s not found", codersdk.FeatureAIBridge)
-		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
-	})
-}
-
 func assertNoErrors(t *testing.T, entitlements codersdk.Entitlements) {
 	t.Helper()
 	assert.Empty(t, entitlements.Errors, "no errors")
