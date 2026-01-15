@@ -16,66 +16,72 @@ import (
 	"github.com/coder/quartz"
 )
 
-// CheckProgress tracks the progress of healthcheck components for timeout
+// Progress tracks the progress of healthcheck components for timeout
 // diagnostics. It records which checks have started and completed, along with
 // their durations, to provide useful information when a healthcheck times out.
-type CheckProgress struct {
-	clock  quartz.Clock
+// The zero value is usable.
+type Progress struct {
+	Clock  quartz.Clock
 	mu     sync.Mutex
 	checks map[string]*checkStatus
 }
 
 type checkStatus struct {
-	started   time.Time
-	completed time.Time
-	done      bool
-}
-
-// NewCheckProgress creates a new CheckProgress tracker using the real clock.
-func NewCheckProgress() *CheckProgress {
-	return NewCheckProgressWithClock(quartz.NewReal())
-}
-
-// NewCheckProgressWithClock creates a new CheckProgress tracker with a custom
-// clock for testing.
-func NewCheckProgressWithClock(clock quartz.Clock) *CheckProgress {
-	return &CheckProgress{
-		clock:  clock,
-		checks: make(map[string]*checkStatus),
-	}
+	startedAt   time.Time
+	completedAt time.Time
 }
 
 // Start records that a check has started.
-func (p *CheckProgress) Start(name string) {
+func (p *Progress) Start(name string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.checks[name] = &checkStatus{started: p.clock.Now()}
+	if p.Clock == nil {
+		p.Clock = quartz.NewReal()
+	}
+	if p.checks == nil {
+		p.checks = make(map[string]*checkStatus)
+	}
+	p.checks[name] = &checkStatus{startedAt: p.Clock.Now()}
 }
 
 // Complete records that a check has finished.
-func (p *CheckProgress) Complete(name string) {
+func (p *Progress) Complete(name string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if status, ok := p.checks[name]; ok {
-		status.completed = p.clock.Now()
-		status.done = true
+	if p.Clock == nil {
+		p.Clock = quartz.NewReal()
 	}
+	if p.checks == nil {
+		p.checks = make(map[string]*checkStatus)
+	}
+	if p.checks[name] == nil {
+		p.checks[name] = &checkStatus{startedAt: p.Clock.Now()}
+	}
+	p.checks[name].completedAt = p.Clock.Now()
+}
+
+// Reset clears all recorded check statuses.
+func (p *Progress) Reset() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.checks = make(map[string]*checkStatus)
 }
 
 // Summary returns a human-readable summary of check progress.
 // Example: "Completed: AccessURL (95ms), Database (120ms). Still running: DERP, Websocket"
-func (p *CheckProgress) Summary() string {
+func (p *Progress) Summary() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	var completed, running []string
 	for name, status := range p.checks {
-		if status.done {
-			duration := status.completed.Sub(status.started).Round(time.Millisecond)
-			completed = append(completed, fmt.Sprintf("%s (%s)", name, duration))
-		} else {
-			running = append(running, name)
+		if status.completedAt.IsZero() {
+			elapsed := p.Clock.Now().Sub(status.startedAt).Round(time.Millisecond)
+			running = append(running, fmt.Sprintf("%s (elapsed: %dms)", name, elapsed.Milliseconds()))
+			continue
 		}
+		duration := status.completedAt.Sub(status.startedAt).Round(time.Millisecond)
+		completed = append(completed, fmt.Sprintf("%s (%dms)", name, duration.Milliseconds()))
 	}
 
 	// Sort for consistent output.
@@ -111,9 +117,9 @@ type ReportOptions struct {
 
 	Checker Checker
 
-	// Progress optionally tracks healthcheck progress for timeout diagnostics.
+	// Progress tracks healthcheck progress for timeout diagnostics.
 	// If set, each check will record its start and completion time.
-	Progress *CheckProgress
+	Progress *Progress
 }
 
 type defaultChecker struct{}
