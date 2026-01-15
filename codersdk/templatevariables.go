@@ -146,6 +146,27 @@ func parseVariableValuesFromHCL(content []byte) ([]VariableValue, error) {
 				return nil, err
 			}
 			stringData[attribute.Name] = string(m)
+		case ctyType.IsObjectType() || ctyType.IsMapType():
+			// In case of objects/maps, Coder only supports the map(string) type.
+			result := map[string]string{}
+			var err error
+			_ = ctyValue.ForEachElement(func(key, val cty.Value) (stop bool) {
+				if !val.Type().Equals(cty.String) {
+					err = xerrors.Errorf("unsupported map value type for key %q: %s", key.AsString(), val.Type().GoString())
+					return true
+				}
+				result[key.AsString()] = val.AsString()
+				return false
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			m, err := json.Marshal(result)
+			if err != nil {
+				return nil, err
+			}
+			stringData[attribute.Name] = string(m)
 		default:
 			return nil, xerrors.Errorf("unsupported value type (name: %s): %s", attribute.Name, ctyType.GoString())
 		}

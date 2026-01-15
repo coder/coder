@@ -175,3 +175,76 @@ cores: 2`
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `use the equals sign "=" to introduce the argument value`)
 }
+
+func TestParseVariableValuesFromVarsFiles_MapOfStrings(t *testing.T) {
+	t.Parallel()
+
+	// Given
+	const (
+		hclFilename = "file.tfvars"
+		hclContent  = `region = "us-east-1"
+default_tags = {
+  owner_name  = "John Doe"
+  owner_email = "john@example.com"
+  owner_slack = "@johndoe"
+}`
+	)
+
+	// Prepare the .tfvars files
+	tempDir, err := os.MkdirTemp(os.TempDir(), "test-parse-variable-values-from-vars-files-map-of-strings-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(tempDir)
+	})
+
+	err = os.WriteFile(filepath.Join(tempDir, hclFilename), []byte(hclContent), 0o600)
+	require.NoError(t, err)
+
+	// When
+	actual, err := codersdk.ParseUserVariableValues([]string{
+		filepath.Join(tempDir, hclFilename),
+	}, "", nil)
+
+	// Then
+	require.NoError(t, err)
+	require.Len(t, actual, 2)
+
+	// Results are sorted by name
+	require.Equal(t, "default_tags", actual[0].Name)
+	require.JSONEq(t, `{"owner_email":"john@example.com","owner_name":"John Doe","owner_slack":"@johndoe"}`, actual[0].Value)
+	require.Equal(t, "region", actual[1].Name)
+	require.Equal(t, "us-east-1", actual[1].Value)
+}
+
+func TestParseVariableValuesFromVarsFiles_MapWithNonStringValues(t *testing.T) {
+	t.Parallel()
+
+	// Given - a map with non-string values should error
+	const (
+		hclFilename = "file.tfvars"
+		hclContent  = `config = {
+  name  = "test"
+  count = 5
+}`
+	)
+
+	// Prepare the .tfvars files
+	tempDir, err := os.MkdirTemp(os.TempDir(), "test-parse-variable-values-from-vars-files-map-non-string-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(tempDir)
+	})
+
+	err = os.WriteFile(filepath.Join(tempDir, hclFilename), []byte(hclContent), 0o600)
+	require.NoError(t, err)
+
+	// When
+	actual, err := codersdk.ParseUserVariableValues([]string{
+		filepath.Join(tempDir, hclFilename),
+	}, "", nil)
+
+	// Then
+	require.Nil(t, actual)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported map value type")
+}
