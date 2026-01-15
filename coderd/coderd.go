@@ -1863,7 +1863,6 @@ type API struct {
 
 	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
-	// healthCheckProgress atomic.Pointer[healthcheck.CheckProgress]
 	healthCheckProgress healthcheck.Progress
 
 	statsReporter *workspacestats.Reporter
