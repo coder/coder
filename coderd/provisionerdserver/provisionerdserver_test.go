@@ -3725,8 +3725,17 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Len(t, resources, 1)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
 		require.NoError(t, err)
-		require.Len(t, agents, 1)
-		agent := agents[0]
+		// Expect 2 agents: the parent agent "dev" and the subagent "baz".
+		require.Len(t, agents, 2)
+		// Find the parent agent (no parent ID).
+		var agent database.WorkspaceAgent
+		for _, a := range agents {
+			if !a.ParentID.Valid {
+				agent = a
+				break
+			}
+		}
+		require.Equal(t, "dev", agent.Name)
 		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
 		sort.Slice(devcontainers, func(i, j int) bool {
 			return devcontainers[i].Name > devcontainers[j].Name

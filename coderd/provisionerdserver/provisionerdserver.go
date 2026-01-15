@@ -2905,8 +2905,21 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				devcontainerNames = append(devcontainerNames, dc.Name)
 				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
 				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
+
 				var subagentID uuid.UUID
-				copy(subagentID[:], dc.GetSubagentId())
+				hasSubagentID := len(dc.SubagentId) > 0
+				if hasSubagentID {
+					subagentID, err = uuid.FromBytes(dc.SubagentId)
+					if err != nil {
+						return xerrors.Errorf("parse devcontainer %q subagent_id: %w", dc.Name, err)
+					}
+				}
+				if hasSubagentID && (len(dc.Apps) > 0 || len(dc.Scripts) > 0 || len(dc.Envs) > 0) {
+					subagentID, err = insertDevcontainerSubagent(ctx, db, subagentID, dc, prAgent, agentID, resource.ID, snapshot)
+					if err != nil {
+						return err
+					}
+				}
 				devcontainerSubagentIDs = append(devcontainerSubagentIDs, subagentID)
 
 				// Add a log source and script for each devcontainer so we can
@@ -2988,33 +3001,16 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 			appSlugs[slug] = struct{}{}
 
-			health := database.WorkspaceAppHealthDisabled
 			if app.Healthcheck == nil {
 				app.Healthcheck = &sdkproto.Healthcheck{}
 			}
-			if app.Healthcheck.Url != "" {
-				health = database.WorkspaceAppHealthInitializing
-			}
-
-			sharingLevel := database.AppSharingLevelOwner
-			switch app.SharingLevel {
-			case sdkproto.AppSharingLevel_AUTHENTICATED:
-				sharingLevel = database.AppSharingLevelAuthenticated
-			case sdkproto.AppSharingLevel_PUBLIC:
-				sharingLevel = database.AppSharingLevelPublic
-			}
+			health := appHealthFromHealthcheck(app.Healthcheck)
+			sharingLevel := appSharingLevelToDatabase(app.SharingLevel)
+			openIn := appOpenInToDatabase(app.OpenIn)
 
 			displayGroup := sql.NullString{
 				Valid:  app.Group != "",
 				String: app.Group,
-			}
-
-			openIn := database.WorkspaceAppOpenInSlimWindow
-			switch app.OpenIn {
-			case sdkproto.AppOpenIn_TAB:
-				openIn = database.WorkspaceAppOpenInTab
-			case sdkproto.AppOpenIn_SLIM_WINDOW:
-				openIn = database.WorkspaceAppOpenInSlimWindow
 			}
 
 			var appID string
@@ -3366,4 +3362,252 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
 	}
 	return dapps
+}
+
+// appSharingLevelToDatabase converts a proto app sharing level to a database
+// app sharing level.
+func appSharingLevelToDatabase(level sdkproto.AppSharingLevel) database.AppSharingLevel {
+	switch level {
+	case sdkproto.AppSharingLevel_AUTHENTICATED:
+		return database.AppSharingLevelAuthenticated
+	case sdkproto.AppSharingLevel_PUBLIC:
+		return database.AppSharingLevelPublic
+	default:
+		return database.AppSharingLevelOwner
+	}
+}
+
+// appOpenInToDatabase converts a proto app open_in setting to a database
+// workspace app open_in setting.
+func appOpenInToDatabase(openIn sdkproto.AppOpenIn) database.WorkspaceAppOpenIn {
+	switch openIn {
+	case sdkproto.AppOpenIn_TAB:
+		return database.WorkspaceAppOpenInTab
+	default:
+		return database.WorkspaceAppOpenInSlimWindow
+	}
+}
+
+// appHealthFromHealthcheck returns the initial health status for an app based
+// on whether it has a healthcheck URL configured.
+func appHealthFromHealthcheck(hc *sdkproto.Healthcheck) database.WorkspaceAppHealth {
+	if hc != nil && hc.Url != "" {
+		return database.WorkspaceAppHealthInitializing
+	}
+	return database.WorkspaceAppHealthDisabled
+}
+
+// insertDevcontainerSubagent creates a subagent for a devcontainer with its apps, scripts, and envs.
+// If subagentID is uuid.Nil, a new UUID will be generated.
+func insertDevcontainerSubagent(
+	ctx context.Context,
+	db database.Store,
+	subagentID uuid.UUID,
+	dc *sdkproto.Devcontainer,
+	parentAgent *sdkproto.Agent,
+	parentAgentID uuid.UUID,
+	resourceID uuid.UUID,
+	snapshot *telemetry.Snapshot,
+) (uuid.UUID, error) {
+	if subagentID == uuid.Nil {
+		subagentID = uuid.New()
+	}
+
+	subAgentEnvs := make(map[string]string, len(dc.Envs))
+	for _, env := range dc.Envs {
+		subAgentEnvs[env.Name] = env.Value
+	}
+	var subAgentEnvsJSON pqtype.NullRawMessage
+	if len(subAgentEnvs) > 0 {
+		envJSON, err := json.Marshal(subAgentEnvs)
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("marshal devcontainer %q envs: %w", dc.Name, err)
+		}
+		subAgentEnvsJSON = pqtype.NullRawMessage{RawMessage: envJSON, Valid: true}
+	}
+
+	_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		ID:                       subagentID,
+		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgentID},
+		CreatedAt:                dbtime.Now(),
+		UpdatedAt:                dbtime.Now(),
+		ResourceID:               resourceID,
+		Name:                     dc.Name,
+		AuthToken:                uuid.New(),
+		AuthInstanceID:           sql.NullString{},
+		Architecture:             parentAgent.Architecture,
+		EnvironmentVariables:     subAgentEnvsJSON,
+		Directory:                dc.WorkspaceFolder,
+		OperatingSystem:          parentAgent.OperatingSystem,
+		ConnectionTimeoutSeconds: parentAgent.GetConnectionTimeoutSeconds(),
+		TroubleshootingURL:       parentAgent.GetTroubleshootingUrl(),
+		MOTDFile:                 "",
+		DisplayApps:              []database.DisplayApp{},
+		InstanceMetadata:         pqtype.NullRawMessage{},
+		ResourceMetadata:         pqtype.NullRawMessage{},
+		DisplayOrder:             0,
+		APIKeyScope:              database.AgentKeyScopeEnumAll,
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("insert devcontainer %q subagent: %w", dc.Name, err)
+	}
+
+	if err := insertDevcontainerSubagentApps(ctx, db, dc, subagentID, snapshot); err != nil {
+		return uuid.Nil, err
+	}
+
+	if err := insertDevcontainerSubagentScripts(ctx, db, dc, subagentID); err != nil {
+		return uuid.Nil, err
+	}
+
+	return subagentID, nil
+}
+
+// insertDevcontainerSubagentApps inserts workspace apps for a devcontainer subagent.
+func insertDevcontainerSubagentApps(
+	ctx context.Context,
+	db database.Store,
+	dc *sdkproto.Devcontainer,
+	subagentID uuid.UUID,
+	snapshot *telemetry.Snapshot,
+) error {
+	for _, app := range dc.Apps {
+		slug := app.Slug
+		if slug == "" {
+			return xerrors.Errorf("devcontainer %q app must have a slug set", dc.Name)
+		}
+		if !provisioner.AppSlugRegex.MatchString(slug) {
+			return xerrors.Errorf("devcontainer %q app slug %q does not match regex %q", dc.Name, slug, provisioner.AppSlugRegex.String())
+		}
+
+		if app.Healthcheck == nil {
+			app.Healthcheck = &sdkproto.Healthcheck{}
+		}
+		health := appHealthFromHealthcheck(app.Healthcheck)
+		sharingLevel := appSharingLevelToDatabase(app.SharingLevel)
+		openIn := appOpenInToDatabase(app.OpenIn)
+
+		displayGroup := sql.NullString{
+			Valid:  app.Group != "",
+			String: app.Group,
+		}
+
+		appID := uuid.New()
+		if app.Id != "" && app.Id != uuid.Nil.String() {
+			var err error
+			appID, err = uuid.Parse(app.Id)
+			if err != nil {
+				return xerrors.Errorf("parse devcontainer %q app uuid: %w", dc.Name, err)
+			}
+		}
+
+		dbApp, err := db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+			ID:          appID,
+			CreatedAt:   dbtime.Now(),
+			AgentID:     subagentID,
+			Slug:        slug,
+			DisplayName: app.DisplayName,
+			Icon:        app.Icon,
+			Command: sql.NullString{
+				String: app.Command,
+				Valid:  app.Command != "",
+			},
+			Url: sql.NullString{
+				String: app.Url,
+				Valid:  app.Url != "",
+			},
+			External:             app.External,
+			Subdomain:            app.Subdomain,
+			SharingLevel:         sharingLevel,
+			HealthcheckUrl:       app.Healthcheck.Url,
+			HealthcheckInterval:  app.Healthcheck.Interval,
+			HealthcheckThreshold: app.Healthcheck.Threshold,
+			Health:               health,
+			// #nosec G115 - Order represents a display order value that's always small and fits in int32
+			DisplayOrder: int32(app.Order),
+			DisplayGroup: displayGroup,
+			Hidden:       app.Hidden,
+			OpenIn:       openIn,
+			Tooltip:      app.Tooltip,
+		})
+		if err != nil {
+			return xerrors.Errorf("upsert devcontainer %q app: %w", dc.Name, err)
+		}
+		snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
+	}
+	return nil
+}
+
+// insertDevcontainerSubagentScripts inserts scripts and log sources for a devcontainer subagent.
+func insertDevcontainerSubagentScripts(
+	ctx context.Context,
+	db database.Store,
+	dc *sdkproto.Devcontainer,
+	subagentID uuid.UUID,
+) error {
+	if len(dc.Scripts) == 0 {
+		return nil
+	}
+
+	var (
+		logSourceIDs       = make([]uuid.UUID, 0, len(dc.Scripts))
+		logSourceNames     = make([]string, 0, len(dc.Scripts))
+		logSourceIcons     = make([]string, 0, len(dc.Scripts))
+		scriptIDs          = make([]uuid.UUID, 0, len(dc.Scripts))
+		scriptLogPaths     = make([]string, 0, len(dc.Scripts))
+		scriptSources      = make([]string, 0, len(dc.Scripts))
+		scriptCron         = make([]string, 0, len(dc.Scripts))
+		scriptTimeout      = make([]int32, 0, len(dc.Scripts))
+		scriptStartBlock   = make([]bool, 0, len(dc.Scripts))
+		scriptRunOnStart   = make([]bool, 0, len(dc.Scripts))
+		scriptRunOnStop    = make([]bool, 0, len(dc.Scripts))
+		scriptDisplayNames = make([]string, 0, len(dc.Scripts))
+	)
+
+	for _, script := range dc.Scripts {
+		logSourceID := uuid.New()
+		logSourceIDs = append(logSourceIDs, logSourceID)
+		logSourceNames = append(logSourceNames, script.DisplayName)
+		logSourceIcons = append(logSourceIcons, script.Icon)
+		scriptIDs = append(scriptIDs, uuid.New())
+		scriptLogPaths = append(scriptLogPaths, script.LogPath)
+		scriptSources = append(scriptSources, script.Script)
+		scriptCron = append(scriptCron, script.Cron)
+		scriptTimeout = append(scriptTimeout, script.TimeoutSeconds)
+		scriptStartBlock = append(scriptStartBlock, script.StartBlocksLogin)
+		scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
+		scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
+		scriptDisplayNames = append(scriptDisplayNames, script.DisplayName)
+	}
+
+	_, err := db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
+		WorkspaceAgentID: subagentID,
+		ID:               logSourceIDs,
+		CreatedAt:        dbtime.Now(),
+		DisplayName:      logSourceNames,
+		Icon:             logSourceIcons,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert devcontainer %q subagent log sources: %w", dc.Name, err)
+	}
+
+	_, err = db.InsertWorkspaceAgentScripts(ctx, database.InsertWorkspaceAgentScriptsParams{
+		WorkspaceAgentID: subagentID,
+		LogSourceID:      logSourceIDs,
+		LogPath:          scriptLogPaths,
+		CreatedAt:        dbtime.Now(),
+		Script:           scriptSources,
+		Cron:             scriptCron,
+		TimeoutSeconds:   scriptTimeout,
+		StartBlocksLogin: scriptStartBlock,
+		RunOnStart:       scriptRunOnStart,
+		RunOnStop:        scriptRunOnStop,
+		DisplayName:      scriptDisplayNames,
+		ID:               scriptIDs,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert devcontainer %q subagent scripts: %w", dc.Name, err)
+	}
+
+	return nil
 }
