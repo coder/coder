@@ -185,6 +185,7 @@ type LicenseOptions struct {
 	// past.
 	IssuedAt time.Time
 	Features license.Features
+	Addons   []license.Addon
 
 	AllowEmpty bool
 }
@@ -301,6 +302,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		AllFeatures:      options.AllFeatures,
 		FeatureSet:       options.FeatureSet,
 		Features:         options.Features,
+		Addons:           options.Addons,
 		PublishUsageData: options.PublishUsageData,
 	}
 	return GenerateLicenseRaw(t, c)
