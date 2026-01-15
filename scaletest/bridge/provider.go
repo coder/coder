@@ -86,9 +86,9 @@ func (*anthropicProvider) buildRequestBody(model string, messages []any, stream 
 // messages. The content is filled with repeated 'x' characters to reach
 // approximately the target size. The last message is always from "user" as
 // required by LLM APIs.
-func generateConversation(provider ProviderStrategy, targetSize int, numMessages int) ([]any, error) {
+func generateConversation(provider ProviderStrategy, targetSize int, numMessages int) []any {
 	if targetSize <= 0 {
-		return nil, nil
+		return nil
 	}
 	if numMessages < 1 {
 		numMessages = 1
@@ -122,7 +122,7 @@ func generateConversation(provider ProviderStrategy, targetSize int, numMessages
 		messages[i].Content = strings.Repeat("x", size)
 	}
 
-	return provider.formatMessages(messages), nil
+	return provider.formatMessages(messages)
 }
 
 func measureJSONSize(v any) int {

@@ -129,11 +129,7 @@ func (c *Config) PrepareRequestBody() error {
 
 	var formattedMessages []any
 	if c.RequestPayloadSize > 0 {
-		var err error
-		formattedMessages, err = generateConversation(provider, c.RequestPayloadSize, c.NumMessages)
-		if err != nil {
-			return xerrors.Errorf("generate conversation: %w", err)
-		}
+		formattedMessages = generateConversation(provider, c.RequestPayloadSize, c.NumMessages)
 	} else {
 		messages := []message{{
 			Role:    "user",
