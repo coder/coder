@@ -23,8 +23,9 @@ Rules follow the format: `key=value [key=value ...]` with three supported keys:
 
 ```yaml
 allowlist:
-  - domain=github.com                                  # All methods, all paths for github.com
-  - method=GET,POST domain=api.example.com             # GET/POST to api.example.com
+  - domain=github.com                                  # All methods, all paths for github.com (exact match)
+  - domain=*.github.com                                # All subdomains of github.com
+  - method=GET,POST domain=api.example.com             # GET/POST to api.example.com (exact match)
   - domain=api.example.com path=/users,/posts          # Multiple paths
   - method=GET domain=github.com path=/api/*           # All three keys
 ```
@@ -38,7 +39,7 @@ The `*` wildcard matches domain labels (parts separated by dots).
 | Pattern        | Matches                                                          | Does NOT Match                                                           |
 |----------------|------------------------------------------------------------------|--------------------------------------------------------------------------|
 | `*`            | All domains                                                      | -                                                                        |
-| `github.com`   | `github.com`, `api.github.com`, `v1.api.github.com` (subdomains) | `github.io` (diff domain)                                                |
+| `github.com`   | `github.com` (exact match only)                                  | `api.github.com`, `v1.api.github.com` (subdomains), `github.io`          |
 | `*.github.com` | `api.github.com`, `v1.api.github.com` (1+ subdomain levels)      | `github.com` (base domain)                                               |
 | `api.*.com`    | `api.github.com`, `api.google.com`                               | `api.v1.github.com` (`*` in the middle matches exactly one domain label) |
 | `*.*.com`      | `api.example.com`, `api.v1.github.com`                           | -                                                                        |
@@ -46,8 +47,9 @@ The `*` wildcard matches domain labels (parts separated by dots).
 
 **Important**:
 
-- Patterns without `*` at the start automatically match subdomains
+- Patterns without `*` match **exactly** (no automatic subdomain matching)
 - `*.example.com` matches one or more subdomain levels
+- To match both base domain and subdomains, use separate rules: `domain=github.com` and `domain=*.github.com`
 - Domain patterns **cannot end with asterisk**
 
 ---
