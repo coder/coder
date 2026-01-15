@@ -121,6 +121,9 @@ all previous messages in the conversation.`,
 			if err := config.Validate(); err != nil {
 				return xerrors.Errorf("validate config: %w", err)
 			}
+			if err := config.PrepareRequestBody(); err != nil {
+				return xerrors.Errorf("prepare request body: %w", err)
+			}
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
 

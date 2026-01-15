@@ -1,6 +1,8 @@
 package bridge
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -48,6 +50,10 @@ type Config struct {
 	NumMessages int `json:"num_messages"`
 
 	Metrics *Metrics `json:"-"`
+
+	// RequestBody is the pre-serialized JSON request body. This is generated
+	// once by PrepareRequestBody and shared across all runners and requests.
+	RequestBody []byte `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -106,4 +112,37 @@ func (c Config) NewStrategy(client *codersdk.Client) requestModeStrategy {
 		Metrics:  c.Metrics,
 		User:     c.User,
 	})
+}
+
+// PrepareRequestBody generates the conversation and serializes the full request
+// body once. This should be called before creating Runners so that all runners
+// share the same pre-generated payload.
+func (c *Config) PrepareRequestBody() error {
+	provider := NewProviderStrategy(c.Provider)
+	model := provider.DefaultModel()
+
+	var formattedMessages []any
+	if c.RequestPayloadSize > 0 {
+		var err error
+		formattedMessages, err = generateConversation(provider, c.RequestPayloadSize, c.NumMessages)
+		if err != nil {
+			return xerrors.Errorf("generate conversation: %w", err)
+		}
+	} else {
+		messages := []message{{
+			Role:    "user",
+			Content: "Hello from the bridge load generator.",
+		}}
+		formattedMessages = provider.formatMessages(messages)
+	}
+
+	reqBody := provider.buildRequestBody(model, formattedMessages, c.Stream)
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return xerrors.Errorf("marshal request body: %w", err)
+	}
+
+	c.RequestBody = bodyBytes
+	return nil
 }

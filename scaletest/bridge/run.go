@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -186,29 +185,7 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 		mode:       r.cfg.Mode,
 	})
 
-	var formattedMessages []any
-	if r.cfg.RequestPayloadSize > 0 {
-		var err error
-		formattedMessages, err = generateConversation(r.providerStrategy, r.cfg.RequestPayloadSize, r.cfg.NumMessages)
-		if err != nil {
-			return xerrors.Errorf("generate conversation: %w", err)
-		}
-	} else {
-		messages := []message{{
-			Role:    "user",
-			Content: fmt.Sprintf("Hello, this is test request #%d from the bridge load generator.", requestNum+1),
-		}}
-		formattedMessages = r.providerStrategy.formatMessages(messages)
-	}
-
-	reqBody := r.providerStrategy.buildRequestBody(model, formattedMessages, r.cfg.Stream)
-
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return xerrors.Errorf("marshal request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(r.cfg.RequestBody))
 	if err != nil {
 		return xerrors.Errorf("create request: %w", err)
 	}
