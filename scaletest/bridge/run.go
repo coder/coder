@@ -92,6 +92,10 @@ type Runner struct {
 }
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
+	httpTimeout := cfg.HTTPTimeout
+	if httpTimeout <= 0 {
+		httpTimeout = 30 * time.Second
+	}
 	return &Runner{
 		client:           client,
 		cfg:              cfg,
@@ -99,7 +103,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 		providerStrategy: NewProviderStrategy(cfg.Provider),
 		clock:            quartz.NewReal(),
 		httpClient: &http.Client{
-			Timeout:   30 * time.Second,
+			Timeout:   httpTimeout,
 			Transport: newTracingTransport(cfg, http.DefaultTransport),
 		},
 	}

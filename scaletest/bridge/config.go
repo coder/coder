@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -48,6 +49,11 @@ type Config struct {
 	// Messages alternate between user and assistant roles, always ending with user.
 	// Must be greater than 0.
 	NumMessages int `json:"num_messages"`
+
+	// HTTPTimeout is the timeout for individual HTTP requests to the upstream
+	// provider. This is separate from the job timeout which controls the overall
+	// test execution.
+	HTTPTimeout time.Duration `json:"http_timeout"`
 
 	Metrics *Metrics `json:"-"`
 

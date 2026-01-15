@@ -32,6 +32,7 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 		useStreamingAPI    bool
 		requestPayloadSize int64
 		numMessages        int64
+		httpTimeout        time.Duration
 
 		timeoutStrategy = &timeoutFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
@@ -114,6 +115,7 @@ Examples:
 				Stream:             useStreamingAPI,
 				RequestPayloadSize: int(requestPayloadSize),
 				NumMessages:        int(numMessages),
+				HTTPTimeout:        httpTimeout,
 				UpstreamURL:        upstreamURL,
 				User:               userConfig,
 			}
@@ -133,7 +135,6 @@ Examples:
 				th.AddRun(name, id, runner)
 			}
 
-			// Print configuration summary.
 			_, _ = fmt.Fprintln(inv.Stderr, "Bridge scaletest configuration:")
 			tw := tabwriter.NewWriter(inv.Stderr, 0, 0, 2, ' ', 0)
 			for _, opt := range inv.Command.Options {
@@ -259,6 +260,13 @@ Examples:
 			Env:         "CODER_SCALETEST_NO_CLEANUP",
 			Description: "Do not clean up resources after the test completes.",
 			Value:       serpent.BoolOf(&noCleanup),
+		},
+		{
+			Flag:        "http-timeout",
+			Env:         "CODER_SCALETEST_BRIDGE_HTTP_TIMEOUT",
+			Default:     "30s",
+			Description: "Timeout for individual HTTP requests to the upstream provider.",
+			Value:       serpent.DurationOf(&httpTimeout),
 		},
 	}
 
