@@ -244,6 +244,11 @@ message Devcontainer {
   string workspace_folder = 1;
   string config_path = 2;
   string name = 3;
+  string id = 4;
+  string subagent_id = 5;
+  repeated App apps = 6;
+  repeated Script scripts = 7;
+  repeated Env envs = 8;
 }
 
 enum AppOpenIn {

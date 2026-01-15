@@ -1,0 +1,100 @@
+{
+  "Resources": [
+    {
+      "name": "agent-env",
+      "type": "coder_env"
+    },
+    {
+      "name": "dev",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "apps": [
+            {
+              "slug": "agent-app",
+              "display_name": "agent-app",
+              "open_in": 1,
+              "id": "45f78023-1c28-0372-ec18-d8bc8db28f2b"
+            }
+          ],
+          "scripts": [
+            {
+              "display_name": "Agent Script",
+              "script": "echo agent",
+              "run_on_start": true
+            }
+          ],
+          "extra_envs": [
+            {
+              "name": "AGENT_ENV",
+              "value": "agent-value"
+            }
+          ],
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "devcontainers": [
+            {
+              "workspace_folder": "/workspace",
+              "name": "dev",
+              "apps": [
+                {
+                  "slug": "devcontainer-app1",
+                  "display_name": "devcontainer-app1",
+                  "open_in": 1,
+                  "id": "ce83a83f-b84b-7f5b-ecab-106081370943"
+                },
+                {
+                  "slug": "devcontainer-app2",
+                  "display_name": "devcontainer-app2",
+                  "subdomain": true,
+                  "open_in": 1,
+                  "id": "36a75041-755b-8b9f-8b16-a91055a882d6"
+                }
+              ],
+              "scripts": [
+                {
+                  "display_name": "Devcontainer Script",
+                  "script": "echo devcontainer",
+                  "run_on_start": true
+                }
+              ],
+              "envs": [
+                {
+                  "name": "DEVCONTAINER_ENV",
+                  "value": "devcontainer-value"
+                }
+              ]
+            }
+          ],
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "devcontainer-env",
+      "type": "coder_env"
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

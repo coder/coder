@@ -930,6 +930,81 @@ func TestConvertResources(t *testing.T) {
 				{Name: "dev2", Type: "coder_devcontainer"},
 			},
 		},
+		"devcontainer-resources": {
+			resources: []*proto.Resource{
+				{Name: "agent-env", Type: "coder_env"},
+				{Name: "dev", Type: "coder_devcontainer"},
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Apps: []*proto.App{
+							{
+								Slug:        "agent-app",
+								DisplayName: "agent-app",
+								OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+							},
+						},
+						Scripts: []*proto.Script{
+							{
+								DisplayName: "Agent Script",
+								Script:      "echo agent",
+								RunOnStart:  true,
+								RunOnStop:   false,
+							},
+						},
+						ExtraEnvs: []*proto.Env{
+							{
+								Name:  "AGENT_ENV",
+								Value: "agent-value",
+							},
+						},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								Name:            "dev",
+								WorkspaceFolder: "/workspace",
+								Apps: []*proto.App{
+									{
+										Slug:        "devcontainer-app1",
+										DisplayName: "devcontainer-app1",
+										OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+									},
+									{
+										Slug:        "devcontainer-app2",
+										DisplayName: "devcontainer-app2",
+										Subdomain:   true,
+										OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+									},
+								},
+								Scripts: []*proto.Script{
+									{
+										DisplayName: "Devcontainer Script",
+										Script:      "echo devcontainer",
+										RunOnStart:  true,
+										RunOnStop:   false,
+									},
+								},
+								Envs: []*proto.Env{
+									{
+										Name:  "DEVCONTAINER_ENV",
+										Value: "devcontainer-value",
+									},
+								},
+							},
+						},
+					}},
+				},
+				{Name: "devcontainer-env", Type: "coder_env"},
+			},
+		},
 	} {
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
@@ -970,6 +1045,12 @@ func TestConvertResources(t *testing.T) {
 						}
 						for _, app := range agent.Apps {
 							app.Id = ""
+						}
+						for _, dc := range agent.Devcontainers {
+							dc.SubagentId = ""
+							for _, app := range dc.Apps {
+								app.Id = ""
+							}
 						}
 					}
 				}
@@ -1043,6 +1124,12 @@ func TestConvertResources(t *testing.T) {
 						}
 						for _, app := range agent.Apps {
 							app.Id = ""
+						}
+						for _, dc := range agent.Devcontainers {
+							dc.SubagentId = ""
+							for _, app := range dc.Apps {
+								app.Id = ""
+							}
 						}
 					}
 				}
@@ -1657,6 +1744,11 @@ func sortResources(resources []*proto.Resource) {
 			sort.Slice(agent.Devcontainers, func(i, j int) bool {
 				return agent.Devcontainers[i].Name < agent.Devcontainers[j].Name
 			})
+			for _, dc := range agent.Devcontainers {
+				sort.Slice(dc.Apps, func(i, j int) bool {
+					return dc.Apps[i].Slug < dc.Apps[j].Slug
+				})
+			}
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {
 			return resource.Agents[i].Name < resource.Agents[j].Name
@@ -1680,6 +1772,13 @@ func deterministicAppIDs(resources []*proto.Resource) {
 				data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
 				id, _ := uuid.FromBytes(data[:16])
 				app.Id = id.String()
+			}
+			for _, dc := range agent.Devcontainers {
+				for _, app := range dc.Apps {
+					data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
+					id, _ := uuid.FromBytes(data[:16])
+					app.Id = id.String()
+				}
 			}
 		}
 	}
