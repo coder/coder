@@ -572,6 +572,11 @@ export interface AddLicenseRequest {
 	readonly license: string;
 }
 
+// From codersdk/deployment.go
+export type Addon = "ai_governance";
+
+export const Addons: Addon[] = ["ai_governance"];
+
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
 	readonly started_at: string;
@@ -2096,10 +2101,9 @@ export type FeatureName =
 	| "aibridge"
 	| "access_control"
 	| "advanced_template_scheduling"
-	| "agent_seat_count"
 	| "appearance"
 	| "audit_log"
-	| "boundaries"
+	| "boundary"
 	| "browser_only"
 	| "connection_log"
 	| "control_shared_ports"
@@ -2124,10 +2128,9 @@ export const FeatureNames: FeatureName[] = [
 	"aibridge",
 	"access_control",
 	"advanced_template_scheduling",
-	"agent_seat_count",
 	"appearance",
 	"audit_log",
-	"boundaries",
+	"boundary",
 	"browser_only",
 	"connection_log",
 	"control_shared_ports",
