@@ -82,32 +82,32 @@ func (a Addon) Features() []FeatureName {
 	}
 }
 
-func (a Addon) Validate(features map[FeatureName]int64) []string {
-	switch a {
-	case AddonAIGovernance:
-		errors := []string{}
-		if _, ok := features[FeatureAIGovernanceLimit]; !ok {
-			errors = append(errors,
-				fmt.Sprintf(
-					"Feature %s must be set when using the %s addon.",
-					FeatureAIGovernanceLimit,
-					AddonAIGovernance,
-				),
-			)
+// ValidateDependencies validates the dependencies of the addon
+// and returns a list of errors for the missing dependencies.
+func (a Addon) ValidateDependencies(features map[FeatureName]int64) []string {
+	errors := []string{}
+
+	// Candidate for a switch statement once we have more addons.
+	if a == AddonAIGovernance {
+		requiredFeatures := []FeatureName{
+			FeatureAIGovernanceLimit,
+			FeatureAgenticWorkspacesLimit,
 		}
-		if _, ok := features[FeatureAgenticWorkspacesLimit]; !ok {
-			errors = append(errors,
-				fmt.Sprintf(
-					"Feature %s must be set when using the %s addon.",
-					FeatureAgenticWorkspacesLimit,
-					AddonAIGovernance,
-				),
-			)
+
+		for _, feature := range requiredFeatures {
+			if _, ok := features[feature]; !ok {
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						feature.Humanize(),
+						a.Humanize(),
+					),
+				)
+			}
 		}
-		return errors
-	default:
-		return []string{}
 	}
+
+	return errors
 }
 
 // FeatureName represents the internal name of a feature.
@@ -199,8 +199,20 @@ func (n FeatureName) Humanize() string {
 		return "SCIM"
 	case FeatureAIBridge:
 		return "AI Bridge"
+	case FeatureAIGovernanceLimit:
+		return "AI Governance Limit"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
+	}
+}
+
+// Humanize returns the addon name in a human-readable format.
+func (a Addon) Humanize() string {
+	switch a {
+	case AddonAIGovernance:
+		return "AI Governance"
+	default:
+		return strings.Title(strings.ReplaceAll(string(a), "_", " "))
 	}
 }
 
