@@ -431,6 +431,19 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
       "scopes": [
         "string"
       ],

@@ -16475,6 +16475,14 @@ const docTemplate = `{
                 "organization_mapping": {
                     "type": "object"
                 },
+                "redirect_url": {
+                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/serpent.URL"
+                        }
+                    ]
+                },
                 "scopes": {
                     "type": "array",
                     "items": {
