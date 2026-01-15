@@ -5,17 +5,6 @@ Service account to merge into the libcoder template
 {{- end -}}
 
 {{/*
-Component annotation for pod metadata.
-*/}}
-{{- define "coder.componentAnnotation" -}}
-{{- if .Values.coder.workspaceProxy -}}
-app.kubernetes.io/component: wsproxy
-{{- else -}}
-app.kubernetes.io/component: coderd
-{{- end -}}
-{{- end }}
-
-{{/*
 Deployment to merge into the libcoder template
 */}}
 {{- define "coder.deployment" -}}
