@@ -1861,8 +1861,8 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
-	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
+	healthCheckGroup    *singleflight.Group[string, *healthsdk.HealthcheckReport]
+	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
 	statsReporter *workspacestats.Reporter
