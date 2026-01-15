@@ -275,9 +275,8 @@ func (r *Runner) handleOpenAIResponse(ctx context.Context, logger slog.Logger, r
 		return xerrors.Errorf("decode response: %w", err)
 	}
 
-	var assistantContent string
 	if len(response.Choices) > 0 {
-		assistantContent = response.Choices[0].Message.Content
+		assistantContent := response.Choices[0].Message.Content
 		logger.Debug(ctx, "received response",
 			slog.F("response_id", response.ID),
 			slog.F("content_length", len(assistantContent)),
