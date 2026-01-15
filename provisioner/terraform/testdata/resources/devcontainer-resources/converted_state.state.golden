@@ -25,6 +25,16 @@
               "id": "45f78023-1c28-0372-ec18-d8bc8db28f2b"
             }
           ],
+          "Auth": {
+            "Token": "9a8ad8fc-4929-4717-a9a7-0d87ea3abacd"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
           "scripts": [
             {
               "display_name": "Agent Script",
@@ -38,16 +48,6 @@
               "value": "agent-value"
             }
           ],
-          "Auth": {
-            "Token": "9a8ad8fc-4929-4717-a9a7-0d87ea3abacd"
-          },
-          "connection_timeout_seconds": 120,
-          "display_apps": {
-            "vscode": true,
-            "web_terminal": true,
-            "ssh_helper": true,
-            "port_forwarding_helper": true
-          },
           "resources_monitoring": {},
           "devcontainers": [
             {
