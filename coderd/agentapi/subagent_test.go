@@ -1132,6 +1132,225 @@ func TestSubAgentAPI(t *testing.T) {
 		require.Equal(t, "Custom App", apps[0].DisplayName)
 	})
 
+	t.Run("CreateSubAgentUpdatesExisting", func(t *testing.T) {
+		t.Parallel()
+
+		childAgent := database.WorkspaceAgent{
+			Name:            "existing-child-agent",
+			Directory:       "/workspaces/test",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			DisplayApps:     []database.DisplayApp{database.DisplayAppVscode},
+		}
+
+		type testCase struct {
+			name    string
+			setup   func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest
+			wantErr string
+			check   func(t *testing.T, ctx context.Context, db database.Store, resp *proto.CreateSubAgentResponse, agent database.WorkspaceAgent)
+		}
+
+		tests := []testCase{
+			{
+				name: "OK",
+				setup: func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest {
+					// Given: An existing child agent with some display apps.
+					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+						ResourceID:      agent.ResourceID,
+						Name:            childAgent.Name,
+						Directory:       childAgent.Directory,
+						Architecture:    childAgent.Architecture,
+						OperatingSystem: childAgent.OperatingSystem,
+						DisplayApps:     childAgent.DisplayApps,
+					})
+
+					// When: We call CreateSubAgent with the existing agent's ID and new display apps.
+					return &proto.CreateSubAgentRequest{
+						Id: childAgent.ID[:],
+						DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+							proto.CreateSubAgentRequest_WEB_TERMINAL,
+							proto.CreateSubAgentRequest_SSH_HELPER,
+						},
+					}
+				},
+				check: func(t *testing.T, ctx context.Context, db database.Store, resp *proto.CreateSubAgentResponse, agent database.WorkspaceAgent) {
+					// Then: The response contains the existing agent's details.
+					require.NotNil(t, resp.Agent)
+					require.Equal(t, childAgent.Name, resp.Agent.Name)
+
+					agentID, err := uuid.FromBytes(resp.Agent.Id)
+					require.NoError(t, err)
+
+					// And: The database agent's display apps are updated.
+					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
+					require.NoError(t, err)
+					require.Len(t, updatedAgent.DisplayApps, 2)
+					require.Contains(t, updatedAgent.DisplayApps, database.DisplayAppWebTerminal)
+					require.Contains(t, updatedAgent.DisplayApps, database.DisplayAppSSHHelper)
+				},
+			},
+			{
+				name: "OK_OtherFieldsNotModified",
+				setup: func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest {
+					// Given: An existing child agent with specific properties.
+					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+						ResourceID:      agent.ResourceID,
+						Name:            childAgent.Name,
+						Directory:       childAgent.Directory,
+						Architecture:    childAgent.Architecture,
+						OperatingSystem: childAgent.OperatingSystem,
+						DisplayApps:     childAgent.DisplayApps,
+					})
+
+					// When: We call CreateSubAgent with different values for name, directory, arch, and OS.
+					return &proto.CreateSubAgentRequest{
+						Id:              childAgent.ID[:],
+						Name:            "different-name",
+						Directory:       "/different/path",
+						Architecture:    "arm64",
+						OperatingSystem: "darwin",
+						DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+							proto.CreateSubAgentRequest_WEB_TERMINAL,
+						},
+					}
+				},
+				check: func(t *testing.T, ctx context.Context, db database.Store, resp *proto.CreateSubAgentResponse, agent database.WorkspaceAgent) {
+					// Then: The response contains the original agent name, not the new one.
+					require.NotNil(t, resp.Agent)
+					require.Equal(t, childAgent.Name, resp.Agent.Name)
+
+					agentID, err := uuid.FromBytes(resp.Agent.Id)
+					require.NoError(t, err)
+
+					// And: The database agent's other fields are unchanged.
+					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
+					require.NoError(t, err)
+					require.Equal(t, childAgent.Name, updatedAgent.Name)
+					require.Equal(t, childAgent.Directory, updatedAgent.Directory)
+					require.Equal(t, childAgent.Architecture, updatedAgent.Architecture)
+					require.Equal(t, childAgent.OperatingSystem, updatedAgent.OperatingSystem)
+
+					// But display apps should be updated.
+					require.Len(t, updatedAgent.DisplayApps, 1)
+					require.Equal(t, database.DisplayAppWebTerminal, updatedAgent.DisplayApps[0])
+				},
+			},
+			{
+				name: "Error/MalformedID",
+				setup: func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest {
+					// When: We call CreateSubAgent with malformed ID bytes (not 16 bytes).
+					// uuid.FromBytes requires exactly 16 bytes, so we provide fewer.
+					return &proto.CreateSubAgentRequest{
+						Id: []byte("short"),
+					}
+				},
+				wantErr: "parse id",
+			},
+			{
+				name: "Error/AgentNotFound",
+				setup: func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest {
+					// When: We call CreateSubAgent with a non-existent agent ID.
+					nonExistentID := uuid.New()
+					return &proto.CreateSubAgentRequest{
+						Id: nonExistentID[:],
+					}
+				},
+				wantErr: "get workspace agent by id",
+			},
+			{
+				name: "Error/ParentMismatch",
+				setup: func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest {
+					// Create a second agent (sibling) within the same workspace/resource.
+					// This sibling has a different parent ID (or no parent).
+					siblingAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ParentID:        uuid.NullUUID{Valid: false}, // No parent - it's a top-level agent
+						ResourceID:      agent.ResourceID,
+						Name:            "sibling-agent",
+						Directory:       "/workspaces/sibling",
+						Architecture:    "amd64",
+						OperatingSystem: "linux",
+					})
+
+					// Create a child of the sibling agent (not our agent).
+					childOfSibling := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ParentID:        uuid.NullUUID{Valid: true, UUID: siblingAgent.ID},
+						ResourceID:      agent.ResourceID,
+						Name:            "child-of-sibling",
+						Directory:       "/workspaces/test",
+						Architecture:    "amd64",
+						OperatingSystem: "linux",
+					})
+
+					// When: Our API (which is for `agent`) tries to update the child of `siblingAgent`.
+					return &proto.CreateSubAgentRequest{
+						Id: childOfSibling.ID[:],
+						DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+							proto.CreateSubAgentRequest_VSCODE,
+						},
+					}
+				},
+				wantErr: "subagent does not belong to this parent agent",
+			},
+
+			{
+				name: "Error/NoParentID",
+				setup: func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest {
+					// Given: An agent without a parent (a top-level agent).
+					topLevelAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ParentID:        uuid.NullUUID{Valid: false}, // No parent
+						ResourceID:      agent.ResourceID,
+						Name:            "top-level-agent",
+						Directory:       "/workspaces/test",
+						Architecture:    "amd64",
+						OperatingSystem: "linux",
+					})
+
+					// When: We try to update this agent as if it were a subagent.
+					return &proto.CreateSubAgentRequest{
+						Id: topLevelAgent.ID[:],
+						DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+							proto.CreateSubAgentRequest_VSCODE,
+						},
+					}
+				},
+				wantErr: "subagent does not belong to this parent agent",
+			},
+		}
+
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					log   = testutil.Logger(t)
+					clock = quartz.NewMock(t)
+
+					db, org     = newDatabaseWithOrg(t)
+					user, agent = newUserWithWorkspaceAgent(t, db, org)
+					api         = newAgentAPI(t, log, db, clock, user, org, agent)
+				)
+
+				req := tc.setup(t, db, agent)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				resp, err := api.CreateSubAgent(ctx, req)
+
+				if tc.wantErr != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tc.wantErr)
+					return
+				}
+
+				require.NoError(t, err)
+				if tc.check != nil {
+					tc.check(t, ctx, db, resp, agent)
+				}
+			})
+		}
+	})
+
 	t.Run("ListSubAgents", func(t *testing.T) {
 		t.Parallel()
 
