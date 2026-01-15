@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -199,6 +200,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "pprof data collection will take approximately 30 seconds...")
 			}
 
+			// Bypass rate limiting for support bundle collection since it makes many API calls.
+			client.HTTPClient.Transport = &codersdk.HeaderTransport{
+				Transport: client.HTTPClient.Transport,
+				Header:    http.Header{codersdk.BypassRatelimitHeader: {"true"}},
+			}
+
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
@@ -312,17 +319,6 @@ func resolveTemplateID(ctx context.Context, client *codersdk.Client, templateArg
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("get organizations: %w", err)
 	}
-	if len(orgs) == 1 {
-		t, found, err := resolveInOrg(orgs[0].ID)
-		if err != nil {
-			return uuid.Nil, err
-		}
-		if !found {
-			return uuid.Nil, xerrors.Errorf("template %q not found in your organization", namePart)
-		}
-		return t.ID, nil
-	}
-
 	var (
 		foundTpl  codersdk.Template
 		foundOrgs []string

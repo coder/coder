@@ -141,12 +141,7 @@ type Deps struct {
 	CollectPprof bool
 }
 
-// ctxKeyWorkspacesCap is used to plumb the workspace cap into DeploymentInfo
-// without changing its signature. This follows Go's context value pattern
-// for request-scoped configuration.
-type ctxKeyWorkspacesCap struct{}
-
-func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Deployment {
+func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspacesCap int) Deployment {
 	// Note: each goroutine assigns to a different struct field, hence no mutex.
 	var (
 		d  Deployment
@@ -257,11 +252,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			all    []codersdk.Workspace
 			count  int
 		)
-		// Early-exit cap (plumbed via context from Run; <=0 means no cap).
-		capTotal := 0
-		if v, ok := ctx.Value(ctxKeyWorkspacesCap{}).(int); ok {
-			capTotal = v
-		}
+		capTotal := workspacesCap
 		for {
 			resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Offset: offset, Limit: limit})
 			if err != nil {
@@ -932,12 +923,10 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	}
 
 	totalCap := d.WorkspacesTotalCap
-	// Make the cap available to DeploymentInfo without changing its signature.
-	ctx = context.WithValue(ctx, ctxKeyWorkspacesCap{}, totalCap)
 
 	var eg errgroup.Group
 	eg.Go(func() error {
-		di := DeploymentInfo(ctx, d.Client, d.Log)
+		di := DeploymentInfo(ctx, d.Client, d.Log, totalCap)
 
 		if di.Workspaces != nil && totalCap > 0 {
 			origTotal := di.Workspaces.Count // server-reported total

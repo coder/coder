@@ -228,7 +228,7 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			decodeJSONFromZip(t, f, &v)
 			require.NotNil(t, v, "deployment workspaces should not be nil")
 		case "deployment/prometheus.txt":
-			// Prometheus metrics may or may not be present depending on config.
+			// Prometheus metrics are included when the deployment has prometheus enabled.
 			_ = readBytesFromZip(t, f)
 		case "network/connection_info.json":
 			var v workspacesdk.AgentConnectionInfo
