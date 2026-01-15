@@ -2952,6 +2952,46 @@ func TestCompleteJob(t *testing.T) {
 					expectHasAiTask:  true,
 					expectUsageEvent: true,
 				},
+				{
+					name:       "ai task linked to subagent app in devcontainer",
+					transition: database.WorkspaceTransitionStart,
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks: []*sdkproto.AITask{
+							{
+								Id:    uuid.NewString(),
+								AppId: sidebarAppID.String(),
+							},
+						},
+						Resources: []*sdkproto.Resource{
+							{
+								Agents: []*sdkproto.Agent{
+									{
+										Id:   uuid.NewString(),
+										Name: "parent-agent",
+										Devcontainers: []*sdkproto.Devcontainer{
+											{
+												Name:            "dev",
+												WorkspaceFolder: "/workspace",
+												SubagentId:      uuid.NewString(),
+												Apps: []*sdkproto.App{
+													{
+														Id:   sidebarAppID.String(),
+														Slug: "subagent-app",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusInitializing,
+					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
+					expectHasAiTask:  true,
+					expectUsageEvent: true,
+				},
 				// Checks regression for https://github.com/coder/coder/issues/18776
 				{
 					name:       "non-existing app",
@@ -3368,6 +3408,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	insert := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource) error {
 		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, &telemetry.Snapshot{})
 	}
+	insertWithProtoIDs := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource) error {
+		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, &telemetry.Snapshot{}, provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto())
+	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -3704,39 +3747,507 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("Devcontainers", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
-		err := insert(db, job.ID, &sdkproto.Resource{
-			Name: "something",
-			Type: "aws_instance",
-			Agents: []*sdkproto.Agent{{
-				Name: "dev",
-				Devcontainers: []*sdkproto.Devcontainer{
-					{Name: "foo", WorkspaceFolder: "/workspace1"},
-					{Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+
+		agentID := uuid.New()
+		subAgentID := uuid.New()
+		devcontainerID := uuid.New()
+		devcontainerID2 := uuid.New()
+
+		tests := []struct {
+			name           string
+			resource       *sdkproto.Resource
+			wantErr        string
+			expectSubAgent bool
+			check          func(t *testing.T, db database.Store, parentAgent, subAgent database.WorkspaceAgent)
+		}{
+			{
+				name: "OK",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{
+							{Id: devcontainerID.String(), Name: "foo", WorkspaceFolder: "/workspace1"},
+							{Id: devcontainerID2.String(), Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+						},
+					}},
 				},
-			}},
+				expectSubAgent: false,
+				check: func(t *testing.T, db database.Store, parentAgent, _ database.WorkspaceAgent) {
+					require.Equal(t, "dev", parentAgent.Name)
+
+					devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, parentAgent.ID)
+					require.NoError(t, err)
+					sort.Slice(devcontainers, func(i, j int) bool {
+						return devcontainers[i].Name > devcontainers[j].Name
+					})
+					require.Len(t, devcontainers, 2)
+					assert.Equal(t, devcontainerID, devcontainers[0].ID)
+					assert.Equal(t, "foo", devcontainers[0].Name)
+					assert.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
+					assert.Equal(t, "", devcontainers[0].ConfigPath)
+					assert.False(t, devcontainers[0].SubagentID.Valid)
+					assert.Equal(t, devcontainerID2, devcontainers[1].ID)
+					assert.Equal(t, "bar", devcontainers[1].Name)
+					assert.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
+					assert.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
+					assert.False(t, devcontainers[1].SubagentID.Valid)
+				},
+			},
+			{
+				name: "SubAgentScripts",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-scripts",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Scripts: []*sdkproto.Script{
+								{
+									DisplayName:      "Startup Script",
+									Script:           "echo hello",
+									RunOnStart:       true,
+									TimeoutSeconds:   60,
+									StartBlocksLogin: true,
+									Icon:             "/icon/startup.svg",
+									LogPath:          "/var/log/startup.log",
+								},
+								{
+									DisplayName:    "Shutdown Script",
+									Script:         "echo goodbye",
+									RunOnStop:      true,
+									TimeoutSeconds: 30,
+									Icon:           "/icon/shutdown.svg",
+								},
+								{
+									DisplayName:    "Cron Script",
+									Script:         "echo scheduled",
+									Cron:           "0 * * * *",
+									TimeoutSeconds: 120,
+								},
+							},
+						}},
+					}},
+				},
+				expectSubAgent: true,
+				check: func(t *testing.T, db database.Store, _, subAgent database.WorkspaceAgent) {
+					require.Equal(t, subAgentID, subAgent.ID)
+
+					scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{subAgent.ID})
+					require.NoError(t, err)
+					require.Len(t, scripts, 3)
+
+					sort.Slice(scripts, func(i, j int) bool {
+						return scripts[i].DisplayName < scripts[j].DisplayName
+					})
+
+					assert.Equal(t, "Cron Script", scripts[0].DisplayName)
+					assert.Equal(t, "echo scheduled", scripts[0].Script)
+					assert.Equal(t, "0 * * * *", scripts[0].Cron)
+					assert.Equal(t, int32(120), scripts[0].TimeoutSeconds)
+					assert.False(t, scripts[0].RunOnStart)
+					assert.False(t, scripts[0].RunOnStop)
+					assert.False(t, scripts[0].StartBlocksLogin)
+
+					assert.Equal(t, "Shutdown Script", scripts[1].DisplayName)
+					assert.Equal(t, "echo goodbye", scripts[1].Script)
+					assert.False(t, scripts[1].RunOnStart)
+					assert.True(t, scripts[1].RunOnStop)
+					assert.Equal(t, int32(30), scripts[1].TimeoutSeconds)
+					assert.False(t, scripts[1].StartBlocksLogin)
+
+					assert.Equal(t, "Startup Script", scripts[2].DisplayName)
+					assert.Equal(t, "echo hello", scripts[2].Script)
+					assert.True(t, scripts[2].RunOnStart)
+					assert.False(t, scripts[2].RunOnStop)
+					assert.Equal(t, int32(60), scripts[2].TimeoutSeconds)
+					assert.True(t, scripts[2].StartBlocksLogin)
+					assert.Equal(t, "/var/log/startup.log", scripts[2].LogPath)
+
+					logSources, err := db.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{subAgent.ID})
+					require.NoError(t, err)
+					require.Len(t, logSources, 3)
+
+					// Sort log sources by display name to match script order.
+					sort.Slice(logSources, func(i, j int) bool {
+						return logSources[i].DisplayName < logSources[j].DisplayName
+					})
+
+					// Verify log source icons match script icons.
+					assert.Equal(t, "Cron Script", logSources[0].DisplayName)
+					assert.Equal(t, "", logSources[0].Icon) // Cron Script has no icon
+					assert.Equal(t, "Shutdown Script", logSources[1].DisplayName)
+					assert.Equal(t, "/icon/shutdown.svg", logSources[1].Icon)
+					assert.Equal(t, "Startup Script", logSources[2].DisplayName)
+					assert.Equal(t, "/icon/startup.svg", logSources[2].Icon)
+				},
+			},
+			{
+				name: "SubAgentApps",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-apps",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{
+									Slug:         "web-app",
+									DisplayName:  "Web Application",
+									Command:      "",
+									Url:          "http://localhost:8080",
+									Icon:         "/icon/web.svg",
+									Subdomain:    true,
+									SharingLevel: sdkproto.AppSharingLevel_AUTHENTICATED,
+									External:     false,
+									Order:        1,
+									Hidden:       false,
+									OpenIn:       sdkproto.AppOpenIn_SLIM_WINDOW,
+									Group:        "Development",
+									Healthcheck: &sdkproto.Healthcheck{
+										Url:       "http://localhost:8080/health",
+										Interval:  5,
+										Threshold: 3,
+									},
+								},
+								{
+									Slug:         "cli-tool",
+									DisplayName:  "CLI Tool",
+									Command:      "/usr/bin/mytool",
+									Icon:         "/icon/terminal.svg",
+									Subdomain:    false,
+									SharingLevel: sdkproto.AppSharingLevel_OWNER,
+									External:     false,
+									Order:        2,
+									Hidden:       true,
+								},
+								{
+									Slug:         "external-docs",
+									DisplayName:  "Documentation",
+									Url:          "https://docs.example.com",
+									Icon:         "/icon/docs.svg",
+									External:     true,
+									SharingLevel: sdkproto.AppSharingLevel_PUBLIC,
+									Order:        3,
+									OpenIn:       sdkproto.AppOpenIn_TAB,
+								},
+							},
+						}},
+					}},
+				},
+				expectSubAgent: true,
+				check: func(t *testing.T, db database.Store, _, subAgent database.WorkspaceAgent) {
+					require.Equal(t, subAgentID, subAgent.ID)
+
+					apps, err := db.GetWorkspaceAppsByAgentID(ctx, subAgent.ID)
+					require.NoError(t, err)
+					require.Len(t, apps, 3)
+
+					sort.Slice(apps, func(i, j int) bool {
+						return apps[i].Slug < apps[j].Slug
+					})
+
+					assert.Equal(t, "cli-tool", apps[0].Slug)
+					assert.Equal(t, "CLI Tool", apps[0].DisplayName)
+					assert.Equal(t, "/usr/bin/mytool", apps[0].Command.String)
+					assert.False(t, apps[0].Url.Valid)
+					assert.Equal(t, "/icon/terminal.svg", apps[0].Icon)
+					assert.False(t, apps[0].Subdomain)
+					assert.Equal(t, database.AppSharingLevelOwner, apps[0].SharingLevel)
+					assert.False(t, apps[0].External)
+					assert.Equal(t, int32(2), apps[0].DisplayOrder)
+					assert.True(t, apps[0].Hidden)
+
+					assert.Equal(t, "external-docs", apps[1].Slug)
+					assert.Equal(t, "Documentation", apps[1].DisplayName)
+					assert.Equal(t, "https://docs.example.com", apps[1].Url.String)
+					assert.True(t, apps[1].External)
+					assert.Equal(t, database.AppSharingLevelPublic, apps[1].SharingLevel)
+					assert.Equal(t, int32(3), apps[1].DisplayOrder)
+					assert.Equal(t, database.WorkspaceAppOpenInTab, apps[1].OpenIn)
+
+					assert.Equal(t, "web-app", apps[2].Slug)
+					assert.Equal(t, "Web Application", apps[2].DisplayName)
+					assert.Equal(t, "http://localhost:8080", apps[2].Url.String)
+					assert.Equal(t, "/icon/web.svg", apps[2].Icon)
+					assert.True(t, apps[2].Subdomain)
+					assert.Equal(t, database.AppSharingLevelAuthenticated, apps[2].SharingLevel)
+					assert.False(t, apps[2].External)
+					assert.Equal(t, int32(1), apps[2].DisplayOrder)
+					assert.False(t, apps[2].Hidden)
+					assert.Equal(t, database.WorkspaceAppOpenInSlimWindow, apps[2].OpenIn)
+					assert.Equal(t, "Development", apps[2].DisplayGroup.String)
+					assert.Equal(t, "http://localhost:8080/health", apps[2].HealthcheckUrl)
+					assert.Equal(t, int32(5), apps[2].HealthcheckInterval)
+					assert.Equal(t, int32(3), apps[2].HealthcheckThreshold)
+
+					// Verify Health field is set correctly based on healthcheck presence.
+					assert.Equal(t, database.WorkspaceAppHealthDisabled, apps[0].Health)     // cli-tool has no healthcheck
+					assert.Equal(t, database.WorkspaceAppHealthDisabled, apps[1].Health)     // external-docs has no healthcheck
+					assert.Equal(t, database.WorkspaceAppHealthInitializing, apps[2].Health) // web-app has healthcheck URL
+				},
+			},
+			{
+				name: "SubAgentEnvs",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-envs",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Envs: []*sdkproto.Env{
+								{Name: "FOO", Value: "bar"},
+								{Name: "BAZ", Value: "qux"},
+							},
+						}},
+					}},
+				},
+				expectSubAgent: true,
+				check: func(t *testing.T, _ database.Store, _, subAgent database.WorkspaceAgent) {
+					require.Equal(t, subAgentID, subAgent.ID)
+
+					var envVars map[string]string
+					err := json.Unmarshal(subAgent.EnvironmentVariables.RawMessage, &envVars)
+					require.NoError(t, err)
+					assert.Equal(t, "bar", envVars["FOO"])
+					assert.Equal(t, "qux", envVars["BAZ"])
+				},
+			},
+			{
+				name:    "SubAgentDuplicateAppSlugs",
+				wantErr: `duplicate app slug, must be unique per template: "my-app"`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-dup-apps",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "my-app", DisplayName: "App 1"},
+								{Slug: "my-app", DisplayName: "App 2"},
+							},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentInvalidAppSlug",
+				wantErr: `app slug "Invalid_Slug" does not match regex`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-invalid-app",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "Invalid_Slug", DisplayName: "Bad App"},
+							},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentEmptyAppSlug",
+				wantErr: "app must have a slug or name set",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-empty-slug",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps:            []*sdkproto.App{{Slug: "", DisplayName: "No Slug App"}},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentAppSlugConflictsWithParentAgent",
+				wantErr: `duplicate app slug, must be unique per template: "shared-app"`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Apps: []*sdkproto.App{
+							{Slug: "shared-app", DisplayName: "Parent App"},
+						},
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "dc",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "shared-app", DisplayName: "Child App"},
+							},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentInvalidSubagentID",
+				wantErr: "parse subagent id",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "invalid-subagent",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      "not-a-valid-uuid",
+							Apps:            []*sdkproto.App{{Slug: "app", DisplayName: "App"}},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentInvalidAppID",
+				wantErr: "parse app uuid",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-invalid-app-id",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps:            []*sdkproto.App{{Id: "not-a-uuid", Slug: "my-app", DisplayName: "App"}},
+						}},
+					}},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				db, _ := dbtestutil.NewDB(t)
+				job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+
+				err := insertWithProtoIDs(db, job.ID, tt.resource)
+
+				if tt.wantErr != "" {
+					require.ErrorContains(t, err, tt.wantErr)
+					return
+				}
+				require.NoError(t, err)
+
+				resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+				require.NoError(t, err)
+				require.Len(t, resources, 1)
+
+				agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+				require.NoError(t, err)
+
+				var parentAgent, subAgent database.WorkspaceAgent
+				for _, agent := range agents {
+					if agent.ParentID.Valid {
+						subAgent = agent
+					} else {
+						parentAgent = agent
+					}
+				}
+				require.NotEqual(t, uuid.Nil, parentAgent.ID)
+
+				if tt.expectSubAgent {
+					require.Len(t, agents, 2)
+					require.NotEqual(t, uuid.Nil, subAgent.ID)
+				} else {
+					require.Len(t, agents, 1)
+				}
+
+				tt.check(t, db, parentAgent, subAgent)
+			})
+		}
+
+		// This test verifies the backward-compatibility behavior where a
+		// devcontainer with a SubagentId but no apps, scripts, or envs does
+		// NOT create a subagent.
+		t.Run("SubAgentBackwardCompatNoResources", func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+			parentAgentID := uuid.New()
+			subAgentID := uuid.New()
+			devcontainerID := uuid.New()
+
+			resource := &sdkproto.Resource{
+				Name: "something",
+				Type: "aws_instance",
+				Agents: []*sdkproto.Agent{{
+					Id:   parentAgentID.String(),
+					Name: "dev",
+					Devcontainers: []*sdkproto.Devcontainer{{
+						Id:              devcontainerID.String(),
+						Name:            "no-resources",
+						WorkspaceFolder: "/workspace",
+						SubagentId:      subAgentID.String(),
+						// Intentionally no Apps, Scripts, or Envs.
+					}},
+				}},
+			}
+
+			err := insertWithProtoIDs(db, job.ID, resource)
+			require.NoError(t, err)
+
+			// Verify only 1 agent was created (the parent, not the subagent).
+			resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, resources, 1)
+
+			agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+			require.NoError(t, err)
+			require.Len(t, agents, 1, "should only have parent agent, no subagent")
+			assert.False(t, agents[0].ParentID.Valid, "the only agent should be the parent")
+
+			// Verify the devcontainer exists but has no subagent ID.
+			devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agents[0].ID)
+			require.NoError(t, err)
+			require.Len(t, devcontainers, 1)
+			assert.Equal(t, "no-resources", devcontainers[0].Name)
+			assert.False(t, devcontainers[0].SubagentID.Valid,
+				"devcontainer with SubagentId but no apps/scripts/envs should not have a subagent (backward compatibility)")
 		})
-		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
-		require.NoError(t, err)
-		require.Len(t, resources, 1)
-		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
-		require.NoError(t, err)
-		require.Len(t, agents, 1)
-		agent := agents[0]
-		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
-		sort.Slice(devcontainers, func(i, j int) bool {
-			return devcontainers[i].Name > devcontainers[j].Name
-		})
-		require.NoError(t, err)
-		require.Len(t, devcontainers, 2)
-		require.Equal(t, "foo", devcontainers[0].Name)
-		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
-		require.Equal(t, "", devcontainers[0].ConfigPath)
-		require.Equal(t, "bar", devcontainers[1].Name)
-		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
-		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
 	})
 }
 
