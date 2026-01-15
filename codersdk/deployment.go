@@ -57,6 +57,31 @@ func (e Entitlement) Weight() int {
 	}
 }
 
+// Addon represents a grouping of features.
+// If features were granted al-la-carte like in FeatureSet,
+// we would need to reissue the existing old licenses to include the new feature.
+type Addon string
+
+const (
+	AddonAIGovernance Addon = "ai_governance"
+)
+
+func (a Addon) Features() []FeatureName {
+	switch a {
+	case AddonAIGovernance:
+		// Return all AI governance features.
+		var features []FeatureName
+		for _, featureName := range FeatureNames {
+			if featureName.IsAIGovernance() {
+				features = append(features, featureName)
+			}
+		}
+		return features
+	default:
+		return nil
+	}
+}
+
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
@@ -90,7 +115,7 @@ const (
 	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
-	FeatureBoundaries             FeatureName = "boundaries"
+	FeatureBoundary               FeatureName = "boundary"
 )
 
 var (
@@ -120,7 +145,7 @@ var (
 		FeatureManagedAgentLimit,
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
-		FeatureBoundaries,
+		FeatureBoundary,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -197,7 +222,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 
 // IsAIGovernance returns true if the feature is an AI governance feature.
 func (n FeatureName) IsAIGovernance() bool {
-	return n == FeatureAIBridge || n == FeatureBoundaries
+	return n == FeatureAIBridge || n == FeatureBoundary
 }
 
 // FeatureSet represents a grouping of features. Rather than manually

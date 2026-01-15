@@ -35,12 +35,6 @@ const (
 	featureManagedAgentLimitSoft codersdk.FeatureName = "managed_agent_limit_soft"
 )
 
-type Addon string
-
-const (
-	AddonAIGovernance Addon = "ai_governance"
-)
-
 var (
 	// Mapping of license feature names to the SDK feature name.
 	// This is used to map from multiple usage period features into a single SDK
@@ -299,11 +293,16 @@ func LicensesEntitlements(
 			})
 		}
 
-		// Add all features from the feature set defined.
-		for _, featureName := range claims.FeatureSet.Features() {
+		// Combine features from feature set and addons into a single slice.
+		combinedFeatures := claims.FeatureSet.Features()
+		for _, addon := range claims.Addons {
+			combinedFeatures = append(combinedFeatures, addon.Features()...)
+		}
+
+		// Add all features from the feature set and addons.
+		for _, featureName := range combinedFeatures {
 			if _, ok := licenseForbiddenFeatures[featureName]; ok {
-				// Ignore any FeatureSet features that are forbidden to be set
-				// in a license.
+				// Ignore any features that are forbidden to be set in a license.
 				continue
 			}
 			if _, ok := featureGrouping[featureName]; ok {
@@ -327,7 +326,7 @@ func LicensesEntitlements(
 			})
 		}
 
-		if slices.Contains(claims.Addons, AddonAIGovernance) {
+		if slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
 			for _, featureName := range codersdk.FeatureNames {
 				if _, ok := licenseForbiddenFeatures[featureName]; ok {
 					// Ignore any FeatureSet features that are forbidden to be set
@@ -688,12 +687,12 @@ type Claims struct {
 	FeatureSet    codersdk.FeatureSet `json:"feature_set"`
 	// AllFeatures represents 'FeatureSet = FeatureSetEnterprise'
 	// Deprecated: AllFeatures is deprecated in favor of FeatureSet.
-	AllFeatures      bool     `json:"all_features,omitempty"`
-	Version          uint64   `json:"version"`
-	Features         Features `json:"features"`
-	Addons           []Addon  `json:"addons,omitempty"`
-	RequireTelemetry bool     `json:"require_telemetry,omitempty"`
-	PublishUsageData bool     `json:"publish_usage_data,omitempty"`
+	AllFeatures      bool             `json:"all_features,omitempty"`
+	Version          uint64           `json:"version"`
+	Features         Features         `json:"features"`
+	Addons           []codersdk.Addon `json:"addons,omitempty"`
+	RequireTelemetry bool             `json:"require_telemetry,omitempty"`
+	PublishUsageData bool             `json:"publish_usage_data,omitempty"`
 }
 
 var _ jwt.Claims = &Claims{}

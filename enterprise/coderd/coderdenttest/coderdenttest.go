@@ -185,7 +185,7 @@ type LicenseOptions struct {
 	// past.
 	IssuedAt time.Time
 	Features license.Features
-	Addons   []license.Addon
+	Addons   []codersdk.Addon
 
 	AllowEmpty bool
 }
