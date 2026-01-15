@@ -42,6 +42,7 @@ import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 import { AgentLatency } from "./AgentLatency";
 import { DevcontainerStatus } from "./AgentStatus";
+import { isTerraformDefined } from "./devcontainerUtils";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
@@ -162,6 +163,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const showSubAgentAppsPlaceholders =
 		devcontainer.status === "starting" || subAgent?.status === "connecting";
 
+	const hasPrecreatedSubagent = isTerraformDefined(devcontainer);
+
 	const handleRebuildDevcontainer = () => {
 		rebuildDevcontainerMutation.mutate();
 	};
@@ -232,16 +235,31 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				</div>
 
 				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleRebuildDevcontainer}
-						disabled={isTransitioning}
-					>
-						<Spinner loading={isTransitioning} />
-
-						{rebuildButtonLabel(devcontainer)}
-					</Button>
+					{hasPrecreatedSubagent ? (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span data-testid="precreated-subagent-rebuild-trigger">
+									<Button variant="outline" size="sm" disabled>
+										{rebuildButtonLabel(devcontainer)}
+									</Button>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>
+								This dev container is defined in Terraform and cannot be rebuilt
+								from the UI.
+							</TooltipContent>
+						</Tooltip>
+					) : (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={handleRebuildDevcontainer}
+							disabled={isTransitioning}
+						>
+							<Spinner loading={isTransitioning} />
+							{rebuildButtonLabel(devcontainer)}
+						</Button>
+					)}
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
 						<AgentSSHButton

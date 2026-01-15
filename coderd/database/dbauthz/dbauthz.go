@@ -5726,6 +5726,19 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg database.UpdateWorkspaceAgentDisplayAppsByIDParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentDisplayAppsByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {

@@ -136,6 +136,7 @@ func TestManifest(t *testing.T) {
 				ID:              uuid.New(),
 				WorkspaceFolder: "/home/coder/coder",
 				ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+				SubagentID:      uuid.NullUUID{Valid: true, UUID: uuid.New()},
 			},
 		},
 	}
