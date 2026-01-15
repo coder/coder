@@ -91,7 +91,6 @@ const (
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundaries             FeatureName = "boundaries"
-	FeatureAgentSeatCount         FeatureName = "agent_seat_count"
 )
 
 var (
@@ -122,7 +121,6 @@ var (
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
 		FeatureBoundaries,
-		FeatureAgentSeatCount,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -187,7 +185,6 @@ func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
 		FeatureUserLimit:         true,
 		FeatureManagedAgentLimit: true,
-		FeatureAgentSeatCount:    true,
 	}[n]
 }
 
