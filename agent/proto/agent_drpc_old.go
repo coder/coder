@@ -72,3 +72,8 @@ type DRPCAgentClient27 interface {
 	DRPCAgentClient26
 	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 }
+
+// DRPCAgentClient28 is the Agent API at v2.8.
+type DRPCAgentClient28 interface {
+	DRPCAgentClient27
+}
