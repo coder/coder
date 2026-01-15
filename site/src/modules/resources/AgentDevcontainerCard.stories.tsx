@@ -20,7 +20,7 @@ import {
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { getPreferredProxy } from "contexts/ProxyContext";
-import { spyOn, userEvent, within } from "storybook/test";
+import { screen, spyOn, userEvent, within } from "storybook/test";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
@@ -183,6 +183,37 @@ export const WithPortForwarding: Story = {
 			proxies: MockWorkspaceProxies,
 		}),
 	],
+};
+
+export const PrecreatedSubAgent: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			subagent_id: "precreated-subagent-id",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByTestId("precreated-subagent-rebuild-trigger");
+		await userEvent.hover(trigger);
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const PrecreatedSubAgentDirty: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			subagent_id: "precreated-subagent-id",
+			dirty: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const outdatedStatus = canvas.getByText("Outdated");
+		await userEvent.hover(outdatedStatus);
+		await screen.findByRole("tooltip");
+	},
 };
 
 export const WithDeleteError: Story = {
