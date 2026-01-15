@@ -4,7 +4,6 @@ package cli
 
 import (
 	"fmt"
-	"net/http"
 	"os/signal"
 	"time"
 
@@ -38,7 +37,6 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
 
 			if pprofEnable {
-				_ = http.DefaultServeMux
 				closePprof := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
 				defer closePprof()
 				logger.Info(ctx, "pprof server started", slog.F("address", pprofAddress))
