@@ -295,6 +295,15 @@ func LicensesEntitlements(
 		// Combine features from feature set and addons into a single slice.
 		combinedFeatures := claims.FeatureSet.Features()
 		for _, addon := range claims.Addons {
+			// Ensure the addon is valid else skip it and append errors.
+			addonValid := addon.Validate(claims.Features)
+			if len(addonValid) > 0 {
+				entitlements.Errors = append(
+					entitlements.Errors,
+					addonValid...,
+				)
+				continue
+			}
 			combinedFeatures = append(combinedFeatures, addon.Features()...)
 		}
 

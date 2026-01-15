@@ -82,6 +82,34 @@ func (a Addon) Features() []FeatureName {
 	}
 }
 
+func (a Addon) Validate(features map[FeatureName]int64) []string {
+	switch a {
+	case AddonAIGovernance:
+		errors := []string{}
+		if _, ok := features[FeatureAIGovernanceLimit]; !ok {
+			errors = append(errors,
+				fmt.Sprintf(
+					"Feature %s must be set when using the %s addon.",
+					FeatureAIGovernanceLimit,
+					AddonAIGovernance,
+				),
+			)
+		}
+		if _, ok := features[FeatureAgenticWorkspacesLimit]; !ok {
+			errors = append(errors,
+				fmt.Sprintf(
+					"Feature %s must be set when using the %s addon.",
+					FeatureAgenticWorkspacesLimit,
+					AddonAIGovernance,
+				),
+			)
+		}
+		return errors
+	default:
+		return []string{}
+	}
+}
+
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
@@ -116,6 +144,8 @@ const (
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundary               FeatureName = "boundary"
+	FeatureAIGovernanceLimit      FeatureName = "ai_governance_limit"
+	FeatureAgenticWorkspacesLimit FeatureName = "agentic_workspaces_limit"
 )
 
 var (
@@ -146,6 +176,8 @@ var (
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
 		FeatureBoundary,
+		FeatureAIGovernanceLimit,
+		FeatureAgenticWorkspacesLimit,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -208,8 +240,10 @@ func (n FeatureName) Enterprise() bool {
 // be included in any feature sets (as they are not boolean features).
 func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
-		FeatureUserLimit:         true,
-		FeatureManagedAgentLimit: true,
+		FeatureUserLimit:              true,
+		FeatureManagedAgentLimit:      true,
+		FeatureAIGovernanceLimit:      true,
+		FeatureAgenticWorkspacesLimit: true,
 	}[n]
 }
 
