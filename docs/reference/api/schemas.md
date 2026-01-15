@@ -10464,6 +10464,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": "running",
+  "subagent_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "workspace_folder": "string"
 }
 ```
@@ -10480,6 +10484,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`               | string                                                                                 | false    |              |                            |
 | `name`             | string                                                                                 | false    |              |                            |
 | `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
+| `subagent_id`      | [uuid.NullUUID](#uuidnulluuid)                                                         | false    |              |                            |
 | `workspace_folder` | string                                                                                 | false    |              |                            |
 
 ## codersdk.WorkspaceAgentDevcontainerAgent
@@ -10611,6 +10616,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
+      "subagent_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "workspace_folder": "string"
     }
   ],
