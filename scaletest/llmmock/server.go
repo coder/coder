@@ -331,7 +331,14 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	// Helper function to write with error checking
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		s.logger.Error(ctx, "responseWriter does not support flushing",
+			slog.F("response_id", resp.ID),
+		)
+		return
+	}
+
 	writeChunk := func(data string) bool {
 		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
 			s.logger.Error(ctx, "failed to write OpenAI stream chunk",
@@ -342,6 +349,7 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 			)
 			return false
 		}
+		flusher.Flush()
 		return true
 	}
 
@@ -395,6 +403,14 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 	w.Header().Set("anthropic-version", "2023-06-01")
 	w.WriteHeader(http.StatusOK)
 
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		s.logger.Error(ctx, "responseWriter does not support flushing",
+			slog.F("response_id", resp.ID),
+		)
+		return
+	}
+
 	writeChunk := func(data string) bool {
 		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
 			s.logger.Error(ctx, "failed to write Anthropic stream chunk",
@@ -405,6 +421,7 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 			)
 			return false
 		}
+		flusher.Flush()
 		return true
 	}
 
