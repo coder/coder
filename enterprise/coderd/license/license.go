@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
-	"slices"
 	"sort"
 	"time"
 
@@ -324,37 +323,6 @@ func LicensesEntitlements(
 				Limit:       nil,
 				Actual:      nil,
 			})
-		}
-
-		if slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
-			for _, featureName := range codersdk.FeatureNames {
-				if _, ok := licenseForbiddenFeatures[featureName]; ok {
-					// Ignore any FeatureSet features that are forbidden to be set
-					// in a license.
-					continue
-				}
-				if _, ok := featureGrouping[featureName]; ok {
-					// These features need very special handling due to merging
-					// multiple feature values into a single SDK feature.
-					continue
-				}
-				if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
-					// Limit and usage period features are handled below.
-					// They don't provide default values as they are always enabled
-					// and require a limit to be specified in the license to have
-					// any effect.
-					continue
-				}
-				if !featureName.IsAIGovernance() {
-					// Ignore any features that are not AI governance features.
-					continue
-				}
-
-				entitlements.AddFeature(featureName, codersdk.Feature{
-					Entitlement: entitlement,
-					Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
-				})
-			}
 		}
 
 		// A map of SDK feature name to the uncommitted usage feature.
