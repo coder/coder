@@ -20,15 +20,15 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
 {
   "authorization_endpoint": "string",
   "code_challenge_methods_supported": [
-    "string"
+    "S256"
   ],
   "grant_types_supported": [
-    "string"
+    "authorization_code"
   ],
   "issuer": "string",
   "registration_endpoint": "string",
   "response_types_supported": [
-    "string"
+    "code"
   ],
   "revocation_endpoint": "string",
   "scopes_supported": [
@@ -36,7 +36,7 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
   ],
   "token_endpoint": "string",
   "token_endpoint_auth_methods_supported": [
-    "string"
+    "client_secret_basic"
   ]
 }
 ```
@@ -1265,9 +1265,9 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&st
 
 #### Enumerated Values
 
-| Parameter       | Value(s) |
-|-----------------|----------|
-| `response_type` | `code`   |
+| Parameter       | Value(s)        |
+|-----------------|-----------------|
+| `response_type` | `code`, `token` |
 
 ### Responses
 
@@ -1301,9 +1301,9 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&s
 
 #### Enumerated Values
 
-| Parameter       | Value(s) |
-|-----------------|----------|
-| `response_type` | `code`   |
+| Parameter       | Value(s)        |
+|-----------------|-----------------|
+| `response_type` | `code`, `token` |
 
 ### Responses
 
@@ -1346,7 +1346,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -1355,17 +1355,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": [
-    0
-  ],
+  "registration_access_token": "string",
   "registration_client_uri": "string",
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
@@ -1399,7 +1397,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -1409,13 +1407,13 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
     "string"
   ],
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_statement": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
@@ -1442,7 +1440,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -1451,17 +1449,15 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": [
-    0
-  ],
+  "registration_access_token": "string",
   "registration_client_uri": "string",
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
@@ -1519,7 +1515,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -1529,13 +1525,13 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
     "string"
   ],
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_statement": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
@@ -1562,7 +1558,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -1574,12 +1570,12 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
   "registration_access_token": "string",
   "registration_client_uri": "string",
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
@@ -1662,9 +1658,9 @@ grant_type: authorization_code
 
 #### Enumerated Values
 
-| Parameter      | Value(s)                              |
-|----------------|---------------------------------------|
-| `» grant_type` | `authorization_code`, `refresh_token` |
+| Parameter      | Value(s)                                                                            |
+|----------------|-------------------------------------------------------------------------------------|
+| `» grant_type` | `authorization_code`, `client_credentials`, `implicit`, `password`, `refresh_token` |
 
 ### Example responses
 
