@@ -137,13 +137,13 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
-			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, "server_error", "Failed to validate query parameters")
+			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to validate query parameters")
 			return
 		}
 
 		params, _, err := extractAuthorizeParams(r, callbackURL)
 		if err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", err.Error())
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 
@@ -151,10 +151,10 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		if params.codeChallenge != "" {
 			// If code_challenge is provided but method is not, default to S256
 			if params.codeChallengeMethod == "" {
-				params.codeChallengeMethod = "S256"
+				params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
 			}
-			if params.codeChallengeMethod != "S256" {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid code_challenge_method: only S256 is supported")
+			if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 				return
 			}
 		}
@@ -162,7 +162,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		// TODO: Ignoring scope for now, but should look into implementing.
 		code, err := GenerateSecret()
 		if err != nil {
-			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, "server_error", "Failed to generate OAuth2 app authorization code")
+			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to generate OAuth2 app authorization code")
 			return
 		}
 		err = db.InTx(func(tx database.Store) error {
@@ -202,7 +202,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 			return nil
 		}, nil)
 		if err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, "server_error", "Failed to generate OAuth2 authorization code")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to generate OAuth2 authorization code")
 			return
 		}
 
