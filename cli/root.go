@@ -878,16 +878,27 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
 			return org.Name == o.FlagSelect || org.ID.String() == o.FlagSelect
 		})
+		if index >= 0 {
+			return orgs[index], nil
+		}
 
-		if index < 0 {
+		// Not in membership list - try direct fetch.
+		// This allows site-wide admins (e.g., Owners) to use orgs they aren't
+		// members of.
+		org, err := client.OrganizationByName(inv.Context(), o.FlagSelect)
+		if err != nil {
 			var names []string
 			for _, org := range orgs {
 				names = append(names, org.Name)
 			}
-			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
-				"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
+			var sdkErr *codersdk.Error
+			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+				return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
+					"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
+			}
+			return codersdk.Organization{}, xerrors.Errorf("get organization %q: %w", o.FlagSelect, err)
 		}
-		return orgs[index], nil
+		return org, nil
 	}
 
 	if len(orgs) == 1 {
