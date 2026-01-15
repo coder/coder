@@ -822,6 +822,11 @@ type OIDCConfig struct {
 	IconURL                   serpent.URL                            `json:"icon_url" typescript:",notnull"`
 	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
 	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
+
+	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	// situations where the OIDC callback domain is different from the ACCESS_URL
+	// domain.
+	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -2353,6 +2358,21 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.OIDC.SkipIssuerChecks,
 			Group: &deploymentGroupOIDC,
 			YAML:  "dangerousSkipIssuerChecks",
+		},
+		{
+			Name: "OIDC Redirect URL",
+			Description: "Optional override of the default redirect url which uses the deployment's access url. " +
+				"Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.",
+			Required:   false,
+			Flag:       "oidc-redirect-url",
+			Env:        "CODER_OIDC_REDIRECT_URL",
+			YAML:       "oidc-redirect-url",
+			Value:      &c.OIDC.RedirectURL,
+			Group:      &deploymentGroupOIDC,
+			UseInstead: nil,
+			// In most deployments, this setting can only complicate and break OIDC.
+			// So hide it, and only surface it to the small number of users that need it.
+			Hidden: true,
 		},
 		// Telemetry settings
 		telemetryEnable,

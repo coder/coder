@@ -3339,6 +3339,12 @@ export interface OIDCConfig {
 	readonly icon_url: string;
 	readonly signups_disabled_text: string;
 	readonly skip_issuer_checks: boolean;
+	/**
+	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	 * situations where the OIDC callback domain is different from the ACCESS_URL
+	 * domain.
+	 */
+	readonly redirect_url: string;
 }
 
 // From codersdk/parameters.go
