@@ -564,7 +564,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							? () => setIsStopConfirmOpen(true)
 							: undefined
 					}
-					isStopPending={stopWorkspaceMutation.isPending}
+					isStopping={stopWorkspaceMutation.isPending}
 				/>
 			</div>
 

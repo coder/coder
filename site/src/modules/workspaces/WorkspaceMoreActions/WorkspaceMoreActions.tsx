@@ -39,14 +39,14 @@ type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
 	disabled: boolean;
 	onStop?: () => void;
-	isStopPending?: boolean;
+	isStopping?: boolean;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	workspace,
 	disabled,
 	onStop,
-	isStopPending,
+	isStopping,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -121,7 +121,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 				<DropdownMenuContent id="workspace-options" align="end">
 					{onStop && (
-						<DropdownMenuItem onClick={onStop} disabled={isStopPending}>
+						<DropdownMenuItem onClick={onStop} disabled={isStopping}>
 							<SquareIcon />
 							Stop&hellip;
 						</DropdownMenuItem>
