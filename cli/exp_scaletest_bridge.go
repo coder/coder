@@ -194,7 +194,7 @@ Examples:
 			Flag:          "concurrent-users",
 			FlagShorthand: "c",
 			Env:           "CODER_SCALETEST_BRIDGE_CONCURRENT_USERS",
-			Description:   "Required: Number of concurrent users (in bridge mode, each creates a coder user).",
+			Description:   "Required: Number of concurrent users.",
 			Value: serpent.Validate(serpent.Int64Of(&concurrentUsers), func(value *serpent.Int64) error {
 				if value == nil || value.Value() <= 0 {
 					return xerrors.Errorf("--concurrent-users must be greater than 0")
