@@ -2304,7 +2304,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code"],
+						"enum": ["code", "token"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
@@ -2355,7 +2355,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code"],
+						"enum": ["code", "token"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
@@ -2555,7 +2555,13 @@
 						"in": "formData"
 					},
 					{
-						"enum": ["authorization_code", "refresh_token"],
+						"enum": [
+							"authorization_code",
+							"refresh_token",
+							"password",
+							"client_credentials",
+							"implicit"
+						],
 						"type": "string",
 						"description": "Grant type",
 						"name": "grant_type",
@@ -4031,6 +4037,76 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.RoleSyncSettings"
+						}
+					}
+				}
+			}
+		},
+		"/organizations/{organization}/settings/workspace-sharing": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get workspace sharing settings for organization",
+				"operationId": "get-workspace-sharing-settings-for-organization",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+						}
+					}
+				}
+			},
+			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Update workspace sharing settings for organization",
+				"operationId": "update-workspace-sharing-settings-for-organization",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Workspace sharing settings",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
 						}
 					}
 				}
@@ -14283,13 +14359,13 @@
 				"code_challenge_methods_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2PKCECodeChallengeMethod"
 					}
 				},
 				"grant_types_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"issuer": {
@@ -14301,7 +14377,7 @@
 				"response_types_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"revocation_endpoint": {
@@ -14319,7 +14395,7 @@
 				"token_endpoint_auth_methods_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 					}
 				}
 			}
@@ -14351,7 +14427,7 @@
 				"grant_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"jwks": {
@@ -14373,10 +14449,7 @@
 					}
 				},
 				"registration_access_token": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "string"
 				},
 				"registration_client_uri": {
 					"type": "string"
@@ -14384,7 +14457,7 @@
 				"response_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"scope": {
@@ -14397,7 +14470,7 @@
 					"type": "string"
 				},
 				"token_endpoint_auth_method": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 				},
 				"tos_uri": {
 					"type": "string"
@@ -14422,7 +14495,7 @@
 				"grant_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"jwks": {
@@ -14446,7 +14519,7 @@
 				"response_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"scope": {
@@ -14462,7 +14535,7 @@
 					"type": "string"
 				},
 				"token_endpoint_auth_method": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 				},
 				"tos_uri": {
 					"type": "string"
@@ -14499,7 +14572,7 @@
 				"grant_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"jwks": {
@@ -14529,7 +14602,7 @@
 				"response_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"scope": {
@@ -14542,7 +14615,7 @@
 					"type": "string"
 				},
 				"token_endpoint_auth_method": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 				},
 				"tos_uri": {
 					"type": "string"
@@ -14594,6 +14667,14 @@
 					"type": "string"
 				}
 			}
+		},
+		"codersdk.OAuth2PKCECodeChallengeMethod": {
+			"type": "string",
+			"enum": ["S256", "plain"],
+			"x-enum-varnames": [
+				"OAuth2PKCECodeChallengeMethodS256",
+				"OAuth2PKCECodeChallengeMethodPlain"
+			]
 		},
 		"codersdk.OAuth2ProtectedResourceMetadata": {
 			"type": "object",
@@ -14673,6 +14754,40 @@
 					"format": "uuid"
 				}
 			}
+		},
+		"codersdk.OAuth2ProviderGrantType": {
+			"type": "string",
+			"enum": [
+				"authorization_code",
+				"refresh_token",
+				"password",
+				"client_credentials",
+				"implicit"
+			],
+			"x-enum-varnames": [
+				"OAuth2ProviderGrantTypeAuthorizationCode",
+				"OAuth2ProviderGrantTypeRefreshToken",
+				"OAuth2ProviderGrantTypePassword",
+				"OAuth2ProviderGrantTypeClientCredentials",
+				"OAuth2ProviderGrantTypeImplicit"
+			]
+		},
+		"codersdk.OAuth2ProviderResponseType": {
+			"type": "string",
+			"enum": ["code", "token"],
+			"x-enum-varnames": [
+				"OAuth2ProviderResponseTypeCode",
+				"OAuth2ProviderResponseTypeToken"
+			]
+		},
+		"codersdk.OAuth2TokenEndpointAuthMethod": {
+			"type": "string",
+			"enum": ["client_secret_basic", "client_secret_post", "none"],
+			"x-enum-varnames": [
+				"OAuth2TokenEndpointAuthMethodClientSecretBasic",
+				"OAuth2TokenEndpointAuthMethodClientSecretPost",
+				"OAuth2TokenEndpointAuthMethodNone"
+			]
 		},
 		"codersdk.OAuthConversionResponse": {
 			"type": "object",
@@ -19732,6 +19847,14 @@
 				"WorkspaceRoleUse",
 				"WorkspaceRoleDeleted"
 			]
+		},
+		"codersdk.WorkspaceSharingSettings": {
+			"type": "object",
+			"properties": {
+				"sharing_disabled": {
+					"type": "boolean"
+				}
+			}
 		},
 		"codersdk.WorkspaceStatus": {
 			"type": "string",

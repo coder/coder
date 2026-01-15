@@ -7,6 +7,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
@@ -183,6 +184,38 @@ func TestOAuth2WithoutPKCE(t *testing.T) {
 	token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), tokenParams)
 	require.NotEmpty(t, token.AccessToken, "should receive access token")
 	require.NotEmpty(t, token.RefreshToken, "should receive refresh token")
+}
+
+func TestOAuth2PKCEPlainMethodRejected(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Create OAuth2 app
+	app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+	t.Cleanup(func() {
+		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
+	})
+
+	// Generate PKCE parameters but use "plain" method (should be rejected)
+	_, codeChallenge := oauth2providertest.GeneratePKCE(t)
+	state := oauth2providertest.GenerateState(t)
+
+	// Attempt authorization with plain method - should fail
+	authParams := oauth2providertest.AuthorizeParams{
+		ClientID:            app.ID.String(),
+		ResponseType:        string(codersdk.OAuth2ProviderResponseTypeCode),
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: string(codersdk.OAuth2PKCECodeChallengeMethodPlain),
+	}
+
+	// Should get a 400 Bad Request
+	oauth2providertest.AuthorizeOAuth2AppExpectingError(t, client, client.URL.String(), authParams, 400)
 }
 
 func TestOAuth2ResourceParameter(t *testing.T) {
