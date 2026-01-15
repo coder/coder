@@ -189,11 +189,12 @@ func TestEntitlements(t *testing.T) {
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureUserLimit: 100,
-					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureUserLimit:         100,
+					codersdk.FeatureAuditLog:          1,
+					codersdk.FeatureAIGovernanceLimit: 1000,
+					codersdk.FeatureManagedAgentLimit: 1000,
 				},
-				Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
-
+				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 				FeatureSet: codersdk.FeatureSetPremium,
 				GraceAt:    graceDate,
 				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
@@ -247,8 +248,10 @@ func TestEntitlements(t *testing.T) {
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureUserLimit: 100,
-					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureUserLimit:         100,
+					codersdk.FeatureAuditLog:          1,
+					codersdk.FeatureAIGovernanceLimit: 1000,
+					codersdk.FeatureManagedAgentLimit: 1000,
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,
@@ -812,8 +815,7 @@ func TestEntitlements(t *testing.T) {
 		mDB := dbmock.NewMockStore(ctrl)
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
-			FeatureSet: codersdk.FeatureSetPremium,
-			Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
+			FeatureSet: codersdk.FeatureSetNone,
 			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
 			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
 			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
@@ -855,7 +857,7 @@ func TestEntitlements(t *testing.T) {
 			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 			Return([]database.Template{}, nil)
 
-		entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
+		entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
@@ -879,7 +881,11 @@ func TestEntitlements(t *testing.T) {
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
-				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
+				Features: license.Features{
+					codersdk.FeatureAIGovernanceLimit: 1000,
+					codersdk.FeatureManagedAgentLimit: 1000,
+				},
+				Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
 			}),
 			Exp: dbtime.Now().Add(time.Hour),
 		})
@@ -939,10 +945,14 @@ func TestEntitlements(t *testing.T) {
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
-				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
-				NotBefore:  dbtime.Now().Add(-time.Hour * 2),
-				GraceAt:    dbtime.Now().Add(-time.Hour),
-				ExpiresAt:  dbtime.Now().Add(time.Hour),
+				Features: license.Features{
+					codersdk.FeatureAIGovernanceLimit: 1000,
+					codersdk.FeatureManagedAgentLimit: 1000,
+				},
+				Addons:    []codersdk.Addon{codersdk.AddonAIGovernance},
+				NotBefore: dbtime.Now().Add(-time.Hour * 2),
+				GraceAt:   dbtime.Now().Add(-time.Hour),
+				ExpiresAt: dbtime.Now().Add(time.Hour),
 			}),
 			Exp: dbtime.Now().Add(time.Hour),
 		})
@@ -971,7 +981,11 @@ func TestEntitlements(t *testing.T) {
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
-				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
+				Features: license.Features{
+					codersdk.FeatureAIGovernanceLimit: 1000,
+					codersdk.FeatureManagedAgentLimit: 1000,
+				},
+				Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
 			}),
 			Exp: dbtime.Now().Add(time.Hour),
 		})
