@@ -105,6 +105,7 @@ message WorkspaceAgentDevcontainer {
 	string workspace_folder = 2;
 	string config_path = 3;
 	string name = 4;
+	optional bytes subagent_id = 5;
 }
 
 message GetManifestRequest {}
@@ -435,6 +436,8 @@ message CreateSubAgentRequest {
 	}
 
 	repeated DisplayApp display_apps = 6;
+	
+	optional bytes id = 7;
 }
 
 message CreateSubAgentResponse {

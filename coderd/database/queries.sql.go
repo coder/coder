@@ -19288,6 +19288,26 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
+const updateWorkspaceAgentDisplayAppsByID = `-- name: UpdateWorkspaceAgentDisplayAppsByID :exec
+UPDATE
+	workspace_agents
+SET
+	display_apps = $2, updated_at = $3
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAgentDisplayAppsByIDParams struct {
+	ID          uuid.UUID    `db:"id" json:"id"`
+	DisplayApps []DisplayApp `db:"display_apps" json:"display_apps"`
+	UpdatedAt   time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentDisplayAppsByID, arg.ID, pq.Array(arg.DisplayApps), arg.UpdatedAt)
+	return err
+}
+
 const updateWorkspaceAgentLifecycleStateByID = `-- name: UpdateWorkspaceAgentLifecycleStateByID :exec
 UPDATE
 	workspace_agents

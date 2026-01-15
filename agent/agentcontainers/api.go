@@ -1624,16 +1624,24 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
-	injected := make(map[uuid.UUID]bool, len(api.injectedSubAgentProcs))
+	// Collect all subagent IDs that should be kept:
+	// 1. Subagents currently tracked by injectedSubAgentProcs
+	// 2. Subagents referenced by known devcontainers from the manifest
+	keep := make(map[uuid.UUID]bool, len(api.injectedSubAgentProcs)+len(api.knownDevcontainers))
 	for _, proc := range api.injectedSubAgentProcs {
-		injected[proc.agent.ID] = true
+		keep[proc.agent.ID] = true
+	}
+	for _, dc := range api.knownDevcontainers {
+		if dc.SubagentID.Valid {
+			keep[dc.SubagentID.UUID] = true
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, defaultOperationTimeout)
 	defer cancel()
 
 	for _, agent := range agents {
-		if injected[agent.ID] {
+		if keep[agent.ID] {
 			continue
 		}
 		client := *api.subAgentClient.Load()
@@ -1998,7 +2006,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	// 	logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
 	// }
 
-	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
+	deleteSubAgent := subAgentConfig.ID == uuid.Nil && proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
 	if deleteSubAgent {
 		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
 		client := *api.subAgentClient.Load()
