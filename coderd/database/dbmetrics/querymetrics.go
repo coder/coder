@@ -2223,6 +2223,14 @@ func (m queryMetricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UU
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentByIDWithWorkspace(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentByIDWithWorkspaceRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentByIDWithWorkspace(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByIDWithWorkspace").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByIDWithWorkspace").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)

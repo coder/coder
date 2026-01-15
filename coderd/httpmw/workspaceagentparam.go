@@ -34,60 +34,22 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 				return
 			}
 
-			agent, err := db.GetWorkspaceAgentByID(ctx, agentUUID)
+			agentWithWorkspace, err := db.GetWorkspaceAgentByIDWithWorkspace(ctx, agentUUID)
 			if httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 					Message: "Agent doesn't exist with that id, or you do not have access to it.",
 				})
 				return
 			}
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace agent.",
-					Detail:  err.Error(),
-				})
-				return
-			}
 
-			resource, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace resource.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			job, err := db.GetProvisionerJobByID(ctx, resource.JobID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching provisioner job.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Workspace agents can only be fetched for builds.",
-				})
-				return
-			}
-			build, err := db.GetWorkspaceBuildByJobID(ctx, job.ID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace build.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			ctx = context.WithValue(ctx, workspaceAgentParamContextKey{}, agent)
-			chi.RouteContext(ctx).URLParams.Add("workspace", build.WorkspaceID.String())
+			ctx = context.WithValue(ctx, workspaceAgentParamContextKey{}, agentWithWorkspace.WorkspaceAgent)
+			ctx = context.WithValue(ctx, workspaceParamContextKey{}, agentWithWorkspace.Workspace)
+			chi.RouteContext(ctx).URLParams.Add("workspace", agentWithWorkspace.Workspace.ID.String())
 
 			if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
 				rlogger.WithFields(
-					slog.F("workspace_name", resource.Name),
-					slog.F("agent_name", agent.Name),
+					slog.F("workspace_name", agentWithWorkspace.Workspace.Name),
+					slog.F("agent_name", agentWithWorkspace.WorkspaceAgent.Name),
 				)
 			}
 

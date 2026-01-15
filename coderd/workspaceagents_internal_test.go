@@ -96,8 +96,6 @@ func TestWatchAgentContainers(t *testing.T) {
 			workspaceID = uuid.New()
 			agentID     = uuid.New()
 			resourceID  = uuid.New()
-			jobID       = uuid.New()
-			buildID     = uuid.New()
 
 			containersCh = make(chan codersdk.WorkspaceAgentListContainersResponse)
 
@@ -120,24 +118,17 @@ func TestWatchAgentContainers(t *testing.T) {
 		api.agentProvider = fAgentProvider
 
 		// Setup: Allow `ExtractWorkspaceAgentParams` to complete.
-		mDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(database.WorkspaceAgent{
-			ID:               agentID,
-			ResourceID:       resourceID,
-			LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
-			FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
-			LastConnectedAt:  sql.NullTime{Valid: true, Time: dbtime.Now()},
-		}, nil)
-		mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), resourceID).Return(database.WorkspaceResource{
-			ID:    resourceID,
-			JobID: jobID,
-		}, nil)
-		mDB.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).Return(database.ProvisionerJob{
-			ID:   jobID,
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		}, nil)
-		mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), jobID).Return(database.WorkspaceBuild{
-			WorkspaceID: workspaceID,
-			ID:          buildID,
+		mDB.EXPECT().GetWorkspaceAgentByIDWithWorkspace(gomock.Any(), agentID).Return(database.GetWorkspaceAgentByIDWithWorkspaceRow{
+			WorkspaceAgent: database.WorkspaceAgent{
+				ID:               agentID,
+				ResourceID:       resourceID,
+				LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
+				FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
+				LastConnectedAt:  sql.NullTime{Valid: true, Time: dbtime.Now()},
+			},
+			Workspace: database.Workspace{
+				ID: workspaceID,
+			},
 		}, nil)
 
 		// And: Allow `db2dsk.WorkspaceAgent` to complete.
@@ -222,8 +213,6 @@ func TestWatchAgentContainers(t *testing.T) {
 			workspaceID = uuid.New()
 			agentID     = uuid.New()
 			resourceID  = uuid.New()
-			jobID       = uuid.New()
-			buildID     = uuid.New()
 
 			containersCh = make(chan codersdk.WorkspaceAgentListContainersResponse)
 
@@ -246,24 +235,17 @@ func TestWatchAgentContainers(t *testing.T) {
 		api.agentProvider = fAgentProvider
 
 		// Setup: Allow `ExtractWorkspaceAgentParams` to complete.
-		mDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(database.WorkspaceAgent{
-			ID:               agentID,
-			ResourceID:       resourceID,
-			LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
-			FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
-			LastConnectedAt:  sql.NullTime{Valid: true, Time: dbtime.Now()},
-		}, nil)
-		mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), resourceID).Return(database.WorkspaceResource{
-			ID:    resourceID,
-			JobID: jobID,
-		}, nil)
-		mDB.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).Return(database.ProvisionerJob{
-			ID:   jobID,
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		}, nil)
-		mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), jobID).Return(database.WorkspaceBuild{
-			WorkspaceID: workspaceID,
-			ID:          buildID,
+		mDB.EXPECT().GetWorkspaceAgentByIDWithWorkspace(gomock.Any(), agentID).Return(database.GetWorkspaceAgentByIDWithWorkspaceRow{
+			WorkspaceAgent: database.WorkspaceAgent{
+				ID:               agentID,
+				ResourceID:       resourceID,
+				LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
+				FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
+				LastConnectedAt:  sql.NullTime{Valid: true, Time: dbtime.Now()},
+			},
+			Workspace: database.Workspace{
+				ID: workspaceID,
+			},
 		}, nil)
 
 		// And: Allow `db2dsk.WorkspaceAgent` to complete.

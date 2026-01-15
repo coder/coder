@@ -3636,6 +3636,10 @@ func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (data
 	return q.db.GetWorkspaceAgentByID(ctx, id)
 }
 
+func (q *querier) GetWorkspaceAgentByIDWithWorkspace(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentByIDWithWorkspaceRow, error) {
+	return fetch(q.log, q.auth, q.db.GetWorkspaceAgentByIDWithWorkspace)(ctx, id)
+}
+
 // GetWorkspaceAgentByInstanceID might want to be a system call? Unsure exactly,
 // but this will fail. Need to figure out what AuthInstanceID is, and if it
 // is essentially an auth token. But the caller using this function is not

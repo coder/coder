@@ -443,40 +443,22 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 	}
 
 	var err error
-	agent, err := db.GetWorkspaceAgentByID(ctx, agentID)
+	aw, err := db.GetWorkspaceAgentByIDWithWorkspace(ctx, agentID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent %q: %w", agentID, err)
-	}
-
-	// Get the corresponding resource.
-	res, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent resource %q: %w", agent.ResourceID, err)
-	}
-
-	// Get the corresponding workspace build.
-	build, err := db.GetWorkspaceBuildByJobID(ctx, res.JobID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace build by job ID %q: %w", res.JobID, err)
-	}
-
-	// Get the corresponding workspace.
-	workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace %q: %w", build.WorkspaceID, err)
+		return nil, xerrors.Errorf("get workspace agent %q with workspace: %w", agentID, err)
 	}
 
 	// Get the workspace's owner.
-	user, err := db.GetUserByID(ctx, workspace.OwnerID)
+	user, err := db.GetUserByID(ctx, aw.Workspace.OwnerID)
 	if err != nil {
-		return nil, xerrors.Errorf("get user %q: %w", workspace.OwnerID, err)
+		return nil, xerrors.Errorf("get user %q: %w", aw.Workspace.OwnerID, err)
 	}
 
 	return &databaseRequest{
 		Request:         r,
 		User:            user,
-		Workspace:       workspace,
-		Agent:           agent,
+		Workspace:       aw.Workspace,
+		Agent:           aw.WorkspaceAgent,
 		AppURL:          nil,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil
