@@ -227,7 +227,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			return !f.Enterprise() || f.UsesLimit()
+			return !f.Enterprise() || f.UsesLimit() || f.IsAIGovernance()
 		})
 
 		return enterpriseFeatures
