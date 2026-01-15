@@ -21,6 +21,7 @@ import {
 	EllipsisVertical,
 	HistoryIcon,
 	SettingsIcon,
+	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
@@ -37,11 +38,15 @@ import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
 	disabled: boolean;
+	onStop?: () => void;
+	isStopPending?: boolean;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	workspace,
 	disabled,
+	onStop,
+	isStopPending,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -115,6 +120,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				</DropdownMenuTrigger>
 
 				<DropdownMenuContent id="workspace-options" align="end">
+					{onStop && (
+						<DropdownMenuItem onClick={onStop} disabled={isStopPending}>
+							<SquareIcon />
+							Stop&hellip;
+						</DropdownMenuItem>
+					)}
+
 					<DropdownMenuItem asChild>
 						<RouterLink
 							to={`/@${workspace.owner_name}/${workspace.name}/settings`}

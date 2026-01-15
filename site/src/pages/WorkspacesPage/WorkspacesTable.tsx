@@ -53,7 +53,6 @@ import {
 	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
-	SquareIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
@@ -485,16 +484,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					</PrimaryAction>
 				)}
 
-				{abilities.actions.includes("stop") && (
-					<PrimaryAction
-						onClick={() => setIsStopConfirmOpen(true)}
-						isLoading={stopWorkspaceMutation.isPending}
-						label="Stop workspace"
-					>
-						<SquareIcon />
-					</PrimaryAction>
-				)}
-
 				{abilities.actions.includes("updateAndStart") && (
 					<>
 						<PrimaryAction
@@ -570,6 +559,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				<WorkspaceMoreActions
 					workspace={workspace}
 					disabled={!abilities.canAcceptJobs}
+					onStop={
+						abilities.actions.includes("stop")
+							? () => setIsStopConfirmOpen(true)
+							: undefined
+					}
+					isStopPending={stopWorkspaceMutation.isPending}
 				/>
 			</div>
 
