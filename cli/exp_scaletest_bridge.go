@@ -30,6 +30,7 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 		requestsPerUser    int64
 		useStreamingAPI    bool
 		requestPayloadSize int64
+		numMessages        int64
 
 		timeoutStrategy = &timeoutFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
@@ -113,6 +114,7 @@ all previous messages in the conversation.`,
 				RequestCount:       int(requestsPerUser),
 				Stream:             useStreamingAPI,
 				RequestPayloadSize: int(requestPayloadSize),
+				NumMessages:        int(numMessages),
 				UpstreamURL:        upstreamURL,
 				User:               userConfig,
 			}
@@ -224,9 +226,16 @@ all previous messages in the conversation.`,
 		{
 			Flag:        "request-payload-size",
 			Env:         "CODER_SCALETEST_BRIDGE_REQUEST_PAYLOAD_SIZE",
-			Default:     "0",
+			Default:     "1024",
 			Description: "Size in bytes of the request payload (user message content). If 0, uses default message content.",
 			Value:       serpent.Int64Of(&requestPayloadSize),
+		},
+		{
+			Flag:        "num-messages",
+			Env:         "CODER_SCALETEST_BRIDGE_NUM_MESSAGES",
+			Default:     "1",
+			Description: "Number of messages to include in the conversation.",
+			Value:       serpent.Int64Of(&numMessages),
 		},
 		{
 			Flag:        "no-cleanup",

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -85,7 +84,6 @@ type Runner struct {
 
 	clock      quartz.Clock
 	httpClient *http.Client
-	rng        *rand.Rand
 
 	requestCount  int64
 	successCount  int64
@@ -105,8 +103,6 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 			Timeout:   30 * time.Second,
 			Transport: newTracingTransport(cfg, http.DefaultTransport),
 		},
-		//nolint:gosec // G404: Use of weak random number generator is acceptable for load testing.
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -193,7 +189,7 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 	var formattedMessages []any
 	if r.cfg.RequestPayloadSize > 0 {
 		var err error
-		formattedMessages, err = generateConversation(r.rng, r.providerStrategy, r.cfg.RequestPayloadSize)
+		formattedMessages, err = generateConversation(r.providerStrategy, r.cfg.RequestPayloadSize, r.cfg.NumMessages)
 		if err != nil {
 			return xerrors.Errorf("generate conversation: %w", err)
 		}

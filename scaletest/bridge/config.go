@@ -42,6 +42,11 @@ type Config struct {
 	// If 0, uses default message content.
 	RequestPayloadSize int `json:"request_payload_size"`
 
+	// NumMessages is the number of messages to include in the conversation.
+	// Messages alternate between user and assistant roles, always ending with user.
+	// Must be greater than 0.
+	NumMessages int `json:"num_messages"`
+
 	Metrics *Metrics `json:"-"`
 }
 
@@ -79,6 +84,10 @@ func (c Config) Validate() error {
 
 	if err := c.User.Validate(); err != nil {
 		return xerrors.Errorf("user config: %w", err)
+	}
+
+	if c.NumMessages <= 0 {
+		return xerrors.New("num_messages must be greater than 0")
 	}
 
 	return nil

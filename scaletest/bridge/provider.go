@@ -2,7 +2,6 @@ package bridge
 
 import (
 	"encoding/json"
-	"math/rand"
 	"strings"
 )
 
@@ -83,126 +82,47 @@ func (*anthropicProvider) buildRequestBody(model string, messages []any, stream 
 	}
 }
 
-const (
-	minLinesPerMessage = 1
-	maxLinesPerMessage = 100
-	minCharsPerLine    = 40
-	maxCharsPerLine    = 120
-)
-
-const printableChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?;:'-"
-
-// generateConversation creates interleaving user/assistant messages with random
-// content. Each message has 1-100 lines, each line has 40-120 random characters.
-// The last message is padded or trimmed so that the JSON-encoded messages array
-// matches exactly targetSize bytes.
-func generateConversation(rng *rand.Rand, provider ProviderStrategy, targetSize int) ([]any, error) {
+// generateConversation creates a conversation with alternating user/assistant
+// messages. The content is filled with repeated 'x' characters to reach
+// approximately the target size. The last message is always from "user" as
+// required by LLM APIs.
+func generateConversation(provider ProviderStrategy, targetSize int, numMessages int) ([]any, error) {
 	if targetSize <= 0 {
 		return nil, nil
 	}
+	if numMessages < 1 {
+		numMessages = 1
+	}
 
-	var messages []message
 	roles := []string{"user", "assistant"}
-	currentRole := 0
-	totalContent := 0
-
-	targetContentSize := targetSize * 80 / 100
-
-	for totalContent < targetContentSize {
-		content := generateRandomMessageContent(rng)
-		messages = append(messages, message{
-			Role:    roles[currentRole],
-			Content: content,
-		})
-		totalContent += len(content)
-		currentRole = (currentRole + 1) % 2
+	messages := make([]message, numMessages)
+	for i := range messages {
+		messages[i].Role = roles[i%2]
 	}
-
-	if len(messages) == 0 {
-		messages = append(messages, message{
-			Role:    "user",
-			Content: "Hello",
-		})
-	}
-
+	// Ensure last message is from user (required for LLM APIs).
 	if messages[len(messages)-1].Role != "user" {
-		messages = append(messages, message{
-			Role:    "user",
-			Content: "Continue",
-		})
+		messages[len(messages)-1].Role = "user"
 	}
 
-	formatted := provider.formatMessages(messages)
-	currentSize := measureJSONSize(formatted)
+	overhead := measureJSONSize(provider.formatMessages(messages))
 
-	lastMsg := &messages[len(messages)-1]
-	if currentSize < targetSize {
-		// Need to pad the last message.
-		padding := generatePadding(rng, targetSize-currentSize)
-		lastMsg.Content += padding
-	} else if currentSize > targetSize {
-		// Need to trim the last message.
-		excess := currentSize - targetSize
-		if len(lastMsg.Content) > excess {
-			lastMsg.Content = lastMsg.Content[:len(lastMsg.Content)-excess]
-		} else {
-			// If we can't trim enough, just use minimal content.
-			lastMsg.Content = "x"
+	bytesPerMessage := targetSize - overhead
+	if bytesPerMessage < 0 {
+		bytesPerMessage = 0
+	}
+
+	perMessage := bytesPerMessage / len(messages)
+	remainder := bytesPerMessage % len(messages)
+
+	for i := range messages {
+		size := perMessage
+		if i == len(messages)-1 {
+			size += remainder
 		}
+		messages[i].Content = strings.Repeat("x", size)
 	}
 
-	// Fine-tune: measure again and adjust character by character if needed.
-	formatted = provider.formatMessages(messages)
-	currentSize = measureJSONSize(formatted)
-
-	for currentSize < targetSize {
-		lastMsg.Content += "x"
-		formatted = provider.formatMessages(messages)
-		currentSize = measureJSONSize(formatted)
-	}
-
-	for currentSize > targetSize && len(lastMsg.Content) > 1 {
-		lastMsg.Content = lastMsg.Content[:len(lastMsg.Content)-1]
-		formatted = provider.formatMessages(messages)
-		currentSize = measureJSONSize(formatted)
-	}
-
-	return formatted, nil
-}
-
-func generateRandomMessageContent(rng *rand.Rand) string {
-	numLines := minLinesPerMessage + rng.Intn(maxLinesPerMessage-minLinesPerMessage+1)
-	var sb strings.Builder
-
-	for i := 0; i < numLines; i++ {
-		lineLen := minCharsPerLine + rng.Intn(maxCharsPerLine-minCharsPerLine+1)
-		for j := 0; j < lineLen; j++ {
-			_ = sb.WriteByte(printableChars[rng.Intn(len(printableChars))])
-		}
-		if i < numLines-1 {
-			_ = sb.WriteByte('\n')
-		}
-	}
-
-	return sb.String()
-}
-
-// generatePadding creates random padding text of approximately the given size.
-func generatePadding(rng *rand.Rand, size int) string {
-	if size <= 0 {
-		return ""
-	}
-
-	var sb strings.Builder
-	sb.Grow(size)
-
-	_ = sb.WriteByte('\n')
-
-	for sb.Len() < size {
-		_ = sb.WriteByte(printableChars[rng.Intn(len(printableChars))])
-	}
-
-	return sb.String()
+	return provider.formatMessages(messages), nil
 }
 
 func measureJSONSize(v any) int {
