@@ -2,5 +2,6 @@
 globalThis.HTMLElement.prototype.hasPointerCapture = vi
 	.fn()
 	.mockReturnValue(false);
-globalThis.HTMLElement.prototype.setPointerCapture = vi.fn();
 globalThis.HTMLElement.prototype.releasePointerCapture = vi.fn();
+globalThis.HTMLElement.prototype.scrollIntoView = vi.fn();
+globalThis.HTMLElement.prototype.setPointerCapture = vi.fn();

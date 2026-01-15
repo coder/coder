@@ -50,7 +50,7 @@ const renderScheduleControls = async () => {
 
 test("add 3 hours to deadline", async () => {
 	const user = userEvent.setup();
-	const updateDeadlineSpy = jest
+	const updateDeadlineSpy = vi
 		.spyOn(API, "putWorkspaceExtension")
 		.mockResolvedValue();
 
@@ -79,7 +79,7 @@ test("add 3 hours to deadline", async () => {
 
 test("remove 2 hours to deadline", async () => {
 	const user = userEvent.setup();
-	const updateDeadlineSpy = jest
+	const updateDeadlineSpy = vi
 		.spyOn(API, "putWorkspaceExtension")
 		.mockResolvedValue();
 
@@ -108,7 +108,7 @@ test("remove 2 hours to deadline", async () => {
 test("rollback to previous deadline on error", async () => {
 	const user = userEvent.setup();
 	const initialScheduleMessage = "Stop in 3 hours";
-	jest.spyOn(API, "putWorkspaceExtension").mockRejectedValue({});
+	vi.spyOn(API, "putWorkspaceExtension").mockRejectedValue({});
 
 	await renderScheduleControls();
 
@@ -127,7 +127,7 @@ test("rollback to previous deadline on error", async () => {
 
 test("request is only sent once when clicking multiple times", async () => {
 	const user = userEvent.setup();
-	const updateDeadlineSpy = jest
+	const updateDeadlineSpy = vi
 		.spyOn(API, "putWorkspaceExtension")
 		.mockResolvedValue();
 

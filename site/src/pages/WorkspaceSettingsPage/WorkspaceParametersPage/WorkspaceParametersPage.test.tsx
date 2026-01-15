@@ -19,23 +19,23 @@ import WorkspaceParametersPage from "./WorkspaceParametersPage";
 
 test("Submit the workspace settings page successfully", async () => {
 	// Mock the API calls that loads data
-	jest
-		.spyOn(API, "getWorkspaceByOwnerAndName")
-		.mockResolvedValueOnce(MockWorkspace);
-	jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+		MockWorkspace,
+	);
+	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
 		MockTemplateVersionParameter1,
 		MockTemplateVersionParameter2,
 		// Immutable parameters
 		MockTemplateVersionParameter4,
 	]);
-	jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+	vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
 		MockWorkspaceBuildParameter1,
 		MockWorkspaceBuildParameter2,
 		// Immutable value
 		MockWorkspaceBuildParameter4,
 	]);
 	// Mock the API calls that submit data
-	const postWorkspaceBuildSpy = jest
+	const postWorkspaceBuildSpy = vi
 		.spyOn(API, "postWorkspaceBuild")
 		.mockResolvedValue(MockWorkspaceBuild);
 	// Setup event and rendering
@@ -79,16 +79,16 @@ test("Submit the workspace settings page successfully", async () => {
 
 test("Submit button is only enabled when changes are made", async () => {
 	// Mock the API calls that loads data
-	jest
-		.spyOn(API, "getWorkspaceByOwnerAndName")
-		.mockResolvedValueOnce(MockWorkspace);
-	jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+		MockWorkspace,
+	);
+	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
 		MockTemplateVersionParameter1,
 		MockTemplateVersionParameter2,
 		// Immutable parameters
 		MockTemplateVersionParameter4,
 	]);
-	jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+	vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
 		MockWorkspaceBuildParameter1,
 		MockWorkspaceBuildParameter2,
 		// Immutable value

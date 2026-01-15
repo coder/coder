@@ -9,7 +9,7 @@ describe("appearance page", () => {
 	it("does nothing when selecting current theme", async () => {
 		renderWithAuth(<AppearancePage />);
 
-		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
+		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUserOwner,
 			theme_preference: "dark",
 			terminal_font: "fira-code",
@@ -25,7 +25,7 @@ describe("appearance page", () => {
 	it("changes theme to light", async () => {
 		renderWithAuth(<AppearancePage />);
 
-		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
+		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUserOwner,
 			terminal_font: "ibm-plex-mono",
 			theme_preference: "light",
@@ -45,7 +45,7 @@ describe("appearance page", () => {
 	it("changes font to fira code", async () => {
 		renderWithAuth(<AppearancePage />);
 
-		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
+		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUserOwner,
 			terminal_font: "fira-code",
 			theme_preference: "dark",
@@ -66,8 +66,7 @@ describe("appearance page", () => {
 		renderWithAuth(<AppearancePage />);
 
 		// given
-		jest
-			.spyOn(API, "updateAppearanceSettings")
+		vi.spyOn(API, "updateAppearanceSettings")
 			.mockResolvedValueOnce({
 				...MockUserOwner,
 				terminal_font: "fira-code",

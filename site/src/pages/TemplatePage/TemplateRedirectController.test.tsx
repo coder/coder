@@ -24,9 +24,10 @@ it("redirects from multi-org to single-org", async () => {
 });
 
 it("redirects from single-org to multi-org", async () => {
-	jest
-		.spyOn(API, "getOrganizations")
-		.mockResolvedValueOnce([M.MockDefaultOrganization, M.MockOrganization2]);
+	vi.spyOn(API, "getOrganizations").mockResolvedValueOnce([
+		M.MockDefaultOrganization,
+		M.MockOrganization2,
+	]);
 
 	const { router } = renderTemplateRedirectController(
 		`/templates/${M.MockTemplate.name}`,
