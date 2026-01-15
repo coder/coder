@@ -241,17 +241,17 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 		return nil
 	}
 
-	return r.handleNonStreamingResponse(ctx, logger, resp, requestNum)
+	return r.handleNonStreamingResponse(ctx, logger, resp)
 }
 
-func (r *Runner) handleNonStreamingResponse(ctx context.Context, logger slog.Logger, resp *http.Response, requestNum int) error {
+func (r *Runner) handleNonStreamingResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
 	if r.cfg.Provider == "anthropic" {
-		return r.handleAnthropicResponse(ctx, logger, resp, requestNum)
+		return r.handleAnthropicResponse(ctx, logger, resp)
 	}
-	return r.handleOpenAIResponse(ctx, logger, resp, requestNum)
+	return r.handleOpenAIResponse(ctx, logger, resp)
 }
 
-func (r *Runner) handleOpenAIResponse(ctx context.Context, logger slog.Logger, resp *http.Response, _ int) error {
+func (r *Runner) handleOpenAIResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
 	var response struct {
 		ID      string `json:"id"`
 		Model   string `json:"model"`
@@ -289,7 +289,7 @@ func (r *Runner) handleOpenAIResponse(ctx context.Context, logger slog.Logger, r
 	return nil
 }
 
-func (r *Runner) handleAnthropicResponse(ctx context.Context, logger slog.Logger, resp *http.Response, _ int) error {
+func (r *Runner) handleAnthropicResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
 	var response struct {
 		ID      string `json:"id"`
 		Model   string `json:"model"`
