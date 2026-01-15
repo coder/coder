@@ -2102,7 +2102,6 @@ export type FeatureName =
 	| "ai_governance_limit"
 	| "access_control"
 	| "advanced_template_scheduling"
-	| "agentic_workspaces_limit"
 	| "appearance"
 	| "audit_log"
 	| "boundary"
@@ -2131,7 +2130,6 @@ export const FeatureNames: FeatureName[] = [
 	"ai_governance_limit",
 	"access_control",
 	"advanced_template_scheduling",
-	"agentic_workspaces_limit",
 	"appearance",
 	"audit_log",
 	"boundary",

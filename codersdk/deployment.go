@@ -91,7 +91,7 @@ func (a Addon) ValidateDependencies(features map[FeatureName]int64) []string {
 	if a == AddonAIGovernance {
 		requiredFeatures := []FeatureName{
 			FeatureAIGovernanceLimit,
-			FeatureAgenticWorkspacesLimit,
+			FeatureManagedAgentLimit,
 		}
 
 		for _, feature := range requiredFeatures {
@@ -145,7 +145,6 @@ const (
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundary               FeatureName = "boundary"
 	FeatureAIGovernanceLimit      FeatureName = "ai_governance_limit"
-	FeatureAgenticWorkspacesLimit FeatureName = "agentic_workspaces_limit"
 )
 
 var (
@@ -177,7 +176,6 @@ var (
 		FeatureAIBridge,
 		FeatureBoundary,
 		FeatureAIGovernanceLimit,
-		FeatureAgenticWorkspacesLimit,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -252,10 +250,9 @@ func (n FeatureName) Enterprise() bool {
 // be included in any feature sets (as they are not boolean features).
 func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
-		FeatureUserLimit:              true,
-		FeatureManagedAgentLimit:      true,
-		FeatureAIGovernanceLimit:      true,
-		FeatureAgenticWorkspacesLimit: true,
+		FeatureUserLimit:         true,
+		FeatureManagedAgentLimit: true,
+		FeatureAIGovernanceLimit: true,
 	}[n]
 }
 
