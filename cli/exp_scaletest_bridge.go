@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/signal"
 	"strconv"
+	"text/tabwriter"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -41,20 +42,18 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "bridge",
 		Short: "Generate load on the AI Bridge service.",
-		Long: `Generate load on the AI Bridge service by making requests to OpenAI or Anthropic APIs.
+		Long: `Generate load for AI Bridge testing. Supports two modes: 'bridge' mode routes requests through the Coder AI Bridge, 'direct' mode makes requests directly to an upstream URL (useful for baseline comparisons).
 
 Examples:
   # Test OpenAI API through bridge
-  coder scaletest bridge --mode bridge --provider openai --concurrent-users 10 --request-count 5
+  coder scaletest bridge --mode bridge --provider openai --concurrent-users 10 --request-count 5 --num-messages 10
 
   # Test Anthropic API through bridge
-  coder scaletest bridge --mode bridge --provider anthropic --concurrent-users 10 --request-count 5
+  coder scaletest bridge --mode bridge --provider anthropic --concurrent-users 10 --request-count 5 --num-messages 10
 
   # Test directly against mock server
   coder scaletest bridge --mode direct --provider openai --upstream-url http://localhost:8080/v1/chat/completions
-
-The load generator builds conversation history over time, with each request including
-all previous messages in the conversation.`,
+`,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			client, err := r.InitClient(inv)
@@ -134,7 +133,22 @@ all previous messages in the conversation.`,
 				th.AddRun(name, id, runner)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Running bridge scaletest...")
+			// Print configuration summary.
+			_, _ = fmt.Fprintln(inv.Stderr, "Bridge scaletest configuration:")
+			tw := tabwriter.NewWriter(inv.Stderr, 0, 0, 2, ' ', 0)
+			for _, opt := range inv.Command.Options {
+				if opt.Hidden || opt.ValueSource == serpent.ValueSourceNone {
+					continue
+				}
+				_, _ = fmt.Fprintf(tw, "  %s:\t%s", opt.Name, opt.Value.String())
+				if opt.ValueSource != serpent.ValueSourceDefault {
+					_, _ = fmt.Fprintf(tw, "\t(from %s)", opt.ValueSource)
+				}
+				_, _ = fmt.Fprintln(tw)
+			}
+			_ = tw.Flush()
+
+			_, _ = fmt.Fprintln(inv.Stderr, "\nRunning bridge scaletest...")
 			testCtx, testCancel := timeoutStrategy.toContext(ctx)
 			defer testCancel()
 			err = th.Run(testCtx)
