@@ -227,7 +227,7 @@ func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
 }
 
 func (opts *LicenseOptions) AIGovernanceLimit(limit int64) *LicenseOptions {
-	return opts.Feature(codersdk.FeatureAIGovernanceLimit, limit)
+	return opts.Feature(codersdk.FeatureAIGovernanceUserLimit, limit)
 }
 
 func (opts *LicenseOptions) ManagedAgentLimit(soft int64, hard int64) *LicenseOptions {

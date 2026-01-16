@@ -189,10 +189,10 @@ func TestEntitlements(t *testing.T) {
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureUserLimit:         100,
-					codersdk.FeatureAuditLog:          1,
-					codersdk.FeatureAIGovernanceLimit: 1000,
-					codersdk.FeatureManagedAgentLimit: 1000,
+					codersdk.FeatureUserLimit:             100,
+					codersdk.FeatureAuditLog:              1,
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
 				},
 				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 				FeatureSet: codersdk.FeatureSetPremium,
@@ -248,10 +248,10 @@ func TestEntitlements(t *testing.T) {
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureUserLimit:         100,
-					codersdk.FeatureAuditLog:          1,
-					codersdk.FeatureAIGovernanceLimit: 1000,
-					codersdk.FeatureManagedAgentLimit: 1000,
+					codersdk.FeatureUserLimit:             100,
+					codersdk.FeatureAuditLog:              1,
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,
@@ -1667,8 +1667,8 @@ func TestAIGovernanceAddon(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
 				Features: license.Features{
-					codersdk.FeatureAIGovernanceLimit: 1000,
-					codersdk.FeatureManagedAgentLimit: 1000,
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
 				},
 				Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
 			}),
@@ -1731,8 +1731,8 @@ func TestAIGovernanceAddon(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
 				Features: license.Features{
-					codersdk.FeatureAIGovernanceLimit: 1000,
-					codersdk.FeatureManagedAgentLimit: 1000,
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
 				},
 				Addons:    []codersdk.Addon{codersdk.AddonAIGovernance},
 				NotBefore: dbtime.Now().Add(-time.Hour * 2),
@@ -1767,8 +1767,8 @@ func TestAIGovernanceAddon(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
 				Features: license.Features{
-					codersdk.FeatureAIGovernanceLimit: 1000,
-					codersdk.FeatureManagedAgentLimit: 1000,
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
 				},
 				Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
 			}),

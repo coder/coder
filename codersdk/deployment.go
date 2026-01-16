@@ -93,7 +93,7 @@ func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
 	// Candidate for a switch statement once we have more addons.
 	if a == AddonAIGovernance {
 		requiredFeatures := []FeatureName{
-			FeatureAIGovernanceLimit,
+			FeatureAIGovernanceUserLimit,
 			FeatureManagedAgentLimit,
 		}
 
@@ -171,7 +171,7 @@ const (
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundary               FeatureName = "boundary"
-	FeatureAIGovernanceLimit      FeatureName = "ai_governance_limit"
+	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 )
 
 var (
@@ -202,7 +202,7 @@ var (
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
 		FeatureBoundary,
-		FeatureAIGovernanceLimit,
+		FeatureAIGovernanceUserLimit,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -224,8 +224,8 @@ func (n FeatureName) Humanize() string {
 		return "SCIM"
 	case FeatureAIBridge:
 		return "AI Bridge"
-	case FeatureAIGovernanceLimit:
-		return "AI Governance Limit"
+	case FeatureAIGovernanceUserLimit:
+		return "AI Governance User Limit"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -277,9 +277,9 @@ func (n FeatureName) Enterprise() bool {
 // be included in any feature sets (as they are not boolean features).
 func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
-		FeatureUserLimit:         true,
-		FeatureManagedAgentLimit: true,
-		FeatureAIGovernanceLimit: true,
+		FeatureUserLimit:             true,
+		FeatureManagedAgentLimit:     true,
+		FeatureAIGovernanceUserLimit: true,
 	}[n]
 }
 
