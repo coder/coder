@@ -426,6 +426,8 @@ func LicensesEntitlements(
 			entitlements.AddFeature(featureName, feature)
 		}
 
+		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
+
 		// Add all features from the addons.
 		for _, addon := range claims.Addons {
 			validationErrors := addon.ValidateDependencies(entitlements.Features)
@@ -438,11 +440,16 @@ func LicensesEntitlements(
 				continue
 			}
 			for _, featureName := range addon.Features() {
-				entitlements.AddFeature(featureName, codersdk.Feature{
-					Entitlement: entitlement,
-					Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
-				})
+				if _, exists := addonFeatures[featureName]; !exists {
+					addonFeatures[featureName] = codersdk.Feature{
+						Entitlement: entitlement,
+						Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
+					}
+				}
 			}
+		}
+		for featureName, feature := range addonFeatures {
+			entitlements.AddFeature(featureName, feature)
 		}
 	}
 
