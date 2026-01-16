@@ -111,7 +111,7 @@
 		margin-right: 0;
 	}
 
-	/* Prevent layout shift when modals open by maintaining scrollbar width */
+	/* Prevent layout shift when modals/popovers open by maintaining scrollbar width */
 	html {
 		overflow-y: scroll;
 		scrollbar-gutter: stable;
@@ -126,7 +126,9 @@
 	  This rule overrides MUI's added padding-right on the body specifically when MUI
 	  is likely to have set both overflow:hidden and padding-right.
 	*/
-	body[style*="overflow: hidden"][style*="padding-right"] {
-		padding-right: 0px;
+	body[style*="overflow: hidden"][style*="padding-right"],
+	body[style*="overflow: hidden"] {
+		overflow-y: scroll !important;
+		padding-right: 0px !important;
 	}
 }
