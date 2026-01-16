@@ -143,6 +143,15 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy.CertStore = NewCertCache()
 	}
 
+	// Always set secure TLS defaults, overriding goproxy's default.
+	// This ensures secure TLS connections for:
+	// - HTTPS upstream proxy connections
+	// - MITM'd requests if aibridge uses HTTPS
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
+	}
+
 	// Configure upstream proxy for passthrough (non-allowlisted) requests.
 	// This only affects CONNECT requests to domains not in the allowlist.
 	// MITM'd requests (allowlisted domains) are handled by aiproxy and forwarded
@@ -158,11 +167,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		logger.Info(ctx, "configuring upstream proxy for passthrough requests",
 			slog.F("upstream", upstreamURL.Host),
 		)
-
-		rootCAs, err := x509.SystemCertPool()
-		if err != nil {
-			return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
-		}
 
 		// Add custom CA certificate if provided (for corporate proxies with private CAs).
 		// If no CA certificate is provided, the system certificate pool is used.
@@ -183,19 +187,20 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			}
 		}
 
-		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
-		// not through any upstream proxy.
-		proxy.Tr = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    rootCAs,
-			},
-		}
-
 		// Configure passthrough CONNECT requests to go through upstream proxy.
 		// This only affects non-allowlisted domains; allowlisted domains are
 		// MITM'd and forwarded to aibridge.
 		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
+	}
+
+	// Set transport with secure TLS defaults and without Proxy to ensure:
+	// - All TLS connections use secure settings
+	// - MITM'd requests go directly to aibridge, not through any upstream proxy
+	proxy.Tr = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    rootCAs,
+		},
 	}
 
 	srv := &Server{

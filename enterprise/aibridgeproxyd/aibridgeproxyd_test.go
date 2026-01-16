@@ -1142,7 +1142,11 @@ func TestUpstreamProxy(t *testing.T) {
 			finalDestination, finalDestinationURL := newTargetServer(t, func(w http.ResponseWriter, r *http.Request) {
 				finalDestinationReceived = true
 				finalDestinationPath = r.URL.Path
-				body, _ := io.ReadAll(r.Body)
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 				finalDestinationBody = string(body)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("final destination response"))
@@ -1225,7 +1229,11 @@ func TestUpstreamProxy(t *testing.T) {
 				aibridgeReceived = true
 				aibridgePath = r.URL.Path
 				aibridgeAuthHeader = r.Header.Get("Authorization")
-				body, _ := io.ReadAll(r.Body)
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 				aibridgeBody = string(body)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("aibridge response"))
