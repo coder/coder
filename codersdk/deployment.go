@@ -477,7 +477,7 @@ type Entitlements struct {
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
 }
 
-// AddFeature will add the feature to the entitlements iff it expands
+// AddFeature will add the feature to the entitlements if it expands
 // the set of features granted by the entitlements. If it does not, it will
 // be ignored and the existing feature with the same name will remain.
 //

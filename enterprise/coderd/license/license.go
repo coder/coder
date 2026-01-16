@@ -295,7 +295,7 @@ func LicensesEntitlements(
 		// Add all features from the feature set and addons.
 		for _, featureName := range claims.FeatureSet.Features() {
 			if _, ok := licenseForbiddenFeatures[featureName]; ok {
-				// Ignore any features that are forbidden to be set in a license.
+				// Ignore any FeatureSet features that are forbidden to be set in a license.
 				continue
 			}
 			if _, ok := featureGrouping[featureName]; ok {
