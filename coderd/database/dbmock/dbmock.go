@@ -4137,6 +4137,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentAndLatestBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentAndLatestBuildByAuthToken), ctx, authToken)
 }
 
+// GetWorkspaceAgentAndWorkspaceByID mocks base method.
+func (m *MockStore) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentAndWorkspaceByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentAndWorkspaceByID", ctx, id)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentAndWorkspaceByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentAndWorkspaceByID indicates an expected call of GetWorkspaceAgentAndWorkspaceByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentAndWorkspaceByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentAndWorkspaceByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentAndWorkspaceByID), ctx, id)
+}
+
 // GetWorkspaceAgentByID mocks base method.
 func (m *MockStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	m.ctrl.T.Helper()
@@ -4150,21 +4165,6 @@ func (m *MockStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (da
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByID), ctx, id)
-}
-
-// GetWorkspaceAgentByIDWithWorkspace mocks base method.
-func (m *MockStore) GetWorkspaceAgentByIDWithWorkspace(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentByIDWithWorkspaceRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentByIDWithWorkspace", ctx, id)
-	ret0, _ := ret[0].(database.GetWorkspaceAgentByIDWithWorkspaceRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetWorkspaceAgentByIDWithWorkspace indicates an expected call of GetWorkspaceAgentByIDWithWorkspace.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentByIDWithWorkspace(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByIDWithWorkspace", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByIDWithWorkspace), ctx, id)
 }
 
 // GetWorkspaceAgentByInstanceID mocks base method.

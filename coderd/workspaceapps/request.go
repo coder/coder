@@ -191,7 +191,7 @@ type databaseRequest struct {
 	// User is the user that owns the app.
 	User database.User
 	// Workspace is the workspace that the app is in.
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 	// Agent is the agent that the app is running on.
 	Agent database.WorkspaceAgent
 	// App is the app that the user is trying to access.
@@ -421,7 +421,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	return &databaseRequest{
 		Request:         r,
 		User:            user,
-		Workspace:       workspace,
+		Workspace:       workspace.WorkspaceTable(),
 		Agent:           agent,
 		App:             app,
 		AppURL:          appURLParsed,
@@ -443,21 +443,21 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 	}
 
 	var err error
-	aw, err := db.GetWorkspaceAgentByIDWithWorkspace(ctx, agentID)
+	aw, err := db.GetWorkspaceAgentAndWorkspaceByID(ctx, agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace agent %q with workspace: %w", agentID, err)
 	}
 
 	// Get the workspace's owner.
-	user, err := db.GetUserByID(ctx, aw.Workspace.OwnerID)
+	user, err := db.GetUserByID(ctx, aw.WorkspaceTable.OwnerID)
 	if err != nil {
-		return nil, xerrors.Errorf("get user %q: %w", aw.Workspace.OwnerID, err)
+		return nil, xerrors.Errorf("get user %q: %w", aw.WorkspaceTable.OwnerID, err)
 	}
 
 	return &databaseRequest{
 		Request:         r,
 		User:            user,
-		Workspace:       aw.Workspace,
+		Workspace:       aw.WorkspaceTable,
 		Agent:           aw.WorkspaceAgent,
 		AppURL:          nil,
 		AppSharingLevel: database.AppSharingLevelOwner,

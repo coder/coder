@@ -886,6 +886,6 @@ func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
 }
 
 // A workspace agent belongs to the owner of the associated workspace.
-func (r GetWorkspaceAgentByIDWithWorkspaceRow) RBACObject() rbac.Object {
-	return r.Workspace.RBACObject()
+func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
 }

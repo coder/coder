@@ -118,7 +118,7 @@ func TestWatchAgentContainers(t *testing.T) {
 		api.agentProvider = fAgentProvider
 
 		// Setup: Allow `ExtractWorkspaceAgentParams` to complete.
-		mDB.EXPECT().GetWorkspaceAgentByIDWithWorkspace(gomock.Any(), agentID).Return(database.GetWorkspaceAgentByIDWithWorkspaceRow{
+		mDB.EXPECT().GetWorkspaceAgentAndWorkspaceByID(gomock.Any(), agentID).Return(database.GetWorkspaceAgentAndWorkspaceByIDRow{
 			WorkspaceAgent: database.WorkspaceAgent{
 				ID:               agentID,
 				ResourceID:       resourceID,
@@ -126,7 +126,7 @@ func TestWatchAgentContainers(t *testing.T) {
 				FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
 				LastConnectedAt:  sql.NullTime{Valid: true, Time: dbtime.Now()},
 			},
-			Workspace: database.Workspace{
+			WorkspaceTable: database.WorkspaceTable{
 				ID: workspaceID,
 			},
 		}, nil)
@@ -143,7 +143,7 @@ func TestWatchAgentContainers(t *testing.T) {
 			})
 
 		// And: We mount the HTTP Handler
-		r.With(httpmw.ExtractWorkspaceAgentParam(mDB)).
+		r.With(httpmw.ExtractWorkspaceAgentAndWorkspaceParam(mDB)).
 			Get("/workspaceagents/{workspaceagent}/containers/watch", api.watchWorkspaceAgentContainers)
 
 		// Given: We create the HTTP server
@@ -235,7 +235,7 @@ func TestWatchAgentContainers(t *testing.T) {
 		api.agentProvider = fAgentProvider
 
 		// Setup: Allow `ExtractWorkspaceAgentParams` to complete.
-		mDB.EXPECT().GetWorkspaceAgentByIDWithWorkspace(gomock.Any(), agentID).Return(database.GetWorkspaceAgentByIDWithWorkspaceRow{
+		mDB.EXPECT().GetWorkspaceAgentAndWorkspaceByID(gomock.Any(), agentID).Return(database.GetWorkspaceAgentAndWorkspaceByIDRow{
 			WorkspaceAgent: database.WorkspaceAgent{
 				ID:               agentID,
 				ResourceID:       resourceID,
@@ -243,7 +243,7 @@ func TestWatchAgentContainers(t *testing.T) {
 				FirstConnectedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
 				LastConnectedAt:  sql.NullTime{Valid: true, Time: dbtime.Now()},
 			},
-			Workspace: database.Workspace{
+			WorkspaceTable: database.WorkspaceTable{
 				ID: workspaceID,
 			},
 		}, nil)
@@ -256,7 +256,7 @@ func TestWatchAgentContainers(t *testing.T) {
 			Return(containersCh, io.NopCloser(&bytes.Buffer{}), nil)
 
 		// And: We mount the HTTP Handler
-		r.With(httpmw.ExtractWorkspaceAgentParam(mDB)).
+		r.With(httpmw.ExtractWorkspaceAgentAndWorkspaceParam(mDB)).
 			Get("/workspaceagents/{workspaceagent}/containers/watch", api.watchWorkspaceAgentContainers)
 
 		// Given: We create the HTTP server

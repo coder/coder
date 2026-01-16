@@ -2215,19 +2215,19 @@ func (m queryMetricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentAndWorkspaceByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentAndWorkspaceByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByIDWithWorkspace").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByIDWithWorkspace").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkspaceAgentByIDWithWorkspace(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentByIDWithWorkspaceRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentByIDWithWorkspace(ctx, id)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByIDWithWorkspace").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByIDWithWorkspace").Inc()
 	return r0, r1
 }
 

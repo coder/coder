@@ -13,19 +13,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type workspaceAgentParamContextKey struct{}
+type workspaceAgentAndWorkspaceParamContextKey struct{}
 
-// WorkspaceAgentParam returns the workspace agent from the ExtractWorkspaceAgentParam handler.
-func WorkspaceAgentParam(r *http.Request) database.WorkspaceAgent {
-	user, ok := r.Context().Value(workspaceAgentParamContextKey{}).(database.WorkspaceAgent)
+// WorkspaceAgentAndWorkspaceParam returns the workspace agent and its associated workspace from the ExtractWorkspaceAgentParam handler.
+func WorkspaceAgentAndWorkspaceParam(r *http.Request) database.GetWorkspaceAgentAndWorkspaceByIDRow {
+	aw, ok := r.Context().Value(workspaceAgentAndWorkspaceParamContextKey{}).(database.GetWorkspaceAgentAndWorkspaceByIDRow)
 	if !ok {
 		panic("developer error: agent middleware not provided")
 	}
-	return user
+	return aw
 }
 
-// ExtractWorkspaceAgentParam grabs a workspace agent from the "workspaceagent" URL parameter.
-func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handler {
+// ExtractWorkspaceAgentAndWorkspaceParam grabs a workspace agent and its associated workspace from the "workspaceagent" URL parameter.
+func ExtractWorkspaceAgentAndWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -34,7 +34,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 				return
 			}
 
-			agentWithWorkspace, err := db.GetWorkspaceAgentByIDWithWorkspace(ctx, agentUUID)
+			agentWithWorkspace, err := db.GetWorkspaceAgentAndWorkspaceByID(ctx, agentUUID)
 			if httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 					Message: "Agent doesn't exist with that id, or you do not have access to it.",
@@ -42,13 +42,12 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 				return
 			}
 
-			ctx = context.WithValue(ctx, workspaceAgentParamContextKey{}, agentWithWorkspace.WorkspaceAgent)
-			ctx = context.WithValue(ctx, workspaceParamContextKey{}, agentWithWorkspace.Workspace)
-			chi.RouteContext(ctx).URLParams.Add("workspace", agentWithWorkspace.Workspace.ID.String())
+			ctx = context.WithValue(ctx, workspaceAgentAndWorkspaceParamContextKey{}, agentWithWorkspace)
+			chi.RouteContext(ctx).URLParams.Add("workspace", agentWithWorkspace.WorkspaceTable.ID.String())
 
 			if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
 				rlogger.WithFields(
-					slog.F("workspace_name", agentWithWorkspace.Workspace.Name),
+					slog.F("workspace_name", agentWithWorkspace.WorkspaceTable.Name),
 					slog.F("agent_name", agentWithWorkspace.WorkspaceAgent.Name),
 				)
 			}

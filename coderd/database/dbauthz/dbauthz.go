@@ -3614,6 +3614,10 @@ func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context
 	return q.db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)
 }
 
+func (q *querier) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentAndWorkspaceByIDRow, error) {
+	return fetch(q.log, q.auth, q.db.GetWorkspaceAgentAndWorkspaceByID)(ctx, id)
+}
+
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	// Fast path: Check if we have a workspace RBAC object in context.
 	// In the agent API this is set at agent connection time to avoid the expensive
@@ -3634,10 +3638,6 @@ func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (data
 		return database.WorkspaceAgent{}, err
 	}
 	return q.db.GetWorkspaceAgentByID(ctx, id)
-}
-
-func (q *querier) GetWorkspaceAgentByIDWithWorkspace(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentByIDWithWorkspaceRow, error) {
-	return fetch(q.log, q.auth, q.db.GetWorkspaceAgentByIDWithWorkspace)(ctx, id)
 }
 
 // GetWorkspaceAgentByInstanceID might want to be a system call? Unsure exactly,

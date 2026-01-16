@@ -1436,7 +1436,7 @@ func New(options *Options) *API {
 						Optional: true,
 					}),
 					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
-					httpmw.ExtractWorkspaceAgentParam(options.Database),
+					httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)

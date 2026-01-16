@@ -394,10 +394,11 @@ AND wb.build_number = (
 )
 AND workspace_agents.deleted = FALSE;
 
--- name: GetWorkspaceAgentByIDWithWorkspace :one
+-- name: GetWorkspaceAgentAndWorkspaceByID :one
 SELECT
 	sqlc.embed(workspace_agents),
-	sqlc.embed(workspaces_expanded)
+	sqlc.embed(workspaces),
+	users.username as owner_username
 FROM
 	workspace_agents
 JOIN
@@ -407,9 +408,13 @@ JOIN
 JOIN
 	workspace_builds ON provisioner_jobs.id = workspace_builds.job_id
 JOIN
-	workspaces_expanded ON workspace_builds.workspace_id = workspaces_expanded.id
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+JOIN
+	users ON workspaces.owner_id = users.id
 WHERE
 	workspace_agents.id = @id
+	AND workspace_agents.deleted = FALSE
 	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
-	AND workspaces_expanded.deleted = FALSE
+	AND workspaces.deleted = FALSE
+	AND users.deleted = FALSE
 LIMIT 1;
