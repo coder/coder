@@ -46,6 +46,8 @@ func TestSupportBundle(t *testing.T) {
 
 	// Support bundle tests can share a single coderdtest instance.
 	var dc codersdk.DeploymentConfig
+	dc.Values = coderdtest.DeploymentValues(t)
+	dc.Values.Prometheus.Enable = true
 	secretValue := uuid.NewString()
 	seedSecretDeploymentOptions(t, &dc, secretValue)
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -228,8 +230,9 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			decodeJSONFromZip(t, f, &v)
 			require.NotNil(t, v, "deployment workspaces should not be nil")
 		case "deployment/prometheus.txt":
-			// Prometheus metrics are included when the deployment has prometheus enabled.
-			_ = readBytesFromZip(t, f)
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "prometheus metrics should not be empty")
+			require.Contains(t, string(bs), "go_goroutines", "prometheus metrics should contain go runtime metrics")
 		case "network/connection_info.json":
 			var v workspacesdk.AgentConnectionInfo
 			decodeJSONFromZip(t, f, &v)
