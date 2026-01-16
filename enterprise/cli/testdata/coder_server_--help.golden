@@ -122,6 +122,26 @@ AI BRIDGE OPTIONS:
           See
           https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
+      --aibridge-circuit-breaker-enabled bool, $CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED (default: false)
+          Enable the circuit breaker to protect against cascading failures from
+          upstream AI provider rate limits (429, 503, 529 overloaded).
+
+      --aibridge-circuit-breaker-failure-threshold int, $CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD (default: 5)
+          Number of consecutive failures that triggers the circuit breaker to
+          open.
+
+      --aibridge-circuit-breaker-interval duration, $CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL (default: 10s)
+          Cyclic period of the closed state for clearing internal failure
+          counts.
+
+      --aibridge-circuit-breaker-max-requests int, $CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS (default: 3)
+          Maximum number of requests allowed in half-open state before deciding
+          to close or re-open the circuit.
+
+      --aibridge-circuit-breaker-timeout duration, $CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT (default: 30s)
+          How long the circuit breaker stays open before transitioning to
+          half-open state.
+
       --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 60d)
           Length of time to retain data such as interceptions and all related
           records (token, prompt, tool use).
