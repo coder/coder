@@ -35,6 +35,7 @@ Create a `config.yaml` file in your template directory with your policy. For the
 
 ```yaml
 allowlist:
+  - "domain=dev.coder.com"              # Use your Coder Deployment Domain
   - "domain=api.anthropic.com"          # Required - API endpoint for Claude
   - "domain=statsig.anthropic.com"      # Highly recommended - Feature flags and analytics
   - "domain=claude.ai"                  # Required for WebFetch/WebSearch features
