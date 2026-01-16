@@ -113,6 +113,7 @@
 
 	/* Prevent layout shift when modals open by maintaining scrollbar width */
 	html {
+		overflow-y: scroll;
 		scrollbar-gutter: stable;
 	}
 
