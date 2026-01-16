@@ -44,6 +44,8 @@ proxy_port: 8087
 log_level: warn
 ```
 
+For a basic recommendation of what to allow for agents, see the [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains). For a comprehensive example of a production Boundary configuration, see the [Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
+
 Add a `coder_script` resource to mount the configuration file into the workspace filesystem:
 
 ```tf
