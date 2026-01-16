@@ -14,7 +14,6 @@ cdroot
 
 if [[ $# -lt 1 ]]; then
 	error "Usage: check_pg_schema.sh <label> [files...]"
-	exit 1
 fi
 
 label=$1
