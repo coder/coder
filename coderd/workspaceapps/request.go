@@ -188,8 +188,8 @@ func (r Request) Check() error {
 
 type databaseRequest struct {
 	Request
-	// User is the user that owns the app.
-	User database.User
+	// UserID is the ID of the user that owns the app.
+	UserID uuid.UUID
 	// Workspace is the workspace that the app is in.
 	Workspace database.WorkspaceTable
 	// Agent is the agent that the app is running on.
@@ -420,7 +420,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 
 	return &databaseRequest{
 		Request:         r,
-		User:            user,
+		UserID:          user.ID,
 		Workspace:       workspace.WorkspaceTable(),
 		Agent:           agent,
 		App:             app,
@@ -448,15 +448,9 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 		return nil, xerrors.Errorf("get workspace agent %q with workspace: %w", agentID, err)
 	}
 
-	// Get the workspace's owner.
-	user, err := db.GetUserByID(ctx, aw.WorkspaceTable.OwnerID)
-	if err != nil {
-		return nil, xerrors.Errorf("get user %q: %w", aw.WorkspaceTable.OwnerID, err)
-	}
-
 	return &databaseRequest{
 		Request:         r,
-		User:            user,
+		UserID:          aw.WorkspaceTable.OwnerID,
 		Workspace:       aw.WorkspaceTable,
 		Agent:           aw.WorkspaceAgent,
 		AppURL:          nil,
