@@ -1,11 +1,13 @@
-package agent_test
+package agentfiles_test
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,10 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -106,15 +108,15 @@ func TestReadFile(t *testing.T) {
 
 	tmpdir := os.TempDir()
 	noPermsFilePath := filepath.Join(tmpdir, "no-perms")
-	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, opts *agent.Options) {
-		opts.Filesystem = newTestFs(opts.Filesystem, func(call, file string) error {
-			if file == noPermsFilePath {
-				return os.ErrPermission
-			}
-			return nil
-		})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
+		if file == noPermsFilePath {
+			return os.ErrPermission
+		}
+		return nil
 	})
+	api := agentfiles.NewAPI(logger, fs)
 
 	dirPath := filepath.Join(tmpdir, "a-directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -260,19 +262,22 @@ func TestReadFile(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			reader, mimeType, err := conn.ReadFile(ctx, tt.path, tt.offset, tt.limit)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/read-file?path=%s&offset=%d&limit=%d", tt.path, tt.offset, tt.limit), nil)
+			api.Routes().ServeHTTP(w, r)
+
 			if tt.errCode != 0 {
-				require.Error(t, err)
-				cerr := coderdtest.SDKError(t, err)
-				require.Contains(t, cerr.Error(), tt.error)
-				require.Equal(t, tt.errCode, cerr.StatusCode())
-			} else {
+				got := &codersdk.Error{}
+				err := json.NewDecoder(w.Body).Decode(got)
 				require.NoError(t, err)
-				defer reader.Close()
-				bytes, err := io.ReadAll(reader)
+				require.ErrorContains(t, got, tt.error)
+				require.Equal(t, tt.errCode, w.Code)
+			} else {
+				bytes, err := io.ReadAll(w.Body)
 				require.NoError(t, err)
 				require.Equal(t, tt.bytes, bytes)
-				require.Equal(t, tt.mimeType, mimeType)
+				require.Equal(t, tt.mimeType, w.Header().Get("Content-Type"))
+				require.Equal(t, http.StatusOK, w.Code)
 			}
 		})
 	}
@@ -284,15 +289,14 @@ func TestWriteFile(t *testing.T) {
 	tmpdir := os.TempDir()
 	noPermsFilePath := filepath.Join(tmpdir, "no-perms-file")
 	noPermsDirPath := filepath.Join(tmpdir, "no-perms-dir")
-	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, opts *agent.Options) {
-		opts.Filesystem = newTestFs(opts.Filesystem, func(call, file string) error {
-			if file == noPermsFilePath || file == noPermsDirPath {
-				return os.ErrPermission
-			}
-			return nil
-		})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
+		if file == noPermsFilePath || file == noPermsDirPath {
+			return os.ErrPermission
+		}
+		return nil
 	})
+	api := agentfiles.NewAPI(logger, fs)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -371,17 +375,21 @@ func TestWriteFile(t *testing.T) {
 			defer cancel()
 
 			reader := bytes.NewReader(tt.bytes)
-			err := conn.WriteFile(ctx, tt.path, reader)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("/write-file?path=%s", tt.path), reader)
+			api.Routes().ServeHTTP(w, r)
+
 			if tt.errCode != 0 {
-				require.Error(t, err)
-				cerr := coderdtest.SDKError(t, err)
-				require.Contains(t, cerr.Error(), tt.error)
-				require.Equal(t, tt.errCode, cerr.StatusCode())
+				got := &codersdk.Error{}
+				err := json.NewDecoder(w.Body).Decode(got)
+				require.NoError(t, err)
+				require.ErrorContains(t, got, tt.error)
+				require.Equal(t, tt.errCode, w.Code)
 			} else {
+				bytes, err := afero.ReadFile(fs, tt.path)
 				require.NoError(t, err)
-				b, err := afero.ReadFile(fs, tt.path)
-				require.NoError(t, err)
-				require.Equal(t, tt.bytes, b)
+				require.Equal(t, tt.bytes, bytes)
+				require.Equal(t, http.StatusOK, w.Code)
 			}
 		})
 	}
@@ -393,21 +401,20 @@ func TestEditFiles(t *testing.T) {
 	tmpdir := os.TempDir()
 	noPermsFilePath := filepath.Join(tmpdir, "no-perms-file")
 	failRenameFilePath := filepath.Join(tmpdir, "fail-rename")
-	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, opts *agent.Options) {
-		opts.Filesystem = newTestFs(opts.Filesystem, func(call, file string) error {
-			if file == noPermsFilePath {
-				return &os.PathError{
-					Op:   call,
-					Path: file,
-					Err:  os.ErrPermission,
-				}
-			} else if file == failRenameFilePath && call == "rename" {
-				return xerrors.New("rename failed")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
+		if file == noPermsFilePath {
+			return &os.PathError{
+				Op:   call,
+				Path: file,
+				Err:  os.ErrPermission,
 			}
-			return nil
-		})
+		} else if file == failRenameFilePath && call == "rename" {
+			return xerrors.New("rename failed")
+		}
+		return nil
 	})
+	api := agentfiles.NewAPI(logger, fs)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -701,16 +708,26 @@ func TestEditFiles(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: tt.edits})
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			err := enc.Encode(workspacesdk.FileEditRequest{Files: tt.edits})
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
+
 			if tt.errCode != 0 {
-				require.Error(t, err)
-				cerr := coderdtest.SDKError(t, err)
-				for _, error := range tt.errors {
-					require.Contains(t, cerr.Error(), error)
-				}
-				require.Equal(t, tt.errCode, cerr.StatusCode())
-			} else {
+				got := &codersdk.Error{}
+				err := json.NewDecoder(w.Body).Decode(got)
 				require.NoError(t, err)
+				for _, error := range tt.errors {
+					require.ErrorContains(t, got, error)
+				}
+				require.Equal(t, tt.errCode, w.Code)
+			} else {
+				require.Equal(t, http.StatusOK, w.Code)
 			}
 			for path, expect := range tt.expected {
 				b, err := afero.ReadFile(fs, path)

@@ -1,4 +1,4 @@
-package agent
+package agentfiles
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 
 type HTTPResponseCode = int
 
-func (a *agent) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
+func (api *API) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	query := r.URL.Query()
@@ -42,7 +42,7 @@ func (a *agent) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := a.streamFile(ctx, rw, path, offset, limit)
+	status, err := api.streamFile(ctx, rw, path, offset, limit)
 	if err != nil {
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: err.Error(),
@@ -51,12 +51,12 @@ func (a *agent) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *agent) streamFile(ctx context.Context, rw http.ResponseWriter, path string, offset, limit int64) (HTTPResponseCode, error) {
+func (api *API) streamFile(ctx context.Context, rw http.ResponseWriter, path string, offset, limit int64) (HTTPResponseCode, error) {
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
-	f, err := a.filesystem.Open(path)
+	f, err := api.filesystem.Open(path)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
@@ -97,13 +97,13 @@ func (a *agent) streamFile(ctx context.Context, rw http.ResponseWriter, path str
 	reader := io.NewSectionReader(f, offset, bytesToRead)
 	_, err = io.Copy(rw, reader)
 	if err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil {
-		a.logger.Error(ctx, "workspace agent read file", slog.Error(err))
+		api.logger.Error(ctx, "workspace agent read file", slog.Error(err))
 	}
 
 	return 0, nil
 }
 
-func (a *agent) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
+func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	query := r.URL.Query()
@@ -118,7 +118,7 @@ func (a *agent) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := a.writeFile(ctx, r, path)
+	status, err := api.writeFile(ctx, r, path)
 	if err != nil {
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: err.Error(),
@@ -131,13 +131,13 @@ func (a *agent) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HTTPResponseCode, error) {
+func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HTTPResponseCode, error) {
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
 	dir := filepath.Dir(path)
-	err := a.filesystem.MkdirAll(dir, 0o755)
+	err := api.filesystem.MkdirAll(dir, 0o755)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
@@ -149,7 +149,7 @@ func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		return status, err
 	}
 
-	f, err := a.filesystem.Create(path)
+	f, err := api.filesystem.Create(path)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
@@ -164,13 +164,13 @@ func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HT
 
 	_, err = io.Copy(f, r.Body)
 	if err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil {
-		a.logger.Error(ctx, "workspace agent write file", slog.Error(err))
+		api.logger.Error(ctx, "workspace agent write file", slog.Error(err))
 	}
 
 	return 0, nil
 }
 
-func (a *agent) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
+func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var req workspacesdk.FileEditRequest
@@ -188,7 +188,7 @@ func (a *agent) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	var combinedErr error
 	status := http.StatusOK
 	for _, edit := range req.Files {
-		s, err := a.editFile(r.Context(), edit.Path, edit.Edits)
+		s, err := api.editFile(r.Context(), edit.Path, edit.Edits)
 		// Keep the highest response status, so 500 will be preferred over 400, etc.
 		if s > status {
 			status = s
@@ -210,7 +210,7 @@ func (a *agent) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, error) {
+func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, error) {
 	if path == "" {
 		return http.StatusBadRequest, xerrors.New("\"path\" is required")
 	}
@@ -223,7 +223,7 @@ func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.
 		return http.StatusBadRequest, xerrors.New("must specify at least one edit")
 	}
 
-	f, err := a.filesystem.Open(path)
+	f, err := api.filesystem.Open(path)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
@@ -252,7 +252,7 @@ func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.
 
 	// Create an adjacent file to ensure it will be on the same device and can be
 	// moved atomically.
-	tmpfile, err := afero.TempFile(a.filesystem, filepath.Dir(path), filepath.Base(path))
+	tmpfile, err := afero.TempFile(api.filesystem, filepath.Dir(path), filepath.Base(path))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -260,13 +260,13 @@ func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.
 
 	_, err = io.Copy(tmpfile, replace.Chain(f, transforms...))
 	if err != nil {
-		if rerr := a.filesystem.Remove(tmpfile.Name()); rerr != nil {
-			a.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		if rerr := api.filesystem.Remove(tmpfile.Name()); rerr != nil {
+			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
 		}
 		return http.StatusInternalServerError, xerrors.Errorf("edit %s: %w", path, err)
 	}
 
-	err = a.filesystem.Rename(tmpfile.Name(), path)
+	err = api.filesystem.Rename(tmpfile.Name(), path)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

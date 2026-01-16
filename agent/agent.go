@@ -40,6 +40,7 @@ import (
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -295,6 +296,8 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
+	filesAPI *agentfiles.API
+
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
@@ -364,6 +367,8 @@ func (a *agent) init() {
 	containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
 
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
