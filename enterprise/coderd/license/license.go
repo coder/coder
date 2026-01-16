@@ -358,7 +358,7 @@ func LicensesEntitlements(
 			switch {
 			case featureName.UsesLimit():
 				if featureValue <= 0 {
-					// 0 user count doesn't make sense, so we skip it.
+					// 0 limit value or less doesn't make sense, so we skip it.
 					continue
 				}
 
