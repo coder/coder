@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"time"
 
@@ -289,6 +290,23 @@ func LicensesEntitlements(
 					Start:    defaultManagedAgentsStart,
 					End:      defaultManagedAgentsEnd,
 				},
+			})
+		}
+
+		// Temporary: revert this in March 2026 release.
+		// Give people access to AI Bridge for this release if they are entitled to Premium.
+		// We're going to enforce license restrictions in March 2026 release.
+		if !slices.Contains(claims.Addons, codersdk.AddonAIGovernance) &&
+			claims.FeatureSet == codersdk.FeatureSetPremium {
+			entitlements.Warnings = append(entitlements.Warnings,
+				fmt.Sprintf(
+					"%s has reached General Availability and your Coder deployment is not entitled to run this feature. Contact your account team for information around getting a license with %s.",
+					codersdk.FeatureAIBridge.Humanize(),
+					codersdk.AddonAIGovernance.Humanize()),
+			)
+			entitlements.AddFeature(codersdk.FeatureAIBridge, codersdk.Feature{
+				Enabled:     true,
+				Entitlement: entitlement,
 			})
 		}
 
