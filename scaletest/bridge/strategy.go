@@ -104,11 +104,11 @@ func newDirectStrategy(cfg directStrategyConfig) *directStrategy {
 	}
 }
 
-func (s *directStrategy) Setup(ctx context.Context, _ string, logs io.Writer) (requestURL string, _ string, err error) {
+func (s *directStrategy) Setup(ctx context.Context, _ string, logs io.Writer) (url string, token string, _ error) {
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 
 	logger.Info(ctx, "bridge runner in direct mode", slog.F("url", s.upstreamURL))
-	return s.upstreamURL, "", err
+	return s.upstreamURL, "", nil
 }
 
 func (*directStrategy) Cleanup(_ context.Context, _ string, _ io.Writer) error {
