@@ -2,6 +2,9 @@ package healthcheck
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,7 +13,90 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/quartz"
 )
+
+// Progress tracks the progress of healthcheck components for timeout
+// diagnostics. It records which checks have started and completed, along with
+// their durations, to provide useful information when a healthcheck times out.
+// The zero value is usable.
+type Progress struct {
+	Clock  quartz.Clock
+	mu     sync.Mutex
+	checks map[string]*checkStatus
+}
+
+type checkStatus struct {
+	startedAt   time.Time
+	completedAt time.Time
+}
+
+// Start records that a check has started.
+func (p *Progress) Start(name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.Clock == nil {
+		p.Clock = quartz.NewReal()
+	}
+	if p.checks == nil {
+		p.checks = make(map[string]*checkStatus)
+	}
+	p.checks[name] = &checkStatus{startedAt: p.Clock.Now()}
+}
+
+// Complete records that a check has finished.
+func (p *Progress) Complete(name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.Clock == nil {
+		p.Clock = quartz.NewReal()
+	}
+	if p.checks == nil {
+		p.checks = make(map[string]*checkStatus)
+	}
+	if p.checks[name] == nil {
+		p.checks[name] = &checkStatus{startedAt: p.Clock.Now()}
+	}
+	p.checks[name].completedAt = p.Clock.Now()
+}
+
+// Reset clears all recorded check statuses.
+func (p *Progress) Reset() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.checks = make(map[string]*checkStatus)
+}
+
+// Summary returns a human-readable summary of check progress.
+// Example: "Completed: AccessURL (95ms), Database (120ms). Still running: DERP, Websocket"
+func (p *Progress) Summary() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var completed, running []string
+	for name, status := range p.checks {
+		if status.completedAt.IsZero() {
+			elapsed := p.Clock.Now().Sub(status.startedAt).Round(time.Millisecond)
+			running = append(running, fmt.Sprintf("%s (elapsed: %dms)", name, elapsed.Milliseconds()))
+			continue
+		}
+		duration := status.completedAt.Sub(status.startedAt).Round(time.Millisecond)
+		completed = append(completed, fmt.Sprintf("%s (%dms)", name, duration.Milliseconds()))
+	}
+
+	// Sort for consistent output.
+	slices.Sort(completed)
+	slices.Sort(running)
+
+	var parts []string
+	if len(completed) > 0 {
+		parts = append(parts, "Completed: "+strings.Join(completed, ", "))
+	}
+	if len(running) > 0 {
+		parts = append(parts, "Still running: "+strings.Join(running, ", "))
+	}
+	return strings.Join(parts, ". ")
+}
 
 type Checker interface {
 	DERP(ctx context.Context, opts *derphealth.ReportOptions) healthsdk.DERPHealthReport
@@ -30,6 +116,10 @@ type ReportOptions struct {
 	ProvisionerDaemons ProvisionerDaemonsReportDeps
 
 	Checker Checker
+
+	// Progress tracks healthcheck progress for timeout diagnostics.
+	// If set, each check will record its start and completion time.
+	Progress *Progress
 }
 
 type defaultChecker struct{}
@@ -89,6 +179,10 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 			}
 		}()
 
+		if opts.Progress != nil {
+			opts.Progress.Start("DERP")
+			defer opts.Progress.Complete("DERP")
+		}
 		report.DERP = opts.Checker.DERP(ctx, &opts.DerpHealth)
 	}()
 
@@ -101,6 +195,10 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 			}
 		}()
 
+		if opts.Progress != nil {
+			opts.Progress.Start("AccessURL")
+			defer opts.Progress.Complete("AccessURL")
+		}
 		report.AccessURL = opts.Checker.AccessURL(ctx, &opts.AccessURL)
 	}()
 
@@ -113,6 +211,10 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 			}
 		}()
 
+		if opts.Progress != nil {
+			opts.Progress.Start("Websocket")
+			defer opts.Progress.Complete("Websocket")
+		}
 		report.Websocket = opts.Checker.Websocket(ctx, &opts.Websocket)
 	}()
 
@@ -125,6 +227,10 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 			}
 		}()
 
+		if opts.Progress != nil {
+			opts.Progress.Start("Database")
+			defer opts.Progress.Complete("Database")
+		}
 		report.Database = opts.Checker.Database(ctx, &opts.Database)
 	}()
 
@@ -137,6 +243,10 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 			}
 		}()
 
+		if opts.Progress != nil {
+			opts.Progress.Start("WorkspaceProxy")
+			defer opts.Progress.Complete("WorkspaceProxy")
+		}
 		report.WorkspaceProxy = opts.Checker.WorkspaceProxy(ctx, &opts.WorkspaceProxy)
 	}()
 
@@ -149,6 +259,10 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 			}
 		}()
 
+		if opts.Progress != nil {
+			opts.Progress.Start("ProvisionerDaemons")
+			defer opts.Progress.Complete("ProvisionerDaemons")
+		}
 		report.ProvisionerDaemons = opts.Checker.ProvisionerDaemons(ctx, &opts.ProvisionerDaemons)
 	}()
 

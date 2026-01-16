@@ -7,7 +7,6 @@ allowlist:
   - domain=dev.coder.com
 
   # test domains
-  - method=GET domain=google.com
   - method=GET domain=typicode.com
 
   # domain used in coder task workspaces

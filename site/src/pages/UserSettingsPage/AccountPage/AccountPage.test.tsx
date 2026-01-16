@@ -25,7 +25,7 @@ const fillAndSubmitForm = async () => {
 describe("AccountPage", () => {
 	describe("when it is a success", () => {
 		it("shows the success message", async () => {
-			jest.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>
+			vi.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>
 				Promise.resolve({
 					id: userId,
 					email: "user@coder.com",
@@ -53,7 +53,7 @@ describe("AccountPage", () => {
 
 	describe("when the username is already taken", () => {
 		it("shows an error", async () => {
-			jest.spyOn(API, "updateProfile").mockRejectedValueOnce(
+			vi.spyOn(API, "updateProfile").mockRejectedValueOnce(
 				mockApiError({
 					message: "Invalid profile",
 					validations: [
@@ -76,7 +76,7 @@ describe("AccountPage", () => {
 
 	describe("when it is an unknown error", () => {
 		it("shows a generic error message", async () => {
-			jest.spyOn(API, "updateProfile").mockRejectedValueOnce({
+			vi.spyOn(API, "updateProfile").mockRejectedValueOnce({
 				data: "unknown error",
 			});
 

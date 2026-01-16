@@ -22,13 +22,12 @@ import {
 } from "./ProxyContext";
 import type * as ProxyLatency from "./useProxyLatency";
 
-// Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
-// here and not inside a unit test.
-jest.mock("contexts/useProxyLatency", () => ({
+// Mock useProxyLatency to use a hard-coded latency.
+vi.mock("contexts/useProxyLatency", () => ({
 	useProxyLatency: () => {
 		return {
 			proxyLatencies: hardCodedLatencies,
-			refetch: jest.fn(),
+			refetch: vi.fn(),
 			loaded: true,
 		};
 	},

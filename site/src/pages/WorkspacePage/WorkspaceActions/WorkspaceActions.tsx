@@ -29,6 +29,7 @@ interface WorkspaceActionsProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	permissions: WorkspacePermissions;
+	sharingDisabled?: boolean;
 	handleToggleFavorite: () => void;
 	handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
@@ -45,6 +46,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	isUpdating,
 	isRestarting,
 	permissions,
+	sharingDisabled,
 	handleToggleFavorite,
 	handleStart,
 	handleStop,
@@ -189,10 +191,12 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			<ShareButton
-				workspace={workspace}
-				canUpdatePermissions={permissions.updateWorkspace}
-			/>
+			{!sharingDisabled && (
+				<ShareButton
+					workspace={workspace}
+					canUpdatePermissions={permissions.updateWorkspace}
+				/>
+			)}
 
 			<WorkspaceMoreActions workspace={workspace} disabled={!canAcceptJobs} />
 		</div>

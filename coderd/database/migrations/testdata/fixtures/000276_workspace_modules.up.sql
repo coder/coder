@@ -1,5 +1,5 @@
 INSERT INTO
-    public.workspace_modules (
+    workspace_modules (
         id,
         job_id,
         transition,

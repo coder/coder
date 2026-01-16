@@ -83,17 +83,21 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
 
-		report := api.HealthcheckFunc(ctx, apiKey)
+		// Create and store progress tracker for timeout diagnostics.
+		report := api.HealthcheckFunc(ctx, apiKey, &api.healthCheckProgress)
 		if report != nil { // Only store non-nil reports.
 			api.healthCheckCache.Store(report)
 		}
+		api.healthCheckProgress.Reset()
 		return report, nil
 	})
 
 	select {
 	case <-ctx.Done():
+		summary := api.healthCheckProgress.Summary()
 		httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
-			Message: "Healthcheck is in progress and did not complete in time. Try again in a few seconds.",
+			Message: "Healthcheck timed out.",
+			Detail:  summary,
 		})
 		return
 	case res := <-resChan:
