@@ -39,12 +39,25 @@ const WorkspaceParametersPage: FC = () => {
 	);
 	const navigate = useNavigate();
 	const updateParameters = useMutation({
-		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
-			API.postWorkspaceBuild(workspace.id, {
+		mutationFn: async (buildParameters: WorkspaceBuildParameter[]) => {
+			// If workspace is running, stop it first then start with new parameters
+			if (workspace.latest_build.status === "running") {
+				const stopBuild = await API.stopWorkspace(workspace.id);
+				const awaitedStopBuild = await API.waitForBuild(stopBuild);
+				// If the stop is canceled, bail out
+				if (awaitedStopBuild?.status === "canceled") {
+					throw new Error(
+						"Workspace stop was canceled, not proceeding with parameter update.",
+					);
+				}
+			}
+			// Now start the workspace with new parameters
+			return API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
 				rich_parameter_values: buildParameters,
 				reason: "dashboard",
-			}),
+			});
+		},
 		onSuccess: () => {
 			navigate(`/${workspace.owner_name}/${workspace.name}`);
 		},

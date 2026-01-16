@@ -34,6 +34,14 @@ test("Submit the workspace settings page successfully", async () => {
 		// Immutable value
 		MockWorkspaceBuildParameter4,
 	]);
+	// Mock the API calls for stopping and restarting the workspace
+	const stopWorkspaceSpy = vi
+		.spyOn(API, "stopWorkspace")
+		.mockResolvedValue({ ...MockWorkspaceBuild, transition: "stop" });
+	const waitForBuildSpy = vi.spyOn(API, "waitForBuild").mockResolvedValue({
+		...MockWorkspaceBuild.job,
+		status: "succeeded",
+	});
 	// Mock the API calls that submit data
 	const postWorkspaceBuildSpy = vi
 		.spyOn(API, "postWorkspaceBuild")
@@ -66,6 +74,10 @@ test("Submit the workspace settings page successfully", async () => {
 	);
 	// Assert that the API calls were made with the correct data
 	await waitFor(() => {
+		// Since workspace is running, it should stop first
+		expect(stopWorkspaceSpy).toHaveBeenCalledWith(MockWorkspace.id);
+		expect(waitForBuildSpy).toHaveBeenCalled();
+		// Then start with new parameters
 		expect(postWorkspaceBuildSpy).toHaveBeenCalledWith(MockWorkspace.id, {
 			reason: "dashboard",
 			transition: "start",
