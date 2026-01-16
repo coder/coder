@@ -68,6 +68,22 @@ const (
 	AddonAIGovernance Addon = "ai_governance"
 )
 
+var (
+	// AddonsNames must be kept in-sync with the Addon enum above.
+	AddonsNames = []Addon{
+		AddonAIGovernance,
+	}
+
+	// AddonsMap is a map of all addon names for quick lookups.
+	AddonsMap = func() map[Addon]struct{} {
+		addonsMap := make(map[Addon]struct{}, len(AddonsNames))
+		for _, addon := range AddonsNames {
+			addonsMap[addon] = struct{}{}
+		}
+		return addonsMap
+	}()
+)
+
 // Features returns all the features that are part of the addon.
 func (a Addon) Features() []FeatureName {
 	switch a {
@@ -290,9 +306,18 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
-// IsAIGovernance returns true if the feature is an AI governance feature.
+// IsAIGovernance returns true if the feature is an AI governance addon feature.
 func (n FeatureName) IsAIGovernance() bool {
 	return n == FeatureAIBridge || n == FeatureBoundary
+}
+
+// IsAddon returns true if the feature is an addon feature.
+func (n FeatureName) IsAddon() bool {
+	features := []FeatureName{}
+	for addon := range AddonsMap {
+		features = append(features, addon.Features()...)
+	}
+	return slices.Contains(features, n)
 }
 
 // FeatureSet represents a grouping of features. Rather than manually
