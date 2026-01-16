@@ -81,7 +81,6 @@ BEGIN
 			CONTINUE;
 		END IF;
 
-
 		-- For every workspace, calculate the total runtime within the specified date range.
 		FOR workspace_build IN
 			SELECT
