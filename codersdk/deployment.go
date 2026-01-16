@@ -95,12 +95,36 @@ func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
 			FeatureManagedAgentLimit,
 		}
 
-		for _, feature := range requiredFeatures {
-			if _, ok := features[feature]; !ok {
+		for _, featureName := range requiredFeatures {
+			feature, ok := features[featureName]
+			if !ok {
 				errors = append(errors,
 					fmt.Sprintf(
 						"Feature %s must be set when using the %s addon.",
-						feature.Humanize(),
+						featureName.Humanize(),
+						a.Humanize(),
+					),
+				)
+				continue
+			}
+			// For limit features, check if the Limit is set (not nil).
+			// For usage period features, check if the Limit is set.
+			if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
+				if feature.Limit == nil {
+					errors = append(errors,
+						fmt.Sprintf(
+							"Feature %s must be set when using the %s addon.",
+							featureName.Humanize(),
+							a.Humanize(),
+						),
+					)
+				}
+			} else if feature.Entitlement == EntitlementNotEntitled {
+				// For non-limit features, check if the feature is entitled.
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						featureName.Humanize(),
 						a.Humanize(),
 					),
 				)
