@@ -137,6 +137,16 @@ func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
 	return errors
 }
 
+// Humanize returns the addon name in a human-readable format.
+func (a Addon) Humanize() string {
+	switch a {
+	case AddonAIGovernance:
+		return "AI Governance"
+	default:
+		return strings.Title(strings.ReplaceAll(string(a), "_", " "))
+	}
+}
+
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
@@ -228,16 +238,6 @@ func (n FeatureName) Humanize() string {
 		return "AI Governance User Limit"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
-	}
-}
-
-// Humanize returns the addon name in a human-readable format.
-func (a Addon) Humanize() string {
-	switch a {
-	case AddonAIGovernance:
-		return "AI Governance"
-	default:
-		return strings.Title(strings.ReplaceAll(string(a), "_", " "))
 	}
 }
 
