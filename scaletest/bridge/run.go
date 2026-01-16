@@ -132,20 +132,16 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("strategy setup: %w", err)
 	}
 
-	requestCount := r.cfg.RequestCount
-	if requestCount <= 0 {
-		requestCount = 1
-	}
-
 	model := r.providerStrategy.DefaultModel()
 
 	logger.Info(ctx, "bridge runner is ready",
-		slog.F("request_count", requestCount),
+		slog.F("request_count", r.cfg.RequestCount),
 		slog.F("model", model),
 		slog.F("stream", r.cfg.Stream),
 	)
 
-	for i := 0; i < requestCount; i++ {
+	for i := 0; i < r.cfg.RequestCount; i++ {
+		r.requestCount++
 		if err := r.makeRequest(ctx, logger, requestURL, token, model, i); err != nil {
 			logger.Warn(ctx, "bridge request failed",
 				slog.F("request_num", i+1),
@@ -161,7 +157,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		}
 		r.successCount++
 		r.cfg.Metrics.AddRequest("success")
-		r.requestCount++
 	}
 
 	logger.Info(ctx, "bridge runner completed",
@@ -172,7 +167,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	// Fail the run if any request failed
 	if r.failureCount > 0 {
-		return xerrors.Errorf("bridge runner failed: %d out of %d requests failed", r.failureCount, requestCount)
+		return xerrors.Errorf("bridge runner failed: %d out of %d requests failed", r.failureCount, r.cfg.RequestCount)
 	}
 
 	return nil
