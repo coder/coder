@@ -11,6 +11,7 @@ import type {
 	WorkspaceUser,
 } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
 /**
@@ -20,8 +21,12 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
  */
 export function useWorkspaceSharing(workspace: Workspace) {
 	const queryClient = useQueryClient();
+	const { experiments } = useDashboard();
 
-	const workspaceACLQuery = useQuery(workspaceACL(workspace.id));
+	const workspaceACLQuery = useQuery({
+		...workspaceACL(workspace.id),
+		enabled: experiments.includes("workspace-sharing"),
+	});
 
 	const addUserMutation = useMutation(setWorkspaceUserRole(queryClient));
 	const updateUserMutation = useMutation(setWorkspaceUserRole(queryClient));

@@ -1,6 +1,7 @@
 import { deploymentConfig } from "api/queries/deployment";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useAuthenticated } from "hooks/useAuthenticated";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type ActionType,
 	abilitiesByWorkspaceStatus,
@@ -58,6 +59,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	handleDormantActivate,
 }) => {
 	const { user } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const { data: deployment } = useQuery({
 		...deploymentConfig(),
 		enabled: permissions.deploymentConfig,
@@ -191,7 +193,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			{!sharingDisabled && (
+			{!sharingDisabled && experiments.includes("workspace-sharing") && (
 				<ShareButton
 					workspace={workspace}
 					canUpdatePermissions={permissions.updateWorkspace}
