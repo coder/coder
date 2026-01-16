@@ -548,6 +548,15 @@ func LicensesEntitlements(
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
 
+		// AI Bridge has a custom warning message as it moved to a separate add-on.
+		aiBridge := entitlements.Features[codersdk.FeatureAIBridge]
+		if aiBridge.Enabled && aiBridge.Entitlement != codersdk.EntitlementEntitled {
+			entitlements.Warnings = append(entitlements.Warnings,
+				"AI Bridge has reached General Availability and your Coder deployment is not entitled "+
+					"to run this feature. Contact your account team (https://coder.com/contact) for "+
+					"information around getting a license with AI Bridge.")
+		}
+
 		// Add a warning for every feature that is enabled but not entitled or
 		// is in a grace period.
 		for _, featureName := range codersdk.FeatureNames {
@@ -565,6 +574,10 @@ func LicensesEntitlements(
 			}
 			// Managed agent limits have it's own warnings based on the number of built agents!
 			if featureName == codersdk.FeatureManagedAgentLimit {
+				continue
+			}
+			// AI Bridge has a custom warning message as it moved to a separate add-on.
+			if featureName == codersdk.FeatureAIBridge {
 				continue
 			}
 

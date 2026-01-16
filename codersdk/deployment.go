@@ -170,7 +170,8 @@ func (n FeatureName) AlwaysEnable() bool {
 func (n FeatureName) Enterprise() bool {
 	switch n {
 	// Add all features that should be excluded in the Enterprise feature set.
-	case FeatureMultipleOrganizations, FeatureCustomRoles:
+	// AI Bridge is a separate add-on.
+	case FeatureMultipleOrganizations, FeatureCustomRoles, FeatureAIBridge:
 		return false
 	default:
 		return true
@@ -224,11 +225,10 @@ func (set FeatureSet) Features() []FeatureName {
 	case FeatureSetPremium:
 		premiumFeatures := make([]FeatureName, len(FeatureNames))
 		copy(premiumFeatures, FeatureNames)
-		// Remove the selection
+		// Remove features that use limits and AI Bridge (now a separate add-on).
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
-			return f.UsesLimit()
+			return f.UsesLimit() || f == FeatureAIBridge
 		})
-		// FeatureSetPremium is just all features.
 		return premiumFeatures
 	}
 	// By default, return an empty set.
