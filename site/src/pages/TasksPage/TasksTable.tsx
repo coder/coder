@@ -93,7 +93,7 @@ export const TasksTable: FC<TasksTableProps> = ({
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/3">
-						<div className="flex items-center gap-3">
+						<div className="flex items-center gap-4">
 							{canCheckTasks && (
 								<Checkbox
 									disabled={!tasks || tasks.length === 0}
@@ -207,7 +207,7 @@ const TaskRow: FC<TaskRowProps> = ({
 				{...clickableRowProps}
 			>
 				<TableCell>
-					<div className="flex items-center gap-3">
+					<div className="flex items-center gap-4">
 						{canCheck && (
 							<Checkbox
 								data-testid={`checkbox-${task.id}`}
@@ -317,7 +317,7 @@ const TasksSkeleton: FC<TasksSkeletonProps> = ({ canCheckTasks }) => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div className="flex items-center gap-3">
+					<div className="flex items-center gap-4">
 						{canCheckTasks && <Checkbox disabled />}
 						<AvatarDataSkeleton />
 					</div>
