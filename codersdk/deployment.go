@@ -66,6 +66,7 @@ const (
 	AddonAIGovernance Addon = "ai_governance"
 )
 
+// Features returns all the features that are part of the addon.
 func (a Addon) Features() []FeatureName {
 	switch a {
 	case AddonAIGovernance:
