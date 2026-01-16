@@ -168,6 +168,15 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			slog.F("upstream", upstreamURL.Host),
 		)
 
+		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
+		// not through any upstream proxy.
+		proxy.Tr = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    rootCAs,
+			},
+		}
+
 		// Add custom CA certificate if provided (for corporate proxies with private CAs).
 		// If no CA certificate is provided, the system certificate pool is used.
 		if opts.UpstreamProxyCA != "" {
@@ -191,16 +200,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		// This only affects non-allowlisted domains; allowlisted domains are
 		// MITM'd and forwarded to aibridge.
 		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
-	}
-
-	// Set transport with secure TLS defaults and without Proxy to ensure:
-	// - All TLS connections use secure settings
-	// - MITM'd requests go directly to aibridge, not through any upstream proxy
-	proxy.Tr = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			RootCAs:    rootCAs,
-		},
 	}
 
 	srv := &Server{
