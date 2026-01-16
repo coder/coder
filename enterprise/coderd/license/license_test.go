@@ -815,12 +815,14 @@ func TestEntitlements(t *testing.T) {
 		mDB := dbmock.NewMockStore(ctrl)
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
-			FeatureSet: codersdk.FeatureSetNone,
+			FeatureSet: codersdk.FeatureSetPremium,
 			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
+			Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
 			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
 			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
 		}).
+			AIGovernanceLimit(1000).
 			UserLimit(100).
 			ManagedAgentLimit(100, 200)
 
@@ -857,12 +859,13 @@ func TestEntitlements(t *testing.T) {
 			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 			Return([]database.Template{}, nil)
 
-		entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, empty)
+		entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
 		managedAgentLimit, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 		require.True(t, ok)
+
 		require.NotNil(t, managedAgentLimit.SoftLimit)
 		require.EqualValues(t, 100, *managedAgentLimit.SoftLimit)
 		require.NotNil(t, managedAgentLimit.Limit)

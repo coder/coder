@@ -292,23 +292,8 @@ func LicensesEntitlements(
 			})
 		}
 
-		// Combine features from feature set and addons into a single slice.
-		combinedFeatures := claims.FeatureSet.Features()
-		for _, addon := range claims.Addons {
-			validationErrors := addon.ValidateDependencies(claims.Features)
-			if len(validationErrors) > 0 {
-				entitlements.Errors = append(
-					entitlements.Errors,
-					validationErrors...,
-				)
-				// Ignore the addon and don't add any features.
-				continue
-			}
-			combinedFeatures = append(combinedFeatures, addon.Features()...)
-		}
-
 		// Add all features from the feature set and addons.
-		for _, featureName := range combinedFeatures {
+		for _, featureName := range claims.FeatureSet.Features() {
 			if _, ok := licenseForbiddenFeatures[featureName]; ok {
 				// Ignore any features that are forbidden to be set in a license.
 				continue
@@ -439,6 +424,25 @@ func LicensesEntitlements(
 				feature.Limit = ptr.Ref(int64(0))
 			}
 			entitlements.AddFeature(featureName, feature)
+		}
+
+		// Add all features from the addons.
+		for _, addon := range claims.Addons {
+			validationErrors := addon.ValidateDependencies(entitlements.Features)
+			if len(validationErrors) > 0 {
+				entitlements.Errors = append(
+					entitlements.Errors,
+					validationErrors...,
+				)
+				// Ignore the addon and don't add any features.
+				continue
+			}
+			for _, featureName := range addon.Features() {
+				entitlements.AddFeature(featureName, codersdk.Feature{
+					Entitlement: entitlement,
+					Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
+				})
+			}
 		}
 	}
 

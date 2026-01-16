@@ -84,7 +84,7 @@ func (a Addon) Features() []FeatureName {
 
 // ValidateDependencies validates the dependencies of the addon
 // and returns a list of errors for the missing dependencies.
-func (a Addon) ValidateDependencies(features map[FeatureName]int64) []string {
+func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
 	errors := []string{}
 
 	// Candidate for a switch statement once we have more addons.
