@@ -57,9 +57,11 @@ func (e Entitlement) Weight() int {
 	}
 }
 
-// Addon represents a grouping of features.
-// If features were granted al-la-carte like in FeatureSet,
-// we would need to reissue the existing old licenses to include the new feature.
+// Addon represents a grouping of features used for additional license SKUs.
+// It is complementary to FeatureSet and similar in implementation, allowing
+// features to be grouped together dynamically. Unlike FeatureSet, licenses
+// can have multiple addons. This also means that entitlements don't require
+// reissuing when new features are added to an addon.
 type Addon string
 
 const (
