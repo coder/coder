@@ -226,7 +226,8 @@ func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureUserLimit, limit)
 }
 
-func (opts *LicenseOptions) AIGovernanceLimit(limit int64) *LicenseOptions {
+func (opts *LicenseOptions) AIGovernanceAddon(limit int64) *LicenseOptions {
+	opts.Addons = append(opts.Addons, codersdk.AddonAIGovernance)
 	return opts.Feature(codersdk.FeatureAIGovernanceUserLimit, limit)
 }
 

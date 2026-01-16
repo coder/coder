@@ -194,7 +194,6 @@ func TestEntitlements(t *testing.T) {
 					codersdk.FeatureAIGovernanceUserLimit: 1000,
 					codersdk.FeatureManagedAgentLimit:     1000,
 				},
-				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 				FeatureSet: codersdk.FeatureSetPremium,
 				GraceAt:    graceDate,
 				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
@@ -817,12 +816,11 @@ func TestEntitlements(t *testing.T) {
 		licenseOpts := (&coderdenttest.LicenseOptions{
 			FeatureSet: codersdk.FeatureSetPremium,
 			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-			Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
 			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
 			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
 		}).
-			AIGovernanceLimit(1000).
+			AIGovernanceAddon(1000).
 			UserLimit(100).
 			ManagedAgentLimit(100, 200)
 
