@@ -117,7 +117,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/3">
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-3">
 							{canCheckWorkspaces && (
 								<Checkbox
 									disabled={!workspaces || workspaces.length === 0}
@@ -176,7 +176,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							checked={checked}
 						>
 							<TableCell>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-3">
 									{canCheckWorkspaces && (
 										<Checkbox
 											data-testid={`checkbox-${workspace.id}`}
@@ -342,7 +342,7 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell className="w-2/6">
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-3">
 						{canCheckWorkspaces && <Checkbox disabled />}
 						<AvatarDataSkeleton />
 					</div>
