@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestShow(t *testing.T) {
@@ -28,7 +30,7 @@ func TestShow(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		args := []string{
 			"show",
@@ -38,26 +40,30 @@ func TestShow(t *testing.T) {
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		go func() {
 			defer close(doneChan)
-			err := inv.Run()
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		}()
 		matches := []struct {
 			match string
 			write string
 		}{
+			{match: fmt.Sprintf("%s/%s", workspace.OwnerName, workspace.Name)},
+			{match: fmt.Sprintf("(%s since ", build.Status)},
+			{match: fmt.Sprintf("%s:%s", workspace.TemplateName, workspace.LatestBuild.TemplateVersionName)},
 			{match: "compute.main"},
 			{match: "smith (linux, i386)"},
 			{match: "coder ssh " + workspace.Name},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			pty.ExpectMatchContext(ctx, m.match)
 			if len(m.write) > 0 {
 				pty.WriteLine(m.write)
 			}
 		}
-		<-doneChan
+		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 }
 

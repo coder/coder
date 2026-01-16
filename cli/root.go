@@ -24,6 +24,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
@@ -923,6 +924,9 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 // a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
 // where user is either a username or UUID.
 func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+	if uid, err := uuid.Parse(identifier); err == nil {
+		return client.Workspace(ctx, uid)
+	}
 	owner, name, err := splitNamedWorkspace(identifier)
 	if err != nil {
 		return codersdk.Workspace{}, err
