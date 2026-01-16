@@ -2099,7 +2099,7 @@ export interface Feature {
 // From codersdk/deployment.go
 export type FeatureName =
 	| "aibridge"
-	| "ai_governance_limit"
+	| "ai_governance_user_limit"
 	| "access_control"
 	| "advanced_template_scheduling"
 	| "appearance"
@@ -2127,7 +2127,7 @@ export type FeatureName =
 
 export const FeatureNames: FeatureName[] = [
 	"aibridge",
-	"ai_governance_limit",
+	"ai_governance_user_limit",
 	"access_control",
 	"advanced_template_scheduling",
 	"appearance",
