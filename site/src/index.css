@@ -113,8 +113,11 @@
 
 	/* Prevent layout shift when modals/popovers open by maintaining scrollbar width */
 	html {
-		overflow-y: scroll;
 		scrollbar-gutter: stable;
+	}
+
+	body {
+		overflow-y: auto;
 	}
 
 	/*
@@ -123,12 +126,11 @@
 	  MUI Modals/Popovers, when locking body scroll, add `overflow: hidden` and `padding-right`
 	  to the body to compensate for the scrollbar they are hiding. This added padding-right
 	  conflicts with the already reserved gutter space, causing a layout shift.
-	  This rule overrides MUI's added padding-right on the body specifically when MUI
-	  is likely to have set both overflow:hidden and padding-right.
+	  This rule prevents MUI from manipulating body overflow and padding.
 	*/
-	body[style*="overflow: hidden"][style*="padding-right"],
-	body[style*="overflow: hidden"] {
-		overflow-y: scroll !important;
+	body[style*="overflow"],
+	body[style*="padding-right"] {
+		overflow-y: auto !important;
 		padding-right: 0px !important;
 	}
 }
