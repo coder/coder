@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -43,11 +45,11 @@ func (r *RootCmd) show() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
-
 			options := cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
 				ShowDetails:   details,
+				Title:         fmt.Sprintf("%s/%s (%s since %s) %s:%s", workspace.OwnerName, workspace.Name, workspace.LatestBuild.Status, time.Since(workspace.LatestBuild.CreatedAt).Round(time.Second).String(), workspace.TemplateName, workspace.LatestBuild.TemplateVersionName),
 			}
 			if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
 				// Get listening ports for each agent.
@@ -55,7 +57,6 @@ func (r *RootCmd) show() *serpent.Command {
 				options.ListeningPorts = ports
 				options.Devcontainers = devcontainers
 			}
-
 			return cliui.WorkspaceResources(inv.Stdout, workspace.LatestBuild.Resources, options)
 		},
 	}
