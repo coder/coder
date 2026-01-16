@@ -31,13 +31,14 @@ module "claude-code" {
 }
 ```
 
-Create a `config.yaml` file in your template directory with your policy:
+Create a `config.yaml` file in your template directory with your policy. For the Claude Code module, use the following minimal configuration:
 
 ```yaml
 allowlist:
-  - "domain=google.com"
-  - "method=GET,HEAD domain=api.github.com"
-  - "method=POST domain=api.example.com path=/users,/posts"
+  - "domain=api.anthropic.com"          # Required - API endpoint for Claude
+  - "domain=statsig.anthropic.com"      # Highly recommended - Feature flags and analytics
+  - "domain=claude.ai"                  # Required for WebFetch/WebSearch features
+  - "domain=*.sentry.io"                # Recommended - Error tracking (helps Anthropic fix bugs)
 log_dir: /tmp/boundary_logs
 proxy_port: 8087
 log_level: warn
