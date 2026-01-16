@@ -12,6 +12,9 @@ Agent Boundaries support the securing of any terminal-based agent, including you
 
 Agent Boundaries offer network policy enforcement, which blocks domains and HTTP verbs to prevent exfiltration, and writes logs to the workspace.
 
+Agent Boundaries also stream audit logs to Coder's control plane for centralized
+monitoring of HTTP requests.
+
 ## Getting Started with Boundary
 
 The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
@@ -68,8 +71,7 @@ Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when
 
 ### Configuration Parameters
 
-- `boundary_version` defines what version of Boundary is being applied. This is set to `v0.2.0`, which points to the v0.2.0 release tag of `coder/boundary`.
-- `log_dir` is the directory where log files are written to when the workspace spins up.
+- `log_dir` defines where boundary writes log files
 - `log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
   - `WARN`: logs only requests that have been blocked by Boundary
   - `INFO`: logs all requests at a high level
@@ -86,7 +88,7 @@ For detailed information about the rules engine and how to construct allowlist r
 
 You can also run Agent Boundaries directly in your workspace and configure it per template. You can do so by installing the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
-```hcl
+```bash
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
  ```
 
@@ -111,3 +113,46 @@ The choice of jail type depends on your security requirements, available Linux c
 | **Process isolation**         | ✅ PID namespace (processes can't see/kill others); **implementation in-progress** | ❌ No PID namespace (agent can kill other processes)                     |
 | **Non-TCP traffic control**   | ✅ Can block/control UDP via iptables; **implementation in-progress**              | ❌ No control over UDP (data can leak via UDP)                           |
 | **Application compatibility** | ✅ Works with ANY application (transparent interception)                           | ❌ Tools without `HTTP_PROXY` support will be blocked                    |
+
+## Audit Logs
+
+Agent Boundaries stream audit logs to the Coder control plane, providing centralized
+visibility into HTTP requests made within workspaces—whether from AI agents or ad-hoc
+commands run with `boundary-run`.
+
+> [!NOTE]
+> Requires Coder v2.30+ and Boundary v0.5.2+.
+
+### Log Contents
+
+Each boundary audit log entry includes:
+
+| Field            | Description                                                                             |
+|------------------|-----------------------------------------------------------------------------------------|
+| `decision`       | Whether the request was allowed (`allow`) or blocked (`deny`)                           |
+| `workspace_id`   | The UUID of the workspace where the request originated                                  |
+| `workspace_name` | The name of the workspace where the request originated                                  |
+| `owner`          | The owner of the workspace where the request originated                                 |
+| `http_method`    | The HTTP method used (GET, POST, PUT, DELETE, etc.)                                     |
+| `http_url`       | The fully qualified URL that was requested                                              |
+| `event_time`     | Timestamp when boundary processed the request (RFC3339 format)                          |
+| `matched_rule`   | The allowlist rule that permitted the request (only present when `decision` is `allow`) |
+
+### Viewing Audit Logs
+
+Boundary audit logs are emitted as structured log entries from the Coder server.
+You can collect and analyze these logs using any log aggregation system such as
+Grafana Loki.
+
+Example of an allowed request (assuming stderr):
+
+```console
+2026-01-16 00:11:40.564 [info]  coderd.agentrpc: boundary_request owner=joe  workspace_name=some-task-c88d agent_name=dev  decision=allow  workspace_id=f2bd4e9f-7e27-49fc-961e-be4d1c2aa987  http_method=GET http_url=https://dev.coder.com  event_time=2026-01-16T00:11:39.388607657Z  matched_rule=domain=dev.coder.com request_id=9f30d667-1fc9-47ba-b9e5-8eac46e0abef trace=478b2b45577307c4fd1bcfc64fad6ffb span=9ece4bc70c311edb
+```
+
+### Local Logs
+
+In addition to centralized audit logs, boundary writes local logs to the workspace
+filesystem at the path specified by `log_dir` in the configuration. These local logs
+provide immediate visibility within the workspace and can be useful for debugging
+during development.
