@@ -1810,7 +1810,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 
 		// Should have validation errors for both missing dependencies.
 		require.Len(t, entitlements.Errors, 2)
-		require.Equal(t, "Feature AI Governance Limit must be set when using the AI Governance addon.", entitlements.Errors[0])
+		require.Equal(t, "Feature AI Governance User Limit must be set when using the AI Governance addon.", entitlements.Errors[0])
 		require.Equal(t, "Feature Managed Agent Limit must be set when using the AI Governance addon.", entitlements.Errors[1])
 
 		// AI governance features should not be entitled when validation fails.
