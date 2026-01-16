@@ -1,16 +1,14 @@
 allowlist:
-  # specified in claude-code module as well (effectively a duplicate); needed for basic functionality of claude-code agent
-  - domain=anthropic.com
-  - domain=registry.npmjs.org
-  - domain=sentry.io
-  - domain=claude.ai
+  # Test domains
+  - method=GET domain=typicode.com
+  - method=GET domain=*.typicode.com
+
+  # Coder Dogfood Deployment
   - domain=dev.coder.com
 
-  # test domains
-  - method=GET domain=typicode.com
-
-  # domain used in coder task workspaces
+  # Domain used in coder workspaces
   - method=POST domain=http-intake.logs.datadoghq.com
+  - method=POST domain=http-intake.logs.us5.datadoghq.com
 
   # Default allowed domains from Claude Code on the web
   # Source: https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains

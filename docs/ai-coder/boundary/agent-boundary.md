@@ -31,17 +31,21 @@ module "claude-code" {
 }
 ```
 
-Create a `config.yaml` file in your template directory with your policy:
+Create a `config.yaml` file in your template directory with your policy. For the Claude Code module, use the following minimal configuration:
 
 ```yaml
 allowlist:
-  - "domain=google.com"
-  - "method=GET,HEAD domain=api.github.com"
-  - "method=POST domain=api.example.com path=/users,/posts"
+  - "domain=dev.coder.com"              # Required - use your Coder deployment domain
+  - "domain=api.anthropic.com"          # Required - API endpoint for Claude
+  - "domain=statsig.anthropic.com"      # Required - Feature flags and analytics
+  - "domain=claude.ai"                  # Recommended - WebFetch/WebSearch features
+  - "domain=*.sentry.io"                # Recommended - Error tracking (helps Anthropic fix bugs)
 log_dir: /tmp/boundary_logs
 proxy_port: 8087
 log_level: warn
 ```
+
+For a basic recommendation of what to allow for agents, see the [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains). For a comprehensive example of a production Boundary configuration, see the [Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
 
 Add a `coder_script` resource to mount the configuration file into the workspace filesystem:
 

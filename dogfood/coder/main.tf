@@ -888,7 +888,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.3.0"
+  version             = "4.4.2"
   enable_boundary     = true
   boundary_version    = "v0.5.5"
   agent_id            = coder_agent.dev.id
