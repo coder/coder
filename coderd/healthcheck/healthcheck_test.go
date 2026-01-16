@@ -3,6 +3,7 @@ package healthcheck_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/quartz"
 )
 
 type testChecker struct {
@@ -532,4 +534,70 @@ func TestHealthcheck(t *testing.T) {
 			assert.NotZero(t, report.CoderVersion)
 		})
 	}
+}
+
+func TestCheckProgress(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Summary", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+
+		// Start some checks
+		progress.Start("Database")
+		progress.Start("DERP")
+		progress.Start("AccessURL")
+
+		// Advance time to simulate check duration
+		mClock.Advance(100 * time.Millisecond)
+
+		// Complete some checks
+		progress.Complete("Database")
+		progress.Complete("AccessURL")
+
+		summary := progress.Summary()
+
+		// Verify completed and running checks are listed with duration / elapsed
+		assert.Equal(t, summary, "Completed: AccessURL (100ms), Database (100ms). Still running: DERP (elapsed: 100ms)")
+	})
+
+	t.Run("EmptyProgress", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+		summary := progress.Summary()
+
+		// Should be empty string when nothing tracked
+		assert.Empty(t, summary)
+	})
+
+	t.Run("AllCompleted", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+		progress.Start("Database")
+		progress.Start("DERP")
+		mClock.Advance(50 * time.Millisecond)
+		progress.Complete("Database")
+		progress.Complete("DERP")
+
+		summary := progress.Summary()
+		assert.Equal(t, summary, "Completed: DERP (50ms), Database (50ms)")
+	})
+
+	t.Run("AllRunning", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+		progress.Start("Database")
+		progress.Start("DERP")
+
+		summary := progress.Summary()
+		assert.Equal(t, summary, "Still running: DERP (elapsed: 0ms), Database (elapsed: 0ms)")
+	})
 }

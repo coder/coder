@@ -206,7 +206,7 @@ type Options struct {
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
+	HealthcheckFunc              func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -683,7 +683,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -711,6 +711,7 @@ func New(options *Options) *API {
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
 				},
+				Progress: progress,
 			})
 		}
 	}
@@ -883,6 +884,7 @@ func New(options *Options) *API {
 		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
+		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
@@ -1861,8 +1863,9 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
-	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
+	healthCheckGroup    *singleflight.Group[string, *healthsdk.HealthcheckReport]
+	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
+	healthCheckProgress healthcheck.Progress
 
 	statsReporter *workspacestats.Reporter
 

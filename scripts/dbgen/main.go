@@ -55,8 +55,9 @@ func run() error {
 start := time.Now()
 %s := m.s.%s(%s)
 m.queryLatencies.WithLabelValues("%s").Observe(time.Since(start).Seconds())
+m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "%s").Inc()
 return %s
-`, params.Returns, params.FuncName, params.Parameters, params.FuncName, params.Returns)
+`, params.Returns, params.FuncName, params.Parameters, params.FuncName, params.FuncName, params.Returns)
 	})
 	if err != nil {
 		return xerrors.Errorf("stub dbmetrics: %w", err)

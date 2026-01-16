@@ -495,7 +495,7 @@ export const Loaded: Story = {
 							description: "",
 							values: [
 								{
-									value: "false",
+									value: "true",
 									count: 2,
 								},
 							],

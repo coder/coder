@@ -271,22 +271,20 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	}
 }
 
-// ReconcileAll will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
+// ReconcileAll attempts to reconcile the desired vs actual state of all prebuilds for each
+// (organization, template, template version, preset) tuple.
 //
-// NOTE:
+// The result is a set of provisioning actions for each preset. These actions are fire-and-forget:
+// the reconciliation loop does not wait for prebuilt workspaces to complete provisioning.
 //
-// This function will kick of n provisioner jobs, based on the calculated state modifications.
+// An outer read-only transaction holds an advisory lock ensuring only one replica reconciles at a time.
+// This transaction remains open throughout the entire reconciliation cycle. Goroutines responsible for
+// preset reconciliation use separate, independent write transactions (via c.store). In the rare case
+// of the lock transaction failing mid-reconciliation, goroutines may continue while another replica
+// acquires the lock, potentially causing temporary under/over-provisioning. Since the reconciliation
+// loop is eventually consistent, subsequent cycles will converge to the desired state.
 //
-// These provisioning jobs are fire-and-forget. We DO NOT wait for the prebuilt workspaces to complete their
-// provisioning. As a consequence, it's possible that another reconciliation run will occur, which will mean that
-// multiple preset versions could be reconciling at once. This may mean some temporary over-provisioning, but the
-// reconciliation loop will bring these resources back into their desired numbers in an EVENTUALLY-consistent way.
-//
-// For example: we could decide to provision 1 new instance in this reconciliation.
-// While that workspace is being provisioned, another template version is created which means this same preset will
-// be reconciled again, leading to another workspace being provisioned. Two workspace builds will be occurring
-// simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
-// extraneous instance and delete it.
+// NOTE: Read operations must use db (the lock transaction) while write operations must use c.store.
 func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.ReconcileStats, err error) {
 	ctx, span := c.tracer.Start(ctx, "prebuilds.ReconcileAll")
 	defer span.End()
@@ -307,9 +305,10 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 
 	logger.Debug(ctx, "starting reconciliation")
 
-	err = c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+	err = c.WithReconciliationLock(ctx, logger, func(ctx context.Context, db database.Store) error {
 		// Check if prebuilds reconciliation is paused
-		settingsJSON, err := c.store.GetPrebuildsSettings(ctx)
+		// Use db (lock tx) for read-only operations
+		settingsJSON, err := db.GetPrebuildsSettings(ctx)
 		if err != nil {
 			return xerrors.Errorf("get prebuilds settings: %w", err)
 		}
@@ -330,13 +329,16 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 			return nil
 		}
 
+		// MembershipReconciler performs write operations, therefore it needs to use c.store
+		// directly, since the lock transaction db is read-only.
 		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock, logger)
 		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, PrebuiltWorkspacesGroupName)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
 
-		snapshot, err := c.SnapshotState(ctx, c.store)
+		// Use db (lock tx) for read-only operations
+		snapshot, err := c.SnapshotState(ctx, db)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
 		}
@@ -437,6 +439,8 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 
 	var state prebuilds.GlobalSnapshot
 
+	// If called with a store that is already in a transaction,
+	// InTx will reuse that transaction rather than creating a new one.
 	err := store.InTx(func(db database.Store) error {
 		// TODO: implement template-specific reconciliations later
 		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{})

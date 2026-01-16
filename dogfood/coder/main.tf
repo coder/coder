@@ -291,11 +291,6 @@ data "coder_parameter" "ide_choices" {
     icon  = "/icon/jetbrains.svg"
   }
   option {
-    name  = "JetBrains Fleet"
-    value = "fleet"
-    icon  = "/icon/fleet.svg"
-  }
-  option {
     name  = "Cursor"
     value = "cursor"
     icon  = "/icon/cursor.svg"
@@ -453,15 +448,6 @@ module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
   version    = "1.1.4"
-  agent_id   = coder_agent.dev.id
-  agent_name = "dev"
-  folder     = local.repo_dir
-}
-
-module "jetbrains-fleet" {
-  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "fleet") ? data.coder_workspace.me.start_count : 0
-  source     = "registry.coder.com/coder/jetbrains-fleet/coder"
-  version    = "1.0.2"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -631,6 +617,9 @@ resource "coder_agent" "dev" {
     # Clean up the Go build cache to prevent the home volume from
     # accumulating waste and growing too large.
     go clean -cache
+
+    # Clean up the coder build directory as this can get quite large
+    rm -rf "${local.repo_dir}/build"
 
     # Clean up the unused resources to keep storage usage low.
     #
@@ -901,7 +890,7 @@ module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
   version             = "4.3.0"
   enable_boundary     = true
-  boundary_version    = "v0.5.2"
+  boundary_version    = "v0.5.5"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"

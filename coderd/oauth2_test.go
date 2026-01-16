@@ -1329,10 +1329,10 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 		require.Equal(t, int64(0), resp.ClientSecretExpiresAt) // Non-expiring
 
 		// Verify default values
-		require.Contains(t, resp.GrantTypes, "authorization_code")
-		require.Contains(t, resp.GrantTypes, "refresh_token")
-		require.Contains(t, resp.ResponseTypes, "code")
-		require.Equal(t, "client_secret_basic", resp.TokenEndpointAuthMethod)
+		require.Contains(t, resp.GrantTypes, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
+		require.Contains(t, resp.GrantTypes, codersdk.OAuth2ProviderGrantTypeRefreshToken)
+		require.Contains(t, resp.ResponseTypes, codersdk.OAuth2ProviderResponseTypeCode)
+		require.Equal(t, codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, resp.TokenEndpointAuthMethod)
 
 		// Verify request values are preserved
 		require.Equal(t, req.RedirectURIs, resp.RedirectURIs)
@@ -1363,9 +1363,9 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 		require.NotEmpty(t, resp.RegistrationClientURI)
 
 		// Should have defaults applied
-		require.Contains(t, resp.GrantTypes, "authorization_code")
-		require.Contains(t, resp.ResponseTypes, "code")
-		require.Equal(t, "client_secret_basic", resp.TokenEndpointAuthMethod)
+		require.Contains(t, resp.GrantTypes, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
+		require.Contains(t, resp.ResponseTypes, codersdk.OAuth2ProviderResponseTypeCode)
+		require.Equal(t, codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, resp.TokenEndpointAuthMethod)
 	})
 
 	t.Run("InvalidRedirectURI", func(t *testing.T) {

@@ -35,6 +35,7 @@ export interface AIBridgeConfig {
 	readonly retention: number;
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
+	readonly structured_logging: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -71,6 +72,7 @@ export interface AIBridgeProxyConfig {
 	readonly listen_addr: string;
 	readonly cert_file: string;
 	readonly key_file: string;
+	readonly domain_allowlist: string;
 }
 
 // From codersdk/aibridge.go
@@ -1736,6 +1738,8 @@ export interface DeploymentValues {
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
+	readonly pg_conn_max_open?: number;
+	readonly pg_conn_max_idle?: string;
 	readonly oauth2?: OAuth2Config;
 	readonly oidc?: OIDCConfig;
 	readonly telemetry?: TelemetryConfig;
@@ -2930,7 +2934,7 @@ export interface OAuth2AppEndpoints {
 
 // From codersdk/oauth2.go
 /**
- * OAuth2AuthorizationServerMetadata represents RFC 8414 OAuth 2.0 Authorization Server Metadata
+ * OAuth2AuthorizationServerMetadata represents RFC 8414 OAuth 2.0 Authorization Server Metadata.
  */
 export interface OAuth2AuthorizationServerMetadata {
 	readonly issuer: string;
@@ -2938,17 +2942,16 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly token_endpoint: string;
 	readonly registration_endpoint?: string;
 	readonly revocation_endpoint?: string;
-	readonly response_types_supported: readonly string[];
-	readonly grant_types_supported: readonly string[];
-	readonly code_challenge_methods_supported: readonly string[];
+	readonly response_types_supported: readonly OAuth2ProviderResponseType[];
+	readonly grant_types_supported?: readonly OAuth2ProviderGrantType[];
+	readonly code_challenge_methods_supported?: readonly OAuth2PKCECodeChallengeMethod[];
 	readonly scopes_supported?: readonly string[];
-	readonly token_endpoint_auth_methods_supported?: readonly string[];
+	readonly token_endpoint_auth_methods_supported?: readonly OAuth2TokenEndpointAuthMethod[];
 }
 
 // From codersdk/oauth2.go
 /**
- * OAuth2ClientConfiguration represents RFC 7592 Client Configuration (for GET/PUT operations)
- * Same as OAuth2ClientRegistrationResponse but without client_secret in GET responses
+ * OAuth2ClientConfiguration represents RFC 7592 Client Read Response.
  */
 export interface OAuth2ClientConfiguration {
 	readonly client_id: string;
@@ -2964,18 +2967,18 @@ export interface OAuth2ClientConfiguration {
 	readonly jwks?: Record<string, string>;
 	readonly software_id?: string;
 	readonly software_version?: string;
-	readonly grant_types: readonly string[];
-	readonly response_types: readonly string[];
-	readonly token_endpoint_auth_method: string;
+	readonly grant_types: readonly OAuth2ProviderGrantType[];
+	readonly response_types: readonly OAuth2ProviderResponseType[];
+	readonly token_endpoint_auth_method: OAuth2TokenEndpointAuthMethod;
 	readonly scope?: string;
 	readonly contacts?: readonly string[];
-	readonly registration_access_token: string;
+	readonly registration_access_token?: string;
 	readonly registration_client_uri: string;
 }
 
 // From codersdk/oauth2.go
 /**
- * OAuth2ClientRegistrationRequest represents RFC 7591 Dynamic Client Registration Request
+ * OAuth2ClientRegistrationRequest represents RFC 7591 Dynamic Client Registration Request.
  */
 export interface OAuth2ClientRegistrationRequest {
 	readonly redirect_uris?: readonly string[];
@@ -2989,21 +2992,21 @@ export interface OAuth2ClientRegistrationRequest {
 	readonly software_id?: string;
 	readonly software_version?: string;
 	readonly software_statement?: string;
-	readonly grant_types?: readonly string[];
-	readonly response_types?: readonly string[];
-	readonly token_endpoint_auth_method?: string;
+	readonly grant_types?: readonly OAuth2ProviderGrantType[];
+	readonly response_types?: readonly OAuth2ProviderResponseType[];
+	readonly token_endpoint_auth_method?: OAuth2TokenEndpointAuthMethod;
 	readonly scope?: string;
 	readonly contacts?: readonly string[];
 }
 
 // From codersdk/oauth2.go
 /**
- * OAuth2ClientRegistrationResponse represents RFC 7591 Dynamic Client Registration Response
+ * OAuth2ClientRegistrationResponse represents RFC 7591 Dynamic Client Registration Response.
  */
 export interface OAuth2ClientRegistrationResponse {
 	readonly client_id: string;
 	readonly client_secret?: string;
-	readonly client_id_issued_at: number;
+	readonly client_id_issued_at?: number;
 	readonly client_secret_expires_at?: number;
 	readonly redirect_uris?: readonly string[];
 	readonly client_name?: string;
@@ -3015,9 +3018,9 @@ export interface OAuth2ClientRegistrationResponse {
 	readonly jwks?: Record<string, string>;
 	readonly software_id?: string;
 	readonly software_version?: string;
-	readonly grant_types: readonly string[];
-	readonly response_types: readonly string[];
-	readonly token_endpoint_auth_method: string;
+	readonly grant_types: readonly OAuth2ProviderGrantType[];
+	readonly response_types: readonly OAuth2ProviderResponseType[];
+	readonly token_endpoint_auth_method: OAuth2TokenEndpointAuthMethod;
 	readonly scope?: string;
 	readonly contacts?: readonly string[];
 	readonly registration_access_token: string;
@@ -3034,6 +3037,46 @@ export interface OAuth2DeviceFlowCallbackResponse {
 	readonly redirect_url: string;
 }
 
+// From codersdk/oauth2.go
+/**
+ * OAuth2Error represents an OAuth2-compliant error response per RFC 6749.
+ */
+export interface OAuth2Error {
+	readonly error: OAuth2ErrorCode;
+	readonly error_description?: string;
+	readonly error_uri?: string;
+}
+
+// From codersdk/oauth2.go
+export type OAuth2ErrorCode =
+	| "access_denied"
+	| "invalid_client"
+	| "invalid_grant"
+	| "invalid_request"
+	| "invalid_scope"
+	| "invalid_target"
+	| "server_error"
+	| "temporarily_unavailable"
+	| "unauthorized_client"
+	| "unsupported_grant_type"
+	| "unsupported_response_type"
+	| "unsupported_token_type";
+
+export const OAuth2ErrorCodes: OAuth2ErrorCode[] = [
+	"access_denied",
+	"invalid_client",
+	"invalid_grant",
+	"invalid_request",
+	"invalid_scope",
+	"invalid_target",
+	"server_error",
+	"temporarily_unavailable",
+	"unauthorized_client",
+	"unsupported_grant_type",
+	"unsupported_response_type",
+	"unsupported_token_type",
+];
+
 // From codersdk/deployment.go
 export interface OAuth2GithubConfig {
 	readonly client_id: string;
@@ -3046,6 +3089,14 @@ export interface OAuth2GithubConfig {
 	readonly allow_everyone: boolean;
 	readonly enterprise_base_url: string;
 }
+
+// From codersdk/oauth2.go
+export type OAuth2PKCECodeChallengeMethod = "plain" | "S256";
+
+export const OAuth2PKCECodeChallengeMethods: OAuth2PKCECodeChallengeMethod[] = [
+	"plain",
+	"S256",
+];
 
 // From codersdk/client.go
 /**
@@ -3099,18 +3150,27 @@ export interface OAuth2ProviderAppSecretFull {
 }
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderGrantType = "authorization_code" | "refresh_token";
+export type OAuth2ProviderGrantType =
+	| "authorization_code"
+	| "client_credentials"
+	| "implicit"
+	| "password"
+	| "refresh_token";
 
 export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
 	"authorization_code",
+	"client_credentials",
+	"implicit",
+	"password",
 	"refresh_token",
 ];
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderResponseType = "code";
+export type OAuth2ProviderResponseType = "code" | "token";
 
 export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 	"code",
+	"token",
 ];
 
 // From codersdk/client.go
@@ -3119,11 +3179,81 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
  */
 export const OAuth2RedirectCookie = "oauth_redirect";
 
+// From codersdk/oauth2.go
+export type OAuth2RevocationTokenTypeHint = "access_token" | "refresh_token";
+
+export const OAuth2RevocationTokenTypeHints: OAuth2RevocationTokenTypeHint[] = [
+	"access_token",
+	"refresh_token",
+];
+
 // From codersdk/client.go
 /**
  * OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
  */
 export const OAuth2StateCookie = "oauth_state";
+
+// From codersdk/oauth2.go
+export type OAuth2TokenEndpointAuthMethod =
+	| "client_secret_basic"
+	| "client_secret_post"
+	| "none";
+
+export const OAuth2TokenEndpointAuthMethods: OAuth2TokenEndpointAuthMethod[] = [
+	"client_secret_basic",
+	"client_secret_post",
+	"none",
+];
+
+// From codersdk/oauth2.go
+/**
+ * OAuth2TokenRequest represents a token request per RFC 6749. The actual wire
+ * format is application/x-www-form-urlencoded; this struct is for SDK docs.
+ */
+export interface OAuth2TokenRequest {
+	readonly grant_type: OAuth2ProviderGrantType;
+	readonly code?: string;
+	readonly redirect_uri?: string;
+	readonly client_id?: string;
+	readonly client_secret?: string;
+	readonly code_verifier?: string;
+	readonly refresh_token?: string;
+	readonly resource?: string;
+	readonly scope?: string;
+}
+
+// From codersdk/oauth2.go
+/**
+ * OAuth2TokenResponse represents a successful token response per RFC 6749.
+ */
+export interface OAuth2TokenResponse {
+	readonly access_token: string;
+	readonly token_type: OAuth2TokenType;
+	readonly expires_in?: number;
+	readonly refresh_token?: string;
+	readonly scope?: string;
+	/**
+	 * Expiry is not part of RFC 6749 but is included for compatibility with
+	 * golang.org/x/oauth2.Token and clients that expect a timestamp.
+	 */
+	readonly expiry?: string;
+}
+
+// From codersdk/oauth2.go
+/**
+ * OAuth2TokenRevocationRequest represents a token revocation request per RFC 7009.
+ */
+export interface OAuth2TokenRevocationRequest {
+	readonly token: string;
+	readonly token_type_hint?: OAuth2RevocationTokenTypeHint;
+	readonly client_id?: string;
+	readonly client_secret?: string;
+}
+
+// From codersdk/oauth2.go
+export type OAuth2TokenType = "Bearer" | "DPoP";
+
+export const OAuth2TokenTypes: OAuth2TokenType[] = ["Bearer", "DPoP"];
 
 // From codersdk/users.go
 export interface OAuthConversionResponse {
@@ -3449,6 +3579,13 @@ export interface PostWorkspaceUsageRequest {
 export type PostgresAuth = "awsiamrds" | "password";
 
 export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
+
+// From codersdk/deployment.go
+/**
+ * PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
+ * based on max open connections.
+ */
+export const PostgresConnMaxIdleAuto = "auto";
 
 // From codersdk/deployment.go
 export interface PprofConfig {
@@ -6664,6 +6801,14 @@ export interface WorkspaceResourceMetadata {
 export type WorkspaceRole = "admin" | "" | "use";
 
 export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
+
+// From codersdk/workspacesharing.go
+/**
+ * WorkspaceSharingSettings represents workspace sharing settings for an organization.
+ */
+export interface WorkspaceSharingSettings {
+	readonly sharing_disabled: boolean;
+}
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
