@@ -626,7 +626,7 @@ func TestPremiumSuperSet(t *testing.T) {
 	// Premium = All Features EXCEPT limit-based features and features provided by addons
 	expectedPremiumFeatures := []codersdk.FeatureName{}
 	for _, feature := range codersdk.FeatureNames {
-		if feature.UsesLimit() || feature.IsAIGovernance() {
+		if feature.UsesLimit() || feature.IsAddonFeature() {
 			continue
 		}
 		expectedPremiumFeatures = append(expectedPremiumFeatures, feature)

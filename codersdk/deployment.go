@@ -91,7 +91,7 @@ func (a Addon) Features() []FeatureName {
 		// Return all AI governance features.
 		var features []FeatureName
 		for _, featureName := range FeatureNames {
-			if featureName.IsAIGovernance() {
+			if featureName.IsAIGovernanceAddon() {
 				features = append(features, featureName)
 			}
 		}
@@ -306,13 +306,13 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
-// IsAIGovernance returns true if the feature is an AI governance addon feature.
-func (n FeatureName) IsAIGovernance() bool {
+// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+func (n FeatureName) IsAIGovernanceAddon() bool {
 	return n == FeatureAIBridge || n == FeatureBoundary
 }
 
 // IsAddon returns true if the feature is an addon feature.
-func (n FeatureName) IsAddon() bool {
+func (n FeatureName) IsAddonFeature() bool {
 	features := []FeatureName{}
 	for addon := range AddonsMap {
 		features = append(features, addon.Features()...)
@@ -344,7 +344,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			return !f.Enterprise() || f.UsesLimit() || f.IsAIGovernance()
+			return !f.Enterprise() || f.UsesLimit() || f.IsAddonFeature()
 		})
 
 		return enterpriseFeatures
@@ -353,7 +353,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
-			return f.UsesLimit() || f.IsAIGovernance()
+			return f.UsesLimit() || f.IsAddonFeature()
 		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures
