@@ -97,28 +97,24 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 func TestEncodeAgentIDChunks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ChunkSize", func(t *testing.T) {
-		t.Parallel()
+	// Create 600 agents (should split into 2 chunks: 363 + 237).
+	agentIDs := make([]uuid.UUID, 600)
+	for i := range agentIDs {
+		agentIDs[i] = uuid.New()
+	}
 
-		// Create 600 agents (should split into 2 chunks: 363 + 237).
-		agentIDs := make([]uuid.UUID, 600)
-		for i := range agentIDs {
-			agentIDs[i] = uuid.New()
-		}
+	chunks, err := metadatabatcher.EncodeAgentIDChunks(agentIDs)
+	require.NoError(t, err)
+	require.Len(t, chunks, 2)
 
-		chunks, err := metadatabatcher.EncodeAgentIDChunks(agentIDs)
-		require.NoError(t, err)
-		require.Len(t, chunks, 2)
+	// First chunk should have 363 IDs (363 * 22 = 7986 bytes).
+	require.Equal(t, 363*22, len(chunks[0]))
 
-		// First chunk should have 363 IDs (363 * 22 = 7986 bytes).
-		require.Equal(t, 363*22, len(chunks[0]))
+	// Second chunk should have 237 IDs (237 * 22 = 5214 bytes).
+	require.Equal(t, 237*22, len(chunks[1]))
 
-		// Second chunk should have 237 IDs (237 * 22 = 5214 bytes).
-		require.Equal(t, 237*22, len(chunks[1]))
-
-		// Each chunk should be under 8KB.
-		for i, chunk := range chunks {
-			require.LessOrEqual(t, len(chunk), 8000, "chunk %d exceeds 8KB limit", i)
-		}
-	})
+	// Each chunk should be under 8KB.
+	for i, chunk := range chunks {
+		require.LessOrEqual(t, len(chunk), 8000, "chunk %d exceeds 8KB limit", i)
+	}
 }
