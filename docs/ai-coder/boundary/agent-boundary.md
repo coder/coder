@@ -38,7 +38,7 @@ allowlist:
   - "domain=dev.coder.com"              # Required - use your Coder deployment domain
   - "domain=api.anthropic.com"          # Required - API endpoint for Claude
   - "domain=statsig.anthropic.com"      # Required - Feature flags and analytics
-  - "domain=claude.ai"                  # Required - WebFetch/WebSearch features
+  - "domain=claude.ai"                  # Recommended - WebFetch/WebSearch features
   - "domain=*.sentry.io"                # Recommended - Error tracking (helps Anthropic fix bugs)
 log_dir: /tmp/boundary_logs
 proxy_port: 8087
