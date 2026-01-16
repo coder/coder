@@ -86,6 +86,10 @@ func (c Config) Validate() error {
 		if c.UpstreamURL == "" {
 			return xerrors.New("upstream_url must be set in direct mode")
 		}
+		// NumMessages is required when generating custom payload sizes.
+		if c.RequestPayloadSize > 0 && c.NumMessages <= 0 {
+			return xerrors.New("num_messages must be greater than 0 when request_payload_size is set")
+		}
 		return nil
 	}
 
