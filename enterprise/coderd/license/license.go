@@ -428,7 +428,10 @@ func LicensesEntitlements(
 
 		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
 
-		// Add all features from the addons.
+		// Finally, add all features from the addons. We do this last so that
+		// any dependencies of an addon are validated against the calculated
+		// found entitlements. This is to stop a race condition with how we
+		// calculate entitlements in tests.
 		for _, addon := range claims.Addons {
 			validationErrors := addon.ValidateDependencies(entitlements.Features)
 			if len(validationErrors) > 0 {
