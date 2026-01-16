@@ -1,10 +1,10 @@
-import Checkbox from "@mui/material/Checkbox";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -96,15 +96,13 @@ export const TasksTable: FC<TasksTableProps> = ({
 						<div className="flex items-center gap-2">
 							{canCheckTasks && (
 								<Checkbox
-									className="-my-[9px]"
 									disabled={!tasks || tasks.length === 0}
 									checked={
 										tasks &&
 										tasks.length > 0 &&
 										checkedTaskIds.size === tasks.length
 									}
-									size="xsmall"
-									onChange={(_, checked) => {
+									onCheckedChange={(checked) => {
 										if (!tasks || !onCheckChange) {
 											return;
 										}
@@ -213,13 +211,12 @@ const TaskRow: FC<TaskRowProps> = ({
 						{canCheck && (
 							<Checkbox
 								data-testid={`checkbox-${task.id}`}
-								size="xsmall"
 								checked={checked}
 								onClick={(e) => {
 									e.stopPropagation();
 								}}
-								onChange={(e) => {
-									onCheckChange(task.id, e.currentTarget.checked);
+								onCheckedChange={(checked) => {
+									onCheckChange(task.id, Boolean(checked));
 								}}
 								aria-label={`Select task ${task.initial_prompt}`}
 							/>
@@ -321,7 +318,7 @@ const TasksSkeleton: FC<TasksSkeletonProps> = ({ canCheckTasks }) => {
 			<TableRowSkeleton>
 				<TableCell>
 					<div className="flex items-center gap-2">
-						{canCheckTasks && <Checkbox size="small" disabled />}
+						{canCheckTasks && <Checkbox disabled />}
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

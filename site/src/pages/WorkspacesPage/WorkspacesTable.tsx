@@ -1,4 +1,3 @@
-import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
 import { apiKey } from "api/queries/users";
@@ -19,6 +18,7 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
@@ -120,11 +120,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						<div className="flex items-center gap-2">
 							{canCheckWorkspaces && (
 								<Checkbox
-									className="-my-[9px]"
 									disabled={!workspaces || workspaces.length === 0}
-									checked={checkedWorkspaces.length === workspaces?.length}
-									size="xsmall"
-									onChange={(_, checked) => {
+									checked={
+										workspaces &&
+										workspaces.length > 0 &&
+										checkedWorkspaces.length === workspaces.length
+									}
+									onCheckedChange={(checked) => {
 										if (!workspaces) {
 											return;
 										}
@@ -135,6 +137,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											onCheckChange(workspaces);
 										}
 									}}
+									aria-label="Select all workspaces"
 								/>
 							)}
 							Name
@@ -177,14 +180,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									{canCheckWorkspaces && (
 										<Checkbox
 											data-testid={`checkbox-${workspace.id}`}
-											size="xsmall"
 											disabled={cantBeChecked(workspace)}
 											checked={checked}
 											onClick={(e) => {
 												e.stopPropagation();
 											}}
-											onChange={(e) => {
-												if (e.currentTarget.checked) {
+											onCheckedChange={(checked) => {
+												if (checked) {
 													onCheckChange([...checkedWorkspaces, workspace]);
 												} else {
 													onCheckChange(
@@ -194,6 +196,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													);
 												}
 											}}
+											aria-label={`Select workspace ${workspace.name}`}
 										/>
 									)}
 									<AvatarData
@@ -340,7 +343,7 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 			<TableRowSkeleton>
 				<TableCell className="w-2/6">
 					<div className="flex items-center gap-2">
-						{canCheckWorkspaces && <Checkbox size="small" disabled />}
+						{canCheckWorkspaces && <Checkbox disabled />}
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>
