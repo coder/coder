@@ -18055,20 +18055,19 @@ WHERE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE
 	-- Filter out builds that are not the latest, with exception for shutdown case.
-	AND (
+	-- Use CASE for short-circuiting: check normal case first (most common), then shutdown case.
+	AND CASE
 		-- Normal case: Agent's build is the latest build.
-		workspace_build_with_user.build_number = (
+		WHEN workspace_build_with_user.build_number = (
 			SELECT
 				MAX(build_number)
 			FROM
 				workspace_builds
 			WHERE
 				workspace_id = workspace_build_with_user.workspace_id
-		)
+		) THEN TRUE
 		-- Shutdown case: Agent from previous START build during STOP build execution.
-		OR (
-			-- Agent belongs to a START build.
-			workspace_build_with_user.transition = 'start'
+		WHEN workspace_build_with_user.transition = 'start'
 			-- Agent's START build job succeeded.
 			AND (SELECT job_status FROM provisioner_jobs WHERE id = workspace_build_with_user.job_id) = 'succeeded'
 			-- Latest build is a STOP build whose job is still active,
@@ -18087,9 +18086,9 @@ WHERE
 				AND latest.transition = 'stop'
 				AND latest.template_version_id = workspace_build_with_user.template_version_id
 				AND pj.job_status IN ('pending', 'running')
-			)
-		)
-	)
+			) THEN TRUE
+		ELSE FALSE
+	END
 `
 
 type GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow struct {
