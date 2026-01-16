@@ -25,6 +25,10 @@ func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	all := make(map[codersdk.FeatureName]bool)
 	for _, n := range codersdk.FeatureNames {
+		// AI Bridge is a separate add-on, not included in standard feature sets.
+		if n == codersdk.FeatureAIBridge {
+			continue
+		}
 		all[n] = true
 	}
 
@@ -911,7 +915,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureAccessControl:              true,
 		codersdk.FeatureControlSharedPorts:         true,
 		codersdk.FeatureWorkspaceExternalAgent:     true,
-		codersdk.FeatureAIBridge:                   true,
+		// FeatureAIBridge is intentionally not included as it's a separate add-on.
 	}
 
 	legacyLicense := func() *coderdenttest.LicenseOptions {
