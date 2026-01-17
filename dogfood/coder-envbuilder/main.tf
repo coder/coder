@@ -18,8 +18,8 @@ locals {
   // Ask #dogfood-admins for help.
   // NOTE: keep these up to date with those in ../dogfood/main.tf!
   docker_host = {
-    ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
-    "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    ""              = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
+    "us-pittsburgh" = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
     // For legacy reasons, this host is labelled `eu-helsinki` but it's
     // actually in Germany now.
     "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
