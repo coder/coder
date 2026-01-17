@@ -919,6 +919,14 @@ func (m queryMetricsStore) GetAuditLogsOffset(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken)
+	m.queryLatencies.WithLabelValues("GetAuthenticatedWorkspaceAgentAndBuildByAuthToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
@@ -2204,14 +2212,6 @@ func (m queryMetricsStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID
 	r0, r1 := m.s.GetWorkspaceACLByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetWorkspaceACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceACLByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentAndLatestBuildByAuthToken").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentAndLatestBuildByAuthToken").Inc()
 	return r0, r1
 }
 
