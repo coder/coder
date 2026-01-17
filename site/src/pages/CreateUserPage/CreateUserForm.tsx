@@ -171,7 +171,7 @@ export const CreateUserForm: FC<
 						id="login_type"
 						data-testid="login-type-input"
 						value={form.values.login_type}
-						label="Login Type"
+						label="Login type"
 						onChange={async (e) => {
 							if (e.target.value !== "password") {
 								await form.setFieldValue("password", "");

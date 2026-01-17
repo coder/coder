@@ -268,7 +268,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 						justifyContent="space-between"
 						alignItems="start"
 					>
-						<HelpTooltipTitle>Listening Ports</HelpTooltipTitle>
+						<HelpTooltipTitle>Listening ports</HelpTooltipTitle>
 						<HelpTooltipLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
 						>
@@ -431,7 +431,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 					borderTop: `1px solid ${theme.palette.divider}`,
 				}}
 			>
-				<HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
+				<HelpTooltipTitle>Shared ports</HelpTooltipTitle>
 				<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
 					{canSharePorts
 						? "Ports can be shared with organization members, other Coder users, or with the public."
@@ -581,7 +581,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									fullWidth
 									select
 									value={form.values.share_level}
-									label="Sharing Level"
+									label="Sharing level"
 								>
 									<MenuItem value="organization">Organization</MenuItem>
 									{canSharePortsAuthenticated ? (

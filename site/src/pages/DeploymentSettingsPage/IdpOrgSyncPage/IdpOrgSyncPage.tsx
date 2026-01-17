@@ -79,7 +79,7 @@ const IdpOrgSyncPage: FC = () => {
 				<ChooseOne>
 					<Cond condition={!isIdpSyncEnabled}>
 						<Paywall
-							message="IdP Organization Sync"
+							message="IdP Organization sync"
 							description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
 							documentationLink={docs("/admin/users/idp-sync")}
 						/>

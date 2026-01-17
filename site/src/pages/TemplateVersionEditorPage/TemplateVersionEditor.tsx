@@ -380,7 +380,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<IconButton
-											aria-label="Create File"
+											aria-label="Create file"
 											onClick={(event) => {
 												setCreateFileOpen(true);
 												event.currentTarget.blur();
@@ -389,7 +389,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											<PlusIcon className="size-icon-xs" />
 										</IconButton>
 									</TooltipTrigger>
-									<TooltipContent>Create File</TooltipContent>
+									<TooltipContent>Create file</TooltipContent>
 								</Tooltip>
 							</div>
 							<CreateFileDialog

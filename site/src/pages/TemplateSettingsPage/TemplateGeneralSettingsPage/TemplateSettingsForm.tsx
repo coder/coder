@@ -287,7 +287,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							isSubmitting || (!template.deprecated && !accessControlEnabled)
 						}
 						fullWidth
-						label="Deprecation Message"
+						label="Deprecation message"
 					/>
 					{!accessControlEnabled && (
 						<Stack direction="row" spacing={2} alignItems="center">
@@ -303,7 +303,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			</FormSection>
 
 			<FormSection
-				title="Port Sharing"
+				title="Port sharing"
 				description="Shared ports with the Public sharing level can be accessed by anyone,
           while ports with the Authenticated sharing level can only be accessed
           by authenticated Coder users. Ports with the Owner sharing level can
@@ -323,7 +323,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								? form.values.max_port_share_level
 								: "public"
 						}
-						label="Maximum Port Sharing Level"
+						label="Maximum port sharing level"
 					>
 						<MenuItem value="owner">Owner</MenuItem>
 						<MenuItem value="organization">Organization</MenuItem>
@@ -343,13 +343,13 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 
 			<FormSection
 				title="CORS Behavior"
-				description="Control how Cross-Origin Resource Sharing (CORS) requests are handled for all shared ports."
+				description="Control how Cross-Origin Resource sharing (CORS) requests are handled for all shared ports."
 			>
 				<FormFields>
 					<TextField
 						{...getFieldHelpers("cors_behavior", {
 							helperText:
-								"Use Passthru to bypass Coder's built-in CORS protection.",
+								"Use passthru to bypass Coder's built-in CORS protection.",
 						})}
 						disabled={isSubmitting}
 						fullWidth

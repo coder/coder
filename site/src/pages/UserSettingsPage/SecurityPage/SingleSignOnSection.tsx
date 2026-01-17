@@ -103,7 +103,7 @@ const SSOEmptyState: FC = () => {
 	return (
 		<EmptyState
 			className="rounded-lg border border-solid border-border min-h-0"
-			message="No SSO Providers"
+			message="No SSO providers"
 			description="No SSO providers are configured with this Coder deployment."
 			cta={
 				<Link
@@ -236,7 +236,7 @@ const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 
 	return (
 		<img
-			alt="Open ID Connect icon"
+			alt="Open ID connect icon"
 			src={oidcAuth.iconUrl}
 			css={{ width: 16, height: 16 }}
 		/>

@@ -240,7 +240,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			</div>
 
 			<div className="flex items-center">
-				<div className="mr-4 text-content-primary">Active Connections</div>
+				<div className="mr-4 text-content-primary">Active connections</div>
 
 				<div className="flex gap-2 text-content-secondary">
 					<TooltipProvider delayDuration={100}>
@@ -297,7 +297,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 										: stats?.session_count.reconnecting_pty}
 								</div>
 							</TooltipTrigger>
-							<TooltipContent>Web Terminal Sessions</TooltipContent>
+							<TooltipContent>Web terminal sessions</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 				</div>

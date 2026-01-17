@@ -65,7 +65,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 
 				{showDormancyWarning && (
 					<>
-						<h4>Dormancy Threshold</h4>
+						<h4>Dormancy threshold</h4>
 						<p css={styles.dialogDescription}>
 							This change will result in{" "}
 							<strong>{inactiveWorkspacesToGoDormant}</strong>{" "}
@@ -88,7 +88,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 									}}
 								/>
 							}
-							label="Prevent Dormancy - Reset all workspace inactivity periods"
+							label="Prevent dormancy - Reset all workspace inactivity periods"
 						/>
 					</>
 				)}
@@ -118,7 +118,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 									}}
 								/>
 							}
-							label="Prevent Deletion - Reset all workspace dormancy periods"
+							label="Prevent deletion - Reset all workspace dormancy periods"
 						/>
 					</>
 				)}

@@ -105,7 +105,7 @@ export const LicenseSeatConsumptionChart: FC<
 							<ul>
 								<li>
 									<Link asChild>
-										<RouterLink to="/audit">Activity Audit</RouterLink>
+										<RouterLink to="/audit">Activity audit</RouterLink>
 									</Link>
 								</li>
 								<li>

@@ -24,13 +24,13 @@ const newSecurityFormValues = {
 };
 
 const fillAndSubmitSecurityForm = () => {
-	fireEvent.change(screen.getByLabelText("Old Password"), {
+	fireEvent.change(screen.getByLabelText("Old password"), {
 		target: { value: newSecurityFormValues.old_password },
 	});
-	fireEvent.change(screen.getByLabelText("New Password"), {
+	fireEvent.change(screen.getByLabelText("New password"), {
 		target: { value: newSecurityFormValues.password },
 	});
-	fireEvent.change(screen.getByLabelText("Confirm Password"), {
+	fireEvent.change(screen.getByLabelText("Confirm password"), {
 		target: { value: newSecurityFormValues.confirm_password },
 	});
 	fireEvent.click(screen.getByText(Language.updatePassword));

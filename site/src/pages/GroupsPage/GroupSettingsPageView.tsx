@@ -85,7 +85,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 								autoComplete="display_name"
 								autoFocus
 								fullWidth
-								label="Display Name"
+								label="Display name"
 								disabled={isEveryoneGroup(group)}
 							/>
 							<IconField
@@ -113,7 +113,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 						autoFocus
 						fullWidth
 						type="number"
-						label="Quota Allowance"
+						label="Quota allowance"
 					/>
 				</FormFields>
 			</FormSection>

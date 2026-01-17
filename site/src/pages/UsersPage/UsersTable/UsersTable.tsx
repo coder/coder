@@ -17,8 +17,8 @@ const Language = {
 	rolesLabel: "Roles",
 	groupsLabel: "Groups",
 	statusLabel: "Status",
-	lastSeenLabel: "Last Seen",
-	loginTypeLabel: "Login Type",
+	lastSeenLabel: "Last seen",
+	loginTypeLabel: "Login type",
 } as const;
 
 interface UsersTableProps {

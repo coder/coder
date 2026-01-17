@@ -33,8 +33,8 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 		return null;
 	}
 
-	const title = "Dev Container Outdated";
-	const opener = "This Dev Container is outdated.";
+	const title = "Dev container outdated";
+	const opener = "This dev container is outdated.";
 	const text = `${opener} This can happen if you modify your devcontainer.json file after the Dev Container has been created. To fix this, you can rebuild the Dev Container.`;
 
 	return (
@@ -55,7 +55,7 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 						<HelpTooltipAction
 							icon={RotateCcwIcon}
 							onClick={onUpdate}
-							ariaLabel="Rebuild Dev Container"
+							ariaLabel="Rebuild dev container"
 						>
 							Rebuild Dev Container
 						</HelpTooltipAction>

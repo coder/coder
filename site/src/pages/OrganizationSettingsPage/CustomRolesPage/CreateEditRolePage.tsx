@@ -54,7 +54,7 @@ const CreateEditRolePage: FC = () => {
 		>
 			<title>
 				{pageTitle(
-					role !== undefined ? "Edit Custom Role" : "Create Custom Role",
+					role !== undefined ? "Edit custom role" : "Create custom role",
 				)}
 			</title>
 

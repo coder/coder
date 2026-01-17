@@ -58,7 +58,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 	return (
 		<>
 			<SettingsHeader>
-				<SettingsHeaderTitle>New Group</SettingsHeaderTitle>
+				<SettingsHeaderTitle>New group</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Create a group in this organization.
 				</SettingsHeaderDescription>
@@ -87,7 +87,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 								helperText: "Optional: keep empty to default to the name.",
 							})}
 							fullWidth
-							label="Display Name"
+							label="Display name"
 							autoComplete="display_name"
 						/>
 						<IconField
