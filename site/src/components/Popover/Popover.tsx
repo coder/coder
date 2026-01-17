@@ -30,6 +30,10 @@ export const PopoverContent = forwardRef<
 			align={align}
 			sideOffset={sideOffset}
 			collisionPadding={16}
+			onOpenAutoFocus={(e) => {
+				// Prevent focus from scrolling the page to the popover trigger.
+				e.preventDefault();
+			}}
 			className={cn(
 				`z-50 w-72 rounded-md border border-solid bg-surface-primary
 				text-content-primary shadow-md outline-none
