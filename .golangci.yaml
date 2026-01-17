@@ -211,6 +211,14 @@ issues:
     - path: scripts/rules.go
       linters:
         - ALL
+    # Boundary code is imported from github.com/coder/boundary and has different
+    # lint standards. Suppress lint issues in this imported code.
+    - path: enterprise/cli/boundary/
+      linters:
+        - revive
+        - gocritic
+        - gosec
+        - errorlint
 
   fix: true
   max-issues-per-linter: 0
