@@ -249,11 +249,17 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevcontainer) []*agentproto.WorkspaceAgentDevcontainer {
 	ret := make([]*agentproto.WorkspaceAgentDevcontainer, len(devcontainers))
 	for i, dc := range devcontainers {
+		var subagentID []byte
+		if dc.SubagentID.Valid {
+			subagentID = dc.SubagentID.UUID[:]
+		}
+
 		ret[i] = &agentproto.WorkspaceAgentDevcontainer{
 			Id:              dc.ID[:],
 			Name:            dc.Name,
 			WorkspaceFolder: dc.WorkspaceFolder,
 			ConfigPath:      dc.ConfigPath,
+			SubagentId:      subagentID,
 		}
 	}
 	return ret

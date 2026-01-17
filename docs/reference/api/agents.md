@@ -838,6 +838,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
+      "subagent_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "workspace_folder": "string"
     }
   ],
@@ -1015,6 +1019,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
+      "subagent_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "workspace_folder": "string"
     }
   ],

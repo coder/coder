@@ -20639,6 +20639,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "subagent_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
                 "workspace_folder": {
                     "type": "string"
                 }

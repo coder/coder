@@ -28,6 +28,7 @@ type SubAgent struct {
 // name is inherited from the devcontainer.
 func (s SubAgent) CloneConfig(dc codersdk.WorkspaceAgentDevcontainer) SubAgent {
 	return SubAgent{
+		ID:              dc.SubagentID.UUID,
 		Name:            dc.Name,
 		Directory:       s.Directory,
 		Architecture:    s.Architecture,
@@ -38,7 +39,8 @@ func (s SubAgent) CloneConfig(dc codersdk.WorkspaceAgentDevcontainer) SubAgent {
 }
 
 func (s SubAgent) EqualConfig(other SubAgent) bool {
-	return s.Name == other.Name &&
+	return s.ID == other.ID &&
+		s.Name == other.Name &&
 		s.Directory == other.Directory &&
 		s.Architecture == other.Architecture &&
 		s.OperatingSystem == other.OperatingSystem &&
@@ -190,6 +192,11 @@ func (a *subAgentAPIClient) List(ctx context.Context) ([]SubAgent, error) {
 func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (_ SubAgent, err error) {
 	a.logger.Debug(ctx, "creating sub agent", slog.F("name", agent.Name), slog.F("directory", agent.Directory))
 
+	var id []byte
+	if agent.ID != uuid.Nil {
+		id = agent.ID[:]
+	}
+
 	displayApps := make([]agentproto.CreateSubAgentRequest_DisplayApp, 0, len(agent.DisplayApps))
 	for _, displayApp := range agent.DisplayApps {
 		var app agentproto.CreateSubAgentRequest_DisplayApp
@@ -228,6 +235,7 @@ func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (_ SubAg
 		OperatingSystem: agent.OperatingSystem,
 		DisplayApps:     displayApps,
 		Apps:            apps,
+		Id:              id,
 	})
 	if err != nil {
 		return SubAgent{}, err

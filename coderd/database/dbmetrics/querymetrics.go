@@ -3926,6 +3926,14 @@ func (m queryMetricsStore) UpdateWorkspaceAgentConnectionByID(ctx context.Contex
 	return r0
 }
 
+func (m queryMetricsStore) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg database.UpdateWorkspaceAgentDisplayAppsByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentDisplayAppsByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentDisplayAppsByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentDisplayAppsByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)

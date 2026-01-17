@@ -37,25 +37,6 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
-	parentAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get parent agent: %w", err)
-	}
-
-	agentName := req.Name
-	if agentName == "" {
-		return nil, codersdk.ValidationError{
-			Field:  "name",
-			Detail: "agent name cannot be empty",
-		}
-	}
-	if !provisioner.AgentNameRegex.MatchString(agentName) {
-		return nil, codersdk.ValidationError{
-			Field:  "name",
-			Detail: fmt.Sprintf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex),
-		}
-	}
-
 	createdAt := a.Clock.Now()
 
 	displayApps := make([]database.DisplayApp, 0, len(req.DisplayApps))
@@ -83,6 +64,55 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		displayApps = append(displayApps, app)
 	}
 
+	// An ID is only given in the request when it is a terraform-defined devcontainer that has
+	// attached resources. These terraform-defined devcontainers are considered immutable, so
+	// they will already exist and we must update them.
+	if req.Id != nil {
+		id, err := uuid.FromBytes(req.Id)
+		if err != nil {
+			return nil, xerrors.Errorf("parse id: %w", err)
+		}
+
+		subAgent, err := a.Database.GetWorkspaceAgentByID(ctx, id)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace agent by id: %w", err)
+		}
+
+		if err := a.Database.UpdateWorkspaceAgentDisplayAppsByID(ctx, database.UpdateWorkspaceAgentDisplayAppsByIDParams{
+			ID:          id,
+			DisplayApps: displayApps,
+			UpdatedAt:   createdAt,
+		}); err != nil {
+			return nil, xerrors.Errorf("update workspace agent display apps: %w", err)
+		}
+
+		return &agentproto.CreateSubAgentResponse{
+			Agent: &agentproto.SubAgent{
+				Name:      subAgent.Name,
+				Id:        subAgent.ID[:],
+				AuthToken: subAgent.AuthToken[:],
+			},
+		}, nil
+	}
+
+	parentAgent, err := a.AgentFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get parent agent: %w", err)
+	}
+
+	agentName := req.Name
+	if agentName == "" {
+		return nil, codersdk.ValidationError{
+			Field:  "name",
+			Detail: "agent name cannot be empty",
+		}
+	}
+	if !provisioner.AgentNameRegex.MatchString(agentName) {
+		return nil, codersdk.ValidationError{
+			Field:  "name",
+			Detail: fmt.Sprintf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex),
+		}
+	}
 	subAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},

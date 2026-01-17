@@ -1,0 +1,40 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
+		"[root] coder_app.agent-app (expand)" [label = "coder_app.agent-app", shape = "box"]
+		"[root] coder_app.devcontainer-app1 (expand)" [label = "coder_app.devcontainer-app1", shape = "box"]
+		"[root] coder_app.devcontainer-app2 (expand)" [label = "coder_app.devcontainer-app2", shape = "box"]
+		"[root] coder_devcontainer.dev (expand)" [label = "coder_devcontainer.dev", shape = "box"]
+		"[root] coder_env.agent-env (expand)" [label = "coder_env.agent-env", shape = "box"]
+		"[root] coder_env.devcontainer-env (expand)" [label = "coder_env.devcontainer-env", shape = "box"]
+		"[root] coder_script.agent-script (expand)" [label = "coder_script.agent-script", shape = "box"]
+		"[root] coder_script.devcontainer-script (expand)" [label = "coder_script.devcontainer-script", shape = "box"]
+		"[root] null_resource.dev (expand)" [label = "null_resource.dev", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_app.agent-app (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_app.devcontainer-app1 (expand)" -> "[root] coder_devcontainer.dev (expand)"
+		"[root] coder_app.devcontainer-app2 (expand)" -> "[root] coder_devcontainer.dev (expand)"
+		"[root] coder_devcontainer.dev (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_env.agent-env (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_env.devcontainer-env (expand)" -> "[root] coder_devcontainer.dev (expand)"
+		"[root] coder_script.agent-script (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.devcontainer-script (expand)" -> "[root] coder_devcontainer.dev (expand)"
+		"[root] null_resource.dev (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] null_resource.dev (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_app.agent-app (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_app.devcontainer-app1 (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_app.devcontainer-app2 (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_devcontainer.dev (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_env.agent-env (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_env.devcontainer-env (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.agent-script (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.devcontainer-script (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.dev (expand)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
+	}
+}
