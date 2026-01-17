@@ -397,3 +397,12 @@ export const ShowWorkspaceTasks: Story = {
 		],
 	},
 };
+
+export const WithCheckedWorkspaces: Story = {
+	args: {
+		workspaces: allWorkspaces.slice(0, 5),
+		checkedWorkspaces: allWorkspaces.slice(0, 2),
+		canCheckWorkspaces: true,
+		count: 5,
+	},
+};
