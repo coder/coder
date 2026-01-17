@@ -52,4 +52,4 @@ Specifies the directory for the dotfiles repository, relative to global config d
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

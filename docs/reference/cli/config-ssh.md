@@ -114,4 +114,4 @@ Disable starting the workspace automatically when connecting via SSH.
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

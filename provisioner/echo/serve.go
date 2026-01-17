@@ -660,7 +660,15 @@ data "coder_parameter" "{{ .Name }}" {
   ephemeral    = {{ .Ephemeral }}
   order 	 = {{ .Order }}
 {{- if .DefaultValue }}
+  {{- if eq .Type "list(string)" }}
+  default      = jsonencode({{ .DefaultValue }})
+  {{else if eq .Type "bool"}}
   default      = {{ .DefaultValue }}
+  {{else if eq .Type "number"}}
+  default      = {{ .DefaultValue }}
+  {{else}}
+  default      = "{{ .DefaultValue }}"
+  {{- end }}
 {{- end }}
 {{- if .Type }}
   type      = "{{ .Type }}"
