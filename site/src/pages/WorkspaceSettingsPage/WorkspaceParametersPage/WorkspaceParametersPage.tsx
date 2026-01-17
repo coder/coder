@@ -40,17 +40,48 @@ const WorkspaceParametersPage: FC = () => {
 	const navigate = useNavigate();
 	const updateParameters = useMutation({
 		mutationFn: async (buildParameters: WorkspaceBuildParameter[]) => {
+			const currentBuild = workspace.latest_build;
+
+			// If the workspace is in a transitional state, wait for it to reach a stable state
+			if (
+				currentBuild.status === "starting" ||
+				currentBuild.status === "stopping" ||
+				currentBuild.status === "pending" ||
+				currentBuild.status === "canceling"
+			) {
+				const completedBuild = await API.waitForBuild(currentBuild);
+				// If the transition ended up canceled, do not proceed
+				if (completedBuild?.status === "canceled") {
+					throw new Error(
+						"Workspace transition was canceled, not proceeding with parameter update.",
+					);
+				}
+			}
+
+			// If the last transition ended up canceled, do not proceed
+			if (currentBuild.status === "canceled") {
+				throw new Error(
+					"Workspace transition was canceled, not proceeding with parameter update.",
+				);
+			}
+
 			// If workspace is running, stop it first then start with new parameters
-			if (workspace.latest_build.status === "running") {
+			if (currentBuild.status === "running") {
 				const stopBuild = await API.stopWorkspace(workspace.id);
 				const awaitedStopBuild = await API.waitForBuild(stopBuild);
-				// If the stop is canceled, bail out
+				// If the stop is canceled or failed, bail out
 				if (awaitedStopBuild?.status === "canceled") {
 					throw new Error(
 						"Workspace stop was canceled, not proceeding with parameter update.",
 					);
 				}
+				if (awaitedStopBuild?.status === "failed") {
+					throw new Error(
+						"Workspace failed to stop, not proceeding with parameter update.",
+					);
+				}
 			}
+
 			// Now start the workspace with new parameters
 			return API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
