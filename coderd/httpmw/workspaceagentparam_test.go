@@ -86,7 +86,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractWorkspaceAgentParam(db))
+		rtr.Use(httpmw.ExtractWorkspaceAgentAndWorkspaceParam(db))
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
@@ -113,10 +113,10 @@ func TestWorkspaceAgentParam(t *testing.T) {
 				RedirectToLogin: false,
 			}),
 			// Only fail authz in this middleware
-			httpmw.ExtractWorkspaceAgentParam(dbFail),
+			httpmw.ExtractWorkspaceAgentAndWorkspaceParam(dbFail),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.WorkspaceAgentParam(r)
+			_ = httpmw.WorkspaceAgentAndWorkspaceParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
 
@@ -140,10 +140,10 @@ func TestWorkspaceAgentParam(t *testing.T) {
 				DB:              db,
 				RedirectToLogin: false,
 			}),
-			httpmw.ExtractWorkspaceAgentParam(db),
+			httpmw.ExtractWorkspaceAgentAndWorkspaceParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.WorkspaceAgentParam(r)
+			_ = httpmw.WorkspaceAgentAndWorkspaceParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
 

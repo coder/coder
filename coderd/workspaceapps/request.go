@@ -188,10 +188,10 @@ func (r Request) Check() error {
 
 type databaseRequest struct {
 	Request
-	// User is the user that owns the app.
-	User database.User
+	// UserID is the ID of the user that owns the app.
+	UserID uuid.UUID
 	// Workspace is the workspace that the app is in.
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 	// Agent is the agent that the app is running on.
 	Agent database.WorkspaceAgent
 	// App is the app that the user is trying to access.
@@ -420,8 +420,8 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 
 	return &databaseRequest{
 		Request:         r,
-		User:            user,
-		Workspace:       workspace,
+		UserID:          user.ID,
+		Workspace:       workspace.WorkspaceTable(),
 		Agent:           agent,
 		App:             app,
 		AppURL:          appURLParsed,
@@ -443,40 +443,16 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 	}
 
 	var err error
-	agent, err := db.GetWorkspaceAgentByID(ctx, agentID)
+	aw, err := db.GetWorkspaceAgentAndWorkspaceByID(ctx, agentID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent %q: %w", agentID, err)
-	}
-
-	// Get the corresponding resource.
-	res, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent resource %q: %w", agent.ResourceID, err)
-	}
-
-	// Get the corresponding workspace build.
-	build, err := db.GetWorkspaceBuildByJobID(ctx, res.JobID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace build by job ID %q: %w", res.JobID, err)
-	}
-
-	// Get the corresponding workspace.
-	workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace %q: %w", build.WorkspaceID, err)
-	}
-
-	// Get the workspace's owner.
-	user, err := db.GetUserByID(ctx, workspace.OwnerID)
-	if err != nil {
-		return nil, xerrors.Errorf("get user %q: %w", workspace.OwnerID, err)
+		return nil, xerrors.Errorf("get workspace agent %q with workspace: %w", agentID, err)
 	}
 
 	return &databaseRequest{
 		Request:         r,
-		User:            user,
-		Workspace:       workspace,
-		Agent:           agent,
+		UserID:          aw.WorkspaceTable.OwnerID,
+		Workspace:       aw.WorkspaceTable,
+		Agent:           aw.WorkspaceAgent,
 		AppURL:          nil,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil

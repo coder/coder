@@ -148,7 +148,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	aReq.dbReq = dbReq // Update audit request.
 
-	token.UserID = dbReq.User.ID
+	token.UserID = dbReq.UserID
 	token.WorkspaceID = dbReq.Workspace.ID
 	token.AgentID = dbReq.Agent.ID
 	if dbReq.AppURL != nil {
