@@ -89,6 +89,83 @@ test("Submit the workspace settings page successfully", async () => {
 	});
 });
 
+test("Submit the workspace settings page when workspace is stopped", async () => {
+	// Create a stopped workspace
+	const stoppedWorkspace = {
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspaceBuild,
+			status: "stopped" as const,
+			transition: "stop" as const,
+		},
+	};
+
+	// Mock the API calls that loads data
+	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+		stoppedWorkspace,
+	);
+	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+		MockTemplateVersionParameter1,
+		MockTemplateVersionParameter2,
+		// Immutable parameters
+		MockTemplateVersionParameter4,
+	]);
+	vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+		MockWorkspaceBuildParameter1,
+		MockWorkspaceBuildParameter2,
+		// Immutable value
+		MockWorkspaceBuildParameter4,
+	]);
+	// Mock the API calls - stopWorkspace should NOT be called for stopped workspace
+	const stopWorkspaceSpy = vi.spyOn(API, "stopWorkspace");
+	const waitForBuildSpy = vi.spyOn(API, "waitForBuild");
+	// Mock the API calls that submit data
+	const postWorkspaceBuildSpy = vi
+		.spyOn(API, "postWorkspaceBuild")
+		.mockResolvedValue(MockWorkspaceBuild);
+	// Setup event and rendering
+	const user = userEvent.setup();
+	renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
+		route: "/@test-user/test-workspace/settings",
+		path: "/:username/:workspace/settings",
+		// Need this because after submit the user is redirected
+		extraRoutes: [{ path: "/:username/:workspace", element: <div /> }],
+	});
+	await waitForLoaderToBeRemoved();
+	// Fill the form and submit
+	const form = screen.getByTestId("form");
+	const parameter1 = within(form).getByLabelText(
+		MockWorkspaceBuildParameter1.name,
+		{ exact: false },
+	);
+	await user.clear(parameter1);
+	await user.type(parameter1, "new-value");
+	const parameter2 = within(form).getByLabelText(
+		MockWorkspaceBuildParameter2.name,
+		{ exact: false },
+	);
+	await user.clear(parameter2);
+	await user.type(parameter2, "3");
+	await user.click(
+		within(form).getByRole("button", { name: "Submit and restart" }),
+	);
+	// Assert that the API calls were made with the correct data
+	await waitFor(() => {
+		// Since workspace is stopped, it should NOT stop first
+		expect(stopWorkspaceSpy).not.toHaveBeenCalled();
+		expect(waitForBuildSpy).not.toHaveBeenCalled();
+		// Should just start with new parameters
+		expect(postWorkspaceBuildSpy).toHaveBeenCalledWith(stoppedWorkspace.id, {
+			reason: "dashboard",
+			transition: "start",
+			rich_parameter_values: [
+				{ name: MockTemplateVersionParameter1.name, value: "new-value" },
+				{ name: MockTemplateVersionParameter2.name, value: "3" },
+			],
+		});
+	});
+});
+
 test("Submit button is only enabled when changes are made", async () => {
 	// Mock the API calls that loads data
 	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
