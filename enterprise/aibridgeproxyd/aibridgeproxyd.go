@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -74,6 +75,16 @@ type Options struct {
 	// Only requests to these domains will be MITM'd and forwarded to aibridged.
 	// Requests to other domains will be tunneled directly without decryption.
 	DomainAllowlist []string
+	// UpstreamProxy is the URL of an upstream HTTP proxy to chain passthrough
+	// (non-allowlisted) requests through. If empty, passthrough requests connect
+	// directly to their destinations.
+	// Format: http://[user:pass@]host:port or https://[user:pass@]host:port
+	UpstreamProxy string
+	// UpstreamProxyCA is the path to a PEM-encoded CA certificate file to trust
+	// for the upstream proxy's TLS connection. Only needed for HTTPS upstream
+	// proxies with certificates not trusted by the system. If empty, the system
+	// certificate pool is used.
+	UpstreamProxyCA string
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -130,6 +141,65 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy.CertStore = opts.CertStore
 	} else {
 		proxy.CertStore = NewCertCache()
+	}
+
+	// Always set secure TLS defaults, overriding goproxy's default.
+	// This ensures secure TLS connections for:
+	// - HTTPS upstream proxy connections
+	// - MITM'd requests if aibridge uses HTTPS
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
+	}
+
+	// Configure upstream proxy for passthrough (non-allowlisted) requests.
+	// This only affects CONNECT requests to domains not in the allowlist.
+	// MITM'd requests (allowlisted domains) are handled by aiproxy and forwarded
+	// to aibridge directly, not through the upstream proxy. AI Bridge respects
+	// proxy environment variables if set, so the upstream proxy is used at that
+	// layer instead.
+	if opts.UpstreamProxy != "" {
+		upstreamURL, err := url.Parse(opts.UpstreamProxy)
+		if err != nil {
+			return nil, xerrors.Errorf("invalid upstream proxy URL %q: %w", opts.UpstreamProxy, err)
+		}
+
+		logger.Info(ctx, "configuring upstream proxy for passthrough requests",
+			slog.F("upstream", upstreamURL.Host),
+		)
+
+		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
+		// not through any upstream proxy.
+		proxy.Tr = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    rootCAs,
+			},
+		}
+
+		// Add custom CA certificate if provided (for corporate proxies with private CAs).
+		// If no CA certificate is provided, the system certificate pool is used.
+		if opts.UpstreamProxyCA != "" {
+			if upstreamURL.Scheme == "https" {
+				caCert, err := os.ReadFile(opts.UpstreamProxyCA)
+				if err != nil {
+					return nil, xerrors.Errorf("failed to read upstream proxy CA certificate from %q: %w", opts.UpstreamProxyCA, err)
+				}
+				if !rootCAs.AppendCertsFromPEM(caCert) {
+					return nil, xerrors.Errorf("failed to parse upstream proxy CA certificate")
+				}
+				logger.Info(ctx, "configured upstream proxy CA certificate")
+			} else {
+				logger.Warn(ctx, "upstream proxy CA certificate is only used for HTTPS upstream proxies, ignoring",
+					slog.F("upstream_scheme", upstreamURL.Scheme),
+				)
+			}
+		}
+
+		// Configure passthrough CONNECT requests to go through upstream proxy.
+		// This only affects non-allowlisted domains; allowlisted domains are
+		// MITM'd and forwarded to aibridge.
+		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
 	}
 
 	srv := &Server{

@@ -23,6 +23,8 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (*aibridgeproxyd.Server, error
 		CertFile:        coderAPI.DeploymentValues.AI.BridgeProxyConfig.CertFile.String(),
 		KeyFile:         coderAPI.DeploymentValues.AI.BridgeProxyConfig.KeyFile.String(),
 		DomainAllowlist: coderAPI.DeploymentValues.AI.BridgeProxyConfig.DomainAllowlist.Value(),
+		UpstreamProxy:   coderAPI.DeploymentValues.AI.BridgeProxyConfig.UpstreamProxy.String(),
+		UpstreamProxyCA: coderAPI.DeploymentValues.AI.BridgeProxyConfig.UpstreamProxyCA.String(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to start in-memory aibridgeproxy daemon: %w", err)
