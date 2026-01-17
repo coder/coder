@@ -292,11 +292,10 @@ func LicensesEntitlements(
 			})
 		}
 
-		// Add all features from the feature set defined.
+		// Add all features from the feature set.
 		for _, featureName := range claims.FeatureSet.Features() {
 			if _, ok := licenseForbiddenFeatures[featureName]; ok {
-				// Ignore any FeatureSet features that are forbidden to be set
-				// in a license.
+				// Ignore any FeatureSet features that are forbidden to be set in a license.
 				continue
 			}
 			if _, ok := featureGrouping[featureName]; ok {
@@ -304,8 +303,8 @@ func LicensesEntitlements(
 				// multiple feature values into a single SDK feature.
 				continue
 			}
-			if featureName == codersdk.FeatureUserLimit || featureName.UsesUsagePeriod() {
-				// FeatureUserLimit and usage period features are handled below.
+			if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
+				// Limit and usage period features are handled below.
 				// They don't provide default values as they are always enabled
 				// and require a limit to be specified in the license to have
 				// any effect.
@@ -355,18 +354,25 @@ func LicensesEntitlements(
 				continue
 			}
 
-			// Handling for non-grouped features.
-			switch featureName {
-			case codersdk.FeatureUserLimit:
+			// Handling for limit features.
+			switch {
+			case featureName.UsesLimit():
 				if featureValue <= 0 {
-					// 0 user count doesn't make sense, so we skip it.
+					// 0 limit value or less doesn't make sense, so we skip it.
 					continue
 				}
-				entitlements.AddFeature(codersdk.FeatureUserLimit, codersdk.Feature{
+
+				// When we have a limit feature, we need to set the actual value (if available).
+				var actual *int64
+				if featureName == codersdk.FeatureUserLimit {
+					actual = &featureArguments.ActiveUserCount
+				}
+
+				entitlements.AddFeature(featureName, codersdk.Feature{
 					Enabled:     true,
 					Entitlement: entitlement,
 					Limit:       &featureValue,
-					Actual:      &featureArguments.ActiveUserCount,
+					Actual:      actual,
 				})
 			default:
 				if featureValue <= 0 {
@@ -417,6 +423,35 @@ func LicensesEntitlements(
 				feature.SoftLimit = ptr.Ref(int64(0))
 				feature.Limit = ptr.Ref(int64(0))
 			}
+			entitlements.AddFeature(featureName, feature)
+		}
+
+		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
+
+		// Finally, add all features from the addons. We do this last so that
+		// any dependencies of an addon are validated against the calculated
+		// found entitlements. This is to stop a race condition with how we
+		// calculate entitlements in tests.
+		for _, addon := range claims.Addons {
+			validationErrors := addon.ValidateDependencies(entitlements.Features)
+			if len(validationErrors) > 0 {
+				entitlements.Errors = append(
+					entitlements.Errors,
+					validationErrors...,
+				)
+				// Ignore the addon and don't add any features.
+				continue
+			}
+			for _, featureName := range addon.Features() {
+				if _, exists := addonFeatures[featureName]; !exists {
+					addonFeatures[featureName] = codersdk.Feature{
+						Entitlement: entitlement,
+						Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
+					}
+				}
+			}
+		}
+		for featureName, feature := range addonFeatures {
 			entitlements.AddFeature(featureName, feature)
 		}
 	}
@@ -643,11 +678,12 @@ type Claims struct {
 	FeatureSet    codersdk.FeatureSet `json:"feature_set"`
 	// AllFeatures represents 'FeatureSet = FeatureSetEnterprise'
 	// Deprecated: AllFeatures is deprecated in favor of FeatureSet.
-	AllFeatures      bool     `json:"all_features,omitempty"`
-	Version          uint64   `json:"version"`
-	Features         Features `json:"features"`
-	RequireTelemetry bool     `json:"require_telemetry,omitempty"`
-	PublishUsageData bool     `json:"publish_usage_data,omitempty"`
+	AllFeatures      bool             `json:"all_features,omitempty"`
+	Version          uint64           `json:"version"`
+	Features         Features         `json:"features"`
+	Addons           []codersdk.Addon `json:"addons,omitempty"`
+	RequireTelemetry bool             `json:"require_telemetry,omitempty"`
+	PublishUsageData bool             `json:"publish_usage_data,omitempty"`
 }
 
 var _ jwt.Claims = &Claims{}

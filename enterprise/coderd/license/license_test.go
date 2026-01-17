@@ -189,10 +189,11 @@ func TestEntitlements(t *testing.T) {
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureUserLimit: 100,
-					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureUserLimit:             100,
+					codersdk.FeatureAuditLog:              1,
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
 				},
-
 				FeatureSet: codersdk.FeatureSetPremium,
 				GraceAt:    graceDate,
 				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
@@ -246,11 +247,14 @@ func TestEntitlements(t *testing.T) {
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureUserLimit: 100,
-					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureUserLimit:             100,
+					codersdk.FeatureAuditLog:              1,
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,
+				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 				GraceAt:    graceDate,
 				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
 			}),
@@ -366,7 +370,10 @@ func TestEntitlements(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
 		for _, featureName := range codersdk.FeatureNames {
-			if featureName == codersdk.FeatureUserLimit || featureName == codersdk.FeatureHighAvailability || featureName == codersdk.FeatureMultipleExternalAuth || featureName == codersdk.FeatureManagedAgentLimit {
+			if featureName == codersdk.FeatureUserLimit ||
+				featureName == codersdk.FeatureHighAvailability ||
+				featureName == codersdk.FeatureMultipleExternalAuth ||
+				featureName == codersdk.FeatureManagedAgentLimit {
 				// These fields don't generate warnings when not entitled unless
 				// a limit is breached.
 				continue
@@ -813,6 +820,7 @@ func TestEntitlements(t *testing.T) {
 			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
 			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
 		}).
+			AIGovernanceAddon(1000).
 			UserLimit(100).
 			ManagedAgentLimit(100, 200)
 
@@ -855,6 +863,7 @@ func TestEntitlements(t *testing.T) {
 
 		managedAgentLimit, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 		require.True(t, ok)
+
 		require.NotNil(t, managedAgentLimit.SoftLimit)
 		require.EqualValues(t, 100, *managedAgentLimit.SoftLimit)
 		require.NotNil(t, managedAgentLimit.Limit)
@@ -892,7 +901,6 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureAccessControl:              true,
 		codersdk.FeatureControlSharedPorts:         true,
 		codersdk.FeatureWorkspaceExternalAgent:     true,
-		codersdk.FeatureAIBridge:                   true,
 	}
 
 	legacyLicense := func() *coderdenttest.LicenseOptions {
@@ -1642,6 +1650,177 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.NotZero(t, feature.UsagePeriod.IssuedAt)
 		require.NotZero(t, feature.UsagePeriod.Start)
 		require.NotZero(t, feature.UsagePeriod.End)
+	})
+}
+
+func TestAIGovernanceAddon(t *testing.T) {
+	t.Parallel()
+
+	empty := map[codersdk.FeatureName]bool{}
+
+	t.Run("AIGovernanceAddon enables AI governance features when enablements are set", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+				Features: license.Features{
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
+				},
+				Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
+			}),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+
+		// Enable AI governance features in enablements.
+		enablements := map[codersdk.FeatureName]bool{
+			codersdk.FeatureAIBridge: true,
+			codersdk.FeatureBoundary: true,
+		}
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, enablements)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+
+		// AI Bridge should be enabled and entitled.
+		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
+		require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
+
+		// Boundary should be enabled and entitled.
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.True(t, boundaryFeature.Enabled, "Boundary should be enabled when addon is present and enablements are set")
+		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled when addon is present")
+	})
+
+	t.Run("AIGovernanceAddon not present disables AI governance features", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+			}),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+
+		enablements := map[codersdk.FeatureName]bool{
+			codersdk.FeatureAIBridge: true,
+			codersdk.FeatureBoundary: true,
+		}
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, enablements)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+
+		// AI Bridge should not be entitled.
+		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon is absent")
+		require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon is absent")
+
+		// Boundary should not be entitled.
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon is absent")
+		require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon is absent")
+	})
+
+	t.Run("AIGovernanceAddon respects grace period entitlement", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+				Features: license.Features{
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
+				},
+				Addons:    []codersdk.Addon{codersdk.AddonAIGovernance},
+				NotBefore: dbtime.Now().Add(-time.Hour * 2),
+				GraceAt:   dbtime.Now().Add(-time.Hour),
+				ExpiresAt: dbtime.Now().Add(time.Hour),
+			}),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+
+		enablements := map[codersdk.FeatureName]bool{
+			codersdk.FeatureAIBridge: true,
+			codersdk.FeatureBoundary: true,
+		}
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, enablements)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+
+		// AI governance features should be enabled but in grace period.
+		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled during grace period")
+		require.Equal(t, codersdk.EntitlementGracePeriod, aibridgeFeature.Entitlement, "AI Bridge should be in grace period")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.True(t, boundaryFeature.Enabled, "Boundary should be enabled during grace period")
+		require.Equal(t, codersdk.EntitlementGracePeriod, boundaryFeature.Entitlement, "Boundary should be in grace period")
+	})
+
+	t.Run("AIGovernanceAddon requires enablements to enable features", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+				Features: license.Features{
+					codersdk.FeatureAIGovernanceUserLimit: 1000,
+					codersdk.FeatureManagedAgentLimit:     1000,
+				},
+				Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
+			}),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, empty)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+
+		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled without enablements")
+		require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should still be entitled")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled without enablements")
+		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should still be entitled")
+	})
+
+	t.Run("AIGovernanceAddon missing dependencies", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		// Use Enterprise so ManagedAgentLimit doesn't get default value, and
+		// don't set either dependency.
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetEnterprise,
+				Features:   license.Features{},
+				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
+			}),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+
+		enablements := map[codersdk.FeatureName]bool{
+			codersdk.FeatureAIBridge: true,
+			codersdk.FeatureBoundary: true,
+		}
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, enablements)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+
+		// Should have validation errors for both missing dependencies.
+		require.Len(t, entitlements.Errors, 2)
+		require.Equal(t, "Feature AI Governance User Limit must be set when using the AI Governance addon.", entitlements.Errors[0])
+		require.Equal(t, "Feature Managed Agent Limit must be set when using the AI Governance addon.", entitlements.Errors[1])
+
+		// AI governance features should not be entitled when validation fails.
+		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon validation fails")
+		require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon validation fails")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon validation fails")
+		require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon validation fails")
 	})
 }
 

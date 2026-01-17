@@ -623,10 +623,10 @@ func TestPremiumSuperSet(t *testing.T) {
 	// Premium ⊃ Enterprise
 	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
 
-	// Premium = All Features EXCEPT usage limit features
+	// Premium = All Features EXCEPT limit-based features and features provided by addons
 	expectedPremiumFeatures := []codersdk.FeatureName{}
 	for _, feature := range codersdk.FeatureNames {
-		if feature.UsesLimit() {
+		if feature.UsesLimit() || feature.IsAddonFeature() {
 			continue
 		}
 		expectedPremiumFeatures = append(expectedPremiumFeatures, feature)
