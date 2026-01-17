@@ -1,33 +1,31 @@
-import { css } from "@emotion/css";
-import Autocomplete from "@mui/material/Autocomplete";
-import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
 import { checkAuthorization } from "api/queries/authCheck";
 import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
+import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { type ComponentProps, type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
 type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;
 	label?: string;
 	className?: string;
-	size?: ComponentProps<typeof TextField>["size"];
 	required?: boolean;
 	check?: AuthorizationCheck;
+	error?: boolean;
+	helperText?: React.ReactNode;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	onChange,
 	label,
 	className,
-	size = "small",
 	required,
 	check,
+	error,
+	helperText,
 }) => {
-	const [open, setOpen] = useState(false);
 	const [selected, setSelected] = useState<Organization | null>(null);
 	const organizationsQuery = useQuery(organizations());
 	const checks =
@@ -73,74 +71,45 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	}, [options, selected, onChange]);
 
 	return (
-		<Autocomplete
-			noOptionsText="No organizations found"
-			className={className}
-			options={options}
-			disabled={options.length === 1}
-			value={selected}
-			loading={organizationsQuery.isLoading}
-			data-testid="organization-autocomplete"
-			open={open}
-			isOptionEqualToValue={(a, b) => a.id === b.id}
-			getOptionLabel={(option) => option.display_name}
-			onOpen={() => {
-				setOpen(true);
-			}}
-			onClose={() => {
-				setOpen(false);
-			}}
-			onChange={(_, newValue) => {
-				setSelected(newValue);
-				onChange(newValue);
-			}}
-			renderOption={({ key, ...props }, option) => (
-				<li key={key} {...props}>
+		<div className="flex flex-col gap-2">
+			<Autocomplete
+				value={selected}
+				onChange={(newValue) => {
+					setSelected(newValue);
+					onChange(newValue);
+				}}
+				options={options}
+				getOptionValue={(option) => option.id}
+				getOptionLabel={(option) => option.display_name}
+				isOptionEqualToValue={(a, b) => a.id === b.id}
+				renderOption={(option) => (
 					<AvatarData
 						title={option.display_name}
 						subtitle={option.name}
 						src={option.icon}
 					/>
-				</li>
+				)}
+				label={label}
+				placeholder="Organization name"
+				noOptionsText="No organizations found"
+				loading={organizationsQuery.isLoading}
+				disabled={options.length === 1}
+				required={required}
+				startAdornment={
+					selected && (
+						<Avatar size="sm" src={selected.icon} fallback={selected.name} />
+					)
+				}
+				className={className}
+				data-testid="organization-autocomplete"
+			/>
+			{helperText && (
+				<span
+					className={`text-xs ${error ? "text-content-destructive" : "text-content-secondary"}`}
+				>
+					{helperText}
+				</span>
 			)}
-			renderInput={(params) => (
-				<TextField
-					{...params}
-					required={required}
-					fullWidth
-					size={size}
-					label={label}
-					placeholder="Organization name"
-					css={{
-						"&:not(:has(label))": {
-							margin: 0,
-						},
-					}}
-					InputProps={{
-						...params.InputProps,
-						startAdornment: selected && (
-							<Avatar size="sm" src={selected.icon} fallback={selected.name} />
-						),
-						endAdornment: (
-							<>
-								{organizationsQuery.isFetching && open && (
-									<CircularProgress size={16} />
-								)}
-								{params.InputProps.endAdornment}
-							</>
-						),
-						classes: { root },
-					}}
-					InputLabelProps={{
-						shrink: true,
-					}}
-				/>
-			)}
-		/>
+		</div>
 	);
 };
-
-const root = css`
-	padding-left: 14px !important; // Same padding left as input
-	gap: 4px;
-`;
